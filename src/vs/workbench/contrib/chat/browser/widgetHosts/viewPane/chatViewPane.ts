@@ -87,7 +87,7 @@ import { IVoiceSessionController } from '../../voiceClient/voiceSessionControlle
 import { IVoiceInputModeService, SimulatedVoiceState } from '../../voiceInputMode/voiceInputMode.js';
 import { isGlowingVoiceState, readVoiceGlowIntensity, resolveVoiceGlowColors, VoiceGlowState } from '../../voiceClient/voiceGlow.js';
 import { createVoiceGlowController } from '../../voiceClient/voiceGlowController.js';
-import { combineVoiceInput } from '../../voiceClient/voiceInputUtils.js';
+import { acceptVoiceInput } from '../../voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../voiceClient/voiceToolDispatchService.js';
 import { IAgentTitleBarStatusService } from '../../agentSessions/experiments/agentTitleBarStatusService.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
@@ -434,25 +434,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		if (this.configurationService.getValue<boolean>('agents.voice.enabled')) {
 			// Voice command bridge — lets the VoiceSessionController reach into the chat widget
-			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (accessor, text: string) => {
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				// Ignore lastFocusedWidget when its input no longer has focus because blur does not clear it.
-				const focusedWidget = chatWidgetService.lastFocusedWidget;
-				const widget = focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
-				if (text && widget?.viewModel) {
-					if (widget.viewModel.editing) {
-						// When editing an old message, populate the active input
-						// editor so the user can review before submitting.
-						widget.input.setValue(text, false);
-					} else {
-						// Preserve any text the user already typed in the input.
-						return widget.acceptInput(combineVoiceInput(widget.getInput(), text), {
-							preserveFocus: true,
-							isVoiceModeInput: this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true,
-						});
-					}
+			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.acceptInput', (_accessor, text: string, expectedSessionId?: string) => {
+				const widget = this._getVoiceSubmissionWidget(expectedSessionId);
+				if (expectedSessionId && widget?.viewModel?.sessionResource.toString() !== expectedSessionId) {
+					return false;
 				}
-				return undefined;
+				return acceptVoiceInput(widget, text, this.configurationService.getValue<boolean>(VOICE_AGENT_PROGRESS_SETTING) === true);
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.switchToSession', async (_accessor, resourceStr: string): Promise<boolean> => {
 				if (!resourceStr) {
@@ -470,7 +457,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				}
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getCurrentSession', (_accessor): string | undefined => {
-				return this._widget?.viewModel?.sessionResource?.toString();
+				return this._getVoiceSubmissionWidget()?.viewModel?.sessionResource?.toString();
 			}));
 			this._voiceBarDisposables.add(CommandsRegistry.registerCommand('_chat.voice.selectModel', (_accessor, requestedModel: string): IVoiceModelSelectionResult => {
 				const widget = this._getVoiceActionWidget();
@@ -486,6 +473,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					: { ok: false, reason: 'selection_failed', available_models: resolved.available_models };
 			}));
 		}
+	}
+
+	private _getVoiceSubmissionWidget(expectedSessionId?: string) {
+		if (expectedSessionId) {
+			return this.chatWidgetService.getWidgetBySessionResource(URI.parse(expectedSessionId));
+		}
+		const focusedWidget = this.chatWidgetService.lastFocusedWidget;
+		return focusedWidget?.hasInputFocus() ? focusedWidget : this._widget;
 	}
 
 	private _getVoiceActionWidget() {

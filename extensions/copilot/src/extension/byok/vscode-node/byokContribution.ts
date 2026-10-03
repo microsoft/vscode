@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { LanguageModelChatInformation, LanguageModelChatProvider, lm } from 'vscode';
+import { CancellationToken, LanguageModelChatInformation, LanguageModelChatProvider, lm, speech } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
@@ -18,6 +19,7 @@ import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
 import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
+import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable, USE_BYOK_VOICE_MODEL_SETTING } from './gptLiveSession';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
@@ -31,6 +33,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	private _providersRegistered = false;
 	private _knownModelsRefreshed = false;
 	private _knownModelsRefreshTargets: ReadonlyArray<readonly [string, AbstractLanguageModelChatProvider]> = [];
+	private _openAIProvider: OAIBYOKLMProvider | undefined;
 
 	constructor(
 		@IFetcherService private readonly _fetcherService: IFetcherService,
@@ -38,9 +41,13 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._byokStorageService = new BYOKStorageService(extensionContext);
+		this._register(speech.registerVoiceLiveSessionProvider(GPT_LIVE_SESSION_PROVIDER_ID, {
+			provideVoiceLiveSession: (sdp, token) => this._provideGptLiveSession(sdp, token),
+		}));
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
 		// A token minted after a failed attempt arrives without an identity change. Token loss is left to
@@ -52,6 +59,43 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		}));
 	}
 
+	private async _provideGptLiveSession(sdp: string | undefined, token: CancellationToken): Promise<GptLiveSessionResult> {
+		if (!isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)) {
+			this._logService.info('BYOK: GPT-Live is unavailable because client BYOK is not allowed.');
+			return { available: false };
+		}
+		const modelId = this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim();
+		if (!modelId || token.isCancellationRequested) {
+			return { available: false };
+		}
+		const openAIModels = await lm.selectChatModels({ vendor: OAIBYOKLMProvider.providerId });
+		if (token.isCancellationRequested || !isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken)
+			|| modelId !== this._configurationService.getNonExtensionConfig<string>(USE_BYOK_VOICE_MODEL_SETTING)?.trim()) {
+			return { available: false };
+		}
+		const apiKey = openAIModels.length > 0 ? this._openAIProvider?.apiKey : undefined;
+		if (!apiKey) {
+			this._logService.info('BYOK: GPT-Live is unavailable because no OpenAI API key is configured.');
+			return { available: false };
+		}
+		if (sdp === undefined) {
+			try {
+				const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId, token);
+				this._logService.info(`BYOK: configured GPT-Live model is ${isAvailable ? 'available' : 'unavailable'}.`);
+				return isAvailable
+					? { available: true }
+					: { available: false };
+			} catch (error) {
+				this._logService.warn(`BYOK: failed to check GPT-Live model availability: ${error instanceof Error ? error.message : String(error)}`);
+				return { available: false };
+			}
+		}
+		return {
+			available: true,
+			session: await createGptLiveSession(this._fetcherService, apiKey, modelId, sdp, token),
+		};
+	}
+
 	private _buildProviders(): void {
 		const instantiationService = this._instantiationService;
 
@@ -59,6 +103,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		const gemini = instantiationService.createInstance(GeminiNativeBYOKLMProvider, undefined, this._byokStorageService);
 		const xai = instantiationService.createInstance(XAIBYOKLMProvider, {}, this._byokStorageService);
 		const openai = instantiationService.createInstance(OAIBYOKLMProvider, {}, this._byokStorageService);
+		this._openAIProvider = openai;
 
 		this._providers.set(OllamaLMProvider.providerId, instantiationService.createInstance(OllamaLMProvider, this._byokStorageService));
 		this._providers.set(AnthropicLMProvider.providerId, anthropic);

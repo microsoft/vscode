@@ -39,6 +39,13 @@ export function resolveQuestionAnswers(
 	const byId = new Map(questions.map(q => [q.id, q]));
 	const resolved: IChatQuestionAnswers = {};
 	for (const answer of answers) {
+		if (!answer || typeof answer !== 'object' || Array.isArray(answer)
+			|| typeof answer.question_id !== 'string'
+			|| (answer.value !== undefined && typeof answer.value !== 'string')
+			|| (answer.freeform !== undefined && typeof answer.freeform !== 'string')
+			|| (answer.values !== undefined && (!Array.isArray(answer.values) || answer.values.some(value => typeof value !== 'string')))) {
+			return undefined;
+		}
 		const question = byId.get(answer.question_id);
 		if (!question || Object.hasOwn(resolved, question.id)) {
 			return undefined;
