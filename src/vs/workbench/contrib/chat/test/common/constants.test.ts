@@ -74,7 +74,6 @@ suite('ChatConfiguration defaults', () => {
 			{ policy: 'ChatAgentSandboxEnabled', setting: 'chat.agent.sandbox.enabled', value: 'on', reportsGap: false },
 			{ policy: 'ChatAgentSandboxAllowNetwork', setting: 'chat.agent.sandbox.network.allowNetwork', value: false, reportsGap: false },
 			{ policy: 'ChatAgentSandboxAllowUnsandboxedCommands', setting: 'chat.agent.sandbox.allowUnsandboxedCommands', value: false, reportsGap: false },
-			{ policy: 'ChatAgentSandboxAllowAutoApprove', setting: 'chat.agent.sandbox.allowAutoApprove', value: false, reportsGap: false },
 		];
 		setup(() => {
 			sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations')

@@ -399,7 +399,7 @@ suite('Session sandbox configuration', () => {
 				denied: initial.map(value => ({
 					...value, network: false, bypass: false,
 					sdk: {
-						enabled: true, allowBypass: false,
+						enabled: true, addCurrentWorkingDirectory: true, allowBypass: false,
 						auth: { git: true, gh: true },
 						userPolicy: {
 							filesystem: { readonlyPaths: ['/reference'], deniedPaths: ['/private'] },

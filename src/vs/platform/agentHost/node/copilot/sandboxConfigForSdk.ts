@@ -73,6 +73,12 @@ export interface SandboxNetworkPolicy {
 	/** Whether localhost and local-network connections are permitted. */
 	allowLocalNetwork?: boolean;
 
+	/** Hosts that sandboxed processes are allowed to connect to. */
+	allowedHosts?: string[];
+
+	/** Hosts that sandboxed processes are blocked from connecting to. */
+	blockedHosts?: string[];
+
 	/** Optional proxy used by sandboxed processes. */
 	proxy?: SandboxNetworkProxyPolicy;
 }
@@ -102,9 +108,8 @@ export interface SandboxSeatbeltPolicy {
  *  - Path precedence: `deniedPaths` > `readonlyPaths` > `readwritePaths`.
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
- *  - Network: the separate `allowNetwork` policy opens outbound to everything.
- *    Domain allow/deny lists are ignored because the SDK's `SandboxConfig`
- *    does not support host-level rules.
+ *  - Network: the separate `allowNetwork` policy opens outbound to everything,
+ *    while configured domain allow/deny lists are forwarded as host rules.
  *
  * All platforms share enablement and user-configured paths; legacy per-OS paths are ignored.
  * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
@@ -149,12 +154,15 @@ export function buildSandboxConfigForSdk(
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
 	const allowLocalNetwork = sandbox?.[AgentHostSandboxKey.AllowLocalNetwork];
+	const allowedHosts = sandbox?.[AgentHostSandboxKey.AllowedNetworkDomains] ?? [];
+	const blockedHosts = sandbox?.[AgentHostSandboxKey.DeniedNetworkDomains] ?? [];
 	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands];
 	const sandboxMcpServers = sandbox?.[AgentHostSandboxKey.SandboxMcpServers];
 	const sandboxLspServers = sandbox?.[AgentHostSandboxKey.SandboxLspServers];
 	const allowDevToolAccess = sandbox?.[AgentHostSandboxKey.AllowDevToolAccess];
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
+		addCurrentWorkingDirectory: true,
 		...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}),
 		...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}),
 		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
@@ -164,15 +172,19 @@ export function buildSandboxConfigForSdk(
 			gh: true,
 		},
 		userPolicy: {
-			filesystem: {
-				...(denied.size ? { deniedPaths: [...denied] } : {}),
-				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-			},
-			...(typeof allowNetwork === 'boolean' || allowLocalNetwork !== undefined ? {
+			...(denied.size || readonly.size || readwrite.size ? {
+				filesystem: {
+					...(denied.size ? { deniedPaths: [...denied] } : {}),
+					...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+					...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				},
+			} : {}),
+			...(typeof allowNetwork === 'boolean' || allowLocalNetwork !== undefined || allowedHosts.length || blockedHosts.length ? {
 				network: {
 					...(typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : {}),
 					...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}),
+					...(allowedHosts.length ? { allowedHosts: [...allowedHosts] } : {}),
+					...(blockedHosts.length ? { blockedHosts: [...blockedHosts] } : {}),
 				},
 			} : {}),
 		},

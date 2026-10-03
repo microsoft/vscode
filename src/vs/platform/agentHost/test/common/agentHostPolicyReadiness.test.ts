@@ -53,7 +53,6 @@ suite('AgentHostPolicyReadiness', () => {
 			ChatAgentMode: true,
 			ChatToolsTerminalEnableAutoApprove: true,
 			ChatAgentSandboxEnabled: 'off',
-			ChatAgentSandboxAllowAutoApprove: true,
 			ChatPluginsEnabled: true,
 			ChatHooks: true,
 			CopilotOtelEnabled: true,
@@ -143,7 +142,6 @@ suite('AgentHostPolicyReadiness', () => {
 					ChatAgentSandboxEnabled: enabled,
 					ChatAgentSandboxAllowNetwork: allowed,
 					ChatAgentSandboxAllowUnsandboxedCommands: allowed,
-					ChatAgentSandboxAllowAutoApprove: allowed,
 				})), []);
 			}
 		}
@@ -152,7 +150,6 @@ suite('AgentHostPolicyReadiness', () => {
 	test('retired sandbox policies do not suppress unrelated policy verification', () => {
 		const service = configuration({
 			ChatAgentSandboxEnabled: 'on',
-			ChatAgentSandboxAllowAutoApprove: false,
 			CopilotOtelCaptureIdentity: true,
 		});
 		assert.deepStrictEqual(getAgentHostPolicyGaps(service).map(gap => ({

@@ -129,24 +129,6 @@
             }
         },
         {
-            "key": "chat.agent.sandbox.allowAutoApprove",
-            "name": "ChatAgentSandboxAllowAutoApprove",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowAutoApprovePolicy",
-                    "value": "Deprecated. Controls whether Local agent terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. Configure Copilot Agent Host sandbox restrictions and permissions through managed settings instead."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true,
-            "agentHost": {
-                "status": "notApplicable"
-            }
-        },
-        {
             "key": "chat.agent.sandbox.allowUnsandboxedCommands",
             "name": "ChatAgentSandboxAllowUnsandboxedCommands",
             "category": "IntegratedTerminal",
