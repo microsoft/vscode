@@ -932,6 +932,17 @@ suite('TerminalSandboxService - network domains', () => {
 		deepStrictEqual(getTerminalSandboxReadAllowListForCommands(OperatingSystem.Linux, ['gpg']), ['~/.gnupg']);
 	});
 
+	test('should restrict Ruby read access to installed gems', () => {
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			deepStrictEqual(getTerminalSandboxReadAllowListForCommands(os, ['ruby']), [
+				'~/.gem/ruby',
+				'~/.rbenv/versions',
+				'~/.rbenv/shims',
+				'~/.rvm/rubies',
+			]);
+		}
+	});
+
 	test('should not rewrite sandbox config when the parsed command details produce unchanged allow-lists', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		const configPath = await sandboxService.getSandboxConfigPath();
