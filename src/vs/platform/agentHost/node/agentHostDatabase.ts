@@ -10,7 +10,7 @@ import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider } from '../common/agent.js';
-import { decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -1360,6 +1360,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						(SELECT chat_uri FROM session_chats WHERE session_uri = ?)`, [session, session]);
 					const foreignUris = new Set(foreign.map(row => row.chat_uri as string));
 					chats = chats.filter(chat => !foreignUris.has(chat.chat)).map((chat, order) => ({ ...chat, order }));
+					if (chats.length > AGENT_HOST_CATALOG_CHILD_LIMIT - 1) {
+						throw new Error(`Peer-chat recovery exceeds the catalog limit for ${session}`);
+					}
 				}
 				const revision = (currentRevision ?? 0) + 1;
 				if (!Number.isSafeInteger(revision)) {

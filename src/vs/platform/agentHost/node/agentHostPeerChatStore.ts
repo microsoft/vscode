@@ -165,9 +165,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				const recoveryRevision = backup?.revision ?? catalog.revision;
 				const missing = eligible.filter(candidate => !current.some(entry => entry.uri === candidate.uri));
 				const entries = [...current, ...missing];
-				if (entries.length > IMPORTED_PEER_CHAT_LIMIT) {
-					throw new Error(`Peer-chat recovery exceeds the catalog limit for ${session.toString()}`);
-				}
 				if (!backup) {
 					await parent.object.setMetadata(backupKey, JSON.stringify({
 						entries: current,

@@ -38,6 +38,9 @@ Dataset tests cover empty, partial and healthy catalogues, newer continuation me
 deletion and ownership conflicts, interrupted recovery, malformed records, missing
 databases, and the catalogue size boundary. Missing peers are restored as active:
 their previous archive flags cannot be inferred after both membership copies were erased.
+The size boundary is enforced transactionally after excluding foreign-owned candidates.
+Malformed recovery evidence is logged per parent without removing its registrations
+or preventing unrelated sessions from being listed or recovered.
 
 Recovery listing tests enable the central catalogue and seed a valid, stale projection
 containing only the default chat. The first list response must include recovered peers

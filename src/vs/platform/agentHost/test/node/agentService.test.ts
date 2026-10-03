@@ -20668,6 +20668,78 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('peer chat catalog persistence', () => {
 
+		for (const malformed of ['backup', 'origin']) {
+			test(`listing isolates malformed recovery ${malformed} and still recovers another parent`, async () => {
+				const perSession = createPerSessionDataService();
+				const dataId = (resource: URI) => `${resource.authority ? `${resource.authority}-` : ''}${resource.path.slice(1)}`;
+				const sessionData: ISessionDataService = {
+					...perSession.service,
+					getSessionDataDir: resource => URI.file(`/session-data/${dataId(resource)}`),
+					getSessionDataDirById: id => URI.file(`/session-data/${id}`),
+					listSessionDataIds: async () => perSession.databaseIds().map(key => dataId(URI.parse(key))),
+					deleteSessionData: async () => { throw new Error('Recovery must not delete any backing data'); },
+				};
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const errors: string[] = [];
+				class RecordingLogService extends NullLogService {
+					override error(_error: string | Error, message?: string): void {
+						if (message) {
+							errors.push(message);
+						}
+					}
+				}
+				const logService = new RecordingLogService();
+				const localService = disposables.add(createTestAgentService(
+					logService, fileService, sessionData,
+					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+				class MultiChatAgent extends MockAgent {
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: 'original-backing' };
+					}
+				}
+				const agent = disposables.add(new MultiChatAgent('copilotcli'));
+				registerTestAgentProvider(localService, agent);
+				const broken = await localService.createSession({ provider: 'copilotcli' });
+				const healthy = await localService.createSession({ provider: 'copilotcli' });
+				const selectedId = '653a2e4f-5354-46ae-9a96-30c1b2cf4ce1';
+				const peerStore = new AgentHostPeerChatStore(database, sessionData, logService);
+				for (const parent of [broken, healthy]) {
+					const chat = URI.parse(buildChatUri(parent, selectedId));
+					await localService.createChat(parent, chat, { title: 'Original Chat' });
+					await database.registerRuntimeSession(parent.with({ fragment: selectedId }).toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
+					await perSession.database(parent).setMetadata('peerChats', '[]');
+					await peerStore.reconcileLegacy(parent);
+					getStateManager(localService).removeSession(parent.toString());
+				}
+				const damagedDatabase = malformed === 'backup' ? perSession.database(broken) : perSession.database(URI.parse(buildChatUri(broken, selectedId)));
+				const damagedKey = malformed === 'backup' ? 'agentHost.peerChatRecovery339409' : CHAT_ORIGIN_METADATA_KEY;
+				await damagedDatabase.setMetadata(damagedKey, '{invalid-json');
+				const brokenBefore = await database.getSessionChatCatalog(broken.toString());
+
+				const listed = await localService.listSessions();
+				await localService.listSessions();
+
+				assert.deepStrictEqual({
+					listedParents: [broken, healthy].map(parent => listed.some(entry => entry.session.toString() === parent.toString())),
+					broken: await database.getSessionChatCatalog(broken.toString()),
+					healthy: (await database.getSessionChatCatalog(healthy.toString()))?.chats.map(chat => chat.chat),
+					phantoms: (await localService.getRegisteredSessions()).filter(resource => resource.fragment).map(resource => resource.toString()),
+					damagedMetadata: await damagedDatabase.getMetadata(damagedKey),
+					logged: errors.includes(`[AgentService] Failed to recover peer chats for ${broken.toString()}; preserving registrations`),
+				}, {
+					listedParents: [true, true],
+					broken: brokenBefore,
+					healthy: [buildChatUri(healthy, selectedId)],
+					phantoms: [broken.with({ fragment: selectedId }).toString()],
+					damagedMetadata: '{invalid-json',
+					logged: true,
+				});
+			});
+		}
+
 		for (const [cold, completed] of [[false, false], [true, false], [true, true]]) {
 			test(`listing recovers erased peer membership and unregisters only verified restored phantoms without deleting data (${cold ? 'cold' : 'live'} session, recovery ${completed ? 'completed' : 'new'})`, async () => {
 				const originalTurn: Turn = {

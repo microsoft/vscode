@@ -496,6 +496,29 @@ suite('AgentHostPeerChatStore', () => {
 			}, { result: undefined, databasesCreated: 0, backup: undefined });
 		});
 
+		test('cleans up a moved selection without exceeding a full source catalogue', async () => {
+			const { store, databaseFor } = await createDataset();
+			const target = URI.parse('copilotcli:/destination');
+			await orchestrator.registerRuntimeSession(target.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await orchestrator.replaceSessionChatCatalog(target.toString(), [{ chat: selected.toString(), order: 0, providerData: 'target-current' }], undefined);
+			const current = Array.from({ length: AGENT_HOST_CATALOG_CHILD_LIMIT - 1 }, () => ({ uri: buildChatUri(parent, generateUuid()), providerData: 'existing' }));
+			await store.replace(parent, current);
+			await databaseFor(parent).setMetadata(PEER_CHATS_METADATA_KEY, '[]');
+			const targetBefore = await orchestrator.getSessionChatCatalog(target.toString());
+
+			const result = await store.recoverChatSelectionCorruption(parent, [selectedId]);
+
+			assert.deepStrictEqual({
+				result,
+				membership: await store.tryRead(parent),
+				target: await orchestrator.getSessionChatCatalog(target.toString()),
+			}, {
+				result: { entries: current, verifiedPhantomChatIds: [selectedId] },
+				membership: current,
+				target: targetBefore,
+			});
+		});
+
 		for (const count of [AGENT_HOST_CATALOG_CHILD_LIMIT - 2, AGENT_HOST_CATALOG_CHILD_LIMIT - 1]) {
 			test(`respects the catalogue size boundary with ${count} existing peers`, async () => {
 				const { store, databaseFor } = await createDataset();
@@ -504,10 +527,12 @@ suite('AgentHostPeerChatStore', () => {
 				const before = await orchestrator.getSessionChatCatalog(parent.toString());
 				if (count === AGENT_HOST_CATALOG_CHILD_LIMIT - 1) {
 					await assert.rejects(store.recoverChatSelectionCorruption(parent, [selectedId]), /exceeds the catalog limit/);
+					const backup = JSON.parse((await databaseFor(parent).getMetadata('agentHost.peerChatRecovery339409'))!);
 					assert.deepStrictEqual({
 						catalog: await orchestrator.getSessionChatCatalog(parent.toString()),
-						backup: await databaseFor(parent).getMetadata('agentHost.peerChatRecovery339409'),
-					}, { catalog: before, backup: undefined });
+						candidates: backup.recovered,
+						completed: backup.completed === true,
+					}, { catalog: before, candidates: [selected.toString()], completed: false });
 				} else {
 					await store.recoverChatSelectionCorruption(parent, [selectedId]);
 					assert.strictEqual((await store.tryRead(parent))?.length, AGENT_HOST_CATALOG_CHILD_LIMIT - 1);

@@ -3364,7 +3364,13 @@ export class AgentService extends Disposable implements IAgentService {
 		for (const [parentKey, phantoms] of phantomsByParent) {
 			const parent = URI.parse(parentKey);
 			await this._chatCatalogMutationSequencer.queue(parentKey, async () => {
-				const recovered = await this._peerChatStore.recoverChatSelectionCorruption(parent, phantoms.map(entry => entry.session.fragment));
+				let recovered: Awaited<ReturnType<AgentHostPeerChatStore['recoverChatSelectionCorruption']>>;
+				try {
+					recovered = await this._peerChatStore.recoverChatSelectionCorruption(parent, phantoms.map(entry => entry.session.fragment));
+				} catch (error) {
+					this._logService.error(error, `[AgentService] Failed to recover peer chats for ${parentKey}; preserving registrations`);
+					return;
+				}
 				if (!recovered) {
 					return;
 				}
@@ -3402,7 +3408,14 @@ export class AgentService extends Disposable implements IAgentService {
 				this._checkedRecoveredSessionProjections.add(sessionKey);
 				return result;
 			}
-			if (!await this._peerChatStore.hasCompletedChatSelectionRecovery(session)) {
+			let completed: boolean;
+			try {
+				completed = await this._peerChatStore.hasCompletedChatSelectionRecovery(session);
+			} catch (error) {
+				this._logService.error(error, `[AgentService] Failed to read peer-chat recovery completion for ${sessionKey}; preserving projection`);
+				return result;
+			}
+			if (!completed) {
 				this._checkedRecoveredSessionProjections.add(sessionKey);
 				return result;
 			}
