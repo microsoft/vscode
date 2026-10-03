@@ -17,20 +17,28 @@ import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 
 const TRANSIENT_ERROR_CODES = new Set([
-	'EAI_AGAIN',
-	'ECONNREFUSED',
-	'EHOSTDOWN',
-	'EHOSTUNREACH',
-	'ENETDOWN',
-	'ENETUNREACH',
-	'EPROTO',
+	// DNS / routing
+	'EAI_AGAIN',     // transient resolver failure
+	'EHOSTDOWN',     // host temporarily unreachable
+	'EHOSTUNREACH',  // no route to host
+	'ENETDOWN',      // local interface down
+	'ENETUNREACH',   // network unreachable
+	// TCP connection
+	'ECONNREFUSED',  // nothing listening on the port yet
+	'EPROTO',        // TLS renegotiation error, sometimes transient
+	'ECONNRESET',    // server sent TCP RST — keep-alive expiry or load-balancer drain
+	'EPIPE',         // broken pipe — server closed while we were writing
+	'ETIMEDOUT',     // OS-level TCP handshake never completed
 ]);
 
 const IDEMPOTENT_HTTP_METHODS_REGEX = /^(GET|HEAD|OPTIONS)$/i;
 
 function isTransientError(error: unknown): boolean {
 	if (error instanceof Error) {
-		const code = (error as NodeJS.ErrnoException).code;
+		// undici wraps TCP errors as TypeError('fetch failed', { cause: ErrnoException }); check both levels.
+		const asErrno = error as NodeJS.ErrnoException;
+		const causeCode = (asErrno.cause as NodeJS.ErrnoException | undefined)?.code;
+		const code = asErrno.code ?? causeCode;
 		return !!code && TRANSIENT_ERROR_CODES.has(code);
 	}
 	return false;

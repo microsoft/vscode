@@ -109,13 +109,21 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 
 	private async _sendOnce(body: Buffer, contentType: string): Promise<void> {
 		try {
+			// Strip caller-supplied 'content-length' and 'content-type' (case-insensitively).
+			// We compute length from the body, and type is fixed by the forwarder contract.
+			const safeExtraHeaders = Object.fromEntries(
+				Object.entries(this._options.headers ?? {}).filter(([name]) => {
+					const lower = name.toLowerCase();
+					return lower !== 'content-length' && lower !== 'content-type';
+				})
+			);
+
 			if (this._fetchFn) {
 				const response = await this._fetchFn(this._resolvedEndpoint, {
 					method: 'POST',
 					headers: {
-						'content-type': contentType,
-						'content-length': String(body.length),
-						...(this._options.headers ?? {}),
+						...safeExtraHeaders,         // caller headers first; unsafe headers already stripped
+						'content-type': contentType, // always wins — we know the body format
 					},
 					body: Uint8Array.from(body).buffer,
 					signal: AbortSignal.timeout(this._options.timeoutMs ?? 10_000),
@@ -130,9 +138,10 @@ export class OtlpHttpForwarder extends Disposable implements IOutboundForwarder 
 			const isHttps = url.protocol === 'https:';
 			const mod = isHttps ? await import('https') : await import('http');
 			const headers: Record<string, string> = {
+				...safeExtraHeaders,
 				'content-type': contentType,
+				// content-length is set last so it always reflects the true body size.
 				'content-length': String(body.length),
-				...(this._options.headers ?? {}),
 			};
 			await postOnce(mod, {
 				host: url.hostname,
