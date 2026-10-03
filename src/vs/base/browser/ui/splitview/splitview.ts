@@ -700,9 +700,9 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				sashItem.disposable.dispose();
 			}
 
-			this.relayout();
-
-			if (sizing?.type === 'distribute') {
+			const distribute = sizing?.type === 'distribute';
+			this.relayout(undefined, undefined, distribute);
+			if (distribute) {
 				this.distributeViewSizes();
 			}
 
@@ -1216,12 +1216,11 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			}
 
 			if (!skipLayout) {
-				this.relayout([index], highPriorityIndexes);
-			}
-
-
-			if (!skipLayout && typeof size !== 'number' && size.type === 'distribute') {
-				this.distributeViewSizes();
+				const distribute = typeof size !== 'number' && size.type === 'distribute';
+				this.relayout([index], highPriorityIndexes, distribute);
+				if (distribute) {
+					this.distributeViewSizes();
+				}
 			}
 
 		} finally {
@@ -1229,13 +1228,16 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 		}
 	}
 
-	private relayout(lowPriorityIndexes?: number[], highPriorityIndexes?: number[]): void {
+	private relayout(lowPriorityIndexes?: number[], highPriorityIndexes?: number[], skipLayout = false): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		this.distributeEmptySpace();
-		this.layoutViews();
-		this.saveProportions();
+		// Distribution needs the constrained sizes, but only its final layout should reach the views.
+		if (!skipLayout) {
+			this.layoutViews();
+			this.saveProportions();
+		}
 	}
 
 	private resize(
