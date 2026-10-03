@@ -91,13 +91,17 @@ export function isSendMessageTool(toolName: string): boolean {
  * so it is enforced here once rather than at each call site.
  */
 export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const provider = AgentSession.provider(backendSession);
+	const session = typeof backendSession === 'string' ? URI.parse(backendSession) : backendSession;
+	const provider = session.scheme;
 	const rawId = AgentSession.id(backendSession);
 	if (!provider) {
 		throw new Error(`Cannot build open-session link: missing provider in ${backendSession.toString()}`);
 	}
 	const base = URI.from({ scheme: AGENT_HOST_SESSION_LINK_SCHEME, authority: provider, path: `/${rawId}` }).toString();
 	const query: string[] = [];
+	if (session.authority || session.query || session.fragment) {
+		query.push(`session=${encodeURIComponent(session.toString())}`);
+	}
 	if (chatId && chatId !== DEFAULT_CHAT_ID) {
 		query.push(`chat=${encodeURIComponent(chatId)}`);
 	}
@@ -113,10 +117,13 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
  * Shape: `<product-protocol>://agents/agent-host-session/<provider>/<rawSessionId>[/chat/<chatId>]`.
  */
 export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const sessionLink = buildOpenSessionLinkUri(backendSession);
+	const sessionLinkText = buildOpenSessionLinkUri(backendSession);
+	const link = URI.parse(sessionLinkText);
+	const sessionLink = link.with({ query: '' }).toString();
 	const encodedTarget = sessionLink.slice(`${AGENT_HOST_SESSION_LINK_SCHEME}://`.length);
 	const chatPath = chatId && chatId !== DEFAULT_CHAT_ID ? `${AGENT_HOST_CHAT_LINK_PATH_SEGMENT}${encodeURIComponent(encodeURIComponent(chatId))}` : '';
-	const query = turnId ? `?turn=${encodeURIComponent(turnId)}` : '';
+	const queryParts = [sessionLinkText.split('?')[1] ?? '', turnId ? `turn=${encodeURIComponent(turnId)}` : ''].filter(Boolean);
+	const query = queryParts.length ? `?${queryParts.join('&')}` : '';
 	return `${productUrlProtocol}://${AGENTS_AUTHORITY}${AGENT_HOST_SESSION_LINK_PATH_PREFIX}${encodedTarget}${chatPath}${query}`;
 }
 
@@ -176,6 +183,10 @@ export function parseOpenSessionLinkUri(uri: URI | string): URI | undefined {
 	const rawId = parsed.path.replace(/^\//, '');
 	if (!rawId) {
 		return undefined;
+	}
+	const session = readOpenSessionLinkQueryParam(parsed, 'session');
+	if (session) {
+		return URI.parse(session, true);
 	}
 	return AgentSession.uri(parsed.authority, rawId);
 }

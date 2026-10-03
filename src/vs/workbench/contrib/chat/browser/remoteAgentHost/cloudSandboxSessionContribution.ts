@@ -15,6 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
+	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
@@ -333,7 +334,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const modifiedTime = Number.isNaN(parsed) ? provider?.getSessionModifiedTime(session.sessionId) ?? Date.now() : parsed;
 		const project = discoveredSessionProject(session.repoName);
 		provider?.seedSessions([{
-			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
+			session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, session.sessionId),
 			provider: CLOUD_SANDBOX_AGENT_PROVIDER,
 			...(session.eventType ? { _meta: withSessionInitiator(undefined, { name: session.eventType }) } : {}),
 			startTime: modifiedTime,

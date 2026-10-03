@@ -13,10 +13,10 @@
  *
  * Resource identities:
  * - chat UI resource: `agent-host-PROVIDER:/untitled-<uuid>` before first Send.
- * - backend resource: an opaque `PROVIDER:/<uuid>` for provisional state.
+ * - backend resource: the negotiated host resource for provisional state.
  * - real chat resource: `agent-host-PROVIDER:/<uuid>` after
  *   `chatServiceImpl.acceptInput` calls `createNewChatSessionItem`.
- * - real backend resource: `PROVIDER:/<uuid>` after `tryRebind`.
+ * - real backend resource: a new negotiated host resource after `tryRebind`.
  *
  * Required flow:
  * 1. `AgentHostChatInputPicker` calls `getOrCreate(untitled, provider, cwd)`.
@@ -57,6 +57,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { KNOWN_MODE_VALUES, SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -642,7 +643,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	}
 
 	private _newProvisionalUri(provider: string): URI {
-		return URI.from({ scheme: provider, path: `/${generateUuid()}` });
+		return newAgentHostSessionUri(provider, generateUuid(), this._agentHostService.initializeResult.get());
 	}
 
 	/**
@@ -962,7 +963,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 	 */
 	private _toBackendUri(sessionResource: URI, provider: string): URI {
 		const rawId = sessionResource.path.replace(/^\//, '');
-		return URI.from({ scheme: provider, path: `/${rawId}` });
+		return newAgentHostSessionUri(provider, rawId, this._agentHostService.initializeResult.get());
 	}
 
 	getResolvedConfig(sessionResource: URI): ResolveSessionConfigResult | undefined {

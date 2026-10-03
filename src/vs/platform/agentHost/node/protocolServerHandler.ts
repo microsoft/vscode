@@ -15,7 +15,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
@@ -213,6 +214,7 @@ type ChannelSubscription =
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	readonly legacySessionUris: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
@@ -267,6 +269,7 @@ interface IActiveClientRecord {
 }
 
 interface IGraceClientRecord {
+	readonly legacySessionUris?: boolean;
 	readonly state: 'grace';
 	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
@@ -596,6 +599,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						this._clients.set(client.clientId, {
 							state: 'grace',
 							seenConnection: true,
+							legacySessionUris: client.legacySessionUris,
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
@@ -649,6 +653,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
+			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 			telemetryContext,
@@ -750,6 +755,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
 	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined | Promise<IStateSnapshot | undefined> {
+		if (!this._isChannelVisible(client, channel)) {
+			this._logService.info(`[ProtocolServer] Legacy VS Code client cannot subscribe to ${channel}`);
+			return undefined;
+		}
 		const sub = classifyChannel(channel);
 		if (!sub) {
 			return undefined;
@@ -817,7 +826,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		});
 	}
 
-	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+	private async _subscribeStateChannel(channel: string, client: IConnectedClient, isActive?: () => boolean): Promise<IStateSnapshot> {
+		const clientId = client.clientId;
+		if (!this._isChannelVisible(client, channel)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not available to this client: ${channel}`);
+		}
 		if (!isAhpAutomationCatalogChannel(channel)) {
 			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
 		}
@@ -885,6 +898,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
+			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
@@ -1024,7 +1038,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			try {
 				const snapshot = await this._subscribeStateChannel(
 					key,
-					client.clientId,
+					client,
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
@@ -1387,6 +1401,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& record.connections.some(connection => connection.telemetryConnectionActive && this._isLocalClientConnection(connection));
 	}
 
+	usesLegacySessionUris(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			? this._getActiveClientFromRecord(record)?.legacySessionUris === true
+			: record?.legacySessionUris === true;
+	}
+
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
 		const result = new Map<string, number>();
 		for (const [clientId, record] of this._clients) {
@@ -1599,7 +1620,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			try {
 				const snapshot = await this._subscribeStateChannel(
 					params.channel,
-					client.clientId,
+					client,
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
@@ -1711,10 +1732,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		resourceWrite: async (_client, params) => {
 			return this._agentService.resourceWrite(params);
 		},
-		listSessions: async () => {
+		listSessions: async (client) => {
 			const sessions = await this._agentService.listSessions();
-			const items = sessions.map(s => {
-				const provider = AgentSession.provider(s.session);
+			const items = sessions.filter(s => this._isSessionVisible(client, s.session.toString())).map(s => {
+				const provider = s.provider ?? AgentSession.provider(s.session);
 				if (!provider) {
 					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 				}
@@ -1988,7 +2009,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		} catch {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string');
 		}
-		if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+		if (!session.scheme || !session.path.startsWith('/') || session.path.length < 2
 			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI');
 		}
@@ -2067,7 +2088,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				} catch {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
 				}
-				if (!AgentSession.provider(session)) {
+				if (!session.scheme) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
 				const chatParam = params['chat'];
@@ -2109,7 +2130,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				} catch {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
 				}
-				if (!AgentSession.provider(session)) {
+				if (!session.scheme) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid Agent Session URI'));
 				}
 				return this._agentService.createDetachedWorktree(session, prompt).then(result => ({
@@ -2193,7 +2214,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					} catch {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
 					}
-					if (!AgentSession.provider(session)) {
+					if (!session.scheme) {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 					}
 				}
@@ -2296,8 +2317,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
 		for (const record of this._clients.values()) {
-			this._getActiveClientFromRecord(record)?.transport.send(msg);
+			const client = this._getActiveClientFromRecord(record);
+			const session = notification.type === 'root/sessionAdded' ? notification.summary.resource
+				: notification.type === 'root/sessionRemoved' || notification.type === 'root/sessionSummaryChanged' ? notification.session : undefined;
+			if (client && (session === undefined || this._isSessionVisible(client, session))) {
+				client.transport.send(msg);
+			}
 		}
+	}
+
+	private _isSessionVisible(client: IConnectedClient, session: string): boolean {
+		return !client.legacySessionUris || URI.parse(session).scheme !== 'ahp-session';
+	}
+
+	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
+		return this._isSessionVisible(client, parseChatUri(channel)?.session ?? channel);
 	}
 
 	/**
@@ -2396,6 +2430,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
+		if (!this._isChannelVisible(client, envelope.channel)) {
+			return false;
+		}
 		const sub = client.subscriptions.get(envelope.channel);
 		if ((sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) && sub.active) {
 			return true;

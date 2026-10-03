@@ -9,7 +9,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -99,9 +99,10 @@ export class AgentHostSessionListStore extends Disposable {
 
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
-		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias } = {},
+		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias; readonly connectionAuthority?: string } = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 
@@ -169,13 +170,19 @@ export class AgentHostSessionListStore extends Disposable {
 		this._mutationGeneration++;
 	}
 
-	private _providerForSession(session: URI | string): string | undefined {
+	private _providerForSession(session: URI | string, provider?: string): string | undefined {
+		const resource = typeof session === 'string' ? session : session.toString();
+		provider ??= [...this._entries.values()].find(entry => entry.summary.resource === resource)?.provider;
 		const scheme = AgentSession.provider(session);
 		const alias = this._options.sessionSchemeAlias;
-		return alias && scheme === alias.backend ? alias.ui : scheme;
+		return provider ?? (alias && URI.parse(resource).scheme === alias.backend ? alias.ui : scheme);
 	}
 
 	private _sessionUri(provider: string, rawId: string): URI {
+		const entry = this._entries.get(this._key(provider, rawId));
+		if (entry) {
+			return URI.parse(entry.summary.resource);
+		}
 		const alias = this._options.sessionSchemeAlias;
 		return AgentSession.uri(alias && provider === alias.ui ? alias.backend : provider, rawId);
 	}
@@ -386,12 +393,13 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _makeEntryFromMetadata(session: IAgentSessionMetadata): IAgentHostSessionListEntry | undefined {
-		const provider = this._providerForSession(session.session);
+		const provider = this._providerForSession(session.session, session.provider);
 		if (!provider) {
 			return undefined;
 		}
 
 		const rawId = AgentSession.id(session.session);
+		this._connectionsService.getSessionResource(session.session, this._options.connectionAuthority, provider);
 
 		return {
 			provider,
@@ -427,10 +435,11 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _makeEntryFromSummary(summary: SessionSummary): IAgentHostSessionListEntry | undefined {
-		const provider = summary.provider || this._providerForSession(summary.resource);
+		const provider = this._providerForSession(summary.resource, summary.provider);
 		if (!provider) {
 			return undefined;
 		}
+		this._connectionsService.getSessionResource(URI.parse(summary.resource), this._options.connectionAuthority, provider);
 		return {
 			provider,
 			rawId: AgentSession.id(summary.resource),
@@ -526,7 +535,7 @@ export class AgentHostSessionListStore extends Disposable {
 		return {
 			provider: entry.provider,
 			rawId: entry.rawId,
-			session: AgentSession.uri(entry.provider, entry.rawId),
+			session: URI.parse(entry.summary.resource),
 		};
 	}
 

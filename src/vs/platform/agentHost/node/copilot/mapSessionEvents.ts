@@ -10,7 +10,7 @@ import { basename, isAbsolute, join } from '../../../../base/common/path.js';
 import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { AgentSession } from '../../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
@@ -430,7 +430,7 @@ export async function mapSessionEvents(
 
 	const sessionUriStr = session.toString();
 	const routingSession = URI.parse(routingChat.session);
-	const providerId = routingSession.scheme;
+	const providerId = AgentSession.provider(routingSession) ?? COPILOT_CLI_AGENT_PROVIDER_ID;
 	const rawSessionId = AgentSession.id(routingSession);
 	const turns: Turn[] = [];
 
@@ -830,7 +830,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName);
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName);
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -934,6 +934,7 @@ export async function mapSessionEvents(
 				completion ?? { toolCallId: request.toolCallId, success: true },
 				info,
 				sessionUriStr,
+				routingSession,
 				providerId,
 				rawSessionId,
 				routingChatUri,
@@ -1065,6 +1066,7 @@ function makeCompletedToolCallPart(
 	d: ToolExecutionCompleteData,
 	info: IToolStartInfo,
 	sessionUriStr: string,
+	routingSession: URI,
 	providerId: string,
 	rawSessionId: string,
 	chatURI: URI,
@@ -1083,7 +1085,7 @@ function makeCompletedToolCallPart(
 		d.result?.contents,
 		info.toolKind === 'terminal' ? {
 			storage: sessionUriStr,
-			session: AgentSession.uri(providerId, rawSessionId),
+			session: routingSession,
 			chat: chatURI,
 			toolCallId: d.toolCallId,
 			title: info.displayName,
@@ -1133,7 +1135,7 @@ function makeCompletedToolCallPart(
 	const mcpUi: IToolCallUiMeta | undefined = mcpUiResourceUri
 		? {
 			resourceUri: mcpUiResourceUri,
-			...(mcpServerName ? { channel: buildMcpChannel(chatURI, mcpServerName) } : {}),
+			...(mcpServerName ? { channel: buildMcpChannel(chatURI, mcpServerName, providerId) } : {}),
 		}
 		: undefined;
 

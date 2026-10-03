@@ -18,6 +18,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { hasKey } from '../../../../../../base/common/types.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -96,7 +98,7 @@ import { TestFileService } from '../../../../../test/common/workbenchTestService
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
-import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
@@ -230,7 +232,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	/** Declares what the host reported at `initialize`, for version- and scheme-gated behaviour. */
 	setInitializeResult(result: Partial<InitializeResult>): void {
-		this._initializeResult.set({ ...this._initializeResult.get(), ...result } as InitializeResult, undefined);
+		this._initializeResult.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true }, ...this._initializeResult.get(), ...result }, undefined);
 	}
 
 	setHostProtocolVersion(protocolVersion: string): void {
@@ -810,6 +812,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	};
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(IAgentHostConnectionsService, disposables.add(new AgentHostConnectionsService(
+		agentHostService,
+		new NullRemoteAgentHostService(),
+		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
+		new NullLogService(),
+	)));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(ITelemetryService, NullTelemetryService);

@@ -26,6 +26,9 @@ import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
@@ -1277,6 +1280,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this._config = config;
@@ -2395,7 +2399,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return explicitChatUri;
 		}
 		if (sessionResource.fragment) {
-			const match = state.chats.find(summary => parseChatUri(summary.resource)?.chatId === sessionResource.fragment);
+			const match = state.chats.find(summary => getAgentHostChatId(summary.resource) === sessionResource.fragment);
 			if (!match) {
 				throw new Error(`Cannot resolve chat '${sessionResource.fragment}' from session state for ${sessionResource.toString()}`);
 			}
@@ -5704,7 +5708,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return provisionalSession;
 		}
 		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
+		const identity = this._connectionsService.resolveSessionResourceIdentity(sessionResource);
+		if (identity?.backendSessionIsAdvertised) {
+			return identity.backendSession;
+		}
+		if (!this._isNewSessionResource(sessionResource)) {
+			return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
+		}
+		return this._config.backendSessionScheme
+			? AgentSession.uri(this._config.backendSessionScheme, rawId)
+			: newAgentHostSessionUri(this._config.provider, rawId, this._config.connection.initializeResult.get());
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {
