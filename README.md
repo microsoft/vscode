@@ -56,7 +56,7 @@ VS Code includes a set of built-in extensions located in the [extensions](extens
 
 ## Development Container
 
-This repository includes a Visual Studio Code Dev Containers / GitHub Codespaces development container.
+This repository includes a development container for use with VS Code Dev Containers and GitHub Codespaces.
 
 * For [Dev Containers](https://aka.ms/vscode-remote/download/containers), use the **Dev Containers: Clone Repository in Container Volume...** command, which creates a Docker volume for better disk I/O on macOS and Windows.
   * If you already have VS Code and Docker installed, you can also click [here](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/microsoft/vscode) to get started. This will cause VS Code to automatically install the Dev Containers extension if needed, clone the source code into a container volume, and spin up a dev container for use.
