@@ -342,7 +342,7 @@ export class VscodePrompt extends PromptElement<VscodePromptProps, VscodePromptS
 							</Tag>
 						</Tag>
 						<Tag name='extensionSearchResponseRules'>
-							If you referene any extensions, you must respond with with the identifiers as a comma seperated string inside ```vscode-extensions code block. <br />
+							If you referene any extensions, you must respond with with the identifiers as a comma separated string inside ```vscode-extensions code block. <br />
 							Do not describe the extension. Simply return the response in the format shown above.<br />
 							<Tag name='extensionResponseExample'>
 								Question: What are some popular python extensions?<br />

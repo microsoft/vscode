@@ -607,7 +607,7 @@ function doApplyEdits(
 			const selectionCandidate = { offset: offset + editText.length, length: 0 };
 
 			// a selection is considered only if it is inside the range
-			// this is to accomodate edits unrelated to the range
+			// this is to accommodate edits unrelated to the range
 			if (selectionCandidate.offset >= range.offset && selectionCandidate.offset <= range.offset + range.length) {
 				selection = selectionCandidate;
 				hasNewSelection = true;

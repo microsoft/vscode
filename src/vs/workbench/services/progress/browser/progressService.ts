@@ -385,7 +385,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const updateNotification = (step?: IProgressStep): void => {
 
-			// full message (inital or update)
+			// full message (initial or update)
 			if (step?.message && options.title) {
 				titleAndMessage = typeof options.title === 'string' && typeof step.message === 'string'
 					? `${options.title}: ${step.message}`

@@ -6,7 +6,7 @@
 import { formatStackTrace } from '../stackTraceHelper';
 import * as assert from 'assert';
 
-// The stack frames for these tests can be retreived by using the raw json for a notebook with an error
+// The stack frames for these tests can be retrieved by using the raw json for a notebook with an error
 suite('StackTraceHelper', () => {
 
 	test('Non Ipython stack trace is left alone', () => {
