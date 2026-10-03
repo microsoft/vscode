@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -14,7 +15,7 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 export default defineThemedFixtureGroup({ path: 'platform/' }, {
 	Buttons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['Nine captioned rows each show one button: a plain label, an icon with a label, that same button with the pixel spinner in place of its icon, a square icon-only button, that same button showing only the spinner, secondary label and icon-only variants, a custom label reading "Commit and Sync 2↑", and a dimmed disabled button. No button shows an icon and the spinner at once.'],
+		expectedVisualDescriptions: ['Ten captioned rows each show one button: a plain label, an icon with a label, an icon with the multi-part label "Commit", check icon, and "Ready", a button with the pixel spinner in place of its icon, a square icon-only button, that same button showing only the spinner, secondary label and icon-only variants, a custom label reading "Commit and Sync 2↑", and a dimmed disabled button. The leading icon has wider separation from the label than the inline check icon has from adjacent text. No button shows an icon and the spinner at once.'],
 		render: renderButtons,
 	}),
 
@@ -99,7 +100,7 @@ function setupPage(container: HTMLElement, width: number): void {
 	container.style.gap = '12px';
 	container.style.backgroundColor = 'var(--vscode-editor-background)';
 	container.style.color = 'var(--vscode-foreground)';
-	container.style.fontFamily = 'var(--vscode-font-family)';
+	container.style.fontFamily = DEFAULT_FONT_FAMILY;
 	container.style.fontSize = 'var(--vscode-fontSize-label1)';
 }
 
@@ -147,6 +148,7 @@ function renderButtons(context: ComponentFixtureContext): void {
 	const scenarios: readonly [caption: string, action: IAction, config: ReturnType<IButtonConfigProvider>][] = [
 		['Label', noIcon, { showLabel: true }],
 		['Icon and label', commit, { showIcon: true, showLabel: true }],
+		['Icon and inline label icon', commit, { showIcon: true, showLabel: true, customLabel: 'Commit $(check) Ready', iconLabelSpacing: 'default' }],
 		['Icon and label, busy', commit, { showIcon: true, showLabel: true, showSpinner: true }],
 		['Icon only', commit, { showIcon: true, showLabel: false }],
 		['Icon only, busy', commit, { showIcon: true, showLabel: false, showSpinner: true }],
@@ -180,7 +182,7 @@ function renderButtonBars(context: ComponentFixtureContext): void {
 	// The shape the changes title bar uses: a labelled primary followed by
 	// icon-only trailing actions.
 	const titleBarConfig: IButtonConfigProvider = (_action, index) => index === 0
-		? { showIcon: true, showLabel: true }
+		? { showIcon: true, showLabel: true, iconLabelSpacing: 'default' }
 		: { showIcon: true, showLabel: false };
 
 	const withDropdown = new SubmenuAction('fixture.dropdown', 'Create Pull Request', [
@@ -194,7 +196,7 @@ function renderButtonBars(context: ComponentFixtureContext): void {
 		['Primary and trailing', [createPullRequest, viewChanges, openPullRequest], titleBarConfig],
 		['Split button', [withDropdown], titleBarConfig],
 		['Split button, busy', [withDropdown], (_action, index) => index === 0
-			? { showIcon: true, showLabel: true, showSpinner: true }
+			? { showIcon: true, showLabel: true, showSpinner: true, iconLabelSpacing: 'default' }
 			: { showIcon: true, showLabel: false }],
 		['Secondary overflow', [createPullRequest], titleBarConfig, [runCodeReview, openPullRequest]],
 	];
