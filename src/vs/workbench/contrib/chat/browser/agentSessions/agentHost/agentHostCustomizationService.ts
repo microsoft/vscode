@@ -39,6 +39,12 @@ import { ContributionEnablementState } from '../../../common/enablement.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
 
+export function getMcpServerDisplayLabel(server: Pick<IAgentHostMcpServer, 'name' | 'displayName'>): string {
+	return server.displayName
+		? localize('agentHost.mcpServer.connectorDisplayName', "{0} (Connector)", server.displayName)
+		: server.name;
+}
+
 export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents: Event<void>;
@@ -342,13 +348,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
+		const displayName = readMcpServerDisplayName(server);
 		try {
 			await target.startMcpServer(server.id);
 			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
 				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
-				mcpServerName: readMcpServerDisplayName(server) ?? server.name,
+				mcpServerName: getMcpServerDisplayLabel({ name: server.name, displayName }),
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
 				scopes: server.state.requiredScopes ?? [],

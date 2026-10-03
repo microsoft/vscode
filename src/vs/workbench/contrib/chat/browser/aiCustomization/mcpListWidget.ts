@@ -57,7 +57,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -470,7 +470,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		if (element.type === 'session-server-item') {
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
-			templateData.name.textContent = formatDisplayName(element.server.displayName ?? element.server.name);
+			templateData.name.textContent = formatDisplayName(getMcpServerDisplayLabel(element.server));
 			this.updateActiveSessionStatus(templateData, element);
 			return;
 		}
@@ -1095,7 +1095,7 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 
 function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
 	return element.type === 'session-server-item'
-		? element.server.displayName ?? element.server.name
+		? getMcpServerDisplayLabel(element.server)
 		: element.type === 'builtin-item'
 			? element.label
 			: element.server.label;

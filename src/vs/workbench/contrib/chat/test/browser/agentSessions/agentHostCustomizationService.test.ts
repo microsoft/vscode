@@ -403,8 +403,8 @@ suite('AbstractAgentHostCustomizationService', () => {
 				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
 			],
 			authenticationTargets: [
-				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One' },
-				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One' },
+				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One (Connector)' },
+				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One (Connector)' },
 			],
 		});
 

@@ -29,7 +29,7 @@ suite('ChatToolAuthenticationSubPart', () => {
 		const server = upcastPartial<IAgentHostMcpServer>({
 			id: 'local/github-copilot-connector-94d26095770df60673dd',
 			name: 'github-copilot-connector-94d26095770df60673dd',
-			displayName: 'GitHub',
+			displayName: 'GitHub [Enterprise]',
 			enabled: true,
 			status: McpServerStatus.AuthRequired,
 			state: {
@@ -80,8 +80,9 @@ suite('ChatToolAuthenticationSubPart', () => {
 
 		const buttons = [...part.domNode.querySelectorAll<HTMLElement>('.monaco-button')];
 		const presentation = {
-			title: part.domNode.querySelector('.chat-query-title-part')?.textContent?.trim(),
-			message: part.domNode.querySelector('.chat-confirmation-widget-message')?.textContent,
+			title: part.domNode.querySelector('.chat-query-title-part')?.textContent?.trim().replace(/\u00a0/g, ' '),
+			message: part.domNode.querySelector('.chat-confirmation-widget-message')?.textContent?.replace(/\u00a0/g, ' '),
+			messageLinks: part.domNode.querySelectorAll('.chat-confirmation-widget-message a').length,
 			buttons: buttons.map(button => button.textContent),
 		};
 		buttons[0].click();
@@ -97,8 +98,9 @@ suite('ChatToolAuthenticationSubPart', () => {
 			cancelled,
 		}, {
 			presentation: {
-				title: 'MCP authentication requiredGitHub',
-				message: 'The MCP server GitHub requires authentication to continue this tool call.',
+				title: 'MCP authentication requiredGitHub [Enterprise] (Connector)',
+				message: 'The MCP server GitHub [Enterprise] (Connector) requires authentication to continue this tool call.',
+				messageLinks: 0,
 				buttons: ['Authenticate', 'Cancel', 'Disable for This Session'],
 			},
 			authenticationTargets: [server.id],

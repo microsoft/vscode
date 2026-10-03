@@ -147,7 +147,7 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			text,
 			authenticated,
 		}, {
-			text: 'The MCP server GitHub requires authentication. Authenticate?',
+			text: 'The MCP server GitHub (Connector) requires authentication. Authenticate?',
 			authenticated: [runtimeServerId],
 		});
 	});
