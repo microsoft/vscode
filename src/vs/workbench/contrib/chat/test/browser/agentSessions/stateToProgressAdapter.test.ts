@@ -2649,6 +2649,45 @@ suite('stateToProgressAdapter', () => {
 
 	suite('finalizeToolInvocation', () => {
 
+		for (const toolName of ['bash', 'powershell', 'local_shell']) {
+			for (const success of [true, false]) {
+				test(`omits duplicate terminal completion text for ${toolName} (${success ? 'success' : 'failure'}) in live and replayed tools`, () => {
+					for (const pastTenseMessage of [undefined, 'Tool finished', 'Ran Bash']) {
+						const running = createToolCallState({
+							toolName,
+							displayName: 'Bash',
+							invocationMessage: 'Running tool',
+							toolInput: JSON.stringify({ command: 'echo hi', description: 'Print greeting' }),
+						});
+						const completed = createCompletedToolCall({
+							...running,
+							status: ToolCallStatus.Completed,
+							pastTenseMessage,
+							success,
+							content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+						});
+						const invocation = toolCallStateToInvocation(running);
+						finalizeToolInvocation(invocation, completed);
+						const serialized = completedToolCallToSerialized(completed, undefined, URI.parse('cloud-session://host/session'), 'remote');
+						const expected = {
+							invocationMessage: `${success ? 'Running command' : 'Command failed'} \`Print greeting\``,
+							pastTenseMessage: undefined,
+							kind: 'terminal',
+							command: 'echo hi',
+							output: 'hi\r\n',
+						};
+						assert.deepStrictEqual([invocation, serialized].map(tool => ({
+							invocationMessage: typeof tool.invocationMessage === 'string' ? tool.invocationMessage : tool.invocationMessage.value,
+							pastTenseMessage: tool.pastTenseMessage,
+							kind: tool.toolSpecificData?.kind,
+							command: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.commandLine.original : undefined,
+							output: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.terminalCommandOutput?.text : undefined,
+						})), [expected, expected]);
+					}
+				});
+			}
+		}
+
 		test('rewrites markdown links in pastTenseMessage through the agent host scheme', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
 			const invocation = toolCallStateToInvocation(tc);

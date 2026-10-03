@@ -2122,7 +2122,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
 		originMessage: toolCallOriginMessage(tc),
-		pastTenseMessage: isTerminal && (tc.status !== ToolCallStatus.Completed || presentation.pastTenseMessage === tc.pastTenseMessage) ? undefined : pastTenseMsg,
+		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: shouldHideAutomaticTitleRename(tc)
@@ -3006,11 +3006,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			terminalCommandState: getTerminalCommandState(tc, isCompleted && tc.success),
 		};
 	}
-	if (isCompleted) {
-		const presentation = readToolCallPresentation(tc);
-		if (!isTerminal || presentation.pastTenseMessage !== tc.pastTenseMessage) {
-			invocation.pastTenseMessage = stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority);
-		}
+	if (isCompleted && !isTerminal) {
+		invocation.pastTenseMessage = stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// past-tense text here. Add new per-tool cases alongside this branch.
