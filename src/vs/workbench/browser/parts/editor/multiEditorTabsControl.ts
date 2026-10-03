@@ -2163,9 +2163,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tab.style.setProperty('--connected-tab-min-width', `${minimum}px`);
 			}
 		}
-		const narrowTabs = Array.from(minimumWidths, ([tab, minimum]) => ({ tab, narrow: tab.offsetWidth < minimum + 22 }));
-		for (const { tab, narrow } of narrowTabs) {
-			tab.classList.toggle('connected-tab-narrow', narrow);
+		if (this.groupsView.partOptions.tabSizing !== 'fit') {
+			const narrowTabs = Array.from(minimumWidths, ([tab, minimum]) => ({ tab, narrow: tab.offsetWidth < minimum + 22 }));
+			for (const { tab, narrow } of narrowTabs) {
+				tab.classList.toggle('connected-tab-narrow', narrow);
+			}
 		}
 	}
 
