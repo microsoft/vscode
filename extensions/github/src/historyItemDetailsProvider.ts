@@ -213,9 +213,13 @@ export class GitHubSourceControlHistoryItemDetailsProvider implements SourceCont
 			return undefined;
 		}
 
+		const descriptor = getRepositoryFromUrl(url);
+		const isGitHub = descriptor ? new URL(descriptor.baseUrl).hostname === 'github.com' : false;
+		const host = isGitHub ? 'GitHub' : (descriptor ? new URL(descriptor.baseUrl).hostname : 'remote');
+
 		return [{
-			title: l10n.t('{0} Open on GitHub', '$(github)'),
-			tooltip: l10n.t('Open on GitHub'),
+			title: l10n.t('{0} Open on {1}', '$(github)', host),
+			tooltip: l10n.t('Open on {0}', host),
 			command: 'github.openOnGitHub',
 			arguments: [url]
 		}];
