@@ -126,6 +126,54 @@ suite('Indentation Context Processor - TypeScript/JavaScript', () => {
 			assert.strictEqual(processedContext.previousLineProcessedTokens.getLineContent(), '');
 		});
 	});
+
+	test('comment markers inside of string - issue #241802', () => {
+
+		const model = createTextModel([
+			"let string = '//this is a string'.charAt(0)",
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			const tokens: StandardTokenTypeData[][] = [[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 13, standardTokenType: StandardTokenType.String },
+				{ startIndex: 33, standardTokenType: StandardTokenType.Other }
+			]];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
+			const processedContext = indentationContextProcessor.getProcessedTokenContextAroundRange(new Range(1, 44, 1, 44));
+			// The '//' inside the string should be removed so it does not trigger comment continuation
+			assert.strictEqual(processedContext.beforeRangeProcessedTokens.getLineContent(), "let string = 'this is a string'.charAt(0)");
+			assert.strictEqual(processedContext.afterRangeProcessedTokens.getLineContent(), '');
+			assert.strictEqual(processedContext.previousLineProcessedTokens.getLineContent(), '');
+		});
+	});
+
+	test('URL inside of string should not trigger comment continuation - issue #241802', () => {
+
+		const model = createTextModel([
+			'axios.get("http://localhost/index").then()',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			const tokens: StandardTokenTypeData[][] = [[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 10, standardTokenType: StandardTokenType.String },
+				{ startIndex: 34, standardTokenType: StandardTokenType.Other }
+			]];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
+			const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+			const indentationContextProcessor = new IndentationContextProcessor(model, languageConfigurationService);
+			const processedContext = indentationContextProcessor.getProcessedTokenContextAroundRange(new Range(1, 43, 1, 43));
+			// The '//' inside the URL string should be removed
+			assert.strictEqual(processedContext.beforeRangeProcessedTokens.getLineContent(), 'axios.get("httplocalhost/index").then()');
+			assert.strictEqual(processedContext.afterRangeProcessedTokens.getLineContent(), '');
+			assert.strictEqual(processedContext.previousLineProcessedTokens.getLineContent(), '');
+		});
+	});
 });
 
 suite('Processed Indent Rules Support - TypeScript/JavaScript', () => {
