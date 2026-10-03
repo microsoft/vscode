@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../../common/meta/agentRemoteSessionMeta.js';
+import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
 import {
@@ -104,6 +105,15 @@ function encode(data: AgentHostCatalogData = createData()) {
 
 suite('AgentHostCatalogProjection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('round trips creating-client identity through the validated catalog', () => {
+		const initiator = { name: 'github/cli', title: 'Copilot CLI', version: '1.0' };
+		const data = createData();
+		const encoded = encode({ ...data, _meta: withSessionInitiator(data._meta, initiator) });
+		const decoded = decodeAgentHostCatalogPayload(encoded.payload);
+		assert.ok(decoded.ok);
+		assert.deepStrictEqual(readSessionInitiator(decoded.value.data), initiator);
+	});
 
 	test('round trips validated remote-session origin metadata', () => {
 		const origin = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };

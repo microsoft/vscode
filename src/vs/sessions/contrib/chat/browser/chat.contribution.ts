@@ -58,7 +58,7 @@ import { WorktreeCreatedTaskDispatcher, AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SE
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_MESSAGES_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING } from '../common/constants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsChatViewStateService, SessionsChatViewStateService } from './chatViewStateService.js';
@@ -292,6 +292,30 @@ class CustomizeNewSessionWelcomeMessageAction extends Action2 {
 }
 
 registerAction2(CustomizeNewSessionWelcomeMessageAction);
+
+class HideNewSessionWelcomeMessageAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.hideWelcomeMessage',
+			title: localize2('sessions.chat.hideWelcomeMessage', "Hide Welcome Message"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.eyeClosed,
+			precondition: IsSessionsWindowContext,
+			menu: [{
+				id: Menus.NewSessionWelcomeContext,
+				group: 'navigation',
+				order: 1,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IConfigurationService).updateValue(NEW_SESSION_WELCOME_PHRASES_SETTING, false, ConfigurationTarget.USER);
+	}
+}
+
+registerAction2(HideNewSessionWelcomeMessageAction);
 
 class SetChatBackgroundAction extends Action2 {
 
@@ -573,6 +597,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('sessions.chat.compareAgents.hideInactiveInputs', "When enabled, hides the chat input in inactive panes when three or more parallel comparison attempts are shown in a grid. This behavior is disabled when screen-reader optimized mode is active."),
+			tags: ['experimental'],
+		},
+		[COMPARE_AGENTS_OPEN_IN_GRID_SETTING]: {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('sessions.chat.compareAgents.openInGrid', "Automatically opens comparison attempts in a grid when they start. When disabled, the attempts start in the background; select their comparison group to open the grid."),
 			tags: ['experimental'],
 		},
 		[AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING]: {

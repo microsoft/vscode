@@ -30,6 +30,7 @@ import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatModelSource, ISession, IChat, ISessionGitRepository, ISessionFolder, ISessionWorkspace, ISideChatSelection, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, IGitHubIssueRef, ISessionArtifact, SessionArtifactKind, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, sessionFileChangesEqual, gitHubInfoEqual, sessionWorkspaceEqual, toSessionId, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_GITHUB, IChatCheckpoints, ChatInteractivity, SessionTypeAuthRequirement, ISessionChangesSummary, ISessionCreationReference } from '../../../../services/sessions/common/session.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISendRequestOptions, ISessionChangeEvent, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -105,6 +106,7 @@ export interface ICopilotChatSession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cloud-agent', 'copilot-cloud-sandbox'). */
 	readonly sessionType: string;
+	readonly application: ISession['application'];
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */
@@ -256,6 +258,7 @@ function isRepositoriesOptionGroup(group: IChatSessionProviderOptionGroup): bool
  * pre-send configuration methods for the new-session flow.
  */
 export class RemoteNewSession extends Disposable implements ICopilotChatSession {
+	readonly application = constObservable(getSessionApplication('vscode'));
 
 	readonly lifetimeToken = cancelOnDispose(this._store);
 
@@ -555,6 +558,7 @@ function resolveGitHubRepositoryId(folder: ISessionFolder): string | undefined {
  * Adapts an existing Copilot Cloud {@link IAgentSession} from the chat layer into the new {@link ICopilotChatSession} facade.
  */
 class AgentSessionAdapter implements ICopilotChatSession {
+	readonly application: ISettableObservable<ReturnType<typeof getSessionApplication>>;
 
 	readonly sessionId: string;
 	readonly resource: URI;
@@ -630,6 +634,10 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.resource = session.resource;
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
+		this.application = observableValueOpts({ owner: this, equalsFn: structuralEquals },
+			getSessionApplication(typeof session.metadata?.event_type === 'string' && session.metadata.event_type
+				? session.metadata.event_type
+				: this._extractIsExternal(session) ? 'github/autopilot' : 'vscode'));
 		this.icon = CopilotCloudSessionType.icon;
 		this.createdAt = new Date(session.timing.created);
 
@@ -761,6 +769,9 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			changed = setIfChanged(this._isArchived, session.isArchived(), tx) || changed;
 			changed = setIfChanged(this._isRead, session.isRead(), tx) || changed;
 			changed = setIfChanged(this._isExternal, this._extractIsExternal(session), tx) || changed;
+			if (typeof session.metadata?.event_type === 'string' && session.metadata.event_type) {
+				changed = setIfChanged(this.application, getSessionApplication(session.metadata.event_type), tx, structuralEquals) || changed;
+			}
 			changed = setIfChanged(this._description, this._extractDescription(session), tx, markdownStringEquals) || changed;
 			changed = setIfChanged(this._lastTurnEnd, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx, dateEquals) || changed;
 			changed = setIfChanged(this._baseGitHubInfo, gitHubInfo, tx, gitHubInfoEqual) || changed;
@@ -1030,6 +1041,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
  * Wraps the existing session infrastructure into the extensible provider model.
  */
 export class CopilotChatSessionsProvider extends Disposable implements ISessionsProvider {
+	readonly environment = { id: 'cloud', label: localize('environment.cloud', "Cloud") };
 
 	/**
 	 * How long the first sandbox turn waits for the session's model catalog to arrive before
@@ -2502,6 +2514,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			resource: chat.resource,
 			providerId: chat.providerId,
 			sessionType: chat.sessionType,
+			harness: 'copilot',
+			environment: this.environment.id,
+			application: chat.application,
 			icon: chat.icon,
 			createdAt: chat.createdAt,
 			workspace: chat.workspace,

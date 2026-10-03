@@ -7,11 +7,13 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession, ISessionCanvas, SessionCanvasAvailability } from '../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionCanvasReference, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
@@ -22,8 +24,8 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 
 	private readonly _inputs = this._register(new DisposableMap<string, SessionCanvasInput>());
 	private readonly _inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
-	private readonly _dismissedRevisions = new Map<string, { readonly reference: ISessionCanvasReference; readonly revision: number }>();
-	private readonly _presentedRevisions = new Map<string, number>();
+	private readonly _dismissed = new Map<string, ISessionCanvasReference>();
+	private readonly _presented = new Set<string>();
 	private readonly _programmaticCloses = new Set<string>();
 
 	constructor(
@@ -31,10 +33,18 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatEntitlementService entitlementService: IChatEntitlementService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.enabled = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => !entitlementService.sentiment.hidden);
+		const onDidChangeEnablement = Event.any(
+			entitlementService.onDidChangeSentiment,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(CanvasesEnabledSettingId)),
+		);
+		this.enabled = observableFromEvent(this, onDidChangeEnablement, () =>
+			!entitlementService.sentiment.hidden
+			&& configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true
+		);
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			for (const session of event.removed) {
 				this._removeSession(session);
@@ -45,11 +55,11 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
 			const supported = activeSession?.capabilities.read(reader).supportsCanvases === true;
-			const canvases = enabled && supported ? activeChat?.canvases?.read(reader) ?? [] : [];
+			const canvases = enabled && supported ? activeChat?.canvases?.read(reader) : undefined;
 			const activeKeys = new Set<string>();
 
 			if (activeSession && activeChat && enabled && supported) {
-				for (const canvas of canvases) {
+				for (const canvas of canvases ?? []) {
 					const reference: ISessionCanvasReference = {
 						providerId: activeSession.providerId,
 						session: activeSession.resource,
@@ -60,28 +70,26 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 					const key = canvasKey(reference);
 					activeKeys.add(key);
 					input.setCanvas(canvas);
-					if (canvas.availability !== SessionCanvasAvailability.Ready
-						|| this._dismissedRevisions.get(key)?.revision === canvas.revision
-						|| this._presentedRevisions.get(key) === canvas.revision) {
+					if (canvas.source === undefined || this._dismissed.has(key) || this._presented.has(key)) {
 						continue;
 					}
-					this._presentedRevisions.set(key, canvas.revision);
+					this._presented.add(key);
 					void this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false })
 						.catch(error => this.logService.error('[SessionCanvasService] Failed to reveal canvas', error));
 				}
 			}
 
-			if (activeSession && activeChat) {
-				for (const [key, dismissed] of this._dismissedRevisions) {
-					if (ownsChat(dismissed.reference, activeSession, activeChat) && !activeKeys.has(key)) {
-						this._dismissedRevisions.delete(key);
+			if (activeSession && activeChat && canvases !== undefined) {
+				for (const [key, dismissed] of this._dismissed) {
+					if (ownsChat(dismissed, activeSession, activeChat) && !activeKeys.has(key)) {
+						this._dismissed.delete(key);
 					}
 				}
 			}
 
 			for (const [key, input] of this._inputs) {
 				const ownsActiveChat = !!activeSession && !!activeChat && ownsChat(input.reference, activeSession, activeChat);
-				if (!enabled || (ownsActiveChat && !activeKeys.has(key))) {
+				if (!enabled || (ownsActiveChat && (!supported || (canvases !== undefined && !activeKeys.has(key))))) {
 					void this._closeInput(key, input);
 				}
 			}
@@ -90,14 +98,15 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 
 	getTarget(reference: ISessionCanvasReference, reader?: IReader): ISessionCanvasTarget | undefined {
 		const session = this.sessionsService.activeSession.read(reader);
-		if (!session || session.providerId !== reference.providerId || !isEqual(session.resource, reference.session)) {
+		if (!session || session.capabilities.read(reader).supportsCanvases !== true
+			|| session.providerId !== reference.providerId || !isEqual(session.resource, reference.session)) {
 			return undefined;
 		}
 		const chat = session.activeChat.read(reader);
 		if (!isEqual(chat.resource, reference.chat)) {
 			return undefined;
 		}
-		const canvas = chat.canvases?.read(reader).find(candidate => isEqual(candidate.resource, reference.canvas));
+		const canvas = chat.canvases?.read(reader)?.find(candidate => isEqual(candidate.resource, reference.canvas));
 		return canvas ? { session, chat, canvas } : undefined;
 	}
 
@@ -117,10 +126,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		this._inputLifetimes.set(key, lifetime);
 		lifetime.add(Event.once(input.onWillDispose)(() => {
 			if (!this._programmaticCloses.delete(key)) {
-				const revision = input?.canvas.get()?.revision;
-				if (revision !== undefined) {
-					this._dismissedRevisions.set(key, { reference, revision });
-				}
+				this._dismissed.set(key, reference);
 			}
 			if (this._inputs.get(key) === input) {
 				this._inputs.deleteAndLeak(key);
@@ -128,16 +134,16 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			if (this._inputLifetimes.get(key) === lifetime) {
 				this._inputLifetimes.deleteAndLeak(key);
 			}
-			this._presentedRevisions.delete(key);
+			this._presented.delete(key);
 			lifetime.dispose();
 		}));
 		return input;
 	}
 
 	private _removeSession(session: ISession): void {
-		for (const [key, dismissed] of this._dismissedRevisions) {
-			if (ownsSession(dismissed.reference, session)) {
-				this._dismissedRevisions.delete(key);
+		for (const [key, dismissed] of this._dismissed) {
+			if (ownsSession(dismissed, session)) {
+				this._dismissed.delete(key);
 			}
 		}
 		for (const [key, input] of this._inputs) {
@@ -159,8 +165,8 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		if (lifetime && this._inputLifetimes.get(key) === lifetime) {
 			this._inputLifetimes.deleteAndLeak(key);
 		}
-		this._dismissedRevisions.delete(key);
-		this._presentedRevisions.delete(key);
+		this._dismissed.delete(key);
+		this._presented.delete(key);
 		await this.editorService.closeEditors(this.editorService.findEditors(input.resource), { preserveFocus: true });
 		if (!input.isDisposed()) {
 			input.dispose();

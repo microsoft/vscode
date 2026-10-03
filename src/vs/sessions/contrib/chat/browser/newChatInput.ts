@@ -44,7 +44,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -102,8 +102,10 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
+import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
+import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
@@ -587,6 +589,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
 	private _primaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private readonly _pickerFocusListeners = this._register(new MutableDisposable());
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private _updateAttachmentOffset: (() => void) | undefined;
 	private _inputToolbar: HTMLElement | undefined;
@@ -631,6 +634,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			sendButtonLabel?: IObservable<string | undefined>;
+			modelPickerWorkflow?: IModelPickerWorkflow;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -673,7 +677,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {}));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, { workflow: this.options.modelPickerWorkflow }));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -730,6 +734,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Rendering ---
 
 	render(parent: HTMLElement, root: HTMLElement): void {
+		this._pickerFocusListeners.value = trackChatInputPickerFocus(parent);
 		// Input slot, and the stack the notices, prompt options and input area sit in.
 		const chatInputContainer = dom.append(parent, dom.$(`.new-chat-input-container.${chatInputStackClass}`));
 
@@ -894,6 +899,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
+		this._register(autorun(reader => newChatBottomContainer.classList.toggle(
+			'standard-new-session-composer-layout',
+			!(this.options.useExperimentalLayout?.read(reader) ?? false),
+		)));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		if (this._sessionControlsContainer && this._inputToolbar && this._configContainer) {
 			const sessionControlsContainer = this._sessionControlsContainer;
@@ -969,9 +978,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		updateBottomContainerVisibility();
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
+			isCompactionEnabled: () => !isPhoneLayout(this.layoutService),
 			getItems: () => getLabeledPickerResponsiveItems(newChatBottomContainer),
 		}));
 		this._secondaryPickerResponsiveLayout.layout();
+		this._register(autorun(reader => {
+			this.options.useExperimentalLayout?.read(reader);
+			this._secondaryPickerResponsiveLayout?.layout();
+		}));
 
 		// Restore draft input state from storage
 		this._restoreState();
@@ -1432,18 +1446,24 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
 
 		if (this._sendButtonContainer) {
+			const sendButtonTitle = this.options.supportsBackground
+				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+				: localize('send', "Send");
 			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
-				title: this.options.supportsBackground
-					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-					: localize('send', "Send"),
+				supportIcons: !!this.options.sendButtonLabel,
+				title: sendButtonTitle,
+				hoverDelegate: this.options.sendButtonLabel ? this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', {
+					dynamicDelay: () => this.options.sendButtonLabel?.get() ? 0 : undefined,
+				}, {})) : undefined,
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
 			if (this.options.sendButtonLabel) {
 				this._register(autorun(reader => {
 					const label = this.options.sendButtonLabel?.read(reader);
-					sendButton.label = label ?? '';
+					NewChatInputWidget._setSendButtonLabel(sendButton, label);
+					sendButton.setTitle(label ? localize('comparisonTokenWarning', "This will use tokens for each session.") : sendButtonTitle);
 					sendButton.element.ariaLabel = label ?? localize('send', "Send");
 					this._sendButtonContainer?.classList.toggle('labeled', !!label);
 				}));
@@ -1490,6 +1510,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			},
 		}));
 		this._primaryPickerResponsiveLayout.layout();
+	}
+
+	private static _setSendButtonLabel(sendButton: Button, label: string | undefined): void {
+		if (label) {
+			sendButton.element.classList.remove(...ThemeIcon.asClassNameArray(Codicon.arrowUpCompact));
+			sendButton.label = `$(arrow-up-compact) ${label}`;
+		} else {
+			sendButton.label = '';
+			sendButton.element.classList.remove('monaco-text-button');
+			sendButton.icon = Codicon.arrowUpCompact;
+		}
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement, isVoiceSessionActive: IObservable<boolean>, pillActive: IObservable<boolean>, onDidChangeVisibility: (visible: boolean) => void): void {

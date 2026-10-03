@@ -12,13 +12,17 @@ import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import type { CopilotSlashCommandInvocation, CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
+import type { CopilotSlashCommandOutput, CopilotSlashCommandResult, ICopilotSlashCommandHandler, RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 
 export const copilotSandboxPolicyCommand: RuntimeSlashCommandInfo = {
-	name: 'sandbox-policy',
+	name: 'sandbox',
 	description: localize('copilotSlashCommand.sandboxPolicy', "Show the effective sandbox policy for this session"),
 	kind: 'builtin',
 	allowDuringAgentExecution: true,
+	input: {
+		hint: '',
+		choices: [{ name: 'policy', description: localize('copilotSlashCommand.sandboxPolicy', "Show the effective sandbox policy for this session") }],
+	},
 };
 
 export class CopilotSandboxPolicyDisplay {
@@ -31,20 +35,12 @@ export class CopilotSandboxPolicyDisplay {
 	) { }
 
 	getHandler(command: RuntimeSlashCommandInfo): ICopilotSlashCommandHandler | undefined {
-		if (command.kind !== 'builtin' || (command.name !== copilotSandboxPolicyCommand.name && command.name !== 'sandbox')) {
+		if (command.kind !== 'builtin' || command.name !== copilotSandboxPolicyCommand.name) {
 			return undefined;
 		}
 		return {
-			getInvocation: command.name === copilotSandboxPolicyCommand.name ? input => this.getInvocation(input) : undefined,
-			getOutput: (input, result) => command.name === copilotSandboxPolicyCommand.name || input === 'policy' ? this.getOutput(result) : undefined,
+			getOutput: (input, result) => input === 'policy' ? this.getOutput(result) : undefined,
 		};
-	}
-
-	private getInvocation(input: string): CopilotSlashCommandInvocation {
-		if (input.trim().length > 0) {
-			throw new Error(localize('copilotSlashCommand.sandboxPolicyNoArguments', "The /sandbox-policy command does not accept arguments."));
-		}
-		return { name: 'sandbox', input: 'policy' };
 	}
 
 	private async getOutput(result: CopilotSlashCommandResult): Promise<CopilotSlashCommandOutput> {

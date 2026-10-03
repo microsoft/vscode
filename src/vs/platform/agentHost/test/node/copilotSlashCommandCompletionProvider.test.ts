@@ -144,6 +144,85 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
 		}
 
+		test('offers SDK Chronicle commands and filters subcommands after a space', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'chronicle',
+					description: 'Session history tools and insights',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[standup|search|tips|cost-tips|improve|reindex]',
+						choices: ['standup', 'search', 'tips', 'cost-tips', 'improve', 'reindex'].map(name => ({ name, description: name })),
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				command: item.attachment._meta?.command,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+			}));
+
+			assert.deepStrictEqual({
+				root: await complete('/chron'),
+				subcommands: await complete('/chronicle s'),
+				freeText: await complete('/chronicle search CLI'),
+			}, {
+				root: ['', 'cost-tips', 'improve', 'reindex', 'search', 'standup', 'tips'].map(name => ({
+					insertText: `/chronicle${name ? ' ' + name : ''} `,
+					command: 'chronicle',
+					rangeStart: 0,
+					rangeEnd: 6,
+				})),
+				subcommands: ['search', 'standup'].map(name => ({
+					insertText: `${name} `,
+					command: 'chronicle',
+					rangeStart: 11,
+					rangeEnd: 12,
+				})),
+				freeText: [],
+			});
+		});
+
+		test('hides Chronicle suggestions while local indexing is disabled and restores them when enabled', async () => {
+			let localIndexEnabled = false;
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isLocalIndexEnabled: () => localIndexEnabled,
+				getRuntimeSlashCommands: async () => [
+					{
+						name: 'chronicle',
+						description: 'Session history tools and insights',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: { hint: '[standup|search]', choices: [{ name: 'standup', description: 'Daily report' }, { name: 'search', description: 'Search history' }] },
+					},
+					{ name: 'review', description: 'Review changes', kind: 'builtin', allowDuringAgentExecution: false },
+				],
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+			}, CancellationToken.None)).map(item => item.insertText);
+
+			const disabled = { root: await complete('/'), subcommands: await complete('/chronicle s') };
+			localIndexEnabled = true;
+
+			assert.deepStrictEqual({
+				disabled,
+				enabled: await complete('/chronicle s'),
+			}, {
+				disabled: { root: ['/review '], subcommands: [] },
+				enabled: ['search ', 'standup '],
+			});
+		});
+
 		test('returns nothing for non-copilotcli scheme', async () => {
 			const items = await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage,
@@ -154,7 +233,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			assert.deepStrictEqual(items, []);
 		});
 
-		test('offers /sandbox-policy while keeping SDK sandbox subcommands hidden', async () => {
+		test('offers /sandbox policy while keeping other SDK sandbox subcommands hidden', async () => {
 			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
 			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
@@ -166,21 +245,21 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			}, CancellationToken.None);
 
 			assert.deepStrictEqual(runtimeOnly(items), [{
-				insertText: '/sandbox-policy ',
+				insertText: '/sandbox policy ',
 				rangeStart: 0,
 				rangeEnd: 5,
 				attachment: {
 					type: MessageAttachmentKind.Simple,
-					label: 'sandbox-policy',
+					label: 'sandbox policy',
 					_meta: {
-						command: 'sandbox-policy',
+						command: 'sandbox',
 						description: 'Show the effective sandbox policy for this session',
 					},
 				},
 			}]);
 		});
 
-		test('does not offer /sandbox-policy for another provider or as an inline skill', async () => {
+		test('does not offer /sandbox policy for another provider or as an inline skill', async () => {
 			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
 			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
@@ -197,30 +276,28 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			}
 		});
 
-		test('keeps /sandbox-policy available when runtime command discovery fails', async () => {
+		test('keeps /sandbox policy available when runtime command discovery fails', async () => {
 			const commands = new CopilotSlashCommandProvider(async () => {
 				throw new Error('Command discovery unavailable');
 			}, undefined, new NullLogService());
 
 			assert.deepStrictEqual({
 				names: (await commands.getSlashCommands()).map(command => command.name),
-				resolved: (await commands.resolveSlashCommand('sandbox-policy'))?.name,
+				resolved: (await commands.resolveSlashCommand('sandbox'))?.name,
 			}, {
-				names: ['sandbox-policy'],
-				resolved: 'sandbox-policy',
+				names: ['sandbox'],
+				resolved: 'sandbox',
 			});
 		});
 
 		test('does not duplicate a runtime command with the same name', async () => {
-			const commands = new CopilotSlashCommandProvider(async () => [{
-				...sandboxCommand, name: 'sandbox-policy',
-			}], undefined, new NullLogService());
+			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
 			assert.deepStrictEqual((await commands.getSlashCommands()).map(command => ({
 				name: command.name, input: command.input,
-			})), [{ name: 'sandbox-policy', input: undefined }]);
+			})), [{ name: 'sandbox', input: { hint: '', choices: [{ name: 'policy', description: 'Show the effective sandbox policy for this session' }] } }]);
 		});
 
-		test('keeps native /sandbox hidden even when the SDK only advertises configuration choices', async () => {
+		test('offers only policy even when the SDK only advertises configuration choices', async () => {
 			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
 				getRuntimeSlashCommands: async () => [{
 					...sandboxCommand,
@@ -228,9 +305,35 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				}],
 				getSessionCustomizations: async () => [],
 			});
-			assert.deepStrictEqual(await provider.provideCompletionItems({
+			assert.deepStrictEqual((await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage, channel: session, text: '/sand', offset: 5,
-			}, CancellationToken.None), []);
+			}, CancellationToken.None)).map(item => item.insertText), ['/sandbox policy ']);
+		});
+
+		test('completes the policy argument and removes the old command', async () => {
+			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: (_sessionId, options) => commands.getSlashCommands(options),
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => (await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText, rangeStart: item.rangeStart, rangeEnd: item.rangeEnd,
+			}));
+			assert.deepStrictEqual({
+				arguments: await complete('/sandbox '),
+				partial: await complete('/sandbox p'),
+				hidden: await complete('/sandbox off'),
+				old: await complete('/sandbox-policy'),
+				resolvedOld: await commands.resolveSlashCommand('sandbox-policy'),
+			}, {
+				arguments: [{ insertText: 'policy ', rangeStart: 9, rangeEnd: 9 }],
+				partial: [{ insertText: 'policy ', rangeStart: 9, rangeEnd: 10 }],
+				hidden: [],
+				old: [],
+				resolvedOld: undefined,
+			});
 		});
 
 		test('offers runtime customization commands with their supported subcommands', async () => {

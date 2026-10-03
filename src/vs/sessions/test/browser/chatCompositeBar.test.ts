@@ -346,6 +346,46 @@ suite('Sessions - ChatCompositeBar', () => {
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
 	});
 
+	for (const connected of [false, true]) {
+		test(`keeps ${connected ? 'connected' : 'pill'} chat tab presentation unchanged across layout densities`, () => {
+			const harness = createHarness(disposables);
+			const root = attachConnectedBar(harness);
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			harness.activeChatResource.set(harness.tabs[1].dataset.chatResource!, undefined);
+			const row = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+			const fill = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				root.classList.add(theme);
+				const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+				const height = row.getBoundingClientRect().height;
+				const states = [false, true, false].map(compact => {
+					root.classList.toggle('modern-ui-compact', compact);
+					const separator = mainWindow.getComputedStyle(row, '::after');
+					return {
+						bottomBorder: mainWindow.getComputedStyle(row).borderBottomWidth,
+						separator: separator.content !== 'none' && separator.display !== 'none',
+						capBorder: mainWindow.getComputedStyle(fill).borderTop,
+						height: row.getBoundingClientRect().height,
+						selected: harness.tabs[1].getAttribute('aria-selected'),
+						tabIndex: harness.tabs[1].tabIndex,
+					};
+				});
+
+				const expected = {
+					bottomBorder: connected ? '0px' : '1px',
+					separator: connected,
+					capBorder,
+					height,
+					selected: 'true',
+					tabIndex: 0,
+				};
+				assert.deepStrictEqual(states, [expected, expected, expected], theme);
+				root.classList.remove(theme);
+			}
+		});
+	}
+
 	test('uses the side-panel border color fallback for the chat cap, shoulders, and separator', () => {
 		const harness = createHarness(disposables);
 		const root = attachConnectedBar(harness);

@@ -6,26 +6,25 @@
 import assert from 'assert';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatHarnessSwitchFeedbackSurveyService } from '../../../browser/feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../common/chatService/chatService.js';
-import { IChatQuestionCarouselOptions } from '../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../browser/widget/chatContentParts/chatQuestionCarouselPart.js';
+import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatConfiguration, CopilotHarnessIntroductionMode } from '../../../common/constants.js';
-import { CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID, IChatHarnessSwitchFeedbackSurveyTelemetryEvent } from '../../../common/feedbackSurvey/chatHarnessSwitchFeedbackSurveyTelemetry.js';
 
 suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const inputUri = URI.parse('vscode-chat-input://input-1');
+	const eventName = 'chatHarnessSwitchFeedbackSurvey';
 	const context = {
 		mode: CopilotHarnessIntroductionMode.AfterRequest,
 		surface: 'sidebar' as const,
@@ -34,8 +33,8 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 		harness: 'copilotcli',
 	};
 
-	function createService(options: { surveyEnabled?: boolean; feedbackEnabled?: boolean; telemetryLevel?: TelemetryLevel; hasWidget?: boolean } = {}) {
-		const events: { readonly commandId: string; readonly event: IChatHarnessSwitchFeedbackSurveyTelemetryEvent }[] = [];
+	function createService(options: { surveyEnabled?: boolean; feedbackEnabled?: boolean; telemetryLevel?: TelemetryLevel; hasWidget?: boolean; storageService?: IStorageService } = {}) {
+		const events: { readonly eventName: string; readonly data: object | undefined }[] = [];
 		const carousels: { readonly carousel: IChatQuestionCarousel; readonly options: IChatQuestionCarouselOptions }[] = [];
 		const cleared: (string | undefined)[] = [];
 		let focusRestores = 0;
@@ -44,53 +43,68 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 		});
 		configurationService.setUserConfiguration('telemetry', { feedback: { enabled: options.feedbackEnabled ?? true } });
 
-		const widget = {
-			input: {
+		const widget = upcastPartial<IChatWidget>({
+			input: upcastPartial<ChatInputPart>({
 				renderQuestionCarousel: (carousel: IChatQuestionCarousel, _context: undefined, carouselOptions: IChatQuestionCarouselOptions) => {
 					carousels.push({ carousel, options: carouselOptions });
-					return undefined!;
+					return new class extends mock<ChatQuestionCarouselPart>() { }();
 				},
 				clearQuestionCarousel: (_responseId?: string, resolveId?: string) => cleared.push(resolveId),
 				focus: () => focusRestores++,
-			},
-		} as unknown as IChatWidget;
+			}),
+		});
 		const chatWidgetService = new class extends mock<IChatWidgetService>() {
 			override readonly onDidRemoveWidget = Event.None;
 			override getWidgetByInputUri(uri: URI): IChatWidget | undefined {
 				return options.hasWidget === false || uri.toString() !== inputUri.toString() ? undefined : widget;
 			}
 		}();
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override telemetryLevel = options.telemetryLevel ?? TelemetryLevel.USAGE;
+			override publicLog2(eventName: string, data?: object): void {
+				events.push({ eventName, data });
+			}
+		}();
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
-		instantiationService.stub(ITelemetryService, { telemetryLevel: options.telemetryLevel ?? TelemetryLevel.USAGE } as ITelemetryService);
-		instantiationService.stub(ICommandService, {
-			executeCommand: async (commandId: string, event: IChatHarnessSwitchFeedbackSurveyTelemetryEvent) => {
-				events.push({ commandId, event });
-			},
-		} as unknown as ICommandService);
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, options.storageService ?? store.add(new InMemoryStorageService()));
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IChatWidgetService, chatWidgetService);
 
 		const service = store.add(instantiationService.createInstance(ChatHarnessSwitchFeedbackSurveyService));
-		return { service, events, carousels, cleared, get focusRestores() { return focusRestores; } };
+		return { service, events, carousels, cleared, configurationService, telemetryService, get focusRestores() { return focusRestores; } };
 	}
 
-	test('renders the existing question carousel and reports submitted answers through restricted telemetry', async () => {
+	function getExpectedEventData(carousel: IChatQuestionCarousel) {
+		return {
+			...context,
+			surveyId: 'copilot-local-switch-v1',
+			surveyInstanceId: carousel.resolveId?.slice('chat.harnessSwitchFeedbackSurvey.'.length),
+			stepCount: 1,
+			stepId: undefined,
+			stepIndex: undefined,
+			answerId: undefined,
+			fromHarness: 'copilot',
+			toHarness: 'local',
+		};
+	}
+
+	test('reports the fixed-choice answer through core telemetry and offers a GitHub feedback link', async () => {
 		const harness = createService();
 		const { service, events, carousels, cleared } = harness;
 		service.prompt(inputUri, context);
 
 		const rendered = carousels[0];
 		const answers = new Map<string, IChatQuestionAnswerValue>([
-			['reason', { selectedValue: 'performance' }],
+			['reason', { selectedValue: 'performance', freeformValue: 'This must not reach telemetry.' }],
 			['feedback', '  It took too long to start.  '],
 		]);
 		rendered.options.onSubmit(answers);
 		const clearedBeforeAcknowledgementDismiss = cleared.length;
 		rendered.options.submissionAcknowledgement?.onDidDismiss();
 		await Promise.resolve();
+		const commonData = getExpectedEventData(rendered.carousel);
 
 		assert.deepStrictEqual({
 			carousel: {
@@ -101,22 +115,12 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 				dismissLabel: rendered.options.dismissLabel,
 				submissionAcknowledgement: rendered.options.submissionAcknowledgement && {
 					message: rendered.options.submissionAcknowledgement.message,
+					description: rendered.options.submissionAcknowledgement.description?.value,
 					dismissLabel: rendered.options.submissionAcknowledgement.dismissLabel,
 				},
 				shouldAutoFocus: rendered.options.shouldAutoFocus,
 			},
-			events: events.map(({ commandId, event }) => ({
-				commandId,
-				kind: event.kind,
-				stepId: event.stepId,
-				stepIndex: event.stepIndex,
-				answerId: event.answerId,
-				comment: event.comment,
-				mode: event.mode,
-				fromHarness: event.fromHarness,
-				toHarness: event.toHarness,
-				surface: event.surface,
-			})),
+			events,
 			clearedBeforeAcknowledgementDismiss,
 			clearedAfterAcknowledgementDismiss: cleared.length,
 			focusRestores: harness.focusRestores,
@@ -138,70 +142,19 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 					],
 					allowFreeformInput: false,
 					required: true,
-				}, {
-					id: 'feedback',
-					type: 'text',
-					title: 'Any feedback?',
-					description: 'Share any additional feedback (optional).',
-					required: false,
-					validation: { maxLength: 1000 },
 				}],
 				dismissLabel: 'Dismiss Survey',
 				submissionAcknowledgement: {
 					message: 'Thanks, your feedback has been recorded.',
+					description: 'Have specific feedback? [Share it on GitHub](https://github.com/microsoft/vscode/issues).',
 					dismissLabel: 'Dismiss Feedback Acknowledgement',
 				},
 				shouldAutoFocus: true,
 			},
 			events: [
-				{
-					commandId: CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID,
-					kind: 'shown',
-					stepId: undefined,
-					stepIndex: undefined,
-					answerId: undefined,
-					comment: undefined,
-					mode: CopilotHarnessIntroductionMode.AfterRequest,
-					fromHarness: 'copilot',
-					toHarness: 'local',
-					surface: 'sidebar',
-				},
-				{
-					commandId: CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID,
-					kind: 'step',
-					stepId: 'reason',
-					stepIndex: 0,
-					answerId: 'performance',
-					comment: undefined,
-					mode: CopilotHarnessIntroductionMode.AfterRequest,
-					fromHarness: 'copilot',
-					toHarness: 'local',
-					surface: 'sidebar',
-				},
-				{
-					commandId: CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID,
-					kind: 'step',
-					stepId: 'feedback',
-					stepIndex: 1,
-					answerId: undefined,
-					comment: 'It took too long to start.',
-					mode: CopilotHarnessIntroductionMode.AfterRequest,
-					fromHarness: 'copilot',
-					toHarness: 'local',
-					surface: 'sidebar',
-				},
-				{
-					commandId: CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID,
-					kind: 'submitted',
-					stepId: undefined,
-					stepIndex: undefined,
-					answerId: undefined,
-					comment: undefined,
-					mode: CopilotHarnessIntroductionMode.AfterRequest,
-					fromHarness: 'copilot',
-					toHarness: 'local',
-					surface: 'sidebar',
-				},
+				{ eventName, data: { ...commonData, kind: 'shown' } },
+				{ eventName, data: { ...commonData, kind: 'step', stepId: 'reason', stepIndex: 0, answerId: 'performance' } },
+				{ eventName, data: { ...commonData, kind: 'submitted' } },
 			],
 			clearedBeforeAcknowledgementDismiss: 0,
 			clearedAfterAcknowledgementDismiss: 1,
@@ -209,7 +162,7 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 		});
 	});
 
-	test('reports draft answers when the carousel is dismissed', async () => {
+	test('reports only the predefined draft reason when the carousel is dismissed', async () => {
 		const harness = createService();
 		const { service, events, carousels, cleared } = harness;
 		service.prompt(inputUri, context);
@@ -220,29 +173,68 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 		]));
 		rendered.options.onSubmit(undefined);
 		await Promise.resolve();
+		const commonData = getExpectedEventData(rendered.carousel);
 
 		assert.deepStrictEqual({
-			events: events.map(({ event }) => ({
-				kind: event.kind,
-				stepId: event.stepId,
-				answerId: event.answerId,
-				comment: event.comment,
-			})),
+			events,
 			cleared: cleared.length,
 			focusRestores: harness.focusRestores,
 		}, {
 			events: [
-				{ kind: 'shown', stepId: undefined, answerId: undefined, comment: undefined },
-				{ kind: 'step', stepId: 'reason', answerId: 'preferLocal', comment: undefined },
-				{ kind: 'step', stepId: 'feedback', answerId: undefined, comment: 'Keep the startup flow simpler.' },
-				{ kind: 'dismissed', stepId: undefined, answerId: undefined, comment: undefined },
+				{ eventName, data: { ...commonData, kind: 'shown' } },
+				{ eventName, data: { ...commonData, kind: 'step', stepId: 'reason', stepIndex: 0, answerId: 'preferLocal' } },
+				{ eventName, data: { ...commonData, kind: 'dismissed' } },
 			],
 			cleared: 1,
 			focusRestores: 1,
 		});
 	});
 
-	test('uses the dedicated experiment gate and still requires feedback telemetry and a target input', () => {
+	for (const answerId of ['preferLocal', 'missingFeature', 'performance', 'reliability', 'other']) {
+		test(`logs predefined reason ${answerId} only once`, () => {
+			const { service, events, carousels } = createService();
+			service.prompt(inputUri, context);
+			const rendered = carousels[0];
+			const answers = new Map<string, IChatQuestionAnswerValue>([['reason', { selectedValue: answerId }]]);
+			rendered.options.onSubmit(answers);
+			rendered.options.onSubmit(answers);
+			rendered.options.onSubmit(undefined);
+			const commonData = getExpectedEventData(rendered.carousel);
+
+			assert.deepStrictEqual(events, [
+				{ eventName, data: { ...commonData, kind: 'shown' } },
+				{ eventName, data: { ...commonData, kind: 'step', stepId: 'reason', stepIndex: 0, answerId } },
+				{ eventName, data: { ...commonData, kind: 'submitted' } },
+			]);
+		});
+	}
+
+	test('does not log free text, unknown reason IDs, or unrelated answers', () => {
+		const invalidReasons: IChatQuestionAnswerValue[] = [
+			'arbitrary feedback',
+			{ selectedValue: 'unknown reason' },
+			{ freeformValue: 'arbitrary feedback' },
+			{ selectedValues: ['preferLocal'] },
+		];
+		for (const reason of invalidReasons) {
+			const { service, events, carousels } = createService();
+			service.prompt(inputUri, context);
+			const rendered = carousels[0];
+			rendered.options.onSubmit(new Map<string, IChatQuestionAnswerValue>([
+				['reason', reason],
+				['feedback', 'private feedback'],
+				['unexpected', 'unrelated answer'],
+			]));
+			const commonData = getExpectedEventData(rendered.carousel);
+
+			assert.deepStrictEqual(events, [
+				{ eventName, data: { ...commonData, kind: 'shown' } },
+				{ eventName, data: { ...commonData, kind: 'submitted' } },
+			]);
+		}
+	});
+
+	test('uses the dedicated experiment gate and requires feedback, usage telemetry, and a target input', () => {
 		const experimentOff = createService({ surveyEnabled: false });
 		experimentOff.service.prompt(inputUri, context);
 		const introductionOff = createService();
@@ -251,6 +243,10 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 		feedbackOff.service.prompt(inputUri, context);
 		const telemetryOff = createService({ telemetryLevel: TelemetryLevel.NONE });
 		telemetryOff.service.prompt(inputUri, context);
+		const errorTelemetry = createService({ telemetryLevel: TelemetryLevel.ERROR });
+		errorTelemetry.service.prompt(inputUri, context);
+		const crashTelemetry = createService({ telemetryLevel: TelemetryLevel.CRASH });
+		crashTelemetry.service.prompt(inputUri, context);
 		const missingInput = createService({ hasWidget: false });
 		missingInput.service.prompt(inputUri, context);
 
@@ -259,15 +255,39 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 			introductionOff: introductionOff.carousels.length,
 			feedbackOff: feedbackOff.carousels.length,
 			telemetryOff: telemetryOff.carousels.length,
+			errorTelemetry: errorTelemetry.carousels.length,
+			crashTelemetry: crashTelemetry.carousels.length,
 			missingInput: missingInput.carousels.length,
+			suppressedEvents: [experimentOff, feedbackOff, telemetryOff, errorTelemetry, crashTelemetry, missingInput].flatMap(harness => harness.events),
 		}, {
 			experimentOff: 0,
 			introductionOff: 1,
 			feedbackOff: 0,
 			telemetryOff: 0,
+			errorTelemetry: 0,
+			crashTelemetry: 0,
 			missingInput: 0,
+			suppressedEvents: [],
 		});
 	});
+
+	for (const setting of ['feedback', 'telemetry'] as const) {
+		test(`stops reporting when ${setting} is disabled after the survey opens`, async () => {
+			const { service, events, carousels, configurationService, telemetryService } = createService();
+			service.prompt(inputUri, context);
+			if (setting === 'feedback') {
+				await configurationService.setUserConfiguration('telemetry', { feedback: { enabled: false } });
+			} else {
+				telemetryService.telemetryLevel = TelemetryLevel.ERROR;
+			}
+			carousels[0].options.onDidDismiss?.(new Map<string, IChatQuestionAnswerValue>([['reason', { selectedValue: 'other' }]]));
+			carousels[0].options.onSubmit(undefined);
+
+			assert.deepStrictEqual(events, [
+				{ eventName, data: { ...getExpectedEventData(carousels[0].carousel), kind: 'shown' } },
+			]);
+		});
+	}
 
 	test('prompts only once after the survey is shown', () => {
 		const { service, carousels } = createService();
@@ -276,5 +296,24 @@ suite('ChatHarnessSwitchFeedbackSurveyService', () => {
 		service.prompt(inputUri, context);
 
 		assert.strictEqual(carousels.length, 1);
+	});
+
+	test('does not reprompt previously surveyed users after the service is recreated', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createService({ storageService });
+		first.service.prompt(inputUri, context);
+		first.service.dispose();
+		const second = createService({ storageService });
+		second.service.prompt(inputUri, context);
+
+		assert.deepStrictEqual({
+			firstPrompts: first.carousels.length,
+			secondPrompts: second.carousels.length,
+			secondEvents: second.events,
+		}, {
+			firstPrompts: 1,
+			secondPrompts: 0,
+			secondEvents: [],
+		});
 	});
 });

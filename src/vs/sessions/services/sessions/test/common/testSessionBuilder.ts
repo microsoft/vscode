@@ -7,7 +7,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionApplication, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 
 /** A peer chat of a {@link ITestSessionSpec}. */
 export interface ITestChatSpec {
@@ -32,6 +33,9 @@ export interface ITestSessionSpec {
 	/** The session id, from which the session and chat resources derive. */
 	readonly id: string;
 	readonly title: string;
+	readonly harness?: string;
+	readonly environment?: string;
+	readonly application?: string;
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
 	readonly workspaceFolders?: readonly [string, ...string[]];
@@ -74,6 +78,7 @@ export interface ITestChat {
 /** A session built from a {@link ITestSessionSpec}, with handles to change its state. */
 export interface ITestSession {
 	readonly session: ISession;
+	readonly application: ISettableObservable<ISessionApplication>;
 	readonly mainChat: ITestChat;
 	/** Peer chats by {@link ITestChatSpec.id}. */
 	readonly chats: ReadonlyMap<string, ITestChat>;
@@ -149,11 +154,15 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const title = observableValue('testSessionTitle', spec.title);
 	const isRead = observableValue('testSessionIsRead', spec.isRead ?? true);
 	const isArchived = observableValue('testSessionIsArchived', spec.isArchived ?? false);
+	const application = observableValue('testSessionApplication', getSessionApplication(spec.application ?? 'vscode'));
 	const session: ISession = {
 		sessionId: spec.id,
 		resource: getTestSessionResource(spec.id),
 		providerId: 'local',
 		sessionType: 'local',
+		harness: spec.harness ?? 'copilot',
+		environment: spec.environment ?? 'local',
+		application,
 		icon: Codicon.account,
 		createdAt,
 		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders) : undefined),
@@ -178,5 +187,5 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 			supportsImport: spec.isExternal === true,
 		}),
 	};
-	return { session, mainChat, chats, title, status, isRead, isArchived };
+	return { session, application, mainChat, chats, title, status, isRead, isArchived };
 }

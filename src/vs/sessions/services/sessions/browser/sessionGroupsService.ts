@@ -84,6 +84,9 @@ export interface ISessionGroupsService {
 	/** The id of the group the session belongs to, or `undefined`. */
 	getGroupOfSession(sessionId: string): string | undefined;
 
+	/** Whether automatic placement must preserve the session's ungrouped state. */
+	isExplicitlyUngrouped(sessionId: string): boolean;
+
 	/** The session ids that belong to the given group. */
 	getSessionIdsInGroup(groupId: string): string[];
 
@@ -355,6 +358,10 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 	getGroupOfSession(sessionId: string): string | undefined {
 		return this._membership.get(sessionId) ?? this._inFlightSessionGroups.get(sessionId);
+	}
+
+	isExplicitlyUngrouped(sessionId: string): boolean {
+		return this._explicitlyUngroupedSessionIds.has(sessionId);
 	}
 
 	getSessionIdsInGroup(groupId: string): string[] {

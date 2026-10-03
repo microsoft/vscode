@@ -19,6 +19,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { isSessionConfigWritable } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
@@ -202,7 +203,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 		}
 		const config = rawProvider.getSessionConfig(session.sessionId);
 		const schema = config?.schema.properties[this._property];
-		if (!schema || !this._isWellKnownSchema(schema)) {
+		if (!schema || !this._isWellKnownSchema(schema) || !isSessionConfigWritable(schema, rawProvider.getCreateSessionConfig(session.sessionId) !== undefined)) {
 			return undefined;
 		}
 		const enumValues = (schema.enum ?? []).map(value => String(value));
@@ -388,8 +389,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
+			if (this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
 				this._updateTrigger();
 			}
 		}));
@@ -406,7 +406,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 				this._showPicker(anchor, undefined, getModePermissionsPickerOptions(openPermissions, initialFocusItemId));
 			}, previous);
 		} else {
-			trigger.classList.remove('agent-host-mode-permissions-trigger');
+			trigger.classList.remove('agent-host-mode-permissions-trigger', 'chat-input-picker-split');
 			trigger.role = 'button';
 			trigger.tabIndex = 0;
 			trigger.ariaHasPopup = 'listbox';

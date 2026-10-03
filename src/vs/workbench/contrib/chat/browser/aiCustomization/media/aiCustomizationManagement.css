@@ -657,7 +657,7 @@ per-word capitalization does not survive translation. */
 }
 
 .customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
-	transform: translateX(var(--vscode-spacing-size60));
+	left: calc(50% - 50cqh);
 }
 
 .customization-toggle .monaco-switch.mixed {
@@ -680,13 +680,14 @@ per-word capitalization does not survive translation. */
 }
 
 .hc-light .customization-toggle .monaco-switch .monaco-switch-thumb {
-	background: var(--vscode-foreground);
+	background-color: var(--vscode-foreground);
 }
 
+/* An inset shadow is drawn inside the thumb's padding edge, so it rings the visible
+ * knob rather than the transparent border around it. */
 .hc-light .customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
-	background: var(--vscode-editor-background);
-	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	background-color: var(--vscode-editor-background);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder);
 }
 
 .hc-light .customization-toggle .monaco-switch.mixed .monaco-switch-thumb::after {
@@ -833,6 +834,14 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.partially-supported, .unsupported) {
+	flex-shrink: 0;
+}
+
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-source-path {
+	flex-shrink: 1;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
@@ -890,10 +899,31 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
-.ai-customization-list-item .item-description.is-filename {
-	font-family: monospace;
-	font-size: var(--vscode-fontSize-label3);
-	opacity: 0.7;
+.middle-ellipsis-path-label {
+	display: flex;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.middle-ellipsis-path-label .middle-ellipsis-path-prefix {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.middle-ellipsis-path-label .middle-ellipsis-path-suffix {
+	flex: 0 0 auto;
+	max-width: 70%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.middle-ellipsis-path-label.single-segment .middle-ellipsis-path-suffix {
+	max-width: 100%;
 }
 
 .ai-customization-list-item .item-right {
@@ -1783,8 +1813,12 @@ per-word capitalization does not survive translation. */
 	margin: 0;
 }
 
-.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-status-badge.unavailable {
-	color: var(--vscode-errorForeground);
+.ai-customization-management-editor .marketplace-detail-install-state {
+	padding-inline-start: var(--vscode-spacing-size320);
+}
+
+.ai-customization-management-editor .marketplace-detail-install-state .mcp-detail-diagnostic-card {
+	min-height: 0;
 }
 
 .ai-customization-management-editor .marketplace-detail-source-facts {
@@ -2020,6 +2054,23 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-status-badge {
 	flex-shrink: 0;
 	margin-top: 1px;
+}
+
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher {
+	align-self: flex-end;
+	flex-shrink: 1;
+	min-width: 0;
+	max-width: 40%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher[href] {
+	color: var(--vscode-textLink-foreground);
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-disable-button.monaco-button {
@@ -2685,8 +2736,8 @@ per-word capitalization does not survive translation. */
 	vertical-align: text-bottom;
 }
 
-.mcp-server-item .mcp-server-source-path.source-link + .mcp-server-compatibility-message::before {
-	content: "· ";
+.mcp-server-item .mcp-server-secondary-line.has-source .mcp-server-compatibility-message::after {
+	content: " ·";
 	color: var(--vscode-descriptionForeground);
 }
 

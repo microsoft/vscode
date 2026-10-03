@@ -434,7 +434,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					owner: childOwner,
 					session: browserSession.id,
 					presentation,
-					initialUrl: url || undefined
+					// Chromium owns navigation for an existing popup; loading again replaces its initial document.
+					initialUrl: electronOptions?.webContents ? undefined : url || undefined
 				}, editorOptions, electronOptions);
 			},
 			(v, params) => this.showContextMenu(v, params),

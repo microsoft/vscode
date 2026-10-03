@@ -53,6 +53,7 @@ import type { ITerminalFont } from '../../../../../terminal/common/terminal.js';
 import type { XtermTerminal } from '../../../../../terminal/browser/xterm/xtermTerminal.js';
 import { createFakeDetachedTerminal } from '../../../../../terminal/test/browser/chatTerminalMirrorTestUtils.js';
 import { ChatTerminalOutputResource, IChatTerminalOutputTextModelService } from '../../../../browser/agentSessions/agentHost/chatTerminalOutputTextModelContentProvider.js';
+import '../../../../../../browser/media/style.css';
 
 function listenerCount<T>(emitter: Emitter<T>): number {
 	return (emitter as unknown as { _size: number })._size ?? 0;
@@ -68,8 +69,8 @@ function terminalOutputName(toolCallId: string): string {
 	return `terminal-output-${runId}.txt`;
 }
 
-const fullOutputClickWait = 550;
-const fullOutputPreviewGuidance = 'Output truncated. Click the output preview to view the full output.';
+const fullOutputPreviewGuidance = 'Output truncated. View Full Output';
+const viewFullOutputLinkSelector = '.chat-terminal-output-truncation .monaco-link';
 
 class TestTerminalChatService extends mock<ITerminalChatService>() {
 	override readonly onDidRegisterTerminalInstanceWithToolSession = Event.None;
@@ -532,37 +533,78 @@ function showFullOutputElement(part: ChatTerminalToolProgressPart): HTMLElement 
 	return element;
 }
 
+function viewFullOutputLink(part: { readonly domNode: HTMLElement }): HTMLElement {
+	const link = part.domNode.querySelector<HTMLElement>(viewFullOutputLinkSelector);
+	assert.ok(link);
+	assert.strictEqual(link.textContent, 'View Full Output');
+	return link;
+}
+
 suite('ChatTerminalToolProgressPart full output', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const mode of ['thinking', 'simple', 'plain'] as const) {
-		test(`renders quiet whole-preview guidance in ${mode} mode`, async () => {
+		test(`renders a View Full Output link below the preview in ${mode} mode`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
+			harness.container.classList.add('monaco-workbench');
 			const { part } = harness.createPart({ mode, preview: 'Open Full Output\r\npreview output' });
 			await harness.expand(part, mode);
+			const link = viewFullOutputLink(part);
+			const output = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
+			assert.ok(output);
+			const decorationWith = (...classes: string[]) => {
+				harness.container.classList.add(...classes);
+				const decoration = mainWindow.getComputedStyle(link).textDecorationLine;
+				harness.container.classList.remove(...classes);
+				return decoration;
+			};
 
 			assert.deepStrictEqual({
 				guidance: part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent,
-				nestedLink: part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link'),
+				link: {
+					role: link.getAttribute('role'),
+					tabIndex: link.tabIndex,
+					decoration: decorationWith(),
+					underlineLinksDecoration: decorationWith('underline-links'),
+					highContrastDecorations: [decorationWith('hc-black'), decorationWith('hc-light')],
+				},
+				previewCursor: mainWindow.getComputedStyle(output).cursor,
 				opens: harness.openedEditors.length,
 				preview: snapshotText(harness.raw(part)),
 			}, {
 				guidance: fullOutputPreviewGuidance,
-				nestedLink: null,
+				link: { role: 'button', tabIndex: 0, decoration: 'none', underlineLinksDecoration: 'underline', highContrastDecorations: ['underline', 'underline'] },
+				previewCursor: 'auto',
 				opens: 0,
 				preview: 'Open Full Output\npreview output',
 			});
 		});
 
-		test(`opens full output from a whole-preview click in ${mode} mode`, async () => {
+		test(`opens full output only from the View Full Output link in ${mode} mode`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
-			const entry = harness.createPart({ mode });
-			await harness.expand(entry.part, mode);
-			const output = entry.part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
-			assert.ok(output);
-			output.click();
-			await timeout(fullOutputClickWait);
-			assert.deepStrictEqual({ opens: harness.openedEditors.length, cursor: mainWindow.getComputedStyle(output).cursor }, { opens: 1, cursor: 'pointer' });
+			const { part } = harness.createPart({ mode });
+			await harness.expand(part, mode);
+			const previewTargets = ['.chat-terminal-output-container', '.chat-terminal-output-body', '.chat-terminal-output-terminal', '.chat-terminal-output-truncation'].map(selector => {
+				const target = part.domNode.querySelector<HTMLElement>(selector);
+				assert.ok(target, selector);
+				return target;
+			});
+			const previewClicksPrevented = previewTargets.map(target => {
+				const event = new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 });
+				target.dispatchEvent(event);
+				return event.defaultPrevented;
+			});
+			await timeout(0);
+			const opensFromPreview = harness.openedEditors.length;
+
+			viewFullOutputLink(part).click();
+			await timeout(0);
+
+			assert.deepStrictEqual({ previewClicksPrevented, opensFromPreview, opensFromLink: harness.openedEditors.length }, {
+				previewClicksPrevented: [false, false, false, false],
+				opensFromPreview: 0,
+				opensFromLink: 1,
+			});
 		});
 	}
 
@@ -578,113 +620,61 @@ suite('ChatTerminalToolProgressPart full output', () => {
 
 		assert.deepStrictEqual({
 			action: part.fullOutputAction,
-			clickable: part.domNode.querySelector('.chat-terminal-output-container')?.classList.contains('chat-terminal-output-clickable'),
+			link: part.domNode.querySelector(viewFullOutputLinkSelector),
 			guidance: part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent,
 			output: snapshotText(harness.raw(part)),
 		}, {
 			action: undefined,
-			clickable: false,
+			link: null,
 			guidance: '',
 			output: 'short output',
 		});
 	});
 
-	test('preserves selection, drag, and scrolling', async () => {
+	test('View Full Output opens retained output by mouse or keyboard without activating terminal chrome', async () => {
 		const harness = await createTerminalFullOutputHarness(store);
-		const { part } = harness.createPart({ mode: 'plain' });
-		await harness.expand(part, 'plain');
-		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
-		const terminal = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-terminal');
-		assert.ok(body);
-		assert.ok(terminal);
-		const raw = harness.raw(part);
-		raw.open(terminal);
-
-		raw.select(0, 0, 4);
-		terminal.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, buttons: 1 }));
-		raw.clearSelection();
-		terminal.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true }));
-
-		body.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }));
-		body.dispatchEvent(new mainWindow.MouseEvent('mousemove', { bubbles: true, buttons: 1, clientX: 80, clientY: 10 }));
-		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, detail: 1 }));
-
-		body.dispatchEvent(new mainWindow.MouseEvent('mousedown', { bubbles: true, buttons: 1 }));
-		body.dispatchEvent(new mainWindow.WheelEvent('wheel', { bubbles: true, deltaY: 20 }));
-		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, detail: 1 }));
-
-		await timeout(fullOutputClickWait);
-		assert.strictEqual(harness.openedEditors.length, 0);
-
-		body.click();
-		await timeout(fullOutputClickWait);
-		assert.strictEqual(harness.openedEditors.length, 1);
-	});
-
-	test('does not open from interactive preview targets', async () => {
-		const harness = await createTerminalFullOutputHarness(store);
-		const { part } = harness.createPart({ mode: 'plain' });
-		await harness.expand(part, 'plain');
-		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
-		assert.ok(body);
-
-		const scrollbar = mainWindow.document.createElement('span');
-		scrollbar.classList.add('scrollbar');
-		const scrollbarSlider = mainWindow.document.createElement('span');
-		scrollbarSlider.classList.add('slider');
-		const xtermScrollbar = mainWindow.document.createElement('span');
-		xtermScrollbar.classList.add('xterm-scrollbar');
-		const xtermLink = mainWindow.document.createElement('span');
-		xtermLink.classList.add('xterm-cursor-pointer');
-		for (const target of [mainWindow.document.createElement('a'), mainWindow.document.createElement('button'), scrollbar, scrollbarSlider, xtermScrollbar, xtermLink]) {
-			body.appendChild(target);
-			target.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
+		const entries = (['simple', 'thinking', 'plain'] as const).map(mode => harness.createPart({
+			mode,
+			sessionResource: URI.parse(`chat-session://test/link-${mode}`),
+			toolCallId: `link-${mode}`,
+			terminalUri: URI.parse(`agenthost-terminal://shell/link-${mode}/output`),
+		}));
+		for (const entry of entries) {
+			await harness.expand(entry.part, entry.mode);
 		}
+		const wrapperStates = () => entries.slice(0, 2).map(entry => entry.part.domNode.querySelector<HTMLElement>('.chat-terminal-thinking-collapsible > .chat-used-context-label .monaco-button')?.getAttribute('aria-expanded'));
+		const wrapperStatesBefore = wrapperStates();
 
-		await timeout(fullOutputClickWait);
-		assert.strictEqual(harness.openedEditors.length, 0);
-	});
-
-	test('does not open from prevented, non-primary, or modified clicks', async () => {
-		const harness = await createTerminalFullOutputHarness(store);
-		const { part } = harness.createPart({ mode: 'plain' });
-		await harness.expand(part, 'plain');
-		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
-		assert.ok(body);
-
-		const preventedEvent = new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 });
-		preventedEvent.preventDefault();
-		const events = [
-			preventedEvent,
-			new mainWindow.MouseEvent('click', { bubbles: true, button: 1, detail: 1 }),
-			new mainWindow.MouseEvent('click', { bubbles: true, button: 2, detail: 1 }),
-			new mainWindow.MouseEvent('click', { bubbles: true, ctrlKey: true, detail: 1 }),
-			new mainWindow.MouseEvent('click', { bubbles: true, metaKey: true, detail: 1 }),
-			new mainWindow.MouseEvent('click', { bubbles: true, altKey: true, detail: 1 }),
-			new mainWindow.MouseEvent('click', { bubbles: true, shiftKey: true, detail: 1 }),
-		];
-		for (const event of events) {
-			body.dispatchEvent(event);
+		viewFullOutputLink(entries[0].part).click();
+		const activationKeys: readonly (readonly [string, number])[] = [['Enter', 13], [' ', 32]];
+		for (const [index, [key, keyCode]] of activationKeys.entries()) {
+			const link = viewFullOutputLink(entries[index + 1].part);
+			link.focus();
+			assert.strictEqual(mainWindow.document.activeElement, link);
+			link.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
 		}
+		await timeout(0);
 
-		await timeout(fullOutputClickWait);
-		assert.strictEqual(harness.openedEditors.length, 0);
-	});
-
-	test('does not open for a recognized slow double-click sequence', async () => {
-		const harness = await createTerminalFullOutputHarness(store);
-		const { part } = harness.createPart({ mode: 'plain' });
-		await harness.expand(part, 'plain');
-		const body = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-body');
-		assert.ok(body);
-
-		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 }));
-		await timeout(350);
-		body.dispatchEvent(new mainWindow.MouseEvent('click', { bubbles: true, cancelable: true, detail: 2 }));
-		body.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 }));
-		await timeout(200);
-
-		assert.strictEqual(harness.openedEditors.length, 0);
+		assert.deepStrictEqual({
+			resources: harness.openedEditors.map(input => input.resource.toString()),
+			labels: harness.openedEditors.map(input => input.label),
+			readonlyDescriptions: harness.openedEditors.map(input => input.description),
+			revealIfOpened: harness.openedEditors.map(input => input.options?.revealIfOpened),
+			terminalActivationCount: harness.terminalActivationCount,
+			wrapperStatesBefore,
+			wrapperStatesAfter: wrapperStates(),
+		}, {
+			resources: entries.map(entry => {
+				assert.ok(entry.terminal);
+				return ChatTerminalOutputResource.create(entry.sessionResource, entry.toolCallId, entry.terminal, terminalOutputName(entry.toolCallId)).toString();
+			}),
+			labels: entries.map(entry => terminalOutputLabel(entry.toolCallId)),
+			readonlyDescriptions: ['Read-only', 'Read-only', 'Read-only'],
+			revealIfOpened: [true, true, true],
+			terminalActivationCount: 0,
+			wrapperStatesBefore: ['true', 'true'],
+			wrapperStatesAfter: ['true', 'true'],
+		});
 	});
 
 	test('keeps completion text and hides actions when metadata says the artifact is unavailable', async () => {
@@ -695,7 +685,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 
 		assert.deepStrictEqual({
 			action: part.fullOutputAction,
-			inlineLink: part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link'),
+			inlineLink: part.domNode.querySelector(viewFullOutputLinkSelector),
 			rendered: snapshotText(harness.raw(part)),
 			accessible: part.getCommandAndOutputAsText(),
 			probes: harness.probes.length,
@@ -810,7 +800,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			const text = snapshotText(harness.raw(part));
 			assert.strictEqual(text, 'preview output');
 			assert.strictEqual(part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent, fullOutputPreviewGuidance);
-			assert.strictEqual(part.domNode.querySelector('.chat-terminal-output-truncation .monaco-link'), null);
+			viewFullOutputLink(part);
 			assert.strictEqual(part.domNode.querySelector('.chat-terminal-full-output-footer'), null);
 
 			await harness.collapse(part, mode);
@@ -822,6 +812,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			const noReference = harness.createPart({ mode, toolCallId: `no-reference-${mode}`, hasReference: false, truncated: true });
 			await harness.expand(noReference.part, mode);
 			assert.strictEqual(noReference.part.fullOutputAction, undefined);
+			assert.strictEqual(noReference.part.domNode.querySelector(viewFullOutputLinkSelector), null);
 			assert.strictEqual(noReference.part.domNode.querySelector('.chat-terminal-full-output-footer'), null);
 			assert.strictEqual(noReference.part.domNode.querySelector('.chat-terminal-full-output-note'), null);
 			assert.strictEqual(snapshotText(harness.raw(noReference.part)), 'Saved to: /artifact/terminal-output.txt');
@@ -1394,7 +1385,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		});
 	}
 
-	test('only enables Enter activation for completed output with an enabled action', async () => {
+	test('only enables Enter and View Full Output activation for completed output with an enabled action', async () => {
 		let running = true;
 		let opens = 0;
 		const action = toAction({ id: 'test.openFullOutput', label: 'Open Full Output', run: () => { opens++; } });
@@ -1403,26 +1394,29 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		const region = section.domNode.querySelector<HTMLElement>('.monaco-scrollable-element');
 		assert.ok(region);
 		const pressEnter = () => region.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const state = () => ({ opens, guidance: section.domNode.querySelector('.chat-terminal-output-truncation')?.textContent });
 		pressEnter();
 		await timeout(0);
-		const runningState = { opens };
+		const runningState = state();
 
 		running = false;
 		await section.refresh();
 		pressEnter();
 		await timeout(0);
-		const completedState = { opens };
+		viewFullOutputLink(section).click();
+		await timeout(0);
+		const completedState = state();
 
 		action.enabled = false;
 		await section.refresh();
 		pressEnter();
 		await timeout(0);
-		const disabledState = { opens };
+		const disabledState = state();
 
 		assert.deepStrictEqual({ runningState, completedState, disabledState }, {
-			runningState: { opens: 0 },
-			completedState: { opens: 1 },
-			disabledState: { opens: 1 },
+			runningState: { opens: 0, guidance: 'Output truncated.' },
+			completedState: { opens: 2, guidance: fullOutputPreviewGuidance },
+			disabledState: { opens: 2, guidance: 'Output truncated.' },
 		});
 	});
 

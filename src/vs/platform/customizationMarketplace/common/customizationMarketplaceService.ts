@@ -83,6 +83,7 @@ export interface ICustomizationMarketplaceEntry {
 	readonly readmeUri?: URI;
 	readonly icon?: CustomizationMarketplaceIcon;
 	readonly publisher?: string;
+	readonly publisherUrl?: URI;
 	/** Source-supplied origin within a feed, distinct from the feed's display name. */
 	readonly originLabel?: string;
 	readonly version?: string;

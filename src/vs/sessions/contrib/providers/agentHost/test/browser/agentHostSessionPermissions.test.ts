@@ -5,10 +5,23 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionOptions } from '../../browser/agentHostSessionPermissions.js';
+import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from '../../browser/agentHostSessionPermissions.js';
 
 suite('AgentHostSessionPermissions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('captures exact native permissions without silently changing unknown values', () => {
+		assert.deepStrictEqual({
+			claude: getAgentHostSessionPermissionId('claude', { schema: { type: 'object', properties: {} }, values: { permissionMode: 'acceptEdits' } }),
+			codex: getAgentHostSessionPermissionId('codex', { schema: { type: 'object', properties: {} }, values: { 'codex.permissionsPreset': 'auto-review' } }),
+			unknown: getAgentHostSessionPermissionId('conforming-host', { schema: { type: 'object', properties: {} }, values: {} }),
+			native: getAgentHostSessionPermissionId('conforming-host', {
+				schema: { type: 'object', properties: { approvalMode: { type: 'string', title: 'Approval', enum: ['manual', 'allow-all'] } } },
+				values: { approvalMode: 'allow-all' },
+			}),
+		}, { claude: 'acceptEdits', codex: 'auto-review', unknown: undefined, native: 'autoApprove' });
+	});
 
 	test('exposes exact provider choices and maps allow-all permissions without bypassing policy', () => {
 		assert.deepStrictEqual({
@@ -26,7 +39,7 @@ suite('AgentHostSessionPermissions', () => {
 			copilotOptions: [
 				{ id: 'default', label: 'Manual permissions', default: true, allowAll: undefined, comparisonModeId: undefined },
 				{ id: 'assisted', label: 'Assisted permissions', default: undefined, allowAll: undefined, comparisonModeId: undefined },
-				{ id: 'autoApprove', label: 'Allow all', default: undefined, allowAll: true, comparisonModeId: 'autopilot' },
+				{ id: 'autoApprove', label: 'Allow all', default: undefined, allowAll: true, comparisonModeId: undefined },
 			],
 			claudeOptions: [
 				{ id: 'default', label: 'Ask Before Edits', default: true, allowAll: undefined, comparisonModeId: undefined },
@@ -49,4 +62,76 @@ suite('AgentHostSessionPermissions', () => {
 			unknownPermission: undefined,
 		});
 	});
+
+	for (const agentProvider of ['copilotcli', 'conforming-host']) {
+		test(`maps advertised approval aliases for ${agentProvider}`, () => {
+			const config: ResolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] },
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					}
+				},
+				values: { approvalMode: 'allow-all', effectiveApprovalMode: 'assisted', availableApprovalModes: ['manual', 'assisted'] },
+			};
+			assert.deepStrictEqual({
+				current: getAgentHostSessionPermissionId(agentProvider, config),
+				choices: getAgentHostSessionPermissionOptions(agentProvider, false, true, config).map(option => option.id),
+				manual: getAgentHostSessionPermissionConfig(agentProvider, 'default', false, true, config),
+				assisted: getAgentHostSessionPermissionConfig(agentProvider, 'assisted', false, true, config),
+				unavailable: getAgentHostSessionPermissionConfig(agentProvider, 'autoApprove', false, true, config),
+				policyRestricted: getAgentHostSessionPermissionConfig(agentProvider, 'assisted', true, true, config),
+			}, {
+				current: 'assisted', choices: ['default', 'assisted'],
+				manual: { approvalMode: 'manual' }, assisted: { approvalMode: 'assisted' },
+				unavailable: undefined, policyRestricted: undefined,
+			});
+		});
+	}
+
+	test('does not write read-only approval settings or fall through a malformed canonical property', () => {
+		const config: ResolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'allow-all'], readOnly: true },
+				}
+			},
+			values: { approvalMode: 'manual' },
+		};
+		const malformed: ResolveSessionConfigResult = {
+			...config,
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'boolean', title: 'Approvals' },
+					approvalMode: { ...config.schema.properties.approvalMode, readOnly: false },
+				}
+			},
+		};
+		assert.deepStrictEqual({
+			readOnly: getAgentHostSessionPermissionConfig('conforming-host', 'default', false, true, config),
+			malformed: getAgentHostSessionPermissionConfig('conforming-host', 'default', false, true, malformed),
+		}, { readOnly: undefined, malformed: undefined });
+	});
+
+	for (const permission of [
+		{ provider: 'claude', key: 'permissionMode', value: 'acceptEdits' },
+		{ provider: 'codex', key: 'codex.permissionsPreset', value: 'auto-review' },
+	]) {
+		test(`preserves ${permission.provider} native permissions alongside generic approval settings`, () => {
+			const config: ResolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						[permission.key]: { type: 'string', title: 'Permissions', enum: ['default', permission.value] },
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'] },
+					}
+				},
+				values: { [permission.key]: permission.value, autoApprove: 'autoApprove' },
+			};
+			assert.deepStrictEqual({
+				current: getAgentHostSessionPermissionId(permission.provider, config),
+				creation: getAgentHostSessionPermissionConfig(permission.provider, permission.value, false, true, config),
+			}, { current: permission.value, creation: { [permission.key]: permission.value } });
+		});
+	}
 });

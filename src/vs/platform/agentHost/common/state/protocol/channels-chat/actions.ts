@@ -8,6 +8,7 @@
 
 import { ActionType } from '../common/actions.js';
 import type { StringOrMarkdown, FileEditCollection, UsageInfo, URI } from '../common/state.js';
+import type { CanvasReference } from '../channels-canvas/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
 import type { McpAuthRequirement } from '../channels-session/state.js';
 import { ToolCallConfirmationReason, ToolCallCancellationReason, PendingMessageKind, type BackgroundWork, type Message, type ResponsePart, type ToolCallResult, type ToolResultContent, type ChatInputAnswer, type ChatInputRequest, type ChatInputResponseKind, type ConfirmationOption, type ErrorResponsePart, type ToolCallContributor, type ToolCallRiskAssessment, type ToolInput, type Turn } from './state.js';
@@ -593,6 +594,21 @@ export interface ChatChangesetsChangedAction {
 }
 
 /**
+ * The live canvas channels exposed by this chat changed.
+ *
+ * Replaces {@link ChatState.canvases | `state.canvases`} entirely. Set to
+ * `undefined` to clear the collection.
+ *
+ * @category Chat Actions
+ * @version 1
+ */
+export interface ChatCanvasesChangedAction {
+	type: ActionType.ChatCanvasesChanged;
+	/** New canvas channel references, or `undefined` to clear the collection. */
+	canvases: CanvasReference[] | undefined;
+}
+
+/**
  * A working directory was added to this chat's
  * {@link ChatState.workingDirectories} subset.
  *
@@ -937,6 +953,7 @@ export type ChatAction =
 	| ChatBackgroundWorkRemovedAction
 	| ChatMovableChangedAction
 	| ChatChangesetsChangedAction
+	| ChatCanvasesChangedAction
 	| ChatWorkingDirectorySetAction
 	| ChatWorkingDirectoryRemovedAction
 	| ChatUsageAction

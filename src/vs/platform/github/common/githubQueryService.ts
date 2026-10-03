@@ -7,9 +7,9 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
 import { FragmentState, GitHubActor, PullRequestMergeMethod, PullRequestRef } from './githubPullRequestService.js';
-import { GitHubAccountHandle } from './githubTypes.js';
+import { AccountHandle } from './types.js';
 
-export interface GitHubRepositoryRef extends GitHubAccountHandle {
+export interface GitHubRepositoryRef extends AccountHandle {
 	readonly owner: string;
 	readonly repo: string;
 }

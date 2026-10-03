@@ -15,6 +15,7 @@ import { extractLeadingSlashToken, extractWhitespaceDelimitedSlashToken, matches
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../common/agentHostFileSystemService.js';
 import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../../common/customizationEnablement.js';
 import type { RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
+import { copilotSandboxPolicyCommand } from './copilotSandboxPolicyDisplay.js';
 
 export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 
@@ -33,6 +34,8 @@ export interface ICopilotSlashCommandSessionInfo {
 	 * the agent host config. When provided and `false`, `/rubber-duck` is hidden.
 	 */
 	isRubberDuckEnabled?(): boolean;
+	/** Whether local session indexing and Chronicle commands are enabled. */
+	isLocalIndexEnabled?(): boolean;
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
@@ -334,10 +337,12 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		]);
 		const typedLower = typed.toLowerCase();
 		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? true;
+		const localIndexEnabled = this._sessionInfo.isLocalIndexEnabled?.() ?? true;
 		const completionItems: CompletionItem[] = [];
 		const addedAliases = new Set<string>();
 
-		for (const command of runtimeCommands) {
+		for (const runtimeCommand of runtimeCommands) {
+			const command = runtimeCommand.name === 'sandbox' && runtimeCommand.kind === 'builtin' ? copilotSandboxPolicyCommand : runtimeCommand;
 			if (!command.name) {
 				continue;
 			}
@@ -348,7 +353,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				// Already surfaced by the generic skill-completion provider.
 				continue;
 			}
-			if (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias))) {
+			if (command !== copilotSandboxPolicyCommand && (HIDDEN_RUNTIME_COMMANDS.has(command.name) || command.aliases?.some(alias => HIDDEN_RUNTIME_COMMANDS.has(alias)))) {
 				continue;
 			}
 			// Config-action commands (permission/mode toggles) are surfaced below
@@ -358,6 +363,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
+				continue;
+			}
+			if (!localIndexEnabled && command.kind === 'builtin' && command.name === 'chronicle') {
 				continue;
 			}
 			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));

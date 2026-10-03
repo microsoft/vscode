@@ -18,32 +18,33 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
+import { AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
-import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
+import { isActionKnownToVersion, PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
@@ -439,20 +440,6 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(supported, [false, false, false, true]);
 	});
 
-	test('canvas facade requires the versioned capability and a local host identity', async () => {
-		const supported: boolean[] = [];
-		for (const meta of [undefined, { 'vscode.canvases.v1': 1 }, { 'vscode.canvases.v1': false }, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true)]) {
-			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
-			await connectClient(client, transport, meta);
-			supported.push(client.canvases !== undefined);
-		}
-		const remote = createClientForIdentity('remote.example:1234');
-		await connectClient(remote.client, remote.transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
-		supported.push(remote.client.canvases !== undefined);
-
-		assert.deepStrictEqual(supported, [false, false, false, true, false]);
-	});
-
 	test('Dev Container facade uses the parent transport and validates notifications', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
@@ -752,6 +739,17 @@ suite('AgentHostProtocolClient', () => {
 		}]);
 	});
 
+	test('chat read-state actions require AHP 0.10', () => {
+		const action = { type: ActionType.ChatIsReadChanged, isRead: true } as const;
+		assert.deepStrictEqual({
+			v09: isActionKnownToVersion(action, '0.9.0'),
+			v10: isActionKnownToVersion(action, '0.10.0'),
+		}, {
+			v09: false,
+			v10: true,
+		});
+	});
+
 	test('listSessions derives the compatibility directory from the primary root', async () => {
 		const { client, transport } = createClient();
 		const directories = [URI.file('/workspace/primary'), URI.file('/workspace/secondary')];
@@ -809,6 +807,38 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions reads only valid provider-qualified Codex models from namespaced metadata', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		const summary = (id: string, _meta?: Record<string, unknown>) => ({
+			resource: `agent-session://codex/${id}`,
+			provider: 'codex',
+			title: id,
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			...(_meta ? { _meta } : {}),
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [
+					summary('valid', withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					summary('malformed', { [CODEX_SESSION_MODEL_META_KEY]: { id: 'gpt-5.6-sol' } }),
+					summary('absent'),
+				],
+			},
+		});
+
+		assert.deepStrictEqual((await resultPromise).map(({ provider, model }) => ({ provider, model })), [
+			{ provider: 'codex', model: { id: '@provider=openai:gpt-5.6-sol' } },
+			{ provider: 'codex', model: undefined },
+			{ provider: 'codex', model: undefined },
+		]);
 	});
 
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
@@ -1100,64 +1130,29 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('applies full canvas snapshots, suppresses duplicates, clears, and resolves an exact revision', async () => {
-		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
-		transport.sentMessages.length = 0;
-		const canvases = client.canvases;
-		assert.ok(canvases);
-		const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilotcli', 'test')));
-		const snapshots: unknown[] = [];
-		disposables.add(canvases.onDidChange(snapshot => snapshots.push({
-			chat: snapshot.chat.toString(),
-			canvases: snapshot.canvases,
-		})));
-		const params = {
-			chat: chat.toString(),
-			canvases: [{
-				instanceId: 'preview-1',
-				extensionId: 'project:preview',
-				canvasId: 'preview',
-				revision: 3,
-				availability: AgentCanvasAvailability.Ready,
-			}],
-		};
-		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
-		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
-
-		const resultPromise = canvases.resolveSource(chat, 'preview-1', 3);
-		const sourceRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
-
-		assert.deepStrictEqual(sourceRequest, {
-			jsonrpc: '2.0',
-			id: sourceRequest.id,
-			method: ResolveAgentHostCanvasSourceExtensionMethod,
-			params: {
-				chat: chat.toString(),
-				instanceId: 'preview-1',
-				revision: 3,
+	test('subscribes to an opaque host-advertised canvas channel', async () => {
+		const { client, transport } = createClient();
+		const resource = URI.parse('ahp-canvas://other-host/document/preview');
+		const reference = disposables.add(client.getSubscription(StateComponents.Canvas, resource, 'canvas-test'));
+		await timeout(0);
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+		assert.ok(request);
+		transport.fireMessage({
+			jsonrpc: '2.0', id: request.id,
+			result: {
+				snapshot: {
+					resource: resource.toString(), state: {
+						instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview',
+						url: 'https://example.test/preview',
+					}, fromSeq: 1
+				}
 			},
 		});
-
-		transport.fireMessage({ jsonrpc: '2.0', id: sourceRequest.id, result: { url: 'https://example.test/preview' } });
-		const source = await resultPromise;
-		transport.fireMessage({
-			jsonrpc: '2.0',
-			method: AgentHostCanvasesChangedNotification,
-			params: { chat: chat.toString(), canvases: [] },
-		} as unknown as ProtocolMessage);
-
-		assert.deepStrictEqual({
-			source,
-			snapshots,
-			current: canvases.getSnapshots(),
-		}, {
-			source: 'https://example.test/preview',
-			snapshots: [
-				params,
-				{ chat: chat.toString(), canvases: [] },
-			],
-			current: [],
+		await timeout(0);
+		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
+			params: { channel: resource.toString() },
+			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
 		});
 	});
 
@@ -1536,6 +1531,41 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
+	for (const succeeds of [true, false]) {
+		test(`logs the initialize request identity and ${succeeds ? 'completion' : 'failed stage'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const infos: string[] = [];
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override info(message: string): void { infos.push(message); }
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClient(transport, undefined, undefined, logService, undefined, 'client-1');
+			const connecting = client.connect();
+			const completed = succeeds ? connecting : assert.rejects(connecting, /Connection closed/);
+			await transport.connectDeferred.complete();
+			while (transport.sentMessages.length === 0) {
+				await Promise.resolve();
+			}
+			const request = transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, method: true }) && request.method === 'initialize');
+			await timeout(10);
+			if (succeeds) {
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] } });
+			} else {
+				transport.fireClose();
+			}
+			await completed;
+			assert.deepStrictEqual({ infos, warnings }, {
+				infos: [
+					`[RemoteAgentHostProtocol] Sending initialize: address=test.example:1234 clientId=client-1 requestId=${request.id}`,
+					...(succeeds ? ['[RemoteAgentHostProtocol] Initialized: address=test.example:1234 clientId=client-1 durationMs=10'] : []),
+				],
+				warnings: succeeds ? [] : ['[RemoteAgentHostProtocol] Connection failed: address=test.example:1234 clientId=client-1 stage=initialize durationMs=10 pendingRequests=0'],
+			});
+		}));
+	}
+
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
@@ -1758,7 +1788,6 @@ suite('AgentHostProtocolClient', () => {
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
 		const { client, transport } = createClientForIdentity(
@@ -1778,7 +1807,6 @@ suite('AgentHostProtocolClient', () => {
 			params: {
 				permissions: {
 					disableBypassPermissionsMode: 'disable',
-					ask: ['Shell'],
 				},
 			},
 		});
@@ -1797,10 +1825,92 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
-		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
+		test(`does not forward a legacy sandbox policy requirement (${String(identity)})`, async () => {
+			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
+			const configurationService = new class extends TestConfigurationService {
+				policyActive = false;
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === setting && this.policyActive ? inspected.value : undefined };
+				}
+			}({ [setting]: 'on' });
+			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
+			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			await connectClient(client, transport);
+			assert.deepStrictEqual(contributions(), []);
+
+			for (const policyActive of [true, false]) {
+				transport.sentMessages.length = 0;
+				configurationService.policyActive = policyActive;
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), []);
+			}
+			configurationService.policyActive = true;
+			for (const value of [true, false, 'off', 'on']) {
+				transport.sentMessages.length = 0;
+				await configurationService.setUserConfiguration(setting, value);
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), []);
+			}
 		});
+	}
+
+	test('keeps personal terminal approval settings on the bypassable root-config path', async () => {
+		const configurationService = new TestConfigurationService({
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { ls: false, rm: false },
+		});
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		const initial = {
+			managed: findLastManagedSettingsNotification(transport.sentMessages),
+			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
+			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
+		};
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID, { ls: true, rm: false });
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
+
+		const updated = {
+			managed: findLastManagedSettingsNotification(transport.sentMessages),
+			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
+			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
+		};
+		const emptyManagedSettings = {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		};
+
+		assert.deepStrictEqual({ initial, updated }, {
+			initial: {
+				managed: emptyManagedSettings,
+				terminalEnabled: false,
+				terminalRules: { ls: false, rm: false },
+			},
+			updated: {
+				managed: emptyManagedSettings,
+				terminalEnabled: true,
+				terminalRules: { ls: true, rm: false },
+			},
+		});
+	});
+
+	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
+		const configurationService = new ManagedPermissionsConfigurationService({});
 		// Isolate this setting's notification path from the global auto-approve mapping.
 		configurationService.clearGlobalAutoApprovePolicy();
 		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
@@ -3082,7 +3192,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -3090,10 +3200,11 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
+			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
-			return { client, transports };
+			return { client, transports, configurationService };
 		}
 
 		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>, meta?: Record<string, unknown>): Promise<void> {
@@ -3873,6 +3984,28 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('includes the required root channel in reconnect requests', async () => {
+			const { client, transports } = createFactoryClient();
+			await runWithFakedTimers({}, async () => {
+				await completeHandshake(transports[0], client.connect());
+
+				const { transport, request } = await beginRecovery(client, transports);
+				assert.deepStrictEqual(request.params, {
+					channel: ROOT_STATE_URI,
+					clientId: client.clientId,
+					lastSeenServerSeq: 5,
+					subscriptions: [ROOT_STATE_URI],
+					_meta: { 'vscode.telemetryLevel': 'off' },
+				});
+				transport.fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await waitForConnectedWithin(client);
+				client.dispose();
+			});
+		});
+
 		test('reuses clientId across transport reconnects', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
@@ -3981,9 +4114,11 @@ suite('AgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+				const sandboxPolicyIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
 				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
+				assert.strictEqual(sandboxPolicyIndex, -1, 'legacy sandbox policy must not be forwarded on reconnect');
 			} finally {
 				connectedRequest.dispose();
 				client.dispose();
@@ -3992,7 +4127,13 @@ suite('AgentHostProtocolClient', () => {
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
+			const inspect = configurationService.inspect.bind(configurationService);
+			configurationService.inspect = <T>(key: string) => {
+				const inspected = inspect<T>(key);
+				return { ...inspected, policyValue: key === AgentSandboxSettingId.AgentSandboxEnabled ? inspected.value : undefined };
+			};
 			const sessionUri = URI.parse('copilot:/test-session');
 			const chatUri = URI.parse('ahp-chat://default/test-session');
 			const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
@@ -4069,6 +4210,8 @@ suite('AgentHostProtocolClient', () => {
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			const sandboxPolicy = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			assert.strictEqual(sandboxPolicy, undefined, 'legacy sandbox policy must not be restored after fresh initialization');
 			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
 			assert.ok(
 				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),
