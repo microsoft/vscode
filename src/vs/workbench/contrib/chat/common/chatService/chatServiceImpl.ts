@@ -893,7 +893,8 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			lastResponseCompletedAt = undefined;
 		};
-		const applyHistory = (history: readonly IChatSessionHistoryItem[]) => {
+		const applyHistory = (history: readonly IChatSessionHistoryItem[], insertion?: { readonly index: number; readonly replace?: boolean }, requestId?: string) => {
+			const applied: ChatRequestModel[] = [];
 			for (const message of history) {
 				if (message.type === 'request') {
 					if (lastRequest) {
@@ -925,7 +926,7 @@ export class ChatService extends Disposable implements IChatService {
 						false, // Do not treat as requests completed, else edit pills won't show.
 						message.modelId,
 						undefined,
-						message.id,
+						message.id ?? requestId,
 						message.isSystemInitiated,
 						message.systemInitiatedLabel,
 						undefined, // terminalExecutionId
@@ -937,7 +938,9 @@ export class ChatService extends Disposable implements IChatService {
 						getRestoredChatRequestSource(message, requestText),
 						message.modelConfiguration,
 						message.metadata,
+						insertion,
 					);
+					applied.push(lastRequest);
 				} else {
 					// response
 					if (lastRequest) {
@@ -957,10 +960,26 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}
 			}
+			return applied;
 		};
-		applyHistory(providedSession.history);
+		const initialRequests = applyHistory(providedSession.history);
 		if (providedSession.onDidChangeHistory) {
-			let lastHistory = providedSession.history;
+			type HistoryTurn = { request: Extract<IChatSessionHistoryItem, { type: 'request' }>; items: IChatSessionHistoryItem[]; id: string | undefined };
+			const groupHistory = (history: readonly IChatSessionHistoryItem[]): HistoryTurn[] => {
+				const turns: HistoryTurn[] = [];
+				for (const item of history) {
+					if (item.type === 'request') {
+						turns.push({ request: item, items: [item], id: item.id });
+					} else {
+						turns.at(-1)?.items.push(item);
+					}
+				}
+				return turns;
+			};
+			let lastTurns = groupHistory(providedSession.history);
+			for (const [index, turn] of lastTurns.entries()) {
+				turn.id = initialRequests[index].id;
+			}
 			let pendingHistory: readonly IChatSessionHistoryItem[] | undefined;
 			const localRequestIds = new Set<string>();
 			const refreshHistory = () => {
@@ -970,37 +989,54 @@ export class ChatService extends Disposable implements IChatService {
 				}
 				pendingHistory = undefined;
 				const requests = model.getRequests();
-				let common = 0;
-				while (common < history.length && common < lastHistory.length && equals(history[common], lastHistory[common])) {
-					common++;
+				const turns = groupHistory(history);
+				for (const [index, turn] of turns.entries()) {
+					const previous = lastTurns[index];
+					// Providers without stable IDs can only match restored turns by position.
+					if (turn.id === undefined && previous?.request.id === undefined) {
+						turn.id = previous?.id;
+					}
 				}
-				while (common > 0 && common < history.length && history[common].type !== 'request') {
-					common--;
-				}
-				const retained = new Set(history.slice(0, common).filter(item => item.type === 'request').map(item => item.id));
-				const previousIds = new Set(lastHistory.filter(item => item.type === 'request').map(item => item.id));
+				const previousTurns = new Map(lastTurns.map(turn => [turn.id, turn]));
+				const incomingIds = new Set(turns.map(turn => turn.id));
 				for (const request of requests) {
-					if (!previousIds.has(request.id)) {
+					if (!previousTurns.has(request.id)) {
 						localRequestIds.add(request.id);
 					}
 				}
 				for (const request of [...requests]) {
-					if (!retained.has(request.id) && previousIds.has(request.id) && !localRequestIds.has(request.id)) {
+					if (previousTurns.has(request.id) && !incomingIds.has(request.id) && !localRequestIds.has(request.id)) {
 						model.removeRequest(request.id);
 					}
 				}
-				let skipLocal = false;
-				const changedHistory = history.slice(common).filter(item => {
-					if (item.type === 'request') {
-						skipLocal = item.id !== undefined && localRequestIds.has(item.id);
-					}
-					return !skipLocal;
-				});
 				lastRequest = undefined;
 				lastResponseCompletedAt = undefined;
-				applyHistory(changedHistory);
+				const requestsById = new Map(model.getRequests().map(request => [request.id, request]));
+				for (const [turnIndex, turn] of turns.entries()) {
+					if (turn.id !== undefined && localRequestIds.has(turn.id)) {
+						continue;
+					}
+					const currentRequests = model.getRequests();
+					const existing = turn.id === undefined ? undefined : requestsById.get(turn.id);
+					if (existing && equals(turn.items, previousTurns.get(turn.id)?.items)) {
+						continue;
+					}
+					let insertionIndex = existing ? currentRequests.indexOf(existing) : currentRequests.length;
+					if (!existing) {
+						for (const following of turns.slice(turnIndex + 1)) {
+							const nextRequest = following.id === undefined ? undefined : requestsById.get(following.id);
+							if (nextRequest) {
+								insertionIndex = currentRequests.indexOf(nextRequest);
+								break;
+							}
+						}
+					}
+					const [request] = applyHistory(turn.items, { index: insertionIndex, replace: !!existing }, turn.id);
+					turn.id = request.id;
+					requestsById.set(request.id, request);
+				}
 				completeLastResponse();
-				lastHistory = history;
+				lastTurns = turns;
 			};
 			disposables.add(providedSession.onDidChangeHistory(history => { pendingHistory = history; refreshHistory(); }));
 			disposables.add(autorun(reader => {

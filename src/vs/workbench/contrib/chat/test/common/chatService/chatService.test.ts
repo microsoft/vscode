@@ -3470,6 +3470,244 @@ suite('ChatService', () => {
 			}, { requests: [['one', 'First message', 'First response'], ['two', 'Sent in ChatGPT', 'Complete external response']], unchangedRequest: true, draft: 'Unsent local draft' });
 		});
 
+		for (const change of ['metadata', 'content'] as const) {
+			test(`passive history preserves model and view order when an older response changes ${change}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'readme', prompt: 'Add a README', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('README added') }], participant: remoteScheme, elapsedMs: 1000 },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const previousDataId = viewModel.getItems().filter(isRequestVM)[0].dataId;
+				const local = model.addRequest({ parts: [], text: 'hi' }, { variables: [] }, 0);
+				model.acceptResponseProgress(local, { kind: 'markdownContent', content: new MarkdownString('Hi!') });
+				local.response?.complete();
+				const localResponse = local.response;
+				const localView = viewModel.getItems().slice(-2);
+				model.inputModel.setState({ inputText: 'Unsent draft' });
+				const response = change === 'content' ? 'README updated' : 'README added';
+				const updated: IChatSessionHistoryItem[] = [
+					first[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(response) }], participant: remoteScheme, elapsedMs: 1200 },
+					{ type: 'request', id: local.id, prompt: 'hi', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Hi!') }], participant: remoteScheme },
+				];
+				changes.fire(updated);
+				const refreshedRequests = [...model.getRequests()];
+				const refreshedItems = viewModel.getItems();
+				changes.fire(updated);
+
+				assert.deepStrictEqual({
+					requests: model.getRequests().map(request => [request.message.text, request.response?.response.toString()]),
+					items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.response.toString() : 'pending'),
+					localPreserved: model.getRequests()[1] === local && local.response === localResponse,
+					localViewPreserved: viewModel.getItems().slice(-2).every((item, index) => item === localView[index]),
+					repeatPreserved: model.getRequests().every((request, index) => request === refreshedRequests[index])
+						&& viewModel.getItems().every((item, index) => item === refreshedItems[index]),
+					requestRenderInvalidated: viewModel.getItems().filter(isRequestVM)[0].dataId !== previousDataId,
+					elapsedMs: model.getRequests()[0].response?.elapsedMs,
+					draft: model.inputModel.state.get()?.inputText,
+				}, {
+					requests: [['Add a README', response], ['hi', 'Hi!']],
+					items: ['Add a README', response, 'hi', 'Hi!'],
+					localPreserved: true, localViewPreserved: true, repeatPreserved: true, requestRenderInvalidated: true, elapsedMs: 1200, draft: 'Unsent draft',
+				});
+			});
+		}
+
+		test('passive history inserts older turns before existing turns without duplicating local turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'readme', prompt: 'Add a README', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const restored = model.getRequests()[0];
+			const local = model.addRequest({ parts: [], text: 'hi' }, { variables: [] }, 0);
+			local.response?.complete();
+			const updated: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'older', prompt: 'Older request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				...first,
+				{ type: 'request', id: 'peer', prompt: 'Peer request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				{ type: 'request', id: local.id, prompt: 'hi', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			changes.fire(updated);
+			changes.fire(updated);
+
+			assert.deepStrictEqual({
+				requests: model.getRequests().map(request => request.message.text),
+				items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+				restoredPreserved: model.getRequests()[1] === restored,
+				localPreserved: model.getRequests()[3] === local,
+			}, {
+				requests: ['Older request', 'Add a README', 'Peer request', 'hi'],
+				items: ['Older request', 'Add a README', 'Peer request', 'hi'],
+				restoredPreserved: true, localPreserved: true,
+			});
+		});
+
+		test('passive history preserves generated request identities when the provider omits IDs', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', prompt: 'Restored request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const id = model.getRequests()[0].id;
+			const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+			local.response?.complete();
+			const updated: IChatSessionHistoryItem[] = [
+				first[0],
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Updated reply') }], participant: remoteScheme },
+			];
+			changes.fire(updated);
+			changes.fire(updated);
+			assert.deepStrictEqual(model.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]), [
+				[id, 'Restored request', 'Updated reply'],
+				[local.id, 'Local request', ''],
+			]);
+		});
+
+		test('passive history applies only the latest update after a local response finishes streaming', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'readme', prompt: 'Add a README', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original reply') }], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const local = model.addRequest({ parts: [], text: 'hi' }, { variables: [] }, 0);
+			model.acceptResponseProgress(local, { kind: 'markdownContent', content: new MarkdownString('Still') });
+			let replacements = 0;
+			testDisposables.add(model.onDidChange(event => {
+				if (event.kind === 'addRequest' && event.replacedRequest) {
+					replacements++;
+				}
+			}));
+			for (const content of ['Intermediate reply', 'Latest reply']) {
+				changes.fire([
+					first[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(content) }], participant: remoteScheme },
+				]);
+			}
+			const whileStreaming = model.getRequests().map(request => request.response?.response.toString());
+			model.acceptResponseProgress(local, { kind: 'markdownContent', content: new MarkdownString(' here.') });
+			local.response?.complete();
+			await new Promise<void>(resolve => queueMicrotask(resolve));
+
+			assert.deepStrictEqual({
+				whileStreaming, replacements,
+				requests: model.getRequests().map(request => [request.message.text, request.response?.response.toString()]),
+				items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.response.toString() : 'pending'),
+				localPreserved: model.getRequests()[1] === local,
+			}, {
+				whileStreaming: ['Original reply', 'Still'], replacements: 1,
+				requests: [['Add a README', 'Latest reply'], ['hi', 'Still here.']],
+				items: ['Add a README', 'Latest reply', 'hi', 'Still here.'],
+				localPreserved: true,
+			});
+		});
+
+		test('passive history removes absent restored turns without removing local turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'removed', prompt: 'Removed request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				{ type: 'request', id: 'retained', prompt: 'Retained request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const retained = model.getRequests()[1];
+			const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+			local.response?.complete();
+			changes.fire(first.slice(2));
+
+			assert.deepStrictEqual({
+				requests: model.getRequests().map(request => request.message.text),
+				items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+				retained: model.getRequests()[0] === retained,
+				local: model.getRequests()[1] === local,
+			}, {
+				requests: ['Retained request', 'Local request'],
+				items: ['Retained request', 'Local request'],
+				retained: true, local: true,
+			});
+		});
+
+		test('passive history removals update the last request and cost before notifying observers', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const history: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'first', prompt: 'First', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 1 }], participant: remoteScheme },
+				{ type: 'request', id: 'retained', prompt: 'Retained', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 2 }], participant: remoteScheme },
+				{ type: 'request', id: 'last', prompt: 'Last', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 3 }], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const retained = model.getRequests()[1];
+			const removals: { lastRequest: string | undefined; cost: number }[] = [];
+			testDisposables.add(model.onDidChange(event => {
+				if (event.kind === 'removeRequest') {
+					removals.push({ lastRequest: model.lastRequest?.id, cost: model.sessionCost });
+				}
+			}));
+			const initialCost = model.sessionCost;
+			const initiallyActive = model.hasActiveRequest.get();
+			changes.fire(history.slice(2, 4));
+			const lastRequest = model.lastRequestObs.get();
+			retained.response!.reopen();
+
+			assert.deepStrictEqual({
+				initialCost, initiallyActive, removals,
+				lastRequestPreserved: lastRequest === retained,
+				resumedActive: model.hasActiveRequest.get(),
+				items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+			}, {
+				initialCost: 6, initiallyActive: false,
+				removals: [{ lastRequest: 'last', cost: 5 }, { lastRequest: 'retained', cost: 2 }],
+				lastRequestPreserved: true, resumedActive: true, items: ['Retained'],
+			});
+			retained.response!.complete();
+		});
+
 		test('passive history waits for a local response and preserves locally added requests', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const first: IChatSessionHistoryItem[] = [
