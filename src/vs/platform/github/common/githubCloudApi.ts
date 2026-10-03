@@ -10,21 +10,25 @@ import { GitHubRestRequest, GitHubRestResponse, IGitHubTransport } from './githu
 import { GitHubCloudEndpoint, GitHubRequestError, IGitHubEndpointProvider } from './githubTypes.js';
 import { AccountHandle } from './types.js';
 
+/** Repository identity used to scope cloud API operations. */
 export interface GitHubCloudRepository {
 	readonly owner: string;
 	readonly name: string;
 }
 
+/** Starting page, page size, and page limit for bounded cloud API list requests. */
 export interface GitHubCloudListOptions {
 	readonly page?: number;
 	readonly perPage?: number;
 	readonly maxPages?: number;
 }
 
+/** Collected cloud items with explicit completeness and a continuation page when capped. */
 export type GitHubCloudList<T> = {
 	readonly items: readonly T[];
 } & ({ readonly complete: true } | { readonly complete: false; readonly nextPage: number });
 
+/** Request parameters and transport policy for a cloud domain operation. */
 interface GitHubCloudRequestOptions {
 	readonly method: GitHubRestRequest['method'];
 	readonly path: string;
@@ -36,6 +40,7 @@ interface GitHubCloudRequestOptions {
 	readonly contentType?: GitHubRestRequest['contentType'];
 }
 
+/** Runs a request with the operation's captured credentials and parses its response. */
 export type GitHubCloudRequest = <T>(options: GitHubCloudRequestOptions, parse: (response: GitHubRestResponse<unknown>) => T) => Promise<T>;
 
 /** A dispatched write could not be confirmed. Callers must reconcile, never blindly replay it. */

@@ -7,6 +7,7 @@ import { GitHubCloudApi, GitHubCloudList, GitHubCloudListOptions, cloudNullableS
 import { arrayProperty, nextLink, optionalObjectProperty, requiredNumber, requiredString } from './githubResponse.js';
 import { GitHubRequestError } from './githubTypes.js';
 
+/** Control-plane session metadata associated with a cloud task. */
 export interface GitHubCloudTaskSession {
 	readonly id: string;
 	readonly environment_id?: string;
@@ -36,6 +37,7 @@ export interface GitHubCloudTask {
 	readonly sessions?: readonly GitHubCloudTaskSession[];
 }
 
+/** Inputs for creating a cloud task and selecting its execution context. */
 export interface GitHubCloudTaskCreateRequest {
 	readonly prompt: string;
 	readonly agent_id?: number;
@@ -52,6 +54,7 @@ export interface GitHubCloudTaskCreateRequest {
 	readonly environment_id?: string;
 }
 
+/** User input or control commands sent to an existing cloud task. */
 export type GitHubCloudTaskSteerRequest = {
 	readonly content: string;
 	readonly type?: 'user_message' | 'ask_user_response' | 'plan_approval_response' | 'permission_response' | 'elicitation_response' | 'abort' | 'mode_switch';
@@ -60,6 +63,7 @@ export type GitHubCloudTaskSteerRequest = {
 	readonly event_type?: string;
 } | { readonly type: 'abort' };
 
+/** Filtering, sorting, and pagination options for cloud task lists. */
 export interface GitHubCloudTaskListOptions extends GitHubCloudListOptions {
 	readonly state?: string;
 	readonly isArchived?: boolean;
@@ -71,6 +75,7 @@ export interface GitHubCloudTaskListOptions extends GitHubCloudListOptions {
 	readonly direction?: 'asc' | 'desc';
 }
 
+/** Selects complete AHP history or paginated task event history. */
 export type GitHubCloudTaskEventsOptions =
 	| { readonly format: 'ahp' }
 	| { readonly format?: 'task'; readonly page?: number; readonly perPage?: number };
@@ -82,6 +87,7 @@ export interface GitHubCloudTaskEvents {
 	readonly hasNextPage: boolean;
 }
 
+/** Cloud task lifecycle operations and access to raw event history. */
 export interface IGitHubCloudTasks {
 	list(signal: AbortSignal, options?: GitHubCloudTaskListOptions): Promise<GitHubCloudList<GitHubCloudTask>>;
 	listForAutomation(automationId: string, signal: AbortSignal, options?: GitHubCloudListOptions): Promise<GitHubCloudList<GitHubCloudTask>>;
@@ -93,6 +99,7 @@ export interface IGitHubCloudTasks {
 	getEvents(id: string, signal: AbortSignal, options?: GitHubCloudTaskEventsOptions): Promise<GitHubCloudTaskEvents>;
 }
 
+/** Implements cloud task operations and raw event retrieval through the shared cloud API. */
 export class GitHubCloudTasks implements IGitHubCloudTasks {
 	constructor(private readonly _api: GitHubCloudApi) { }
 

@@ -8,8 +8,10 @@ import { objectProperty, requiredString } from './githubResponse.js';
 import { GitHubRequestError } from './githubTypes.js';
 import { parseRetryAfter } from './httpHeaders.js';
 
+/** Reported availability and lifecycle states of a cloud environment. */
 export type GitHubEnvironmentStatus = 'online' | 'offline' | 'degraded' | 'waking' | 'draining';
 
+/** Status and advertised capabilities of a cloud environment. */
 export interface GitHubEnvironment {
 	readonly id: string;
 	readonly status: GitHubEnvironmentStatus;
@@ -38,21 +40,25 @@ export interface GitHubEnvironmentToken {
 	};
 }
 
+/** Identifies the environment and optional session for a connect or reconnect request. */
 export interface GitHubEnvironmentConnectionRequest {
 	readonly environmentId: string;
 	readonly sessionId?: string;
 }
 
+/** Connection credentials or a waking state with an optional server-suggested retry delay. */
 export type GitHubEnvironmentConnectResult =
 	| { readonly kind: 'token'; readonly token: GitHubEnvironmentToken }
 	| { readonly kind: 'waking'; readonly retryAfterSeconds: number | undefined };
 
+/** Cloud environment lookup and credential acquisition for connections and reconnections. */
 export interface IGitHubEnvironments {
 	get(id: string, signal: AbortSignal): Promise<GitHubEnvironment>;
 	connect(request: GitHubEnvironmentConnectionRequest, signal: AbortSignal): Promise<GitHubEnvironmentConnectResult>;
 	reconnect(request: GitHubEnvironmentConnectionRequest, clientId: string, signal: AbortSignal): Promise<GitHubEnvironmentConnectResult>;
 }
 
+/** Implements environment lookup and connection requests through the shared cloud API. */
 export class GitHubEnvironments implements IGitHubEnvironments {
 	constructor(private readonly _api: GitHubCloudApi) { }
 

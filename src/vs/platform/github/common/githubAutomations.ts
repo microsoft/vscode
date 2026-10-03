@@ -9,11 +9,13 @@ import { GitHubCloudTask, IGitHubCloudTasks } from './githubCloudTasks.js';
 import { booleanProperty, optionalObjectProperty, requiredString } from './githubResponse.js';
 import { GitHubRequestError } from './githubTypes.js';
 
+/** Event types and additional parameters for an automation trigger. */
 export interface GitHubAutomationTrigger {
 	readonly types: readonly string[];
 	readonly [key: string]: string | number | boolean | null | readonly string[];
 }
 
+/** Repository automation definition returned by the cloud API. */
 export interface GitHubAutomation {
 	readonly id: string;
 	readonly name: string;
@@ -29,6 +31,7 @@ export interface GitHubAutomation {
 	readonly reasoning_effort?: string | null;
 }
 
+/** Editable automation fields sent in a merge-patch update. */
 export interface GitHubAutomationUpdate {
 	readonly name?: string;
 	readonly prompt?: string;
@@ -41,15 +44,18 @@ export interface GitHubAutomationUpdate {
 	readonly require_actor_write_permission?: boolean;
 }
 
+/** Automation creation payload requiring a name and prompt. */
 export interface GitHubAutomationCreate extends GitHubAutomationUpdate {
 	readonly name: string;
 	readonly prompt: string;
 }
 
+/** Pagination and optional ownership filtering for repository automations. */
 export interface GitHubAutomationListOptions extends GitHubCloudListOptions {
 	readonly ownership?: 'user';
 }
 
+/** Repository automation operations and access to their cloud task run history. */
 export interface IGitHubAutomations {
 	isPrivateRepository(repository: GitHubCloudRepository, signal: AbortSignal): Promise<boolean>;
 	list(repository: GitHubCloudRepository, signal: AbortSignal, options?: GitHubAutomationListOptions): Promise<GitHubCloudList<GitHubAutomation>>;
@@ -61,6 +67,7 @@ export interface IGitHubAutomations {
 	listRuns(id: string, signal: AbortSignal, options?: GitHubCloudListOptions): Promise<GitHubCloudList<GitHubCloudTask>>;
 }
 
+/** Implements automation operations through the shared cloud API and task domain. */
 export class GitHubAutomations implements IGitHubAutomations {
 	constructor(
 		private readonly _api: GitHubCloudApi,
