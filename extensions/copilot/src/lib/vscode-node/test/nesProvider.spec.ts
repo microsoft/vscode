@@ -128,6 +128,44 @@ class TestLogTarget implements ILogTarget {
 }
 
 describe('NESProvider Facade', () => {
+	it('reports when the selected model supports unified completions', async () => {
+		const fetcher = new TestFetcher({
+			'/models': JSON.stringify({
+				models: [{
+					serviceType: 'NESChat',
+					name: 'unified-model',
+					provider: 'test',
+					capabilities: { promptStrategy: 'patchBased02Unified' },
+				}]
+			}),
+		});
+		const nextEditProvider = createNESProvider({
+			workspace: new MutableObservableWorkspace(),
+			fetcher,
+			copilotTokenManager: new TestCopilotTokenManager(),
+			telemetrySender: new TestTelemetrySender(),
+			terminalService: new NullTerminalService(),
+			logTarget: new TestLogTarget(),
+			editorInfo: { name: 'my-editor', version: '1.2.3' },
+			editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+		});
+		assert.strictEqual(nextEditProvider.supportsUnifiedCompletions, false);
+
+		let resolveModelChange!: () => void;
+		const modelChanged = new Promise<void>(resolve => resolveModelChange = resolve);
+		const listener = nextEditProvider.onDidChangeSupportsUnifiedCompletions(() => {
+			if (nextEditProvider.supportsUnifiedCompletions) {
+				resolveModelChange();
+			}
+		});
+		await modelChanged;
+
+		assert.strictEqual(nextEditProvider.supportsUnifiedCompletions, true);
+
+		listener.dispose();
+		nextEditProvider.dispose();
+	});
+
 	it('should handle getNextEdit call with a document URI', async () => {
 		const workspace = new MutableObservableWorkspace();
 		const doc = workspace.addDocument({

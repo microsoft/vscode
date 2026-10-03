@@ -238,6 +238,18 @@ export interface INESResult {
 }
 
 export interface INESProvider<T extends INESResult = INESResult> {
+	/**
+	 * Whether the selected NES model can also serve inline completions.
+	 *
+	 * This is false until model metadata identifies a unified model, so clients
+	 * can safely keep their separate inline completions provider active while
+	 * model availability is loading or unavailable.
+	 */
+	readonly supportsUnifiedCompletions: boolean;
+	/**
+	 * Fires when {@link supportsUnifiedCompletions} changes.
+	 */
+	readonly onDidChangeSupportsUnifiedCompletions: VsEvent<void>;
 	getId(): string;
 	getNextEdit(documentUri: vscode.Uri, cancellationToken: CancellationToken): Promise<T>;
 	handleShown(suggestion: T): void;
@@ -265,6 +277,7 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 	private readonly _nextEditProvider: INextEditProvider<INextEditResult, LlmNESTelemetryBuilder>;
 	private readonly _telemetrySender: TelemetrySender;
 	private readonly _debugRecorder: DebugRecorder;
+	readonly onDidChangeSupportsUnifiedCompletions: VsEvent<void>;
 
 	constructor(
 		private _options: INESProviderOptions,
@@ -272,8 +285,13 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
+		@IInlineEditsModelService private readonly _modelService: IInlineEditsModelService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@ILogService logService: ILogService,
 	) {
 		super();
+		this.onDidChangeSupportsUnifiedCompletions = VsEvent.fromObservableLight(this._modelService.supportsUnifiedCompletions);
+		void authenticationService.getCopilotToken().catch(error => logService.error(error, 'Failed to initialize NES model availability'));
 		const statelessNextEditProvider = instantiationService.createInstance(XtabProvider);
 		const git = instantiationService.createInstance(ObservableGit);
 		const historyContextProvider = new NesHistoryContextProvider(this._options.workspace, git);
@@ -283,6 +301,10 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 
 		this._nextEditProvider = instantiationService.createInstance(NextEditProvider, this._options.workspace, statelessNextEditProvider, historyContextProvider, xtabHistoryTracker, this._debugRecorder);
 		this._telemetrySender = this._register(instantiationService.createInstance(TelemetrySender, this._options.workspace));
+	}
+
+	get supportsUnifiedCompletions(): boolean {
+		return this._modelService.supportsUnifiedCompletions.get() ?? false;
 	}
 
 	getId(): string {
