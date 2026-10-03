@@ -107,6 +107,8 @@ export interface IByokLmChatRequest {
 	readonly previousResponseId?: string;
 	readonly reasoningEffort?: string;
 	readonly modelOptions?: Record<string, unknown>;
+	/** The agent session the request belongs to. */
+	readonly sessionId?: string;
 }
 
 export interface IByokLmOutputMessageItem {

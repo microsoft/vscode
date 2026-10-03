@@ -444,6 +444,7 @@ suite('AgentHostByokLmHandler', () => {
 				previousResponseId: 'resp_previous',
 				reasoningEffort: 'high',
 				modelOptions: { temperature: 0.5 },
+				sessionId: 'session-1',
 				tools: [
 					{ type: 'function', name: 'getWeather', parametersSchema: { type: 'object' } },
 					{ type: 'custom', name: 'apply_patch' },
@@ -503,6 +504,7 @@ suite('AgentHostByokLmHandler', () => {
 			options: {
 				modelOptions: { temperature: 0.5 },
 				includeEncryptedThinking: true,
+				sessionId: 'session-1',
 				configuration: { reasoningEffort: 'high' },
 				tools: [
 					{ name: 'getWeather', description: '', inputSchema: { type: 'object' } },

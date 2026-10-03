@@ -7,6 +7,7 @@ import type * as http from 'http';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IByokLmChatRequest } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -235,9 +236,9 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
-		let bridgeRequest;
+		let bridgeRequest: IByokLmChatRequest;
 		try {
-			bridgeRequest = responsesRequestToBridge(vendor, body);
+			bridgeRequest = { ...responsesRequestToBridge(vendor, body), sessionId };
 		} catch (err) {
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
