@@ -390,6 +390,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			advanceOnTargetClick: step.advanceOnTargetClick,
 			hideNext: step.primaryAction ? false : step.advanceWhen ? true : step.hideNext,
 			targetOverlayVisible: openTarget,
+			popup: target.popup,
 			padding: step.padding,
 		});
 		context.onDidShow?.();
