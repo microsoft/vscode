@@ -11,6 +11,7 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RemoteAuthorityResolverErrorCode } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import * as types from '../../common/extHostTypes.js';
 
 function assertToJSON(a: any, expected: any) {
@@ -779,6 +780,51 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => types.FileDecoration.validate({ badge: '👋👋👋' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'புன்சிரிப்போடு' }));
 		assert.throws(() => types.FileDecoration.validate({ badge: 'ããã' }));
+	});
+
+	test('isValidAuthorityPort', () => {
+		assert.strictEqual(types.isValidAuthorityPort(1), true);
+		assert.strictEqual(types.isValidAuthorityPort(65535), true);
+		assert.strictEqual(types.isValidAuthorityPort(0), false);
+		assert.strictEqual(types.isValidAuthorityPort(-1), false);
+		assert.strictEqual(types.isValidAuthorityPort(65536), false);
+		assert.strictEqual(types.isValidAuthorityPort(1.5), false);
+		assert.strictEqual(types.isValidAuthorityPort(NaN), false);
+		assert.strictEqual(types.isValidAuthorityPort(Infinity), false);
+		assert.strictEqual(types.isValidAuthorityPort(-Infinity), false);
+	});
+
+	test('ResolvedAuthority port validation', () => {
+		assert.throws(() => new types.ResolvedAuthority('localhost', -1));
+		assert.throws(() => new types.ResolvedAuthority('localhost', 0));
+		assert.throws(() => new types.ResolvedAuthority('localhost', 65536));
+		assert.throws(() => new types.ResolvedAuthority('localhost', 1.5));
+		assert.throws(() => new types.ResolvedAuthority('localhost', NaN));
+		assert.throws(() => new types.ResolvedAuthority('localhost', Infinity));
+		assert.throws(() => new types.ResolvedAuthority('localhost', -Infinity));
+
+		assert.strictEqual(new types.ResolvedAuthority('localhost', 1).port, 1);
+		assert.strictEqual(new types.ResolvedAuthority('localhost', 65535).port, 65535);
+	});
+
+	test('validateResolvedAuthorityPort', () => {
+		for (const port of [-1, 65536, NaN]) {
+			const err = types.validateResolvedAuthorityPort({ host: 'localhost', port }, 'test+authority');
+			assert.ok(err instanceof types.RemoteAuthorityResolverError);
+			assert.strictEqual(err._code, RemoteAuthorityResolverErrorCode.InvalidAuthority);
+			assert.ok(err._message?.includes(String(port)));
+		}
+		assert.strictEqual(types.validateResolvedAuthorityPort({ host: 'localhost', port: 8080 }, 'test+authority'), undefined);
+	});
+
+	test('ResolvedAuthority.isResolvedAuthority port validation', () => {
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: -1 }), false);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 65536 }), false);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: NaN }), false);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 1.5 }), false);
+
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 1 }), true);
+		assert.strictEqual(types.ResolvedAuthority.isResolvedAuthority({ host: 'localhost', port: 65535 }), true);
 	});
 
 	test('runtime stable, type-def changed', function () {

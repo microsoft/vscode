@@ -98,12 +98,16 @@ const validateConnectionToken = (connectionToken: string) => {
 };
 
 
+export function isValidAuthorityPort(port: unknown): port is number {
+	return typeof port === 'number' && Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
 export class ResolvedAuthority {
 	public static isResolvedAuthority(resolvedAuthority: any): resolvedAuthority is ResolvedAuthority {
 		return resolvedAuthority
 			&& typeof resolvedAuthority === 'object'
 			&& typeof resolvedAuthority.host === 'string'
-			&& typeof resolvedAuthority.port === 'number'
+			&& isValidAuthorityPort(resolvedAuthority.port)
 			&& (resolvedAuthority.connectionToken === undefined || typeof resolvedAuthority.connectionToken === 'string');
 	}
 
@@ -115,7 +119,7 @@ export class ResolvedAuthority {
 		if (typeof host !== 'string' || host.length === 0) {
 			throw illegalArgument('host');
 		}
-		if (typeof port !== 'number' || port === 0 || Math.round(port) !== port) {
+		if (!isValidAuthorityPort(port)) {
 			throw illegalArgument('port');
 		}
 		if (typeof connectionToken !== 'undefined') {
@@ -169,6 +173,13 @@ export class RemoteAuthorityResolverError extends Error {
 		// https://github.com/microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
 		Object.setPrototypeOf(this, RemoteAuthorityResolverError.prototype);
 	}
+}
+
+export function validateResolvedAuthorityPort(result: { port: unknown }, remoteAuthorityChain: string): RemoteAuthorityResolverError | undefined {
+	if (!isValidAuthorityPort(result.port)) {
+		return new RemoteAuthorityResolverError(`Resolver for ${remoteAuthorityChain} returned invalid port ${String(result.port)}. Port must be an integer between 1 and 65535.`, RemoteAuthorityResolverErrorCode.InvalidAuthority);
+	}
+	return undefined;
 }
 
 export enum EnvironmentVariableMutatorType {
