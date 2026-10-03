@@ -3992,6 +3992,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!provider) {
 			throw new Error(`Agent session URI has no provider scheme: ${meta.session.toString()}`);
 		}
+		this.registerBackendSession(meta.session, provider);
 		const resourceScheme = this.resourceSchemeForProvider(provider);
 
 		const options = {
@@ -4018,7 +4019,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._metadataBySession.set(rawId, meta);
 		const adapter = this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId), sessionId => this._acquireSessionChatDetails(sessionId));
 		this._sessionKeysByResource.set(adapter.resource.with({ fragment: '' }), rawId);
-		this.registerBackendSession(adapter.backendUri, adapter.agentProvider);
 		return adapter;
 	}
 
@@ -7373,6 +7373,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return true;
 	}
 
+	protected _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+		return this._adoptSessionMeta(meta);
+	}
+
 	/** Load persisted session summaries into {@link _sessionCache}. */
 	private _loadCachedSessions(): void {
 		if (!this._sessionCacheStorageKey) {
@@ -7387,7 +7391,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (!deserialized) {
 				continue;
 			}
-			const meta = this._adoptSessionMeta(deserialized);
+			const meta = this._adoptCachedSessionMeta(deserialized);
 			const rawId = meta.session.toString();
 			if (this._sessionCache.has(rawId)) {
 				continue;

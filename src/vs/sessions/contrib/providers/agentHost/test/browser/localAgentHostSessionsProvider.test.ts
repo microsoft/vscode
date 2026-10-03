@@ -1876,6 +1876,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('rejected backend registration does not allocate orphaned adapters across refresh retries', async () => {
+		agentHost.addSession(createSession('registration-retry'));
+		let rejectRegistration = true;
+		let attempts = 0;
+		class RejectedRegistrationProvider extends LocalAgentHostSessionsProvider {
+			protected override registerBackendSession(backendSession: URI, provider: string): void {
+				attempts++;
+				if (rejectRegistration) {
+					throw new Error('Conflicting backend identities');
+				}
+				super.registerBackendSession(backendSession, provider);
+			}
+
+			async refreshForTest(): Promise<void> {
+				await this._refreshSessions();
+			}
+		}
+		const provider = createProvider(disposables, agentHost, undefined, { providerCtor: RejectedRegistrationProvider });
+		assert.ok(provider instanceof RejectedRegistrationProvider);
+		await timeout(0);
+		for (let retry = 0; retry < 4; retry++) {
+			await provider.refreshForTest();
+		}
+		const rejectedSessions = provider.getSessions().length;
+		rejectRegistration = false;
+		await provider.refreshForTest();
+		assert.deepStrictEqual({
+			attempts,
+			rejectedSessions,
+			recovered: provider.getSessions().map(session => session.resource.toString()),
+		}, { attempts: 6, rejectedSessions: 0, recovered: ['agent-host-copilotcli:/registration-retry'] });
+	});
+
 	test('a session whose agent reports nothing survives the refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// The host aggregates one listing across all of its agents, and an
 		// agent that cannot enumerate yet (SDK not downloaded) contributes an

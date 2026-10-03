@@ -10,6 +10,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -30,6 +31,13 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	/** Sandboxes are per-session environments, not persistent Automation hosts. */
 	override get automations(): undefined { return undefined; }
+
+	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
+		const adopted = super._adoptCachedSessionMeta(meta);
+		return adopted.session.scheme === CLOUD_SANDBOX_AGENT_PROVIDER && adopted.provider === CLOUD_SANDBOX_AGENT_PROVIDER
+			? { ...adopted, session: adopted.session.with({ scheme: CLOUD_SANDBOX_SESSION_SCHEME }) }
+			: adopted;
+	}
 
 	private _taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
 

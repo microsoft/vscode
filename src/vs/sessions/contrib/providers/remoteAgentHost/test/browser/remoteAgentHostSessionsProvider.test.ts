@@ -3633,6 +3633,48 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 });
 
 suite('CloudSandboxSessionsProvider discovery metadata', () => {
+	for (const sandbox of [false, true]) {
+		test(`older sandbox cache addresses are normalized only by the sandbox provider (${sandbox})`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			storageService.store('remoteAgentHost.cachedSessions.v2.localhost__4321', JSON.stringify([{
+				session: 'copilot:/cached-address',
+				provider: 'copilot',
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Cached',
+			}]), StorageScope.APPLICATION, StorageTarget.USER);
+			const connection = disposables.add(new MockAgentConnection());
+			const provider = createProvider(disposables, connection, {
+				noConnection: true,
+				storageService,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
+			});
+			const resource = URI.parse('remote-localhost__4321-copilot:/cached-address');
+			const cached = provider.getSessionByResource(resource);
+			assert.ok(cached instanceof AgentHostSessionAdapter);
+			const expectedBackend = sandbox ? 'ahp-session:/cached-address' : 'copilot:/cached-address';
+			provider.seedSessions([{
+				session: URI.parse(expectedBackend),
+				provider: 'copilot',
+				startTime: 1000,
+				modifiedTime: 3000,
+				summary: 'Discovered',
+			}]);
+			assert.deepStrictEqual({
+				backend: cached.backendUri.toString(),
+				sameAdapter: provider.getSessionByResource(resource) === cached,
+				title: cached.title.get(),
+				resources: provider.getSessions().map(session => session.resource.toString()),
+			}, {
+				backend: expectedBackend,
+				sameAdapter: true,
+				title: 'Cached',
+				resources: [resource.toString()],
+			});
+		});
+	}
+
 	const disposables = new DisposableStore();
 	const originalProject = { uri: URI.parse('https://github.com/owner/original'), displayName: 'owner/original' };
 	const metadata = createSession('discovered-session', {
