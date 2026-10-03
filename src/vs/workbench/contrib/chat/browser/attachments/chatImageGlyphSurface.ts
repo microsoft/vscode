@@ -22,7 +22,7 @@ const firstPaletteTone = 12;
 const crestStart = 0.36;
 const waveThreshold = 0.12;
 const wakeLength = 1.8;
-const message = 'HAPPYCODING!';
+const message = 'happy_coding!';
 const messageBits = [...message].map(character => character.charCodeAt(0).toString(2).padStart(8, '0')).join('');
 const openLength = 900;
 const passLength = 1500;

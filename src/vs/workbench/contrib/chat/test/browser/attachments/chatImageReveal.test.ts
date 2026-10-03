@@ -193,8 +193,8 @@ suite('ChatImageReveal', () => {
 	});
 
 	for (const columns of [7, 24, 28, 31, 32, 51, 64]) {
-		test(`glyph digits wrap HAPPYCODING! continuously across ${columns}-column rows`, () => {
-			const greeting = 'HAPPYCODING!'.repeat(3);
+		test(`glyph digits wrap happy_coding! continuously across ${columns}-column rows`, () => {
+			const greeting = 'happy_coding!'.repeat(4);
 			let text = '';
 			for (let index = 0; index < greeting.length * 8; index += 8) {
 				let code = 0;
@@ -217,7 +217,7 @@ suite('ChatImageReveal', () => {
 			}
 			return text;
 		});
-		assert.deepStrictEqual(rows, ['HAPP', 'YCOD', 'ING!', 'HAPP', 'YCOD']);
+		assert.deepStrictEqual(rows, ['happ', 'y_co', 'ding', '!hap', 'py_c']);
 	});
 
 	test('the palette holds the colors of the image', async () => {
