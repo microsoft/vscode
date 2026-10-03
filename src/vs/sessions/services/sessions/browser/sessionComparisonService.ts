@@ -23,7 +23,7 @@ import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/ch
 import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
@@ -360,9 +360,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 
 		this._synthesisStarting.add(comparisonId);
 		try {
+			const otherAttemptStrengthsPrompt = this._getOtherAttemptStrengthsPrompt(comparison);
 			const synthesisPlanPrompt = this._getSynthesisPlanPrompt(comparison);
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), synthesisPlanPrompt),
+				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}{3}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), otherAttemptStrengthsPrompt, synthesisPlanPrompt),
 				attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
@@ -779,6 +780,33 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			blocks.push(localize('sessionComparison.additionalSynthesisInstructionsPrompt', "\n\n## Additional synthesis instructions\n{0}", plan.instructions));
 		}
 		return blocks.join('');
+	}
+
+	private _getOtherAttemptStrengthsPrompt(comparison: ISessionComparison): string {
+		const verdict = comparison.verdict;
+		if (!verdict) {
+			return '';
+		}
+		const findings = new Map(verdict.attempts.map(attempt => [attempt.participantId, attempt]));
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const strengths = attempts.flatMap((attempt, index) => {
+			if (attempt.id === verdict.recommendedParticipantId) {
+				return [];
+			}
+			const finding = findings.get(attempt.id);
+			if (!finding) {
+				return [];
+			}
+			const attemptLabel = getSessionComparisonAttemptLabel(attempt, index + 1);
+			return finding.notableDifferences
+				.map(strength => strength.trim())
+				.filter(strength => strength.length > 0)
+				.map(strength => ({ attemptLabel, strength }));
+		}).slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).map(({ attemptLabel, strength }) =>
+			localize('sessionComparison.otherAttemptStrengthPrompt', "- **{0}**: {1}", attemptLabel, getBoundedSessionComparisonManifestText(strength)));
+		return strengths.length
+			? localize('sessionComparison.otherAttemptStrengthsPrompt', "\n\n## Strong points from other attempts\n{0}", strengths.join('\n'))
+			: '';
 	}
 
 	private _getVerdictRecommendation(comparison: ISessionComparison): string {

@@ -25,9 +25,9 @@ export const AgentsPartCard = {
 	BORDER_WIDTH: 1,
 } as const;
 
-/** Content box of a card part, excluding desktop margins and borders or filling the grid on phone. */
-export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean): { readonly width: number; readonly height: number } {
-	if (phoneLayout) {
+/** Content box of a card part, filling the grid in compact or phone layouts. */
+export function getAgentsPartCardContentSize(width: number, height: number, editorPaneVisible: boolean, sidebarVisible: boolean, phoneLayout: boolean, compact = false): { readonly width: number; readonly height: number } {
+	if (phoneLayout || compact) {
 		return { width, height };
 	}
 

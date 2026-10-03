@@ -73,8 +73,8 @@ import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstan
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
-// 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
-export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
+// 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
+export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 28;
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.

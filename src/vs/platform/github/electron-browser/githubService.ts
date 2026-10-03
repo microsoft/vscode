@@ -3,4 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export { AgentHostCanvasesCapabilityMetaKey, supportsAgentHostCanvases } from './vscode/agentHostCanvasesMeta.js';
+import { registerSharedProcessRemoteService } from '../../ipc/electron-browser/services.js';
+import { GITHUB_CHANNEL_NAME, GitHubChannelClient, ISharedProcessGitHubService } from '../common/githubIpc.js';
+
+registerSharedProcessRemoteService(ISharedProcessGitHubService, GITHUB_CHANNEL_NAME, { channelClientCtor: GitHubChannelClient });

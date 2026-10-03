@@ -1992,7 +1992,7 @@ export class WorkspacePicker extends Disposable {
 		return this.options.getNoWorkspaceOption?.();
 	}
 
-	private _getNoWorkspaceLabel(): string {
+	protected _getNoWorkspaceLabel(): string {
 		return this._useConsolidatedRemoteWorkspaces()
 			? localize('workspacePicker.chat', "Chat")
 			: localize('workspacePicker.noWorkspace', "No workspace");

@@ -32,7 +32,7 @@ import {
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import type { SessionMode } from '../../../../common/agentHostSchema.js';
 import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
+import { CapiReplayMode, type ICapiReplayResponse, type IReplayVerificationOptions } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
@@ -1161,7 +1161,7 @@ export class AgentHostE2EServerLease {
 	 * Dispose the test's sessions and verify replay, reusing a healthy shared server.
 	 * Pass `forceRestart` after a failed test to isolate the next test without obscuring the original failure.
 	 */
-	async release(createdSessions: string[], forceRestart = false): Promise<void> {
+	async release(createdSessions: string[], forceRestart = false, verification?: IReplayVerificationOptions): Promise<void> {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
 		const recordCleanupError = (error: unknown) => {
@@ -1215,7 +1215,7 @@ export class AgentHostE2EServerLease {
 			// Surface this test's strict replay failures but keep the server (and
 			// its cached SDK client) alive for the next test.
 			try {
-				this._server?.capiReplay?.assertNoReplayMismatches();
+				this._server?.capiReplay?.assertNoReplayMismatches(verification);
 			} catch (error) {
 				recordCleanupError(error);
 				try {
@@ -1241,7 +1241,7 @@ export class AgentHostE2EServerLease {
 				if (forceRestart) {
 					await this._server?.capiReplay?.close();
 				} else {
-					await this._server?.capiReplay?.stop();
+					await this._server?.capiReplay?.stop(verification);
 				}
 			} catch (error) {
 				recordCleanupError(error);

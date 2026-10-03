@@ -19,10 +19,10 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentCanvasAvailability, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { AgentHostCodexAgentEnabledSettingId, IAgentHostService, type IAgentHostCanvases } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostExtensionInitializeResultMeta, supportsAgentHostCanvases } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -82,13 +82,14 @@ import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessi
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
+import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 
-type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationState;
+type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationState | CanvasState;
 
 function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['properties'] = {}): SessionConfigSchema {
 	return {
@@ -98,11 +99,11 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			branch: { type: 'string', title: 'Base branch', enumDynamic: true, sessionMutable: false },
 			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
 			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
-			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', sessionMutable: false },
-			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, sessionMutable: false },
-			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, sessionMutable: false },
-			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', sessionMutable: false },
-			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', sessionMutable: false },
+			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
+			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
+			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
+			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
 			sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 			providerOption: { type: 'string', title: 'Provider option', enum: ['remembered'], sessionMutable: true },
 			...overrides,
@@ -136,23 +137,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		snapshots: [],
 		_meta: { 'vscode.detachedWorktrees': true, [AgentHostAutonomousAutomationsCapabilityMetaKey]: true },
 	});
-	private readonly _canvasSnapshots = new Map<string, IAgentCanvasSnapshot>();
-	private readonly _onDidChangeCanvases = new Emitter<IAgentCanvasSnapshot>();
-	private readonly _canvases: IAgentHostCanvases = {
-		onDidChange: this._onDidChangeCanvases.event,
-		getSnapshots: () => [...this._canvasSnapshots.values()],
-		resolveSource: async (chat, instanceId, revision) => {
-			const canvas = this._canvasSnapshots.get(chat.toString())?.canvases.find(canvas => canvas.instanceId === instanceId);
-			if (!canvas || canvas.revision !== revision || canvas.availability !== AgentCanvasAvailability.Ready) {
-				throw new Error('Canvas source is unavailable');
-			}
-			return `https://example.test/${instanceId}/${revision}`;
-		},
-	};
-	override get canvases(): IAgentHostCanvases | undefined {
-		return supportsAgentHostCanvases(this.initializeResult.get()) ? this._canvases : undefined;
-	}
-
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public automationCatalog: AutomationState = { entries: [] };
@@ -207,15 +191,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	nextClientSeq(): number {
 		return this._nextSeq++;
-	}
-
-	setCanvasSnapshot(snapshot: IAgentCanvasSnapshot): void {
-		if (snapshot.canvases.length > 0) {
-			this._canvasSnapshots.set(snapshot.chat.toString(), snapshot);
-		} else {
-			this._canvasSnapshots.delete(snapshot.chat.toString());
-		}
-		this._onDidChangeCanvases.fire(snapshot);
 	}
 
 	/**
@@ -328,7 +303,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const values = { ...this.resolveSessionConfigResult.values };
 		for (const [key, value] of Object.entries(request.config ?? {})) {
 			const property = this.resolveSessionConfigResult.schema.properties[key];
-			if (property && !property.readOnly) {
+			if (property) {
 				values[key] = value;
 			}
 		}
@@ -390,7 +365,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
 	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
-	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
+	private readonly _sessionStateValues = new Map<string, SubscriptionState | Error>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 
@@ -417,8 +392,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		const self = this;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
-			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			get value() { return self._sessionStateValues.get(key) as T | Error | undefined; },
+			get verifiedValue() {
+				const value = self._sessionStateValues.get(key);
+				return value instanceof Error ? undefined : value as T | undefined;
+			},
 			onDidChange: emitter.event as unknown as Event<T>,
 			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
@@ -456,6 +434,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	setChatState(chatUri: string, state: ChatState): void {
 		this._sessionStateValues.set(chatUri, state);
 		this._sessionStateEmitters.get(chatUri)?.fire(state);
+	}
+
+	setCanvasState(resource: string, state: CanvasState | Error): void {
+		this._sessionStateValues.set(resource, state);
+		if (state instanceof Error) {
+			this._sessionStateErrorEmitters.get(resource)?.fire(state);
+			return;
+		}
+		this._sessionStateEmitters.get(resource)?.fire(state);
 	}
 
 	setAutomationCatalog(state: AutomationState): void {
@@ -549,8 +536,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._onDidRootStateError.dispose();
 		this._onAgentHostStart.dispose();
 		this._onAgentHostExit.dispose();
-		this._onDidChangeCanvases.dispose();
-		this._canvasSnapshots.clear();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
 		}
@@ -830,7 +815,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Copilot schema discovery prevents VS defaults and read-only reports entering creation', async () => {
+	test('Copilot schema discovery prevents VS defaults entering creation without filtering readOnly values', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
@@ -855,8 +840,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eager: agentHost.createSessionConfigs.at(-1)?.config,
 		}, {
 			discovery: [undefined],
-			creation: { approvalMode: 'assisted', target: 'workspace' },
-			eager: { approvalMode: 'assisted', target: 'workspace' },
+			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+			eager: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
 		});
 	});
 
@@ -1014,10 +999,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 
 		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
-		agentHost.initializeResult.set({
-			...agentHost.initializeResult.get(),
-			_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true),
-		}, undefined);
 		agentHost.setRootState({
 			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo],
 			config: { schema: { type: 'object', properties: {} }, values: {} },
@@ -1045,11 +1026,80 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('enables canvas presentation only for local Copilot sessions', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
+			{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
+		]);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		fireSessionAdded(agentHost, 'canvas-copilot');
+		fireSessionAdded(agentHost, 'canvas-codex', { provider: CODEX_AGENT_PROVIDER_ID });
+
+		assert.deepStrictEqual(provider.getSessions().map(session => ({
+			sessionType: session.sessionType,
+			supportsCanvases: session.capabilities.get().supportsCanvases,
+		})), [
+			{ sessionType: 'copilotcli', supportsCanvases: true },
+			{ sessionType: CODEX_AGENT_PROVIDER_ID, supportsCanvases: false },
+		]);
+	});
+
 	test('reports no session types before rootState hydrates', () => {
 		agentHost.clearRootState();
 		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes, []);
+	});
+
+	test('projects advertised canvas channels through hydration, source updates, errors and removal', () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		const rawId = 'canvas-owner';
+		fireSessionAdded(agentHost, rawId);
+		const session = provider.getSessions()[0];
+		const resource = 'ahp-canvas://another-host/documents/preview';
+		const chat = 'ahp-chat:/canvas-owner';
+		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState(rawId, 'copilotcli', {
+			provider: 'copilotcli', title: 'Canvas owner', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: [summary], defaultChat: chat,
+		});
+		const chatState: ChatState = { ...summary, turns: [], canvases: [{ resource }] };
+		agentHost.setChatState(chat, chatState);
+		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+		disposables.add(autorun(reader => session.mainChat.read(reader).canvases?.read(reader)));
+		const read = () => session.mainChat.get().canvases?.get()?.map(canvas => ({
+			resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source?.toString(),
+		}));
+		const pending = read();
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		agentHost.setCanvasState(resource, canvas);
+		const ready = read();
+		agentHost.setCanvasState(resource, { ...canvas, title: 'Updated', url: 'https://example.test/replaced' });
+		const updated = read();
+		agentHost.setCanvasState(resource, new Error('Channel unavailable'));
+		const unavailable = read();
+		agentHost.setCanvasState(resource, { ...canvas, url: 'http:relative' });
+		const unsupported = read();
+		agentHost.setChatState(chat, { ...chatState, canvases: [] });
+
+		assert.deepStrictEqual({
+			supportsCanvases: session.capabilities.get().supportsCanvases,
+			pending, ready, updated, unavailable, unsupported, removed: read(),
+			subscribes: agentHost.sessionSubscribeCounts.get(resource),
+			unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource),
+		}, {
+			supportsCanvases: true,
+			pending: [{ resource, instanceId: undefined, source: undefined }],
+			ready: [{ resource, instanceId: 'preview', source: canvas.url }],
+			updated: [{ resource, instanceId: 'preview', source: 'https://example.test/replaced' }],
+			unavailable: [{ resource, instanceId: undefined, source: undefined }],
+			unsupported: [{ resource, instanceId: 'preview', source: undefined }],
+			removed: [], subscribes: 1, unsubscribes: 1,
+		});
 	});
 
 	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3787,7 +3837,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -5736,6 +5786,52 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('restored folder isolation selects the current branch when Git state first hydrates', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const workspace = URI.parse('file:///home/user/project');
+		storageService.store(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, JSON.stringify({ [workspace.toString()]: 'folder' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'origin/main' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(workspace, sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const resolvedBeforeGitState = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+
+		agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, {
+				branchName: 'main',
+				upstreamBranchName: 'origin/main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId).get());
+
+		assert.deepStrictEqual({
+			resolvedBeforeGitState,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			resolvedBeforeGitState: 'origin/main',
+			requests: [{ isolation: 'folder', branch: 'main' }],
+			config: { isolation: 'folder', branch: 'main' },
+		});
+	});
+
 	test('folder drafts follow branch switches reported by the Git state', async () => {
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
@@ -6067,6 +6163,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession forwards Git worktree file settings after schema discovery', async () => {
 		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'user/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**', '.cache/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
@@ -6080,20 +6177,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 			discovery,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
-			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			seededImmediately: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 			discovery: undefined,
-			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			forwardedToAgentHost: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 		});
 	});
 
 	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
 		const folder = URI.file('/home/user/project');
 		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'user/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['user.json']);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules']);
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
-			values: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			values: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
 		};
 		let sentConfig: Record<string, unknown> | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -6110,6 +6208,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = await provider.createNewChat(session.sessionId);
 
 		// The Agents window loads the folder settings once it mounts the draft's folder.
+		configService.setUserConfiguration('git.branchPrefix', 'folder/', folder);
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['folder.json'], folder);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', [], folder);
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
@@ -6118,8 +6217,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
 			sentConfig,
 		}, {
-			createdWith: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
-			sentConfig: { isolation: 'worktree', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
+			createdWith: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			sentConfig: { isolation: 'worktree', worktreeBranchPrefix: 'folder/', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
 		});
 	});
 
@@ -6325,6 +6424,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				autoApprove: 'assisted',
 				providerOption: { enabled: true },
 				clearedOption: true,
+				worktreeBranchPrefix: 'stale-prefix/',
+				shellInitScripts: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 			},
 			modelId: sessionTemplate.modelId,
 			agentUri: sessionTemplate.agent.uri,
@@ -7330,68 +7431,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 					main: 30_000,
 					peer: 40_000,
 				},
-			});
-		});
-
-		test('maps local Copilot canvas snapshots into provider-neutral chat canvases', async () => {
-			const agents = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo];
-			agentHost.initializeResult.set({
-				...agentHost.initializeResult.get(),
-				_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, false, true),
-			}, undefined);
-			agentHost.setRootState({
-				agents,
-				config: { schema: { type: 'object', properties: {} }, values: {} },
-			});
-			const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
-			const rawId = 'canvas-projection';
-			const session = setupMultiChatSession(provider, rawId);
-			activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
-			const sessionUri = AgentSession.uri('copilotcli', rawId);
-			const chat = URI.parse(buildDefaultChatUri(sessionUri));
-			agentHost.setSessionState(rawId, 'copilotcli', makeState([
-				makeChatSummary(chat.toString(), 'Default'),
-			], { defaultChat: chat.toString() }));
-			agentHost.setCanvasSnapshot({
-				chat,
-				canvases: [{
-					instanceId: 'preview-1',
-					extensionId: 'project:preview',
-					extensionName: 'Preview',
-					canvasId: 'preview',
-					title: 'Preview',
-					status: 'ready',
-					revision: 2,
-					availability: AgentCanvasAvailability.Ready,
-				}],
-			});
-			const canvas = session.mainChat.get().canvases?.get()[0];
-			assert.ok(canvas);
-			const source = await canvas.resolveSource();
-
-			assert.deepStrictEqual({
-				supportsCanvases: session.capabilities.get().supportsCanvases,
-				canvas: {
-					resource: canvas.resource.scheme,
-					instanceId: canvas.instanceId,
-					title: canvas.title,
-					status: canvas.status,
-					revision: canvas.revision,
-					availability: canvas.availability,
-				},
-				source: source.toString(),
-			}, {
-				supportsCanvases: true,
-				canvas: {
-					resource: 'agent-host-canvas',
-					instanceId: 'preview-1',
-					title: 'Preview',
-					status: 'ready',
-					revision: 2,
-					availability: 'ready',
-				},
-				source: 'https://example.test/preview-1/2',
 			});
 		});
 

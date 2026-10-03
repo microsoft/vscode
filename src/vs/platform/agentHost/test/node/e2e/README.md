@@ -239,6 +239,26 @@ Provider availability:
 - **Claude** — enabled when `node_modules/@anthropic-ai/claude-agent-sdk` is present (dev dep).
 - **Codex** — shared suite enabled when `node_modules/@openai/codex` is present. Codex-specific *steering* tests (real-time, non-deterministic) are extra and gated behind `AGENT_HOST_REAL_CODEX=1`.
 
+### Expected failures
+
+Use `assertExpectedFailure(issue, expectedError, run)` around a known failing
+operation while keeping its desired-behavior assertions. It logs and accepts
+only the specified error. An unexpected pass fails the run and identifies the
+marker to remove, so SDK rolls detect when an upstream fix reaches the bundle.
+Setup errors, different failures, and teardown errors remain failures.
+Skip these scenarios while recording so a known early failure cannot overwrite
+a complete fixture with a partial recording. Remove that recording skip together
+with the marker when the upstream fix is adopted.
+
+The managed-telemetry no-restart scenario runs this way by default. Do not
+replace its marker with a permanent negative assertion.
+
+If a recognized failure prevents later model turns, pass
+`{ allowUnconsumedResponses: true }` to the lease's replay verification at
+release, only after `assertExpectedFailure` returns. This permits unused future
+responses without accepting unrecorded requests or request mismatches. The
+option is per release; normal tests still require complete replay consumption.
+
 ---
 
 ## Server lifecycle
@@ -256,6 +276,8 @@ On Windows, test-server cleanup records descendants before requesting graceful s
 The complete-suite runner parallelizes above this lease: conformance, Claude, Codex, Copilot, and Copilot OTel each run in an isolated test process with their own server lease. Tests within one entrypoint stay serial and continue sharing servers, preserving the lifecycle and fixture-window invariants while letting the independent entrypoints overlap. Managed-telemetry tests use a fresh lease and loopback collector per test because their policy and exporter configuration are process-scoped.
 
 Copilot OTel leases clear inherited generic and trace-specific OTLP certificate/key variables in the child environment because both managed telemetry and the Agent Host file-export path use plain HTTP loopback collectors. The parent process environment is unchanged.
+
+The file-export test also sets `OTEL_BSP_SCHEDULE_DELAY=100` in its child environment so native SDK batching does not race the ten-second span-polling budget. It still waits for the actual SDK and host spans in the exported file; neither the polling deadline nor the required spans are relaxed.
 
 The swap is what makes sharing cheap: the proxy is an `http.Server` running **inside the test process**, so `CapiReplayProxy.resetForReplay(fixturePath)` is a plain in-process method call — no IPC, no re-fork. It reloads the replay buckets and clears the cache-miss log while keeping the **same proxy URL**, so the long-lived agent host (forked against that URL) keeps talking to the same proxy and just receives the next fixture's recorded responses. Per-test state must be reset there rather than read from the proxy's constructor options, which belong to whichever test started the shared server. Teardown calls `assertNoReplayMismatches()` to verify a test's traffic *without* stopping the server (vs `stop()`, which verifies then closes); the suite's `suiteTeardown` closes it via `close()`.
 

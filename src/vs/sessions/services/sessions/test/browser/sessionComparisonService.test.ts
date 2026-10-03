@@ -1372,14 +1372,21 @@ suite('SessionComparisonService', () => {
 
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const baseVerdict = verdict(attempts[1].id, attempts.map(attempt => attempt.id));
 		service.submitVerdict(comparison.id, {
-			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+			...baseVerdict,
 			rationale: {
 				comparison: 'The other attempt leaves the failure unresolved.',
 				validation: 'Focused tests pass.',
 				codeQuality: 'Uses the existing implementation pattern.',
 				solution: 'Implements the requested behavior.',
 			},
+			attempts: baseVerdict.attempts.map((attempt, index) => ({
+				...attempt,
+				notableDifferences: index === 0
+					? ['Keeps the parser API unchanged.', '  ', 'Handles malformed input without throwing.']
+					: ['Uses the winning implementation pattern.'],
+			})),
 			decisionSections: [{
 				id: 'error-handling',
 				title: 'Error handling',
@@ -1432,7 +1439,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Strong points from other attempts\n- **Attempt 1 (One)**: Keeps the parser API unchanged.\n- **Attempt 1 (One)**: Handles malformed input without throwing.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
 				selections: [
 					{ sectionId: 'error-handling', participantId: attempts[0].id },
@@ -1450,6 +1457,42 @@ suite('SessionComparisonService', () => {
 					instructions: 'Preserve the public API and add focused tests.',
 				},
 			},
+		});
+	});
+
+	test('bounds strengths included in the synthesis prompt', async () => {
+		const { service, sessionsManagementService } = createServices();
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+
+		const comparison = await service.startComparison(startOptions());
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const longStrength = 'x'.repeat(1001);
+		const baseVerdict = verdict(attempts[1].id, attempts.map(attempt => attempt.id));
+		service.submitVerdict(comparison.id, {
+			...baseVerdict,
+			attempts: baseVerdict.attempts.map((attempt, index) => ({
+				...attempt,
+				notableDifferences: index === 0
+					? [longStrength, ...Array.from({ length: 33 }, (_, strengthIndex) => `Strength ${strengthIndex}`)]
+					: [],
+			})),
+		});
+
+		await service.synthesize(comparison.id);
+		const prompt = sessionsManagementService.createCalls[2].options.query;
+		const strengthLines = prompt.split('\n').filter(line => line.startsWith('- **Attempt 1 (One)**:'));
+		assert.deepStrictEqual({
+			count: strengthLines.length,
+			first: strengthLines[0],
+			last: strengthLines[strengthLines.length - 1],
+			includesFirstExcludedStrength: prompt.includes('Strength 31'),
+		}, {
+			count: 32,
+			first: `- **Attempt 1 (One)**: ${'x'.repeat(1000)}`,
+			last: '- **Attempt 1 (One)**: Strength 30',
+			includesFirstExcludedStrength: false,
 		});
 	});
 

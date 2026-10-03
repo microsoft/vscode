@@ -28,7 +28,7 @@ suite('Chat Accessibility Help', () => {
 
 	test('documents the sandbox policy command and report link', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
-		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
+		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
@@ -45,9 +45,10 @@ suite('Chat Accessibility Help', () => {
 				introductionActions: help.includes('let us know, Learn More, Got it!, or Not Helpful'),
 				learnMorePersists: help.includes('Learn More opens documentation without hiding the introduction'),
 				introductionDismissal: help.includes('Got it! and Not Helpful turn off future introductions'),
-				switchSurvey: help.includes('a two-step feedback survey may appear above the chat input'),
-				switchSurveyKeyboard: help.includes('use Up and Down Arrow to choose why you switched'),
-				switchSurveyAcknowledgement: help.includes('the questions are replaced above the input by a message that your feedback was recorded'),
+				switchSurvey: help.includes('a feedback survey may appear above the chat input'),
+				switchSurveyKeyboard: help.includes('Use Up and Down Arrow to choose why you switched, then press Enter or Space to submit'),
+				switchSurveyAcknowledgement: help.includes('a message confirms that your feedback was recorded'),
+				switchSurveyFeedbackLink: help.includes('Use Tab to reach Share it on GitHub to provide specific feedback in a GitHub issue'),
 				agentHostOnly: help.includes('When another Agent Host session is running, a new Agent Host chat'),
 				copy: help.includes('copies the current prompt and attachments from that input without sending them or clearing it'),
 				singleOwner: help.includes('Only one chat input notification is shown at a time'),
@@ -64,6 +65,7 @@ suite('Chat Accessibility Help', () => {
 				switchSurvey: true,
 				switchSurveyKeyboard: true,
 				switchSurveyAcknowledgement: true,
+				switchSurveyFeedbackLink: true,
 				agentHostOnly: true,
 				copy: true,
 				singleOwner: true,
@@ -372,7 +374,7 @@ suite('Chat Accessibility Help', () => {
 			agentView: agentViewText.includes(expectedText),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes(expectedText),
 			editsView: getAccessibilityHelpText('editsView', keybindingService, true).includes(expectedText),
-			previewClick: agentViewText.includes('click the output preview'),
+			viewFullOutputLink: agentViewText.includes('View Full Output link below the output preview'),
 			outputEnter: agentViewText.includes('focus the output region and press Enter'),
 			readonly: agentViewText.includes('read-only editor'),
 			accessibleView: agentViewText.includes('terminal output Accessible View'),
@@ -382,7 +384,7 @@ suite('Chat Accessibility Help', () => {
 			agentView: true,
 			inlineChat: false,
 			editsView: false,
-			previewClick: true,
+			viewFullOutputLink: true,
 			outputEnter: true,
 			readonly: true,
 			accessibleView: true,
@@ -398,6 +400,7 @@ suite('Chat Accessibility Help', () => {
 			panelChat: getAccessibilityHelpText('panelChat', keybindingService, true).includes('left and right arrow keys to move between pills'),
 			agentView: getAccessibilityHelpText('agentView', keybindingService, true).includes('<keybinding:editor.action.showContextMenu>'),
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
+			copyActions: getAccessibilityHelpText('agentView', keybindingService, true).includes('its context menu offers the item\'s copy actions'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
 			subagentFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Subagent Options'),
@@ -416,6 +419,7 @@ suite('Chat Accessibility Help', () => {
 			panelChat: true,
 			agentView: true,
 			pullRequestFilter: true,
+			copyActions: true,
 			filterPersistence: true,
 			filterRecovery: true,
 			subagentFilter: true,
