@@ -163,6 +163,7 @@ suite('Sessions rename', () => {
 				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chatSession: ISession = {
@@ -384,6 +385,7 @@ suite('Sessions rename', () => {
 				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameDraftChats', [mainChat, peerChat]);
@@ -461,6 +463,7 @@ suite('Sessions rename', () => {
 				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const session: ISession = {
@@ -646,6 +649,7 @@ suite('Sessions rename', () => {
 				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
 				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canArchive: true, canDelete: true });
 			}();
 			const otherPeerChat = new class extends mock<IChat>() {
@@ -656,6 +660,7 @@ suite('Sessions rename', () => {
 				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
+				override readonly isRead = constObservable(true);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
 			}();
 			const chats = observableValue<readonly IChat[]>('renameChats', [mainChat, peerChat, otherPeerChat]);
