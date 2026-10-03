@@ -3,93 +3,339 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $ } from '../../../../base/browser/dom.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { toAction } from '../../../../base/common/actions.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { groupBy } from '../../../../base/common/collections.js';
+import { Event } from '../../../../base/common/event.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IChatResponseFileChangesService } from '../../../../workbench/contrib/chat/browser/chatResponseFileChangesService.js';
-import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ChatTurnPillsWidget, diffStatsEqual, EMPTY_DIFF_STATS, IChatTurnPillsModel, IDiffStats, IPreviewFile, observeTurnStatusPillsEnabled, openChatTurnFile, previewFilesEqual, previewKind } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
-import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
+import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
+import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
+import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
+import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
+import { localize } from '../../../../nls.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
+import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { IGitHubService } from '../../github/browser/githubService.js';
+import { IResolvedSessionPullRequest, SessionPullRequestPresentationModel } from '../../github/browser/pullRequestIconStatus.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, isActiveSessionStatus } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
-import './media/sessionChatInputToolbar.css';
+import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
+import { computePullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
+import { ISessionChangesStatsCache, readChatChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
+import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
+import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 
-/** The per-turn data both pills reflect. */
-interface ITurnData {
-	readonly stats: IDiffStats;
-	/** Previewable files changed in the turn, primary (first) first. */
-	readonly previewFiles: readonly IPreviewFile[];
+/** Fake artifacts for the pill debug overlay. */
+function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
+	const entries = debugData.markdownFiles.map(name => {
+		const resource = URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` });
+		return { id: name, label: name, resource, ...sessionArtifactLocation(resource.path, name), open: () => { } };
+	});
+	return entries.length ? [{ title: localize('sessionArtifacts.files', "Files"), entries }] : [];
 }
 
-const EMPTY_TURN_DATA: ITurnData = { stats: EMPTY_DIFF_STATS, previewFiles: [] };
-
-/**
- * Compute the current turn's diff stats and previewable files from the chat's
- * last-turn changes ({@link IChat.lastTurnChanges}), which the provider derives
- * from the live output stream. Files are classified as created vs. edited with
- * the same rules as the Changes view (an addition has no original; a deletion
- * has no modified resource). Created files are listed before edited ones so the
- * primary (first) file is the first created one, falling back to the first
- * edited one. Returns {@link EMPTY_TURN_DATA} when the chat exposes no last-turn
- * changes (e.g. before its first turn, or a provider that can't determine them).
- */
-function computeTurnData(chat: IChat, reader: IReader): ITurnData {
-	const changes = chat.lastTurnChanges?.read(reader) ?? [];
-
-	let files = 0, insertions = 0, deletions = 0;
-	const created: IPreviewFile[] = [];
-	const edited: IPreviewFile[] = [];
-	for (const change of changes) {
-		if (!change.isOutsideWorkspace) {
-			files++;
-			insertions += change.insertions;
-			deletions += change.deletions;
-			continue;
-		}
-
-		if (change.modifiedUri === undefined) {
-			continue; // a deletion has nothing to preview
-		}
-		const uri = isIChatSessionFileChange2(change) ? change.uri : change.modifiedUri;
-		const kind = previewKind(uri);
-		if (!kind) {
-			continue;
-		}
-		const isCreated = change.originalUri === undefined;
-		(isCreated ? created : edited).push({ uri, kind, created: isCreated });
+function getPullRequestAttention(icon: ThemeIcon, status: IResolvedSessionPullRequest['status']): string | undefined {
+	if (status.hasFailingChecks && status.hasUnresolvedComments) {
+		return localize('sessionChatPills.pullRequestFailingChecksAndComments', "failing checks and unresolved review comments");
 	}
+	if (status.hasFailingChecks) {
+		return localize('sessionChatPills.pullRequestFailingChecks', "failing checks");
+	}
+	if (status.hasUnresolvedComments || icon.id === Codicon.gitPullRequestComment.id) {
+		return localize('sessionChatPills.pullRequestComments', "unresolved review comments");
+	}
+	if (icon.id === Codicon.gitPullRequestError.id) {
+		return localize('sessionChatPills.pullRequestAttention', "failing checks or merge conflicts");
+	}
+	return undefined;
+}
 
+function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService, onDidOpenReference?: () => void) {
+	const repository = URI.parse(`https://github.com/${owner}/${repo}`);
 	return {
-		stats: { files, insertions, deletions },
-		previewFiles: [...created, ...edited],
+		repositoryHref: repository.toString(true),
+		referenceHref: reference.toString(true),
+		onDidClickRepository: () => { void openerService.open(repository, { openExternal: true }); },
+		onDidClickReference: () => {
+			void openerService.open(reference, { openExternal: true });
+			onDidOpenReference?.();
+		},
 	};
 }
 
-function turnDataEqual(a: ITurnData, b: ITurnData): boolean {
-	return diffStatsEqual(a.stats, b.stats) && previewFilesEqual(a.previewFiles, b.previewFiles);
+interface ICachedHover {
+	readonly element: HTMLElement;
+	readonly tabbableElements: readonly HTMLElement[];
 }
 
-/** A floating toolbar for the viewed chat's active-turn status and background activity. */
+function createCachedHover<T extends IGitHubPullRequestRef | IGitHubIssueRef>(cache: WeakMap<T, ICachedHover> | undefined, reference: T, createHover: () => { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }): ICachedHover {
+	const hover = createHover();
+	const cachedHover = cache?.get(reference);
+	if (!cachedHover) {
+		const result = { element: hover.element, tabbableElements: hover.tabbableElements };
+		cache?.set(reference, result);
+		return result;
+	}
+	cachedHover.element.className = hover.element.className;
+	cachedHover.element.replaceChildren(...hover.element.childNodes);
+	return { element: cachedHover.element, tabbableElements: hover.tabbableElements };
+}
+
+interface IRecordedArtifactActions {
+	remove?(ids: readonly string[], label: string): Promise<void>;
+	recordOpen?(id: string): void;
+}
+
+/** Builds Agents Window pull request pill entries, enriching them when live details are available. */
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
+	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
+		const title = pullRequest?.title ?? ref.title;
+		const recordedReferenceId = ref.recordedReferenceId;
+		let hoverTabbableElements: readonly HTMLElement[] = [];
+		const createHover = pullRequest ? (density: 'default' | 'compact') => createPullRequestHover({
+			owner: ref.owner,
+			repo: ref.repo,
+			number: ref.number,
+			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService, recordedReferenceId ? () => artifactActions?.recordOpen?.(recordedReferenceId) : undefined),
+			pullRequest,
+			ciStatus,
+			density,
+			...(pullRequest.baseRef ? { onDidClickBaseBranch: () => { void clipboardService.writeText(pullRequest.baseRef); } } : {}),
+			...(pullRequest.headRef ? { onDidClickHeadBranch: () => { void clipboardService.writeText(pullRequest.headRef); } } : {}),
+		}) : undefined;
+		const createDropdownHover = createHover ? () => {
+			const hover = createCachedHover(dropdownHoverCache, ref, () => createHover('compact'));
+			hoverTabbableElements = hover.tabbableElements;
+			return hover.element;
+		} : undefined;
+		const resourceLabel = title
+			? localize('sessionChatPills.pullRequestWithTitle', "Pull Request #{0}: {1}", ref.number, title)
+			: localize('sessionChatPills.pullRequest', "Pull Request #{0}", ref.number);
+		const label = title ?? resourceLabel;
+		const resolvedIcon = icon ?? computePullRequestIcon('open');
+		const attention = getPullRequestAttention(resolvedIcon, status);
+		const pullRequestState = pullRequest?.state ?? ref.liveState ?? ref.state ?? getPullRequestStatusFromIcon(resolvedIcon) ?? 'open';
+		const state = pullRequestState === 'open' && pullRequest?.isDraft
+			? 'draft'
+			: pullRequestState;
+		const stateDescription = state === 'draft'
+			? localize('sessionChatPills.pullRequestDraft', "draft")
+			: attention ?? (
+				state === 'merged'
+					? localize('sessionChatPills.pullRequestMerged', "merged")
+					: state === 'closed'
+						? localize('sessionChatPills.pullRequestClosed', "closed")
+						: localize('sessionChatPills.pullRequestOpen', "open")
+			);
+		const checksDescription = pullRequest && !(ciStatus === GitHubCIOverallStatus.Failure && status.hasFailingChecks)
+			? getPullRequestChecksStatusLabel(pullRequest, ciStatus)
+			: undefined;
+		return {
+			id: recordedReferenceId ?? ref.uri.toString(),
+			label,
+			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
+			pillLabel: `#${ref.number}`,
+			icon: resolvedIcon,
+			pullRequestState: state,
+			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
+				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
+				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
+				class: ThemeIcon.asClassName(Codicon.close),
+				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
+			}), chatPillRemoveArtifactHoverLabel) : undefined,
+			toolbarActions: [withChatPillHoverLabel(toAction({
+				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
+				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => clipboardService.writeText(ref.uri.toString(true)),
+			}), chatPillCopyUrlHoverLabel)],
+			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			ariaDescription: checksDescription
+				? localize('sessionChatPills.pullRequestDescriptionWithChecks', "{0}. {1}. {2}", stateDescription, checksDescription, ref.uri.toString(true))
+				: localize('sessionChatPills.pullRequestDescription', "{0}. {1}", stateDescription, ref.uri.toString(true)),
+			...(!pullRequest && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
+			...(createDropdownHover && createHover ? {
+				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
+			} : {}),
+			open: () => {
+				if (session) {
+					sessionsService.setActive(session);
+				}
+				void commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, { pullRequest: ref });
+				if (recordedReferenceId) {
+					artifactActions?.recordOpen?.(recordedReferenceId);
+				}
+			},
+		} satisfies IChatPullRequestPillEntry;
+	});
+	return entries.length > 0 ? [{ title: localize('sessionChatPills.pullRequests', "Pull Requests"), entries }] : [];
+}
+
+interface IResolvedSessionIssue {
+	readonly ref: IGitHubIssueRef;
+	readonly issue: IGitHubIssue | undefined;
+}
+
+function groupSessionIssues(issues: readonly IResolvedSessionIssue[]) {
+	const groups = groupBy(issues, ({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`);
+	return coalesce(Object.values(groups)).map(group => ({
+		ref: group[0].ref,
+		issue: group.find(candidate => candidate.issue)?.issue,
+		recordedReferenceIds: distinct(group.flatMap(({ ref }) => ref.recordedReferenceId ? [ref.recordedReferenceId] : [])),
+	}));
+}
+
+/** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
+	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
+		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
+		const title = issue?.title ?? ref.title;
+		const recordedReferenceId = recordedReferenceIds[0];
+		let hoverTabbableElements: readonly HTMLElement[] = [];
+		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
+			owner: ref.owner,
+			repo: ref.repo,
+			number: ref.number,
+			...getGitHubHoverLinkData(ref.owner, ref.repo, uri, openerService, recordedReferenceId ? () => artifactActions?.recordOpen?.(recordedReferenceId) : undefined),
+			issue,
+			density,
+		}) : undefined;
+		const createDropdownHover = createHover ? () => {
+			const hover = createCachedHover(dropdownHoverCache, ref, () => createHover('compact'));
+			hoverTabbableElements = hover.tabbableElements;
+			return hover.element;
+		} : undefined;
+		const resourceLabel = title
+			? localize('sessionChatPills.issueWithTitle', "Issue #{0}: {1}", ref.number, title)
+			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
+		const label = title ?? resourceLabel;
+		return {
+			id: recordedReferenceId ?? uri.toString(),
+			label,
+			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
+			pillLabel: `#${ref.number}`,
+			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
+			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
+				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
+				label: localize('sessionChatPills.removeIssue', "Remove Issue Artifact from Session"),
+				class: ThemeIcon.asClassName(Codicon.close),
+				run: () => artifactActions.remove?.(recordedReferenceIds, resourceLabel),
+			}), chatPillRemoveArtifactHoverLabel) : undefined,
+			toolbarActions: [withChatPillHoverLabel(toAction({
+				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
+				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => clipboardService.writeText(uri.toString(true)),
+			}), chatPillCopyUrlHoverLabel)],
+			...getChatPillResourceLocation(uri, resourceLabel),
+			ariaDescription: issue
+				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, uri.toString(true))
+				: uri.toString(true),
+			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${uri.toString(true)}` } : {}),
+			...(createDropdownHover && createHover ? {
+				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
+				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
+			} : {}),
+			open: () => {
+				if (session) {
+					sessionsService.setActive(session);
+				}
+				void commandService.executeCommand(OPEN_ISSUE_ACTION_ID, { issue: { ...ref, uri } });
+				if (recordedReferenceId) {
+					artifactActions?.recordOpen?.(recordedReferenceId);
+				}
+			},
+		} satisfies IChatPillEntry;
+	});
+	return entries.length > 0 ? [{ title: localize('sessionChatPills.issues', "Issues"), entries }] : [];
+}
+
+/** Returns the focused chat's changes counts represented by the shared Changes pill. */
+export function computeSessionInputPillStats(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader, changesStatsCache?: ISessionChangesStatsCache): IDiffStats {
+	if (session?.worktreePending?.read(reader)) {
+		return EMPTY_DIFF_STATS;
+	}
+	const workspace = chat?.workspace?.read(reader);
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader))) : undefined;
+	if (stats) {
+		return stats;
+	}
+	const mainChat = session?.mainChat?.read(reader);
+	const isMainChat = mainChat && chat && isEqual(mainChat.resource, chat.resource);
+	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
+}
+
+/** Whether `chat` is one of the session's nested chats rather than its main chat. */
+function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+	const mainChat = session?.mainChat?.read(reader);
+	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
+}
+
+/**
+ * The changeset represented by the Changes pill. A nested chat reports its own
+ * Session Changes; the main chat reports Branch Changes for a worktree and
+ * Session Changes otherwise.
+ */
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean): string {
+	return !isNested && workspace?.folders[0]?.gitRepository?.workTreeUri
+		? BRANCH_CHANGES_CHANGESET_ID
+		: SESSION_CHANGES_CHANGESET_ID;
+}
+
+/**
+ * The row's rendered height, reserved below the transcript by its host because
+ * the row floats over it. Derived from the row's `2px`/`4px` padding here plus a
+ * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
+ */
+export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = CHAT_INPUT_PILLS_ROW_HEIGHT;
+
+/** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
 	readonly element: HTMLElement;
+	readonly onDidChangeChatPetPlatform: Event<void>;
+	readonly onDidChangeVisibility: Event<boolean>;
+	private readonly _inputPills: ChatInputPills;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
-	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>('sessionOverride', 'unset');
+	private readonly _sessionOverride = observableValue<IActiveSession | undefined | 'unset'>(this, 'unset');
 	/** The chat whose last-turn changes are reflected. */
-	private readonly _chat = observableValue<IChat | undefined>('chat', undefined);
+	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
 	private readonly _browsers: SessionBrowsersControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
+	private readonly _pullRequestDropdownHoverCache = new WeakMap<IGitHubPullRequestRef, ICachedHover>();
+	private readonly _issueDropdownHoverCache = new WeakMap<IGitHubIssueRef, ICachedHover>();
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
@@ -104,73 +350,209 @@ export class SessionChatInputToolbar extends Disposable {
 		return this._findOwningSession(chat.resource, reader);
 	});
 
-	/** The current turn's diff stats and previewable files. */
-	private readonly _turnData: IObservable<ITurnData>;
-	private readonly _diffStats: IObservable<IDiffStats>;
-	private readonly _previewFiles: IObservable<readonly IPreviewFile[]>;
+	/**
+	 * Whether the reflected chat is a subagent (worker) chat. Its pills describe
+	 * the session the subagent was spawned from rather than the subagent's own
+	 * work, so the row stays hidden there.
+	 */
+	private readonly _isSubagentChat: IObservable<boolean> = derived(this, reader => this._chat.read(reader)?.origin?.kind === ChatOriginKind.Tool);
 
-	/** Whether pills may show at all: an agent host session with an active turn. */
-	private readonly _active = derived(reader => {
-		const session = this._session.read(reader);
-		const chat = this._chat.read(reader);
-		if (!session || !chat || !isAgentHostProviderId(session.providerId)) {
-			return false;
-		}
-		return isActiveSessionStatus(chat.status.read(reader));
-	});
+	/** The current turn's diff stats. */
+	private readonly _diffStats: IObservable<IDiffStats>;
+	/** Artifact sections shown in the artifact pill. */
+	private readonly _artifactSections: IObservable<readonly IChatPillSection[]>;
+	/** Reference sections shown in the references pill. */
+	private readonly _referenceSections: IObservable<readonly IChatPillSection[]>;
+	/** Customization sections shown in the customizations pill. */
+	private readonly _customizationSections: IObservable<readonly IChatPillSection[]>;
 
 	constructor(
+		compact: ChatPillsCompactMode,
+		focusFallback: (() => void) | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IOpenerService private readonly _openerService: IOpenerService,
+		@IClipboardService clipboardService: IClipboardService,
+		@ICommandService commandService: ICommandService,
+		@IGitHubService gitHubService: IGitHubService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@INotificationService notificationService: INotificationService,
+		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
+		@ISessionChangesService sessionChangesService: ISessionChangesService,
+		@ISessionChangesStatsCache changesStatsCache: ISessionChangesStatsCache,
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IOpenerService openerService: IOpenerService,
+		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
-		this.element = $('.session-chat-input-toolbar.hidden');
-
-		this._turnData = derivedOpts<ITurnData>({ owner: this, equalsFn: turnDataEqual }, reader => {
+		this._diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => {
 			const debugData = this._debugData.read(reader);
 			if (debugData) {
-				return {
-					stats: debugData.stats,
-					previewFiles: debugData.markdownFiles.map(name => ({
-						uri: URI.from({ scheme: 'session-chat-pills-debug', path: `/${name}` }),
-						kind: 'markdown',
-						created: true,
-					})),
-				};
+				return debugData.stats;
 			}
-			const chat = this._chat.read(reader);
-			return chat ? computeTurnData(chat, reader) : EMPTY_TURN_DATA;
+			return computeSessionInputPillStats(this._session.read(reader), this._chat.read(reader), reader, changesStatsCache);
 		});
-		this._diffStats = derivedOpts<IDiffStats>({ owner: this, equalsFn: diffStatsEqual }, reader => this._turnData.read(reader).stats);
-		this._previewFiles = derivedOpts<readonly IPreviewFile[]>({ owner: this, equalsFn: previewFilesEqual }, reader => this._turnData.read(reader).previewFiles);
 
-		const turnStatusPillsEnabled = observeTurnStatusPillsEnabled(this._configurationService);
-		const model: IChatTurnPillsModel = {
-			stats: this._diffStats,
-			previewFiles: this._previewFiles,
-			changesEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
-			previewEnabled: derived(reader => this._debugData.read(reader) !== undefined || this._active.read(reader) && turnStatusPillsEnabled.read(reader)),
-			openChanges: () => this._debugData.get() ? undefined : this._openChanges(),
-			openFile: file => this._debugData.get() ? undefined : openChatTurnFile(file, this._openerService, this._configurationService),
+		const pillsEnabled = constObservable(true);
+		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
+		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader, this._chat.read(reader)));
+
+		// The browsers pill already offers the pages it lists, so the artifacts and
+		// references pills leave those websites out.
+		const sessionArtifacts = this._register(instantiationService.createInstance(SessionArtifacts, this._session, this._browsers.urls, gitHubReferences));
+		this._artifactSections = derived(this, reader => {
+			const debugData = this._debugData.read(reader);
+			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
+		});
+		this._referenceSections = sessionArtifacts.referenceSections;
+		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations,
+			derived(this, reader => this._chat.read(reader)?.customizations?.read(reader) ?? []),
+			derived(this, reader => this._session.read(reader)?.workspace.read(reader)?.folders ?? [])));
+		this._customizationSections = sessionCustomizations.sections;
+
+		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
+		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
+		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
+		const agentMergeConfiguration = derived(this, reader => {
+			const session = this._session.read(reader);
+			// The pull requests are this chat's folder's, so is their Agent Merge.
+			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
+		});
+		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
+		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {
+			const artifactsById = new Map((session.artifacts?.read(reader) ?? []).map(artifact => [artifact.id, artifact]));
+			return {
+				recordOpen: id => {
+					const artifact = artifactsById.get(id);
+					if (artifact) {
+						logSessionArtifactOpen(telemetryService, session.sessionId, artifact.kind, artifact.isArtifact);
+					}
+				},
+				...(session.capabilities.read(reader).supportsRemoveArtifacts ? {
+					remove: async (ids: readonly string[], label: string) => {
+						try {
+							for (const id of ids) {
+								await sessionsManagementService.removeSessionArtifact(session, id);
+							}
+							status(localize('sessionChatPills.referenceRemoved', "{0} removed from session.", label));
+						} catch (error) {
+							notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
+						}
+					},
+				} : {}),
+			};
 		};
-
-		const pills = this._register(instantiationService.createInstance(ChatTurnPillsWidget, model));
-		this.element.appendChild(pills.element);
-
-		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, turnStatusPillsEnabled));
-		this.element.appendChild(this._browsers.element);
-
-		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, turnStatusPillsEnabled));
-		this.element.appendChild(this._backgroundActivities.element);
-
-		this._register(autorun(reader => {
-			const anyVisible = pills.isVisible.read(reader) || this._browsers.isVisible.read(reader) || this._backgroundActivities.isVisible.read(reader);
-			this.element.classList.toggle('hidden', !anyVisible);
+		const pullRequestSections = derived(this, reader => {
+			const session = this._session.read(reader);
+			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._pullRequestDropdownHoverCache);
+		});
+		const issueRefs = derivedOpts<readonly IGitHubIssueRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).issues);
+		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
+			const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
+			return { ref, issue: reference.object.issue.read(reader) };
 		}));
+		const issuesActive = derived(this, reader => visibility.isVisible(SessionChatPillKind.Issues, reader));
+		this._register(autorun(reader => {
+			if (!issuesActive.read(reader)) {
+				return;
+			}
+			for (const ref of issueRefs.read(reader)) {
+				const reference = reader.store.add(gitHubService.createIssueModelReference(ref.owner, ref.repo, ref.number));
+				const model = reference.object;
+				model.refresh();
+				const shouldPoll = derived(this, pollReader => model.issue.read(pollReader)?.state !== GitHubIssueState.Closed);
+				reader.store.add(autorun(pollReader => {
+					if (shouldPoll.read(pollReader)) {
+						pollReader.store.add(model.startPolling());
+					}
+				}));
+			}
+		}));
+		const issueSections = derived(this, reader => {
+			const session = this._session.read(reader);
+			return buildSessionIssueSections(issues.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._issueDropdownHoverCache);
+		});
+		const issueIcon = derived(this, reader => {
+			const resolved = groupSessionIssues(issues.read(reader));
+			if (resolved.length === 1) {
+				const issue = resolved[0].issue;
+				return issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined);
+			}
+			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
+		});
+		const changesLabel = derived(this, reader => {
+			const session = this._session.read(reader);
+			if (isNestedChat(session, this._chat.read(reader), reader)) {
+				return localize('sessionChatPills.sessionChanges', "Session Changes");
+			}
+			const workspace = session?.workspace.read(reader);
+			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
+			return branch
+				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
+				: localize('sessionChatPills.allChanges', "All Changes");
+		});
+		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {
+			changes: {
+				stats: this._diffStats,
+				label: changesLabel,
+				open: () => {
+					const session = this._session.get();
+					if (!session || this._debugData.get()) {
+						return;
+					}
+					const chat = this._chat.get();
+					const workspace = chat?.workspace?.get() ?? session.workspace.get();
+					layoutService.revealEditorPartExplicitly();
+					void sessionChangesService.openChangesEditor(session.resource, {
+						changesetSelection: {
+							kind: 'id',
+							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined)),
+						}
+					});
+				},
+			},
+			pullRequests: createSessionPullRequestPillData(pullRequestSections, visibility.pullRequests, pullRequestPresentation.icon),
+			issues: {
+				sections: issueSections,
+				icon: issueIcon,
+			},
+			artifacts: { sections: this._artifactSections },
+			references: { sections: this._referenceSections },
+			customizations: { sections: this._customizationSections },
+			browsers: { sections: this._browsers.sections },
+			subagents: this._backgroundActivities,
+			backgroundShells,
+		}, SESSION_CHAT_PILL_KINDS));
+		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
+		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
+			debugName: 'SessionChatInputToolbar.content',
+			compact,
+			enabled: pillsVisible,
+			sources: constObservable(sources.sources),
+			offeredKinds: SESSION_CHAT_PILL_KINDS,
+			context: this._session,
+			actionRunner,
+			focusFallback,
+		}));
+		this.element = this._inputPills.element;
+		this.element.classList.add('session-chat-input-toolbar');
+		this.onDidChangeChatPetPlatform = this._inputPills.onDidChange;
+		this.onDidChangeVisibility = this._inputPills.onDidChangeVisibility;
+	}
+
+	get visible(): boolean {
+		return this._inputPills.visible;
+	}
+
+	getChatPetPlatformElements(): readonly HTMLElement[] {
+		return this._inputPills.getPillElements();
+	}
+
+	focusFirst(): boolean {
+		return this._inputPills.focusFirst();
 	}
 
 	/**
@@ -213,15 +595,6 @@ export class SessionChatInputToolbar extends Disposable {
 		}
 		const active = this._sessionsService.activeSession.read(reader);
 		return active?.chats.read(reader).some(c => isEqual(c.resource, chatResource)) ? active : undefined;
-	}
-
-	private _openChanges(): void {
-		const chat = this._chat.get();
-		if (!chat) {
-			return;
-		}
-
-		this._chatResponseFileChangesService.openChangesForRequest(chat.resource, undefined, { isLastTurn: true });
 	}
 
 }

@@ -4,25 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationEnablementKind, CustomizationType, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { createUninstallPluginAction, getAgentHostPluginEnablementActions } from '../../browser/agentPluginActions.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { createPolicyManagedEnablementAction, createUninstallPluginAction, getAgentHostPluginEnablementActions, getPluginPolicyEnablement, isPluginPolicyBlocked, removePluginWithMarketplaceOwnership } from '../../browser/agentPluginActions.js';
 import { IAgentHostCustomizationService } from '../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { ContributionEnablementState } from '../../common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 
 suite('AgentPluginActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createPlugin(remove?: () => void): IAgentPlugin {
+	function createPlugin(remove?: () => Promise<boolean>, policyEnablement?: boolean): IAgentPlugin {
 		return {
 			uri: URI.file('/plugins/local-plugin'),
 			format: PluginFormat.Copilot,
 			label: 'Local Plugin',
 			enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+			policyEnablement: observableValue('policyEnablement', policyEnablement),
 			remove,
 			hooks: observableValue('hooks', []),
 			commands: observableValue('commands', []),
@@ -30,6 +36,7 @@ suite('AgentPluginActions', () => {
 			agents: observableValue('agents', []),
 			instructions: observableValue('instructions', []),
 			mcpServerDefinitions: observableValue('mcpServerDefinitions', []),
+			automations: observableValue('automations', []),
 		};
 	}
 
@@ -43,7 +50,10 @@ suite('AgentPluginActions', () => {
 
 	test('creates uninstall action for a removable local plugin', async () => {
 		let removeCount = 0;
-		const action = createUninstallPluginAction(createPlugin(() => removeCount++));
+		const action = createUninstallPluginAction(createPlugin(async () => {
+			removeCount++;
+			return true;
+		}));
 
 		assert.ok(action);
 		store.add(action);
@@ -52,8 +62,112 @@ suite('AgentPluginActions', () => {
 		assert.strictEqual(removeCount, 1);
 	});
 
+	test('returns the plugin removal result to direct callers', async () => {
+		const action = createUninstallPluginAction(createPlugin(async () => false));
+
+		assert.ok(action);
+		store.add(action);
+		assert.strictEqual(await action.runAndGetResult(), false);
+	});
+
+	test('routes an exactly recorded plugin through marketplace uninstall', async () => {
+		let directRemoveCount = 0;
+		const plugin = createPlugin(async () => {
+			directRemoveCount++;
+			return true;
+		});
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'testSource',
+			identifier: 'local-plugin',
+			displayName: 'Local Plugin',
+			description: 'Test plugin',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+		};
+		const uninstallCalls: ICustomizationMarketplaceResource[] = [];
+		const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = constObservable(createCustomizationMarketplaceInstallationSnapshot([{
+				resource,
+				state: { kind: 'installed', target: { kind: 'plugin', uri: plugin.uri } },
+			}]));
+			override async uninstall(candidate: ICustomizationMarketplaceResource): Promise<void> {
+				uninstallCalls.push(candidate);
+			}
+		}();
+		const action = createUninstallPluginAction(plugin, () => removePluginWithMarketplaceOwnership(plugin, marketplaceInstallService));
+
+		assert.ok(action);
+		store.add(action);
+		assert.strictEqual(await action.runAndGetResult(), true);
+		assert.deepStrictEqual({ directRemoveCount, uninstallCalls }, { directRemoveCount: 0, uninstallCalls: [resource] });
+	});
+
+	test('retains direct removal for an unrecorded plugin', async () => {
+		let directRemoveCount = 0;
+		const plugin = createPlugin(async () => {
+			directRemoveCount++;
+			return true;
+		});
+		const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
+			override readonly onDidChange = Event.None;
+			override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+		}();
+
+		assert.strictEqual(await removePluginWithMarketplaceOwnership(plugin, marketplaceInstallService), true);
+		assert.strictEqual(directRemoveCount, 1);
+	});
+
 	test('does not create uninstall action for a non-removable plugin', () => {
 		assert.strictEqual(createUninstallPluginAction(createPlugin()), undefined);
+	});
+
+	test('does not create uninstall action for a force-enabled plugin', () => {
+		assert.strictEqual(createUninstallPluginAction(createPlugin(async () => true, true)), undefined);
+	});
+
+	test('reads managed plugin enablement in both directions', () => {
+		const required = createPlugin(undefined, true);
+		const blocked = createPlugin(undefined, false);
+		const unmanaged = createPlugin();
+
+		assert.deepStrictEqual({
+			required: getPluginPolicyEnablement(required),
+			requiredBlocked: isPluginPolicyBlocked(required),
+			blocked: getPluginPolicyEnablement(blocked),
+			blockedBlocked: isPluginPolicyBlocked(blocked),
+			unmanaged: getPluginPolicyEnablement(unmanaged),
+			unmanagedBlocked: isPluginPolicyBlocked(unmanaged),
+		}, {
+			required: true,
+			requiredBlocked: false,
+			blocked: false,
+			blockedBlocked: true,
+			unmanaged: undefined,
+			unmanagedBlocked: false,
+		});
+	});
+
+	test('creates managed enablement actions for required and blocked plugins', () => {
+		const notificationService = new class extends mock<INotificationService>() {
+			override warn(): never {
+				throw new Error('Unexpected notification');
+			}
+		}();
+		const required = store.add(createPolicyManagedEnablementAction(createPlugin(undefined, true), notificationService)!);
+		const blocked = store.add(createPolicyManagedEnablementAction(createPlugin(undefined, false), notificationService)!);
+
+		assert.deepStrictEqual({
+			required: required.label,
+			blocked: blocked.label,
+			unmanaged: createPolicyManagedEnablementAction(createPlugin(), notificationService)?.label,
+		}, {
+			required: 'Disable',
+			blocked: 'Enable',
+			unmanaged: undefined,
+		});
 	});
 
 	test('offers scoped enablement actions for host-published plugins', () => {

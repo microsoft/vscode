@@ -13,6 +13,7 @@ import {
 	IMergeBlocker,
 	MergeBlockerKind,
 	IGitHubPullRequestReviewThread,
+	IGitHubChangedFile,
 } from '../../common/types.js';
 import { GitHubApiClient, IGitHubApiResponse } from '../githubApiClient.js';
 
@@ -30,6 +31,7 @@ interface IGitHubPRResponse {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly merged_at: string | null;
+	readonly closed_at?: string | null;
 	readonly mergeable: boolean | null;
 	readonly mergeable_state: string;
 	readonly merged: boolean;
@@ -37,9 +39,19 @@ interface IGitHubPRResponse {
 
 interface IGitHubReviewResponse {
 	readonly id: number;
+	readonly node_id: string;
 	readonly user: { readonly login: string; readonly avatar_url: string };
 	readonly state: string;
-	readonly submitted_at: string;
+	readonly submitted_at: string | null;
+}
+
+interface IGitHubChangedFileResponse {
+	readonly filename: string;
+	readonly previous_filename?: string;
+	readonly status: IGitHubChangedFile['status'];
+	readonly additions: number;
+	readonly deletions: number;
+	readonly patch?: string;
 }
 
 interface IGitHubReviewCommentResponse {
@@ -76,6 +88,7 @@ interface IGitHubGraphQLReviewThreadNode {
 	readonly id: string;
 	readonly isResolved: boolean;
 	readonly path: string;
+	readonly startLine: number | null;
 	readonly line: number | null;
 	readonly comments: {
 		readonly nodes: readonly IGitHubGraphQLReviewCommentNode[];
@@ -102,6 +115,14 @@ interface IGitHubGraphQLResolveReviewThreadResponse {
 	} | null;
 }
 
+interface IGitHubGraphQLAddReviewThreadResponse {
+	readonly addPullRequestReviewThread: {
+		readonly thread: {
+			readonly id: string;
+		} | null;
+	} | null;
+}
+
 //#endregion
 
 const GET_REVIEW_THREADS_QUERY = [
@@ -113,6 +134,7 @@ const GET_REVIEW_THREADS_QUERY = [
 	'          id',
 	'          isResolved',
 	'          path',
+	'          startLine',
 	'          line',
 	'          comments(first: 100) {',
 	'            nodes {',
@@ -149,6 +171,16 @@ const RESOLVE_REVIEW_THREAD_MUTATION = [
 	'}',
 ].join('\n');
 
+const ADD_REVIEW_THREAD_MUTATION = [
+	'mutation AddReviewThread($input: AddPullRequestReviewThreadInput!) {',
+	'  addPullRequestReviewThread(input: $input) {',
+	'    thread {',
+	'      id',
+	'    }',
+	'  }',
+	'}',
+].join('\n');
+
 /**
  * Stateless fetcher for GitHub pull request data.
  * Handles all PR-related REST API calls including reviews, comments, and mergeability.
@@ -176,19 +208,71 @@ export class GitHubPRFetcher {
 	}
 
 	async getReviews(owner: string, repo: string, prNumber: number, etag?: string): Promise<IGitHubApiResponse<readonly IGitHubPullRequestReview[]>> {
-		const response = await this._apiClient.request<readonly IGitHubReviewResponse[]>(
-			'GET',
-			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
+		const response = await this._getPaginatedPullRequestData<IGitHubReviewResponse>(
+			owner,
+			repo,
+			prNumber,
+			'reviews',
 			'githubApi.getReviews',
-			{ etag }
+			etag,
 		);
 
 		return {
 			...response,
-			data: response.data
-				? response.data.map(mapReview)
-				: undefined
+			data: response.data?.map(mapReview)
 		};
+	}
+
+	async getChangedFiles(owner: string, repo: string, prNumber: number): Promise<readonly IGitHubChangedFile[]> {
+		const response = await this._getPaginatedPullRequestData<IGitHubChangedFileResponse>(
+			owner,
+			repo,
+			prNumber,
+			'files',
+			'githubApi.getPullRequestChangedFiles',
+		);
+		return response.data?.map(file => ({
+			filename: file.filename,
+			previous_filename: file.previous_filename,
+			status: file.status,
+			additions: file.additions,
+			deletions: file.deletions,
+			patch: file.patch,
+		})) ?? [];
+	}
+
+	private async _getPaginatedPullRequestData<T>(
+		owner: string,
+		repo: string,
+		prNumber: number,
+		resource: 'files' | 'reviews',
+		callSite: string,
+		etag?: string,
+	): Promise<IGitHubApiResponse<readonly T[]>> {
+		const perPage = 100;
+		const firstPage = await this._apiClient.request<readonly T[]>(
+			'GET',
+			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/${resource}?per_page=${perPage}&page=1`,
+			callSite,
+			{ etag }
+		);
+		if (!firstPage.data || firstPage.statusCode !== 200) {
+			return firstPage;
+		}
+
+		const data = [...firstPage.data];
+		let pageData = firstPage.data;
+		for (let page = 2; pageData.length === perPage; page++) {
+			const response = await this._apiClient.request<readonly T[]>(
+				'GET',
+				`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/${resource}?per_page=${perPage}&page=${page}`,
+				callSite,
+			);
+			pageData = response.data ?? [];
+			data.push(...pageData);
+		}
+
+		return { ...firstPage, data };
 	}
 
 	async getReviewThreads(owner: string, repo: string, prNumber: number): Promise<IGitHubPullRequestReviewThread[]> {
@@ -223,6 +307,60 @@ export class GitHubPRFetcher {
 			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
 		}
 		return mapReviewComment(response.data);
+	}
+
+	async postPullRequestReviewComment(
+		owner: string,
+		repo: string,
+		prNumber: number,
+		body: string,
+		commitId: string,
+		path: string,
+		line: number,
+		startLine: number | undefined,
+		pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>,
+	): Promise<void> {
+		if (pendingReview) {
+			const data = await this._apiClient.graphql<IGitHubGraphQLAddReviewThreadResponse>(
+				ADD_REVIEW_THREAD_MUTATION,
+				'githubApi.addPullRequestReviewThread',
+				{
+					input: {
+						pullRequestReviewId: pendingReview.nodeId,
+						body,
+						path,
+						line,
+						side: 'RIGHT',
+						...(startLine !== undefined ? { startLine, startSide: 'RIGHT' } : {}),
+					}
+				},
+			);
+			if (!data.addPullRequestReviewThread?.thread) {
+				throw new Error(`Failed to add review comment to pending review on ${owner}/${repo}#${prNumber}`);
+			}
+			return;
+		}
+
+		const response = await this._apiClient.request<IGitHubReviewResponse>(
+			'POST',
+			`/repos/${e(owner)}/${e(repo)}/pulls/${prNumber}/reviews`,
+			'githubApi.postPullRequestReviewComment',
+			{
+				data: {
+					commit_id: commitId,
+					comments: [{
+						body,
+						path,
+						line,
+						side: 'RIGHT',
+						...(startLine !== undefined ? { start_line: startLine, start_side: 'RIGHT' } : {}),
+					}],
+				}
+			}
+		);
+		if (!response.data) {
+			throw new Error(`Failed to post review comment to ${owner}/${repo}#${prNumber}`);
+		}
 	}
 
 	async postIssueComment(
@@ -348,6 +486,7 @@ function mapPullRequest(data: IGitHubPRResponse): IGitHubPullRequest {
 		createdAt: data.created_at,
 		updatedAt: data.updated_at,
 		mergedAt: data.merged_at ?? undefined,
+		...(data.closed_at ? { closedAt: data.closed_at } : {}),
 		mergeable: data.mergeable ?? undefined,
 		mergeableState: data.mergeable_state,
 	};
@@ -356,9 +495,10 @@ function mapPullRequest(data: IGitHubPRResponse): IGitHubPullRequest {
 function mapReview(data: IGitHubReviewResponse): IGitHubPullRequestReview {
 	return {
 		id: data.id,
+		nodeId: data.node_id,
 		author: mapUser(data.user),
 		state: data.state,
-		submittedAt: data.submitted_at,
+		submittedAt: data.submitted_at ?? undefined,
 	};
 }
 
@@ -381,6 +521,7 @@ function mapReviewThread(thread: IGitHubGraphQLReviewThreadNode): IGitHubPullReq
 		id: thread.id,
 		isResolved: thread.isResolved,
 		path: thread.path,
+		startLine: thread.startLine ?? undefined,
 		line: thread.line ?? undefined,
 		comments: thread.comments.nodes.flatMap(comment => mapGraphQLReviewComment(comment, thread)),
 	};

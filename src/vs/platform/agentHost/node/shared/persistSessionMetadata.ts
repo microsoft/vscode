@@ -9,6 +9,7 @@ import type { ISessionDataService } from '../../common/sessionDataService.js';
 
 export const SESSION_CUSTOM_TITLE_KEY = 'customTitle';
 export const SESSION_CUSTOM_TITLE_SOURCE_KEY = 'customTitleSource';
+export const SESSION_ARTIFACTS_KEY = 'sessionArtifacts';
 export const AGENT_HOST_TITLE_SOURCE_USER = 'user';
 export const AGENT_HOST_TITLE_SOURCE_AGENT = 'agent';
 export const AGENT_HOST_TITLE_SOURCE_AUTO = 'auto';

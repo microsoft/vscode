@@ -45,8 +45,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	private readonly _groupLookup: Map<number, IEditorTabGroupDto> = new Map();
 	// Lookup table for finding tab by id
 	private readonly _tabInfoLookup: Map<string, TabInfo> = new Map();
-	// Tracks the currently open MultiDiffEditorInputs to listen to resource changes
-	private readonly _multiDiffEditorInputListeners: DisposableMap<MultiDiffEditorInput> = new DisposableMap();
+	// Tracks resource-change listeners for currently open multi-diff tabs
+	private readonly _multiDiffEditorInputListeners: DisposableMap<string> = new DisposableMap();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -309,12 +309,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._tabInfoLookup.set(tabId, { group, editorInput, tab: tabObject });
 
 		if (editorInput instanceof MultiDiffEditorInput) {
-			this._multiDiffEditorInputListeners.set(editorInput, Event.fromObservableLight(editorInput.resources)(() => {
+			this._multiDiffEditorInputListeners.set(tabId, Event.fromObservableLight(editorInput.resources)(() => {
 				const tabInfo = this._tabInfoLookup.get(tabId);
 				if (!tabInfo) {
 					return;
 				}
-				tabInfo.tab = this._buildTabObject(group, editorInput, editorIndex);
+				// Refresh the DTO in place. The group's `tabs` array holds this very object,
+				// so swapping in a new one would leave that copy behind and let the two
+				// caches drift apart, e.g. a later update could re-send a stale `isActive`.
+				Object.assign(tabInfo.tab, this._buildTabObject(group, editorInput, editorIndex));
 				this._proxy.$acceptTabOperation({
 					groupId,
 					index: editorIndex,
@@ -354,11 +357,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 
 		// Update lookup
-		this._tabInfoLookup.delete(removedTab[0]?.id ?? '');
-
-		if (removedTab[0]?.input instanceof MultiDiffEditorInput) {
-			this._multiDiffEditorInputListeners.deleteAndDispose(removedTab[0]?.input);
-		}
+		this._tabInfoLookup.delete(removedTab[0].id);
+		this._multiDiffEditorInputListeners.deleteAndDispose(removedTab[0].id);
 
 		this._proxy.$acceptTabOperation({
 			groupId,
@@ -380,8 +380,15 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			return;
 		}
 		const activeTab = tabs[editorIndex];
-		// No need to loop over as the exthost uses the most recently marked active tab
 		activeTab.isActive = true;
+		// Clear the flag on the other tabs of the group. Otherwise a later `TAB_UPDATE`
+		// re-sending one of those still-cached DTOs (label, dirty, pin or preview change)
+		// would repoint the exthost at a tab that is no longer active.
+		for (const tab of tabs) {
+			if (tab !== activeTab) {
+				tab.isActive = false;
+			}
+		}
 		// Send DTO update to the exthost
 		this._proxy.$acceptTabOperation({
 			groupId,

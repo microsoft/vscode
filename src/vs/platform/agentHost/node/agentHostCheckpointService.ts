@@ -5,6 +5,7 @@
 
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
@@ -65,18 +66,20 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 		const sanitized = this._sanitizedSessionId(sessionUri);
 		const baselineRefName = buildCheckpointRefName(sanitized, 0);
+		const completedRepositories = new ResourceSet();
 
 		for (const workingDirectoryUri of workingDirectories) {
 			try {
 				// Check that the working directory has a git repository
 				const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
-				if (!repositoryRootUri) {
+				if (!repositoryRootUri || completedRepositories.has(repositoryRootUri)) {
 					continue;
 				}
 
 				// Check if the baseline ref already exists
 				const baselineCheckpointRef = await this.getBaselineCheckpoint(sessionUri, repositoryRootUri);
 				if (baselineCheckpointRef) {
+					completedRepositories.add(repositoryRootUri);
 					continue;
 				}
 
@@ -88,6 +91,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 				// Update the baseline ref to point to the new commit
 				await this._gitService.updateRef(repositoryRootUri, baselineRefName, commit);
+				completedRepositories.add(repositoryRootUri);
 				this._logService.trace(`[AgentHostCheckpoint] Captured baseline for ${sessionUri.toString()} at ${baselineRefName} in working directory ${workingDirectoryUri.toString()}`);
 			} catch (err) {
 				this._logService.warn(`[AgentHostCheckpoint] Failed to capture baseline for ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()}`, err);
@@ -133,16 +137,25 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				return;
 			}
 
+			const completedRepositories = new ResourceSet();
 			for (const workingDirectoryUri of workingDirectories) {
 				try {
 					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
-					if (!repositoryRootUri) {
+					if (!repositoryRootUri || completedRepositories.has(repositoryRootUri)) {
 						continue;
 					}
 
-					const tree = await this._gitService.captureWorkingTreeAsTree(repositoryRootUri);
+					// The baseline lookup is independent of the capture, so overlap it.
+					const [tree, hasBaseline] = await Promise.all([
+						this._gitService.captureWorkingTreeAsTree(repositoryRootUri),
+						this.getBaselineCheckpoint(sessionUri, repositoryRootUri),
+					]);
 					if (tree) {
-						await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
+						const baselineReady = hasBaseline || await this._ensureBaselineCheckpoint(sessionUri, repositoryRootUri, tree);
+						if (baselineReady) {
+							// Failed baseline writes remain eligible for retry through another folder.
+							completedRepositories.add(repositoryRootUri);
+						}
 						checkpoint.trees.set(repositoryRootUri.toString(), tree);
 					}
 				} catch (err) {
@@ -208,10 +221,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			const turnNumber = await this._nextTurnNumber(ref.object);
 			const refName = buildCheckpointRefName(sanitized, turnNumber);
 
-			const [checkpointRef, prevTurnCheckpointRef] = await Promise.all([
-				ref.object.getTurnCheckpointRef(turnId),
-				ref.object.getPreviousCheckpointRef(turnId),
-			]);
+			const checkpointRef = await ref.object.getTurnCheckpointRef(turnId);
 
 			if (checkpointRef) {
 				// Already captured for this
@@ -220,11 +230,12 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			}
 
 			let capturedCheckpointRef = false;
+			const completedRepositories = new ResourceSet();
 			for (const workingDirectoryUri of workingDirectories) {
 				try {
 					// Check that the working directory has a git repository
 					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
-					if (!repositoryRootUri) {
+					if (!repositoryRootUri || completedRepositories.has(repositoryRootUri)) {
 						continue;
 					}
 
@@ -235,7 +246,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 						continue;
 					}
 
-					const parentRef = prevTurnCheckpointRef ?? baselineCheckpointRef;
+					const parentRef = await this._getRepositoryParentRef(ref.object, turnId, repositoryRootUri, baselineCheckpointRef);
 					let parentCommitOid = await this._gitService.revParse(repositoryRootUri, parentRef);
 					if (!parentCommitOid) {
 						this._logService.warn(`[AgentHostCheckpoint] Parent ref ${parentRef} missing for session ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()}`);
@@ -263,6 +274,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 					}
 
 					await this._gitService.updateRef(repositoryRootUri, refName, commitOid);
+					completedRepositories.add(repositoryRootUri);
 					capturedCheckpointRef = true;
 
 					this._logService.trace(`[AgentHostCheckpoint] Captured turn ${turnNumber} for ${sessionUri.toString()} in working directory ${workingDirectoryUri.toString()} at ${refName}`);
@@ -280,6 +292,22 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			this._deleteTurnStartCheckpoint(sessionUri, turnKey);
 			ref?.dispose();
 		}
+	}
+
+	private async _getRepositoryParentRef(db: ISessionDatabase, turnId: string, repositoryRootUri: URI, baselineCheckpointRef: string): Promise<string> {
+		const previousCheckpointRef = await db.getPreviousCheckpointRef(turnId);
+		if (previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, previousCheckpointRef)) {
+			return previousCheckpointRef;
+		}
+
+		const allCheckpointRefs = await db.getAllCheckpointRefs();
+		for (const checkpointRef of allCheckpointRefs.toReversed()) {
+			if (checkpointRef !== previousCheckpointRef && await this._gitService.revParse(repositoryRootUri, checkpointRef)) {
+				return checkpointRef;
+			}
+		}
+
+		return baselineCheckpointRef;
 	}
 
 	async getTurnCheckpointPair(
@@ -458,9 +486,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		return commitOid;
 	}
 
-	private async _ensureBaselineCheckpoint(sessionUri: URI, repositoryRootUri: URI, tree: string): Promise<void> {
+	private async _ensureBaselineCheckpoint(sessionUri: URI, repositoryRootUri: URI, tree: string): Promise<boolean> {
 		if (await this.getBaselineCheckpoint(sessionUri, repositoryRootUri)) {
-			return;
+			return true;
 		}
 
 		const sanitized = this._sanitizedSessionId(sessionUri);
@@ -468,7 +496,9 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 		const commit = await this._gitService.commitTree(repositoryRootUri, tree, undefined, `Agent host session ${sanitized} - baseline checkpoint`);
 		if (commit) {
 			await this._gitService.updateRef(repositoryRootUri, baselineRefName, commit);
+			return true;
 		}
+		return false;
 	}
 
 	/**

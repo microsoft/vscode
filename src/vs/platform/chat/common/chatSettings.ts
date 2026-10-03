@@ -5,6 +5,37 @@
 
 export const ChatAIDisabledSettingId = 'chat.disableAIFeatures';
 
+/**
+ * Configuration key for the "Continue with Microsoft" sign-in choice. Choosing it exchanges a
+ * Microsoft Entra sign-in for a GitHub token that is published as a process-lifetime GitHub
+ * authentication session. See {@link ChatMicrosoftAuthenticationMode} for its values.
+ */
+export const ChatMicrosoftAuthenticationEnabledSettingId = 'chat.microsoftAuthentication.enabled';
+
+/** When sign-in dialogs offer "Continue with Microsoft". */
+export const enum ChatMicrosoftAuthenticationMode {
+	/** Only when a Microsoft work or school account on this device is linked to a GitHub account. */
+	Auto = 'auto',
+	Always = 'always',
+	/** The default, until experimentation rolls out {@link Auto}. */
+	Never = 'never',
+}
+
+/**
+ * Reads {@link ChatMicrosoftAuthenticationEnabledSettingId}. The setting was a boolean before it
+ * gained {@link ChatMicrosoftAuthenticationMode.Auto}, so `true` and `false` keep their meaning, and
+ * anything unrecognized is treated as {@link ChatMicrosoftAuthenticationMode.Never}.
+ */
+export function toChatMicrosoftAuthenticationMode(value: unknown): ChatMicrosoftAuthenticationMode {
+	if (value === true || value === ChatMicrosoftAuthenticationMode.Always) {
+		return ChatMicrosoftAuthenticationMode.Always;
+	}
+	if (value === ChatMicrosoftAuthenticationMode.Auto) {
+		return ChatMicrosoftAuthenticationMode.Auto;
+	}
+	return ChatMicrosoftAuthenticationMode.Never;
+}
+
 export const ChatEditAutoApproveSettingId = 'chat.tools.edits.autoApprove';
 
 export type ChatEditAutoApprovePatterns = Readonly<Record<string, boolean>>;
@@ -12,19 +43,24 @@ export type ChatEditAutoApprovePatterns = Readonly<Record<string, boolean>>;
 export const enum ChatExternalSessionsMode {
 	Recent = 'recent',
 	None = 'none',
-	All = 'all',
 	Last24Hours = 'last24Hours',
 	Last7Days = 'last7Days',
+	Last30Days = 'last30Days',
 }
 
 /** Edit paths whose executable side effects require confirmation regardless of user configuration. */
 export const ALWAYS_CHECKED_EDIT_PATTERNS: ChatEditAutoApprovePatterns = {
+	'**/.mcp.json': false,
+	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
 	'**/.github/agents/**': false,
 	'**/.github/hooks/**': false,
 	'**/.claude/agents/**': false,
 	'**/.claude/settings.json': false,
 	'**/.claude/settings.local.json': false,
+	'**/.codex/agents/**': false,
+	'**/.codex/config.toml': false,
+	'**/.codex/hooks.json': false,
 };
 
 export const DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: ChatEditAutoApprovePatterns = {

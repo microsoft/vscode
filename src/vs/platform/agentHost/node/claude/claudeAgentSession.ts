@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
+import type { McpServerConfig, OnElicitation, Options, PermissionMode, SDKUserMessage, SyncHookJSONOutput, WarmQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -55,6 +55,13 @@ import { ClaudeSdkPipeline, IRematerializer, type ISdkResolvedCustomizations } f
 import { SubagentRegistry } from './claudeSubagentRegistry.js';
 import { ClaudePermissionKind } from './claudeToolDisplay.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement } from '../shared/customizationEnablementGate.js';
+import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
+import { AgentHostGitHubMcpServerEnabledConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
+import { IAgentHostAuthenticationService } from '../agentHostAuthenticationService.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer } from '../shared/agentMergeToolRestrictions.js';
 
 // Re-export for callers that import IRematerializer from the session.
 export type { IRematerializer } from './claudeSdkPipeline.js';
@@ -121,8 +128,19 @@ function resolveCurrentPermissionMode(
 	return readClaudePermissionMode(configurationService, resource) ?? inheritedPermissionMode ?? permissionModeFallback;
 }
 
+function isGitHubMcpServerDefinition(definition: IMcpServerDefinition, gitHubMcpServerConfiguration: IMcpServerConfiguration): boolean {
+	return definition.configuration.type === McpServerType.REMOTE
+		&& gitHubMcpServerConfiguration.type === McpServerType.REMOTE
+		&& isEqual(URI.parse(definition.configuration.url), URI.parse(gitHubMcpServerConfiguration.url));
+}
+
 function toClaudeDeniedMcpServer(definition: IMcpServerDefinition): ClaudeDeniedMcpServerSpec {
 	return { serverName: definition.name };
+}
+
+/** Mirrors how the Claude SDK sanitizes a server name within `mcp__<server>__<tool>` tool names. */
+function toClaudeMcpToolServerName(serverName: string): string {
+	return serverName.replace(/[^a-zA-Z0-9_-]/g, '_');
 }
 
 /**
@@ -266,6 +284,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * {@link Options.canUseTool}. Keyed by SDK `tool_use_id`.
 	 */
 	private readonly _pendingPermissions = new PendingRequestRegistry<boolean>();
+	private _agentMergeTurn = false;
 
 	/**
 	 * Phase 7 / S3.2. User-input deferreds parked for interactive tools
@@ -440,10 +459,19 @@ export class ClaudeAgentSession extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IAgentHostCustomizationEnablementService private readonly _customizationEnablementService: IAgentHostCustomizationEnablementService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
+		@IAgentHostAuthenticationService private readonly _authenticationService: IAgentHostAuthenticationService,
+		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
 	) {
 		super();
 		this._chatChannelUri = chatChannelUri;
 		this.project = project;
+		this._register(this._configurationService.onDidRootConfigChange(() => this.markMcpConfigurationDirty()));
+		this._register(this._authenticationService.onDidChangeAuthToken(event => {
+			if (event.resource === this._gitHubEndpointService.getCopilotResource().resource) {
+				this.markMcpConfigurationDirty();
+			}
+		}));
 		this._provisionalModel = model;
 		this._provisionalAgent = agent;
 		this.provisionalConfig = config;
@@ -469,6 +497,12 @@ export class ClaudeAgentSession extends Disposable {
 
 	setHostCustomizations(customizations: readonly Customization[]): void {
 		this._hostCustomizations = customizations;
+	}
+
+	markMcpConfigurationDirty(): void {
+		if (this._pipeline) {
+			this.clientCustomizationsDiff.markDirty();
+		}
 	}
 
 	private _watchCustomizations(directories: readonly URI[] | undefined): void {
@@ -594,7 +628,7 @@ export class ClaudeAgentSession extends Disposable {
 		const plugins = this._desiredClientPluginConfigs();
 		this.clientCustomizationsDiff.consume(plugins.map(plugin => plugin.uri));
 		const mcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
-		const { mcpServers, deniedMcpServers, allowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
+		const { mcpServers, deniedMcpServers, allowedTools, agentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 		const agentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 		const telemetry = await this._otelService.getNativeSdkTelemetryConfig();
 		const traceContext = this._otelService.getSessionTraceContext(this.sessionId, ctx.resource.toString());
@@ -619,6 +653,7 @@ export class ClaudeAgentSession extends Disposable {
 				telemetry,
 				traceContext,
 				getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
+				onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input, agentMergeRestrictedMcpServerNames),
 			},
 			ctx.transport,
 			data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -711,7 +746,7 @@ export class ClaudeAgentSession extends Disposable {
 				const rebuildPlugins = this._desiredClientPluginConfigs();
 				this.clientCustomizationsDiff.consume(rebuildPlugins.map(plugin => plugin.uri));
 				const rebuildMcpLaunchEnablementRevision = this._mcpLaunchEnablementRevision;
-				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
+				const { mcpServers: rebuildMcp, deniedMcpServers: rebuildDeniedMcpServers, allowedTools: rebuildAllowedTools, agentMergeRestrictedMcpServerNames: rebuildAgentMergeRestrictedMcpServerNames } = await this._buildStartupToolWiring(ctx.resource, ctx.serverToolHost);
 				const rebuildAgentName = await resolveClaudeAgentName(this._provisionalAgent, this._fileService, this._logService, this.sessionId);
 				const rebuildOptions = await buildOptions(
 					{
@@ -733,6 +768,7 @@ export class ClaudeAgentSession extends Disposable {
 						telemetry,
 						traceContext,
 						getUserPromptAdditionalContext: () => this._hostInstructions?.join('\n\n'),
+						onPreToolUse: (toolName, input) => this._restrictAgentMergeGitHubTool(toolName, input, rebuildAgentMergeRestrictedMcpServerNames),
 					},
 					rebuildTransport,
 					data => this._logService.error(`[Claude SDK stderr] ${data}`),
@@ -802,11 +838,12 @@ export class ClaudeAgentSession extends Disposable {
 	private async _buildStartupToolWiring(
 		resource: URI,
 		serverToolHost: IAgentServerToolHost | undefined,
-	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined }> {
-		const externalServers = await this._buildExternalMcpServers();
+	): Promise<{ mcpServers: Record<string, McpServerConfig> | undefined; deniedMcpServers: readonly ClaudeDeniedMcpServerSpec[]; allowedTools: readonly string[] | undefined; agentMergeRestrictedMcpServerNames: ReadonlySet<string> }> {
+		const externalServers = await this._buildExternalMcpServers(await this._getGitHubMcpServerConfiguration());
 		const clientServers = await buildClientMcpServers(this.toolDiff, this._pendingClientToolCalls, this._sdkService);
-		const serverToolServer = serverToolHost
-			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService)
+		const serverToolDefinitions = serverToolHost?.getDefinitionsForSession(resource.toString());
+		const serverToolServer = serverToolHost && serverToolDefinitions?.length
+			? await buildServerToolMcpServer(serverToolHost, this._chatChannelUri.toString(), this._sdkService, serverToolDefinitions)
 			: undefined;
 		const mcpServers = (Object.keys(externalServers.servers).length === 0 && !clientServers && !serverToolServer)
 			? undefined
@@ -822,23 +859,45 @@ export class ClaudeAgentSession extends Disposable {
 		// answer: the allow-list is baked into the SDK options here and would go
 		// stale if a tool were allow-listed while it happened to have nothing to
 		// confirm.
-		const autoApproveToolNames = serverToolHost
-			? serverToolHost.toolNames.filter(name => !serverToolHost.canRequireConfirmation(name))
+		const autoApproveToolNames = serverToolHost && serverToolDefinitions
+			? serverToolDefinitions.filter(definition => !serverToolHost.canRequireConfirmation(definition.name)).map(definition => definition.name)
 			: undefined;
 		return {
 			mcpServers,
 			deniedMcpServers: externalServers.deniedServers,
 			allowedTools: autoApproveToolNames ? serverToolAllowList(autoApproveToolNames) : undefined,
+			agentMergeRestrictedMcpServerNames: externalServers.agentMergeRestrictedServerNames,
 		};
 	}
 
-	private async _buildExternalMcpServers(): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[] }> {
+	private async _getGitHubMcpServerConfiguration(): Promise<IMcpServerConfiguration | undefined> {
+		const resource = this._gitHubEndpointService.getCopilotResource();
+		const token = this._authenticationService.getAuthToken({
+			resource: resource.resource,
+			scopes: resource.scopes_supported,
+		});
+		if (!token || this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) === false) {
+			return undefined;
+		}
+		try {
+			return await resolveGitHubMcpServerConfiguration(this._copilotApiService, token);
+		} catch (error) {
+			this._logService.warn(`[Claude:${this.sessionId}] Failed to resolve the GitHub MCP server endpoint: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	private async _buildExternalMcpServers(gitHubMcpServerConfiguration: IMcpServerConfiguration | undefined): Promise<{ readonly servers: Record<string, McpServerConfig>; readonly deniedServers: readonly ClaudeDeniedMcpServerSpec[]; readonly agentMergeRestrictedServerNames: ReadonlySet<string> }> {
 		const primaryCwd = this.workingDirectory;
 		if (!primaryCwd) {
-			return { servers: {}, deniedServers: [] };
+			return { servers: {}, deniedServers: [], agentMergeRestrictedServerNames: new Set() };
 		}
 		const definitions = new Map<string, IMcpServerDefinition>();
+		const nativeWorkspaceDefinitions: IMcpServerDefinition[] = [];
 		const discoveredDefinitions = await this._mcpDiscovery?.refresh() ?? [];
+		let hasGitHubMcpServer = gitHubMcpServerConfiguration
+			? discoveredDefinitions.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))
+			: false;
 		const discoveredCandidates = discoveredDefinitions.map(definition => definition.customization);
 		const discoveredResolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, discoveredCandidates);
 		const discoveredEnablement = getSdkMcpServerEnablement(discoveredResolution);
@@ -851,6 +910,7 @@ export class ClaudeAgentSession extends Disposable {
 				continue;
 			}
 			if (definition.defaultCwd && isEqual(definition.defaultCwd, primaryCwd)) {
+				nativeWorkspaceDefinitions.push(definition);
 				continue;
 			}
 			definitions.set(definition.name, definition);
@@ -861,6 +921,9 @@ export class ClaudeAgentSession extends Disposable {
 			}
 			try {
 				const parsed = await parsePlugin(synced.pluginDir, this._fileService, primaryCwd, this._environmentService.userHome, synced.pluginDir);
+				if (gitHubMcpServerConfiguration && parsed.mcpServers.some(definition => isGitHubMcpServerDefinition(definition, gitHubMcpServerConfiguration))) {
+					hasGitHubMcpServer = true;
+				}
 				const candidate = { ...synced.customization, children: parsed.mcpServers.map(definition => definition.customization) };
 				const resolved = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, [candidate], this._clientChildEnablement, this._clientPluginEnablement);
 				if (!isCustomizationSdkEligible(resolved, candidate)) {
@@ -885,11 +948,29 @@ export class ClaudeAgentSession extends Disposable {
 				this._logService.warn(`[Claude:${this.sessionId}] Failed to parse MCP servers from '${synced.customization.uri}': ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}
+		if (gitHubMcpServerConfiguration && !hasGitHubMcpServer) {
+			const customization = createClaudeInternalMcpServerCustomization(GITHUB_MCP_SERVER_NAME);
+			const definition: IMcpServerDefinition = {
+				name: GITHUB_MCP_SERVER_NAME,
+				configuration: gitHubMcpServerConfiguration,
+				uri: URI.parse(customization.uri),
+				customization,
+			};
+			const resolution = resolveCustomizationEnablement(this._customizationEnablementService, this._configurationResource, [customization]);
+			if (getSdkMcpServerEnablement(resolution).get(customization.id) === true) {
+				definitions.set(GITHUB_MCP_SERVER_NAME, definition);
+			} else {
+				deniedServers.push(toClaudeDeniedMcpServer(definition));
+			}
+		}
 		const converted = toClaudeMcpServers([...definitions.values()], primaryCwd);
 		for (const name of converted.skipped) {
 			this._logService.warn(`[Claude:${this.sessionId}] Skipping MCP server '${name}' because its stdio working directory cannot be represented by the Claude SDK`);
 		}
-		return { servers: converted.servers, deniedServers };
+		// The SDK resolves name collisions between its native workspace servers and explicit ones, so either may own a name.
+		const launchedServers = [...nativeWorkspaceDefinitions.map(definition => [definition.name, definition.configuration] as const), ...Object.entries(converted.servers)];
+		const agentMergeRestrictedServerNames = new Set(launchedServers.filter(([name, server]) => isAgentMergeRestrictedMcpServer(name, server)).map(([name]) => toClaudeMcpToolServerName(name)));
+		return { servers: converted.servers, deniedServers, agentMergeRestrictedServerNames };
 	}
 
 	/** True once {@link materialize} has installed the SDK pipeline. */
@@ -974,7 +1055,7 @@ export class ClaudeAgentSession extends Disposable {
 	 * model / effort (set eagerly via {@link setModel}) is whatever
 	 * the SDK has been told.
 	 */
-	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[], clientContext?: IAgentHostClientTelemetryContext): Promise<void> {
+	async send(prompt: SDKUserMessage, turnId: string, resource: URI, workingDirectories?: readonly URI[], switchTransport?: ClaudeTransport, hostInstructions?: readonly string[], clientContext?: IAgentHostClientTelemetryContext, agentMergeTurn = false): Promise<void> {
 		const pipeline = this._requirePipeline();
 		if (workingDirectories) {
 			this._replaceDesiredWorkingDirectories(workingDirectories);
@@ -999,11 +1080,35 @@ export class ClaudeAgentSession extends Disposable {
 		}
 		await this._reconcileMcpServerEnablement();
 		this._hostInstructions = hostInstructions;
+		this._agentMergeTurn = agentMergeTurn;
 		try {
 			await pipeline.send(prompt, turnId, clientContext);
 		} finally {
 			this._hostInstructions = undefined;
+			this._agentMergeTurn = false;
 		}
+	}
+
+	private _restrictAgentMergeGitHubTool(toolName: string, input: unknown, restrictedMcpServerNames: ReadonlySet<string>): SyncHookJSONOutput | undefined {
+		const mcpServerName = toolName.startsWith('mcp__') ? toolName.split('__')[1] : undefined;
+		const restrictedMcpTool = !!mcpServerName && (restrictedMcpServerNames.has(mcpServerName) || isAgentMergeRestrictedMcpServer(mcpServerName));
+		const restriction = this._agentMergeTurn
+			? getAgentMergeGitHubToolRestriction(toolName, input)
+			?? (restrictedMcpTool ? AGENT_MERGE_GITHUB_TOOL_RESTRICTION : undefined)
+			: undefined;
+		if (!restriction) {
+			return undefined;
+		}
+		this._logService.warn(`[Claude:${this.sessionId}] Denying restricted Agent Merge tool: ${toolName}`);
+		return {
+			continue: false,
+			stopReason: restriction,
+			hookSpecificOutput: {
+				hookEventName: 'PreToolUse',
+				permissionDecision: 'deny',
+				permissionDecisionReason: restriction,
+			},
+		};
 	}
 
 	private _replaceDesiredWorkingDirectories(workingDirectories: readonly URI[]): void {

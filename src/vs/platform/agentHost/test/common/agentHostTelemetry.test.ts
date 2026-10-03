@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TelemetryConfiguration, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { telemetryLevelToAgentHostValue } from '../../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, readClientConnectionKind, telemetryLevelToAgentHostValue, toAgentHostClientMeta } from '../../common/agentHostTelemetry.js';
 
 suite('AgentHostTelemetry', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,5 +25,25 @@ suite('AgentHostTelemetry', () => {
 			TelemetryConfiguration.OFF,
 			TelemetryConfiguration.OFF,
 		]);
+	});
+
+	test('Dev Container connection kind round trips through client metadata', () => {
+		const meta = toAgentHostClientMeta(
+			AgentHostClientConnectionKind.DevContainer,
+			TelemetryLevel.USAGE,
+			undefined,
+			undefined,
+		);
+
+		assert.deepStrictEqual({
+			meta,
+			connectionKind: readClientConnectionKind(meta),
+		}, {
+			meta: {
+				'vscode.telemetryLevel': TelemetryConfiguration.ON,
+				'vscode.clientConnectionKind': AgentHostClientConnectionKind.DevContainer,
+			},
+			connectionKind: AgentHostClientConnectionKind.DevContainer,
+		});
 	});
 });

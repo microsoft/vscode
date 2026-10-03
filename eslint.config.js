@@ -30,6 +30,12 @@ const allowedJavaScriptFiles = fs.readFileSync(path.join(import.meta.dirname, '.
 	.map(line => line.trim())
 	.filter(line => line && !line.startsWith('#'));
 
+const allowedBracketNotationFiles = fs.readFileSync(path.join(import.meta.dirname, '.eslint-allowed-bracket-notation-files'), 'utf8')
+	.toString()
+	.split(/\r\n|\n/)
+	.map(line => line.trim())
+	.filter(line => line && !line.startsWith('#'));
+
 export default defineConfig(
 	// Global ignores
 	{
@@ -107,6 +113,7 @@ export default defineConfig(
 			'local/code-no-icons-in-localized-strings': 'warn',
 			'local/code-no-http-import': ['warn', { target: 'src/vs/**' }],
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
+			'local/code-no-private-agent-host-meta-import': 'error',
 			'local/code-layering': [
 				'warn',
 				{
@@ -142,6 +149,20 @@ export default defineConfig(
 					' *--------------------------------------------------------------------------------------------'
 				]
 			]
+		},
+	},
+	// Disallow bracket notation for property names that can use dot notation.
+	{
+		files: [
+			'**/*.{js,cjs,mjs,ts,tsx,mts,cts}',
+			'.eslint-plugin-local/**/*.ts',
+		],
+		ignores: allowedBracketNotationFiles,
+		plugins: {
+			'local': pluginLocal,
+		},
+		rules: {
+			'local/code-no-bracket-notation-for-identifiers': 'warn',
 		},
 	},
 	// TS
@@ -371,6 +392,12 @@ export default defineConfig(
 			'**/test/**',
 			'**/*.test.ts',
 			'**/*.integrationTest.ts',
+			// This directory is the validation boundary for typed metadata
+			// readers. Callers elsewhere must consume those readers.
+			'src/vs/platform/agentHost/common/meta/**',
+			// Copilot SDK metadata is already typed and is not an AHP `_meta`
+			// bag. Keep its access isolated in one adapter.
+			'src/vs/platform/agentHost/node/copilot/copilotSdkMeta.ts',
 			// Codex's own generated app-server protocol (not AHP `_meta`).
 			'src/vs/platform/agentHost/node/codex/protocol/**',
 		],
@@ -1563,6 +1590,8 @@ export default defineConfig(
 						'inspector',
 						'minimist',
 						'node:module',
+						'node:url',
+						'node:v8',
 						'native-keymap',
 						'net',
 						'node-pty',
@@ -1686,7 +1715,19 @@ export default defineConfig(
 						'@anthropic-ai/claude-agent-sdk', // used by agentHost for Claude Agent SDK session enumeration / queries
 						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
 						'@github/copilot-sdk',
-						'zod' // used by agentHost for Claude client-tool MCP input schemas
+						'zod', // used by agentHost for Claude client-tool MCP input schemas
+						{
+							'when': 'test',
+							'pattern': 'events'
+						},
+						{
+							'when': 'test',
+							'pattern': 'module'
+						},
+						{
+							'when': 'test',
+							'pattern': 'websocket'
+						}
 					]
 				},
 				{
@@ -1974,8 +2015,6 @@ export default defineConfig(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/workbench/contrib/terminal/terminal.all.js',
-						'vs/sessions/common/theme.js', // side-effect import for color registry
-						'vs/sessions/common/sizes.js' // side-effect import for size registry
 					]
 				},
 				{
@@ -2050,7 +2089,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,server-cli.ts,server-main.ts}',
+					'target': 'src/{bootstrap-cli.ts,bootstrap-esm.ts,bootstrap-fork.ts,bootstrap-import.ts,bootstrap-meta.ts,bootstrap-node.ts,bootstrap-server.ts,cli.ts,main.ts,mainImpl.ts,server-cli.ts,server-main.ts}',
 					'restrictions': [
 						'vs/**/common/*',
 						'vs/**/node/*',
@@ -2204,6 +2243,8 @@ export default defineConfig(
 						'vs/sessions/contrib/*/~',
 						'vs/sessions/contrib/providers/*/~',
 						'vs/sessions/services/*/~',
+						'@microsoft/dev-tunnels-connections', // type-only browser bundle conformance check
+						'@microsoft/dev-tunnels-management', // type-only browser bundle conformance check
 					]
 				},
 				{
@@ -2316,9 +2357,21 @@ export default defineConfig(
 					]
 				},
 				{
+					'target': 'test/scenario/**',
+					'restrictions': [
+						'test/automation',
+						'test/scenario/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'*' // node modules
+					]
+				},
+				{
 					'target': 'test/mcp/**',
 					'restrictions': [
 						'test/automation',
+						'test/scenario',
 						'test/mcp/**',
 						'@vscode/*',
 						'@parcel/*',
@@ -2337,6 +2390,21 @@ export default defineConfig(
 				}
 			]
 		}
+	},
+	{
+		files: ['src/vs/**/*.ts'],
+		rules: {
+			'local/code-no-legacy-notification-parsing': ['error', {
+				allowedFiles: [
+					'src/vs/workbench/api/browser/mainThreadMessageService.ts',
+					'src/vs/workbench/api/browser/mainThreadProgress.ts',
+					'src/vs/platform/notification/test/common/notificationMessage.test.ts',
+					'src/vs/workbench/test/common/notifications.test.ts',
+					'src/vs/workbench/test/browser/notificationsList.test.ts',
+					'src/vs/workbench/services/progress/test/browser/progressService.test.ts',
+				],
+			}],
+		},
 	},
 	{
 		// `IAgentSessionsService` and the agent sessions model are provider-internal

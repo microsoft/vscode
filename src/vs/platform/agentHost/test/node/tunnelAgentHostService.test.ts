@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EventEmitter } from 'events';
-import type WebSocket from 'ws';
+import * as net from 'net';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { isTunnelGatewaySelectionRejectedError, TUNNEL_GATEWAY_SELECTION_REJECTED_ERROR_NAME } from '../../common/tunnelAgentHost.js';
+import type { ITunnelRelayClient } from '../../common/tunnelAgentHostConnector.js';
+import type { ITunnelMessageSocket } from '../../common/tunnelMessageSocket.js';
 import {
+	NodeTunnelSocketFactory,
 	PendingGatewaySelection,
 	deletePendingGatewaySelectionForTests,
 	setPendingGatewaySelectionForTests,
@@ -21,17 +25,16 @@ import {
 } from '../../node/tunnelAgentHostService.js';
 
 /**
- * Minimal EventEmitter-based double for the `ws` package's `WebSocket`,
- * exposing just the surface {@link TunnelAgentHostMainService} relies on
- * (`send`/`close`/`readyState`/`OPEN` plus the inherited `on`/`once`/`off`/`emit`).
- * Cast to `WebSocket` at call sites, matching this repo's convention of using
- * typed test doubles instead of `any`.
+ * Minimal message-socket double for gateway selection tests.
  */
-class FakeGatewaySocket extends EventEmitter {
+class FakeGatewaySocket implements ITunnelMessageSocket {
+	private readonly _onDidReceiveMessage = new Emitter<string>();
+	readonly onDidReceiveMessage: Event<string> = this._onDidReceiveMessage.event;
+	private readonly _onDidClose = new Emitter<{ code?: number; reason?: string; error?: Error }>();
+	readonly onDidClose: Event<{ code?: number; reason?: string; error?: Error }> = this._onDidClose.event;
+
 	readonly sent: string[] = [];
 	closeCalls = 0;
-	readyState = 1;
-	readonly OPEN = 1;
 
 	send(data: string): void {
 		this.sent.push(data);
@@ -40,10 +43,38 @@ class FakeGatewaySocket extends EventEmitter {
 	close(): void {
 		this.closeCalls++;
 	}
+
+	emitMessage(data: string): void {
+		this._onDidReceiveMessage.fire(data);
+	}
+
+	emitClose(code: number, reason: string): void {
+		this._onDidClose.fire({ code, reason });
+	}
+
+	emitError(error: Error): void {
+		this._onDidClose.fire({ error });
+	}
+
+	dispose(): void {
+		this._onDidReceiveMessage.dispose();
+		this._onDidClose.dispose();
+	}
 }
 
-class FakeRelayClient {
+class FakeRelayClient implements ITunnelRelayClient {
 	disposeCalls = 0;
+
+	async connect(): Promise<void> {
+	}
+
+	async waitForForwardedPort(_port: number): Promise<void> {
+	}
+
+	async connectToForwardedPort(_port: number): Promise<never> {
+		throw new Error('Not implemented in selection tests');
+	}
+
 	dispose(): void {
 		this.disposeCalls++;
 	}
@@ -104,7 +135,7 @@ suite('TunnelAgentHostService - withTimeout', () => {
 function createPending(onUnexpectedClose: () => void = () => { }) {
 	const ws = new FakeGatewaySocket();
 	const relayClient = new FakeRelayClient();
-	const pending = new PendingGatewaySelection('tunnel:t1', 'My Tunnel', 'tok123', ws as unknown as WebSocket, relayClient, onUnexpectedClose);
+	const pending = new PendingGatewaySelection('tunnel:t1', 'My Tunnel', 'tok123', ws, relayClient, onUnexpectedClose);
 	return { ws, relayClient, pending };
 }
 
@@ -125,10 +156,10 @@ suite('TunnelAgentHostService - gateway selection', () => {
 			// for a microtask/timeout to assert on this.
 			assert.deepStrictEqual(ws.sent, [JSON.stringify({ instanceId: 'abc-123' })]);
 
-			ws.emit('message', Buffer.from(JSON.stringify({
+			ws.emitMessage(JSON.stringify({
 				ok: true,
 				selected: { type: 'editor', instanceId: 'abc-123', role: 'primary', lifecycle: 'external' },
-			})));
+			}));
 
 			const result = await resultPromise;
 			assert.strictEqual(result.address, 'tunnel:t1');
@@ -139,12 +170,12 @@ suite('TunnelAgentHostService - gateway selection', () => {
 			// Steady-state: the same socket now proxies subsequent AHP frames.
 			const relayed: string[] = [];
 			const relayListener = service.onDidRelayMessage(m => relayed.push(m.data));
-			ws.emit('message', Buffer.from('{"hello":"world"}'));
+			ws.emitMessage('{"hello":"world"}');
 			assert.deepStrictEqual(relayed, ['{"hello":"world"}']);
 			relayListener.dispose();
 
 			// Simulate the socket closing to dispose the resulting TunnelConnection.
-			ws.emit('close', 1000, Buffer.from(''));
+			ws.emitClose(1000, '');
 		} finally {
 			service.dispose();
 		}
@@ -169,7 +200,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
 			const resultPromise = service.completeSelection('sel1', { instanceId: 'gone' });
-			ws.emit('message', Buffer.from(JSON.stringify({ ok: false, error: 'instance no longer live' })));
+			ws.emitMessage(JSON.stringify({ ok: false, error: 'instance no longer live' }));
 
 			const error = await resultPromise.then(() => undefined, (err: Error) => err);
 			assert.deepStrictEqual({
@@ -197,7 +228,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 			setPendingGatewaySelectionForTests(service, 'sel1', pending);
 
 			const resultPromise = service.completeSelection('sel1', { instanceId: 'editor-1' });
-			ws.emit('error', new Error('socket hang up'));
+			ws.emitError(new Error('socket hang up'));
 
 			const error = await resultPromise.then(() => undefined, (err: Error) => err);
 			assert.strictEqual(isTunnelGatewaySelectionRejectedError(error), false);
@@ -237,7 +268,7 @@ suite('TunnelAgentHostService - gateway selection', () => {
 			// Simulate the gateway socket dropping before a selection was made:
 			// the close listener above removes it from the pending map, so a
 			// later completeSelection sees no pending entry.
-			ws.emit('close', 1000, Buffer.from('network drop'));
+			ws.emitClose(1000, 'network drop');
 
 			await assert.rejects(
 				() => service.completeSelection('sel1', { instanceId: 'abc' }),
@@ -256,9 +287,9 @@ suite('PendingGatewaySelection', () => {
 		const ws = new FakeGatewaySocket();
 		const relayClient = new FakeRelayClient();
 		let closedCount = 0;
-		const pending = new PendingGatewaySelection('addr', 'name', 'tok', ws as unknown as WebSocket, relayClient, () => { closedCount++; });
+		const pending = new PendingGatewaySelection('addr', 'name', 'tok', ws, relayClient, () => { closedCount++; });
 
-		ws.emit('close', 1000, Buffer.from(''));
+		ws.emitClose(1000, '');
 		assert.strictEqual(closedCount, 1);
 		pending.dispose();
 	});
@@ -267,21 +298,60 @@ suite('PendingGatewaySelection', () => {
 		const ws = new FakeGatewaySocket();
 		const relayClient = new FakeRelayClient();
 		let closedCount = 0;
-		const pending = new PendingGatewaySelection('addr', 'name', 'tok', ws as unknown as WebSocket, relayClient, () => { closedCount++; });
+		const pending = new PendingGatewaySelection('addr', 'name', 'tok', ws, relayClient, () => { closedCount++; });
 
 		pending.detach();
-		ws.emit('close', 1000, Buffer.from(''));
+		ws.emitClose(1000, '');
 		assert.strictEqual(closedCount, 0);
+		pending.dispose();
 	});
 
 	test('dispose() closes the socket and disposes the relay client exactly once even if called twice', () => {
 		const ws = new FakeGatewaySocket();
 		const relayClient = new FakeRelayClient();
-		const pending = new PendingGatewaySelection('addr', 'name', 'tok', ws as unknown as WebSocket, relayClient, () => { });
+		const pending = new PendingGatewaySelection('addr', 'name', 'tok', ws, relayClient, () => { });
 
 		pending.dispose();
 		pending.dispose();
 		assert.strictEqual(ws.closeCalls, 1);
 		assert.strictEqual(relayClient.disposeCalls, 1);
+	});
+});
+
+suite('NodeTunnelSocketFactory', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports data while a message is still arriving over the tunnel stream', async () => {
+		const { WebSocketServer } = await import('ws');
+		const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+		store.add(toDisposable(() => server.close()));
+		await new Promise<void>(resolve => server.once('listening', resolve));
+		const hostSocket = new Promise<net.Socket>(resolve => server.once('connection', (_webSocket, request) => resolve(request.socket)));
+
+		// A loopback socket stands in for the relay's forwarded-port stream.
+		const stream = net.createConnection({ host: '127.0.0.1', port: (server.address() as net.AddressInfo).port });
+		store.add(toDisposable(() => stream.destroy()));
+		await new Promise<void>(resolve => stream.once('connect', resolve));
+		const socket = store.add(await new NodeTunnelSocketFactory().open(stream, '/'));
+		const host = await hostSocket;
+		store.add(toDisposable(() => host.destroy()));
+		assert.ok(socket.onDidReceiveData);
+		const data = new DeferredPromise<void>();
+		const message = new DeferredPromise<string>();
+		store.add(socket.onDidReceiveData(() => data.complete()));
+		store.add(socket.onDidReceiveMessage(text => message.complete(text)));
+
+		// One unmasked text frame, delivered in two halves as a slow link would.
+		const payload = Buffer.alloc(100_000, 'x');
+		const header = Buffer.alloc(10);
+		header[0] = 0x81; // FIN, text frame
+		header[1] = 127; // 64-bit payload length follows
+		header.writeBigUInt64BE(BigInt(payload.length), 2);
+		host.write(Buffer.concat([header, payload.subarray(0, payload.length / 2)]));
+		await data.p;
+		const completedBeforeLastHalf = message.isSettled;
+		host.write(payload.subarray(payload.length / 2));
+
+		assert.deepStrictEqual({ completedBeforeLastHalf, messageLength: (await message.p).length }, { completedBeforeLastHalf: false, messageLength: payload.length });
 	});
 });

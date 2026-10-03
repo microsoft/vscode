@@ -70,7 +70,19 @@ export class PlaywrightDriver {
 		private _currentPage: playwright.Page,
 		private readonly serverProcess: ChildProcess | undefined,
 		private readonly whenLoaded: Promise<unknown>,
-		private readonly options: LaunchOptions
+		private readonly options: LaunchOptions,
+		/**
+		 * Wall-clock time sampled when the first recorded page was created, used to
+		 * express captured timestamps as offsets into the recording.
+		 *
+		 * Playwright rebases each video to its first screencast frame, which arrives
+		 * shortly after page creation, so this is an approximation rather than an
+		 * exact origin. Consumers should treat derived offsets as accurate to a
+		 * fraction of a second and must not rely on frame-exact alignment.
+		 *
+		 * Undefined when the run is not recording.
+		 */
+		readonly videoStartedAt?: number
 	) {
 	}
 

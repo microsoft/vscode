@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasKey } from '../../../../base/common/types.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputRequestPurpose, ChatInputResponseKind, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
+import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest } from '../../common/state/sessionState.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import type { McpElicitationPrimitiveSchema } from './protocol/generated/v2/McpElicitationPrimitiveSchema.js';
 import type { McpServerElicitationRequestParams } from './protocol/generated/v2/McpServerElicitationRequestParams.js';
@@ -27,20 +28,24 @@ import type { McpServerElicitationRequestResponse } from './protocol/generated/v
  *
  * MCP field names are used directly as the stable question id (the key
  * the answer map is later read back by).
+ * User-verification challenges cannot be fulfilled by ordinary input answers.
  */
-export function buildElicitationRequest(requestId: string, params: McpServerElicitationRequestParams): ChatInputRequest {
+export function buildElicitationRequest(requestId: string, params: McpServerElicitationRequestParams): ChatInputRequest | undefined {
+	if (params.mode === 'openai/userVerification') {
+		return undefined;
+	}
 	if (params.mode === 'url') {
-		const request: ChatInputRequest = { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: params.message };
+		const request: ChatInputRequest = { id: requestId, message: params.message };
 		if (params.url) {
 			request.url = params.url;
 		}
-		return request;
+		return withChatInputRequestPurpose(request, ChatInputRequestPurpose.Elicitation);
 	}
 	if (params.mode !== 'form') {
 		// `openai/form` carries an opaque, OpenAI-specific schema we cannot
 		// project into typed questions; surface the message only so the user
 		// can still accept or decline.
-		return { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: params.message };
+		return withChatInputRequestPurpose({ id: requestId, message: params.message }, ChatInputRequestPurpose.Elicitation);
 	}
 	const required = new Set(params.requestedSchema.required ?? []);
 	const questions: ChatInputQuestion[] = [];
@@ -49,9 +54,12 @@ export function buildElicitationRequest(requestId: string, params: McpServerElic
 			questions.push(elicitationFieldToQuestion(name, field, required.has(name)));
 		}
 	}
-	return questions.length > 0
-		? { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: params.message, questions }
-		: { id: requestId, purpose: ChatInputRequestPurpose.Elicitation, message: params.message };
+	return withChatInputRequestPurpose(
+		questions.length > 0
+			? { id: requestId, message: params.message, questions }
+			: { id: requestId, message: params.message },
+		ChatInputRequestPurpose.Elicitation,
+	);
 }
 
 /**
@@ -71,6 +79,9 @@ export function elicitationResponseFromAnswers(
 	}
 	if (response !== ChatInputResponseKind.Accept) {
 		return { action: 'cancel', content: null, _meta: null };
+	}
+	if (params.mode === 'openai/userVerification') {
+		return declinedElicitationResponse();
 	}
 	if (params.mode !== 'form') {
 		// `url` and `openai/form` acceptances carry no projected content.

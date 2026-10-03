@@ -8,12 +8,15 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
+import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
 import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
-import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
 
 // Import layout actions to trigger menu registration
@@ -34,6 +37,31 @@ suite('Sessions - Layout Actions', () => {
 		]);
 	});
 
+	test('offers shared layout density commands in the desktop View and title bar menus', () => {
+		const parents = [Menus.TitleBarContext, MenuId.MenubarViewMenu].map(menu =>
+			MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === LayoutDensityMenu));
+		const options = MenuRegistry.getMenuItems(LayoutDensityMenu).filter(isIMenuItem);
+
+		assert.deepStrictEqual({
+			parents: parents.map(item => ({ title: item?.title, when: item?.when?.serialize() })),
+			options: options.map(item => ({
+				id: item.command.id,
+				registered: !!CommandsRegistry.getCommand(item.command.id),
+				toggled: item.command.toggled,
+			})),
+		}, {
+			parents: [
+				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+			],
+			options: ['default', 'compact'].map(density => ({
+				id: `workbench.action.setLayoutDensity.${density}`,
+				registered: true,
+				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, density),
+			})),
+		});
+	});
+
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {
 		const items = MenuRegistry.getMenuItems(Menus.TitleBarRightLayout);
 		const menuItems = items.filter(isIMenuItem);
@@ -42,6 +70,22 @@ suite('Sessions - Layout Actions', () => {
 
 		assert.ok(toggleAlwaysOnTop, 'toggleWindowAlwaysOnTop should be contributed to TitleBarRight');
 		assert.strictEqual(toggleAlwaysOnTop.group, 'navigation');
+	});
+
+	test('screen reader optimized action uses a title bar toolbar menu', () => {
+		const item = MenuRegistry.getMenuItems(Menus.TitleBarAccessibility)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'editor.action.toggleScreenReaderAccessibilityMode');
+
+		assert.deepStrictEqual({
+			title: item?.command.title,
+			tooltip: item?.command.tooltip,
+			when: item?.when?.serialize(),
+		}, {
+			title: 'Screen Reader Optimized',
+			tooltip: 'Disable Screen Reader Optimized Mode',
+			when: `${CONTEXT_ACCESSIBILITY_MODE_ENABLED.key} && !sessionsIsPhoneLayout`,
+		});
 	});
 
 	test('bottom panel layout action replaces the terminal action in the session title bar', () => {
@@ -83,22 +127,6 @@ suite('Sessions - Layout Actions', () => {
 		});
 	});
 
-	test('original-layout auxiliary bar toggle reuses the core command with state-dependent icons on the editor title layout menu', () => {
-		// The original (non-single-pane) editor-title menu items reference the core toggle command
-		// rather than registering their own; assert it is actually registered so the contribution
-		// cannot silently break. (The single-pane "Toggle Details" item is a dedicated command
-		// registered by SinglePaneLayoutController and is asserted in its own suite.)
-		assert.ok(CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID), 'core toggle auxiliary bar command should be registered');
-
-		// Original layout: two mutually-exclusive right-panel icons on the layout group.
-		const layoutToggleIcons = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id === ToggleAuxiliaryBarAction.ID)
-			.map(item => ThemeIcon.isThemeIcon(item.command.icon) ? item.command.icon.id : undefined)
-			.sort((a, b) => (a ?? '').localeCompare(b ?? ''));
-		assert.deepStrictEqual(layoutToggleIcons, [Codicon.rightPanelHide.id, Codicon.rightPanelShow.id]);
-	});
-
 	test('core auxiliary bar command delegates to the layout service', async () => {
 		let calls = 0;
 		const command = CommandsRegistry.getCommand(ToggleAuxiliaryBarAction.ID);
@@ -125,7 +153,7 @@ suite('Sessions - Layout Actions', () => {
 		assert.strictEqual(toggled.condition.serialize(), SecondarySideBarVisibleContext.key);
 	});
 
-	test('single-pane Hide/Show Editor remain registered but are always hidden', () => {
+	test('desktop Hide/Show Editor remain registered but are always hidden', () => {
 		const layoutItems = MenuRegistry.getMenuItems(MenuId.EditorTitleLayout)
 			.filter(isIMenuItem);
 		const actionState = (id: string) => layoutItems
@@ -153,9 +181,9 @@ suite('Sessions - Layout Actions', () => {
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.hideMainEditorPart'));
 		assert.ok(!headerIds.includes('workbench.action.agentSessions.showMainEditorPart'));
 
-		// Add File as Context stays a right-header action, not a layout action.
-		const headerSecondaryIds = MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderSecondary).filter(isIMenuItem).map(item => item.command.id);
-		assert.ok(headerSecondaryIds.includes('workbench.action.agentSessions.addFileAsContext'));
+		// Add File as Context stays an editor action, not a group-header layout action.
+		const editorTitleIds = MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem).map(item => item.command.id);
+		assert.ok(editorTitleIds.includes('workbench.action.agentSessions.addFileAsContext'));
 		assert.ok(!layoutItems.some(item => item.command.id === 'workbench.action.agentSessions.addFileAsContext'));
 	});
 

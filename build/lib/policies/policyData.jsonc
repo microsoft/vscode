@@ -39,6 +39,24 @@
     ],
     "policies": [
         {
+            "key": "agents.voice.enabled",
+            "name": "AgentsVoice",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "agents.voice.enabled",
+                    "value": "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
             "key": "chat.agent.allowedNetworkDomains",
             "name": "ChatAgentAllowedNetworkDomains",
             "category": "InteractiveSession",
@@ -46,12 +64,15 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.allowedNetworkDomains",
-                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.allowNetwork#` is enabled, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
+                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.network.allowNetwork#` is enabled, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence.\n\nChanges may not take full effect until VS Code is restarted."
                 }
             },
             "type": "array",
             "default": [],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.agent.deniedNetworkDomains",
@@ -61,12 +82,15 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.deniedNetworkDomains",
-                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.allowNetwork#` is enabled. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
+                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.network.allowNetwork#` is enabled. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`.\n\nChanges may not take full effect until VS Code is restarted."
                 }
             },
             "type": "array",
             "default": [],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.agent.enabled",
@@ -81,7 +105,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.agent.networkFilter",
@@ -91,42 +118,15 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.networkFilter",
-                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled."
+                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled.\n\nChanges may not take full effect until VS Code is restarted."
                 }
             },
             "type": "boolean",
             "default": false,
-            "included": true
-        },
-        {
-            "key": "chat.agent.sandbox.allowAutoApprove",
-            "name": "ChatAgentSandboxAllowAutoApprove",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowAutoApprove",
-                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true
-        },
-        {
-            "key": "chat.agent.sandbox.allowNetwork",
-            "name": "ChatAgentSandboxAllowNetwork",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.127",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowNetwork",
-                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions."
-                }
-            },
-            "type": "boolean",
-            "default": false,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.agent.sandbox.allowUnsandboxedCommands",
@@ -135,13 +135,16 @@
             "minimumVersion": "1.116",
             "localization": {
                 "description": {
-                    "key": "agentSandbox.allowUnsandboxedCommands",
-                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                    "key": "agentSandbox.allowUnsandboxedCommandsPolicy",
+                    "value": "Deprecated. Controls whether Local agent terminal commands can run outside the sandbox after user confirmation when sandbox restrictions would block the command. Use the sandbox.allowBypass managed setting to control sandbox bypass in Copilot Agent Host."
                 }
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
         },
         {
             "key": "chat.agent.sandbox.enabled",
@@ -150,8 +153,8 @@
             "minimumVersion": "1.116",
             "localization": {
                 "description": {
-                    "key": "agentSandbox.enabledSetting",
-                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use `#chat.agent.sandbox.allowNetwork#` to allow all network domains."
+                    "key": "agentSandbox.enabledPolicy",
+                    "value": "Deprecated. Controls whether the Local agent uses sandboxing to restrict what tools can do. In Copilot Agent Host, this legacy policy supplies an overridable sandbox default, not a mandatory requirement. Use the runtime-native sandbox.enabled managed setting to require sandboxing in Copilot Agent Host."
                 },
                 "enumDescriptions": [
                     {
@@ -170,7 +173,28 @@
                 "off",
                 "on"
             ],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
+        },
+        {
+            "key": "chat.agent.sandbox.network.allowNetwork",
+            "name": "ChatAgentSandboxAllowNetwork",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowNetworkPolicy",
+                    "value": "Deprecated. Controls whether the Local agent sandbox allows outbound connections to all network domains while preserving file system restrictions. Use the sandbox.userPolicy.network.allowOutbound managed setting to enforce outbound network restrictions in Copilot Agent Host."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
         },
         {
             "key": "chat.agentHost.claudeAgent.enabled",
@@ -186,6 +210,9 @@
             "type": "boolean",
             "default": true,
             "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            },
             "referencedSettings": [
                 "github.copilot.chat.claudeAgent.enabled"
             ]
@@ -202,8 +229,29 @@
                 }
             },
             "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
+        },
+        {
+            "key": "chat.agentHost.customTerminalTool.enabled",
+            "name": "ChatAgentHostCustomTerminalTool",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.customTerminalTool.enabled.policy",
+                    "value": "Enable the Agent Host custom terminal tool override for Copilot SDK sessions."
+                }
+            },
+            "type": "boolean",
             "default": false,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.agentHost.otel.captureContent",
@@ -219,8 +267,32 @@
             "type": "boolean",
             "default": false,
             "included": true,
+            "agentHost": {
+                "status": "enforced"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.captureContent"
+            ]
+        },
+        {
+            "key": "chat.agentHost.otel.captureIdentity",
+            "name": "CopilotOtelCaptureIdentity",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.140",
+            "localization": {
+                "description": {
+                    "key": "chat.agentHost.otel.captureIdentity.policy",
+                    "value": "Controls whether Copilot OpenTelemetry captures the authenticated account name, operating system username, and machine hostname. Independent of content capture."
+                }
+            },
+            "type": "boolean",
+            "default": false,
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            },
+            "referencedSettings": [
+                "github.copilot.chat.otel.captureIdentity"
             ]
         },
         {
@@ -237,6 +309,9 @@
             "type": "boolean",
             "default": false,
             "included": true,
+            "agentHost": {
+                "status": "partial"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.enabled"
             ]
@@ -279,6 +354,9 @@
                 "file"
             ],
             "included": true,
+            "agentHost": {
+                "status": "partial"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.exporterType"
             ]
@@ -297,6 +375,9 @@
             "type": "object",
             "default": {},
             "included": false,
+            "agentHost": {
+                "status": "partial"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.headers"
             ]
@@ -315,6 +396,9 @@
             "type": "string",
             "default": "",
             "included": true,
+            "agentHost": {
+                "status": "enforced"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.otlpEndpoint"
             ]
@@ -333,6 +417,9 @@
             "type": "string",
             "default": "",
             "included": false,
+            "agentHost": {
+                "status": "enforced"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.protocol"
             ]
@@ -351,6 +438,9 @@
             "type": "string",
             "default": "",
             "included": true,
+            "agentHost": {
+                "status": "enforced"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.outfile"
             ]
@@ -369,6 +459,9 @@
             "type": "object",
             "default": {},
             "included": false,
+            "agentHost": {
+                "status": "enforced"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.resourceAttributes"
             ]
@@ -387,6 +480,9 @@
             "type": "string",
             "default": "",
             "included": false,
+            "agentHost": {
+                "status": "enforced"
+            },
             "referencedSettings": [
                 "github.copilot.chat.otel.serviceName"
             ]
@@ -404,7 +500,10 @@
             },
             "type": "array",
             "default": [],
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.customizations.strictPluginOnlyCustomization",
@@ -419,7 +518,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.defaultModel",
@@ -434,7 +536,10 @@
             },
             "type": "string",
             "default": "",
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.editor.preferCopilotHarness",
@@ -449,7 +554,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.extensionTools.enabled",
@@ -464,7 +572,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.hooks.allowManagedOnly",
@@ -479,7 +590,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.mcp.access",
@@ -513,7 +627,10 @@
                 "registry",
                 "all"
             ],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.mcp.allowedServers",
@@ -531,7 +648,10 @@
                 "null"
             ],
             "default": null,
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.mcp.allowManagedServersOnly",
@@ -546,7 +666,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.mcp.deniedServers",
@@ -564,7 +687,10 @@
                 "null"
             ],
             "default": null,
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.mcp.gallery.serviceUrl",
@@ -579,7 +705,10 @@
             },
             "type": "string",
             "default": "",
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.plugins.enabled",
@@ -594,7 +723,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.plugins.enabledPlugins",
@@ -609,7 +741,10 @@
             },
             "type": "object",
             "default": {},
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.plugins.extraMarketplaces",
@@ -624,7 +759,10 @@
             },
             "type": "object",
             "default": {},
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.plugins.strictMarketplaces",
@@ -642,7 +780,10 @@
                 "null"
             ],
             "default": null,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.sessionSync.enabled",
@@ -657,7 +798,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.tools.eligibleForAutoApproval",
@@ -672,7 +816,10 @@
             },
             "type": "object",
             "default": {},
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.tools.global.autoApprove",
@@ -687,7 +834,10 @@
             },
             "type": "boolean",
             "default": false,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.tools.terminal.enableAutoApprove",
@@ -702,7 +852,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "partial"
+            }
         },
         {
             "key": "chat.useHooks",
@@ -717,7 +870,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "notEnforced"
+            }
         },
         {
             "key": "dictation.enabled",
@@ -732,7 +888,60 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "dictation.experimental.llmCleanup",
+            "name": "DictationLLMCleanup",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.136",
+            "localization": {
+                "description": {
+                    "key": "dictation.experimental.llmCleanup.policy",
+                    "value": "Controls whether final dictation transcripts are sent to a language model for cleanup."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "dictation.model",
+            "name": "DictationModel",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.136",
+            "localization": {
+                "description": {
+                    "key": "dictation.model.policy",
+                    "value": "Controls the transcription model used for dictation."
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "dictation.model.nemotronMultilingual.policy",
+                        "value": "Use the on-device transcription model. Audio does not leave the device."
+                    },
+                    {
+                        "key": "dictation.model.mai.policy",
+                        "value": "Use the cloud transcription service. Audio is streamed to the service."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "nemotron-3.5-asr-streaming-0.6b",
+            "enum": [
+                "nemotron-3.5-asr-streaming-0.6b",
+                "mai"
+            ],
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "extensions.allowed",
@@ -747,7 +956,10 @@
             },
             "type": "object",
             "default": "*",
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "extensions.autoUpdate",
@@ -776,7 +988,10 @@
                 "on",
                 "off"
             ],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "extensions.autoUpdateDelay",
@@ -791,7 +1006,42 @@
             },
             "type": "number",
             "default": 12,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
+        },
+        {
+            "key": "extensions.gallery.authProvider",
+            "name": "ExtensionGalleryAuthProvider",
+            "category": "Extensions",
+            "minimumVersion": "1.137",
+            "localization": {
+                "description": {
+                    "key": "extensions.gallery.authProvider",
+                    "value": "Configure the authentication provider for the Extensions Marketplace"
+                },
+                "enumDescriptions": [
+                    {
+                        "key": "extensions.gallery.authProvider.github",
+                        "value": "Authenticate to the Extensions Marketplace using GitHub."
+                    },
+                    {
+                        "key": "extensions.gallery.authProvider.microsoft",
+                        "value": "Authenticate to the Extensions Marketplace using a Microsoft (Entra ID) account."
+                    }
+                ]
+            },
+            "type": "string",
+            "default": "github",
+            "enum": [
+                "github",
+                "microsoft"
+            ],
+            "included": false,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "extensions.gallery.serviceUrl",
@@ -806,7 +1056,10 @@
             },
             "type": "string",
             "default": "",
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "github.copilot.chat.reviewAgent.enabled",
@@ -821,7 +1074,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
         },
         {
             "key": "github.copilot.chat.reviewSelection.enabled",
@@ -836,7 +1092,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
         },
         {
             "key": "github.copilot.nextEditSuggestions.enabled",
@@ -851,7 +1110,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
+            }
         },
         {
             "key": "mcp.enterpriseManagedAuth.idp",
@@ -866,7 +1128,10 @@
             },
             "type": "object",
             "default": {},
-            "included": false
+            "included": false,
+            "agentHost": {
+                "status": "notEnforced"
+            }
         },
         {
             "key": "telemetry.feedback.enabled",
@@ -881,7 +1146,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "telemetry.telemetryLevel",
@@ -920,7 +1188,10 @@
                 "crash",
                 "off"
             ],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "update.mode",
@@ -959,7 +1230,10 @@
                 "start",
                 "default"
             ],
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "workbench.browser.enableChatTools",
@@ -974,7 +1248,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         }
     ]
 }

@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AgentHostE2EServerLease, type IAgentHostE2EProviderConfig, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
-import type { IAgentHostTarget } from '../harness/agentHostTarget.js';
+import { defaultAgentHostTarget, type IAgentHostTarget } from '../harness/agentHostTarget.js';
 import type { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { defineCoreTests } from './coreSuite.js';
 import { defineCustomizationDiscoveryTests } from './customizationDiscoverySuite.js';
 import { defineAnnotationsTests } from './annotationsSuite.js';
 import { defineChangesetTests } from './changesetSuite.js';
 import { defineClientFilesystemTests } from './clientFilesystemSuite.js';
+import { defineClientHostedFilesystemTests } from './clientHostedFilesystemSuite.js';
 import { defineProtocolContractTests } from './protocolContractsSuite.js';
 import { defineServerToolsTests } from './serverToolsSuite.js';
 import { defineSessionPersistenceTests } from './sessionPersistenceSuite.js';
@@ -18,11 +19,21 @@ import { defineFileOperationsTests } from './fileOperationsSuite.js';
 import { defineHostFeaturesTests } from './hostFeaturesSuite.js';
 import { defineMultiChatTests } from './multiChatSuite.js';
 import { defineMcpPluginTests } from './mcpPluginSuite.js';
+import { defineMcpSideChannelTests } from './mcpSideChannelSuite.js';
+import { defineProviderCheckpointTests } from './providerCheckpointSuite.js';
+import { defineProviderErrorTests } from './providerErrorSuite.js';
+import { defineCopilotRuntimeMcpTests } from './copilotRuntimeMcpSuite.js';
 import { defineStateOperationsTests } from './stateOperationsSuite.js';
 import { defineSubagentTests } from './subagentSuite.js';
 import { defineTurnLifecycleTests } from './turnLifecycleSuite.js';
 import { defineWorkspaceTests } from './workspaceSuite.js';
+import { defineWorkingDirectoriesTests } from './workingDirectoriesSuite.js';
+import { defineWorkspaceConversionTests } from './workspaceConversionSuite.js';
 import { defineCopilotCoverageTests } from './copilotCoverageSuite.js';
+import { defineCopilotRuntimeToolsTests } from './copilotRuntimeToolsSuite.js';
+import { defineManagementExtensionTests } from './managementExtensionsSuite.js';
+import { defineAutomationsTests } from './automationsSuite.js';
+import { defineDetachedWorktreeTests } from './detachedWorktreeSuite.js';
 import type { AgentHostE2ETier, IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const isLinux = process.platform === 'linux';
@@ -49,6 +60,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		const noModelTrafficTestTitles = new Set<string>();
 		const context: IAgentHostE2ETestContext = {
 			tier: options.tier,
+			targetId: (options.target ?? defaultAgentHostTarget).id,
 			config,
 			get client() { return client; },
 			createdSessions,
@@ -61,6 +73,12 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			runHostOnlyKnownIssueTests: RUN_HOST_ONLY_KNOWN_ISSUE_TESTS,
 			registerNoModelTrafficTest: title => noModelTrafficTestTitles.add(title),
 			get observedModelRequestBodies() { return lease?.observedModelRequestBodies ?? []; },
+			setRecordingModelResponse: (response, path) => {
+				if (!lease) {
+					throw new Error('[agent-host-e2e] no server lease');
+				}
+				lease.setRecordingModelResponse(response, path);
+			},
 			restartServer: async () => {
 				if (!lease) {
 					throw new Error('[agent-host-e2e] no server lease');
@@ -121,7 +139,7 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			// into the next, unrelated test.
 			const failed = this.currentTest?.state === 'failed';
 			if (failed) {
-				// Surface the Copilot runtime's own logs for a hang/timeout before
+				// Surface host/provider diagnostics for a hang or crash before
 				// the server is restarted and its temp home is eventually removed.
 				lease.dumpRuntimeLogsOnFailure(this.currentTest?.title ?? 'unknown');
 			}
@@ -131,29 +149,34 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 			} catch (error) {
 				errors.push(error instanceof Error ? error : new Error(String(error)));
 			}
-			try {
-				await removeTempDirs(tempDirs);
-			} catch (error) {
-				errors.push(error instanceof Error ? error : new Error(String(error)));
-			}
+			// Provider subprocesses can retain workspace handles until suite teardown stops the lease.
 			if (errors.length > 0) {
 				throw new AggregateError(errors, `Failed to dispose Agent Host E2E test resources: ${errors.map(error => error.message).join('; ')}`);
 			}
 		});
+
+		defineAutomationsTests(context);
+		defineWorkingDirectoriesTests(context);
+		defineWorkspaceConversionTests(context);
 
 		// Suites that contain only conformance-tier scenarios.
 		if (options.tier === 'conformance') {
 			defineHostFeaturesTests(context);
 			defineStateOperationsTests(context);
 			defineClientFilesystemTests(context);
+			defineClientHostedFilesystemTests(context);
 			defineAnnotationsTests(context);
 			defineProtocolContractTests(context);
+			defineDetachedWorktreeTests(context);
 		}
 
 		// Suites that contain only parity-tier scenarios.
 		if (options.tier === 'parity') {
 			defineCoreTests(context);
+			defineCopilotRuntimeMcpTests(context);
+			defineHostFeaturesTests(context);
 			defineCopilotCoverageTests(context);
+			defineCopilotRuntimeToolsTests(context);
 			defineFileOperationsTests(context);
 			defineTurnLifecycleTests(context);
 			defineWorkspaceTests(context);
@@ -166,9 +189,13 @@ function defineSuite(config: IAgentHostE2EProviderConfig, options: IDefineOption
 		defineMultiChatTests(context);
 		defineChangesetTests(context);
 		defineMcpPluginTests(context);
+		defineMcpSideChannelTests(context);
+		defineProviderCheckpointTests(context);
+		defineProviderErrorTests(context);
 		defineServerToolsTests(context);
 		defineCustomizationDiscoveryTests(context);
 		defineSessionPersistenceTests(context);
+		defineManagementExtensionTests(context);
 	});
 }
 

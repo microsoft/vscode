@@ -6,6 +6,7 @@
 import { ICopilotTokenInfo, IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../base/common/defaultAccount.js';
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IManagedSettingsFreshness, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../policy/common/managedSettingsFreshness.js';
 
 /**
  * Well-known GitHub URL paths used with {@link IDefaultAccountService.resolveGitHubUrl}.
@@ -35,6 +36,14 @@ export interface IManagedSettingsCompatibilityError {
 	readonly minimumClientVersion?: string;
 }
 
+export interface IDefaultAccountRefreshOptions {
+	readonly forceRefresh?: boolean;
+	/** Refreshes entitlement data even when its cache is fresh. */
+	readonly refreshEntitlements?: boolean;
+	/** Allows an explicit user action to retry managed settings after a failed attempt. */
+	readonly retryManagedSettings?: boolean;
+}
+
 export interface IDefaultAccountProvider {
 	readonly defaultAccount: IDefaultAccount | null;
 	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
@@ -49,18 +58,17 @@ export interface IDefaultAccountProvider {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	readonly managedSettingsFreshness: IManagedSettingsFreshness;
+	readonly onDidChangeManagedSettingsFreshness: Event<IManagedSettingsFreshness>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 
 	/**
-	 * Resolves a GitHub URL path to a full URL, using the GitHub Enterprise
-	 * base URL when the user is authenticated via a GHE provider, or
-	 * `https://github.com` otherwise.
-	 *
-	 * @param path The path portion of the URL (e.g. `settings/copilot/features`).
+	 * Resolves a GitHub path against the selected session's enterprise server, or `https://github.com` for a non-enterprise provider.
+	 * Returns `undefined` when enterprise authentication is selected but the session's server is unavailable.
 	 */
-	resolveGitHubUrl(path: string): string;
+	resolveGitHubUrl(path: string): string | undefined;
 
-	refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null>;
+	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
 }
@@ -82,19 +90,20 @@ export interface IDefaultAccountService {
 	readonly managedSettingsRawResponse: unknown;
 	readonly managedSettingsCompatibilityError: IManagedSettingsCompatibilityError | null;
 	readonly onDidChangeManagedSettingsCompatibilityError: Event<IManagedSettingsCompatibilityError | null>;
+	readonly managedSettingsFreshness: IManagedSettingsFreshness;
+	readonly onDidChangeManagedSettingsFreshness: Event<IManagedSettingsFreshness>;
 	getDefaultAccount(): Promise<IDefaultAccount | null>;
 	getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider;
 	setDefaultAccountProvider(provider: IDefaultAccountProvider): void;
-	refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null>;
+	refresh(options?: IDefaultAccountRefreshOptions): Promise<IDefaultAccount | null>;
 	signIn(options?: { additionalScopes?: readonly string[];[key: string]: unknown }): Promise<IDefaultAccount | null>;
 	signOut(): Promise<void>;
 
 	/**
-	 * Resolves a GitHub URL path to a full URL, using the GitHub Enterprise
-	 * base URL when the user is authenticated via a GHE provider, or
-	 * `https://github.com` otherwise.
-	 *
-	 * @param path The path portion of the URL (e.g. `settings/copilot/features`).
+	 * Resolves a GitHub path against the selected session's enterprise server, or `https://github.com` for a non-enterprise provider.
+	 * Returns `undefined` when enterprise authentication is selected but the session's server is unavailable.
 	 */
-	resolveGitHubUrl(path: string): string;
+	resolveGitHubUrl(path: string): string | undefined;
 }
+
+export { MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED };

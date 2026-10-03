@@ -14,7 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { IAgent } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 
 type DebugLogsProvider = Pick<IAgent, 'id' | 'collectDebugLogs'>;
 type LocalZipFile = IFile & { readonly localPath: string };
@@ -38,7 +38,7 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		this._register(toDisposable(() => void this.cleanup()));
 	}
 
-	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind): Promise<IAgentHostDebugLogsArtifact> {
+	async collect(providers: readonly DebugLogsProvider[], session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
 		const id = generateUuid();
 		const staging = join(this._environment.tmpDir.fsPath, `agent-host-debug-logs-${id}`);
 		await mkdir(staging, { recursive: true });
@@ -54,35 +54,19 @@ export class AgentHostDebugLogsCollector extends Disposable {
 				// An implemented provider contributor is part of this collection,
 				// so its failure must fail the export. Providers without additional
 				// diagnostics still get the Agent Host process log below.
-				providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging)) || providerLogsIncluded;
+				providerLogsIncluded = await provider.collectDebugLogs(session, URI.file(staging), chat) || providerLogsIncluded;
 			}
 
-			await this._copyOptional(
-				join(this._environment.logsHome.fsPath, 'agenthost.log'),
-				join(staging, 'agenthost.log'),
-			);
+			await this._copyAgentHostLogs(staging);
 
 			const files = await collectFiles(staging);
-			// Process logs can reach hundreds of megabytes. Keep the tail of any
-			// oversized file: it is the part that explains a recent failure, and
-			// it keeps the artifact within the size the client will accept —
-			// whether the file came from a provider's SDK bundle or was copied
-			// in directly.
 			let uncompressedSize = 0;
 			const artifactEntries: { path: string; size: number }[] = [];
 			for (const file of files) {
-				const size = await truncateToTail(file.localPath, AGENT_HOST_DEBUG_LOGS_MAX_FILE_BYTES);
+				const { size } = await stat(file.localPath);
 				uncompressedSize += size;
 				artifactEntries.push({ path: file.path, size });
 			}
-			// A directory artifact is copied file-by-file, so its uncompressed
-			// size is what crosses the wire. An archive only has to keep the
-			// staged input bounded; the archive itself is checked after zipping.
-			const stagedLimit = kind === 'directory' ? AGENT_HOST_DEBUG_LOGS_MAX_BYTES : AGENT_HOST_DEBUG_LOGS_MAX_STAGED_BYTES;
-			if (uncompressedSize > stagedLimit) {
-				throw new Error(`Agent Host debug logs are too large (${uncompressedSize} bytes; limit ${stagedLimit} bytes)`);
-			}
-
 			if (kind === 'directory') {
 				retainStaging = true;
 				this._scheduleCleanup(staging, true, files.map(file => file.localPath));
@@ -91,9 +75,6 @@ export class AgentHostDebugLogsCollector extends Disposable {
 
 			await zip(archive, files);
 			const archiveSize = (await stat(archive)).size;
-			if (archiveSize > AGENT_HOST_DEBUG_LOGS_MAX_BYTES) {
-				throw new Error(`Agent Host debug log archive is too large (${archiveSize} bytes; limit ${AGENT_HOST_DEBUG_LOGS_MAX_BYTES} bytes)`);
-			}
 			this._scheduleCleanup(archive, false, [archive]);
 			return { kind, resource: URI.file(archive), providerLogsIncluded, size: archiveSize, uncompressedSize, entries: artifactEntries };
 		} catch (error) {
@@ -151,11 +132,26 @@ export class AgentHostDebugLogsCollector extends Disposable {
 		}));
 	}
 
-	private async _copyOptional(source: string, target: string): Promise<void> {
+	private async _copyAgentHostLogs(staging: string): Promise<void> {
+		let names: string[];
 		try {
-			await copyFile(source, target);
+			names = (await readdir(this._environment.logsHome.fsPath, { withFileTypes: true }))
+				.filter(entry => entry.isFile() && (
+					isRotatedLogFile(entry.name, 'agenthost.log')
+					|| isRotatedLogFile(entry.name, 'agenthost-server.log')
+				))
+				.map(entry => entry.name);
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+				this._logService.warn(`[AgentHostDebugLogs] Failed to enumerate Agent Host process logs`, error);
+			}
+			return;
+		}
+		for (const name of names) {
+			const source = join(this._environment.logsHome.fsPath, name);
+			try {
+				await copyFile(source, join(staging, name));
+			} catch (error) {
 				this._logService.warn(`[AgentHostDebugLogs] Failed to include ${source}`, error);
 			}
 		}
@@ -187,27 +183,6 @@ function artifactKey(path: string): string {
 	return URI.file(path).fsPath;
 }
 
-/**
- * Rewrites `path` in place to its last `maxBytes` bytes when it exceeds them.
- * Returns the resulting size.
- */
-async function truncateToTail(path: string, maxBytes: number): Promise<number> {
-	const { size } = await stat(path);
-	if (size <= maxBytes) {
-		return size;
-	}
-	const handle = await open(path, 'r+');
-	try {
-		const buffer = Buffer.allocUnsafe(maxBytes);
-		const { bytesRead } = await handle.read(buffer, 0, maxBytes, size - maxBytes);
-		await handle.write(buffer, 0, bytesRead, 0);
-		await handle.truncate(bytesRead);
-		return bytesRead;
-	} finally {
-		await handle.close();
-	}
-}
-
 async function collectFiles(root: string, relative = '', files: LocalZipFile[] = []): Promise<LocalZipFile[]> {
 	const directory = join(root, relative);
 	const entries = await readdir(directory, { withFileTypes: true });
@@ -223,4 +198,17 @@ async function collectFiles(root: string, relative = '', files: LocalZipFile[] =
 		}
 	}
 	return files;
+}
+
+function isRotatedLogFile(candidate: string, current: string): boolean {
+	if (candidate === current) {
+		return true;
+	}
+	const stem = current.endsWith('.log') ? current.slice(0, -'.log'.length) : current;
+	const prefix = `${stem}.`;
+	if (!candidate.startsWith(prefix) || !candidate.endsWith('.log')) {
+		return false;
+	}
+	const rotation = candidate.slice(prefix.length, -'.log'.length);
+	return /^[1-9]\d*$/.test(rotation);
 }

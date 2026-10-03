@@ -8,10 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatFetchResponseType, ChatResponse } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
-import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
+import { CacheType, CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { ThinkingDataInMessage } from '../../../../platform/thinking/common/thinking';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -19,7 +20,7 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { OpenAIEndpoint } from '../openAIEndpoint';
 
 // Test fixtures for thinking content
-const createThinkingMessage = (thinkingId: string, thinkingText: string): Raw.ChatMessage => ({
+const createThinkingMessage = (thinkingId: string | undefined, thinkingText: string | string[]): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
@@ -240,6 +241,29 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(messages[0].reasoning).toBe('The user asked me to analyze the project. I should call the read_file tool.');
 		});
 
+		it.each([undefined, ''])('issue #338819: emits reasoning text without a provider ID (%s)', thinkingId => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const body = endpoint.createRequestBody(createTestOptions([
+				createThinkingMessage(thinkingId, ['Read the file.\n', 'Then explain it.'])
+			]));
+			const [message] = body.messages as ThinkingDataInMessage[];
+
+			expect({
+				id: message.cot_id,
+				summary: message.cot_summary,
+				reasoning: message.reasoning_content,
+				alias: message.reasoning,
+			}).toEqual({
+				id: undefined,
+				summary: undefined,
+				reasoning: 'Read the file.\nThen explain it.',
+				alias: 'Read the file.\nThen explain it.',
+			});
+		});
+
 		it('issue #312746: does not emit reasoning_content / reasoning when the model does not support thinking', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
@@ -297,6 +321,32 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	});
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
+		it('keeps explicit prompt caching off for BYOK Responses requests unless the user opts in', async () => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{
+					...modelMetadata,
+					capabilities: { ...modelMetadata.capabilities, family: 'gpt-5.6-sol' }
+				},
+				'test-api-key',
+				'http://localhost:4000/v1/responses');
+			const createBody = () => endpoint.createRequestBody(createTestOptions([{
+				role: Raw.ChatRole.User,
+				content: [
+					{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' },
+					{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: CacheType },
+				],
+			}]));
+
+			const defaultBody = createBody();
+			await accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiPromptCacheBreakpointEnabled, true);
+			const optedInBody = createBody();
+
+			expect([defaultBody, optedInBody].map(body => ({ options: body.prompt_cache_options, input: body.input }))).toEqual([
+				{ options: { mode: 'implicit' }, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello' }] }] },
+				{ options: { mode: 'explicit' }, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hello', prompt_cache_breakpoint: { mode: 'explicit' } }] }] },
+			]);
+		});
+
 		it('adds an empty object schema to a parameterless tool', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
@@ -548,14 +598,15 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 			expect(response.type === ChatFetchResponseType.Failed && response.reason).toBe('{"code":0,"message":"something broke","metadata":{"code":"server_error"}}');
 		});
 
-		it('disables marker reuse and store for ZDR Responses requests', () => {
+		it('keeps store and marker reuse disabled for ordinary OpenAI BYOK ZDR Responses requests', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
 				{
 					...modelMetadata,
+					vendor: 'OpenAI',
 					zeroDataRetentionEnabled: true,
 				},
 				'test-api-key',
-				'https://api.openai.com/v1/chat/completions');
+				'https://api.openai.com/v1/responses');
 			const messages: Raw.ChatMessage[] = [
 				{
 					role: Raw.ChatRole.User,

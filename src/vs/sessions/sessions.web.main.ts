@@ -78,6 +78,7 @@ import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js'
 import '../workbench/services/power/browser/powerService.js';
 import '../workbench/services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
+import '../platform/remoteTunnel/browser/remoteTunnelService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -108,6 +109,8 @@ import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/br
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
 import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentsWindowRemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
+import { IRemoteAgentHostLocationPreferenceService } from '../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { RemoteAgentHostLocationPreferenceService } from '../platform/agentHost/browser/remoteAgentHostLocationPreferenceService.js';
 import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
 import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemoteAgentHost.js';
@@ -136,6 +139,7 @@ registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, I
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, AgentsWindowRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreferenceService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IWSLRemoteAgentHostService, NullWSLRemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentHostService, EditorRemoteAgentHostServiceClient, InstantiationType.Delayed);
@@ -156,16 +160,14 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/providers/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
-// Tunnel hosting is CLI-backed and therefore unavailable in the browser, but
-// the tunnel agent host contribution below still depends on the service to
-// identify a locally hosted tunnel. Register the inert web implementation.
-import './contrib/tunnelHost/browser/webTunnelHostService.contribution.js';
-
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // WSL agent host — reconciles cached WSL distros into session providers
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
+
+// WebSocket agent host — reconciles configured WebSocket hosts into session providers
+import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
 
 // Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
@@ -197,12 +199,6 @@ import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker
 // experience used by the empty new-chat input, applied to the
 // already-opened chat input. Web-only for the same reason as above.
 import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
-
-// Mobile-aware Copilot permission picker. Replaces the desktop
-// permission picker registration (which the shared contribution
-// skips when `isWeb`), so we get the bottom-sheet sheet on phone
-// without duplicate-registration conflicts.
-import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
 
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

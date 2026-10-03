@@ -172,7 +172,7 @@ suite('PullRequestQueryService', () => {
 										path: 'a.ts',
 										diffSide: 'RIGHT',
 										comments: {
-											nodes: [{ id: 'C1', databaseId: 1, body: 'first', author: { login: 'a' } }],
+											nodes: [{ id: 'C1', databaseId: 1, body: 'first', state: 'SUBMITTED', author: { login: 'a' } }],
 											pageInfo: { hasNextPage: true, endCursor: 'comments-1' },
 										},
 									}],
@@ -188,7 +188,7 @@ suite('PullRequestQueryService', () => {
 					response: gitHubGraphQLResponse({
 						node: {
 							comments: {
-								nodes: [{ id: 'C2', databaseId: 2, body: 'second', author: { login: 'b' } }],
+								nodes: [{ id: 'C2', databaseId: 2, body: 'second', state: 'PENDING', author: { login: 'b' } }],
 								pageInfo: { hasNextPage: false, endCursor: null },
 							},
 						},
@@ -237,8 +237,8 @@ suite('PullRequestQueryService', () => {
 						line: undefined,
 						originalLine: undefined,
 						comments: [
-							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT'),
-							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT'),
+							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT', 'SUBMITTED'),
+							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT', 'PENDING'),
 						],
 					},
 					{
@@ -301,6 +301,117 @@ suite('PullRequestQueryService', () => {
 				credential,
 				new AbortController().signal,
 			), /old pull request head/);
+			server.assertSatisfied();
+		});
+	});
+
+	test('drops workflow names when the host refuses them and keeps the fallback for later polls', async () => {
+		await withServer(async server => {
+			const checkRun = { __typename: 'CheckRun', databaseId: 1, name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', isRequired: true };
+			const expectedSuitesResponse = gitHubGraphQLResponse({
+				repository: {
+					object: {
+						oid: 'head-1',
+						checkSuites: {
+							nodes: [{ id: 'CS1', status: 'COMPLETED', conclusion: 'SUCCESS', app: { name: 'Build' }, checkRuns: { totalCount: 1 } }],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'workflowRun'],
+					response: gitHubGraphQLResponse(undefined, [{
+						type: 'FORBIDDEN',
+						message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+					}]),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(!request.graphQl?.query?.includes('workflowRun'), 'retry must omit the refused workflow-name subselection'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(!request.graphQl?.query?.includes('workflowRun'), 'later polls must not retry the refused subselection'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: expectedSuitesResponse }),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			// The Agent Merge subscription shape, which always loads expected suites.
+			const options = { priority: 'interactive', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+
+			const expected = {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: undefined }],
+					requirednessComplete: true,
+					expectedSuites: [{ id: 'CS1', name: 'Build', status: 'COMPLETED', conclusion: 'SUCCESS', checkRunsReported: true }],
+					expectedSuitesComplete: true,
+				},
+				complete: true,
+				headSha: 'head-1',
+			};
+			assert.deepStrictEqual([first, second], [expected, expected]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('keeps checks usable when only the expected check suites are refused', async () => {
+		await withServer(async server => {
+			const checkRun = {
+				__typename: 'CheckRun',
+				databaseId: 1,
+				name: 'CI',
+				status: 'COMPLETED',
+				conclusion: 'SUCCESS',
+				isRequired: true,
+				checkSuite: { workflowRun: { workflow: { name: 'Code OSS' } } },
+			};
+			const refusal = gitHubGraphQLResponse(undefined, [{
+				type: 'FORBIDDEN',
+				message: 'Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization.',
+			}]);
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestChecks', 'workflowRun'],
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostPullRequestChecks',
+					assert: request => assert.ok(request.graphQl?.query?.includes('workflowRun'), 'a refused expected-suites request must not disable workflow names'),
+					response: gitHubGraphQLResponse(checksPage('head-1', [checkRun], false)),
+				}),
+				gitHubGraphQLStep({ queryIncludes: 'AgentHostPullRequestExpectedCheckSuites', response: refusal }),
+			);
+			const { query, ref, credential } = setup(server);
+			const signal = new AbortController().signal;
+			const options = { priority: 'interactive', checks: { required: true } } as const;
+			const first = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+			const second = await query.fetch('checks', ref, core('head-1'), options, credential, signal);
+
+			// Checks stay readable, and the missing suites are reported incomplete.
+			const expected = {
+				fragment: 'checks',
+				value: {
+					headSha: 'head-1',
+					checks: [{ id: '1', type: 'checkRun', name: 'CI', status: 'COMPLETED', conclusion: 'SUCCESS', required: true, detailsUrl: undefined, workflowName: 'Code OSS' }],
+					requirednessComplete: true,
+					expectedSuites: [],
+					expectedSuitesComplete: false,
+				},
+				complete: true,
+				headSha: 'head-1',
+			};
+			assert.deepStrictEqual([first, second], [expected, expected]);
 			server.assertSatisfied();
 		});
 	});
@@ -378,6 +489,7 @@ suite('PullRequestQueryService', () => {
 							mergeCommitAllowed: true,
 							squashMergeAllowed: true,
 							rebaseMergeAllowed: false,
+							viewerPermission: 'WRITE',
 							mergeQueue: null,
 							pullRequest: {
 								headRefOid: 'head-1',
@@ -386,7 +498,6 @@ suite('PullRequestQueryService', () => {
 								mergeStateStatus: 'CLEAN',
 								reviewDecision: 'APPROVED',
 								viewerCanUpdateBranch: true,
-								viewerCanMerge: true,
 								viewerCanEnableAutoMerge: true,
 								autoMergeRequest: null,
 								mergeQueueEntry: null,
@@ -445,6 +556,118 @@ suite('PullRequestQueryService', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	test('derives merge permission from the repository permission of the viewer', async () => {
+		// `null` is what GitHub returns when the request is authenticated as a GitHub App.
+		const permissions = ['ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ', null];
+		const canMerge: Record<string, boolean> = {};
+		for (const viewerPermission of permissions) {
+			await withServer(async server => {
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: ['AgentHostPullRequestMergeability', 'viewerPermission'],
+					response: gitHubGraphQLResponse({
+						repository: {
+							mergeCommitAllowed: true,
+							squashMergeAllowed: false,
+							rebaseMergeAllowed: false,
+							viewerPermission,
+							mergeQueue: null,
+							pullRequest: {
+								headRefOid: 'head-1',
+								baseRefOid: 'base',
+								mergeable: 'MERGEABLE',
+								mergeStateStatus: 'CLEAN',
+								reviewDecision: 'APPROVED',
+								viewerCanUpdateBranch: false,
+								viewerCanEnableAutoMerge: false,
+								autoMergeRequest: null,
+								mergeQueueEntry: null,
+							},
+						},
+					}),
+				}));
+				const { query, ref, credential } = setup(server);
+				const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+				assert.ok(result.fragment === 'mergeability', `expected a mergeability fragment for ${viewerPermission ?? 'null'}, got ${result.fragment}`);
+				canMerge[viewerPermission ?? 'null'] = result.value.viewerCanMerge;
+				server.assertSatisfied();
+			});
+		}
+
+		assert.deepStrictEqual(canMerge, {
+			ADMIN: true,
+			MAINTAIN: true,
+			WRITE: true,
+			TRIAGE: false,
+			READ: false,
+			null: false,
+		});
+	});
+
+	test('normalizes the remaining mergeability fields', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: ['AgentHostPullRequestMergeability', 'viewerPermission'],
+				response: gitHubGraphQLResponse({
+					repository: {
+						mergeCommitAllowed: true,
+						squashMergeAllowed: false,
+						rebaseMergeAllowed: false,
+						viewerPermission: 'READ',
+						mergeQueue: null,
+						pullRequest: {
+							headRefOid: 'head-1',
+							baseRefOid: 'base',
+							mergeable: 'MERGEABLE',
+							mergeStateStatus: 'CLEAN',
+							reviewDecision: 'APPROVED',
+							viewerCanUpdateBranch: false,
+							viewerCanEnableAutoMerge: false,
+							autoMergeRequest: null,
+							mergeQueueEntry: null,
+						},
+					},
+				}),
+			}));
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch('mergeability', ref, core('head-1'), { priority: 'interactive', mergeability: true }, credential, new AbortController().signal);
+
+			assert.deepStrictEqual(result.fragment === 'mergeability' ? result.value : undefined, {
+				headSha: 'head-1',
+				baseSha: 'base',
+				mergeable: 'MERGEABLE',
+				mergeStateStatus: 'CLEAN',
+				reviewDecision: 'APPROVED',
+				viewerCanUpdate: false,
+				viewerCanMerge: false,
+				viewerCanEnableAutoMerge: false,
+				allowedMergeMethods: ['MERGE'],
+				autoMergeEnabled: false,
+				mergeQueueEntryId: undefined,
+				mergeQueueRequired: false,
+				queueRequirementKnown: true,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without accepting partial checks`, async () => {
+			await withServer(async server => {
+				const errors = [{ type, message: 'Checks rate limited' }];
+				server.enqueue(gitHubGraphQLStep({
+					response: gitHubGraphQLResponse(checksPage('head-1', [], false), errors),
+				}));
+				const { query, ref, credential } = setup(server);
+
+				await assert.rejects(
+					() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+					{ name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors },
+				);
+				server.assertSatisfied();
+			});
+		});
+	}
 
 	test('fails closed for fallback checks and stale-head GraphQL checks', async () => {
 		await withServer(async server => {
@@ -508,6 +731,86 @@ suite('PullRequestQueryService', () => {
 			);
 			server.assertSatisfied();
 		});
+
+	});
+
+	test('REST mergeability fallback stays incomplete and never grants merge permissions', async () => {
+		await withServer(async server => {
+			const responses = [
+				{ mergeable: true, mergeable_state: 'clean', auto_merge: {} },
+				{ mergeable: false, mergeable_state: 'dirty', auto_merge: null },
+				{ mergeable: null, mergeable_state: 'unknown', auto_merge: null },
+			];
+			server.enqueue(...responses.map(body => gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo/pulls/7',
+				assert: request => assert.strictEqual(request.headers['if-none-match'], undefined),
+				response: gitHubJsonResponse(body, { etag: '"mergeability"' }),
+			})));
+			const { query, ref, credential } = setup(server, { ...availableCapabilities, graphql: false });
+			const results = [];
+			for (let index = 0; index < responses.length; index++) {
+				results.push(await query.fetch('mergeability', ref, core('head-1'), {
+					priority: 'interactive', mergeability: true,
+				}, credential, new AbortController().signal));
+			}
+			assert.deepStrictEqual(results, ['MERGEABLE', 'CONFLICTING', 'UNKNOWN'].map((mergeable, index) => ({
+				fragment: 'mergeability',
+				complete: false,
+				headSha: 'head-1',
+				value: {
+					headSha: 'head-1', baseSha: 'base', mergeable, mergeStateStatus: responses[index].mergeable_state,
+					viewerCanUpdate: false, viewerCanMerge: false, viewerCanEnableAutoMerge: false, allowedMergeMethods: [],
+					autoMergeEnabled: index === 0, mergeQueueRequired: false, queueRequirementKnown: false,
+				},
+			})));
+			server.assertSatisfied();
+		});
+	});
+
+	test('paginates participants and merges duplicate actors and their roles', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/issues/7/timeline',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse([
+						{ actor: { id: 1, login: 'author' } },
+						{ user: { id: 2, login: 'commenter' } },
+						{ actor: { id: 3, login: 'reviewer' }, requested_reviewer: { id: 3, login: 'reviewer' } },
+						{ requested_reviewer: { id: 4, login: 'only-reviewer' } },
+					], { link: `<${server.apiBaseUrl}/repos/octo/repo/issues/7/timeline?per_page=100&page=2>; rel="next"` }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/issues/7/timeline',
+					query: { per_page: 100, page: 2 },
+					response: gitHubJsonResponse([
+						{ actor: { id: 2, login: 'commenter' } },
+						{ requested_reviewer: { id: 1, login: 'author' } },
+						{},
+					]),
+				}),
+			);
+			const { query, ref, credential } = setup(server);
+			const result = await query.fetch('participants', ref, core('head-1'), {
+				priority: 'visible', participants: true,
+			}, credential, new AbortController().signal);
+			assert.deepStrictEqual(result, {
+				fragment: 'participants',
+				complete: true,
+				value: {
+					participants: [
+						{ id: '1', login: 'author', roles: ['author', 'commenter', 'reviewer'] },
+						{ id: '2', login: 'commenter', roles: ['commenter'] },
+						{ id: '4', login: 'only-reviewer', roles: ['reviewer'] },
+						{ id: '3', login: 'reviewer', roles: ['commenter', 'reviewer'] },
+					],
+				},
+			});
+			server.assertSatisfied();
+		});
 	});
 });
 
@@ -557,7 +860,7 @@ function core(headSha: string): PullRequestCore {
 	};
 }
 
-function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string): object {
+function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string, state: string): object {
 	return {
 		id,
 		nodeId,
@@ -566,6 +869,7 @@ function graphQLComment(id: string, nodeId: string, login: string, body: string,
 		url: undefined,
 		createdAt: undefined,
 		updatedAt: undefined,
+		state,
 		path: undefined,
 		line: undefined,
 		originalLine: undefined,

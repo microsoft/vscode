@@ -216,7 +216,7 @@ function gitMeta(owner: string, repo: string, branch: string): SessionMeta {
 }
 
 function thread(isResolved: boolean): IGitHubPullRequestReviewThread {
-	return { id: `thread-${isResolved}`, isResolved, path: 'file.ts', line: 1, comments: [] };
+	return { id: `thread-${isResolved}`, isResolved, path: 'file.ts', startLine: undefined, line: 1, comments: [] };
 }
 
 function makePullRequest(details: PullRequestDetails): IGitHubPullRequest {

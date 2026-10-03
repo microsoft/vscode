@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildCancelEditAttributionResource, buildCommitEditAttributionResource, buildPrepareEditAttributionResource, parseEditAttributionResource } from '../../common/fileEditAttribution.js';
+import { buildCancelEditAttributionResource, buildCommitEditAttributionResource, buildPrepareEditAttributionResource, FILE_EDIT_ATTRIBUTION_PROPERTY, getFileEditAttributionMarker, parseEditAttributionResource } from '../../common/fileEditAttribution.js';
+import { ToolResultContentType } from '../../common/state/sessionState.js';
 
 suite('File Edit Attribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,5 +53,23 @@ suite('File Edit Attribution', () => {
 			commit: { kind: 'commit', params: commit },
 			cancel: { kind: 'cancel', params: cancel },
 		});
+	});
+
+	test('accepts optional chat identity but rejects malformed chat metadata', () => {
+		const results = [undefined, 'hashed-chat-id', 42].map(chatSessionId => {
+			const content = {
+				type: ToolResultContentType.FileEdit,
+				[FILE_EDIT_ATTRIBUTION_PROPERTY]: {
+					version: 1,
+					editId: 'edit-1',
+					sequence: 1,
+					beforeDigest: 'before',
+					afterDigest: 'after',
+					source: { conversationId: 'session-1', chatSessionId, requestId: 'turn-1', harness: 'copilotcli' },
+				},
+			} as const;
+			return !!getFileEditAttributionMarker(content);
+		});
+		assert.deepStrictEqual(results, [true, true, false]);
 	});
 });

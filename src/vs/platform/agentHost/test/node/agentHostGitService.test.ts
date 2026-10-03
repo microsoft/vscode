@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
+import { needsSessionGitStateRefresh } from '../../common/state/sessionState.js';
 
 suite('AgentHostGitService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,13 +34,13 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
-	test('sorts the current and default branches before recent branches and applying the limit', () => {
+	test('sorts the current and default branches before recent branches', () => {
 		assert.deepStrictEqual(
 			getBranchCompletions(
 				['feature/recent', 'dev', 'feature/current', 'main', 'feature/older'],
-				{ currentBranch: 'feature/current', defaultBranch: 'dev', limit: 3 },
+				{ currentBranch: 'feature/current', defaultBranch: 'dev' },
 			),
-			['feature/current', 'dev', 'feature/recent'],
+			['feature/current', 'dev', 'feature/recent', 'main', 'feature/older'],
 		);
 	});
 
@@ -50,16 +51,6 @@ suite('AgentHostGitService', () => {
 				{ currentBranch: 'other', defaultBranch: 'main' },
 			),
 			['feature/recent', 'release', 'feature/older'],
-		);
-	});
-
-	test('filters before prioritizing the current and default branches', () => {
-		assert.deepStrictEqual(
-			getBranchCompletions(
-				['feature/recent', 'maintenance', 'main', 'feature/current'],
-				{ currentBranch: 'feature/current', defaultBranch: 'maintenance', query: 'ma' },
-			),
-			['maintenance', 'main'],
 		);
 	});
 
@@ -104,6 +95,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'main',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/main',
 				outgoingChanges: 0,
 				incomingChanges: 0,
@@ -123,6 +115,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: 'feature',
+				isDetachedHead: undefined,
 				upstreamBranchName: 'origin/feature',
 				outgoingChanges: 3,
 				incomingChanges: 2,
@@ -137,6 +130,7 @@ suite('AgentHostGitService', () => {
 			].join('\n');
 			assert.deepStrictEqual(parseGitStatusV2(out), {
 				branchName: undefined,
+				isDetachedHead: true,
 				upstreamBranchName: undefined,
 				outgoingChanges: undefined,
 				incomingChanges: undefined,
@@ -146,6 +140,24 @@ suite('AgentHostGitService', () => {
 
 		test('returns empty object for undefined input', () => {
 			assert.deepStrictEqual(parseGitStatusV2(undefined), {});
+		});
+	});
+
+	suite('needsSessionGitStateRefresh', () => {
+		test('separates a branch-less probe failure from a detached HEAD', () => {
+			assert.deepStrictEqual({
+				neverComputed: needsSessionGitStateRefresh(undefined),
+				// The residue of a failed `git status`, as persisted before the
+				// probe learned to withhold state it could not compute.
+				probeFailureRemnant: needsSessionGitStateRefresh({ baseBranchName: 'main' }),
+				detachedHead: needsSessionGitStateRefresh({ isDetachedHead: true, baseBranchName: 'main' }),
+				onABranch: needsSessionGitStateRefresh({ branchName: 'feature', baseBranchName: 'main' }),
+			}, {
+				neverComputed: true,
+				probeFailureRemnant: true,
+				detachedHead: false,
+				onABranch: false,
+			});
 		});
 	});
 
@@ -177,6 +189,26 @@ suite('AgentHostGitService', () => {
 		test('returns undefined for empty/missing output', () => {
 			assert.strictEqual(parseDefaultBranchRef(undefined), undefined);
 			assert.strictEqual(parseDefaultBranchRef('   '), undefined);
+		});
+	});
+
+	suite('parseDefaultRemoteBranchRef', () => {
+		test('splits an origin remote-tracking ref into the default branch and its remote branch', () => {
+			assert.deepStrictEqual({
+				main: parseDefaultRemoteBranchRef('refs/remotes/origin/main\n'),
+				nested: parseDefaultRemoteBranchRef('refs/remotes/origin/release/1.0'),
+				otherRemote: parseDefaultRemoteBranchRef('refs/remotes/upstream/main'),
+				localRef: parseDefaultRemoteBranchRef('refs/heads/main'),
+				prefixOnly: parseDefaultRemoteBranchRef('refs/remotes/origin/'),
+				missing: parseDefaultRemoteBranchRef(undefined),
+			}, {
+				main: { branchName: 'main', remoteBranchName: 'origin/main' },
+				nested: { branchName: 'release/1.0', remoteBranchName: 'origin/release/1.0' },
+				otherRemote: undefined,
+				localRef: undefined,
+				prefixOnly: undefined,
+				missing: undefined,
+			});
 		});
 	});
 
@@ -278,6 +310,9 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				' C copied-new.txt',
 				'copied-old.txt',
+				'AD deleted-index-addition.txt',
+				'RD deleted-rename-destination.txt',
+				'rename-source.txt',
 				' M modified.txt',
 				'',
 			].join('\x00');
@@ -291,6 +326,7 @@ suite('AgentHostGitService', () => {
 				'renamed-old.txt',
 				'copied-new.txt',
 				'copied-old.txt',
+				'rename-source.txt',
 			]);
 		});
 
@@ -309,6 +345,19 @@ suite('AgentHostGitService', () => {
 				'worktree-copied-new.txt',
 				'worktree-copied-old.txt',
 			]);
+		});
+	});
+
+	suite('canRestageOntoIndexCopy', () => {
+		test('allows only statuses whose paths git add can restage onto a copied index', () => {
+			const statuses = [' M', 'M ', 'MM', 'A ', 'AM', ' D', ' T', '??', 'D ', 'AD', 'R ', 'C ', ' R', 'UU', 'AA', 'DD'];
+			assert.deepStrictEqual(
+				Object.fromEntries(statuses.map(status => [status, canRestageOntoIndexCopy(`${status} file.txt\x00`)])),
+				{
+					' M': true, 'M ': true, 'MM': true, 'A ': true, 'AM': true, ' D': true, ' T': true, '??': true,
+					'D ': false, 'AD': false, 'R ': false, 'C ': false, ' R': false, 'UU': false, 'AA': false, 'DD': false,
+				},
+			);
 		});
 	});
 
