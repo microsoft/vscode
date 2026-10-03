@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CachedListVirtualDelegate, IListRenderer, IListVirtualDelegate } from '../../../../browser/ui/list/list.js';
 import { ListView } from '../../../../browser/ui/list/listView.js';
 import { range } from '../../../../common/arrays.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { IRange } from '../../../../common/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
@@ -600,6 +601,65 @@ suite('ListView', function () {
 			assert.doesNotThrow(() => listView.splice(0, 0, elements));
 		} finally {
 			listView.dispose();
+		}
+	});
+
+	test('reports changes requested while rendering or disposing an element, once per list', function () {
+		const errors: Error[] = [];
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(error));
+
+		const delegate: IListVirtualDelegate<number> = {
+			getHeight() { return 20; },
+			getTemplateId() { return 'template'; }
+		};
+		const createListView = (renderer: Pick<IListRenderer<number, void>, 'renderElement' | 'disposeElement'>) => {
+			const element = document.createElement('div');
+			element.style.height = '100px';
+			element.style.width = '200px';
+			document.body.appendChild(element);
+			const listView = new ListView<number>(element, delegate, [{ templateId: 'template', renderTemplate() { }, disposeTemplate() { }, ...renderer }]);
+			listView.layout(100, 200);
+			listView.splice(0, 0, range(20));
+			return { listView, dispose: () => { listView.dispose(); element.remove(); } };
+		};
+
+		// Scrolling renders element 9, whose renderer removes elements from the list.
+		let spliceWhileRendering = false;
+		const splicing = createListView({
+			renderElement(element) {
+				if (element === 9 && spliceWhileRendering) {
+					spliceWhileRendering = false;
+					splicing.listView.splice(0, 1);
+					splicing.listView.splice(0, 1);
+				}
+			},
+		});
+		// Removing element 0 disposes its row, whose renderer resizes another element.
+		let resizeWhileDisposing = false;
+		const resizing = createListView({
+			renderElement() { },
+			disposeElement(element) {
+				if (element === 0 && resizeWhileDisposing) {
+					resizeWhileDisposing = false;
+					resizing.listView.updateElementHeight(2, 40, null);
+				}
+			},
+		});
+		try {
+			spliceWhileRendering = true;
+			splicing.listView.setScrollTop(100);
+			resizeWhileDisposing = true;
+			resizing.listView.splice(0, 1);
+
+			assert.deepStrictEqual(errors.map(error => ({ .../^ListView: '(?<change>[^']+)' was requested from '(?<callback>[^']+)'/.exec(error.message)?.groups })), [
+				{ change: 'splice', callback: 'renderElement(template)' },
+				{ change: 'updateElementHeight', callback: 'disposeElement(template)' },
+			]);
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+			splicing.dispose();
+			resizing.dispose();
 		}
 	});
 });

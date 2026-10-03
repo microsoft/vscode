@@ -20,7 +20,7 @@ import { ISpliceable } from '../../../common/sequence.js';
 import { IListDragAndDrop, IListDragEvent, IListGestureEvent, IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from './list.js';
 import { IRangeMap, RangeMap, shift } from './rangeMap.js';
 import { IRow, RowCache } from './rowCache.js';
-import { BugIndicatingError } from '../../../common/errors.js';
+import { BugIndicatingError, onUnexpectedError } from '../../../common/errors.js';
 import { AriaRole } from '../aria/aria.js';
 import { ScrollableElementChangeOptions } from '../scrollbar/scrollableElementOptions.js';
 import { clamp } from '../../../common/numbers.js';
@@ -317,6 +317,12 @@ export class ListView<T> implements IListView<T> {
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private scrollableElementWidthDelayer = new Delayer<void>(50);
 	private splicing = false;
+	/**
+	 * The renderer callback currently on the stack, e.g. `renderElement(template)`.
+	 * See {@link reportChangeDuringRendererCallback}.
+	 */
+	private rendererCallback: string | undefined;
+	private didReportChangeDuringRendererCallback = false;
 	private dragOverAnimationDisposable: IDisposable | undefined;
 	private dragOverAnimationStopDisposable: IDisposable = Disposable.None;
 	private dragOverMouseY: number = 0;
@@ -569,6 +575,7 @@ export class ListView<T> implements IListView<T> {
 			return;
 		}
 
+		this.reportChangeDuringRendererCallback('updateElementHeight');
 		const originalSize = this.items[index].size;
 
 		if (typeof size === 'undefined') {
@@ -626,6 +633,7 @@ export class ListView<T> implements IListView<T> {
 			throw new Error('Can\'t run recursive splices.');
 		}
 
+		this.reportChangeDuringRendererCallback('splice');
 		this.splicing = true;
 
 		try {
@@ -659,7 +667,13 @@ export class ListView<T> implements IListView<T> {
 				const renderer = this.renderers.get(item.templateId);
 
 				if (renderer && renderer.disposeElement) {
-					renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
+					const previousRendererCallback = this.rendererCallback;
+					this.rendererCallback = `disposeElement(${item.templateId})`;
+					try {
+						renderer.disposeElement(item.element, i, item.row.templateData, { height: item.size });
+					} finally {
+						this.rendererCallback = previousRendererCallback;
+					}
 				}
 
 				rows.unshift(item.row);
@@ -921,6 +935,7 @@ export class ListView<T> implements IListView<T> {
 	// Render
 
 	protected render(previousRenderRange: IRange, renderTop: number, renderHeight: number, renderLeft: number | undefined, scrollWidth: number | undefined, updateItemsInDOM: boolean = false, onScroll: boolean = false): void {
+		this.reportChangeDuringRendererCallback(onScroll ? 'scroll' : 'render');
 		const renderRange = this.getRenderRange(renderTop, renderHeight);
 
 		const rangesToInsert = Range.relativeComplement(renderRange, previousRenderRange).reverse();
@@ -972,6 +987,24 @@ export class ListView<T> implements IListView<T> {
 		this.lastRenderHeight = renderHeight;
 	}
 
+	/**
+	 * Reports a change to the list that a renderer callback requested, e.g. a
+	 * renderer reading an observable whose first subscription synchronously
+	 * updates the list's model. Such a change runs while the list is still
+	 * placing or removing rows and can leave stale rows in the DOM, overlapping
+	 * the rows that are actually rendered, without any error.
+	 *
+	 * Lists with dynamic heights are excluded: they support changes requested
+	 * while elements render to be measured.
+	 */
+	private reportChangeDuringRendererCallback(change: string): void {
+		if (this.rendererCallback === undefined || this.supportDynamicHeights || this.didReportChangeDuringRendererCallback) {
+			return;
+		}
+		this.didReportChangeDuringRendererCallback = true;
+		onUnexpectedError(new BugIndicatingError(`ListView: '${change}' was requested from '${this.rendererCallback}'. Changing a list while it renders or disposes an element can leave stale rows in the DOM; defer the change until the list has finished rendering.`));
+	}
+
 	// DOM operations
 
 	private insertItemInDOM(index: number, row?: IRow, alreadyRendered = false): void {
@@ -1019,7 +1052,13 @@ export class ListView<T> implements IListView<T> {
 		}
 
 		if (!alreadyRendered) {
-			renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
+			const previousRendererCallback = this.rendererCallback;
+			this.rendererCallback = `renderElement(${item.templateId})`;
+			try {
+				renderer.renderElement(item.element, index, item.row.templateData, { height: item.size });
+			} finally {
+				this.rendererCallback = previousRendererCallback;
+			}
 		}
 
 		const uri = this.dnd.getDragURI(item.element);
@@ -1093,7 +1132,13 @@ export class ListView<T> implements IListView<T> {
 			const renderer = this.renderers.get(item.templateId);
 
 			if (renderer && renderer.disposeElement) {
-				renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size, onScroll });
+				const previousRendererCallback = this.rendererCallback;
+				this.rendererCallback = `disposeElement(${item.templateId})`;
+				try {
+					renderer.disposeElement(item.element, index, item.row.templateData, { height: item.size, onScroll });
+				} finally {
+					this.rendererCallback = previousRendererCallback;
+				}
 			}
 
 			this.cache.release(item.row);
