@@ -141,6 +141,8 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 	if (session.parentSession) {
 		await expandTo(session.parentSession, tree);
 	}
+	// Refresh children before expanding so setSelection() can find stack frames even after a stale/empty expansion
+	await tree.updateChildren(session);
 	await tree.expand(session);
 }
 
@@ -419,24 +421,38 @@ export class CallStackView extends ViewPane {
 			return;
 		}
 
+		const thread = this.debugService.getViewModel().focusedThread;
+		const revealElement = (element: IStackFrame | IDebugSession) => {
+			// If the element is outside of the screen bounds, position it in the middle
+			if (this.tree.getRelativeTop(element) === null) {
+				this.tree.reveal(element, 0.5);
+			} else {
+				this.tree.reveal(element);
+			}
+		};
 		const updateSelectionAndReveal = (element: IStackFrame | IDebugSession) => {
 			this.ignoreSelectionChangedEvent = true;
 			try {
 				this.tree.setSelection([element]);
-				// If the element is outside of the screen bounds,
-				// position it in the middle
-				if (this.tree.getRelativeTop(element) === null) {
-					this.tree.reveal(element, 0.5);
-				} else {
-					this.tree.reveal(element);
+				revealElement(element);
+			} catch (e) {
+				// The element may not be in the tree — e.g. when two concurrent fetchCallStack
+				// calls created different StackFrame instances. Fall back to the thread's
+				// current top frame which is guaranteed to match what is in the tree.
+				if (thread && element instanceof StackFrame) {
+					const freshFrame = thread.getTopStackFrame();
+					if (freshFrame && freshFrame !== element) {
+						try {
+							this.tree.setSelection([freshFrame]);
+							revealElement(freshFrame);
+						} catch (e2) { }
+					}
 				}
-			} catch (e) { }
-			finally {
+			} finally {
 				this.ignoreSelectionChangedEvent = false;
 			}
 		};
 
-		const thread = this.debugService.getViewModel().focusedThread;
 		const session = this.debugService.getViewModel().focusedSession;
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (!thread) {
