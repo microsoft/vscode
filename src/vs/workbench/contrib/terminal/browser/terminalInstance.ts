@@ -130,6 +130,7 @@ const shellIntegrationSupportedShellTypes: (PosixShellType | GeneralShellType | 
  * Patterns for detecting agent CLIs from the OSC title they emit.
  */
 const agentCliTitlePatterns: ReadonlyMap<GeneralShellType, RegExp> = new Map([
+	[GeneralShellType.AbacusAI, /\babacus\.?ai\s+cli\b/i],
 	[GeneralShellType.Claude, /claude\s*code/i],
 	// [GeneralShellType.Codex, /\bcodex\b/i], // codex does not report osc title.
 	[GeneralShellType.CommandCode, /command\s*code/i],
@@ -2743,6 +2744,7 @@ export class TerminalLabelComputer extends Disposable {
 	 * than the configured template or a static profile name.
 	 */
 	static readonly agentCliShellTypes: ReadonlySet<GeneralShellType> = new Set([
+		GeneralShellType.AbacusAI,
 		GeneralShellType.Claude,
 		GeneralShellType.Codex,
 		GeneralShellType.CommandCode,
