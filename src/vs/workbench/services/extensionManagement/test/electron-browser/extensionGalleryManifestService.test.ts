@@ -733,6 +733,32 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.Available);
 	});
 
+	test('GitHub provider — sign-out during an in-flight manifest fetch does not restore access', async () => {
+		// A sign-out that lands while the eligible-account fetch is parked must supersede it: the stale
+		// fetch resolving last must not publish Available over the RequiresSignIn the sign-out set.
+		configurationService.setUserConfiguration(ExtensionGalleryAuthProviderConfigKey, 'github');
+		defaultAccount = createDefaultAccount({ enterprise: true });
+
+		let releaseIndex!: (v: IRequestContext) => void;
+		const indexGate = new Promise<IRequestContext>(resolve => { releaseIndex = resolve; });
+		requestHandler = () => indexGate;
+
+		const service = createService();
+		const inflight = service.getExtensionGalleryManifest();
+
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		defaultAccount = null;
+		onDidChangeDefaultAccount.fire(null);
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		releaseIndex(mockResponse(200, createGalleryManifest()));
+		await inflight;
+		await new Promise(resolve => setTimeout(resolve, 0));
+
+		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.RequiresSignIn);
+	});
+
 	// --- No configuredServiceUrl ---
 
 	test('no configuredServiceUrl — uses default gallery manifest', async () => {
