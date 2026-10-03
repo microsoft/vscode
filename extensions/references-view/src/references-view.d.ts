@@ -6,9 +6,9 @@
 import * as vscode from 'vscode';
 
 /**
- * This interface describes the shape for the references viewlet API. It includes
- * a single `setInput` function which must be called with a full implementation
- * of the `SymbolTreeInput`-interface. You can also use `getInput` function to
+ * This interface describes the shape for the references viewlet API. Its
+ * `setInput` function must be called with a full implementation of the
+ * `SymbolTreeInput`-interface. You can also use `getInput` function to
  * get the current `SymbolTreeInput`. To acquire this API use the default mechanics, e.g:
  *
  * ```ts
@@ -36,6 +36,16 @@ export interface SymbolTree {
 	 * @returns The current symbol tree input object
 	 */
 	getInput(): SymbolTreeInput<unknown> | undefined;
+
+	/**
+	 * Show reference locations in the References view, regardless of the
+	 * `references.preferredLocation` setting.
+	 *
+	 * @param uri The source document URI.
+	 * @param position The source position for this reference search.
+	 * @param locations The reference locations to display.
+	 */
+	showReferences(uri: vscode.Uri, position: vscode.Position, locations: vscode.Location[] | vscode.LocationLink[]): Thenable<void>;
 }
 
 /**

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as calls from './calls';
 import * as references from './references';
+import { ReferencesTreeInput } from './references/model';
 import { SymbolTree, SymbolTreeInput } from './references-view';
 import { SymbolsTree } from './tree';
 import * as types from './types';
@@ -26,5 +27,10 @@ export function activate(context: vscode.ExtensionContext): SymbolTree {
 		return tree.getInput();
 	}
 
-	return { setInput, getInput };
+	function showReferences(uri: vscode.Uri, position: vscode.Position, locations: vscode.Location[] | vscode.LocationLink[]): Thenable<void> {
+		const input = new ReferencesTreeInput(vscode.l10n.t('References'), new vscode.Location(uri, position), 'vscode.executeReferenceProvider', locations);
+		return tree.setInput(input);
+	}
+
+	return { setInput, getInput, showReferences };
 }
