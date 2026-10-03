@@ -63,11 +63,11 @@ export interface ITreeShakingResult {
 	[file: string]: string;
 }
 
-function printDiagnostics(options: ITreeShakingOptions, diagnostics: ReadonlyArray<ts.Diagnostic>): void {
+function printDiagnostics(diagnostics: ReadonlyArray<ts.Diagnostic>): void {
 	for (const diag of diagnostics) {
 		let result = '';
 		if (diag.file) {
-			result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
+			result += diag.file.fileName;
 		}
 		if (diag.file && diag.start) {
 			const location = diag.file.getLineAndCharacterOfPosition(diag.start);
@@ -84,19 +84,19 @@ export function shake(options: ITreeShakingOptions): ITreeShakingResult {
 
 	const globalDiagnostics = program.getGlobalDiagnostics();
 	if (globalDiagnostics.length > 0) {
-		printDiagnostics(options, globalDiagnostics);
+		printDiagnostics(globalDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
 	const syntacticDiagnostics = program.getSyntacticDiagnostics();
 	if (syntacticDiagnostics.length > 0) {
-		printDiagnostics(options, syntacticDiagnostics);
+		printDiagnostics(syntacticDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
 	const semanticDiagnostics = program.getSemanticDiagnostics();
 	if (semanticDiagnostics.length > 0) {
-		printDiagnostics(options, semanticDiagnostics);
+		printDiagnostics(semanticDiagnostics);
 		throw new Error(`Compilation Errors encountered.`);
 	}
 
