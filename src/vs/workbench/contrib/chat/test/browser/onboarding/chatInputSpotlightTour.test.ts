@@ -150,7 +150,7 @@ suite('ChatInputSpotlightTour', () => {
 			modePickerIsShared: true,
 			modelPicker: true,
 			opened: ['mode'],
-			sections: ['focus:agentHostModePicker.mode', 'collapseSectionCodeAction', 'focus:agentHostModePicker.permissions', 'expandSectionCodeAction'],
+			sections: ['focus:agentHostModePicker.mode', 'focus:agentHostModePicker.mode', 'collapseSectionCodeAction', 'focus:agentHostModePicker.permissions', 'expandSectionCodeAction'],
 			popupsBeforeOpen: [undefined, undefined, undefined],
 			popupsAreMenu: [true, true, false],
 			steps: [
