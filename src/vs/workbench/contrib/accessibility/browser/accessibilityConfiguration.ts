@@ -298,6 +298,10 @@ const configuration: IConfigurationNode = {
 			'type': 'object',
 			'description': 'Delays for all signals besides error and warning at position',
 			'additionalProperties': false,
+			'default': {
+				'announcement': 3000,
+				'sound': 400
+			},
 			'properties': {
 				'announcement': {
 					'description': localize('accessibility.signalOptions.delays.general.announcement', "The delay in milliseconds before an announcement is made."),
@@ -317,6 +321,10 @@ const configuration: IConfigurationNode = {
 		'accessibility.signalOptions.experimental.delays.warningAtPosition': {
 			'type': 'object',
 			'additionalProperties': false,
+			'default': {
+				'announcement': 3000,
+				'sound': 1000
+			},
 			'properties': {
 				'announcement': {
 					'description': localize('accessibility.signalOptions.delays.warningAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's a warning at the position."),
@@ -336,6 +344,10 @@ const configuration: IConfigurationNode = {
 		'accessibility.signalOptions.experimental.delays.errorAtPosition': {
 			'type': 'object',
 			'additionalProperties': false,
+			'default': {
+				'announcement': 3000,
+				'sound': 1000
+			},
 			'properties': {
 				'announcement': {
 					'description': localize('accessibility.signalOptions.delays.errorAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's an error at the position."),
