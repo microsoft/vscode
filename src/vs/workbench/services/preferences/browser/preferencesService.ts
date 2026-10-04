@@ -360,8 +360,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 
 		} else {
-			const group = this.getEditorGroupFromOptions(options);
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, group)) as IKeybindingsEditorPane;
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options }, MODAL_GROUP)) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
 			}

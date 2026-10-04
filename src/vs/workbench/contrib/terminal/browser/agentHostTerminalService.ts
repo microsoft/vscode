@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,7 +11,9 @@ import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { AgentHostPty } from './agentHostPty.js';
+import { AgentHostOutputChannel } from './agentHostOutputChannel.js';
 import { AhpTerminalCommandSource } from './ahpTerminalCommandSource.js';
 import { ITerminalChatService, ITerminalInstance, ITerminalLocationOptions, ITerminalService } from './terminal.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
@@ -40,6 +41,20 @@ export interface IAgentHostTerminalProfileInfo {
 	readonly profileId: string;
 	readonly title: string;
 	readonly address: string;
+}
+
+/**
+ * Tracks the {@link AgentHostPty} produced by one terminal creation's
+ * `customPtyImplementation` factory. The factory can legitimately run after
+ * the terminal instance was disposed (the process launch is driven
+ * asynchronously once the instance's xterm is ready), so — unlike
+ * `MutableDisposable`, which silently leaks a value set after disposal —
+ * setting a pty on a disposed registration disposes the pty locally without
+ * sending `disposeTerminal` to the host, and never touches the active pty map
+ * (a stale registration must not overwrite or delete a replacement's entry).
+ */
+interface IAgentHostPtyRegistration extends IDisposable {
+	setPty(pty: AgentHostPty): void;
 }
 
 const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
@@ -91,11 +106,41 @@ export interface IAgentHostTerminalService {
 	 */
 	reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance>;
 
+	/** Attach a non-pty output channel directly to chat without creating a terminal instance. */
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable;
+
 	/**
 	 * Sets the default cwd used by profile providers when no explicit cwd
 	 * is provided. Call with `undefined` to clear.
 	 */
 	setDefaultCwd(cwd: URI | undefined): void;
+
+	/**
+	 * The address of the agent host a terminal runs on, or `undefined` when it
+	 * is not an agent host terminal or its host is no longer registered.
+	 */
+	getAgentHostAddress(instance: ITerminalInstance): string | undefined;
+
+	/**
+	 * Whether a shell command is pending or executing in the given agent host
+	 * terminal. Returns `undefined` when the command state is unknown.
+	 */
+	isCommandExecuting(instance: ITerminalInstance): boolean | undefined;
+
+	/**
+	 * Records that a command line is about to be submitted to the shell
+	 * prompt of the given agent host terminal, so that
+	 * {@link isCommandExecuting} reports it as busy until the shell reports
+	 * that the command started executing.
+	 */
+	markCommandPending(instance: ITerminalInstance): void;
+
+	/**
+	 * The working directory the given agent host terminal started in and its
+	 * current one, as filesystem paths on the host. Returns `undefined` when
+	 * the terminal is not an agent host terminal.
+	 */
+	getCwd(instance: ITerminalInstance): { readonly initial: string; readonly current: string } | undefined;
 }
 
 export class AgentHostTerminalService extends Disposable implements IAgentHostTerminalService {
@@ -116,13 +161,16 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 	 * keyed by terminal URI string. Used for reconnection scoping.
 	 */
 	private readonly _activePtys = new Map<string, { pty: AgentHostPty; clientId: string }>();
-	private readonly _reviveSequencer = new SequencerByKey<string>();
+	/** The {@link _activePtys} key and connection of each agent host terminal, keyed by instance id. */
+	private readonly _instanceKeys = new Map<number, { readonly key: string; readonly clientId: string }>();
+	private readonly _pendingRevives = new Map<string, Promise<ITerminalInstance>>();
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 	}
@@ -292,37 +340,59 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
 		const name = options?.name ?? localize('agentHostTerminal.default', "Agent Host Terminal");
 		const key = terminalUri.toString();
+		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
-		const instance = await this._terminalService.createTerminal({
-			config: {
-				customPtyImplementation: (id, cols, rows) => {
-					const pty = new AgentHostPty(id, connection, terminalUri, {
-						name,
-						cwd: options?.cwd,
-					});
-					if (cols > 0 && rows > 0) {
-						pty.resize(cols, rows);
-					}
-					this._activePtys.set(key, { pty, clientId: connection.clientId });
-					return pty;
+		let instance: ITerminalInstance;
+		try {
+			instance = await this._terminalService.createTerminal({
+				config: {
+					customPtyImplementation: (id, cols, rows) => {
+						const pty = new AgentHostPty(id, connection, terminalUri, {
+							name,
+							cwd: options?.cwd,
+						}, this._logService);
+						if (cols > 0 && rows > 0) {
+							pty.resize(cols, rows);
+						}
+						ptyRegistration.setPty(pty);
+						return pty;
+					},
+					name,
+					icon: { id: 'remote' },
+					isFeatureTerminal: false,
 				},
-				name,
-				icon: { id: 'remote' },
-				isFeatureTerminal: false,
-			},
-			location: options?.location,
-		});
+				location: options?.location,
+			});
+		} catch (error) {
+			ptyRegistration.dispose();
+			throw error;
+		}
 
-		this._register(instance.onDisposed(() => {
-			this._activePtys.delete(key);
-		}));
+		this._registerInstancePtyCleanup(instance, key, connection.clientId, ptyRegistration);
 
 		return instance;
 	}
 
 	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance> {
 		const key = terminalUri.toString();
-		return this._reviveSequencer.queue(key, () => this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key));
+		const pending = this._pendingRevives.get(key);
+		if (pending) {
+			return pending;
+		}
+		const revive = this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key).finally(() => {
+			if (this._pendingRevives.get(key) === revive) {
+				this._pendingRevives.delete(key);
+			}
+		});
+		this._pendingRevives.set(key, revive);
+		return revive;
+	}
+
+	attachOutputTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): IDisposable {
+		const store = new DisposableStore();
+		const source = store.add(new AgentHostOutputChannel(connection, terminalUri));
+		store.add(this._terminalChatService.registerOutputSource(terminalToolSessionId, source));
+		return store;
 	}
 
 	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string): Promise<ITerminalInstance> {
@@ -332,14 +402,14 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		}
 		const store = new DisposableStore();
 		const commandSource = store.add(new AhpTerminalCommandSource());
-		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource));
+		const ptyRegistration = this._createPtyRegistration(key, connection.clientId);
 
-		const instance = await this._terminalService.createTerminal({
+		const instancePromise = Promise.resolve().then(() => this._terminalService.createTerminal({
 			config: {
 				customPtyImplementation: (id, cols, rows) => {
 					const pty = new AgentHostPty(id, connection, terminalUri, {
 						attachOnly: true,
-					});
+					}, this._logService);
 					if (cols > 0 && rows > 0) {
 						pty.resize(cols, rows);
 					}
@@ -348,24 +418,109 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						commandSource.connect(instance, pty);
 					}
 
-					this._activePtys.set(key, { pty, clientId: connection.clientId });
+					ptyRegistration.setPty(pty);
 					return pty;
 				},
 				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
 				isFeatureTerminal: true,
 				hideFromUser: true,
 			},
-		});
+		}));
+		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource, instancePromise));
+		let instance: ITerminalInstance;
+		try {
+			instance = await instancePromise;
+		} catch (error) {
+			store.dispose();
+			ptyRegistration.dispose();
+			throw error;
+		}
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
 
 		this._revivedInstances.set(key, instance);
 		instance.store.add(store);
-		this._register(instance.onDisposed(() => {
-			this._revivedInstances.delete(key);
-			this._activePtys.delete(key);
-		}));
+		this._registerInstancePtyCleanup(instance, key, connection.clientId, ptyRegistration);
 
 		return instance;
+	}
+
+	/** Creates the registration that owns the pty produced for {@link key}. */
+	private _createPtyRegistration(key: string, clientId: string): IAgentHostPtyRegistration {
+		let pty: AgentHostPty | undefined;
+		let isDisposed = false;
+		return {
+			setPty: value => {
+				if (isDisposed) {
+					value.dispose();
+					return;
+				}
+				pty = value;
+				this._activePtys.set(key, { pty, clientId });
+			},
+			dispose: () => {
+				if (isDisposed) {
+					return;
+				}
+				isDisposed = true;
+				if (this._activePtys.get(key)?.pty === pty) {
+					this._activePtys.delete(key);
+				}
+				pty?.dispose();
+			},
+		};
+	}
+
+	/**
+	 * Ties the registration's lifetime to the terminal instance so the local
+	 * pty is disposed even on paths that never call `shutdown()`.
+	 */
+	private _registerInstancePtyCleanup(instance: ITerminalInstance, key: string, clientId: string, ptyRegistration: IAgentHostPtyRegistration): void {
+		this._instanceKeys.set(instance.instanceId, { key, clientId });
+		const cleanup = () => {
+			if (this._instanceKeys.get(instance.instanceId)?.key === key) {
+				this._instanceKeys.delete(instance.instanceId);
+			}
+			if (this._revivedInstances.get(key) === instance) {
+				this._revivedInstances.delete(key);
+			}
+			// Instance disposal can bypass PTY shutdown (for example Detach Session).
+			ptyRegistration.dispose();
+		};
+		if (instance.isDisposed) {
+			cleanup();
+		} else {
+			instance.store.add(instance.onDisposed(cleanup));
+		}
+	}
+
+	getAgentHostAddress(instance: ITerminalInstance): string | undefined {
+		const registration = this._instanceKeys.get(instance.instanceId);
+		if (!registration) {
+			return undefined;
+		}
+		// Reconnection moves the terminal's PTY to the new connection.
+		const clientId = this._activePtys.get(registration.key)?.clientId ?? registration.clientId;
+		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
+	}
+
+	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {
+		return this._getActivePty(instance)?.isCommandExecuting;
+	}
+
+	markCommandPending(instance: ITerminalInstance): void {
+		this._getActivePty(instance)?.markCommandPending();
+	}
+
+	getCwd(instance: ITerminalInstance): { readonly initial: string; readonly current: string } | undefined {
+		return this._getActivePty(instance)?.cwd;
+	}
+
+	private _getActivePty(instance: ITerminalInstance): AgentHostPty | undefined {
+		const registration = this._instanceKeys.get(instance.instanceId);
+		if (!registration) {
+			return undefined;
+		}
+		return this._activePtys.get(registration.key)?.pty;
 	}
 
 	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {
@@ -386,7 +541,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 						// Update the clientId to the new connection
 						entry.clientId = newConnection.clientId;
 					} else {
-						console.warn(`[AgentHostTerminalService] Failed to reconnect terminal: ${key}`);
+						this._logService.warn(`[AgentHostTerminalService] Failed to reconnect terminal: ${key}`);
 					}
 				})
 			);

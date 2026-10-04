@@ -29,6 +29,17 @@ function record(): IContinuousRecord {
 	return { originalRowIndex: 0, value: { entries, entriesSize: 100, ...META } };
 }
 
+function cursorContinuationRecord(selectionOffset: number, editOffset: number): IContinuousRecord {
+	const cursorEntries: LogEntry[] = [
+		...entries.slice(0, 4),
+		{ kind: 'changed', id: 0, time: 1004, edit: [[175, 175, 'Z']], v: 1 },
+		{ kind: 'selectionChanged', id: 0, time: 1006, selection: [[175, 175]] },
+		{ kind: 'selectionChanged', id: 0, time: 1300, selection: [[selectionOffset, selectionOffset]] },
+		{ kind: 'changed', id: 0, time: 1400, edit: [[editOffset, editOffset, 'Q']], v: 2 },
+	];
+	return { originalRowIndex: 0, value: { entries: cursorEntries, entriesSize: 100, ...META } };
+}
+
 describe('processContinuousRecord', () => {
 	it('synthesizes an oracle-only row and resolves language from the active file', () => {
 		const result = processContinuousRecord(record(), 1002);
@@ -42,6 +53,39 @@ describe('processContinuousRecord', () => {
 	it('errors when the recording has no entries', () => {
 		const empty: IContinuousRecord = { originalRowIndex: 0, value: { entries: [], entriesSize: 0, ...META } };
 		expect(processContinuousRecord(empty, 0).isError()).toBe(true);
+	});
+
+	it('applies the composed oracle edit limit', () => {
+		const result = processContinuousRecord(record(), 1002, 1);
+		expect(result.isOk()).toBe(true);
+		if (result.isError()) { return; }
+		try {
+			expect(result.val.nextUserEdit.edit).toHaveLength(1);
+		} finally {
+			result.val.replayer.dispose();
+		}
+	});
+
+	it('continues across a nearby cursor move', () => {
+		const result = processContinuousRecord(cursorContinuationRecord(168, 168), 1002);
+		expect(result.isOk()).toBe(true);
+		if (result.isError()) { return; }
+		try {
+			expect(result.val.nextUserEdit.edit).toHaveLength(2);
+		} finally {
+			result.val.replayer.dispose();
+		}
+	});
+
+	it('stops before an edit after a distant cursor move', () => {
+		const result = processContinuousRecord(cursorContinuationRecord(7, 7), 1002);
+		expect(result.isOk()).toBe(true);
+		if (result.isError()) { return; }
+		try {
+			expect(result.val.nextUserEdit.edit).toEqual([[175, 175, 'Z']]);
+		} finally {
+			result.val.replayer.dispose();
+		}
 	});
 });
 

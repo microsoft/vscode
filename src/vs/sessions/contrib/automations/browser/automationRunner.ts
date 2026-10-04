@@ -3,136 +3,120 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { AutomationRunTrigger, IAutomation } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { publishAutomationRun, publishAutomationRunError } from '../../../../workbench/contrib/chat/common/automations/automationTelemetry.js';
-import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
+import { AutomationUnavailableError, IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 
-/** Sessions-layer runner. Never throws; failures are recorded on the run row. */
+/**
+ * Client-side Run Now coordinator that requests execution through IAutomationService and observes the host result.
+ * Reports dispatch failures and forwards supported cancellation without creating run sessions.
+ */
 export class AutomationRunner implements IAutomationRunner {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IAutomationService private readonly automationService: IAutomationService,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ILogService private readonly logService: ILogService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
-	async runOnce(
-		automation: IAutomation,
-		trigger: AutomationRunTrigger,
-		leaderWindowId: number,
-		token: CancellationToken = CancellationToken.None,
-	): Promise<void> {
-		// Must not throw per IAutomationRunner contract. Unexpected errors are swallowed here.
-		try {
-			await this._runOnceInner(automation, trigger, leaderWindowId, token);
-		} catch (err) {
-			this.logService.error(`[AutomationRunner] unexpected error in runOnce for ${automation.id}`, err);
-		}
+	runOnce(automation: IAutomationDescriptor, token: CancellationToken = CancellationToken.None): IAutomationRunOperation {
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+		return {
+			whenDispatched: dispatched.p,
+			whenCompleted: this.run(automation, token, dispatched),
+		};
 	}
 
-	private async _runOnceInner(
-		automation: IAutomation,
-		trigger: AutomationRunTrigger,
-		leaderWindowId: number,
-		token: CancellationToken,
-	): Promise<void> {
-		if (this.automationService.getActiveRunFor(automation.id)) {
-			this.logService.trace(`[AutomationRunner] skipping ${automation.id}: active run already exists.`);
-			return;
-		}
-
-		const startTimeMs = Date.now();
-		let runId: string | undefined;
+	private async run(automation: IAutomationDescriptor, token: CancellationToken, dispatched: DeferredPromise<IAutomationRunDispatch>): Promise<void> {
 		try {
+			if (token.isCancellationRequested) {
+				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
+				return;
+			}
+			this.assertProviderAvailable(automation.target.providerId);
 			if (!this.automationService.getAutomation(automation.id)) {
-				this.logService.trace(`[AutomationRunner] skipping ${automation.id}: automation was deleted.`);
+				await dispatched.complete({ kind: 'notStarted', reason: 'deleted' });
+				return;
+			}
+			if (!this.automationService.canRunAutomation(automation.id)) {
+				throw new AutomationUnavailableError(localize('automationRunUnavailable', "The automation's Agent Host is not ready to run it."));
+			}
+			const result = await this.automationService.runAutomation(automation.id, token);
+			if (result.kind === 'alreadyRunning') {
+				await dispatched.complete({ kind: 'alreadyRunning', activeRun: result.run });
 				return;
 			}
 
-			const run = await this.automationService.recordRunStart(automation.id, trigger, leaderWindowId);
-			runId = run.id;
-			await this.automationService.updateRun(runId, { status: 'running' });
-
-			if (token.isCancellationRequested) {
-				await this._markCancelled(runId, trigger, automation, startTimeMs);
-				return;
-			}
-
-			const options: ISendRequestOptions = {
-				query: automation.prompt,
-				background: true,
-				title: automation.name?.substring(0, 100),
+			let cancellationForwarded = false;
+			const forwardCancellation = () => {
+				if (!cancellationForwarded) {
+					cancellationForwarded = true;
+					try {
+						result.cancel?.();
+					} catch (error) {
+						this.logService.error(`[AutomationRunner] Failed to forward cancellation for ${automation.id}`, error);
+					}
+				}
 			};
-
-			const createOptions: ICreateNewSessionOptions | undefined = automation.providerId !== undefined || automation.sessionTypeId !== undefined || automation.modelId !== undefined || automation.mode !== undefined || automation.permissionLevel !== undefined || automation.isolationMode !== undefined || automation.branch !== undefined
-				? {
-					providerId: automation.providerId,
-					sessionTypeId: automation.sessionTypeId,
-					modelId: automation.modelId,
-					modeId: automation.mode,
-					permissionLevel: automation.permissionLevel,
-					isolationMode: automation.isolationMode,
-					branch: automation.branch,
+			const cancellationListener = result.cancel ? token.onCancellationRequested(forwardCancellation) : undefined;
+			try {
+				if (result.run.sessionResource) {
+					await dispatched.complete({ kind: 'started', run: result.run, sessionResource: result.run.sessionResource });
+				} else if (token.isCancellationRequested) {
+					await dispatched.complete({ kind: 'notStarted', reason: 'cancelled', run: result.run });
+				} else {
+					this.notificationService.error(localize('automationDispatchFailed', "Automation '{0}' did not start a session: {1}", automation.name, result.run.errorMessage ?? localize('automationDispatchNoSession', "The Agent Host ended the run without a session.")));
+					await dispatched.complete({ kind: 'notStarted', reason: 'error', run: result.run });
 				}
-				: undefined;
-
-			this.logService.trace(`[AutomationRunner] running ${automation.id}: provider=${createOptions?.providerId ?? '(default)'}, sessionType=${createOptions?.sessionTypeId ?? '(default)'}, model=${createOptions?.modelId ?? '(default)'}, mode=${createOptions?.modeId ?? '(default)'}, permissionLevel=${createOptions?.permissionLevel ?? '(default)'}`);
-
-			const session = await this.sessionsManagementService.createAndSendNewChatRequest(automation.folderUri, options, createOptions);
-
-			// Re-check cancellation post-send so mid-flight timeouts surface as `failed`.
-			if (token.isCancellationRequested) {
-				await this._markCancelled(runId, trigger, automation, startTimeMs);
+				if (token.isCancellationRequested) {
+					forwardCancellation();
+				}
+				await result.whenCompleted;
+			} finally {
+				cancellationListener?.dispose();
+			}
+		} catch (error) {
+			if (token.isCancellationRequested && isCancellationError(error)) {
+				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
 				return;
 			}
-
-			await this.automationService.updateRun(runId, {
-				status: 'completed',
-				completedAt: new Date().toISOString(),
-				...(session ? { sessionId: session.sessionId } : {}),
-			});
-			publishAutomationRun(this.telemetryService, { trigger, automation, success: true, durationMs: Date.now() - startTimeMs });
-		} catch (err) {
-			this.logService.error(`[AutomationRunner] run for ${automation.id} failed`, err);
-			try {
-				const errorMessage = err instanceof Error ? err.message : String(err);
-				this.notificationService.error(localize('automationRunFailed', "Automation '{0}' failed: {1}", automation.name, errorMessage));
-				if (runId) {
-					await this.automationService.updateRun(runId, {
-						status: 'failed',
-						completedAt: new Date().toISOString(),
-						errorMessage,
-					});
-				}
-				publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
-				publishAutomationRunError(this.telemetryService, { trigger, automation });
-			} catch (innerErr) {
-				this.logService.error(`[AutomationRunner] error recording failure for ${automation.id}`, innerErr);
-			}
+			this.logService.error(`[AutomationRunner] Host run request for ${automation.id} failed`, error);
+			this.notificationService.error(localize('automationRunFailed', "Automation '{0}' failed: {1}", automation.name, error instanceof Error ? error.message : String(error)));
+			await dispatched.complete({ kind: 'notStarted', reason: error instanceof AutomationUnavailableError ? 'targetUnavailable' : 'error' });
 		}
 	}
 
-	private async _markCancelled(runId: string, trigger: AutomationRunTrigger, automation: IAutomation, startTimeMs: number): Promise<void> {
-		try {
-			await this.automationService.updateRun(runId, {
-				status: 'failed',
-				completedAt: new Date().toISOString(),
-				errorMessage: localize('automationRunner.cancelled', "Cancelled"),
-			});
-			publishAutomationRun(this.telemetryService, { trigger, automation, success: false, durationMs: Date.now() - startTimeMs });
-		} catch (err) {
-			this.logService.error(`[AutomationRunner] error recording cancellation for ${automation.id}`, err);
+	private assertProviderAvailable(providerId: string | undefined): void {
+		if (providerId === undefined) {
+			throw new AutomationUnavailableError(localize('automationHostNotSelected', "This automation has no Agent Host. Duplicate it and select an Agent Host."));
+		}
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		if (provider === undefined) {
+			throw new AutomationUnavailableError(localize('automationHostNotConnected', "Connect to this automation's Agent Host and try again."));
+		}
+		const store = provider.automations;
+		if (store === undefined) {
+			throw new AutomationUnavailableError(localize('automationProviderUnsupported', "{0} does not support automations. Use an Agent Host that supports automations.", provider.label));
+		}
+		switch (store.catalogueState.get()) {
+			case 'ready':
+				return;
+			case 'loading':
+				throw new AutomationUnavailableError(localize('automationHostLoading', "Automations from {0} are still loading. Wait for loading to finish, then try again.", provider.label));
+			case 'error':
+				throw new AutomationUnavailableError(localize('automationHostLoadError', "Automations from {0} could not be loaded. Reconnect to the Agent Host and try again.", provider.label));
+			case 'unavailable':
+				throw new AutomationUnavailableError(store.unavailableReason?.get() ?? localize('automationHostUnavailable', "{0} is unavailable. Reconnect to the Agent Host and try again.", provider.label));
 		}
 	}
 }

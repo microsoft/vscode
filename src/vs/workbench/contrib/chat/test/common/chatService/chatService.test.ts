@@ -4,33 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../../../../platform/telemetry/common/gdprTypings.js';
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -41,18 +48,22 @@ import { IWorkspaceEditingService } from '../../../../../services/workspaces/com
 import { InMemoryTestFileService, mock, TestChatEntitlementService, TestContextService, TestExtensionService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
-import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { ChatPasteAttachmentMetadata, IChatRequestVariableEntry, toPasteVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
-import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { backfillTransferredModel, backfillRestoredPickerState, ChatService } from '../../../common/chatService/chatServiceImpl.js';
+import { ChatServiceTelemetry } from '../../../common/chatService/chatServiceTelemetry.js';
+import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
-import { ChatModel, IChatModel, IChatRequestVariableData, ISerializableChatData } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, ISerializableChatData, ISerializableChatModelInputState } from '../../../common/model/chatModel.js';
+import { ChatSessionOperationLog } from '../../../common/model/chatSessionOperationLog.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatAgentService, IChatAgent, IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { IConfiguredHooksInfo, IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
@@ -60,7 +71,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionServerRequest, IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 import { ChatRequestSlashPromptPart } from '../../../common/requestParser/chatParserTypes.js';
@@ -187,7 +198,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const contextKeyService = testDisposables.add(new MockContextKeyService());
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IViewsService, new TestExtensionService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
@@ -198,7 +210,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IWorkspaceEditingService, { onDidEnterWorkspace: Event.None });
-		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl()));
+		instantiationService.stub(IChatDebugService, testDisposables.add(new ChatDebugServiceImpl(new TestConfigurationService(), contextKeyService)));
 		editingSessionEntries = observableValue('editingSessionEntries', []);
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
@@ -236,6 +248,176 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('propagates Agents Voice Mode input to the participant request', async () => {
+		const captured = new DeferredPromise<boolean | undefined>();
+		testDisposables.add(chatAgentService.registerAgent('voiceAgent', getAgentData('voiceAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('voiceAgent', {
+			async invoke(request) {
+				captured.complete(request.isVoiceModeInput);
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+
+		await service.sendRequest(model.sessionResource, 'voice request', {
+			agentId: 'voiceAgent',
+			isVoiceModeInput: true,
+		});
+
+		assert.strictEqual(await captured.p, true);
+	});
+
+	for (const preserveRequestId of [false, true]) {
+		for (const replacement of [{}, { 'copilot.visibility': 'internal', opaque: true }]) {
+			test(`ordinary resend retains replaced Agent Host metadata with preserveRequestId=${preserveRequestId}, empty=${Object.keys(replacement).length === 0}`, async () => {
+				const invoke = spy(chatAgentService, 'invokeAgent');
+				testDisposables.add(toDisposable(() => invoke.restore()));
+				const service = createChatService();
+				const model = testDisposables.add(startSessionModel(service)).object;
+				const metadata = { 'copilot.visibility': 'internal', opaque: false };
+				const sent = await service.sendRequest(model.sessionResource, 'display prompt', { metadata });
+				ChatSendResult.assertSent(sent);
+				await sent.data.responseCompletePromise;
+				const original = model.getRequests()[0];
+				await service.resendRequest(original, undefined, preserveRequestId);
+				const resent = model.getRequests()[0];
+				const retained = resent.agentHostMetadata;
+				await service.resendRequest(resent, { metadata: replacement }, preserveRequestId);
+				const replaced = model.getRequests()[0];
+				const storedReplacement = replaced.agentHostMetadata;
+				await service.resendRequest(replaced, undefined, preserveRequestId);
+				assert.deepStrictEqual({
+					sent: invoke.getCalls().map(call => call.args[1].metadata),
+					retained,
+					storedReplacement,
+					storedAfterRetry: model.getRequests()[0].agentHostMetadata,
+					serialized: model.toJSON().requests[0].agentHostMetadata,
+					sameId: resent.id === original.id,
+				}, { sent: [metadata, metadata, replacement, replacement], retained: metadata, storedReplacement: replacement, storedAfterRetry: replacement, serialized: replacement, sameId: preserveRequestId });
+			});
+		}
+	}
+
+	test('acceptance counts submissions once, not rejections, system messages, retries or queue drains', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: boolean[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		await service.sendRequest(model.sessionResource, '');
+		const first = await service.sendRequest(model.sessionResource, 'first');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+		await service.resendRequest(model.getRequests()[0]);
+		const system = await service.sendRequest(model.sessionResource, 'system', { isSystemInitiated: true });
+		ChatSendResult.assertSent(system);
+		await system.data.responseCompletePromise;
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		await service.sendRequest(model.sessionResource, 'steering', { queue: ChatRequestQueueKind.Steering, pauseQueue: true });
+		service.processPendingRequests(model.sessionResource);
+		await timeout(10);
+		assert.deepStrictEqual(accepted, [true, false, false]);
+	});
+
+	test('only the first accepted message starts a session even when queued or removed', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: boolean[] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		await service.sendRequest(model.sessionResource, 'queued first', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		const pending = model.getPendingRequests()[0];
+		service.removePendingRequest(model.sessionResource, pending.request.id);
+		await service.sendRequest(model.sessionResource, 'replacement', { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+		assert.deepStrictEqual(accepted, [true, false]);
+	});
+
+	for (const excludedKind of ['system', 'hidden'] as const) {
+		for (const historyState of ['completed', 'queued', 'restored'] as const) {
+			test(`first eligible user submission starts a session after a ${historyState} ${excludedKind} request`, async () => {
+				let service = createChatService();
+				let model = startSessionModel(service).object;
+				const accepted: boolean[] = [];
+				testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+				const result = await service.sendRequest(model.sessionResource, 'excluded request', {
+					isSystemInitiated: excludedKind === 'system',
+					hideFromTranscript: excludedKind === 'hidden',
+					queue: historyState === 'queued' ? ChatRequestQueueKind.Queued : undefined,
+					pauseQueue: true,
+				});
+				if (historyState === 'queued') {
+					assert.ok(ChatSendResult.isQueued(result));
+				} else {
+					ChatSendResult.assertSent(result);
+					await result.data.responseCompletePromise;
+				}
+				if (historyState === 'restored') {
+					const data: ISerializableChatData = JSON.parse(JSON.stringify(model));
+					service = createChatService();
+					model = testDisposables.add(service.loadSessionFromData(data)).object;
+					assert.strictEqual(model.getRequests().length, 1);
+					testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+				}
+				for (const message of ['first user request', 'follow-up']) {
+					const queued = await service.sendRequest(model.sessionResource, message, { queue: ChatRequestQueueKind.Queued, pauseQueue: true });
+					assert.ok(ChatSendResult.isQueued(queued));
+				}
+				assert.deepStrictEqual(accepted, [true, false]);
+			});
+		}
+	}
+
+	test('restored visible user history is not counted as a new session', async () => {
+		const original = createChatService();
+		const originalModel = startSessionModel(original).object;
+		const first = await original.sendRequest(originalModel.sessionResource, 'first user request');
+		ChatSendResult.assertSent(first);
+		await first.data.responseCompletePromise;
+
+		const restored = createChatService();
+		const data: ISerializableChatData = JSON.parse(JSON.stringify(originalModel));
+		const model = testDisposables.add(restored.loadSessionFromData(data)).object;
+		assert.strictEqual(model.getRequests().length, 1);
+		const accepted: boolean[] = [];
+		testDisposables.add(restored.onDidAcceptRequest(event => accepted.push(event.isNewSession)));
+		const followUp = await restored.sendRequest(model.sessionResource, 'follow-up');
+		ChatSendResult.assertSent(followUp);
+		await followUp.data.responseCompletePromise;
+		assert.deepStrictEqual(accepted, [false]);
+	});
+
+	test('retains submitted model configuration for sent, queued and steering requests', async () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const modelId = 'agent-host-copilot:claude-opus-4.8';
+		const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+		for (const queue of [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+			const result = await service.sendRequest(model.sessionResource, 'hello', {
+				queue,
+				pauseQueue: true,
+				userSelectedModelId: modelId,
+				userSelectedModelConfiguration: modelConfiguration,
+			});
+			if (queue === undefined) {
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+			} else {
+				assert.ok(ChatSendResult.isQueued(result));
+			}
+		}
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const expected = { modelId, modelConfiguration };
+		assert.deepStrictEqual({
+			requests: viewModel.getItems().filter(isRequestVM).map(request => ({ modelId: request.modelId, modelConfiguration: request.modelConfiguration })),
+			pending: model.getPendingRequests().map(request => ({
+				modelId: request.sendOptions.userSelectedModelId,
+				modelConfiguration: request.sendOptions.userSelectedModelConfiguration,
+			})),
+		}, {
+			requests: [expected, expected, expected],
+			pending: [expected, expected],
+		});
+	});
 
 	test('slash commands can share ids across non-overlapping session types', async () => {
 		const slashCommandService = testDisposables.add(instantiationService.createInstance(ChatSlashCommandService));
@@ -427,6 +609,20 @@ suite('ChatService', () => {
 		assert.deepStrictEqual(model.getRequests()[0].variableData.variables, [fileEntry]);
 	});
 
+	test('sendRequest allows empty message with a handed-off explicit file snapshot', async () => {
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const attachment = toPasteVariableEntry('Unsaved file', 'Current draft contents', {
+			_meta: { [ChatPasteAttachmentMetadata.FileSnapshot]: true },
+		});
+		const response = await testService.sendRequest(model.sessionResource, '', { attachedContext: [attachment] });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(model.getRequests().map(request => ({
+			text: request.message.text, attachments: request.variableData.variables,
+		})), [{ text: '', attachments: [attachment] }]);
+	});
+
 	test('sendRequest rejects empty message without explicit file attachment', async () => {
 		const testService = createChatService();
 
@@ -449,6 +645,24 @@ suite('ChatService', () => {
 		await response.data.responseCompletePromise;
 
 		await assertSnapshot(toSnapshotExportData(model));
+	});
+
+	test('passes request metadata to the participant without adding it to the prompt', async () => {
+		const requests: { message: string; metadata: Record<string, unknown> | undefined }[] = [];
+		testDisposables.add(chatAgentService.registerAgent('metadataAgent', getAgentData('metadataAgent')));
+		testDisposables.add(chatAgentService.registerAgentImplementation('metadataAgent', {
+			async invoke(request) {
+				requests.push({ message: request.message, metadata: request.metadata });
+				return {};
+			},
+		}));
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const metadata = { 'test.request': { enabled: true } };
+		const response = await service.sendRequest(model.sessionResource, 'hello', { agentId: 'metadataAgent', metadata });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		assert.deepStrictEqual(requests, [{ message: 'hello', metadata }]);
 	});
 
 	test('history', async () => {
@@ -547,6 +761,35 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 	});
 
+	test('loadSessionFromData applies creation metadata to the model and telemetry', async () => {
+		const providerInvokedEvents: Record<string, unknown>[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'interactiveSessionProviderInvoked' && data) {
+					providerInvokedEvents.push(data);
+				}
+			}
+		});
+		const testService = createChatService();
+		const sourceRef = startSessionModel(testService);
+		const forkedData = sourceRef.object.toJSON();
+		forkedData.sessionId = 'forked-session';
+
+		const forkedRef = testDisposables.add(testService.loadSessionFromData(forkedData, 'ChatServiceTest#forkedSession', 'currentSession'));
+		const response = await testService.sendRequest(forkedRef.object.sessionResource, 'hello');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.deepStrictEqual({
+			modelSelectionReason: forkedRef.object.sessionTypeSelectionReason,
+			telemetrySelectionReasons: providerInvokedEvents.map(event => event.sessionTypeSelectionReason),
+		}, {
+			modelSelectionReason: 'currentSession',
+			telemetrySelectionReasons: ['currentSession'],
+		});
+	});
+
 	test('can deserialize with response', async () => {
 		let serializedChatData: ISerializableChatData;
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
@@ -608,6 +851,127 @@ suite('ChatService', () => {
 		assert.strictEqual(chatModel2.getRequests()[0].isSystemInitiated, true);
 	});
 
+	test('can serialize and deserialize a request hidden from the transcript', async () => {
+		let serializedChatData: ISerializableChatData;
+		{
+			const testService = createChatService();
+			const chatModelRef = testDisposables.add(startSessionModel(testService));
+			const response = await testService.sendRequest(chatModelRef.object.sessionResource, 'hidden request', { hideFromTranscript: true });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+
+			const request = chatModelRef.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, chatModelRef.object, undefined));
+			assert.deepStrictEqual({
+				request: request.isHiddenFromTranscript,
+				response: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().length,
+			}, {
+				request: true,
+				response: true,
+				visibleItems: 0,
+			});
+			serializedChatData = JSON.parse(JSON.stringify(chatModelRef.object));
+		}
+
+		const testService = createChatService();
+		const restored = testDisposables.add(testService.loadSessionFromData(serializedChatData)!);
+		const request = restored.object.getRequests()[0];
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, restored.object, undefined));
+		assert.deepStrictEqual({
+			request: request.isHiddenFromTranscript,
+			response: request.response?.isHiddenFromTranscript,
+			visibleItems: viewModel.getItems().length,
+		}, {
+			request: true,
+			response: true,
+			visibleItems: 0,
+		});
+	});
+
+	test('can serialize and deserialize a request origin', () => {
+		const sourceSessionResource = URI.parse('agent-host-codex:/source-thread');
+		const testService = createChatService();
+		const chatModelRef = testDisposables.add(startSessionModel(testService));
+		const chatModel = chatModelRef.object as ChatModel;
+		chatModel.addRequest(
+			{ parts: [], text: 'delegated request' },
+			{ variables: [] },
+			0,
+			undefined, // modeInfo
+			undefined, // chatAgent
+			undefined, // slashCommand
+			undefined, // confirmation
+			undefined, // locationData
+			undefined, // attachments
+			undefined, // isCompleteAddedRequest
+			undefined, // modelId
+			undefined, // userSelectedTools
+			undefined, // id
+			undefined, // isSystemInitiated
+			undefined, // systemInitiatedLabel
+			undefined, // terminalExecutionId
+			undefined, // isTerminalCommand
+			undefined, // timestamp
+			undefined, // hideFromTranscript
+			{
+				kind: ChatRequestOriginKind.Delegation,
+				sourceSessionResource,
+			},
+		);
+		const serialized: ISerializableChatData = JSON.parse(JSON.stringify(chatModel));
+
+		const restored = testDisposables.add(createChatService().loadSessionFromData(serialized)!);
+
+		assert.deepStrictEqual(restored.object.getRequests()[0].origin, {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource,
+		});
+	});
+
+	test('hidden queued requests remain absent from the transcript', async () => {
+		const requestStarted = new DeferredPromise<void>();
+		const completeRequest = new DeferredPromise<void>();
+		const slowAgent: IChatAgentImplementation = {
+			async invoke() {
+				requestStarted.complete();
+				await completeRequest.p;
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent('slowHiddenQueueAgent', { ...getAgentData('slowHiddenQueueAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('slowHiddenQueueAgent', slowAgent));
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		const active = await testService.sendRequest(model.sessionResource, 'active request', { agentId: 'slowHiddenQueueAgent' });
+		ChatSendResult.assertSent(active);
+		await requestStarted.p;
+		const queued = await testService.sendRequest(model.sessionResource, 'hidden queued request', {
+			agentId: 'slowHiddenQueueAgent',
+			queue: ChatRequestQueueKind.Queued,
+			hideFromTranscript: true,
+		});
+		assert.ok(ChatSendResult.isQueued(queued));
+		const pendingRequest = model.getPendingRequests()[0].request;
+		const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const visibleItems = viewModel.getItems();
+
+		assert.deepStrictEqual({
+			hidden: pendingRequest.isHiddenFromTranscript,
+			hasPendingRequest: visibleItems.some(item => item.id === pendingRequest.id),
+			hasPendingDivider: visibleItems.some(isPendingDividerVM),
+		}, {
+			hidden: true,
+			hasPendingRequest: false,
+			hasPendingDivider: false,
+		});
+
+		completeRequest.complete();
+		await active.data.responseCompletePromise;
+	});
+
 	test('acquireExistingSession keeps model alive for steering request after refs released', async () => {
 		const testService = createChatService();
 		const modelRef = startSessionModel(testService);
@@ -637,18 +1001,50 @@ suite('ChatService', () => {
 		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
 		const model = modelRef.object;
 
-		let disposed = false;
+		let reason: string | undefined;
 		testDisposables.add(testService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
 				if (resource.toString() === model.sessionResource.toString()) {
-					disposed = true;
+					reason = e.reason;
 				}
 			}
 		}));
 
 		modelRef.dispose();
 		await testService.waitForModelDisposals();
-		assert.strictEqual(disposed, true);
+		assert.strictEqual(reason, 'disposed');
+	});
+
+	test('disposing a session cancels pending followups', async () => {
+		let followupsToken: CancellationToken | undefined;
+		const followupsCancelled = new DeferredPromise<IChatFollowup[]>();
+		const followupsAgent: IChatAgentImplementation = {
+			async invoke() {
+				return {};
+			},
+			provideFollowups(request, result, history, token) {
+				followupsToken = token;
+				testDisposables.add(token.onCancellationRequested(() => followupsCancelled.complete([])));
+				return followupsCancelled.p;
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('followupsAgent', { ...getAgentData('followupsAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('followupsAgent', followupsAgent));
+
+		const testService = createChatService();
+		const modelRef = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const response = await testService.sendRequest(modelRef.object.sessionResource, 'test request', { agentId: 'followupsAgent' });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+
+		assert.ok(followupsToken);
+		assert.strictEqual(followupsToken.isCancellationRequested, false);
+
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+
+		assert.strictEqual(followupsToken.isCancellationRequested, true);
 	});
 
 	test('steering message queued triggers setYieldRequested', async () => {
@@ -695,6 +1091,119 @@ suite('ChatService', () => {
 		completeRequest.complete();
 		await response.data.responseCompletePromise;
 	});
+
+	for (const duringActiveRequest of [true, false]) {
+		test(`system notifications retain their provenance after ${duringActiveRequest ? 'steering an active' : 'resuming an idle'} task`, async () => {
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			const invocations: { message: string; isSystemInitiated: boolean; history: { message: string; isSystemInitiated: boolean }[] }[] = [];
+			const canceled: string[] = [];
+			const agentId = 'notificationAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request, _progress, history, token) {
+					invocations.push({
+						message: request.message,
+						isSystemInitiated: !!request.isSystemInitiated,
+						history: history.map(entry => ({ message: entry.request.message, isSystemInitiated: !!entry.request.isSystemInitiated })),
+					});
+					testDisposables.add(token.onCancellationRequested(() => canceled.push(request.message)));
+					if (invocations.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const first = await service.sendRequest(model.sessionResource, 'task', { agentId });
+			ChatSendResult.assertSent(first);
+			await started.p;
+			if (!duringActiveRequest) {
+				complete.complete();
+				await first.data.responseCompletePromise;
+			}
+
+			const notification = '[Terminal terminal-1 notification: command completed.]\nTerminal output:\nNOTIFY-DONE';
+			const pending = await service.sendRequest(model.sessionResource, notification, { agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+			if (duringActiveRequest) {
+				assert.ok(ChatSendResult.isQueued(pending));
+				complete.complete();
+				await first.data.responseCompletePromise;
+			}
+			const sent = ChatSendResult.isQueued(pending) ? await pending.deferred : pending;
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+			const nextPending = await service.sendRequest(model.sessionResource, 'next notification', { agentId, queue: ChatRequestQueueKind.Steering, isSystemInitiated: true });
+			const next = ChatSendResult.isQueued(nextPending) ? await nextPending.deferred : nextPending;
+			ChatSendResult.assertSent(next);
+			await next.data.responseCompletePromise;
+			service.processPendingRequests(model.sessionResource);
+
+			assert.deepStrictEqual({ invocations, canceled, pending: model.getPendingRequests().length }, {
+				invocations: [
+					{ message: 'task', isSystemInitiated: false, history: [] },
+					{ message: notification, isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }] },
+					{ message: 'next notification', isSystemInitiated: true, history: [{ message: 'task', isSystemInitiated: false }, { message: notification, isSystemInitiated: true }] },
+				],
+				canceled: [],
+				pending: 0,
+			});
+		});
+	}
+
+	for (const { name, firstIsSystem, secondIsSystem, expectSystem } of [
+		{ name: 'two notifications', firstIsSystem: true, secondIsSystem: true, expectSystem: true },
+		{ name: 'notification then user input', firstIsSystem: true, secondIsSystem: false, expectSystem: false },
+		{ name: 'user input then notification', firstIsSystem: false, secondIsSystem: true, expectSystem: false },
+	]) {
+		test(`steering batches preserve user turn boundaries: ${name}`, async () => {
+			const started = new DeferredPromise<void>();
+			const complete = new DeferredPromise<void>();
+			const invoked: { message: string; isSystemInitiated: boolean }[] = [];
+			const agentId = 'notificationAgent';
+			testDisposables.add(chatAgentService.registerAgent(agentId, { ...getAgentData(agentId), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(agentId, {
+				async invoke(request) {
+					invoked.push({ message: request.message, isSystemInitiated: !!request.isSystemInitiated });
+					if (invoked.length === 1) {
+						started.complete();
+						await complete.p;
+					}
+					return {};
+				},
+			}));
+			const service = createChatService();
+			const model = startSessionModel(service).object;
+			const first = await service.sendRequest(model.sessionResource, 'task', { agentId });
+			ChatSendResult.assertSent(first);
+			await started.p;
+			const pending = [];
+			for (const [i, isSystemInitiated] of [firstIsSystem, secondIsSystem].entries()) {
+				const result = await service.sendRequest(model.sessionResource, `message ${i + 1}`, {
+					agentIdSilent: agentId,
+					queue: ChatRequestQueueKind.Steering,
+					isSystemInitiated,
+					systemInitiatedLabel: isSystemInitiated ? 'Terminal completed' : undefined,
+				});
+				assert.ok(ChatSendResult.isQueued(result));
+				pending.push(result);
+			}
+			complete.complete();
+			await first.data.responseCompletePromise;
+			for (const queued of pending) {
+				const result = await queued.deferred;
+				ChatSendResult.assertSent(result);
+				await result.data.responseCompletePromise;
+			}
+			assert.deepStrictEqual({ invoked, label: model.lastRequest?.systemInitiatedLabel, pending: model.getPendingRequests().length }, {
+				invoked: [{ message: 'task', isSystemInitiated: false }, { message: 'message 1\n\nmessage 2', isSystemInitiated: expectSystem }],
+				label: expectSystem ? 'Terminal completed' : undefined,
+				pending: 0,
+			});
+		});
+	}
 
 	test('multiple steering messages are combined into a single request', async () => {
 		const requestStarted = new DeferredPromise<void>();
@@ -750,6 +1259,121 @@ suite('ChatService', () => {
 		assert.ok(invokedRequests[1].includes('steering2'), 'Combined message should include steering2');
 		assert.ok(invokedRequests[1].includes('steering3'), 'Combined message should include steering3');
 		assert.ok(invokedRequests[1].includes('\n\n'), 'Combined message should use \\n\\n as separator');
+	});
+
+	test('steering message on a streamed (activeResponseCallback) session dispatches immediately, mid-turn', async () => {
+		// True mid-turn steering: a steering message sent while a streamed turn is in progress is
+		// dispatched to the participant immediately (which POSTs the steer server-side), instead of
+		// waiting for the turn to complete.
+		const sessionType = 'remote-streamed-steer';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/streamed-session' });
+
+		const isCompleteObs: ISettableObservable<boolean> = observableValue('isComplete', false);
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: (resource: URI): Promise<IChatSession> => Promise.resolve({
+				sessionResource: resource,
+				// History ends with a request, so the session has an in-progress (cancellable) turn.
+				history: [{ type: 'request', prompt: 'initial task', participant: sessionType }],
+				progressObs: constObservable<IChatProgress[]>([]),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => false,
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		const steeringInvoked = new DeferredPromise<void>();
+		const agent: IChatAgentImplementation = {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				steeringInvoked.complete();
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, agent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const steering = await testService.sendRequest(sessionResource, 'steering message', { agentId: sessionType, queue: ChatRequestQueueKind.Steering });
+		assert.ok(ChatSendResult.isQueued(steering));
+
+		// Dispatched immediately, without the streamed turn completing (isCompleteObs stays false).
+		await steeringInvoked.p;
+		await steering.deferred;
+		await timeout(0); // let the post-dispatch tracking restore run
+
+		assert.strictEqual(invokedMessages.filter(m => m.includes('steering message')).length, 1, 'steering message should be dispatched exactly once, immediately');
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.strictEqual(model.getPendingRequests().length, 0, 'steering message should be dispatched, not left queued');
+
+		// In-progress tracking is preserved for the still-active stream: a plain send is rejected.
+		const plain = await testService.sendRequest(sessionResource, 'plain message', { agentId: sessionType });
+		assert.strictEqual(plain.kind, 'rejected');
+
+		// Completing the streamed turn must not re-dispatch the already-sent steering message.
+		isCompleteObs.set(true, undefined);
+		await timeout(0);
+		assert.strictEqual(invokedMessages.filter(m => m.includes('steering message')).length, 1, 'steering message must not be dispatched again on completion');
+	});
+
+	test('queued (non-steering) message is flushed when a streamed (activeResponseCallback) turn completes (fix for cloud-session queue limbo)', async () => {
+		// A non-steering queued message is not dispatched mid-turn; it must be flushed when the
+		// streamed turn completes (previously it was stranded in the pending queue forever).
+		const sessionType = 'remote-streamed-queue';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/streamed-session' });
+
+		const isCompleteObs: ISettableObservable<boolean> = observableValue('isComplete', false);
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: (resource: URI): Promise<IChatSession> => Promise.resolve({
+				sessionResource: resource,
+				history: [{ type: 'request', prompt: 'initial task', participant: sessionType }],
+				progressObs: constObservable<IChatProgress[]>([]),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => false,
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		const invoked = new DeferredPromise<void>();
+		const agent: IChatAgentImplementation = {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				invoked.complete();
+				return {};
+			},
+		};
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, agent));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const queued = await testService.sendRequest(sessionResource, 'queued message', { agentId: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(queued));
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		assert.strictEqual(model.getPendingRequests().length, 1, 'queued message should wait while the streamed turn is in progress');
+
+		isCompleteObs.set(true, undefined);
+		await invoked.p;
+
+		assert.ok(invokedMessages.some(m => m.includes('queued message')), 'queued message should be sent once the streamed turn completes');
+		assert.strictEqual(model.getPendingRequests().length, 0, 'no pending requests should remain after the flush');
 	});
 
 	test('disabled Claude hooks hint is shown once per workspace (fix for #295079)', async () => {
@@ -829,19 +1453,62 @@ suite('ChatService', () => {
 
 		const firstRequest = model.getRequests()[0];
 		assert.ok(firstRequest, 'Expected the initial request to exist before resend');
+		const structuralChanges: string[] = [];
+		testDisposables.add(model.onDidChange(event => {
+			if (event.kind === 'removeRequest' || event.kind === 'addRequest') {
+				structuralChanges.push(event.kind);
+			}
+		}));
 
 		// Resend the original request: now disabled hooks are present (simulates resend after setup)
-		await testService.resendRequest(firstRequest);
+		await testService.resendRequest(firstRequest, undefined, true);
 
 		// Now the flag should be set and the hint shown
 		assert.strictEqual(storageService.getBoolean(disabledHintsKey, StorageScope.WORKSPACE), true, 'Flag should be set after showing the hint');
 
 		const requests = model.getRequests();
 		assert.strictEqual(requests.length, 1, 'Resend should replace the original request');
+		assert.strictEqual(requests[0].id, firstRequest.id, 'Preserved resend should keep the original request id');
+		assert.strictEqual(requests[0], firstRequest, 'Preserved resend should reuse the original request model');
+		assert.deepStrictEqual(structuralChanges, [], 'Preserved resend should not remove and recreate the transcript row');
 		const responseParts2 = requests[0].response?.response.value ?? [];
 		const hasHookHint2 = responseParts2.some(part => part.kind === 'disabledClaudeHooks');
 		assert.ok(hasHookHint2, 'Response should contain the disabledClaudeHooks hint on second request');
 	});
+
+	test('resendRequest honors an agent selected outside the parsed request', async () => {
+		const retryAgentId = 'retryAgent';
+		const invokedRequestIds: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(retryAgentId, getAgentData(retryAgentId)));
+		testDisposables.add(chatAgentService.registerAgentImplementation(retryAgentId, {
+			async invoke(request) {
+				invokedRequestIds.push(request.requestId);
+				return {};
+			},
+		}));
+		testDisposables.add(chatAgentService.registerChatParticipantDetectionProvider(1, {
+			provideParticipantDetection: async () => ({ participant: 'testAgent' }),
+		}));
+
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+		const response = await testService.sendRequest(model.sessionResource, 'retry me', { agentIdSilent: retryAgentId });
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		const firstRequest = model.getRequests()[0];
+
+		await testService.resendRequest(firstRequest, { agentId: retryAgentId }, true);
+
+		assert.deepStrictEqual({
+			invokedRequestIds,
+			requestIds: model.getRequests().map(request => request.id),
+		}, {
+			invokedRequestIds: [firstRequest.id, firstRequest.id],
+			requestIds: [firstRequest.id],
+		});
+	});
+
 	test('cancelCurrentRequestForSession waits for response completion', async () => {
 		const requestStarted = new DeferredPromise<void>();
 		const completeRequest = new DeferredPromise<void>();
@@ -975,6 +1642,146 @@ suite('ChatService', () => {
 		assert.ok(invokedMessages[1].includes('queued request'));
 	});
 
+	test('syncPendingRequestsFromRemote adds, reorders and removes pending requests preserving ids', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'second remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+				{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, text: 'second remote message' },
+			],
+		);
+
+		const firstRequest = model.getPendingRequests()[0].request;
+
+		// Reorder, drop one, add a steering message and update text of the survivor.
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'first remote message' },
+		]);
+		assert.deepStrictEqual(
+			model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })),
+			[
+				{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+				{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'first remote message' },
+			],
+		);
+		assert.strictEqual(model.getPendingRequests()[1].request, firstRequest, 'unchanged messages should not be rebuilt');
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, []);
+		assert.strictEqual(model.getPendingRequests().length, 0);
+	});
+
+	test('syncPendingRequestsFromRemote atomically emits the final state and no-ops when it already matches', async () => {
+		const testService = createChatService();
+		const modelRef = testDisposables.add(startSessionModel(testService));
+		const model = modelRef.object;
+
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'old remote message' },
+			{ id: 'remote-2', kind: ChatRequestQueueKind.Queued, message: 'removed remote message' },
+		]);
+
+		const snapshots: { id: string; kind: ChatRequestQueueKind; text: string }[][] = [];
+		testDisposables.add(model.onDidChangePendingRequests(() => {
+			snapshots.push(model.getPendingRequests().map(p => ({ id: p.request.id, kind: p.kind, text: p.request.message.text })));
+		}));
+
+		const remote = [
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, message: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'updated remote message' },
+		];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+		testService.syncPendingRequestsFromRemote(model.sessionResource, remote);
+
+		assert.deepStrictEqual(snapshots, [[
+			{ id: 'remote-steer', kind: ChatRequestQueueKind.Steering, text: 'steer now' },
+			{ id: 'remote-1', kind: ChatRequestQueueKind.Queued, text: 'updated remote message' },
+		]]);
+	});
+
+	test('syncPendingRequestsFromRemote preserves request ids and updates delegated message metadata', () => {
+		const testService = createChatService();
+		const model = testDisposables.add(startSessionModel(testService)).object;
+		const request = {
+			id: 'remote-delegated', kind: ChatRequestQueueKind.Queued, message: 'Delegated message',
+			modelId: 'agent-host-copilot:claude-opus-4.8', modelConfiguration: { reasoningEffort: 'high' },
+			agentHostMessageOrigin: { kind: MessageKind.Agent },
+		};
+		const firstMetadata = { 'test.provenance': { source: 'first' } };
+		const secondMetadata = { 'test.provenance': { source: 'second' } };
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, metadata: firstMetadata }]);
+		const first = model.getPendingRequests()[0];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, metadata: secondMetadata }]);
+		const second = model.getPendingRequests()[0];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [{ ...request, metadata: { ...secondMetadata } }]);
+		const unchanged = model.getPendingRequests()[0];
+		testService.syncPendingRequestsFromRemote(model.sessionResource, [request]);
+		assert.deepStrictEqual({
+			first: first.sendOptions.metadata,
+			second: second.sendOptions.metadata,
+			unchanged: unchanged === second,
+			requestIds: [first.request.id, second.request.id],
+			cleared: model.getPendingRequests()[0].sendOptions.metadata,
+			modelId: second.sendOptions.userSelectedModelId,
+			modelConfiguration: second.sendOptions.userSelectedModelConfiguration,
+		}, {
+			first: firstMetadata, second: secondMetadata, unchanged: true, requestIds: [request.id, request.id], cleared: undefined,
+			modelId: request.modelId, modelConfiguration: request.modelConfiguration,
+		});
+	});
+
+	test('remote pending requests reconcile model-only edits and preserve selections on legacy text updates', async () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const modelId = 'agent-host-copilot:claude-opus-4.8';
+		const modelConfiguration = { reasoningEffort: 'xhigh' };
+		const remote = [
+			{ id: 'steer', kind: ChatRequestQueueKind.Steering, message: 'steer', modelId, modelConfiguration },
+			{ id: 'queue', kind: ChatRequestQueueKind.Queued, message: 'queue', modelId, modelConfiguration },
+		];
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, remote);
+		const original = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, remote.map(request => ({ ...request, modelConfiguration: { ...modelConfiguration } })));
+		const unchanged = model.getPendingRequests()[0] === original;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ ...remote[0], modelConfiguration: { reasoningEffort: 'max' } },
+			{ ...remote[1], modelId: 'agent-host-copilot:auto', modelConfiguration: undefined },
+		]);
+		service.syncPendingRequestsFromRemote(model.sessionResource, [
+			{ id: 'steer', kind: ChatRequestQueueKind.Steering, message: 'edited steer' },
+			{ id: 'queue', kind: ChatRequestQueueKind.Queued, message: 'edited queue' },
+		]);
+
+		assert.deepStrictEqual({
+			unchanged,
+			changes,
+			requests: model.getPendingRequests().map(pending => ({
+				message: pending.request.message.text,
+				modelId: pending.request.modelId,
+				modelConfiguration: pending.request.modelConfiguration,
+				sentModelId: pending.sendOptions.userSelectedModelId,
+				sentModelConfiguration: pending.sendOptions.userSelectedModelConfiguration,
+			})),
+		}, {
+			unchanged: true,
+			changes: 3,
+			requests: [
+				{ message: 'edited steer', modelId, modelConfiguration: { reasoningEffort: 'max' }, sentModelId: modelId, sentModelConfiguration: { reasoningEffort: 'max' } },
+				{ message: 'edited queue', modelId: 'agent-host-copilot:auto', modelConfiguration: undefined, sentModelId: 'agent-host-copilot:auto', sentModelConfiguration: undefined },
+			],
+		});
+	});
+
 	test('sendPendingRequestImmediately cancels current and sends the queued message on local sessions', async () => {
 		const firstStarted = new DeferredPromise<void>();
 		const secondInvoked = new DeferredPromise<void>();
@@ -1018,6 +1825,263 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getPendingRequests().length, 0);
 	});
 
+	test('does not locally dequeue pending requests for remote agent host sessions', async () => {
+		const sessionType = 'remote-neat-cat-copilotcli';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-server-managed-queue' });
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Remote Agent Host',
+			displayName: 'Remote Agent Host',
+			description: 'Remote Agent Host',
+			agentHostProviderId: 'copilotcli',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				return {};
+			},
+		}));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const result = await testService.sendRequest(sessionResource, 'queued message', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(result));
+		await timeout(0);
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		const pendingRequests = model.getPendingRequests();
+		const actual = {
+			invokedMessages,
+			pendingMessages: pendingRequests.map(request => request.request.message.text),
+		};
+		for (const pendingRequest of pendingRequests) {
+			testService.removePendingRequest(sessionResource, pendingRequest.request.id);
+		}
+
+		assert.deepStrictEqual(actual, {
+			invokedMessages: [],
+			pendingMessages: ['queued message'],
+		});
+	});
+
+	test('does not locally dequeue an agent host queue when a streamed turn completes after its contribution is unregistered', async () => {
+		// When a remote connection is replaced, its session contribution is
+		// unregistered before its sessions complete their in-flight turn. The
+		// queue still belongs to the host, so completing must not send it.
+		const sessionType = 'remote-neat-cat-copilotcli';
+		const sessionResource = URI.from({ scheme: sessionType, path: '/session-unregistered-queue' });
+		const isCompleteObs = observableValue('isComplete', false);
+
+		const mockSessionsService = new MockChatSessionsService();
+		mockSessionsService.setContributions([{
+			type: sessionType,
+			name: 'Remote Agent Host',
+			displayName: 'Remote Agent Host',
+			description: 'Remote Agent Host',
+			agentHostProviderId: 'copilotcli',
+		}]);
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+			provideChatSessionContent: resource => Promise.resolve({
+				sessionResource: resource,
+				history: [{ type: 'request', prompt: 'in progress', participant: sessionType }],
+				onWillDispose: Event.None,
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const invokedMessages: string[] = [];
+		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, {
+			async invoke(request) {
+				invokedMessages.push(request.message);
+				return {};
+			},
+		}));
+
+		const testService = createChatService();
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(ref);
+		testDisposables.add(ref);
+
+		const result = await testService.sendRequest(sessionResource, 'queued message', { agentIdSilent: sessionType, queue: ChatRequestQueueKind.Queued });
+		assert.ok(ChatSendResult.isQueued(result));
+
+		mockSessionsService.setContributions([]);
+		isCompleteObs.set(true, undefined);
+		await timeout(0);
+
+		const model = testService.getSession(sessionResource) as ChatModel;
+		const pendingRequests = model.getPendingRequests();
+		const actual = {
+			invokedMessages,
+			pendingMessages: pendingRequests.map(request => request.request.message.text),
+		};
+		for (const pendingRequest of pendingRequests) {
+			testService.removePendingRequest(sessionResource, pendingRequest.request.id);
+		}
+
+		assert.deepStrictEqual(actual, {
+			invokedMessages: [],
+			pendingMessages: ['queued message'],
+		});
+	});
+
+	for (const kind of [ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering]) {
+		for (const { actor, reject } of [
+			...Object.values(MessageKind).map(actor => ({ actor, reject: false })),
+			{ actor: MessageKind.SystemNotification, reject: true },
+			{ actor: MessageKind.Automation, reject: true },
+		]) {
+			test(`remote ${kind} ${actor} routing and provenance survive ${reject ? 'requeue after rejected resend' : 'immediate resend'}`, async () => {
+				const sessionType = 'agent-host-copilot';
+				const sessionResource = URI.from({ scheme: sessionType, path: '/remote-send-immediately' });
+				const mockSessionsService = new MockChatSessionsService();
+				mockSessionsService.setContributions([{
+					type: sessionType, name: 'Agent Host', displayName: 'Agent Host', description: 'Agent Host', agentHostProviderId: 'copilot',
+				}]);
+				testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
+					provideChatSessionContent: resource => Promise.resolve({
+						sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { },
+					}),
+				}));
+				instantiationService.stub(IChatSessionsService, mockSessionsService);
+				const invoked = new DeferredPromise<IChatAgentRequest>();
+				const implementation: IChatAgentImplementation = {
+					async invoke(request) {
+						invoked.complete(request);
+						return {};
+					},
+				};
+				testDisposables.add(chatAgentService.registerAgent('fallbackAgent', { ...getAgentData('fallbackAgent'), isDefault: true }));
+				testDisposables.add(chatAgentService.registerAgentImplementation('fallbackAgent', implementation));
+				testDisposables.add(chatAgentService.registerAgent(sessionType, getAgentData(sessionType)));
+				testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, implementation));
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed', 'test.request': { enabled: true } };
+				const isSystemInitiated = actor === MessageKind.SystemNotification;
+				service.syncPendingRequestsFromRemote(sessionResource, [{
+					id: 'remote-1', kind, message: 'remote message',
+					agentHostMessageOrigin: { kind: actor }, metadata, isSystemInitiated, systemInitiatedLabel: 'Background task completed',
+				}]);
+				const pending = ref.object.getPendingRequests()[0];
+				const pendingPresentation = { isSystemInitiated: pending.request.isSystemInitiated, label: pending.request.systemInitiatedLabel };
+
+				if (reject) {
+					instantiationService.stub(IChatAgentService, 'getDefaultAgent', () => undefined);
+				}
+				await service.sendPendingRequestImmediately(sessionResource, pending.request.id);
+				if (reject) {
+					const requeued = ref.object.getPendingRequests()[0];
+					assert.deepStrictEqual({
+						kind: requeued.kind,
+						agentIdSilent: requeued.sendOptions.agentIdSilent,
+						origin: requeued.sendOptions.agentHostMessageOrigin,
+						metadata: requeued.sendOptions.metadata,
+						isSystemInitiated: requeued.request.isSystemInitiated,
+						label: requeued.request.systemInitiatedLabel,
+					}, {
+						kind, agentIdSilent: sessionType, origin: { kind: actor }, metadata, isSystemInitiated, label: 'Background task completed',
+					});
+					return;
+				}
+				const request = await invoked.p;
+
+				assert.deepStrictEqual({
+					pendingPresentation,
+					agentId: request.agentId,
+					message: request.message,
+					origin: request.agentHostMessageOrigin,
+					metadata: request.metadata,
+					isSystemInitiated: request.isSystemInitiated,
+					pendingCount: ref.object.getPendingRequests().length,
+				}, {
+					pendingPresentation: { isSystemInitiated, label: 'Background task completed' },
+					agentId: sessionType,
+					message: 'remote message',
+					origin: { kind: actor },
+					metadata,
+					isSystemInitiated,
+					pendingCount: 0,
+				});
+			});
+		}
+	}
+
+	test('remote pending requests reconcile provenance-only changes and clear removed metadata', () => {
+		const service = createChatService();
+		const model = testDisposables.add(startSessionModel(service)).object;
+		const remote = { id: 'remote-1', kind: ChatRequestQueueKind.Queued, message: 'same text' };
+		const metadata = { 'vscode.chat.systemInitiatedLabel': 'Background task completed' };
+		let changes = 0;
+		testDisposables.add(model.onDidChangePendingRequests(() => changes++));
+		service.syncPendingRequestsFromRemote(model.sessionResource, [remote]);
+		const system = { ...remote, agentHostMessageOrigin: { kind: MessageKind.SystemNotification }, metadata, isSystemInitiated: true, systemInitiatedLabel: 'Background task completed' };
+		service.syncPendingRequestsFromRemote(model.sessionResource, [system]);
+		const systemRequest = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...system, metadata: { ...metadata } }]);
+		const unchanged = model.getPendingRequests()[0] === systemRequest;
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...remote, message: 'legacy text update' }]);
+		const legacyUpdate = model.getPendingRequests()[0];
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{
+			...remote, agentHostMessageOrigin: { kind: MessageKind.User }, isSystemInitiated: false,
+		}]);
+		const userRequest = model.getPendingRequests()[0];
+		const automated = { ...remote, agentHostMessageOrigin: { kind: MessageKind.Automation }, isSystemInitiated: false };
+		service.syncPendingRequestsFromRemote(model.sessionResource, [automated]);
+		service.syncPendingRequestsFromRemote(model.sessionResource, [{ ...automated, metadata }]);
+		const metadataUpdate = model.getPendingRequests()[0];
+
+		assert.deepStrictEqual({
+			changes,
+			unchanged,
+			legacyOrigin: legacyUpdate.sendOptions.agentHostMessageOrigin,
+			legacyMetadata: legacyUpdate.sendOptions.metadata,
+			legacySystem: legacyUpdate.request.isSystemInitiated,
+			origin: userRequest.sendOptions.agentHostMessageOrigin,
+			metadata: userRequest.sendOptions.metadata,
+			label: userRequest.request.systemInitiatedLabel,
+			isSystemInitiated: userRequest.request.isSystemInitiated,
+			updatedOrigin: metadataUpdate.sendOptions.agentHostMessageOrigin,
+			updatedMetadata: metadataUpdate.sendOptions.metadata,
+		}, {
+			changes: 6,
+			unchanged: true,
+			legacyOrigin: { kind: MessageKind.SystemNotification },
+			legacyMetadata: metadata,
+			legacySystem: true,
+			origin: { kind: MessageKind.User },
+			metadata: undefined,
+			label: undefined,
+			isSystemInitiated: false,
+			updatedOrigin: { kind: MessageKind.Automation },
+			updatedMetadata: metadata,
+		});
+	});
+
 	test('sendPendingRequestImmediately re-sends a steering message as a turn on agent host sessions', async () => {
 		const sessionType = 'agent-host-copilot';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session-send-immediately' });
@@ -1028,6 +2092,7 @@ suite('ChatService', () => {
 			name: 'Agent Host',
 			displayName: 'Agent Host',
 			description: 'Agent Host',
+			agentHostProviderId: 'copilot',
 		}]);
 		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
 			provideChatSessionContent: resource => Promise.resolve({
@@ -1192,6 +2257,53 @@ suite('ChatService', () => {
 		assert.ok(lastThree[2].includes('queued-3'));
 	});
 
+	test('external sessions from transient surfaces are not persisted to chat history (inline chat)', async () => {
+		// Inline chat and terminal chat create throwaway agent-host sessions. Their
+		// resources are not local, so they used to fall into the external-session
+		// persistence path and show up in the chat session list.
+		const remoteScheme = 'transient-surface-provider';
+
+		const mockSessionsService = new MockChatSessionsService();
+		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+			provideChatSessionContent: (resource: URI) => Promise.resolve({
+				sessionResource: resource,
+				history: [],
+				onWillDispose: Event.None,
+				dispose: () => { },
+			}),
+		}));
+		instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+		const agent: IChatAgentImplementation = { async invoke() { return {}; } };
+		testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), locations: [ChatAgentLocation.Chat, ChatAgentLocation.EditorInline], isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, agent));
+
+		const testService = createChatService();
+
+		const send = async (resource: URI, location: ChatAgentLocation) => {
+			const ref = await testService.acquireOrLoadSession(resource, location, CancellationToken.None);
+			assert.ok(ref);
+			const response = await testService.sendRequest(resource, 'hello', { agentId: remoteScheme });
+			ChatSendResult.assertSent(response);
+			await response.data.responseCompletePromise;
+			ref.dispose();
+		};
+
+		const inlineResource = URI.from({ scheme: remoteScheme, path: '/inline-session' });
+		const panelResource = URI.from({ scheme: remoteScheme, path: '/panel-session' });
+		await send(inlineResource, ChatAgentLocation.EditorInline);
+		await send(panelResource, ChatAgentLocation.Chat);
+		await Promise.all(testServices.map(service => service.waitForModelDisposals()));
+
+		assert.deepStrictEqual(
+			{
+				inline: !!await testService.getMetadataForSession(inlineResource),
+				panel: !!await testService.getMetadataForSession(panelResource),
+			},
+			{ inline: false, panel: true }
+		);
+	});
+
 	test('acquireOrLoadSession returns undefined when remote provider is not registered (fix for #301203)', async () => {
 		const unregisteredScheme = 'unregistered-provider';
 		const sessionResource = URI.from({ scheme: unregisteredScheme, path: '/orphaned-session' });
@@ -1205,10 +2317,19 @@ suite('ChatService', () => {
 		assert.strictEqual(ref, undefined, 'Should return undefined when no provider is registered');
 	});
 
-	test('sendRequest on untitled remote session propagates initialSessionOptions to new model', async () => {
+	test('sendRequest on untitled remote session propagates creation metadata to new model', async () => {
 		const remoteScheme = 'remoteProvider';
 		const untitledResource = URI.from({ scheme: remoteScheme, path: '/untitled-test-session' });
 		const realResource = URI.from({ scheme: remoteScheme, path: '/real-session-123' });
+		const providerInvokedEvents: Record<string, unknown>[] = [];
+		instantiationService.stub(ITelemetryService, {
+			...NullTelemetryService,
+			publicLog2(eventName: string, data: Record<string, unknown> | undefined): void {
+				if (eventName === 'interactiveSessionProviderInvoked' && data) {
+					providerInvokedEvents.push(data);
+				}
+			}
+		});
 
 		// Set up the mock chat sessions service
 		const mockSessionsService = new MockChatSessionsService();
@@ -1250,7 +2371,7 @@ suite('ChatService', () => {
 		const testService = createChatService();
 
 		// Load the untitled session to create the initial model
-		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const untitledRef = await testService.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'rememberedSelection');
 		assert.ok(untitledRef, 'Should load untitled session');
 		testDisposables.add(untitledRef);
 
@@ -1262,13 +2383,18 @@ suite('ChatService', () => {
 		// The new model (with real resource) should have initialSessionOptions set
 		const newModel = testService.getSession(realResource) as ChatModel;
 		assert.ok(newModel, 'New model should exist at the real resource');
-		assert.deepStrictEqual(
-			ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
-			[
+		assert.deepStrictEqual({
+			sessionOptions: ChatSessionOptionsMap.toStrValueArray(mockSessionsService.getSessionOptions(realResource)),
+			modelSelectionReason: newModel.sessionTypeSelectionReason,
+			telemetrySelectionReasons: providerInvokedEvents.map(event => event.sessionTypeSelectionReason),
+		}, {
+			sessionOptions: [
 				{ optionId: 'model', value: 'claude-3.5-sonnet' },
 				{ optionId: 'repo', value: 'my-repo' },
-			]
-		);
+			],
+			modelSelectionReason: 'rememberedSelection',
+			telemetrySelectionReasons: ['rememberedSelection'],
+		});
 	});
 
 	suite('untitled session materialization is idempotent/serialized (avoids duplicate sessions)', () => {
@@ -1297,7 +2423,11 @@ suite('ChatService', () => {
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
 			const remoteAgent: IChatAgentImplementation = { invoke: opts.invoke ?? (async () => ({})) };
-			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, {
+				...getAgentData(remoteScheme),
+				isDefault: true,
+				modes: [ChatModeKind.Ask, ChatModeKind.Agent],
+			}));
 			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, remoteAgent));
 
 			const service = createChatService();
@@ -1309,8 +2439,108 @@ suite('ChatService', () => {
 			return { resource, label: 'Test Session', timing: { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined } };
 		}
 
+		function builtinModeInfo(kind: ChatModeKind.Ask | ChatModeKind.Agent) {
+			return {
+				kind,
+				isBuiltin: true,
+				modeInstructions: undefined,
+				telemetryModeId: kind,
+				applyCodeBlockSuggestionId: undefined,
+			} as const;
+		}
+
+		test('carries the selected mode from the untitled session to the materialized session', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-mode' });
+			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			untitledRef.object.inputModel.setState({ mode: { id: ChatModeKind.Agent, kind: ChatModeKind.Agent } });
+			const result = await service.sendRequest(untitledResource, 'hello', {
+				agentId: remoteScheme,
+				modeInfo: {
+					kind: selectedMode.kind,
+					isBuiltin: false,
+					modeInstructions: {
+						uri: URI.parse(selectedMode.id),
+						name: 'Data',
+						content: '',
+						toolReferences: [],
+					},
+					telemetryModeId: 'custom',
+					applyCodeBlockSuggestionId: undefined,
+				},
+			});
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+
+			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, selectedMode);
+		});
+
+		test('carries the untitled mode when the materialized request is queued', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-queued-mode' });
+			const selectedMode = { id: 'file:///workspace/data.agent.md', kind: ChatModeKind.Agent };
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			const untitledRef = (await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!;
+			testDisposables.add(untitledRef);
+			untitledRef.object.inputModel.setState({ mode: selectedMode });
+
+			const result = await service.sendRequest(untitledResource, 'hello', {
+				agentId: remoteScheme,
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			});
+			const realModel = service.getSession(realResource) as ChatModel;
+
+			assert.deepStrictEqual({
+				resultKind: result.kind,
+				mode: realModel.inputModel.state.get()?.mode,
+				pendingRequestCount: realModel.getPendingRequests().length,
+			}, {
+				resultKind: 'queued',
+				mode: selectedMode,
+				pendingRequestCount: 1,
+			});
+		});
+
+		test('does not carry the mode when a queued late send fails to enqueue', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-rejected-queued-mode' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const first = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo: askMode });
+			ChatSendResult.assertSent(first);
+			await first.data.responseCompletePromise;
+			const realModel = service.getSession(realResource) as ChatModel;
+
+			await assert.rejects(service.sendRequest(untitledResource, 'second', {
+				agentId: 'missingQueuedAgent',
+				modeInfo: agentMode,
+				queue: ChatRequestQueueKind.Queued,
+				pauseQueue: true,
+			}), /Unknown agent/);
+
+			assert.deepStrictEqual({
+				mode: realModel.inputModel.state.get()?.mode,
+				pendingRequestCount: realModel.getPendingRequests().length,
+			}, {
+				mode: { id: askMode.kind, kind: askMode.kind },
+				pendingRequestCount: 0,
+			});
+		});
+
 		test('two concurrent sends create a single real session and reject the duplicate', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-concurrent' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
 			let createCount = 0;
 			// Keep the agent turn pending so the first send's request stays in
 			// `_pendingRequests`, making the converged second send's rejection
@@ -1324,29 +2554,88 @@ suite('ChatService', () => {
 
 			// Fire two sends on the same untitled resource without awaiting between
 			// them, so both reach the materialization path concurrently.
-			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
-			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const p1 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, modeInfo: askMode });
+			const p2 = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme, modeInfo: agentMode });
 			const [r1, r2] = await Promise.all([p1, p2]);
+			const acceptedMode = ChatSendResult.isSent(r1) ? askMode : agentMode;
 
 			assert.strictEqual(createCount, 1, 'createNewChatSessionItem must run exactly once');
 			assert.deepStrictEqual([r1.kind, r2.kind].sort(), ['rejected', 'sent'], 'one send is accepted, the duplicate is rejected');
 			assert.ok(service.getSession(realResource), 'exactly one real session is materialized');
+			assert.deepStrictEqual((service.getSession(realResource) as ChatModel).inputModel.state.get()?.mode, {
+				id: acceptedMode.kind,
+				kind: acceptedMode.kind,
+			});
+			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
 
 			agentGate.complete();
 			const sent = ChatSendResult.isSent(r1) ? r1 : r2;
 			ChatSendResult.assertSent(sent);
 			await sent.data.responseCompletePromise;
+			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), []);
+		});
+
+		test('reports the session type while materializing the first request', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-pending' });
+			const materialization = new DeferredPromise<IChatSessionItem>();
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => materialization.p,
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const send = service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
+
+			materialization.complete(realItem(realResource));
+			const result = await send;
+
+			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), [remoteScheme]);
+			ChatSendResult.assertSent(result);
+			await result.data.responseCompletePromise;
+			assert.deepStrictEqual(service.getPendingRequestSessionTypes(), []);
+		});
+
+		test('materialization rejects a send when the real session is read-only', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-read-only' });
+			let invokeCount = 0;
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+				invoke: async () => { invokeCount++; return {}; },
+				provideContent: resource => Promise.resolve({
+					sessionResource: resource,
+					history: [],
+					onWillDispose: Event.None,
+					isReadOnly: constObservable(resource.toString() === realResource.toString()),
+					dispose: () => { },
+				}),
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const result = await service.sendRequest(untitledResource, 'hello', { agentId: remoteScheme });
+			const realModel = service.getSession(realResource);
+
+			assert.deepStrictEqual({
+				result,
+				invokeCount,
+				requestCount: realModel?.getRequests().length,
+			}, {
+				result: { kind: 'rejected', reason: 'Session is read-only', newSessionResource: realResource },
+				invokeCount: 0,
+				requestCount: 0,
+			});
 		});
 
 		test('a late send still addressed to the untitled resource re-targets the real session', async () => {
 			const realResource = URI.from({ scheme: remoteScheme, path: '/real-late' });
+			const askMode = builtinModeInfo(ChatModeKind.Ask);
+			const agentMode = builtinModeInfo(ChatModeKind.Agent);
 			let createCount = 0;
 			const { service, untitledResource } = setupUntitledRemote({
 				createItem: async () => { createCount++; return realItem(realResource); },
 			});
 			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
 
-			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			const r1 = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme, modeInfo: askMode });
 			ChatSendResult.assertSent(r1);
 			await r1.data.responseCompletePromise;
 
@@ -1358,13 +2647,47 @@ suite('ChatService', () => {
 			// swapped to the real resource) must NOT materialize a second session,
 			// and must report the real resource as the new session so the caller
 			// swaps its UI to the real session (mirroring the first send).
-			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+			const r2 = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme, modeInfo: agentMode });
 			ChatSendResult.assertSent(r2);
 			await r2.data.responseCompletePromise;
 
 			assert.strictEqual(createCount, 1, 'no second materialization for a stale untitled send');
 			assert.strictEqual(r2.newSessionResource?.toString(), realResource.toString(), 'late re-target reports the real resource as the new session');
 			assert.strictEqual(realModel.getRequests().length, requestsAfterFirst + 1, 'second request is routed to the real session');
+			assert.deepStrictEqual(realModel.inputModel.state.get()?.mode, { id: agentMode.kind, kind: agentMode.kind });
+		});
+
+		test('a late send to a read-only materialized session reports the real resource', async () => {
+			const realResource = URI.from({ scheme: remoteScheme, path: '/real-late-read-only' });
+			const isReadOnly = observableValue<boolean>('isReadOnly', false);
+			let invokeCount = 0;
+			const { service, untitledResource } = setupUntitledRemote({
+				createItem: async () => realItem(realResource),
+				invoke: async () => { invokeCount++; return {}; },
+				provideContent: resource => Promise.resolve({
+					sessionResource: resource,
+					history: [],
+					onWillDispose: Event.None,
+					isReadOnly,
+					dispose: () => { },
+				}),
+			});
+			testDisposables.add((await service.acquireOrLoadSession(untitledResource, ChatAgentLocation.Chat, CancellationToken.None))!);
+
+			const first = await service.sendRequest(untitledResource, 'first', { agentId: remoteScheme });
+			ChatSendResult.assertSent(first);
+			await first.data.responseCompletePromise;
+			isReadOnly.set(true, undefined);
+
+			const second = await service.sendRequest(untitledResource, 'second', { agentId: remoteScheme });
+
+			assert.deepStrictEqual({
+				second,
+				invokeCount,
+			}, {
+				second: { kind: 'rejected', reason: 'Session is read-only', newSessionResource: realResource },
+				invokeCount: 1,
+			});
 		});
 
 		test('a failed materialization does not poison the latch (retry re-attempts)', async () => {
@@ -1532,7 +2855,7 @@ suite('ChatService', () => {
 	});
 
 	test('sendRequest redacts remote session type in provider invoked telemetry', async () => {
-		const sessionType = 'remote-test-copilot';
+		const sessionType = 'remote-private-machine.example-codex-openai';
 		const sessionResource = URI.from({ scheme: sessionType, path: '/session' });
 		const providerInvokedEvents: Record<string, unknown>[] = [];
 		instantiationService.stub(ITelemetryService, {
@@ -1550,6 +2873,7 @@ suite('ChatService', () => {
 			name: 'Remote Agent Host',
 			displayName: 'Remote Agent Host',
 			description: 'Remote Agent Host',
+			agentHostProviderId: 'codex-openai',
 		}]);
 		testDisposables.add(mockSessionsService.registerChatSessionContentProvider(sessionType, {
 			provideChatSessionContent: resource => Promise.resolve({
@@ -1561,19 +2885,95 @@ suite('ChatService', () => {
 		}));
 		instantiationService.stub(IChatSessionsService, mockSessionsService);
 
+		instantiationService.stub(IWorkspaceContextService, new TestContextService(testWorkspace(URI.from({ scheme: 'vscode-vfs', authority: 'test', path: '/workspace' }))));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			'chat.defaultToCopilotHarness': true,
+			'chat.editor.preferCopilotHarness': true,
+			'chat.editor.localAgent.enabled': false,
+			'chat.copilotHarnessIntroduction.mode': 'afterRequest',
+		}));
+
 		testDisposables.add(chatAgentService.registerAgent(sessionType, { ...getAgentData(sessionType), isDefault: true }));
 		testDisposables.add(chatAgentService.registerAgentImplementation(sessionType, { async invoke() { return {}; } }));
 
 		const testService = createChatService();
-		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+		const ref = await testService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, undefined, 'computedDefault');
 		assert.ok(ref);
 		testDisposables.add(ref);
 
 		const response = await testService.sendRequest(sessionResource, 'hello', { agentId: sessionType });
 		ChatSendResult.assertSent(response);
 		await response.data.responseCompletePromise;
+		const secondResponse = await testService.sendRequest(sessionResource, 'second request', { agentId: sessionType });
+		ChatSendResult.assertSent(secondResponse);
+		await secondResponse.data.responseCompletePromise;
+		assert.ok(!JSON.stringify(providerInvokedEvents).includes('private-machine.example'));
 
-		assert.deepStrictEqual(providerInvokedEvents.map(event => event.sessionType), ['remote-agent-host']);
+		assert.deepStrictEqual(providerInvokedEvents.map(event => ({
+			sessionType: event.sessionType,
+			provider: event.provider,
+			isAgentHostSession: event.isAgentHostSession,
+			requestIndex: event.requestIndex,
+			sessionTypeSelectionReason: event.sessionTypeSelectionReason,
+			isVirtualWorkspace: event.isVirtualWorkspace,
+			settingDefaultToCopilotHarness: event.settingDefaultToCopilotHarness,
+			settingPreferCopilotHarness: event.settingPreferCopilotHarness,
+			settingLocalAgentEnabled: event.settingLocalAgentEnabled,
+			settingCopilotHarnessIntroductionMode: event.settingCopilotHarnessIntroductionMode,
+			hasRequestId: typeof event.requestId === 'string',
+		})), [{ sessionType: 'remote-agent-host', provider: 'codex-openai', isAgentHostSession: true, requestIndex: 0, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }, { sessionType: 'remote-agent-host', provider: 'codex-openai', isAgentHostSession: true, requestIndex: 1, sessionTypeSelectionReason: 'computedDefault', isVirtualWorkspace: true, settingDefaultToCopilotHarness: true, settingPreferCopilotHarness: true, settingLocalAgentEnabled: false, settingCopilotHarnessIntroductionMode: 'afterRequest', hasRequestId: true }]);
+	});
+
+	test('user action telemetry distinguishes agent host sessions from local sessions', () => {
+		const telemetryEvents: { readonly name: string; readonly isAgentHostSession: boolean }[] = [];
+		class TestTelemetryService extends NullTelemetryServiceShape {
+			override publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(name?: string, data?: StrictPropertyCheck<T, E>): void {
+				const isAgentHostSession = data && typeof data === 'object' ? Reflect.get(data, 'isAgentHostSession') : undefined;
+				if ((name === 'chatEditHunk' || name === 'chatEditSession') && typeof isAgentHostSession === 'boolean') {
+					telemetryEvents.push({ name, isAgentHostSession });
+				}
+			}
+		}
+		const telemetry = new ChatServiceTelemetry(new TestTelemetryService());
+		const sessionAction = {
+			action: {
+				kind: 'chatEditingSessionAction',
+				uri: URI.file('/test/file.ts'),
+				outcome: 'accepted',
+				hasRemainingEdits: false,
+			},
+			agentId: 'agent',
+			command: undefined,
+			requestId: 'request',
+			result: undefined,
+		} satisfies Omit<IChatUserActionEvent, 'sessionResource'>;
+		const action = {
+			action: {
+				kind: 'chatEditingHunkAction',
+				uri: URI.file('/test/file.ts'),
+				lineCount: 1,
+				linesAdded: 1,
+				linesRemoved: 0,
+				outcome: 'accepted',
+				hasRemainingEdits: false,
+			},
+			agentId: 'agent',
+			command: undefined,
+			requestId: 'request',
+			result: undefined,
+		} satisfies Omit<IChatUserActionEvent, 'sessionResource'>;
+
+		telemetry.notifyUserAction({ ...sessionAction, sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }) });
+		telemetry.notifyUserAction({ ...sessionAction, sessionResource: URI.from({ scheme: SessionType.Local, path: '/session' }) });
+		telemetry.notifyUserAction({ ...action, sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }) });
+		telemetry.notifyUserAction({ ...action, sessionResource: URI.from({ scheme: SessionType.Local, path: '/session' }) });
+
+		assert.deepStrictEqual(telemetryEvents, [
+			{ name: 'chatEditSession', isAgentHostSession: true },
+			{ name: 'chatEditSession', isAgentHostSession: false },
+			{ name: 'chatEditHunk', isAgentHostSession: true },
+			{ name: 'chatEditHunk', isAgentHostSession: false },
+		]);
 	});
 
 	test('sendRequest with agentIdSilent passes agent host session capabilities to the request parser', async () => {
@@ -1960,13 +3360,17 @@ suite('ChatService', () => {
 		interface IProvidedSessionOptions {
 			readonly progressObs?: ISettableObservable<IChatProgress[]>;
 			readonly isCompleteObs?: ISettableObservable<boolean>;
+			readonly isReadOnly?: ISettableObservable<boolean>;
+			readonly isInputBlocked?: ISettableObservable<boolean>;
 			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
-			readonly onDidStartServerRequest?: Event<{ prompt: string; variableData?: IChatRequestVariableData; isSystemInitiated?: boolean; systemInitiatedLabel?: string }>;
+			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
+			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly history?: readonly IChatSessionHistoryItem[];
 		}
 
-		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession } {
+		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession; resolutionCount: () => number } {
 			const resource = URI.from({ scheme: remoteScheme, path: '/session-' + generateId() });
+			let resolutions = 0;
 			const mockSessionsService = new MockChatSessionsService();
 			instantiationService.stub(IChatSessionsService, mockSessionsService);
 
@@ -1979,21 +3383,891 @@ suite('ChatService', () => {
 				onWillDispose: Event.None,
 				progressObs: opts.progressObs,
 				isCompleteObs: opts.isCompleteObs,
+				isReadOnly: opts.isReadOnly,
+				isInputBlocked: opts.isInputBlocked,
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
+				onDidChangeHistory: opts.onDidChangeHistory,
 				dispose: () => { },
 			};
 			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
-				provideChatSessionContent: () => Promise.resolve(provided),
+				provideChatSessionContent: () => {
+					resolutions++;
+					return Promise.resolve(provided);
+				},
 			}));
 
-			return { resource, provided };
+			return { resource, provided, resolutionCount: () => resolutions };
 		}
+
+		test('an in-progress streamed session keeps its model until the provided session completes', async () => {
+			// Agent Host sessions complete their in-flight turn when they are
+			// disposed (e.g. because the remote connection was replaced). Until
+			// then the model is kept alive by the in-progress request and reopening
+			// reuses it; afterwards reopening must resolve fresh content.
+			const isCompleteObs = observableValue('isComplete', false);
+			const { resource, resolutionCount } = setupRemoteProvider({
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+			});
+			const service = createChatService();
+			// The model's in-progress keep-alive acquires through IChatService.
+			instantiationService.stub(IChatService, service);
+
+			const first = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(first);
+			const firstModel = first.object;
+			first.dispose();
+			await service.waitForModelDisposals();
+			const reopenedWhileInProgress = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reopenedWhileInProgress);
+			const reusedWhileInProgress = reopenedWhileInProgress.object === firstModel;
+			reopenedWhileInProgress.dispose();
+
+			isCompleteObs.set(true, undefined);
+			await service.waitForModelDisposals();
+			const reopenedAfterCompletion = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(reopenedAfterCompletion);
+			testDisposables.add(reopenedAfterCompletion);
+
+			assert.deepStrictEqual({
+				reusedWhileInProgress,
+				reusedAfterCompletion: reopenedAfterCompletion.object === firstModel,
+				resolutions: resolutionCount(),
+			}, {
+				reusedWhileInProgress: true,
+				reusedAfterCompletion: false,
+				resolutions: 2,
+			});
+		});
+
+		test('passive history updates append and replace external responses without replacing the draft or unchanged requests', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'one', prompt: 'First message', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('First response') }], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const firstRequest = ref.object.getRequests()[0];
+			ref.object.inputModel.setState({ inputText: 'Unsent local draft' });
+			changes.fire([...first,
+			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
+			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Partial') }], participant: remoteScheme },
+			]);
+			changes.fire([...first,
+			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
+			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Complete external response') }], participant: remoteScheme },
+			]);
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]),
+				unchangedRequest: ref.object.getRequests()[0] === firstRequest,
+				draft: ref.object.inputModel.state.get()?.inputText,
+			}, { requests: [['one', 'First message', 'First response'], ['two', 'Sent in ChatGPT', 'Complete external response']], unchangedRequest: true, draft: 'Unsent local draft' });
+		});
+
+		for (const change of ['metadata', 'content'] as const) {
+			test(`passive history preserves model and view order when an older response changes ${change}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'readme', prompt: 'Add a README', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('README added') }], participant: remoteScheme, elapsedMs: 1000 },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const previousDataId = viewModel.getItems().filter(isRequestVM)[0].dataId;
+				const local = model.addRequest({ parts: [], text: 'hi' }, { variables: [] }, 0);
+				model.acceptResponseProgress(local, { kind: 'markdownContent', content: new MarkdownString('Hi!') });
+				local.response?.complete();
+				const localResponse = local.response;
+				const localView = viewModel.getItems().slice(-2);
+				model.inputModel.setState({ inputText: 'Unsent draft' });
+				const response = change === 'content' ? 'README updated' : 'README added';
+				const updated: IChatSessionHistoryItem[] = [
+					first[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(response) }], participant: remoteScheme, elapsedMs: 1200 },
+					{ type: 'request', id: local.id, prompt: 'hi', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Hi!') }], participant: remoteScheme },
+				];
+				changes.fire(updated);
+				const refreshedRequests = [...model.getRequests()];
+				const refreshedItems = viewModel.getItems();
+				changes.fire(updated);
+
+				assert.deepStrictEqual({
+					requests: model.getRequests().map(request => [request.message.text, request.response?.response.toString()]),
+					items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.response.toString() : 'pending'),
+					localPreserved: model.getRequests()[1] === local && local.response === localResponse,
+					localViewPreserved: viewModel.getItems().slice(-2).every((item, index) => item === localView[index]),
+					repeatPreserved: model.getRequests().every((request, index) => request === refreshedRequests[index])
+						&& viewModel.getItems().every((item, index) => item === refreshedItems[index]),
+					requestRenderInvalidated: viewModel.getItems().filter(isRequestVM)[0].dataId !== previousDataId,
+					elapsedMs: model.getRequests()[0].response?.elapsedMs,
+					draft: model.inputModel.state.get()?.inputText,
+				}, {
+					requests: [['Add a README', response], ['hi', 'Hi!']],
+					items: ['Add a README', response, 'hi', 'Hi!'],
+					localPreserved: true, localViewPreserved: true, repeatPreserved: true, requestRenderInvalidated: true, elapsedMs: 1200, draft: 'Unsent draft',
+				});
+			});
+		}
+
+		test('passive history inserts older turns before existing turns without duplicating local turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'readme', prompt: 'Add a README', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const restored = model.getRequests()[0];
+			const local = model.addRequest({ parts: [], text: 'hi' }, { variables: [] }, 0);
+			local.response?.complete();
+			const updated: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'older', prompt: 'Older request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				...first,
+				{ type: 'request', id: 'peer', prompt: 'Peer request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				{ type: 'request', id: local.id, prompt: 'hi', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			changes.fire(updated);
+			changes.fire(updated);
+
+			assert.deepStrictEqual({
+				requests: model.getRequests().map(request => request.message.text),
+				items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+				restoredPreserved: model.getRequests()[1] === restored,
+				localPreserved: model.getRequests()[3] === local,
+			}, {
+				requests: ['Older request', 'Add a README', 'Peer request', 'hi'],
+				items: ['Older request', 'Add a README', 'Peer request', 'hi'],
+				restoredPreserved: true, localPreserved: true,
+			});
+		});
+
+		test('passive history preserves generated request identities when the provider omits IDs', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', prompt: 'Restored request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const id = model.getRequests()[0].id;
+			const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+			local.response?.complete();
+			const updated: IChatSessionHistoryItem[] = [
+				first[0],
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Updated reply') }], participant: remoteScheme },
+			];
+			changes.fire(updated);
+			changes.fire(updated);
+			assert.deepStrictEqual(model.getRequests().map(request => [request.id, request.message.text, request.response?.response.toString()]), [
+				[id, 'Restored request', 'Updated reply'],
+				[local.id, 'Local request', ''],
+			]);
+		});
+
+		for (const change of ['prepend', 'remove'] as const) {
+			test(`passive history matches ID-less turns when older history changes: ${change}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', prompt: 'First', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+					{ type: 'request', prompt: 'Second', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const original = [...model.getRequests()];
+				const local = model.addRequest({ parts: [], text: 'Local' }, { variables: [] }, 0);
+				local.response!.complete();
+				const updated: IChatSessionHistoryItem[] = change === 'prepend' ? [
+					{ type: 'request', prompt: 'Older', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+					...first,
+				] : first.slice(2);
+				changes.fire(updated);
+				const secondIndex = change === 'prepend' ? 2 : 0;
+
+				assert.deepStrictEqual({
+					requests: model.getRequests().map(request => request.message.text),
+					items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					secondPreserved: model.getRequests()[secondIndex] === original[1],
+					firstPreservedOrRemoved: change === 'prepend'
+						? model.getRequests()[1] === original[0]
+						: !model.getRequests().some(request => request.id === original[0].id),
+					localPreserved: model.getRequests().at(-1) === local,
+				}, {
+					requests: change === 'prepend' ? ['Older', 'First', 'Second', 'Local'] : ['Second', 'Local'],
+					items: change === 'prepend' ? ['Older', 'First', 'Second', 'Local'] : ['Second', 'Local'],
+					secondPreserved: true, firstPreservedOrRemoved: true, localPreserved: true,
+				});
+			});
+		}
+
+		for (const [previousCount, nextCount] of [[2, 1], [1, 2]]) {
+			test(`passive history does not reuse ambiguous ID-less identities: ${previousCount} to ${nextCount}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const history: IChatSessionHistoryItem[] = Array.from({ length: previousCount }, () => [
+					{ type: 'request' as const, prompt: 'Repeated request', participant: remoteScheme },
+					{ type: 'response' as const, parts: [], participant: remoteScheme },
+				]).flat();
+				const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const previousIds = new Set(model.getRequests().map(request => request.id));
+				const updated: IChatSessionHistoryItem[] = Array.from({ length: nextCount }, () => [
+					{ type: 'request' as const, prompt: 'Repeated request', participant: remoteScheme },
+					{ type: 'response' as const, parts: [], participant: remoteScheme },
+				]).flat();
+				changes.fire(updated);
+				const refreshed = [...model.getRequests()];
+				changes.fire(updated);
+
+				assert.deepStrictEqual({
+					count: model.getRequests().length,
+					reusedAmbiguousId: model.getRequests().some(request => previousIds.has(request.id)),
+					uniqueIds: new Set(model.getRequests().map(request => request.id)).size,
+					identicalRefreshPreserved: model.getRequests().every((request, index) => request === refreshed[index]),
+				}, {
+					count: nextCount, reusedAmbiguousId: false, uniqueIds: nextCount, identicalRefreshPreserved: true,
+				});
+			});
+		}
+
+		test('passive history applies only the latest update after a local response finishes streaming', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'readme', prompt: 'Add a README', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Original reply') }], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const local = model.addRequest({ parts: [], text: 'hi' }, { variables: [] }, 0);
+			model.acceptResponseProgress(local, { kind: 'markdownContent', content: new MarkdownString('Still') });
+			let replacements = 0;
+			testDisposables.add(model.onDidChange(event => {
+				if (event.kind === 'addRequest' && event.replacedRequest) {
+					replacements++;
+				}
+			}));
+			for (const content of ['Intermediate reply', 'Latest reply']) {
+				changes.fire([
+					first[0],
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString(content) }], participant: remoteScheme },
+				]);
+			}
+			const whileStreaming = model.getRequests().map(request => request.response?.response.toString());
+			model.acceptResponseProgress(local, { kind: 'markdownContent', content: new MarkdownString(' here.') });
+			local.response?.complete();
+			await new Promise<void>(resolve => queueMicrotask(resolve));
+
+			assert.deepStrictEqual({
+				whileStreaming, replacements,
+				requests: model.getRequests().map(request => [request.message.text, request.response?.response.toString()]),
+				items: viewModel.getItems().map(item => isRequestVM(item) ? item.messageText : isResponseVM(item) ? item.response.toString() : 'pending'),
+				localPreserved: model.getRequests()[1] === local,
+			}, {
+				whileStreaming: ['Original reply', 'Still'], replacements: 1,
+				requests: [['Add a README', 'Latest reply'], ['hi', 'Still here.']],
+				items: ['Add a README', 'Latest reply', 'hi', 'Still here.'],
+				localPreserved: true,
+			});
+		});
+
+		test('passive history removes absent restored turns without removing local turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'removed', prompt: 'Removed request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+				{ type: 'request', id: 'retained', prompt: 'Retained request', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const retained = model.getRequests()[1];
+			const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+			local.response?.complete();
+			changes.fire(first.slice(2));
+
+			assert.deepStrictEqual({
+				requests: model.getRequests().map(request => request.message.text),
+				items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+				retained: model.getRequests()[0] === retained,
+				local: model.getRequests()[1] === local,
+			}, {
+				requests: ['Retained request', 'Local request'],
+				items: ['Retained request', 'Local request'],
+				retained: true, local: true,
+			});
+		});
+
+		test('passive history removals update the last request and cost before notifying observers', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const history: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'first', prompt: 'First', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 1 }], participant: remoteScheme },
+				{ type: 'request', id: 'retained', prompt: 'Retained', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 2 }], participant: remoteScheme },
+				{ type: 'request', id: 'last', prompt: 'Last', participant: remoteScheme },
+				{ type: 'response', parts: [{ kind: 'usage', promptTokens: 10, completionTokens: 2, copilotCredits: 3 }], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const retained = model.getRequests()[1];
+			const removals: { lastRequest: string | undefined; cost: number }[] = [];
+			testDisposables.add(model.onDidChange(event => {
+				if (event.kind === 'removeRequest') {
+					removals.push({ lastRequest: model.lastRequest?.id, cost: model.sessionCost });
+				}
+			}));
+			const initialCost = model.sessionCost;
+			const initiallyActive = model.hasActiveRequest.get();
+			changes.fire(history.slice(2, 4));
+			const lastRequest = model.lastRequestObs.get();
+			retained.response!.reopen();
+
+			assert.deepStrictEqual({
+				initialCost, initiallyActive, removals,
+				lastRequestPreserved: lastRequest === retained,
+				resumedActive: model.hasActiveRequest.get(),
+				items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+			}, {
+				initialCost: 6, initiallyActive: false,
+				removals: [{ lastRequest: 'last', cost: 5 }, { lastRequest: 'retained', cost: 2 }],
+				lastRequestPreserved: true, resumedActive: true, items: ['Retained'],
+			});
+			retained.response!.complete();
+		});
+
+		test('passive history waits for a local response and preserves locally added requests', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const first: IChatSessionHistoryItem[] = [
+				{ type: 'request', id: 'one', prompt: 'First', participant: remoteScheme },
+				{ type: 'response', parts: [], participant: remoteScheme },
+			];
+			const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const model = ref.object as ChatModel;
+			const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+			changes.fire([...first, { type: 'request', id: 'external', prompt: 'External', participant: remoteScheme }, { type: 'response', parts: [], participant: remoteScheme }]);
+			const whileActive = model.getRequests().map(request => request.message.text);
+			local.response?.complete();
+			await new Promise<void>(resolve => queueMicrotask(resolve));
+			assert.deepStrictEqual({ whileActive, after: model.getRequests().map(request => request.message.text), preserved: model.getRequests().includes(local) }, {
+				whileActive: ['First', 'Local request'], after: ['First', 'Local request', 'External'], preserved: true,
+			});
+		});
+
+		test('request-only hidden session history keeps its response visible and persists', async () => {
+			const { resource } = setupRemoteProvider({
+				history: [{
+					id: 'request-only-hidden',
+					type: 'request',
+					prompt: 'carrier',
+					participant: remoteScheme,
+					isRequestHidden: true,
+				}, {
+					type: 'response',
+					participant: remoteScheme,
+					parts: [{ kind: 'systemNotification', content: new MarkdownString('Visible notice') }],
+				}],
+			});
+			const testService = createChatService();
+			const modelReference = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(modelReference);
+			const model = testDisposables.add(modelReference);
+			const request = model.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model.object, undefined));
+			const before = {
+				requestHidden: request.isRequestHiddenFromTranscript,
+				turnHidden: request.isHiddenFromTranscript,
+				responseHidden: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+			};
+
+			const restoredService = createChatService();
+			const restored = testDisposables.add(restoredService.loadSessionFromData(JSON.parse(JSON.stringify(model.object)))!);
+			const restoredRequest = restored.object.getRequests()[0];
+			const restoredViewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, restored.object, undefined));
+
+			assert.deepStrictEqual({
+				before,
+				restored: {
+					requestHidden: restoredRequest.isRequestHiddenFromTranscript,
+					turnHidden: restoredRequest.isHiddenFromTranscript,
+					responseHidden: restoredRequest.response?.isHiddenFromTranscript,
+					visibleItems: restoredViewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+				},
+			}, {
+				before: {
+					requestHidden: true,
+					turnHidden: false,
+					responseHidden: false,
+					visibleItems: ['response'],
+				},
+				restored: {
+					requestHidden: true,
+					turnHidden: false,
+					responseHidden: false,
+					visibleItems: ['response'],
+				},
+			});
+		});
 
 		let idCounter = 0;
 		function generateId(): string {
 			return `${Date.now()}-${idCounter++}`;
 		}
+
+		test('contributed session read-only state is preserved on the chat model', async () => {
+			const isReadOnly = observableValue<boolean>('isReadOnly', true);
+			const { resource } = setupRemoteProvider({ isReadOnly });
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const sendResult = await testService.sendRequest(resource, 'Do not send');
+			const states = [ref.object.isReadOnly.get()];
+			isReadOnly.set(false, undefined);
+			states.push(ref.object.isReadOnly.get());
+
+			assert.deepStrictEqual({ states, sendResult }, {
+				states: [true, false],
+				sendResult: { kind: 'rejected', reason: 'Session is read-only' },
+			});
+		});
+
+		test('blocked input rejects send, queue and resend without modifying the transcript', async () => {
+			const isInputBlocked = observableValue('inputBlocked', true);
+			const { resource } = setupRemoteProvider({ isInputBlocked });
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			const initial = ref.object.getRequests().slice();
+			const send = await service.sendRequest(resource, 'Do not send');
+			const queue = await service.sendRequest(resource, 'Do not queue', { queue: ChatRequestQueueKind.Queued });
+			await service.resendRequest(initial[0]);
+			const unchanged = ref.object.getRequests().every((request, index) => request === initial[index]);
+			isInputBlocked.set(false, undefined);
+			assert.deepStrictEqual({ send, queue, unchanged, requests: ref.object.getRequests().length, pending: ref.object.getPendingRequests().length, unblocked: !ref.object.isInputBlocked.get(), readOnly: ref.object.isReadOnly.get() }, {
+				send: { kind: 'rejected', reason: 'Session input is blocked' },
+				queue: { kind: 'rejected', reason: 'Session input is blocked' },
+				unchanged: true, requests: initial.length, pending: 0, unblocked: true, readOnly: false,
+			});
+		});
+
+		test('restores request timestamps from remote session history', async () => {
+			const timestamp = 1_752_012_321_000;
+			const completedAt = timestamp + 2_500;
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ type: 'request', prompt: 'hello', participant: remoteScheme, timestamp },
+					{ type: 'response', parts: [], participant: remoteScheme, elapsedMs: 2_500, completedAt },
+				],
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				timestamp: ref.object.getRequests()[0].timestamp,
+				requestTimestamp: ref.object.getRequests()[0].requestTimestamp,
+				elapsedMs: ref.object.getRequests()[0].response?.elapsedMs,
+				completedAt: ref.object.getRequests()[0].response?.completedAt,
+				completionTimestamp: ref.object.getRequests()[0].response?.completionTimestamp,
+			}, {
+				timestamp,
+				requestTimestamp: timestamp,
+				elapsedMs: 2_500,
+				completedAt,
+				completionTimestamp: completedAt,
+			});
+		});
+
+		test('stamps the display time when a streamed remote turn finishes while watched', async () => {
+			const before = Date.now();
+			const isCompleteObs = observableValue<boolean>('isComplete', false);
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const whileStreaming = ref.object.getRequests()[0].response?.completionTimestamp;
+			isCompleteObs.set(true, undefined);
+			const afterCompleting = ref.object.getRequests()[0].response?.completionTimestamp;
+
+			assert.deepStrictEqual({
+				whileStreaming,
+				stampedOnCompletion: afterCompleting !== undefined && afterCompleting >= before && afterCompleting <= Date.now(),
+			}, {
+				whileStreaming: undefined,
+				stampedOnCompletion: true,
+			});
+		});
+
+		test('keeps display time unknown when a streamed remote session loads already complete', async () => {
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', true),
+				interruptActiveResponseCallback: async () => true,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const response = ref.object.getRequests()[0].response;
+			assert.deepStrictEqual({
+				isComplete: response?.isComplete,
+				completionTimestamp: response?.completionTimestamp,
+			}, {
+				isComplete: true,
+				completionTimestamp: undefined,
+			});
+		});
+
+		test('keeps display time unknown when remote session history predates timestamps', async () => {
+			const before = Date.now();
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const request = ref.object.getRequests()[0];
+			assert.deepStrictEqual({
+				hasCurrentRecencyFallback: request.timestamp >= before && request.timestamp <= Date.now(),
+				requestTimestamp: request.requestTimestamp,
+				completionTimestamp: request.response?.completionTimestamp,
+			}, {
+				hasCurrentRecencyFallback: true,
+				requestTimestamp: undefined,
+				completionTimestamp: undefined,
+			});
+		});
+
+		test('normalizes legacy remote timestamp sentinels to unknown', async () => {
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, timestamp: -1 }],
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			assert.deepStrictEqual({
+				requestTimestamp: ref.object.getRequests()[0].requestTimestamp,
+				serializedTimestamp: ref.object.toJSON().requests[0].timestamp,
+			}, {
+				requestTimestamp: undefined,
+				serializedTimestamp: undefined,
+			});
+		});
+
+		test('preserves model configuration through history, live requests and persistence', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const modelId = 'agent-host-copilot:claude-opus-4.8';
+			const modelConfiguration = { reasoningEffort: 'xhigh', contextSize: 200_000 };
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'legacy', type: 'request', prompt: 'legacy', participant: remoteScheme, modelId },
+					{ id: 'history', type: 'request', prompt: 'history', participant: remoteScheme, modelId, modelConfiguration },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const service = createChatService();
+			const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'live', modelId, modelConfiguration });
+
+			const operationLog = new ChatSessionOperationLog();
+			const restoredModels = [ref.object.toJSON(), operationLog.read(operationLog.createInitial(ref.object))].map(value =>
+				testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }))
+			);
+			const expected = [
+				{ modelId, modelConfiguration: undefined },
+				{ modelId, modelConfiguration },
+				{ modelId, modelConfiguration },
+			];
+			assert.deepStrictEqual([ref.object, ...restoredModels].map(model => {
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				return viewModel.getItems().filter(isRequestVM).map(request => ({ modelId: request.modelId, modelConfiguration: request.modelConfiguration }));
+			}), [expected, expected, expected]);
+		});
+
+		test('preserves explicit Agent Merge identity in history and live server requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt: 'user request', participant: remoteScheme },
+					{ id: 'history', type: 'request', prompt: 'merge history', participant: remoteScheme, isSystemInitiated: true, requestSource: 'agentMerge' },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt: 'merge live', isSystemInitiated: true, requestSource: 'agentMerge' });
+
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => ({ id: request.id, requestSource: request.requestSource })),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => ({ id: request.id, requestSource: request.requestSource })),
+				serialized: ref.object.toJSON().requests.map(request => ({ id: request.requestId, requestSource: request.requestSource })),
+			}, {
+				requests: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+				viewModels: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+				serialized: [{ id: 'user', requestSource: undefined }, { id: 'history', requestSource: 'agentMerge' }, { id: 'live', requestSource: 'agentMerge' }],
+			});
+		});
+
+		test('backfills legacy Agent Merge history but not live requests or user prompts', async () => {
+			const prompt = '<agent_merge_state>\nAuthorized actions this run: fix failed required CI checks\n</agent_merge_state>';
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'user', type: 'request', prompt, participant: remoteScheme },
+					{ id: 'labelled', type: 'request', prompt, participant: remoteScheme, isSystemInitiated: true, systemInitiatedLabel: 'Terminal needs input' },
+					{ id: 'legacy', type: 'request', prompt, participant: remoteScheme, isSystemInitiated: true },
+				],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				isCompleteObs: observableValue<boolean>('isComplete', false),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'live', prompt, isSystemInitiated: true });
+
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			const expected = [
+				{ id: 'user', requestSource: undefined },
+				{ id: 'labelled', requestSource: undefined },
+				{ id: 'legacy', requestSource: 'agentMerge' },
+				{ id: 'live', requestSource: undefined },
+			];
+			assert.deepStrictEqual({
+				requests: ref.object.getRequests().map(request => ({ id: request.id, requestSource: request.requestSource })),
+				viewModels: viewModel.getItems().filter(isRequestVM).map(request => ({ id: request.id, requestSource: request.requestSource })),
+				serialized: ref.object.toJSON().requests.map(request => ({ id: request.requestId, requestSource: request.requestSource })),
+			}, {
+				requests: expected,
+				viewModels: expected,
+				serialized: expected,
+			});
+		});
+
+		test('uses the Agent Host timestamp for live server-initiated requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const timestamp = 1_752_012_321_000;
+			const { resource } = setupRemoteProvider({
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'turn-1', prompt: 'server request', timestamp });
+
+			assert.deepStrictEqual({
+				message: ref.object.lastRequest?.message.text,
+				timestamp: ref.object.lastRequest?.timestamp,
+			}, {
+				message: 'server request',
+				timestamp,
+			});
+		});
+
+		test('adopts the Agent Host turn id for live server-initiated requests', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const { resource } = setupRemoteProvider({
+				history: [{ id: 'turn-1', type: 'request', prompt: 'hello', participant: remoteScheme }],
+				progressObs: observableValue<IChatProgress[]>('progress', []),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({ id: 'turn-2', prompt: 'server request' });
+
+			assert.deepStrictEqual(ref.object.getRequests().map(r => ({ id: r.id, message: r.message.text })), [
+				{ id: 'turn-1', message: 'hello' },
+				{ id: 'turn-2', message: 'server request' },
+			]);
+		});
+
+		test('hides a live workspace-continuation request while keeping its response boundary and provider output', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const { resource } = setupRemoteProvider({
+				history: [],
+				progressObs,
+				isCompleteObs: observableValue<boolean>('complete', false),
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+			onDidStartServerRequest.fire({
+				id: 'workspace-continuation',
+				prompt: '<!-- vscode-request-hidden-from-transcript -->\nContinue in the requested workspace.',
+				isSystemInitiated: true,
+				isRequestHidden: true,
+			});
+			progressObs.set([{
+				kind: 'systemNotification',
+				content: new MarkdownString('Now working in vscode'),
+				presentation: 'workspaceTransition',
+				workspaceName: 'vscode',
+				accessibilityLabel: 'Workspace changed. This session is now working directly in vscode.',
+			}, {
+				kind: 'markdownContent',
+				content: new MarkdownString('Provider continued work'),
+			}], undefined);
+
+			const request = ref.object.getRequests()[0];
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, ref.object, undefined));
+			assert.deepStrictEqual({
+				requestHidden: request.isRequestHiddenFromTranscript,
+				responseHidden: request.response?.isHiddenFromTranscript,
+				visibleItems: viewModel.getItems().map(item => isResponseVM(item) ? 'response' : 'request'),
+				responseParts: request.response?.response.value.map(part => part.kind),
+			}, {
+				requestHidden: true,
+				responseHidden: false,
+				visibleItems: ['response'],
+				responseParts: ['systemNotification', 'markdownContent'],
+			});
+		});
+
+		test('remote resume reopens the existing request without duplicating it', async () => {
+			const onDidStartServerRequest = testDisposables.add(new Emitter<IChatSessionServerRequest>());
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('complete', true);
+			const { resource } = setupRemoteProvider({
+				history: [
+					{ id: 'turn-1', type: 'request', prompt: 'hello', participant: remoteScheme },
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('partial') }], participant: remoteScheme, errorDetails: { message: 'failed' } },
+				],
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => true,
+				onDidStartServerRequest: onDidStartServerRequest.event,
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			transaction(tx => {
+				isCompleteObs.set(false, tx);
+				onDidStartServerRequest.fire({ id: 'turn-1', prompt: 'hello', resume: true });
+			});
+
+			const request = ref.object.getRequests()[0];
+			assert.deepStrictEqual({
+				requestCount: ref.object.getRequests().length,
+				id: request.id,
+				state: request.response?.state,
+				errorDetails: request.response?.result?.errorDetails,
+				content: request.response?.response.value,
+			}, {
+				requestCount: 1,
+				id: 'turn-1',
+				state: ResponseModelState.Pending,
+				errorDetails: undefined,
+				content: [],
+			});
+
+			progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('continued') }], undefined);
+			isCompleteObs.set(true, undefined);
+
+			assert.deepStrictEqual(request.response?.response.value.map(part => part.kind === 'markdownContent' ? part.content.value : part.kind), ['continued']);
+		});
 
 		test('already-complete session at load time: no initial pending request, response is completed via autorun', async () => {
 			const progressObs = observableValue<IChatProgress[]>('progress', []);
@@ -2182,6 +4456,50 @@ suite('ChatService', () => {
 			);
 		});
 
+		test('restored draft keeps the history model while the live catalog is cold', async () => {
+			const historyModelId = 'agent-host-copilotcli:gpt-5.6-sol';
+			const historyMetadata: ILanguageModelChatMetadata = {
+				id: historyModelId, name: 'GPT-5.6 Sol', vendor: 'agent-host-copilotcli', version: '1.0', family: 'gpt-5.6-sol',
+				extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+				isDefaultForLocation: {}, targetChatSessionType: remoteScheme,
+			};
+			let catalogLoaded = true;
+			instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override lookupLanguageModel(id: string): ILanguageModelChatMetadata | undefined {
+					return catalogLoaded && id === historyModelId ? historyMetadata : undefined;
+				}
+			});
+
+			const { resource } = setupRemoteProvider({
+				history: [{ type: 'request', prompt: 'hello', participant: remoteScheme, modelId: historyModelId }]
+			});
+			const testService = createChatService();
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			(ref1.object as ChatModel).inputModel.setState({
+				inputText: 'unsent draft',
+				selectedModel: { identifier: historyModelId, metadata: historyMetadata },
+			});
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			catalogLoaded = false;
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const restored = (ref2.object as ChatModel).inputModel.state.get();
+
+			assert.deepStrictEqual({
+				inputText: restored?.inputText,
+				selectedModel: restored?.selectedModel?.identifier,
+				target: restored?.selectedModel?.metadata.targetChatSessionType,
+			}, {
+				inputText: 'unsent draft',
+				selectedModel: historyModelId,
+				target: remoteScheme,
+			});
+		});
+
 		test('restored draft preserves the model configuration (effort/context) of the history model', async () => {
 			const historyModelId = 'history-model';
 			const historyMetadata: ILanguageModelChatMetadata = {
@@ -2255,6 +4573,52 @@ suite('ChatService', () => {
 		ref.dispose();
 	});
 
+	test('moving an autosaved empty session with a handoff reference preserves its transcript after restart', async () => {
+		const fileService = testDisposables.add(new FileService(new NullLogService()));
+		testDisposables.add(fileService.registerProvider(Schemas.file, testDisposables.add(new InMemoryFileSystemProvider())));
+		instantiationService.stub(IFileService, fileService);
+		const testService = createChatService();
+		instantiationService.stub(IChatService, testService);
+		const sidebarRef = startSessionModel(testService);
+		const resource = sidebarRef.object.sessionResource;
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		await testService.getHistorySessionItems();
+
+		const handoffRef = testService.acquireExistingSession(resource, 'test#move');
+		assert.ok(handoffRef);
+		testDisposables.add(handoffRef);
+		sidebarRef.dispose();
+		await testService.waitForModelDisposals();
+		const editorRef = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+		assert.ok(editorRef);
+		testDisposables.add(editorRef);
+		handoffRef.dispose();
+
+		const response = await testService.sendRequest(resource, 'message in detached window');
+		ChatSendResult.assertSent(response);
+		await response.data.responseCompletePromise;
+		editorRef.dispose();
+		await testService.waitForModelDisposals();
+
+		const restartedService = createChatService();
+		instantiationService.stub(IChatService, restartedService);
+		const history = await restartedService.getHistorySessionItems();
+		const restoredModel = await getOrRestoreModel(restartedService, resource);
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+		const log = await fileService.readFile(URI.joinPath(testService.getChatStorageFolder(), `${localSessionId}.jsonl`));
+		const firstLogEntry = JSON.parse(log.value.toString().split('\n')[0]) as { kind: number };
+		assert.deepStrictEqual({
+			firstLogEntryKind: firstLogEntry.kind,
+			history: history.map(item => item.sessionResource),
+			requests: restoredModel?.getRequests().map(request => request.message.text),
+		}, {
+			firstLogEntryKind: 0,
+			history: [resource],
+			requests: ['message in detached window'],
+		});
+	});
+
 	test('removeHistoryEntry marks model as deleted and excludes from getLiveSessionItems', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
 
@@ -2319,6 +4683,82 @@ suite('ChatService', () => {
 	});
 });
 
+suite('backfillRestoredPickerState', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const AGENT = 'agent';
+	const model = (identifier: string): ISerializableChatModelInputState['selectedModel'] => ({
+		identifier,
+		metadata: {
+			id: identifier, name: identifier, vendor: 'copilot', version: '1.0', family: 'test',
+			extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+			isDefaultForLocation: {}
+		}
+	});
+	const state = (modeId: string, selectedModel: ISerializableChatModelInputState['selectedModel']): ISerializableChatModelInputState => ({
+		attachments: [], mode: { id: modeId, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
+	});
+
+	test('does not backfill selectedModel from stored state when the chosen state has none', () => {
+		const result = backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, model('agent-host-claude:opus')), AGENT);
+		assert.strictEqual(result?.selectedModel, undefined);
+	});
+
+	test('keeps the chosen model when present (never overrides it with the stored one)', () => {
+		const result = backfillRestoredPickerState(state(AGENT, model('agent-host-claude:opus')), state(AGENT, model('agent-host-claude:haiku')), AGENT);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-claude:opus');
+	});
+
+	test('promotes a stored custom agent over the default Agent only, never over an explicit mode', () => {
+		assert.strictEqual(backfillRestoredPickerState(state(AGENT, undefined), state('custom-uri', undefined), AGENT)?.mode.id, 'custom-uri', 'default Agent → stored custom agent');
+		assert.strictEqual(backfillRestoredPickerState(state('other-uri', undefined), state('custom-uri', undefined), AGENT)?.mode.id, 'other-uri', 'explicit mode is not overridden');
+		assert.strictEqual(backfillRestoredPickerState(state(AGENT, undefined), state(AGENT, undefined), AGENT)?.mode.id, AGENT, 'stored default Agent leaves chosen Agent');
+	});
+
+	test('returns the chosen state unchanged when there is no stored state', () => {
+		const chosen = state(AGENT, undefined);
+		assert.strictEqual(backfillRestoredPickerState(chosen, undefined, AGENT), chosen);
+	});
+});
+
+suite('backfillTransferredModel', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const AGENT = 'agent';
+	const model = (identifier: string): ISerializableChatModelInputState['selectedModel'] => ({
+		identifier,
+		metadata: {
+			id: identifier, name: identifier, vendor: 'copilot', version: '1.0', family: 'test',
+			extension: new ExtensionIdentifier('a.b'), isUserSelectable: true, maxInputTokens: 8192, maxOutputTokens: 1024,
+			isDefaultForLocation: {}
+		}
+	});
+	const state = (selectedModel: ISerializableChatModelInputState['selectedModel']): ISerializableChatModelInputState => ({
+		attachments: [], mode: { id: AGENT, kind: ChatModeKind.Agent }, selectedModel, inputText: '', selections: [], contrib: {}
+	});
+
+	test('backfills the history model when the transferred state dropped its model', () => {
+		const history = model('agent-host-copilotcli:gpt-5.6-sol');
+		const result = backfillTransferredModel(state(undefined), history);
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-copilotcli:gpt-5.6-sol');
+	});
+
+	test('never overrides a model already present on the transferred state', () => {
+		const result = backfillTransferredModel(state(model('agent-host-copilotcli:gpt-5.6-terra')), model('agent-host-copilotcli:gpt-5.6-sol'));
+		assert.strictEqual(result?.selectedModel?.identifier, 'agent-host-copilotcli:gpt-5.6-terra');
+	});
+
+	test('leaves the state unchanged when there is no history model', () => {
+		const chosen = state(undefined);
+		assert.strictEqual(backfillTransferredModel(chosen, undefined), chosen);
+		assert.strictEqual(chosen.selectedModel, undefined);
+	});
+
+	test('returns undefined state as-is', () => {
+		assert.strictEqual(backfillTransferredModel(undefined, model('agent-host-copilotcli:gpt-5.6-sol')), undefined);
+	});
+});
+
 
 function toSnapshotExportData(model: IChatModel) {
 	const exp = model.toExport();
@@ -2326,7 +4766,7 @@ function toSnapshotExportData(model: IChatModel) {
 		...exp,
 		requests: exp.requests.map(r => {
 			// Destructure properties after `vote` so we can insert `voteDownReason` in the correct position for snapshot compat
-			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, systemInitiatedLabel: _systemInitiatedLabel, elapsedMs: _elapsedMs, completionTokens: _completionTokens, promptTokens: _promptTokens, outputBuffer: _outputBuffer, promptTokenDetails: _promptTokenDetails, copilotCredits: _copilotCredits, ...rest } = r;
+			const { slashCommand, usedContext, contentReferences, codeCitations, timeSpentWaiting, isSystemInitiated: _isSystemInitiated, systemInitiatedLabel: _systemInitiatedLabel, responseTimestamp: _responseTimestamp, elapsedMs: _elapsedMs, completionTokens: _completionTokens, promptTokens: _promptTokens, outputBuffer: _outputBuffer, promptTokenDetails: _promptTokenDetails, copilotCredits: _copilotCredits, ...rest } = r;
 			return {
 				...rest,
 				modelState: {

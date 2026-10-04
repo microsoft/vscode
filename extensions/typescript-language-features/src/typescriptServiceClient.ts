@@ -30,7 +30,9 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
+import { createGenerationGuardedHandler } from './utils/generation';
 import { hash } from './utils/hash';
+import { getSafeNotificationMessage } from './utils/notification';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
 
 
@@ -98,6 +100,8 @@ namespace ServerState {
 export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
+
+export const copilotChatExtensionId = 'github.copilot-chat';
 
 interface WatchEvent {
 	updated?: Set<string>;
@@ -392,7 +396,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 		let version = this._versionManager.currentVersion;
 		if (!version.isValid) {
-			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn't point to a valid tsserver install. Falling back to bundled TypeScript version.", version.path));
+			vscode.window.showWarningMessage(getSafeNotificationMessage(
+				vscode.l10n.t("The path {0} doesn't point to a valid tsserver install. Falling back to bundled TypeScript version.", version.path),
+				vscode.l10n.t("The configured path doesn't point to a valid tsserver install. Falling back to bundled TypeScript version."),
+			));
 
 			this._versionManager.reset();
 			version = this._versionManager.currentVersion;
@@ -455,7 +462,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 
 			if (err) {
-				vscode.window.showErrorMessage(vscode.l10n.t("TypeScript language server exited with error. Error message is: {0}", err.message || err.name));
+				vscode.window.showErrorMessage(getSafeNotificationMessage(
+					vscode.l10n.t("TypeScript language server exited with error. Error message is: {0}", err.message || err.name),
+					vscode.l10n.t("TypeScript language server exited with an error. Check the TypeScript output for details."),
+				));
 			}
 
 			this.serverState = new ServerState.Errored(err, handle.tsServerLog);
@@ -514,7 +524,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.isRestarting = false;
 		});
 
-		handle.onEvent(event => this.dispatchEvent(event));
+		handle.onEvent(createGenerationGuardedHandler(
+			mytoken,
+			() => this.token,
+			() => !this.isDisposed && this.serverState.type === ServerState.Type.Running && this.serverState.server === handle,
+			event => this.dispatchEvent(event),
+		));
 
 		this.serviceStarted(resendModels);
 
@@ -644,7 +659,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.numberRestarts++;
 			let startService = true;
 
-			const pluginExtensionList = this.pluginManager.plugins.map(plugin => plugin.extension.id).join(', ');
+			const plugins = this.pluginManager.plugins;
+			const pluginsForCrashPrompt = plugins.filter(plugin => plugin.extension.id.toLowerCase() !== copilotChatExtensionId);
+			const pluginExtensionList = [...new Set(pluginsForCrashPrompt.map(plugin => plugin.extension.id))].join(', ');
 			const reportIssueItem: vscode.MessageItem = {
 				title: vscode.l10n.t("Report Issue"),
 			};
@@ -656,10 +673,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this.lastStart = Date.now();
 					startService = false;
 					this.hasServerFatallyCrashedTooManyTimes = true;
-					if (this.pluginManager.plugins.length) {
+					if (pluginsForCrashPrompt.length) {
 						prompt = vscode.window.showErrorMessage<vscode.MessageItem>(
 							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else {
+					} else if (!plugins.length) {
 						prompt = vscode.window.showErrorMessage(
 							vscode.l10n.t("The JS/TS language service immediately crashed 5 times. The service will not be restarted."),
 							reportIssueItem);
@@ -677,10 +694,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				} else if (diff < 60 * 1000 * 5 /* 5 Minutes */) {
 					this.lastStart = Date.now();
 					if (!this._isPromptingAfterCrash) {
-						if (this.pluginManager.plugins.length) {
+						if (pluginsForCrashPrompt.length) {
 							prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
 								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes.\nThis may be caused by a plugin contributed by one of these extensions: {0}\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-						} else {
+						} else if (!plugins.length) {
 							prompt = vscode.window.showWarningMessage(
 								vscode.l10n.t("The JS/TS language service crashed 5 times in the last 5 Minutes."),
 								reportIssueItem);
@@ -691,10 +708,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				// Prompt after a single restart
 				this.numberRestarts = 0;
 				if (!this._isPromptingAfterCrash) {
-					if (this.pluginManager.plugins.length) {
+					if (pluginsForCrashPrompt.length) {
 						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
 							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
-					} else {
+					} else if (!plugins.length) {
 						prompt = vscode.window.showWarningMessage(
 							vscode.l10n.t("The JS/TS language service crashed."),
 							reportIssueItem);
@@ -1180,13 +1197,13 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (telemetryData.telemetryEventName) {
 			case 'typingsInstalled': {
 				const typingsInstalledPayload: Proto.TypingsInstalledTelemetryEventPayload = (telemetryData.payload as Proto.TypingsInstalledTelemetryEventPayload);
-				properties['installedPackages'] = typingsInstalledPayload.installedPackages;
+				properties.installedPackages = typingsInstalledPayload.installedPackages;
 
 				if (typeof typingsInstalledPayload.installSuccess === 'boolean') {
-					properties['installSuccess'] = typingsInstalledPayload.installSuccess.toString();
+					properties.installSuccess = typingsInstalledPayload.installSuccess.toString();
 				}
 				if (typeof typingsInstalledPayload.typingsInstallerVersion === 'string') {
-					properties['typingsInstallerVersion'] = typingsInstalledPayload.typingsInstallerVersion;
+					properties.typingsInstallerVersion = typingsInstalledPayload.typingsInstallerVersion;
 				}
 				break;
 			}
@@ -1210,7 +1227,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		// Add plugin data here
 		if (telemetryData.telemetryEventName === 'projectInfo') {
 			if (this.serverState.type === ServerState.Type.Running) {
-				this.serverState.updateTsserverVersion(properties['version']);
+				this.serverState.updateTsserverVersion(properties.version);
 			}
 		}
 
@@ -1273,7 +1290,10 @@ class ServerInitializingIndicator extends Disposable {
 
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.Window,
-			title: vscode.l10n.t("Initializing '{0}'", projectDisplayName),
+			title: getSafeNotificationMessage(
+				vscode.l10n.t("Initializing '{0}'", projectDisplayName),
+				vscode.l10n.t("Initializing project"),
+			),
 		}, () => new Promise<void>(resolve => {
 			this._task = { project: projectName, resolve };
 		}));
@@ -1295,13 +1315,16 @@ class ServerInitializingIndicator extends Disposable {
 		if (!this._task) {
 			vscode.window.withProgress({
 				location: vscode.ProgressLocation.Window,
-				title: vscode.l10n.t("Analyzing '{0}' and its dependencies", path.basename(fileName)),
+				title: getSafeNotificationMessage(
+					vscode.l10n.t("Analyzing '{0}' and its dependencies", path.basename(fileName)),
+					vscode.l10n.t("Analyzing file and its dependencies"),
+				),
 			}, () => task);
 		}
 	}
 
 	public finishedLoadingProject(projectName: string): void {
-		if (this._task && this._task.project === projectName) {
+		if (this._task?.project === projectName) {
 			this._task.resolve();
 			this._task = undefined;
 		}

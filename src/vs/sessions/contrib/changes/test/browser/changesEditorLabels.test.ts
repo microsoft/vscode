@@ -10,11 +10,17 @@ import { AGENT_HOST_LABEL_FORMATTER, toAgentHostUri } from '../../../../../platf
 import { TestEnvironmentService, TestLifecycleService, TestPathService, TestRemoteAgentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestContextService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { LabelService } from '../../../../../workbench/services/label/common/labelService.js';
-import { getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
+import { getChangesEditorFileStats, getChangesEditorLabels } from '../../browser/changesEditorLabels.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { extUri } from '../../../../../base/common/resources.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('ChangesEditorLabels', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const uriIdentityService = new class extends mock<IUriIdentityService>() {
+		override readonly extUri = extUri;
+	};
 
 	function createLabelService(): LabelService {
 		const labelService = disposables.add(new LabelService(
@@ -23,7 +29,8 @@ suite('ChangesEditorLabels', () => {
 			new TestPathService(URI.file('/Users/test')),
 			new TestRemoteAgentService(),
 			disposables.add(new TestStorageService()),
-			disposables.add(new TestLifecycleService())
+			disposables.add(new TestLifecycleService()),
+			uriIdentityService
 		));
 		disposables.add(labelService.registerFormatter(AGENT_HOST_LABEL_FORMATTER));
 		return labelService;
@@ -74,4 +81,28 @@ suite('ChangesEditorLabels', () => {
 		});
 	});
 
+	test('file stats resolve from canonical, modified, and original resources', () => {
+		const canonicalResource = URI.file('/workspace/renamed.ts');
+		const originalResource = URI.file('/workspace/original.ts');
+		const modifiedResource = URI.file('/workspace/modified.ts');
+		const changes = [{
+			uri: canonicalResource,
+			originalUri: originalResource,
+			modifiedUri: modifiedResource,
+			insertions: 12,
+			deletions: 3,
+		}];
+
+		assert.deepStrictEqual({
+			canonical: getChangesEditorFileStats(canonicalResource, changes),
+			modified: getChangesEditorFileStats(modifiedResource, changes),
+			original: getChangesEditorFileStats(originalResource, changes),
+			unrelated: getChangesEditorFileStats(URI.file('/workspace/unrelated.ts'), changes),
+		}, {
+			canonical: { insertions: 12, deletions: 3 },
+			modified: { insertions: 12, deletions: 3 },
+			original: { insertions: 12, deletions: 3 },
+			unrelated: undefined,
+		});
+	});
 });

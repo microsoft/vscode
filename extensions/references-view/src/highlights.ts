@@ -8,18 +8,20 @@ import { SymbolItemEditorHighlights } from './references-view';
 
 export class EditorHighlights<T> {
 
-	private readonly _decorationType = vscode.window.createTextEditorDecorationType({
-		backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
-		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-		overviewRulerLane: vscode.OverviewRulerLane.Center,
-		overviewRulerColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
-	});
+	private readonly _decorationType: vscode.TextEditorDecorationType;
 
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly _ignore = new Set<string>();
 
 	constructor(private readonly _view: vscode.TreeView<T>, private readonly _delegate: SymbolItemEditorHighlights<T>) {
+		this._decorationType = vscode.window.createTextEditorDecorationType({
+			backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+			overviewRulerLane: vscode.OverviewRulerLane.Center,
+			overviewRulerColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+		});
 		this.disposables.push(
+			this._decorationType,
 			vscode.workspace.onDidChangeTextDocument(e => this._ignore.add(e.document.uri.toString())),
 			vscode.window.onDidChangeActiveTextEditor(() => _view.visible && this.update()),
 			_view.onDidChangeVisibility(e => e.visible ? this._show() : this._hide()),
@@ -34,9 +36,6 @@ export class EditorHighlights<T> {
 
 	dispose() {
 		vscode.Disposable.from(...this.disposables).dispose();
-		for (const editor of vscode.window.visibleTextEditors) {
-			editor.setDecorations(this._decorationType, []);
-		}
 	}
 
 	private _show(): void {

@@ -4,31 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from '../../../../../base/common/path.js';
+import { URI } from '../../../../../base/common/uri.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
 import { ResponsePartKind, type MarkdownResponsePart } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	defaultChatChannel,
 	dispatchTurnStarted,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	IServerHandle,
 	isActionNotification,
 	startServer,
+	stopServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 
 	let server: IServerHandle;
 	let client: TestProtocolClient;
+	let workspace: string;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
-		server = await startServer();
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
+		workspace = mkdtempSync(join(tmpdir(), 'agent-host-tool-approval-'));
+		server = await startServer({ env: { VSCODE_AGENT_HOST_MOCK_WORKSPACE: workspace } });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
+		rmSync(workspace, { recursive: true, force: true });
 	});
 
 	setup(async function () {
@@ -78,7 +88,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 	test('auto-approves write to regular file (no pending confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', 'file:///workspace');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove', URI.file(workspace).toString());
 		client.clearReceived();
 
 		// Start a turn that triggers a write permission request for a regular .ts file
@@ -104,7 +114,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 	test('blocks write to .env file (requires manual confirmation)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', 'file:///workspace');
+		const sessionUri = await createAndSubscribeSession(client, 'test-autoapprove-deny', URI.file(workspace).toString());
 		client.clearReceived();
 
 		// Start a turn that tries to write .env (blocked by default patterns)
@@ -192,7 +202,7 @@ suite('Protocol WebSocket — Permissions & Auto-Approve', function () {
 	test('dispatches pending_confirmation that arrives without an active turn (does not hang)', async function () {
 		this.timeout(10_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-orphan-confirmation', 'file:///workspace');
+		const sessionUri = await createAndSubscribeSession(client, 'test-orphan-confirmation', URI.file(workspace).toString());
 		client.clearReceived();
 
 		// The mock completes the turn, then simulates a hook-triggered

@@ -37,8 +37,7 @@ npm run perf:chat-leak -- --messages 20 --verbose
 
 ## Perf regression test
 
-**Script:** `scripts/chat-simulation/test-chat-perf-regression.js`
-**npm:** `npm run perf:chat`
+**Script:** `scripts/chat-simulation/test-chat-perf-regression.js` **npm:** `npm run perf:chat`
 
 Launches VS Code via Playwright Electron, opens the chat panel, sends a message with a mock LLM response, and measures timing, layout, and rendering metrics. By default, downloads VS Code 1.115.0 as a baseline, benchmarks it, then benchmarks the local dev build and compares.
 
@@ -191,9 +190,10 @@ Only these metrics trigger a regression failure (when they exceed the threshold 
 - `timeToFirstToken`, `timeToComplete` — user-perceived latency
 - `layoutDurationMs` — total layout time from the trace (the *real* layout cost)
 - `forcedReflowCount` — forced synchronous layouts are always bad
-- `longTaskCount`, `longAnimationFrameCount` — main thread jank
+- `longTaskCount` — main thread jank
 
 These are reported but **informational only** (won't fail CI):
+- `longAnimationFrameCount` — number of long animation frames; noisy and compositor-driven, so tracked for signal but does not gate. Real jank is gated via `longTaskCount` / `layoutDurationMs`.
 - `layoutCount` — number of layout ops; inflated by CSS animations (compositor-driven, cheap). A build can do *more but cheaper* layouts, so gate on `layoutDurationMs`, not this count.
 - `recalcStyleCount` — number of style recalcs; inflated by CSS animations (compositor-driven, cheap)
 - `timeToRenderComplete` — includes typewriter animation tail
@@ -205,8 +205,7 @@ Results use **IQR-based outlier removal** and **median** (not mean) to handle st
 
 ## Memory leak check
 
-**Script:** `scripts/chat-simulation/test-chat-mem-leaks.js`
-**npm:** `npm run perf:chat-leak`
+**Script:** `scripts/chat-simulation/test-chat-mem-leaks.js` **npm:** `npm run perf:chat-leak`
 
 Launches one VS Code session, sends N messages sequentially, forces GC between each, and measures renderer heap and DOM node count. Uses **linear regression** on the samples to compute per-message growth rate, which is compared against a threshold.
 

@@ -17,19 +17,20 @@ import { getTextPart } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, gitHubCopilotRequestTeProperty, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
-import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride } from '../../networking/common/networking';
-import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
-import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
+import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, PENDING_DEPRECATION_CODE } from '../../networking/common/networking';
+import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, rawMessageToCAPI, RawMessageConversionCallback } from '../../networking/common/openai';
+import { prepareChatCompletionForReturn, sendEngineMessagesTelemetry } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { SSEProcessor } from '../../networking/node/stream';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
+import { ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { normalizeTokenPrices } from '../../../extension/conversation/common/languageModelAccess';
@@ -37,8 +38,47 @@ import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from '
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
 import { filterHistoryImages } from './imageLimits';
 
+type KimiToolCallIdStyle = 'function-indexed' | 'name-indexed';
+
 /**
- * The default processor for the stream format from CAPI
+ * Rewrites tool call IDs into the selected Kimi-native indexed format while preserving tool result pairings.
+ */
+export function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: KimiToolCallIdStyle = 'function-indexed'): CAPIChatMessage[] {
+	let nextIndex = 0;
+	const mappedToolCallIds = new Map<string, string>();
+
+	return messages.map(message => {
+		if (message.role === OpenAI.ChatRole.Assistant && message.tool_calls) {
+			const toolCalls = message.tool_calls.map(toolCall => {
+				const toolName = toolCall.function.name;
+				if (!toolName) {
+					return toolCall;
+				}
+
+				const id = `${style === 'function-indexed' ? 'functions.' : ''}${toolName}:${nextIndex++}`;
+				if (toolCall.id) {
+					mappedToolCallIds.set(toolCall.id, id);
+				}
+				return { ...toolCall, id };
+			});
+			return { ...message, tool_calls: toolCalls };
+		}
+
+		if (message.role === OpenAI.ChatRole.Tool) {
+			if (message.tool_call_id) {
+				const toolCallId = mappedToolCallIds.get(message.tool_call_id);
+				if (toolCallId) {
+					return { ...message, tool_call_id: toolCallId };
+				}
+			}
+		}
+
+		return message;
+	});
+}
+
+/**
+ * Processes CAPI completions immediately, deferring content telemetry until trailing stream metadata arrives.
  */
 export async function defaultChatResponseProcessor(
 	telemetryService: ITelemetryService,
@@ -51,14 +91,34 @@ export async function defaultChatResponseProcessor(
 ) {
 	const processor = await SSEProcessor.create(logService, telemetryService, expectedNumChoices, response, cancellationToken);
 	const finishedCompletions = processor.processSSE(finishCallback);
-	const chatCompletions = AsyncIterableObject.map(finishedCompletions, (solution) => {
-		const loggedReason = solution.reason ?? 'client-trimmed';
-		const dataToSendToTelemetry = telemetryData.extendedBy({
-			completionChoiceFinishReason: loggedReason,
-			headerRequestId: solution.requestId.headerRequestId
-		});
-		telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
-		return prepareChatCompletionForReturn(telemetryService, logService, solution, telemetryData);
+	const chatCompletions = new AsyncIterableObject<ChatCompletion>(async emitter => {
+		const pendingTelemetry: { message: CAPIChatMessage; reasoning: ThinkingDataInMessage; telemetryData: TelemetryData }[] = [];
+		try {
+			for await (const solution of finishedCompletions) {
+				const loggedReason = solution.reason ?? 'client-trimmed';
+				const dataToSendToTelemetry = telemetryData.extendedBy({
+					completionChoiceFinishReason: loggedReason,
+					headerRequestId: solution.requestId.headerRequestId,
+					...gitHubCopilotRequestTeProperty(solution.requestId.gitHubCopilotRequestTe),
+				});
+				telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
+				const completion = prepareChatCompletionForReturn(logService, solution, telemetryData);
+				pendingTelemetry.push({
+					message: rawMessageToCAPI(completion.message),
+					reasoning: solution.solution.reasoning,
+					telemetryData: completion.telemetryData,
+				});
+				emitter.emitOne(completion);
+			}
+		} finally {
+			// Keep completion delivery immediate, but include reasoning metadata that trails finish_reason.
+			for (const { message, reasoning, telemetryData } of pendingTelemetry) {
+				sendEngineMessagesTelemetry(telemetryService, [{
+					...message,
+					...reasoning,
+				}], telemetryData, true, logService);
+			}
+		}
 	});
 	return chatCompletions;
 }
@@ -80,7 +140,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 		const messageText = getTextPart(message.content);
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments } = getRequestId(response.headers);
+		const { serverExperiments, copilotServiceRequestId, gitHubCopilotRequestTe } = getRequestId(response.headers);
 
 
 		const completion: ChatCompletion = {
@@ -92,7 +152,7 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 			message: message,
 			usage: jsonResponse.usage,
 			tokens: [], // This is used for repetition detection so not super important to be accurate
-			requestId: { headerRequestId: requestId, gitHubRequestId: ghRequestId, completionId: jsonResponse.id, created: jsonResponse.created, deploymentId: '', serverExperiments },
+			requestId: { headerRequestId: requestId, gitHubRequestId: ghRequestId, copilotServiceRequestId, completionId: jsonResponse.id, created: jsonResponse.created, deploymentId: '', serverExperiments, ...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe) },
 			telemetryData: telemetryData
 		};
 		const functionCall: ICopilotToolCall[] = [];
@@ -113,9 +173,27 @@ export async function defaultNonStreamChatResponseProcessor(response: Response, 
 	return AsyncIterableObject.fromArray(completions);
 }
 
+/** Splits CAPI `info_messages` into warning and info banners keyed by their code. */
+function splitInfoMessages(infoMessages: { code: string; message: string }[] | undefined): { warningText: Record<string, string>; infoText: Record<string, string> } {
+	const warningText: Record<string, string> = {};
+	const infoText: Record<string, string> = {};
+	for (const { code, message } of infoMessages ?? []) {
+		if (message) {
+			const target = code === PENDING_DEPRECATION_CODE ? warningText : infoText;
+			target[code || 'info'] = message;
+		}
+	}
+	return { warningText, infoText };
+}
+
+function undefinedIfEmpty(record: Record<string, string>): Record<string, string> | undefined {
+	return Object.keys(record).length > 0 ? record : undefined;
+}
+
 export class ChatEndpoint implements IChatEndpoint {
 	private readonly _maxTokens: number;
 	private readonly _maxOutputTokens: number;
+	public readonly maxContextWindowTokens: number | undefined;
 	public readonly model: string;
 	public readonly name: string;
 	public readonly version: string;
@@ -127,6 +205,7 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly supportsToolCalls: boolean;
 	public readonly supportsVision: boolean;
 	public readonly supportsPrediction: boolean;
+	public readonly supportsThinkingContentInHistory: boolean;
 	public readonly supportsAdaptiveThinking?: boolean;
 	public readonly minThinkingBudget?: number;
 	public readonly maxThinkingBudget?: number;
@@ -136,12 +215,15 @@ export class ChatEndpoint implements IChatEndpoint {
 	public readonly isPremium?: boolean | undefined;
 	public readonly multiplier?: number | undefined;
 	public readonly restrictedToSkus?: string[] | undefined;
+	public readonly autoDiscount?: number | undefined;
 	public readonly tokenPricing?: IChatEndpointTokenPricing | undefined;
 	public readonly priceCategory?: string | undefined;
 	public readonly modelPickerCategory?: string | undefined;
 	public readonly customModel?: CustomModel | undefined;
 	public readonly maxPromptImages?: number | undefined;
 	public readonly warningText?: Record<string, string> | undefined;
+	public readonly infoText?: Record<string, string> | undefined;
+	public readonly promo?: { id: string; discountPercent: number; endsAt?: string; message: string; showBanner?: boolean } | undefined;
 
 	private readonly _supportsStreaming: boolean;
 
@@ -154,12 +236,13 @@ export class ChatEndpoint implements IChatEndpoint {
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IChatWebSocketManager private readonly _chatWebSocketService: IChatWebSocketManager,
-		@ILogService _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		// This metadata should always be present, but if not we will default to 8192 tokens
 		this._maxTokens = modelMetadata.capabilities.limits?.max_prompt_tokens ?? 8192;
 		// This metadata should always be present, but if not we will default to 4096 tokens
 		this._maxOutputTokens = modelMetadata.capabilities.limits?.max_output_tokens ?? 4096;
+		this.maxContextWindowTokens = modelMetadata.capabilities.limits?.max_context_window_tokens;
 		this.model = modelMetadata.id;
 		this.modelProvider = modelMetadata.vendor;
 		this.name = modelMetadata.name;
@@ -171,6 +254,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.isPremium = modelMetadata.billing?.is_premium;
 		this.multiplier = modelMetadata.billing?.multiplier;
 		this.restrictedToSkus = modelMetadata.billing?.restricted_to;
+		this.autoDiscount = modelMetadata.billing?.auto_discount;
 		const normalized = normalizeTokenPrices(modelMetadata.billing?.token_prices);
 		this.tokenPricing = normalized ? {
 			default: { inputPrice: normalized.default.inputPrice, outputPrice: normalized.default.outputPrice, cacheReadTokenPrice: normalized.default.cachePrice, cacheWriteTokenPrice: normalized.default.cacheWritePrice, contextMax: normalized.default.contextMax },
@@ -182,6 +266,7 @@ export class ChatEndpoint implements IChatEndpoint {
 		this.supportsToolCalls = !!modelMetadata.capabilities.supports.tool_calls;
 		this.supportsVision = !!modelMetadata.capabilities.supports.vision;
 		this.supportsPrediction = !!modelMetadata.capabilities.supports.prediction;
+		this.supportsThinkingContentInHistory = capabilityOverride?.thinkingInHistory ?? modelSupportsThinkingContentInHistory(this);
 		this.supportsAdaptiveThinking = modelMetadata.capabilities.supports.adaptive_thinking;
 		this.minThinkingBudget = modelMetadata.capabilities.supports.min_thinking_budget;
 		this.maxThinkingBudget = modelMetadata.capabilities.supports.max_thinking_budget;
@@ -191,7 +276,16 @@ export class ChatEndpoint implements IChatEndpoint {
 		this._supportsStreaming = !!modelMetadata.capabilities.supports.streaming;
 		this.customModel = modelMetadata.custom_model;
 		this.maxPromptImages = modelMetadata.capabilities.limits?.vision?.max_prompt_images;
-		this.warningText = modelMetadata.warning_text;
+		const infoMessages = splitInfoMessages(modelMetadata.info_messages);
+		this.warningText = undefinedIfEmpty({ ...modelMetadata.warning_text, ...infoMessages.warningText });
+		this.infoText = undefinedIfEmpty(infoMessages.infoText);
+		this.promo = modelMetadata.billing?.promo ? {
+			id: modelMetadata.billing.promo.id,
+			discountPercent: modelMetadata.billing.promo.discount_percent,
+			endsAt: modelMetadata.billing.promo.ends_at,
+			message: modelMetadata.billing.promo.message,
+			showBanner: modelMetadata.billing.promo.show_banner,
+		} : undefined;
 	}
 
 	// TODO: Thread enableThinking through the fetch pipeline (INetworkRequestOptions / chatMLFetcher positional params)
@@ -273,10 +367,10 @@ export class ChatEndpoint implements IChatEndpoint {
 	}
 
 	public get degradationReason(): string | undefined {
-		return this.modelMetadata.warning_messages?.at(0)?.message ?? this.modelMetadata.info_messages?.at(0)?.message;
+		return this.modelMetadata.warning_messages?.at(0)?.message;
 	}
 
-	public get apiType(): string {
+	public get apiType(): 'responses' | 'messages' | 'chatCompletions' {
 		return this.useResponsesApi ? 'responses' :
 			this.useMessagesApi ? 'messages' : 'chatCompletions';
 	}
@@ -291,6 +385,18 @@ export class ChatEndpoint implements IChatEndpoint {
 		// If the model doesn't support streaming, don't ask for a streamed request
 		if (body && !this._supportsStreaming) {
 			body.stream = false;
+		}
+
+		if (body && this.customModel && this.apiType === 'chatCompletions') {
+			// Server-provided custom-model metadata does not reliably identify the underlying OpenAI-compatible provider.
+			const tokenParameter = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ChatCompletionsTokenParameter, this._expService);
+			if (tokenParameter === 'max_tokens' && body.max_completion_tokens !== undefined) {
+				body.max_tokens = body.max_completion_tokens;
+				delete body.max_completion_tokens;
+			} else if (tokenParameter === 'max_completion_tokens' && body.max_tokens !== undefined) {
+				body.max_completion_tokens = body.max_tokens;
+				delete body.max_tokens;
+			}
 		}
 
 		// If it's o1 we must modify the body significantly as the request is very different
@@ -379,19 +485,37 @@ export class ChatEndpoint implements IChatEndpoint {
 			}
 		}
 
-		// Force low reasoning effort for Gemini 3 models when the experiment is enabled
-		if (this.family.toLowerCase().includes('gemini-3')) {
-			const lowReasoningEnabled = this._configurationService.getExperimentBasedConfig(
-				ConfigKey.EnableGemini3LowReasoningEffort,
-				this._expService
-			);
-			if (lowReasoningEnabled) {
-				body.reasoning_effort = 'low';
+		// Apply an explicit reasoning effort for models that declare supported
+		// levels. Unlike the Responses and Messages APIs (which map this in their
+		// own body builders), the CAPI chat-completions path does not, so the UI
+		// thinking-effort selection (surfaced via modelCapabilities) and the
+		// ReasoningEffortOverride setting would otherwise be dropped. The override
+		// setting takes precedence over the UI selection; both are validated
+		// against the levels the model advertises.
+		// Keep the raw value so an explicitly empty `[]` (server declares no accepted
+		// levels) is distinguished from `undefined` (no declaration) and still surfaces
+		// a dropped client/override value below.
+		const declaredLevels = this.supportsReasoningEffort;
+		if (declaredLevels !== undefined) {
+			const candidateEffort = this._configurationService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride)
+				?? options.modelCapabilities?.reasoningEffort;
+			if (typeof candidateEffort === 'string' && candidateEffort.length > 0) {
+				if (declaredLevels.includes(candidateEffort)) {
+					body.reasoning_effort = candidateEffort;
+				} else {
+					this._logService.warn(`[reasoningEffort] Dropping reasoning effort '${candidateEffort}' for model '${this.model}' — not in server-declared levels [${declaredLevels.join(', ')}].`);
+				}
 			}
 		}
 
 		// Force temperature and top_p for Kimi models regardless of what the client would otherwise send (per Moonshot recommendations). Temperature 0 strongly increases chances of looping.
 		if (isKimiFamily(this)) {
+			if (body.messages) {
+				const toolCallIdStyle = this.family.toLowerCase().includes('kimi-k3') || this.model.toLowerCase().includes('kimi-k3')
+					? 'name-indexed'
+					: 'function-indexed';
+				body.messages = normalizeKimiToolCallIds(body.messages, toolCallIdStyle);
+			}
 			body.temperature = 1;
 			body.top_p = 0.95;
 		}
@@ -435,7 +559,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			useWebSocket
 			&& options.conversationId
 			&& options.turnId
-			&& this._chatWebSocketService.hasActiveConnection(options.conversationId)
+			&& this._chatWebSocketService.hasActiveConnection({ conversationId: options.conversationId, modelId: this.model, connectionId: options.webSocketConnectionId })
 		);
 		const response = await this._makeChatRequest2({
 			...options,

@@ -39,7 +39,9 @@ export type IntegratedBrowserOpenSource =
 	/** Opened when the user copies a browser editor to a new window via "Copy into New Window". */
 	| 'copyToNewWindow'
 	/** Opened via the "Open in Integrated Browser" command for a local file. */
-	| 'openFileCommand';
+	| 'openFileCommand'
+	/** Opened by resolving a local file resource to the Integrated Browser editor. */
+	| 'fileResource';
 
 type IntegratedBrowserOpenEvent = {
 	source: IntegratedBrowserOpenSource;

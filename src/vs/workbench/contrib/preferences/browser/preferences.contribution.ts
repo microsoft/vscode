@@ -646,11 +646,6 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: SETTINGS_EDITOR_COMMAND_FOCUS_FILE,
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
-					keybinding: {
-						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.EditorContrib,
-						when: null
-					},
 					title: nls.localize('settings.focusFile', "Focus settings file")
 				});
 			}
@@ -668,8 +663,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 					keybinding: {
 						primary: KeyCode.DownArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
 					title: nls.localize('settings.focusFile', "Focus settings file")
 				});
@@ -688,8 +683,8 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					precondition: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated()),
 					keybinding: {
 						primary: KeyCode.UpArrow,
-						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
 					title: nls.localize('settings.showPreviousSearch', "Show Previous Search in Settings")
 				});
@@ -709,7 +704,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					keybinding: {
 						primary: KeyCode.Enter,
 						weight: KeybindingWeight.WorkbenchContrib,
-						when: null
+						when: ContextKeyExpr.and(CONTEXT_SETTINGS_SEARCH_FOCUS, SuggestContext.Visible.toNegated())
 					},
 					title: nls.localize('settings.focusSettingsFromSearchOnEnter', "Focus First Setting from Search")
 				});

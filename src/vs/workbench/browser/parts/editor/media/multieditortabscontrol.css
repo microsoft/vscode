@@ -83,6 +83,22 @@
 	overflow: scroll !important;
 }
 
+/* Add tab control */
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	height: var(--editor-group-tab-height);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab.hidden {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab .action-label {
+	margin: 0 4px;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container {
 
 	/* Enable wrapping via flex layout and dynamic height */
@@ -105,6 +121,27 @@
 	box-sizing: border-box;
 	padding-left: 10px;
 	outline-offset: -2px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-connected-edge {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab > .tab-divider {
+	display: none;
+	position: absolute;
+	top: 50%;
+	left: 0;
+	z-index: 9;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size160);
+	background-color: var(--vscode-tab-divider, transparent);
+	pointer-events: none;
+	transform: translateY(-50%);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge {
+	display: none;
 }
 
 /* Tab Background Color in/active group/tab */
@@ -254,6 +291,11 @@
 	display: none;
 }
 
+/* Intentionally low specificity so the Modern UI treatment, which renders this as a pill background, wins without !important. */
+.tabs-container > .tab > .tab-fill {
+	display: none;
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.tab-actions-left .tab-fade-hider,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-shrink.close-action-off .tab-fade-hider,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sizing-fixed.tab-actions-left .tab-fade-hider,
@@ -287,7 +329,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title:not(.two-tab-bars) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars .tabs-and-actions-container:not(:first-child) .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container,
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.dirty-border-top > .tab-border-top-container {
-	display: block;
+	display: var(--editor-tab-border-indicator-display, block);
 	position: absolute;
 	left: 0;
 	pointer-events: none;
@@ -548,7 +590,7 @@
 	position: absolute;
 	top: 0;
 	height: 100%;
-	width: 1px;
+	width: 2px;
 	background-color: var(--vscode-tab-dragAndDropBorder);
 	pointer-events: none;
 	z-index: 11;
@@ -559,18 +601,9 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.drop-target-left::after {
-	right: -1px; /* -1 to connect with drop-target-right */
+	right: -2px; /* -2 to connect with drop-target-right */
 }
-
-/* Make drop target edge cases more visible (wrapped tabs & first/last) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left:not(:last-child)::after {
-	right: 0px;
-}
-
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row.drop-target-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.last-in-row + .tab.drop-target-right::before,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:last-child.drop-target-left::after,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:first-child.drop-target-right::before {
-	width: 2px;
+	right: 0;
 }

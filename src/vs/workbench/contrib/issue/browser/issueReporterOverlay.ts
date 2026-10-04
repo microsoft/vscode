@@ -20,7 +20,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -29,19 +29,13 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defa
 import product from '../../../../platform/product/common/product.js';
 import { URI } from '../../../../base/common/uri.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
-import { IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
+import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
 import { IssueReporterModel } from './issueReporterModel.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_SIMILAR_ISSUES = 5;
-
-interface ISimilarIssue {
-	readonly html_url: string;
-	readonly title: string;
-	readonly state?: string;
-}
 
 const enum WizardStep {
 	Attachments = 0,
@@ -62,6 +56,7 @@ export interface IScreenshot {
 export class IssueReporterOverlay {
 
 	private readonly disposables = new DisposableStore();
+	private readonly screenshotDisposables = this.disposables.add(new DisposableStore());
 	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose: Event<void> = this._onDidClose.event;
 	private readonly _onDidSubmit = new Emitter<{ title: string; body: string }>();
@@ -102,6 +97,7 @@ export class IssueReporterOverlay {
 	private didAttemptDescribeSubmit = false;
 	private similarIssuesContainer!: HTMLElement;
 	private similarIssuesRequest = 0;
+	private readonly similarIssuesOperation = this.disposables.add(new MutableDisposable());
 	private extensionDataRequest = 0;
 	private similarIssuesHandle: ReturnType<typeof setTimeout> | undefined;
 	private typeButtonGroup!: HTMLElement;
@@ -164,6 +160,7 @@ export class IssueReporterOverlay {
 		private readonly recordingSupported: boolean = false,
 		private readonly container: HTMLElement,
 		private readonly contextViewService: IContextViewService,
+		private readonly searchGitHubIssues: IIssueFormService['searchGitHubIssues'],
 		private readonly contextMenuProvider?: IContextMenuProvider,
 		private readonly markdownRendererService?: IMarkdownRendererService,
 		initialHideToolbar: boolean = true,
@@ -175,17 +172,20 @@ export class IssueReporterOverlay {
 		private readonly resolveKeybinding?: (commandId: string) => ResolvedKeybinding | undefined,
 	) {
 		this._hideToolbarInScreenshots = initialHideToolbar;
-		this.model = new IssueReporterModel({
+		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
+		this.includeExtensionData = hasStandaloneExtensionData;
+		this.model = this.disposables.add(new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
+			extensionData: hasStandaloneExtensionData ? data.data : undefined,
 			includeSystemInfo: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeExperiments: true,
-			includeExtensionData: false,
-		});
+			includeExtensionData: hasStandaloneExtensionData,
+		}));
 		this.selectedIssueType = data.issueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
 
@@ -1102,17 +1102,26 @@ export class IssueReporterOverlay {
 	}
 
 	private searchSimilarIssues(): void {
+		this.similarIssuesRequest++;
+		this.similarIssuesOperation.clear();
+		if (this.similarIssuesHandle !== undefined) {
+			clearTimeout(this.similarIssuesHandle);
+			this.similarIssuesHandle = undefined;
+		}
 		if (this.currentStep !== WizardStep.Review || !this.similarIssuesContainer) {
 			return;
 		}
-		if (this.similarIssuesHandle) {
-			clearTimeout(this.similarIssuesHandle);
-		}
 		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
-		this.similarIssuesHandle = setTimeout(() => this.doSearchSimilarIssues(), 300);
+		this.similarIssuesHandle = setTimeout(() => {
+			this.similarIssuesHandle = undefined;
+			void this.doSearchSimilarIssues();
+		}, 300);
 	}
 
 	private async doSearchSimilarIssues(): Promise<void> {
+		if (this.disposables.isDisposed || this.currentStep !== WizardStep.Review) {
+			return;
+		}
 		const title = this.titleInput.value.trim();
 		const request = ++this.similarIssuesRequest;
 		if (!title || !this.selectedIssueSource) {
@@ -1121,58 +1130,55 @@ export class IssueReporterOverlay {
 		}
 
 		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
+		const controller = new AbortController();
+		this.similarIssuesOperation.value = toDisposable(() => controller.abort());
 		try {
-			let results: ISimilarIssue[] = [];
+			let results: readonly ISimilarIssue[] = [];
 			if (this.selectedIssueSource === IssueSource.Extension) {
 				const extensionIssueUrl = this.getSelectedExtensionIssueUrl();
 				const repo = extensionIssueUrl && this.parseGitHubUrl(extensionIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
+				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
 			} else if (this.selectedIssueSource === IssueSource.Marketplace) {
 				const marketplaceIssueUrl = product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
 				const repo = marketplaceIssueUrl && this.parseGitHubUrl(marketplaceIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
+				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
 			} else {
-				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim());
+				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim(), controller.signal);
 			}
 			if (request === this.similarIssuesRequest) {
 				this.renderSimilarIssues(results);
 			}
 		} catch {
-			if (request === this.similarIssuesRequest) {
+			if (!controller.signal.aborted && request === this.similarIssuesRequest) {
 				this.renderSimilarIssuesMessage(localize('similarIssuesSearchFailed', "Unable to search for similar issues."));
 			}
 		}
 	}
 
-	private async searchGitHubIssues(repo: string, title: string): Promise<ISimilarIssue[]> {
-		const query = `is:issue repo:${repo} ${title}`;
-		const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}`);
-		const result = await response.json();
-		return Array.isArray(result?.items) ? result.items : [];
-	}
-
-	private async searchVSCodeDuplicates(title: string, body: string): Promise<ISimilarIssue[]> {
+	private async searchVSCodeDuplicates(title: string, body: string, signal: AbortSignal): Promise<ISimilarIssue[]> {
 		const response = await fetch('https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates', {
 			method: 'POST',
 			body: JSON.stringify({ title, body }),
 			headers: new Headers({ 'Content-Type': 'application/json' }),
+			signal,
 		});
 		const result = await response.json();
 		return Array.isArray(result?.candidates) ? result.candidates : [];
 	}
 
-	private async searchVSCodeSimilarIssues(title: string, body: string): Promise<ISimilarIssue[]> {
+	private async searchVSCodeSimilarIssues(title: string, body: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]> {
 		try {
-			const duplicates = await this.searchVSCodeDuplicates(title, body);
+			const duplicates = await this.searchVSCodeDuplicates(title, body, signal);
 			if (duplicates.length) {
 				return duplicates;
 			}
 		} catch {
+			signal.throwIfAborted();
 			// Fall back to GitHub search below.
 		}
 
 		const repo = this.getIssueTargetRepo();
-		return repo ? this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
+		return repo ? this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, signal) : [];
 	}
 
 	private renderSimilarIssuesMessage(message: string): void {
@@ -1181,7 +1187,7 @@ export class IssueReporterOverlay {
 		status.textContent = message;
 	}
 
-	private renderSimilarIssues(results: ISimilarIssue[]): void {
+	private renderSimilarIssues(results: readonly ISimilarIssue[]): void {
 		if (!results.length) {
 			this.renderSimilarIssuesMessage(localize('noSimilarIssues', "No similar issues found."));
 			return;
@@ -1372,12 +1378,12 @@ export class IssueReporterOverlay {
 			this.descriptionTextarea.focus();
 		} else if (step === WizardStep.Review) {
 			this.updateReviewDetails();
-			this.searchSimilarIssues();
 			this.wizardPanel.focus();
 		} else {
 			// Attachments: focus the panel so keyboard shortcuts work
 			this.wizardPanel.focus();
 		}
+		this.searchSimilarIssues();
 	}
 
 	private updateStepUI(): void {
@@ -2035,6 +2041,7 @@ export class IssueReporterOverlay {
 	}
 
 	private updateScreenshotThumbnails(): void {
+		this.screenshotDisposables.clear();
 		this.screenshotContainer.textContent = '';
 
 		for (let i = 0; i < this.screenshots.length; i++) {
@@ -2049,8 +2056,8 @@ export class IssueReporterOverlay {
 			card.setAttribute('tabindex', '0');
 			card.title = localize('editScreenshot', "Click to edit screenshot");
 			const openEditor = () => this.openAnnotationEditor(i);
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
-			this.disposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
+			this.screenshotDisposables.add(addDisposableListener(card, EventType.CLICK, openEditor));
+			this.screenshotDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, e => {
 				const event = new StandardKeyboardEvent(e);
 				if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 					e.preventDefault();
@@ -2062,7 +2069,7 @@ export class IssueReporterOverlay {
 			deleteBtn.setAttribute('role', 'button');
 			deleteBtn.setAttribute('aria-label', localize('deleteScreenshot', "Delete screenshot"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
+			this.screenshotDisposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
 				e.stopPropagation();
 				this.screenshots.splice(i, 1);
 				this.updateScreenshotThumbnails();
@@ -2078,7 +2085,7 @@ export class IssueReporterOverlay {
 			const card = this.renderRecordingCard(this.screenshotContainer, rec, i);
 
 			// Click to open from OS
-			this.disposables.add(addDisposableListener(card, EventType.CLICK, () => {
+			this.screenshotDisposables.add(addDisposableListener(card, EventType.CLICK, () => {
 				this._onDidRequestOpenRecording.fire(rec.filePath);
 			}));
 
@@ -2086,7 +2093,7 @@ export class IssueReporterOverlay {
 			deleteBtn.setAttribute('role', 'button');
 			deleteBtn.setAttribute('aria-label', localize('deleteRecording', "Remove recording"));
 			deleteBtn.appendChild(renderIcon(Codicon.close));
-			this.disposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
+			this.screenshotDisposables.add(addDisposableListener(deleteBtn, EventType.CLICK, e => {
 				e.stopPropagation();
 				this.recordings.splice(i, 1);
 				this.updateScreenshotThumbnails();
@@ -2106,7 +2113,7 @@ export class IssueReporterOverlay {
 			}
 			const plus = append(addCard, $('div.wizard-screenshot-plus'));
 			plus.appendChild(renderIcon(Codicon.add));
-			this.disposables.add(addDisposableListener(addCard, EventType.CLICK, () => {
+			this.screenshotDisposables.add(addDisposableListener(addCard, EventType.CLICK, () => {
 				if (!addCard.classList.contains('disabled')) {
 					this._onDidRequestScreenshot.fire();
 				}
@@ -2126,18 +2133,19 @@ export class IssueReporterOverlay {
 		// editor handles save/cancel, then the previous one becomes visible
 		// again.
 		const screenshot = this.screenshots[index];
-		const editor = new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState);
-		this.disposables.add(editor);
+		const editorDisposables = this.disposables.add(new DisposableStore());
+		const editor = editorDisposables.add(new ScreenshotAnnotationEditor(screenshot, this.wizardPanel, screenshot.annotationState));
 
-		this.disposables.add(editor.onDidSave(({ dataUrl, state }) => {
+		editorDisposables.add(editor.onDidSave(({ dataUrl, state }) => {
 			screenshot.annotatedDataUrl = dataUrl;
 			screenshot.annotationState = state;
 			this.updateAttachmentViews();
 			this._onDidChangeAttachments.fire();
+			this.disposables.delete(editorDisposables);
 		}));
 
-		this.disposables.add(editor.onDidCancel(() => {
-			// nothing to do, editor disposes itself
+		editorDisposables.add(editor.onDidCancel(() => {
+			this.disposables.delete(editorDisposables);
 		}));
 	}
 
@@ -2186,7 +2194,7 @@ export class IssueReporterOverlay {
 		];
 
 		if (this.includeExtensionData && modelData.extensionData) {
-			sections.push(this.createDetails('Extension Data', this.createCodeBlock(modelData.extensionData)));
+			sections.push(this.createDetails('Extension Data', modelData.extensionData));
 		}
 
 		if (this.includeSystemInfo && (modelData.versionInfo || modelData.systemInfo || modelData.systemInfoWeb)) {
@@ -2614,6 +2622,10 @@ ${rows.map(row => row.map(value => this.escapeMarkdownTableCell(value ?? '')).jo
 		if (this.recordingElapsedTimer !== undefined) {
 			getWindow(this.container).clearInterval(this.recordingElapsedTimer);
 		}
+		if (this.similarIssuesHandle !== undefined) {
+			clearTimeout(this.similarIssuesHandle);
+		}
+		this.similarIssuesRequest++;
 		this.reviewRenderDisposables.dispose();
 		this.similarIssuesDisposables.dispose();
 		this.descriptionGuidanceDisposables.dispose();

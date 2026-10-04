@@ -131,6 +131,46 @@ export class IndexedDB {
 		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
 	}
 
+	/**
+	 * Atomically stores `newValue` when the current valid value strictly equals `expectedValue`.
+	 * Values rejected by `isValid` are treated as `undefined`; transaction failures reject without committing.
+	 */
+	async compareAndSwap<T>(
+		store: string,
+		key: IDBValidKey,
+		expectedValue: T | undefined,
+		newValue: T,
+		isValid: (value: unknown) => value is T,
+	): Promise<{ readonly swapped: boolean; readonly currentValue: T | undefined }> {
+		if (!this.database) {
+			throw new DBClosedError(this.name);
+		}
+
+		const transaction = this.database.transaction(store, 'readwrite');
+		this.pendingTransactions.push(transaction);
+		return new Promise<{ readonly swapped: boolean; readonly currentValue: T | undefined }>((resolve, reject) => {
+			let currentValue: T | undefined;
+			let swapped = false;
+
+			transaction.oncomplete = () => resolve({
+				swapped,
+				currentValue: swapped ? newValue : currentValue,
+			});
+			transaction.onerror = () => reject(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+			transaction.onabort = () => reject(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+
+			const objectStore = transaction.objectStore(store);
+			const request = objectStore.get(key);
+			request.onsuccess = () => {
+				currentValue = isValid(request.result) ? request.result : undefined;
+				if (currentValue === expectedValue) {
+					swapped = true;
+					objectStore.put(newValue, key);
+				}
+			};
+		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
+	}
+
 	async getKeyValues<V>(store: string, isValid: (value: unknown) => value is V): Promise<Map<string, V>> {
 		if (!this.database) {
 			throw new DBClosedError(this.name);

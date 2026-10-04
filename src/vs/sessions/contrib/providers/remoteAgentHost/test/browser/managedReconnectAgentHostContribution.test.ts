@@ -99,4 +99,20 @@ suite('ManagedReconnectState', () => {
 			assert.strictEqual(fired, 0, 'pending retry must be cancelled by resetForResume');
 		});
 	});
+
+	test('automatically resumes states that do not require a user action', () => {
+		const state = store.add(new ManagedReconnectState());
+		state.attempts = 1;
+		state.paused = true;
+
+		assert.deepStrictEqual({
+			resumed: state.resumeAutomatically(),
+			attempts: state.attempts,
+			paused: state.paused,
+		}, {
+			resumed: true,
+			attempts: 0,
+			paused: false,
+		});
+	});
 });

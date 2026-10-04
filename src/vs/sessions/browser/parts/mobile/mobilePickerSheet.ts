@@ -10,9 +10,18 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize } from '../../../../nls.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { getBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = DOM.$;
+
+/** Returns whether the target belongs to a mobile picker sheet mounted at the workbench root. */
+export function isMobilePickerSheetTarget(target: HTMLElement): boolean {
+	return !!target.closest('.mobile-picker-sheet');
+}
 
 /**
  * One row in the {@link showMobilePickerSheet} bottom sheet.
@@ -24,6 +33,8 @@ const $ = DOM.$;
 export interface IMobilePickerSheetItem {
 	readonly id: string;
 	readonly label: string;
+	/** Optional badge displayed beside the label and included in its accessible name. */
+	readonly badge?: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
 	readonly checked?: boolean;
@@ -170,6 +181,11 @@ export interface IMobileContentSheetApi {
 	 * the API object without also closing over the body element.
 	 */
 	readonly bodyContainer: HTMLElement;
+	readonly sheet: HTMLElement;
+	readonly overlay: HTMLElement;
+
+	/** Update the body's tab stops when opting into focus containment. */
+	setBodyFocusTargets(targets: readonly HTMLElement[]): void;
 
 	/** Dismiss the sheet (plays the close animation). Idempotent. */
 	close(): void;
@@ -187,8 +203,8 @@ export interface IMobileContentSheetOptions {
 
 	/**
 	 * Optional set of icon buttons rendered in the sheet's title row
-	 * to the left of the Done button. Tapping a header action resolves
-	 * the promise (the same dismissal semantics as the Done button).
+	 * to the left of the Done button. By default, tapping one dismisses
+	 * the sheet; provide onHeaderAction to keep it open instead.
 	 */
 	readonly headerActions?: readonly IMobilePickerSheetHeaderAction[];
 
@@ -202,6 +218,16 @@ export interface IMobileContentSheetOptions {
 	 * The user can still dismiss via the backdrop or Escape.
 	 */
 	readonly hideDoneButton?: boolean;
+
+	/** Use a compact title row with an icon-only close control. */
+	readonly iconClose?: boolean;
+
+	/** Run header actions without dismissing; the invoked action is disabled until completion. */
+	readonly onHeaderAction?: (actionId: string) => void | Promise<void>;
+	readonly onHeaderActionError?: (error: unknown) => void;
+
+	/** Contain Tab navigation using header controls and registered body focus targets. */
+	readonly trapFocus?: boolean;
 }
 
 /**
@@ -548,13 +574,20 @@ export function showMobileContentSheet(
 			headerActions: options?.headerActions,
 			doneLabel: options?.doneLabel,
 			hideDoneButton: options?.hideDoneButton,
+			iconClose: options?.iconClose,
+			trapFocus: options?.trapFocus,
+			onHeaderActionError: options?.onHeaderActionError,
 			onDismiss: close,
-			onHeaderAction: () => close(),
+			onHeaderAction: options?.onHeaderAction ?? (() => close()),
+			headerActionsStayOpen: !!options?.onHeaderAction,
 		});
 
 		const bodyContainer = DOM.append(shell.sheet, $('div.mobile-content-sheet-body'));
 
-		const api: IMobileContentSheetApi = { bodyContainer, close };
+		const api: IMobileContentSheetApi = {
+			bodyContainer, close, sheet: shell.sheet, overlay: shell.overlay,
+			setBodyFocusTargets: targets => shell.setBodyFocusTargets(targets),
+		};
 		const bodyDisposable = renderBody(bodyContainer, api);
 		if (bodyDisposable) {
 			shell.disposables.add(bodyDisposable);
@@ -568,6 +601,10 @@ interface IMobileSheetShellOptions {
 	readonly headerActions?: readonly IMobilePickerSheetHeaderAction[];
 	readonly doneLabel?: string;
 	readonly hideDoneButton?: boolean;
+	readonly iconClose?: boolean;
+	readonly trapFocus?: boolean;
+	readonly headerActionsStayOpen?: boolean;
+	readonly onHeaderActionError?: (error: unknown) => void;
 	/**
 	 * Called when the user dismisses the sheet via the Done button,
 	 * backdrop tap, or Escape key. The shell does NOT close itself in
@@ -579,7 +616,7 @@ interface IMobileSheetShellOptions {
 	 * Called when a header action button is tapped. If omitted, header
 	 * action taps fall through to {@link onDismiss}.
 	 */
-	readonly onHeaderAction?: (actionId: string) => void;
+	readonly onHeaderAction?: (actionId: string) => void | Promise<void>;
 }
 
 /** Primitives returned by {@link buildMobileSheetShell}. */
@@ -590,6 +627,7 @@ interface IMobileSheetShell {
 	readonly sheet: HTMLElement;
 	/** Disposable store tied to the sheet's lifetime; cleared on close. */
 	readonly disposables: DisposableStore;
+	setBodyFocusTargets(targets: readonly HTMLElement[]): void;
 	/**
 	 * Play the close animation, dispose listeners, and remove the DOM
 	 * node after the animation completes. Idempotent — subsequent
@@ -614,6 +652,8 @@ function buildMobileSheetShell(
 ): IMobileSheetShell {
 	const disposables = new DisposableStore();
 	let closed = false;
+	const headerFocusTargets: HTMLButtonElement[] = [];
+	let bodyFocusTargets: readonly HTMLElement[] = [];
 
 	// -- DOM: backdrop + sheet -------------------------------------
 	const overlay = DOM.append(workbenchContainer, $('div.mobile-picker-sheet-overlay'));
@@ -622,6 +662,7 @@ function buildMobileSheetShell(
 	sheet.setAttribute('role', 'dialog');
 	sheet.setAttribute('aria-modal', 'true');
 	sheet.setAttribute('aria-label', title);
+	sheet.classList.toggle('compact-header', !!options.iconClose);
 
 	// -- Header (drag handle + title row + caption) ----------------
 	DOM.append(sheet, $('div.mobile-picker-sheet-handle'));
@@ -629,6 +670,9 @@ function buildMobileSheetShell(
 	const titleRow = DOM.append(sheet, $('div.mobile-picker-sheet-title-row'));
 	const titleEl = DOM.append(titleRow, $('div.mobile-picker-sheet-title'));
 	titleEl.textContent = title;
+	if (options.iconClose) {
+		disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), titleEl, title));
+	}
 
 	// Optional header actions (icon buttons) rendered between the
 	// title and the Done button. Useful for sheet-level shortcuts
@@ -637,10 +681,39 @@ function buildMobileSheetShell(
 		for (const action of options.headerActions) {
 			const btn = DOM.append(titleRow, $('button.mobile-picker-sheet-header-action', { type: 'button' })) as HTMLButtonElement;
 			btn.setAttribute('aria-label', action.label);
-			btn.title = action.label;
+			headerFocusTargets.push(btn);
+			if (options.iconClose) {
+				disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), btn, action.label));
+			} else {
+				btn.title = action.label;
+			}
 			const iconHost = DOM.append(btn, $('span.mobile-picker-sheet-header-action-icon'));
 			const iconEl = DOM.append(iconHost, $('span.mobile-picker-sheet-header-action-icon-glyph'));
 			iconEl.classList.add(...ThemeIcon.asClassNameArray(action.icon));
+			iconHost.setAttribute('aria-hidden', 'true');
+			if (options.headerActionsStayOpen) {
+				let pending = false;
+				disposables.add(DOM.addDisposableListener(btn, DOM.EventType.CLICK, async (event: MouseEvent) => {
+					event.preventDefault();
+					if (pending || closed) {
+						return;
+					}
+					pending = true;
+					btn.setAttribute('aria-disabled', 'true');
+					try {
+						// Invoke before yielding so clipboard and download actions retain user activation.
+						await options.onHeaderAction?.(action.id);
+					} catch (error) {
+						(options.onHeaderActionError ?? onUnexpectedError)(error);
+					} finally {
+						pending = false;
+						if (!closed) {
+							btn.setAttribute('aria-disabled', 'false');
+						}
+					}
+				}));
+				continue;
+			}
 			const btnGesture = Gesture.addTarget(btn);
 			disposables.add(btnGesture);
 			const onActivate = () => {
@@ -662,8 +735,17 @@ function buildMobileSheetShell(
 
 	if (!options.hideDoneButton) {
 		const doneBtn = DOM.append(titleRow, $('button.mobile-picker-sheet-done', { type: 'button' })) as HTMLButtonElement;
-		doneBtn.textContent = options.doneLabel ?? localize('mobilePickerSheet.done', "Done");
-		doneBtn.setAttribute('aria-label', localize('mobilePickerSheet.doneAriaLabel', "Close {0}", title));
+		const closeLabel = localize('mobilePickerSheet.doneAriaLabel', "Close {0}", title);
+		headerFocusTargets.push(doneBtn);
+		doneBtn.setAttribute('aria-label', closeLabel);
+		if (options.iconClose) {
+			doneBtn.classList.add('mobile-picker-sheet-header-action');
+			const icon = DOM.append(doneBtn, $('span.mobile-picker-sheet-header-action-icon-glyph', { 'aria-hidden': 'true' }));
+			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.close));
+			disposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), doneBtn, closeLabel));
+		} else {
+			doneBtn.textContent = options.doneLabel ?? localize('mobilePickerSheet.done', "Done");
+		}
 		const doneGesture = Gesture.addTarget(doneBtn);
 		disposables.add(doneGesture);
 		const doneClick = DOM.addDisposableListener(doneBtn, DOM.EventType.CLICK, (e: MouseEvent) => {
@@ -696,6 +778,24 @@ function buildMobileSheetShell(
 		}
 	}, true);
 	disposables.add(keyHandler);
+	if (options.trapFocus) {
+		disposables.add(DOM.addDisposableListener(sheet, DOM.EventType.KEY_DOWN, (event: KeyboardEvent) => {
+			if (event.key !== 'Tab') {
+				return;
+			}
+			// aria-disabled buttons remain in the native tab order while their action is pending.
+			const targets = [...headerFocusTargets, ...bodyFocusTargets];
+			const first = targets[0];
+			const last = targets[targets.length - 1];
+			if (event.shiftKey && event.target === first) {
+				DOM.EventHelper.stop(event, true);
+				last?.focus();
+			} else if (!event.shiftKey && event.target === last) {
+				DOM.EventHelper.stop(event, true);
+				first?.focus();
+			}
+		}));
+	}
 
 	// -- iOS keyboard avoidance -----------------------------------
 	// On iOS Safari, when the virtual keyboard opens the layout
@@ -732,6 +832,7 @@ function buildMobileSheetShell(
 		adjustForKeyboard();
 	}
 
+	let windowClosing = false;
 	const close = (onAnimationEnd?: () => void) => {
 		if (closed) {
 			return;
@@ -743,13 +844,23 @@ function buildMobileSheetShell(
 		// so nothing fires during the 180ms close animation. The DOM
 		// node itself is removed at the end of the animation.
 		disposables.dispose();
-		DOM.getWindow(workbenchContainer).setTimeout(() => {
+		const finish = () => {
 			overlay.remove();
 			onAnimationEnd?.();
-		}, 180);
+		};
+		if (windowClosing) {
+			finish();
+		} else {
+			win.setTimeout(finish, 180);
+		}
 	};
 
-	return { overlay, backdrop, sheet, disposables, close };
+	disposables.add(Event.once(Event.filter(Event.any(DOM.onWillUnregisterWindow, DOM.onDidUnregisterWindow), window => window === win))(() => {
+		windowClosing = true;
+		options.onDismiss();
+	}));
+
+	return { overlay, backdrop, sheet, disposables, close, setBodyFocusTargets: targets => { bodyFocusTargets = targets; } };
 }
 
 /** Mutable bookkeeping passed through {@link renderRow} so we can track section dividers and the row to focus. */
@@ -824,7 +935,14 @@ function renderRow(
 
 	// Text column — label on top, optional description beneath.
 	const textCol = DOM.append(row, $('span.mobile-picker-sheet-text'));
-	DOM.append(textCol, $('span.mobile-picker-sheet-label')).textContent = item.label;
+	const labelRow = item.badge ? DOM.append(textCol, $('span.mobile-picker-sheet-label-row')) : textCol;
+	DOM.append(labelRow, $('span.mobile-picker-sheet-label')).textContent = item.label;
+	if (item.badge) {
+		DOM.append(labelRow, $('span.mobile-picker-sheet-badge', { 'aria-hidden': 'true' })).textContent = item.badge;
+		row.setAttribute('aria-label', item.description
+			? localize('mobilePickerSheet.itemAriaLabelWithBadgeAndDescription', "{0}, {1}, {2}", item.label, item.badge, item.description)
+			: localize('mobilePickerSheet.itemAriaLabelWithBadge', "{0}, {1}", item.label, item.badge));
+	}
 	if (item.description) {
 		DOM.append(textCol, $('span.mobile-picker-sheet-description')).textContent = item.description;
 	}

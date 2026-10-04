@@ -102,24 +102,53 @@ export const EditSources = {
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
+		autoTier?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
 		mode: string | undefined;
 		extensionId: VersionedExtensionId | undefined;
 		codeBlockSuggestionId: EditSuggestionId | undefined;
+		origin?: 'agentHost';
+		harness?: string;
+		chatSessionId?: string;
 	}) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$harness: data.harness,
+			$origin: data.origin,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
+			...(data.chatSessionId !== undefined ? { $$chatSessionId: data.chatSessionId } : {}),
 			$$requestId: data.requestId,
 			$$mode: data.mode,
 			$$codeBlockSuggestionId: data.codeBlockSuggestionId,
 		} as const);
+	},
+
+	agentHostChatApplyEdits(data: {
+		modelId: string | undefined;
+		sessionId: string;
+		chatSessionId?: string;
+		requestId: string;
+		harness: string;
+	}) {
+		return EditSources.chatApplyEdits({
+			modelId: data.modelId,
+			sessionId: data.sessionId,
+			chatSessionId: data.chatSessionId,
+			requestId: data.requestId,
+			languageId: '',
+			mode: undefined,
+			extensionId: undefined,
+			codeBlockSuggestionId: undefined,
+			origin: 'agentHost',
+			harness: data.harness,
+		});
 	},
 
 	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
@@ -148,10 +177,11 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; autoTier?: string; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
+			$autoTier: data.autoTier,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$$sessionId: data.sessionId,

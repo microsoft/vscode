@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -45,6 +45,13 @@ export interface IVoicePlaybackService {
 	readonly lastPlayedVersion: IObservable<number>;
 
 	/**
+	 * Increments whenever the set of sessions with a pending (deferred) voice
+	 * response changes. The agent sessions view subscribes to this to show a
+	 * pending-response indicator on the affected rows.
+	 */
+	readonly pendingResponseVersion: IObservable<number>;
+
+	/**
 	 * Records the start of a TTS playback. When `sessionResource` is undefined,
 	 * the audio is generic and no per-session state is updated.
 	 */
@@ -53,6 +60,14 @@ export interface IVoicePlaybackService {
 
 	getLastPlayed(sessionResource: URI): IVoicePlaybackEntry | undefined;
 	hasLastPlayed(sessionResource: URI): boolean;
+
+	/**
+	 * Marks whether a session has a voice response that arrived while the
+	 * session was not focused and is being held until the user focuses it.
+	 * Drives the pending-response indicator in the agent sessions view.
+	 */
+	setPendingResponse(sessionResource: URI, pending: boolean): void;
+	hasPendingResponse(sessionResource: URI): boolean;
 
 	/**
 	 * Replays the last played message for `sessionResource` by re-synthesizing
@@ -79,6 +94,10 @@ export class VoicePlaybackService extends Disposable implements IVoicePlaybackSe
 	private readonly _lastPlayed = new ResourceMap<IVoicePlaybackEntry>();
 	private readonly _lastPlayedVersion = observableValue<number>(this, 0);
 	readonly lastPlayedVersion: IObservable<number> = this._lastPlayedVersion;
+
+	private readonly _pendingResponses = new ResourceSet();
+	private readonly _pendingResponseVersion = observableValue<number>(this, 0);
+	readonly pendingResponseVersion: IObservable<number> = this._pendingResponseVersion;
 
 	private _activeReplay: CancellationTokenSource | undefined;
 
@@ -117,6 +136,25 @@ export class VoicePlaybackService extends Disposable implements IVoicePlaybackSe
 
 	hasLastPlayed(sessionResource: URI): boolean {
 		return this._lastPlayed.has(sessionResource);
+	}
+
+	setPendingResponse(sessionResource: URI, pending: boolean): void {
+		let changed: boolean;
+		if (pending) {
+			changed = !this._pendingResponses.has(sessionResource);
+			if (changed) {
+				this._pendingResponses.add(sessionResource);
+			}
+		} else {
+			changed = this._pendingResponses.delete(sessionResource);
+		}
+		if (changed) {
+			this._pendingResponseVersion.set(this._pendingResponseVersion.get() + 1, undefined);
+		}
+	}
+
+	hasPendingResponse(sessionResource: URI): boolean {
+		return this._pendingResponses.has(sessionResource);
 	}
 
 	async replay(sessionResource: URI): Promise<void> {

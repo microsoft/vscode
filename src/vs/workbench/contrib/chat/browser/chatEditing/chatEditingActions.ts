@@ -351,6 +351,21 @@ function filterToUserAttachedContext(attachedContext: readonly IChatRequestVaria
 	);
 }
 
+function restoreRequestToMainInputIfEmpty(widget: IChatWidget | undefined, item: ChatTreeItem): IChatRequestVariableEntry[] | undefined {
+	if (!widget || !isRequestVM(item)) {
+		return undefined;
+	}
+
+	const input = widget.inputPart;
+	if (input.inputEditor.getValue() || filterToUserAttachedContext(input.attachmentModel.attachments).length) {
+		return undefined;
+	}
+
+	input.focus();
+	input.setValue(item.messageText, false);
+	return filterToUserAttachedContext(item.attachedContext);
+}
+
 async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<boolean> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
@@ -529,26 +544,25 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
-		const userAttachments = isRequestVM(item) ? filterToUserAttachedContext(item.attachedContext) : [];
-
-		if (isRequestVM(item)) {
-			widget?.focusInput();
-			widget?.input.setValue(item.messageText, false);
-		}
-
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		if (!confirmed) {
+			return;
+		}
 
-		if (confirmed && userAttachments.length) {
-			await widget?.input.restoreAttachments(userAttachments);
+		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
+		if (userAttachments?.length) {
+			await widget?.inputPart.restoreAttachments(userAttachments);
 		}
 	}
 });
 
+export const StartOverActionId = 'workbench.action.chat.startOver';
+
 registerAction2(class StartOverAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.startOver',
+			id: StartOverActionId,
 			title: localize2('chat.startOver.label', "Start Over"),
 			tooltip: localize2('chat.startOver.tooltip', "Clears the chat and undoes all changes"),
 			f1: false,
@@ -577,7 +591,15 @@ registerAction2(class StartOverAction extends Action2 {
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
-		await restoreSnapshotWithConfirmation(accessor, item);
+		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		if (!confirmed) {
+			return;
+		}
+
+		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
+		if (userAttachments?.length) {
+			await widget?.inputPart.restoreAttachments(userAttachments);
+		}
 	}
 });
 
@@ -641,7 +663,7 @@ registerAction2(class EditAction extends Action2 {
 			icon: Codicon.edit,
 			keybinding: {
 				primary: KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -649,7 +671,7 @@ registerAction2(class EditAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')))
+					when: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'hover'), ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input')), ChatContextKeys.readOnly.negate())
 				}
 			]
 		});

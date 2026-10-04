@@ -38,6 +38,11 @@ export interface IAgentHostReviewService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Persists the review state for files in a local Branch Changes changeset.
+	 */
+	setReviewState(channel: ProtocolURI, resources: readonly ProtocolURI[], reviewed: boolean): Promise<void>;
+
+	/**
 	 * Marks a single file reviewed at its current working-tree content by
 	 * overlaying that content into the reviewed tree and advancing the
 	 * reviewed ref. No-op when the file is already reviewed at that content.
@@ -63,10 +68,10 @@ export interface IAgentHostReviewService {
 	 * Copies the reviewed ref from `sourceSessionUri` to `targetSessionUri` so a
 	 * forked session starts with the parent's review progress. Points the
 	 * target's reviewed ref at the same commit as the source's (git objects are
-	 * shared within the repository). No-op when the source has no reviewed ref or
-	 * the directory is not a git work tree.
+	 * shared within each repository). No-op when the source has no reviewed ref
+	 * or none of the target directories are in a git work tree.
 	 */
-	copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, workingDirectory: URI): Promise<void>;
+	copyReviewedRef(sourceSession: ProtocolURI, targetSession: ProtocolURI, sourceWorkingDirectories: readonly URI[], targetWorkingDirectories: readonly URI[]): Promise<void>;
 }
 
 /**
@@ -76,6 +81,7 @@ export interface IAgentHostReviewService {
  */
 export const NULL_REVIEW_SERVICE: IAgentHostReviewService = {
 	_serviceBrand: undefined,
+	setReviewState: async () => { },
 	markFileReviewed: async () => { },
 	markFileUnreviewed: async () => { },
 	getReviewedPaths: async () => new Set(),

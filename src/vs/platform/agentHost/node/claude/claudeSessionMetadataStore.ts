@@ -6,9 +6,10 @@
 import type { SDKSessionInfo } from '@anthropic-ai/claude-agent-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ClaudePermissionMode, narrowClaudePermissionMode } from '../../common/claudeSessionConfigKeys.js';
-import { AgentProvider, AgentSession, IAgentSessionMetadata } from '../../common/agentService.js';
+import { IAgentChatMetadata } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection, ModelSelection } from '../../common/state/protocol/state.js';
+import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
 
 /**
  * Read view of Claude's per-session DB overlay. SDK-supplied fields
@@ -20,6 +21,15 @@ export interface IClaudeSessionOverlay {
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection;
+	/**
+	 * The full ordered working-directory set granted to this session (index 0 =
+	 * the SDK process root / `cwd`, index 1..N = additional directories). Owned
+	 * here because the SDK session catalog exposes only `cwd`, so a cold resume /
+	 * remove-all / fork must recover the tail from this overlay. Absent for
+	 * single-root sessions and external Claude CLI sessions (which have no
+	 * overlay DB), so callers treat absence as single-root.
+	 */
+	readonly workingDirectories?: readonly URI[];
 	/**
 	 * Transport the session most recently materialized under (Phase 19).
 	 * Forward-compat only — written at materialize time but NOT read for
@@ -39,6 +49,7 @@ export interface IClaudeSessionOverlayUpdate {
 	readonly model?: ModelSelection;
 	readonly permissionMode?: ClaudePermissionMode;
 	readonly agent?: AgentSelection | null;
+	readonly workingDirectories?: readonly URI[];
 	readonly transport?: 'proxy' | 'native';
 }
 
@@ -50,10 +61,8 @@ export interface IClaudeSessionOverlayUpdate {
  *   `{ id, config }` shape,
  * - the read/write helpers that open a per-call DB ref,
  * - the projection from {@link SDKSessionInfo} + overlay onto the
- *   platform's {@link IAgentSessionMetadata} shape.
- *
- * One instance per {@link ClaudeAgent}: the {@link AgentProvider} id
- * passed at construction is the one stamped on every projected URI.
+ *   platform's {@link IAgentChatMetadata} shape (minus `chat`, which the
+ *   caller attaches from its own exact-chat identity).
  *
  * The SDK is the source of truth for session existence; the overlay
  * merely decorates. External Claude CLI sessions have no overlay DB,
@@ -67,11 +76,33 @@ export class ClaudeSessionMetadataStore {
 	private static readonly KEY_PERMISSION_MODE = 'claude.permissionMode';
 	private static readonly KEY_AGENT = 'claude.agent';
 	private static readonly KEY_TRANSPORT = 'claude.transport';
+	private static readonly KEY_WORKING_DIRECTORIES = 'claude.workingDirectories';
 
 	constructor(
-		private readonly _provider: AgentProvider,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) { }
+
+	async hasKnownSession(session: URI): Promise<boolean> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return false;
+		}
+		try {
+			const metadata = await ref.object.getMetadataObject({
+				[AH_META_WORKSPACELESS_DB_KEY]: true,
+				'claude.external': true,
+				[ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY]: true,
+				[ClaudeSessionMetadataStore.KEY_MODEL]: true,
+				[ClaudeSessionMetadataStore.KEY_PERMISSION_MODE]: true,
+				[ClaudeSessionMetadataStore.KEY_AGENT]: true,
+				[ClaudeSessionMetadataStore.KEY_TRANSPORT]: true,
+				[ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES]: true,
+			});
+			return Object.values(metadata).some(value => value !== undefined);
+		} finally {
+			ref.dispose();
+		}
+	}
 
 	/**
 	 * Persist the supplied overlay fields to the per-session DB. Mirrors
@@ -102,6 +133,12 @@ export class ClaudeSessionMetadataStore {
 			if (fields.transport) {
 				work.push(db.setMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT, fields.transport));
 			}
+			if (fields.workingDirectories) {
+				work.push(db.setMetadata(
+					ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES,
+					JSON.stringify(fields.workingDirectories.map(d => d.toString())),
+				));
+			}
 			await Promise.all(work);
 		} finally {
 			dbRef.dispose();
@@ -121,12 +158,13 @@ export class ClaudeSessionMetadataStore {
 			return {};
 		}
 		try {
-			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw] = await Promise.all([
+			const [customizationDirectoryRaw, modelRaw, permissionModeRaw, agentRaw, transportRaw, workingDirectoriesRaw] = await Promise.all([
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_CUSTOMIZATION_DIRECTORY),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_MODEL),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_PERMISSION_MODE),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_AGENT),
 				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_TRANSPORT),
+				ref.object.getMetadata(ClaudeSessionMetadataStore.KEY_WORKING_DIRECTORIES),
 			]);
 			return {
 				customizationDirectory: customizationDirectoryRaw ? URI.parse(customizationDirectoryRaw) : undefined,
@@ -134,25 +172,28 @@ export class ClaudeSessionMetadataStore {
 				permissionMode: narrowClaudePermissionMode(permissionModeRaw),
 				agent: parseAgentSelection(agentRaw),
 				transport: transportRaw === 'proxy' || transportRaw === 'native' ? transportRaw : undefined,
+				workingDirectories: parseWorkingDirectories(workingDirectoriesRaw),
 			};
 		} finally {
 			ref.dispose();
 		}
+
 	}
 
 	/**
-	 * Combine an SDK-supplied {@link SDKSessionInfo} with this store's
-	 * read overlay into the platform's {@link IAgentSessionMetadata} shape.
-	 * Pure projection — does not touch the DB.
+	 * Project an SDK-supplied {@link SDKSessionInfo} onto the platform's
+	 * {@link IAgentChatMetadata} shape, minus `chat` — the caller attaches
+	 * that from its own exact-chat identity. Pure projection — does not touch
+	 * the DB. The per-session overlay no longer contributes any projected
+	 * field, so it is not read here; the store is still consulted on the
+	 * harness's internal restoration paths (see {@link read}).
 	 */
-	project(entry: SDKSessionInfo, overlay: IClaudeSessionOverlay): IAgentSessionMetadata {
+	project(entry: SDKSessionInfo): Omit<IAgentChatMetadata, 'chat'> {
 		return {
-			session: AgentSession.uri(this._provider, entry.sessionId),
 			startTime: entry.createdAt ?? entry.lastModified,
 			modifiedTime: entry.lastModified,
 			summary: entry.customTitle ?? entry.summary,
-			workingDirectory: entry.cwd ? URI.file(entry.cwd) : undefined,
-			customizationDirectory: overlay.customizationDirectory,
+			workingDirectories: entry.cwd ? [URI.file(entry.cwd)] : undefined,
 		};
 	}
 }
@@ -165,6 +206,22 @@ function parseAgentSelection(raw: string | undefined): AgentSelection | undefine
 		const value: { uri?: unknown } = JSON.parse(raw);
 		if (value && typeof value === 'object' && typeof value.uri === 'string') {
 			return { uri: value.uri };
+		}
+	} catch {
+		// fall through
+	}
+	return undefined;
+}
+
+function parseWorkingDirectories(raw: string | undefined): readonly URI[] | undefined {
+	if (!raw) {
+		return undefined;
+	}
+	try {
+		const value: unknown = JSON.parse(raw);
+		if (Array.isArray(value)) {
+			const dirs = value.filter((d): d is string => typeof d === 'string').map(d => URI.parse(d));
+			return dirs.length > 0 ? dirs : undefined;
 		}
 	} catch {
 		// fall through

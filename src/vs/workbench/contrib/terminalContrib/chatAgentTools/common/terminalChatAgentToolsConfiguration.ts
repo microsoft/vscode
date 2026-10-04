@@ -8,9 +8,32 @@ import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { SandboxSettingsResolutionHelper } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
+import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
+import { sortAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/sortAutoApproveRules.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ConfigurationMigration, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
+
+export const sandboxAllowNetworkMigration: ConfigurationMigration = {
+	key: 'chat.agent.sandbox.allowNetwork',
+	migrateFn: (value, accessor) => {
+		if (typeof value !== 'boolean') {
+			return [];
+		}
+		return accessor(AgentSandboxSettingId.AgentSandboxAllowNetwork) === undefined ? [
+			[AgentSandboxSettingId.AgentSandboxAllowNetwork, { value }],
+			['chat.agent.sandbox.allowNetwork', { value: undefined }],
+		] : [['chat.agent.sandbox.allowNetwork', { value: undefined }]];
+	},
+};
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([sandboxAllowNetworkMigration]);
 
 /**
  * Default idle silence timeout in milliseconds. Used as both the configuration
@@ -36,14 +59,13 @@ export const enum TerminalChatAgentToolsSettingId {
 	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
 	BackgroundNotifications = 'chat.tools.terminal.backgroundNotifications',
 	OutputDeltas = 'chat.tools.terminal.outputDeltas',
+	OutputCompaction = 'chat.tools.terminal.outputCompaction',
 	IdlePollInterval = 'chat.tools.terminal.idlePollInterval',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
 	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
-	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
-	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
@@ -84,6 +106,7 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
+		restricted: true,
 		description: localize('autoApproveMode.description', "Controls whether to allow auto approval in the run in terminal tool."),
 		type: 'boolean',
 		default: true,
@@ -101,6 +124,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		agentsWindow: { default: true },
 	},
 	[TerminalChatAgentToolsSettingId.AutoApprove]: {
+		restricted: true,
 		markdownDescription: [
 			localize('autoApprove.description.intro', "A list of commands or regular expressions that control whether the run in terminal tool commands require explicit approval. These will be matched against the start of a command. A regular expression can be provided by wrapping the string in {0} characters followed by optional flags such as {1} for case-insensitivity.", '`/`', '`i`'),
 			localize('autoApprove.description.values', "Set to {0} to automatically approve commands, {1} to always require explicit approval or {2} to unset the value.", '`true`', '`false`', '`null`'),
@@ -217,25 +241,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//
 			// Safe and common sub-commands
 
-			// Note: These patterns support `-C <path>` and `--no-pager` immediately after `git`
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b.*\\s--output(=|\\s|$)/': false,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+show\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+diff\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+ls-files\\b/': true,
-
-			// git grep
-			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
-			// - See notes on `grep`
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+grep\\b/': true,
-
-			// git branch
-			// - `-d`, `-D`, `--delete`: Prevent branch deletion
-			// - `-m`, `-M`: Prevent branch renaming
-			// - `--force`: Generally dangerous
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b/': true,
-			'/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+branch\\b.*\\s-(d|D|m|M|-delete|-force)\\b/': false,
+			...gitAutoApproveRules,
 
 			// docker - readonly sub-commands
 			'/^docker\\s+(ps|images|info|version|inspect|logs|top|stats|port|diff|search|events)\\b/': true,
@@ -246,26 +252,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// #region PowerShell
 
-			'Get-ChildItem': true,
-			'Get-Content': true,
-			'Get-Date': true,
-			'Get-Random': true,
-			'Get-Location': true,
-			'Set-Location': true,
-			'Write-Host': true,
-			'Write-Output': true,
-			'Out-String': true,
-			'Split-Path': true,
-			'Join-Path': true,
-			'Start-Sleep': true,
-			'Where-Object': true,
-
-			// Blanket approval of safe verbs
-			'/^Select-[a-z0-9]/i': true,
-			'/^Measure-[a-z0-9]/i': true,
-			'/^Compare-[a-z0-9]/i': true,
-			'/^Format-[a-z0-9]/i': true,
-			'/^Sort-[a-z0-9]/i': true,
+			...powershellAutoApproveRules,
 
 			// #endregion
 
@@ -295,8 +282,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 
 			// Safe lockfile-only installs since we trust the workspace and lock file is trusted.
 			'npm ci': true,
+			'/^npm\\s+ci\\s+\\S/': false,
 			'/^yarn\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^yarn\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 			'/^pnpm\\s+install\\s+--frozen-lockfile\\b/': true,
+			'/^pnpm\\s+install\\s+--frozen-lockfile\\s+\\S/': false,
 
 			// #endregion
 
@@ -334,26 +324,33 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   while processing the input.
 			// - `-f`/`--file`: Add the commands contained in the file script-file to the set of
 			//   commands to be run while processing the input.
-			// - `w`/`W` commands: Write to files (blocked by `-i` check + agent typically won't use).
+			// - standalone `e`: Execute a shell command from the sed script
+			// - standalone `r`/`R`: Read arbitrary files into the stream
+			// - standalone `w`/`W`: Write pattern space to arbitrary files
 			// - `s///e` flag: Executes substitution result as shell command
 			// - `s///w` flag: Write substitution result to file
-			// - `;W` Write first line of pattern space to file
 			// - Note that `--sandbox` exists which blocks unsafe commands that could potentially be
 			//   leveraged to auto approve
 			// - In-place editing (`-i`, `-I`, `--in-place`) is detected and blocked via file write
 			//   detection if necessary
+			// - These patterns are conservative: a literal `;e ` or `{e ` inside a replacement
+			//   string also matches, which asks for confirmation rather than auto-approving.
+			// TODO: replace sed deny regexes with a shared script analyzer — https://github.com/microsoft/vscode/issues/329218
 			sed: true,
 			'/^sed\\b.*\\s(-[a-zA-Z]*(e|f)[a-zA-Z]*|--expression|--file)\\b/': false,
 			'/^sed\\b.*s\\/.*\\/.*\\/[ew]/': false,
-			'/^sed\\b.*;W/': false,
+			// Quoted positional script whose first command is e/r/R/w/W. The opening quote is
+			// captured so the closing quote must match it, and whitespace and `!` are allowed
+			// around the optional address since sed ignores them. The option prefix also skips
+			// the separate operand consumed by -l/--line-length.
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1)/': false,
+			// Same dangerous commands after a `;` or `{` separator inside a quoted script.
+			// Escaped characters are consumed before testing for the matching closing quote.
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+([\'"])(?:\\\\.|(?!\\1).)*[;{]\\s*(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|\\1|[;}])/': false,
+			// Unquoted positional script form (e.g. `sed 1e id`, `sed w file`, `sed /pat/e file`)
+			'/^sed\\b(?:\\s+(?:(?:-l|--line-length)\\s+\\S+|--line-length=\\S+|-\\S+))*\\s+(?:(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/)(?:\\s*,\\s*(?:\\d+|\\$|\\/(?:\\\\.|[^\\/])*\\/))?)?\\s*!?\\s*[erRwW](?:\\s|$)/': false,
 
-			// sort
-			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
-			//   blocked currently
-			// - `-S`: Memory exhaustion is possible (`sort -S 100G file`), we allow possible denial
-			//   of service.
-			sort: true,
-			'/^sort\\b.*\\s-(o|S)\\b/': false,
+			...sortAutoApproveRules,
 
 			// tree
 			// - `-o`: Output redirection can write files (`tree -o /etc/something file`) which are
@@ -422,6 +419,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		} satisfies Record<string, boolean | { approve: boolean; matchCommandLine?: boolean }>,
 	},
 	[TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules]: {
+		restricted: true,
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
@@ -437,6 +435,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		markdownDescription: localize('autoApproveWorkspaceNpmScripts.description', "Whether to automatically approve npm, yarn, and pnpm run commands when the script is defined in a workspace package.json file. Since the workspace is trusted, scripts defined in package.json are considered safe to run without explicit approval."),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
+		restricted: true,
 		type: 'string',
 		enum: ['never', 'outsideWorkspace', 'all'],
 		enumDescriptions: [
@@ -529,7 +528,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxEnabled]: {
-		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
+		order: 10,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
 		type: 'string',
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 		enumDescriptions: [
@@ -537,7 +539,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
 		],
 		default: AgentSandboxEnabledValue.Off,
-		tags: ['preview'],
 		restricted: true,
 		experiment: {
 			mode: 'auto'
@@ -548,8 +549,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			minimumVersion: '1.116',
 			localization: {
 				description: {
-					key: 'agentSandbox.enabledSetting',
-					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
+					key: 'agentSandbox.enabledPolicy',
+					value: localize('agentSandbox.enabledPolicy', "Deprecated. Controls whether the Local agent uses sandboxing to restrict what tools can do. In Copilot Agent Host, this legacy policy supplies an overridable sandbox default, not a mandatory requirement. Use the runtime-native sandbox.enabled managed setting to require sandboxing in Copilot Agent Host."),
 				},
 				enumDescriptions: [
 					{
@@ -564,26 +565,13 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		}
 	},
-	[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: {
-		markdownDescription: localize('agentSandbox.windowsEnabledSetting', "Controls whether agent mode uses sandboxing on Windows. Use {0} to allow all network domains.", `\`#${AgentSandboxSettingId.AgentSandboxAllowNetwork}#\``),
-		type: 'string',
-		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
-		enumDescriptions: [
-			localize('agentSandbox.windowsEnabledSetting.offDescription', 'Disable sandboxing for agent mode tools on Windows.'),
-			localize('agentSandbox.windowsEnabledSetting.onDescription', 'Enable sandboxing for agent mode tools on Windows.'),
-		],
-		default: AgentSandboxEnabledValue.Off,
-		tags: ['experimental'],
-		restricted: true,
-		experiment: {
-			mode: 'auto'
-		}
-	},
 	[AgentSandboxSettingId.AgentSandboxAllowNetwork]: {
-		markdownDescription: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) !== false),
+		order: 20,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.allowNetwork', "Allow outbound network access in the sandbox (`allowOutbound` in the SDK). Configured allowed and denied network domains still restrict destinations. When disabled, outbound network access is blocked, including for the integrated browser."),
 		type: 'boolean',
-		default: false,
-		tags: ['preview'],
+		default: true,
 		restricted: true,
 		policy: {
 			name: 'ChatAgentSandboxAllowNetwork',
@@ -591,17 +579,31 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			minimumVersion: '1.127',
 			localization: {
 				description: {
-					key: 'agentSandbox.allowNetwork',
-					value: localize('agentSandbox.allowNetwork', "When {0} is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+					key: 'agentSandbox.allowNetworkPolicy',
+					value: localize('agentSandbox.allowNetworkPolicy', "Deprecated. Controls whether the Local agent sandbox allows outbound connections to all network domains while preserving file system restrictions. Use the sandbox.userPolicy.network.allowOutbound managed setting to enforce outbound network restrictions in Copilot Agent Host."),
 				}
 			}
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork]: {
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY) !== false),
+		order: 25,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.allowLocalNetwork', "Allow the sandboxed process to reach hosts on the local network. Windows needs this on when a proxy, host rules, or credential masking is used: it reaches the local listener over host loopback, and a sandboxed command will not launch without it. The local proxy checks destination addresses for direct connections. An upstream proxy resolves its own destinations."),
+		type: 'boolean',
+		default: false,
+		restricted: true,
+	},
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: {
-		markdownDescription: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		managedSettingsPresentation: read => {
+			const allowBypass = read(COPILOT_SANDBOX_ALLOW_BYPASS_KEY);
+			return SandboxSettingsResolutionHelper.resolveAllowBypass(undefined, typeof allowBypass === 'boolean' ? allowBypass : undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true);
+		},
+		order: 30,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview'],
 		restricted: true,
 		policy: {
 			name: 'ChatAgentSandboxAllowUnsandboxedCommands',
@@ -609,38 +611,82 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			minimumVersion: '1.116',
 			localization: {
 				description: {
-					key: 'agentSandbox.allowUnsandboxedCommands',
-					value: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+					key: 'agentSandbox.allowUnsandboxedCommandsPolicy',
+					value: localize('agentSandbox.allowUnsandboxedCommandsPolicy', "Deprecated. Controls whether Local agent terminal commands can run outside the sandbox after user confirmation when sandbox restrictions would block the command. Use the sandbox.allowBypass managed setting to control sandbox bypass in Copilot Agent Host."),
 				}
 			}
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
 		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is enabled and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDeprecationMessage: localize('agentSandbox.retryWithAllowNetworkRequests.deprecated', "This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox."),
+		deprecationMessageShowInSettings: true,
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
 		restricted: true
 	},
-	[AgentSandboxSettingId.AgentSandboxAllowAutoApprove]: {
-		markdownDescription: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+	[AgentSandboxSettingId.AgentSandboxMcpServers]: {
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, read(COPILOT_SANDBOX_MCP_SERVERS_KEY) === true),
+		order: 40,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.mcpServers', "Controls whether MCP servers run in the sandbox when sandboxing is enabled."),
 		type: 'boolean',
 		default: true,
-		tags: ['preview'],
 		restricted: true,
-		policy: {
-			name: 'ChatAgentSandboxAllowAutoApprove',
-			category: PolicyCategory.IntegratedTerminal,
-			minimumVersion: '1.116',
-			localization: {
-				description: {
-					key: 'agentSandbox.allowAutoApprove',
-					value: localize('agentSandbox.allowAutoApprove', "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when {0} is enabled.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-				}
-			}
-		}
+	},
+	[AgentSandboxSettingId.AgentSandboxLspServers]: {
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, read(COPILOT_SANDBOX_LSP_SERVERS_KEY) === true),
+		order: 50,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.lspServers', "Controls whether LSP servers run in the sandbox when sandboxing is enabled."),
+		type: 'boolean',
+		default: true,
+		restricted: true,
+	},
+	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: {
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) !== false),
+		order: 60,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.allowDevToolAccess', "Grant read access to the tool directories found on PATH, in toolchain env vars (CARGO_HOME, GOROOT, and similar) and under your user profile, plus dev-tool config and caches (including registry tokens), and read-write to shared build caches."),
+		type: 'boolean',
+		default: true,
+		restricted: true,
+	},
+	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: {
+		order: 65,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.userConfiguredPaths', "Customize file path permissions in the sandbox."),
+		type: ['object'],
+		properties: {
+			readwritePaths: {
+				type: 'array',
+				description: localize('agentSandbox.userConfiguredPaths.readwritePaths', "Read/Write: paths the Copilot Agent Host sandbox can read and write."),
+				items: { type: 'string' },
+				default: [],
+			},
+			readonlyPaths: {
+				type: 'array',
+				description: localize('agentSandbox.userConfiguredPaths.readonlyPaths', "Read-Only: paths the Copilot Agent Host sandbox can read but not write."),
+				items: { type: 'string' },
+				default: [],
+			},
+			deniedPaths: {
+				type: 'array',
+				description: localize('agentSandbox.userConfiguredPaths.deniedPaths', "Denied: paths the Copilot Agent Host sandbox cannot access."),
+				items: { type: 'string' },
+				default: [],
+			},
+		},
+		additionalProperties: false,
+		default: { readwritePaths: [], readonlyPaths: [], deniedPaths: [] },
+		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem]: {
+		order: 70,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
@@ -679,6 +725,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem]: {
+		order: 80,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
@@ -717,6 +767,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem]: {
+		order: 90,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.windowsFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Windows. Paths do not support glob patterns, only literal paths (ex: C:\\src, C:\\Users\\me\\.ssh, .env).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
@@ -755,6 +809,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]: {
 		markdownDescription: localize('agentSandbox.runtimeSetting', "Note: this setting is applicable only when {0} is enabled. Key/value pairs are passed through to the root of the sandbox runtime configuration.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		markdownDeprecationMessage: localize('agentSandbox.runtimeSetting.deprecated', "This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox."),
+		deprecationMessageShowInSettings: true,
 		type: 'object',
 		default: {
 			enableWeakerNestedSandbox: false
@@ -821,6 +877,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		},
 		markdownDescription: localize('outputDeltas.description', "When enabled, repeated get terminal output tool calls return only output added since the previous poll for the same terminal execution, or a short unchanged-output message when there is no new output."),
+	},
+	[TerminalChatAgentToolsSettingId.OutputCompaction]: {
+		restricted: true,
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		},
+		markdownDescription: localize('outputCompaction.description', "When enabled, the output of commands run by the run in terminal tool is compacted before being returned to the model, reducing the number of tokens spent on noisy output (for example progress bars or repeated log lines) while preserving the important information."),
 	}
 };
 
@@ -832,26 +898,8 @@ for (const id of [
 	TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible,
 ]) {
 	terminalChatAgentToolsConfiguration[id] = {
+		...(id === TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible ? { restricted: true } : {}),
 		deprecated: true,
 		markdownDeprecationMessage: localize('autoApprove.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``)
 	};
 }
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem] = {
-	type: 'object',
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandbox.fileSystemLinux.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem] = {
-	type: 'object',
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandbox.fileSystemMac.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem}#\``),
-};
-
-terminalChatAgentToolsConfiguration[AgentSandboxSettingId.DeprecatedAgentSandboxEnabled] = {
-	type: 'boolean',
-	deprecated: true,
-	included: false,
-	markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', 'Use {0} instead', `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-};

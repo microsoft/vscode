@@ -200,6 +200,7 @@ When using insert_edit_into_file, use line comments with `...existing code...` t
 When using replace_string_in_file, include 3-5 lines of unchanged context before and after the target string.
 For multiple independent edits, use multi_replace_string_in_file simultaneously rather than sequential replace_string_in_file calls.
 Prefer replace_string_in_file or multi_replace_string_in_file over insert_edit_into_file.
+Write a comment only to state what the code cannot show on its own, and keep it to one short line. Don't restate what the next line does or explain your change to the reviewer, and don't write a multi-paragraph doc comment where a single line will do.
 Do NOT create markdown files to document changes unless requested.
 
 </reminderInstructions>

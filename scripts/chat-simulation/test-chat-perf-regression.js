@@ -1021,7 +1021,7 @@ function generateCISummary(jsonReport, baseline, opts) {
 		['extHostHeapDelta', 'extHost', 'MB'],
 		['extHostHeapDeltaPostGC', 'extHost', 'MB'],
 	];
-	const regressionMetricNames = new Set(['timeToFirstToken', 'timeToComplete', 'layoutDurationMs', 'forcedReflowCount', 'longTaskCount', 'longAnimationFrameCount']);
+	const regressionMetricNames = new Set(['timeToFirstToken', 'timeToComplete', 'layoutDurationMs', 'forcedReflowCount', 'longTaskCount']);
 
 	const lines = [];
 	const scenarios = Object.keys(jsonReport.scenarios);

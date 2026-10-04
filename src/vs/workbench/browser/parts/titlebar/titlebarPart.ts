@@ -14,11 +14,11 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { IConfigurationService, IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
+import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { MODERN_UI_INACTIVE_SHELL_BACKGROUND, MODERN_UI_SHELL_BACKGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from '../../../common/theme.js';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from '../../../../base/common/platform.js';
 import { Color } from '../../../../base/common/color.js';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from '../../../../base/browser/dom.js';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement, AnimationFrameScheduler } from '../../../../base/browser/dom.js';
 import { CustomMenubarControl } from './menubarControl.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -57,6 +57,7 @@ import { CommandsRegistry } from '../../../../platform/commands/common/commands.
 import { safeIntl } from '../../../../base/common/date.js';
 import { IsCompactTitleBarContext, TitleBarVisibleContext } from '../../../common/contextkeys.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { WORKBENCH_MENU_MOTION_CLASS, workbenchMenuCloseAnimation } from '../../actions/menuMotion.js';
 
 export interface ITitleVariable {
 	readonly name: string;
@@ -265,6 +266,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private rightContent!: HTMLElement;
 
 	protected readonly customMenubar = this._register(new MutableDisposable<CustomMenubarControl>());
+	private readonly customMenubarDisposables = this._register(new DisposableStore());
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
@@ -276,6 +278,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private actionToolBarElement!: HTMLElement;
 	private readonly centerAdjacentToolBarDisposable = this._register(new DisposableStore());
 	private centerAdjacentToolBarElement: HTMLElement | undefined;
+	private readonly updateToolBarDisposable = this._register(new DisposableStore());
+	private updateToolBarElement: HTMLElement | undefined;
+	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	private globalToolbarMenu: IMenu | undefined;
 	private layoutToolbarMenu: IMenu | undefined;
@@ -289,8 +294,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	private readonly titleDisposables = this._register(new DisposableStore());
 	private titleBarStyle: TitlebarStyle;
-
-	private isInactive: boolean = false;
+	private activeWindowId: number | undefined;
 
 	private readonly isAuxiliary: boolean;
 	private isCompact = false;
@@ -303,7 +307,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 	constructor(
 		id: string,
-		targetWindow: CodeWindow,
+		private readonly targetWindow: CodeWindow,
 		private readonly editorGroupsContainer: IEditorGroupsContainer,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -336,26 +340,17 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		this.hoverDelegate = this._register(createInstantHoverDelegate());
 
-		this.registerListeners(getWindowId(targetWindow));
+		this.registerListeners();
 	}
 
-	private registerListeners(targetWindowId: number): void {
-		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
-		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
+	private registerListeners(): void {
+		this._register(this.hostService.onDidChangeFocus(() => this.updateStyles()));
+		this._register(this.hostService.onDidChangeActiveWindow(windowId => {
+			this.activeWindowId = windowId;
+			this.updateStyles();
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
 		this._register(this.editorGroupsContainer.onDidChangeEditorPartOptions(e => this.onEditorPartConfigurationChange(e)));
-	}
-
-	private onBlur(): void {
-		this.isInactive = true;
-
-		this.updateStyles();
-	}
-
-	private onFocus(): void {
-		this.isInactive = false;
-
-		this.updateStyles();
 	}
 
 	private onEditorPartConfigurationChange({ oldPartOptions, newPartOptions }: IEditorPartOptionsChangeEvent): void {
@@ -372,6 +367,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	protected onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration(LayoutSettings.MODERN_UI)) {
+			this.updateStyles();
+		}
 
 		// Custom menu bar (disabled if auxiliary)
 		if (!this.isAuxiliary && !hasNativeMenu(this.configurationService, this.titleBarStyle) && (!isMacintosh || isWeb)) {
@@ -425,18 +423,20 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			return; // If the menubar is already installed, skip
 		}
 
-		this.customMenubar.value = this.instantiationService.createInstance(CustomMenubarControl);
+		const customMenubar = this.instantiationService.createInstance(CustomMenubarControl);
+		this.customMenubar.value = customMenubar;
 
 		this.menubar = append(this.leftContent, $('div.menubar'));
 		this.menubar.setAttribute('role', 'menubar');
 
-		this._register(this.customMenubar.value.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this.customMenubarDisposables.add(customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
 
-		this.customMenubar.value.create(this.menubar);
+		customMenubar.create(this.menubar);
 	}
 
 	private uninstallMenubar(): void {
-		this.customMenubar.value = undefined;
+		this.customMenubarDisposables.clear();
+		this.customMenubar.clear();
 
 		this.menubar?.remove();
 		this.menubar = undefined;
@@ -465,6 +465,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container'));
+		// Measure in the render phase so DOM reads do not force layout during startup.
+		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
 		this.leftContent = append(this.rootContainer, $('.titlebar-left'));
 		this.centerContent = append(this.rootContainer, $('.titlebar-center'));
@@ -492,7 +494,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.title = append(this.centerContent, $('div.window-title'));
 		this.createTitle();
 
-		// Center-Adjacent Toolbar (e.g., update indicator)
+		// Center-Adjacent Toolbar
 		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
 			const centerAdjacentToolBarElement = append(this.rightContent, $('div.center-adjacent-toolbar-container'));
 			this.centerAdjacentToolBarElement = centerAdjacentToolBarElement;
@@ -506,8 +508,25 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				hoverDelegate: this.hoverDelegate
 			}));
 
-			// Re-evaluate fit when items change (e.g. the update indicator appears), see #303222.
-			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.updateCenterAdjacentToolBarOverflow()));
+			// Re-evaluate fit when items change, see #303222.
+			this.centerAdjacentToolBarDisposable.add(centerAdjacentToolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
+		}
+
+		// Update Toolbar (before the right-aligned toolbar actions)
+		if (hasCustomTitlebar(this.configurationService, this.titleBarStyle)) {
+			const updateToolBarElement = append(this.rightContent, $('div.update-toolbar-container'));
+			this.updateToolBarElement = updateToolBarElement;
+			const updateToolBar = this.updateToolBarDisposable.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, updateToolBarElement, MenuId.TitleBarUpdate, {
+				contextMenu: MenuId.TitleBarContext,
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				toolbarOptions: {
+					primaryGroup: () => true,
+				},
+				actionViewItemProvider: (action, options) => createActionViewItem(this.instantiationService, action, options),
+				hoverDelegate: this.hoverDelegate
+			}));
+
+			this.updateToolBarDisposable.add(updateToolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
 		}
 
 		// Create Toolbar Actions
@@ -541,14 +560,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// Linux/Windows: controls are explicitly disabled
 			} else {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (isWeb) {
+				if (isWCOEnabled()) {
+					this.windowControlsContainer.classList.add('wco-enabled');
+					if (isWeb || isLinux) {
+						append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.wco-enabled'));
+					}
+				} else if (isWeb) {
 					// Web: its possible to have control overlays on both sides, for example on macOS
 					// with window controls on the left and PWA controls on the right.
 					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-				}
-
-				if (isWCOEnabled()) {
-					this.windowControlsContainer.classList.add('wco-enabled');
 				}
 			}
 		}
@@ -673,6 +693,8 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			getKeyBinding: action => this.getKeybinding(action),
 			overflowBehavior: { maxItems: 12, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			dropdownMenuClassName: WORKBENCH_MENU_MOTION_CLASS,
+			dropdownMenuCloseAnimation: workbenchMenuCloseAnimation,
 			telemetrySource: 'titlePart',
 			highlightToggledItems: this.isAuxiliary, // Only show toggled state for auxiliary title bars
 			actionViewItemProvider: (action, options) => this.actionViewItemProvider(action, options),
@@ -812,20 +834,25 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		// Part container
 		if (this.element) {
-			if (this.isInactive) {
+			const isWindowActive = this.activeWindowId === undefined ? this.targetWindow.document.hasFocus() : this.activeWindowId === this.targetWindow.vscodeWindowId;
+			const isInactive = !this.hostService.hasFocus || !isWindowActive;
+			if (isInactive) {
 				this.element.classList.add('inactive');
 			} else {
 				this.element.classList.remove('inactive');
 			}
 
-			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, (color, theme) => {
+			const makeOpaque = (color: Color, theme: IColorTheme) => {
 				// LCD Rendering Support: the title bar part is a defining its own GPU layer.
 				// To benefit from LCD font rendering, we must ensure that we always set an
 				// opaque background color. As such, we compute an opaque color given we know
 				// the background color is the workbench background.
 				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
-			}) || '';
+			};
+			const titleBackground = this.getColor(isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND, makeOpaque) || this.getColor(TITLE_BAR_ACTIVE_BACKGROUND, makeOpaque) || '';
+			const shellBackground = this.getColor(isInactive ? MODERN_UI_INACTIVE_SHELL_BACKGROUND : MODERN_UI_SHELL_BACKGROUND, makeOpaque) || this.getColor(MODERN_UI_SHELL_BACKGROUND, makeOpaque) || titleBackground;
 			this.element.style.backgroundColor = titleBackground;
+			this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-shell-background', shellBackground);
 
 			if (this.appIconBadge) {
 				this.appIconBadge.style.backgroundColor = titleBackground;
@@ -837,10 +864,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.element.classList.remove('light');
 			}
 
-			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
+			const titleForeground = this.getColor(isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
 			this.element.style.color = titleForeground || '';
 
-			const titleBorder = this.getColor(TITLE_BAR_BORDER);
+			const titleBorder = !this.isAuxiliary && this.configurationService.getValue<boolean>(LayoutSettings.MODERN_UI) === true ? undefined : this.getColor(TITLE_BAR_BORDER);
 			this.element.style.borderBottom = titleBorder ? `1px solid ${titleBorder}` : '';
 		}
 	}
@@ -910,31 +937,27 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 
 		super.layoutContents(width, height);
 
-		// Run after `layoutContents` so the title bar reflects its new width when measuring overflow.
-		this.updateCenterAdjacentToolBarOverflow();
+		this.titleBarToolBarOverflowScheduler.schedule();
 	}
 
 	/**
-	 * Hides the optional center-adjacent toolbar (e.g. the update indicator) when showing it would push the title bar
-	 * content—most notably the trailing window controls—off-screen as the window is collapsed horizontally (#303222).
-	 * Overflow is measured against actual rendered widths so the toolbar stays visible whenever it fits.
+	 * Hides optional title bar toolbars when showing them would push the trailing window controls off-screen (#303222).
 	 */
-	private updateCenterAdjacentToolBarOverflow(): void {
-		const element = this.centerAdjacentToolBarElement;
-		if (!element) {
+	private updateTitleBarToolBarOverflow(): void {
+		const centerAdjacentToolBarElement = this.centerAdjacentToolBarElement?.classList.contains('has-no-actions') ? undefined : this.centerAdjacentToolBarElement;
+		const updateToolBarElement = this.updateToolBarElement?.classList.contains('has-no-actions') ? undefined : this.updateToolBarElement;
+
+		this.centerAdjacentToolBarElement?.classList.remove('overflowing');
+		this.updateToolBarElement?.classList.remove('overflowing');
+
+		if (this.rootContainer.scrollWidth <= this.rootContainer.clientWidth) {
 			return;
 		}
 
-		// Skip measuring (and its forced reflow) when the toolbar is empty, which is the common case.
-		if (element.classList.contains('has-no-actions')) {
-			element.classList.remove('overflowing');
-			return;
+		centerAdjacentToolBarElement?.classList.add('overflowing');
+		if (this.rootContainer.scrollWidth > this.rootContainer.clientWidth) {
+			updateToolBarElement?.classList.add('overflowing');
 		}
-
-		// Measure from the visible state, then hide again if the title bar content overflows its width.
-		element.classList.remove('overflowing');
-		const overflows = this.rootContainer.scrollWidth > this.rootContainer.clientWidth;
-		element.classList.toggle('overflowing', overflows);
 	}
 
 	private updateLayout(dimension: Dimension): void {

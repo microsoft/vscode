@@ -4,29 +4,52 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { deepClone } from '../../../../../base/common/objects.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { NullPolicyService } from '../../../../../platform/policy/common/policy.js';
+import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
+import { NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingsPresentationService } from '../../../../../workbench/services/configuration/common/managedSettingsPresentation.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { AGENTS_WINDOW_PROFILE_ID, InMemoryUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfileService.js';
 import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
 import { TestEnvironmentService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { IPolicyData } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ConfigurationService } from '../../browser/configurationService.js';
 import { SessionsWorkspaceContextService } from '../../../workspace/browser/workspaceContextService.js';
 import { getWorkspaceIdentifier } from '../../../../../platform/workspaces/common/workspaceIdentifier.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { isNative } from '../../../../../base/common/platform.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
+import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { AccountPolicyService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
+import { LayoutSettings, ModernUIDensity, ModernUIFrostedGlassOpacity } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../workbench/contrib/preferences/browser/settingsTreeModels.js';
+import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
+import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
+import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import '../../../../../workbench/browser/workbench.contribution.js';
+import '../../../../../workbench/browser/actions/layoutDensityActions.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -35,10 +58,48 @@ suite('Sessions ConfigurationService', () => {
 	let testObject: ConfigurationService;
 	let workspaceService: SessionsWorkspaceContextService;
 	let fileService: FileService;
+	let fileReadsBarrier: Promise<void> | undefined;
+	let uriIdentityService: UriIdentityService;
 	let userDataProfileService: IUserDataProfileService;
 	let workspaceConfigResource: URI;
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+	const startupProperties = { ...configurationRegistry.getConfigurationProperties() };
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const logService = new NullLogService();
+	const nullConfigurationCache: IConfigurationCache = { needsCaching: () => false, read: async () => '', write: async () => { }, remove: async () => { } };
+
+	function createConfigurationService(policyService: IPolicyService): ConfigurationService {
+		return disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, policyService, logService, nullConfigurationCache, TestEnvironmentService));
+	}
+
+	function startAccountPolicyInitialization(policyData: IPolicyData | null) {
+		testObject.dispose();
+		const onDidChangePolicyData = disposables.add(new Emitter<IPolicyData | null>());
+		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
+			override policyData = policyData;
+			override readonly onDidChangePolicyData = onDidChangePolicyData.event;
+			override readonly onDidChangeDefaultAccount = Event.None;
+			override readonly onDidChangeManagedSettingsFreshness = Event.None;
+			override readonly managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+			override async getDefaultAccount() { return null; }
+		}();
+		const policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService));
+		testObject = createConfigurationService(policyService);
+		return {
+			initialization: testObject.initialize(),
+			policyService,
+			setPolicyData: (data: IPolicyData | null) => {
+				defaultAccountService.policyData = data;
+				onDidChangePolicyData.fire(data);
+			},
+		};
+	}
+
+	async function initializeAccountPolicy(policyData: IPolicyData | null) {
+		const result = startAccountPolicyInitialization(policyData);
+		await result.initialization;
+		return result;
+	}
 
 	suiteSetup(() => {
 		configurationRegistry.registerConfiguration({
@@ -49,6 +110,12 @@ suite('Sessions ConfigurationService', () => {
 					'type': 'string',
 					'default': 'defaultValue',
 					scope: ConfigurationScope.RESOURCE
+				},
+				'sessionsConfigurationService.arraySetting': {
+					type: 'array',
+					items: { type: 'string' },
+					default: [],
+					scope: ConfigurationScope.RESOURCE,
 				},
 				'sessionsConfigurationService.machineSetting': {
 					'type': 'string',
@@ -84,29 +151,139 @@ suite('Sessions ConfigurationService', () => {
 					scope: ConfigurationScope.RESOURCE,
 					agentsWindow: { default: { '*.md': 'vscode.markdown.preview.editor' } }
 				},
+				'sessionsConfigurationService.agentEnabled': {
+					type: 'boolean',
+					default: true,
+					policy: {
+						name: 'SessionsTestAgentMode',
+						category: PolicyCategory.InteractiveSession,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } },
+						value: policyData => policyData.chat_agent_enabled === false ? false : undefined,
+					},
+				},
+				'sessionsConfigurationService.mcpAccess': {
+					type: 'string',
+					default: 'all',
+					policy: {
+						name: 'SessionsTestMCP',
+						category: PolicyCategory.InteractiveSession,
+						minimumVersion: '1.0.0',
+						localization: { description: { key: '', value: '' } },
+						value: policyData => policyData.mcp === false ? 'none' : undefined,
+					},
+				},
 			}
 		});
 	});
 
 	setup(async () => {
-		const logService = new NullLogService();
-		fileService = disposables.add(new FileService(logService));
+		fileReadsBarrier = undefined;
+		fileService = disposables.add(new class extends FileService {
+			override async readFile(...args: Parameters<FileService['readFile']>) {
+				await fileReadsBarrier;
+				return super.readFile(...args);
+			}
+		}(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const environmentService = TestEnvironmentService;
-		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const userDataProfilesService = disposables.add(new InMemoryUserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		disposables.add(fileService.registerProvider(Schemas.vscodeUserData, disposables.add(new FileUserDataProvider(ROOT.scheme, fileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
-		userDataProfileService = disposables.add(new UserDataProfileService(userDataProfilesService.defaultProfile));
+		userDataProfileService = disposables.add(new UserDataProfileService(await userDataProfilesService.createProfile(AGENTS_WINDOW_PROFILE_ID, 'Agents')));
 
 		const configResource = joinPath(ROOT, 'agent-sessions.code-workspace');
 		workspaceConfigResource = configResource;
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify({ folders: [] })));
 
 		workspaceService = disposables.add(new SessionsWorkspaceContextService(getWorkspaceIdentifier(configResource), uriIdentityService));
-		testObject = disposables.add(new ConfigurationService(userDataProfileService, workspaceService, uriIdentityService, fileService, new NullPolicyService(), logService));
+		testObject = createConfigurationService(new NullPolicyService());
 		await testObject.initialize();
+	});
+
+	suite('account policy', () => {
+		test('initializes policy definitions after defaults are available', async () => {
+			const { policyService } = await initializeAccountPolicy({ chat_agent_enabled: false, mcp: false });
+
+			assert.deepStrictEqual({
+				agentEnabled: testObject.getValue('sessionsConfigurationService.agentEnabled'),
+				agentPolicy: testObject.inspect('sessionsConfigurationService.agentEnabled').policyValue,
+				mcpAccess: testObject.getValue('sessionsConfigurationService.mcpAccess'),
+				mcpPolicy: testObject.inspect('sessionsConfigurationService.mcpAccess').policyValue,
+				source: policyService.getPolicyValueSource('SessionsTestAgentMode'),
+			}, {
+				agentEnabled: false,
+				agentPolicy: false,
+				mcpAccess: 'none',
+				mcpPolicy: 'none',
+				source: PolicyValueSource.Account,
+			});
+		});
+
+		test('overrides user and workspace configuration', async () => {
+			await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.agentEnabled": true }'));
+			await fileService.writeFile(workspaceConfigResource, VSBuffer.fromString(JSON.stringify({ folders: [], settings: { 'sessionsConfigurationService.agentEnabled': true } })));
+			await initializeAccountPolicy({ chat_agent_enabled: false });
+
+			const inspection = testObject.inspect('sessionsConfigurationService.agentEnabled');
+			assert.deepStrictEqual({
+				value: inspection.value,
+				policy: inspection.policyValue,
+				user: inspection.userValue,
+				workspace: inspection.workspaceValue,
+			}, { value: false, policy: false, user: true, workspace: true });
+		});
+
+		test('applies and removes account policy received after initialization', async () => {
+			const { setPolicyData } = await initializeAccountPolicy(null);
+			const values = [testObject.getValue('sessionsConfigurationService.agentEnabled')];
+
+			const restricted = Event.toPromise(Event.filter(testObject.onDidChangeConfiguration, e => e.affectsConfiguration('sessionsConfigurationService.agentEnabled')));
+			setPolicyData({ chat_agent_enabled: false });
+			await restricted;
+			values.push(testObject.getValue('sessionsConfigurationService.agentEnabled'));
+
+			const unrestricted = Event.toPromise(Event.filter(testObject.onDidChangeConfiguration, e => e.affectsConfiguration('sessionsConfigurationService.agentEnabled')));
+			setPolicyData(null);
+			await unrestricted;
+			values.push(testObject.getValue('sessionsConfigurationService.agentEnabled'));
+
+			assert.deepStrictEqual(values, [true, false, true]);
+		});
+
+		for (const agentEnabled of [false, true]) {
+			test(`preserves policy changes while configuration files are loading (agent enabled: ${agentEnabled})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const reads = new DeferredPromise<void>();
+				fileReadsBarrier = reads.p;
+				const { initialization, policyService, setPolicyData } = startAccountPolicyInitialization({ chat_agent_enabled: !agentEnabled });
+				try {
+					await timeout(0);
+					const changed = Event.toPromise(Event.filter(policyService.onDidChange, names => names.includes('SessionsTestAgentMode')));
+					setPolicyData({ chat_agent_enabled: agentEnabled });
+					await changed;
+				} finally {
+					fileReadsBarrier = undefined;
+					await reads.complete();
+				}
+				await initialization;
+
+				assert.deepStrictEqual({
+					value: testObject.getValue('sessionsConfigurationService.agentEnabled'),
+					policy: testObject.inspect('sessionsConfigurationService.agentEnabled').policyValue,
+				}, { value: agentEnabled, policy: agentEnabled ? undefined : false });
+			}));
+		}
+
+		test('rejects writes to account-policy-controlled settings', async () => {
+			await initializeAccountPolicy({ chat_agent_enabled: false });
+
+			await assert.rejects(
+				() => testObject.updateValue('sessionsConfigurationService.agentEnabled', true),
+				/configured in system policy/
+			);
+		});
 	});
 
 	// #region Reading
@@ -134,6 +311,94 @@ suite('Sessions ConfigurationService', () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'workspaceValue');
+	}));
+
+	test('Agents Window layout density overrides User density and restores inheritance when reset', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const key = LayoutSettings.MODERN_UI_DENSITY;
+		const changes: ModernUIDensity[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				changes.push(testObject.getValue(key));
+			}
+		}));
+		const read = () => {
+			const inspected = testObject.inspect<ModernUIDensity>(key);
+			return { value: testObject.getValue<ModernUIDensity>(key), user: inspected.userValue, agentsWindow: inspected.workspaceValue };
+		};
+
+		await testObject.updateValue(key, ModernUIDensity.Compact, ConfigurationTarget.USER);
+		const inherited = read();
+		await testObject.updateValue(key, ModernUIDensity.Default, ConfigurationTarget.WORKSPACE);
+		const overridden = read();
+		testObject.dispose();
+		testObject = createConfigurationService(new NullPolicyService());
+		await testObject.initialize();
+		const restored = read();
+		await testObject.updateValue(key, undefined, ConfigurationTarget.WORKSPACE);
+
+		assert.deepStrictEqual({ inherited, overridden, restored, reset: read(), changes }, {
+			inherited: { value: ModernUIDensity.Compact, user: ModernUIDensity.Compact, agentsWindow: undefined },
+			overridden: { value: ModernUIDensity.Default, user: ModernUIDensity.Compact, agentsWindow: ModernUIDensity.Default },
+			restored: { value: ModernUIDensity.Default, user: ModernUIDensity.Compact, agentsWindow: ModernUIDensity.Default },
+			reset: { value: ModernUIDensity.Compact, user: ModernUIDensity.Compact, agentsWindow: undefined },
+			changes: [ModernUIDensity.Compact, ModernUIDensity.Default],
+		});
+	}));
+
+	for (const density of [ModernUIDensity.Default, ModernUIDensity.Compact]) {
+		test(`the ${density} density command creates an Agents-only override`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const key = LayoutSettings.MODERN_UI_DENSITY;
+			const userValue = density === ModernUIDensity.Default ? ModernUIDensity.Compact : ModernUIDensity.Default;
+			await testObject.updateValue(key, userValue, ConfigurationTarget.USER);
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, testObject);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+			const command = CommandsRegistry.getCommand(`workbench.action.setLayoutDensity.${density}`);
+			assert.ok(command);
+
+			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+			const inspected = testObject.inspect<ModernUIDensity>(key);
+			const userContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+			const workspaceContent = (await fileService.readFile(workspaceConfigResource)).value.toString();
+			assert.deepStrictEqual({
+				value: inspected.value,
+				user: inspected.userValue,
+				agentsWindow: inspected.workspaceValue,
+				savedUser: JSON.parse(userContent)[key],
+				savedAgentsWindow: JSON.parse(workspaceContent).settings[key],
+			}, {
+				value: density,
+				user: userValue,
+				agentsWindow: density,
+				savedUser: userValue,
+				savedAgentsWindow: density,
+			});
+		}));
+	}
+
+	test('persists an empty Agents array override without changing User settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const key = 'sessionsConfigurationService.arraySetting';
+		const userValue = ['inherited-command'];
+		await testObject.updateValue(key, userValue, ConfigurationTarget.USER);
+		await testObject.updateValue(key, [], ConfigurationTarget.WORKSPACE);
+		const workspaceContent = (await fileService.readFile(workspaceConfigResource)).value.toString();
+
+		testObject.dispose();
+		testObject = createConfigurationService(new NullPolicyService());
+		await testObject.initialize();
+		const restored = testObject.inspect<string[]>(key);
+		await testObject.updateValue(key, undefined, ConfigurationTarget.WORKSPACE);
+		const reset = testObject.inspect<string[]>(key);
+
+		assert.deepStrictEqual({
+			saved: JSON.parse(workspaceContent).settings[key],
+			restored: { value: restored.value, user: restored.userValue, agentsWindow: restored.workspaceValue },
+			reset: { value: reset.value, user: reset.userValue, agentsWindow: reset.workspaceValue },
+		}, {
+			saved: [],
+			restored: { value: [], user: userValue, agentsWindow: [] },
+			reset: { value: userValue, user: userValue, agentsWindow: undefined },
+		});
 	}));
 
 	test('inspect shows workspace value from workspace configuration file', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -262,6 +527,73 @@ suite('Sessions ConfigurationService', () => {
 	// #endregion
 
 	// #region Writing
+
+	(isNative ? test : test.skip)('displays and persists frosted-glass preferences in the Agents profile', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const keys = [LayoutSettings.MODERN_UI_FROSTED_GLASS, LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY];
+		const properties: Record<string, IConfigurationPropertySchema> = {};
+		for (const key of keys) {
+			if (!configurationRegistry.getConfigurationProperties()[key]) {
+				assert.ok(startupProperties[key], `${key} must be registered at startup`);
+				properties[key] = deepClone(startupProperties[key]);
+			}
+		}
+		if (Object.keys(properties).length) {
+			const configuration: IConfigurationNode = { id: '_test_sessions_glass', properties };
+			configurationRegistry.registerConfiguration(configuration);
+			disposables.add(toDisposable(() => configurationRegistry.deregisterConfigurations([configuration])));
+			await testObject.reloadConfiguration();
+		}
+		const parent = disposables.add(new SettingsTreeGroupElement('glass', undefined, 'Glass', 0, true));
+		const assignments = disposables.add(new ExperimentalSettingsService());
+		const managedSettingsService = disposables.add(new ManagedSettingsPresentationService(new NullManagedSettingsService()));
+		const languageService = new class extends mock<ILanguageService>() { }();
+		const elements = keys.map(key => {
+			const schema = configurationRegistry.getConfigurationProperties()[key];
+			const setting = new class extends mock<ISetting>() {
+				override key = key;
+				override type = schema.type;
+				override scope = schema.scope;
+				override description = [];
+			}();
+			return disposables.add(new SettingsTreeSettingElement(setting, parent, ConfigurationTarget.USER_LOCAL, true, undefined, languageService, TestProductService, userDataProfileService, testObject, true, assignments, managedSettingsService));
+		});
+		const readSettings = () => elements.map(element => {
+			element.inspectSelf();
+			return { value: element.value, configured: element.isConfigured };
+		});
+		const defaults = readSettings();
+		await testObject.updateValue(LayoutSettings.MODERN_UI_FROSTED_GLASS, false);
+		await testObject.updateValue(LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY, 75);
+		await testObject.reloadConfiguration();
+		const configured = readSettings();
+		const effective = keys.map(key => testObject.getValue(key));
+		const persisted: Record<string, boolean | number> = JSON.parse((await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString());
+		for (const key of keys) {
+			await testObject.updateValue(key, undefined);
+		}
+		assert.deepStrictEqual({
+			profile: {
+				isDefault: userDataProfileService.currentProfile.isDefault,
+				isAgentsWindowProfile: userDataProfileService.currentProfile.isAgentsWindowProfile,
+				inheritsSettings: userDataProfileService.currentProfile.useDefaultFlags?.settings,
+			},
+			defaults,
+			configured,
+			effective,
+			persisted,
+			reset: readSettings(),
+		}, {
+			profile: { isDefault: false, isAgentsWindowProfile: true, inheritsSettings: true },
+			defaults: [{ value: true, configured: false }, { value: ModernUIFrostedGlassOpacity.Default, configured: false }],
+			configured: [{ value: false, configured: true }, { value: 75, configured: true }],
+			effective: [false, 75],
+			persisted: {
+				[LayoutSettings.MODERN_UI_FROSTED_GLASS]: false,
+				[LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY]: 75,
+			},
+			reset: [{ value: true, configured: false }, { value: ModernUIFrostedGlassOpacity.Default, configured: false }],
+		});
+	}));
 
 	test('updateValue writes to user settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await testObject.updateValue('sessionsConfigurationService.testSetting', 'writtenValue');

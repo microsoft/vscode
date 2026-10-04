@@ -1265,7 +1265,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	getAutoUpdateDelay(): number {
-		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 2;
+		const delayHours = this.configurationService.getValue<number>(AutoUpdateDelayConfigurationKey) ?? 12;
 		return delayHours * 60 * 60 * 1000; // Convert hours to milliseconds
 	}
 

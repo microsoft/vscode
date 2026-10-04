@@ -40,7 +40,7 @@ function getTagBodyText(
 
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
-			if (captionTagMatches && captionTagMatches.index === 0) {
+			if (captionTagMatches?.index === 0) {
 				return captionTagMatches[1] + '\n' + makeCodeblock(text.substr(captionTagMatches[0].length));
 			} else {
 				return makeCodeblock(text);

@@ -12,12 +12,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { FilePolicyService } from '../../../../../platform/policy/common/filePolicyService.js';
+import { PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
@@ -44,6 +45,10 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	readonly managedSettingsFetchStatus: null = null;
 	readonly managedSettingsFetchedAt: null = null;
 	readonly managedSettingsRawResponse: unknown = null;
+	readonly managedSettingsCompatibilityError = null;
+	readonly onDidChangeManagedSettingsCompatibilityError = Event.None;
+	readonly managedSettingsFreshness = MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED;
+	readonly onDidChangeManagedSettingsFreshness = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -251,6 +256,7 @@ suite('MultiplexPolicyService', () => {
 			const D = policyService.getPolicyValue('PolicySettingD');
 
 			assert.strictEqual(A, 'policyValueA');
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Device);
 			assert.strictEqual(B, undefined);
 			assert.strictEqual(C, undefined);
 			assert.strictEqual(D, undefined);
@@ -321,7 +327,7 @@ suite('MultiplexPolicyService', () => {
 
 		await fileService.writeFile(policyFile,
 			VSBuffer.fromString(
-				JSON.stringify({ 'PolicySettingA': 'policyValueA' })
+				JSON.stringify({ 'PolicySettingA': 'policyValueA', 'PolicySettingD': false })
 			)
 		);
 
@@ -338,6 +344,8 @@ suite('MultiplexPolicyService', () => {
 			assert.strictEqual(B, 'policyValueB');
 			assert.strictEqual(C, JSON.stringify(['policyValueC1', 'policyValueC2']));
 			assert.strictEqual(D, false);
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingA'), PolicyValueSource.Device);
+			assert.strictEqual(policyService.getPolicyValueSource('PolicySettingD'), PolicyValueSource.Account);
 		}
 
 		{

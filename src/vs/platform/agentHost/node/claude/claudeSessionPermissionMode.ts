@@ -13,7 +13,7 @@ import type { IAgentConfigurationService } from '../agentConfigurationService.js
  * `PermissionMode` union (5/6 values, excluding `dontAsk`; sdk.d.ts:1560).
  * Returns `undefined` when the session's schema hasn't been registered or
  * carries a value that slipped past schema validation — callers pick the
- * fallback (the createSession-time intent at materialize, `'default'` at
+ * fallback (the create-time intent at materialize, `'default'` at
  * the canUseTool gate, etc.).
  *
  * Called on every canUseTool entry, on every rebind, and before each

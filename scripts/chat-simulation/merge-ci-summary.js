@@ -270,10 +270,11 @@ function generateUnifiedSummary(jsonReport, baseline, opts) {
 	];
 	// layoutCount / recalcStyleCount are informational (inflated by CSS
 	// animations, compositor-driven, cheap) and do NOT gate — real layout cost is
-	// gated via layoutDurationMs below / timeToComplete. See SKILL.md.
+	// gated via layoutDurationMs below / timeToComplete. longAnimationFrameCount
+	// is likewise informational only (noisy, compositor-driven). See SKILL.md.
 	const regressionMetricNames = new Set([
 		'timeToFirstToken', 'timeToComplete', 'layoutDurationMs',
-		'forcedReflowCount', 'longTaskCount', 'longAnimationFrameCount',
+		'forcedReflowCount', 'longTaskCount',
 	]);
 
 	const lines = [];

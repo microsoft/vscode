@@ -26,9 +26,11 @@ import { isLinux, isMacintosh } from '../../../common/platform.js';
 import { ScrollbarVisibility, ScrollEvent } from '../../../common/scrollable.js';
 import * as strings from '../../../common/strings.js';
 import { AnchorAlignment, layout, LayoutAnchorPosition } from '../../../common/layout.js';
+import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, CONTEXT_VIEW_MENU_MOTION_EASING, CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS, CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE } from '../contextview/contextview.js';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
+const FROSTED_GLASS_MENU_OPEN_ANIMATION = 'frosted-glass-menu-motion-open';
 
 
 
@@ -190,7 +192,11 @@ export class Menu extends ActionBar {
 			}
 		}));
 
-		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_OVER, e => {
+		this._register(addDisposableListener(this.actionsList, EventType.MOUSE_MOVE, e => {
+			if (e.movementX === 0 && e.movementY === 0) {
+				return;
+			}
+
 			let target = e.target as HTMLElement;
 			if (!target || !isAncestor(target, this.actionsList) || target === this.actionsList) {
 				return;
@@ -202,6 +208,11 @@ export class Menu extends ActionBar {
 
 			if (target.classList.contains('action-item')) {
 				const lastFocusedItem = this.focusedItem;
+				// Moving within the focused item is the common case; skip the item lookup for it
+				if (lastFocusedItem !== undefined && this.actionsList.children[lastFocusedItem] === target) {
+					return;
+				}
+
 				this.setFocusedItem(target);
 
 				if (lastFocusedItem !== this.focusedItem) {
@@ -320,10 +331,8 @@ export class Menu extends ActionBar {
 
 		const fgColor = style.foregroundColor ?? '';
 		const bgColor = style.backgroundColor ?? '';
-		const border = style.borderColor ? `1px solid ${style.borderColor}` : '';
 		const borderRadius = 'var(--vscode-cornerRadius-large)';
 
-		scrollElement.style.outline = border;
 		scrollElement.style.borderRadius = borderRadius;
 		scrollElement.style.color = fgColor;
 		scrollElement.style.backgroundColor = bgColor;
@@ -791,7 +800,11 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			}
 		}));
 
-		this._register(addDisposableListener(this.element, EventType.MOUSE_OVER, e => {
+		this._register(addDisposableListener(this.element, EventType.MOUSE_MOVE, e => {
+			if (e.movementX === 0 && e.movementY === 0) {
+				return;
+			}
+
 			if (!this.mouseOver) {
 				this.mouseOver = true;
 
@@ -886,6 +899,14 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 
 		if (!this.parentData.submenu) {
+			// Finish scale motion before computing viewport-relative submenu coordinates.
+			const parentContainer = this.parentData.parent.getContainer();
+			const animationRoot = parentContainer.parentElement ?? parentContainer;
+			for (const animation of animationRoot.getAnimations({ subtree: true })) {
+				if (animation instanceof getWindow(parentContainer).CSSAnimation && animation.animationName === FROSTED_GLASS_MENU_OPEN_ANIMATION) {
+					animation.finish();
+				}
+			}
 			this.updateAriaExpanded('true');
 			this.submenuContainer = append(this.element, $('div.monaco-submenu'));
 			this.submenuContainer.classList.add('menubar-menu-items-holder', 'context-view');
@@ -1018,11 +1039,16 @@ export function formatRule(c: ThemeIcon) {
 
 export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
+	const menuShadow = `var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''})`;
+	const frostedGlassWorkbenchSelector = '.monaco-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light)';
+	const frostedGlassMenuSelector = `${isForShadowDom ? `:host-context(${frostedGlassWorkbenchSelector})` : frostedGlassWorkbenchSelector} .monaco-menu-container`;
+	const frostedGlassMotionWorkbenchSelector = `${frostedGlassWorkbenchSelector}.monaco-enable-motion`;
+	const frostedGlassMotionMenuSelector = `${isForShadowDom ? `:host-context(${frostedGlassMotionWorkbenchSelector})` : frostedGlassMotionWorkbenchSelector} .monaco-menu-container`;
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
 	border-radius: var(--vscode-cornerRadius-large);
-	border: 1px solid ${borderColor};
+	border: var(--vscode-strokeThickness) solid ${borderColor};
 	min-width: 160px;
 }
 
@@ -1237,13 +1263,89 @@ ${formatRule(Codicon.menuSubmenu)}
 /* Context Menu */
 
 .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: ${menuShadow};
 	outline: 0;
 	border: none;
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
-	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
+	box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
+}
+
+@supports (backdrop-filter: blur(12px)) and (background-color: color-mix(in srgb, black 92%, transparent)) {
+	@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+		${frostedGlassMenuSelector} {
+			--vscode-menu-background: transparent;
+			isolation: isolate;
+			animation: none;
+			box-shadow: none;
+			overflow: visible;
+			transform-origin: top left;
+		}
+
+		${frostedGlassMenuSelector}.right {
+			transform-origin: top right;
+		}
+
+		${frostedGlassMenuSelector}.top {
+			transform-origin: bottom left;
+		}
+
+		${frostedGlassMenuSelector}.top.right {
+			transform-origin: bottom right;
+		}
+
+		${frostedGlassMenuSelector} > .monaco-scrollable-element {
+			will-change: auto;
+			box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
+			transform-origin: inherit;
+		}
+
+		${frostedGlassMotionMenuSelector}:not(.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS}) > .monaco-scrollable-element,
+		${frostedGlassMotionMenuSelector}:not(.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS})::before {
+			animation: ${FROSTED_GLASS_MENU_OPEN_ANIMATION} ${CONTEXT_VIEW_MENU_MOTION_OPEN_DURATION_MS}ms ${CONTEXT_VIEW_MENU_MOTION_EASING} backwards;
+		}
+
+		${frostedGlassMotionMenuSelector}.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS}::before {
+			animation: frosted-glass-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+		}
+
+		${frostedGlassMotionMenuSelector}.${CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS} > .monaco-scrollable-element {
+			animation: context-view-menu-motion-close var(${CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE}) ${CONTEXT_VIEW_MENU_MOTION_EASING} both;
+			pointer-events: none;
+		}
+
+		@keyframes ${FROSTED_GLASS_MENU_OPEN_ANIMATION} {
+			from {
+				transform: scale(0.97);
+			}
+			to {
+				transform: scale(1);
+			}
+		}
+
+		@keyframes frosted-glass-menu-motion-close {
+			from {
+				transform: var(${CONTEXT_VIEW_MENU_MOTION_CLOSE_START_TRANSFORM_VARIABLE}, scale(1));
+			}
+			to {
+				transform: scale(0.99);
+			}
+		}
+
+		${frostedGlassMenuSelector}::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+			z-index: -1;
+			border-radius: inherit;
+			pointer-events: none;
+			transform-origin: inherit;
+			background-color: color-mix(in srgb, var(--modern-ui-solid-menu-background) var(${CONTEXT_VIEW_MENU_MOTION_BACKDROP_OPACITY_VARIABLE}, 0%), var(--modern-ui-glass-menu-background));
+			backdrop-filter: blur(12px);
+		}
+	}
 }
 
 .context-view.monaco-menu-container :focus,
@@ -1256,6 +1358,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .hc-light .context-view.monaco-menu-container,
 :host-context(.hc-black) .context-view.monaco-menu-container,
 :host-context(.hc-light) .context-view.monaco-menu-container {
+	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: none;
 	box-shadow: none;
 }
 
@@ -1273,10 +1376,15 @@ ${formatRule(Codicon.menuSubmenu)}
 }
 
 /* High contrast themes always show the selection border to indicate the focused item, regardless of input modality. The duplicated .monaco-menu raises specificity above the keyboard-only suppression rule above so this wins independent of declaration order. */
-.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
-:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item {
+.hc-black .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+.hc-light .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
+	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
+	outline-offset: -1px !important;
+}
+
+/* Keep :host-context separate because WebKit otherwise rejects the valid selectors above. */
+:host-context(.hc-black) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item,
+:host-context(.hc-light) .monaco-menu.monaco-menu .monaco-action-bar.vertical .action-item.focused > .action-menu-item {
 	outline: 1px solid var(--vscode-menu-selectionBorder) !important;
 	outline-offset: -1px !important;
 }

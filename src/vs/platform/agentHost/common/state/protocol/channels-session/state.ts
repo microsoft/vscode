@@ -8,7 +8,9 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallState } from '../channels-chat/state.js';
+import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { AutomationRunState } from '../channels-automation-run/state.js';
+import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -17,11 +19,12 @@ import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, 
  * Session initialization state.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionLifecycle {
 	Creating = 'creating',
 	Ready = 'ready',
-	CreationFailed = 'creationFailed',
+	Failed = 'failed',
 }
 
 /**
@@ -32,6 +35,7 @@ export const enum SessionLifecycle {
  * and turns that are paused waiting for input.
  *
  * @category Session State
+ * @nonexhaustive
  */
 export const enum SessionStatus {
 	/** Session is idle — no turn is active. */
@@ -47,6 +51,41 @@ export const enum SessionStatus {
 	/** The session has been archived by the client. */
 	IsArchived = 1 << 6,
 }
+
+/**
+ * Discriminant describing the durable provenance of a session.
+ *
+ * @category Session State
+ * @nonexhaustive
+ */
+export const enum SessionOriginKind {
+	/** The session was created as part of an automation run. */
+	Automation = 'automation',
+}
+
+/**
+ * Provenance recorded on a session created for an automation run.
+ *
+ * The links let clients navigate from an ordinary session to the task-level
+ * run and its durable definition. The session channel remains authoritative
+ * for this session's transcript, tools, confirmations, and changes.
+ *
+ * @category Session State
+ */
+export interface AutomationSessionOrigin {
+	kind: SessionOriginKind.Automation;
+	/** Owning {@link AutomationEntry.resource}. */
+	automation: URI;
+	/** Owning {@link AutomationRunState.resource}. */
+	run: URI;
+}
+
+/**
+ * Durable provenance for sessions created by a higher-level AHP workflow.
+ *
+ * @category Session State
+ */
+export type SessionOrigin = AutomationSessionOrigin;
 
 /**
  * Metadata shared between the full {@link SessionState} (delivered when a
@@ -70,15 +109,23 @@ export interface SessionMetadata {
 	status: SessionStatus;
 	/** Human-readable description of what the session is currently doing */
 	activity?: string;
+	/** Durable {@link AutomationSessionOrigin}, when an automation run created this session. */
+	origin?: SessionOrigin;
 	/** Server-owned project for this session */
 	project?: ProjectInfo;
 	/**
-	 * The default working directory URI for this session. Individual chats
-	 * MAY override via {@link ChatSummary.workingDirectory | their own
-	 * `workingDirectory`}; this field acts as the fallback for any chat that
-	 * does not.
+	 * The working directories the session's agent has tool access to, as
+	 * maintained by working-directory actions. Directories are equal peers except
+	 * when the agent advertises
+	 * {@link MultipleWorkingDirectoriesCapability.immutablePrimary} without
+	 * {@link MultipleWorkingDirectoriesCapability.primaryReplacement} (the first
+	 * entry is then a fixed process root), or advertises `primaryReplacement`
+	 * (the first entry is a protected, replaceable primary slot). Individual chats
+	 * MAY restrict to a subset via
+	 * {@link ChatSummary.workingDirectories | their own `workingDirectories`}; a
+	 * chat that sets none operates against this full set.
 	 */
-	workingDirectory?: URI;
+	workingDirectories?: URI[];
 	/**
 	 * Lightweight summary of this session's inline annotations channel
 	 * (`ahp-session:/<uuid>/annotations`). Surfaced so badge UI can render
@@ -118,13 +165,17 @@ export interface SessionState extends SessionMetadata {
 	 * reconnecting in time, or reconnect without resubscribing to the session.
 	 */
 	activeClients: SessionActiveClient[];
-	/** Catalog of chats in this session. */
+	/**
+	 * Catalog of chats in this session.
+	 *
+	 * Order is host-authoritative and durable. Catalog order is independent of
+	 * `defaultChat`.
+	 */
 	chats: ChatSummary[];
 	/**
 	 * The chat that receives input when the user addresses the session without
-	 * selecting a specific chat. This is a UI routing hint, not a hierarchy
-	 * marker — chats remain equal peers at the protocol level. Hosts MAY change
-	 * this over the session's lifetime.
+	 * selecting a specific chat. This routing designation does not determine the
+	 * chat's catalog position. Hosts MAY change it over the session's lifetime.
 	 */
 	defaultChat?: URI;
 	/** Session configuration schema and current values */
@@ -167,9 +218,12 @@ export interface SessionState extends SessionMetadata {
 	 * Each entry is self-sufficient: it carries the owning chat's URI plus every
 	 * identifier the client needs to respond. A client answers by dispatching the
 	 * ordinary `chat/*` action to that chat's channel — see
-	 * {@link SessionInputRequest} for the per-variant response path. A present,
-	 * non-empty list implies {@link SessionStatus.InputNeeded} on
-	 * {@link SessionSummary.status}.
+	 * {@link SessionInputRequest} for the per-variant response path. A list
+	 * holding any entry other than
+	 * {@link SessionInputRequestKind.ToolClientExecution} implies
+	 * {@link SessionStatus.InputNeeded} on {@link SessionSummary.status};
+	 * client-execution entries are work delegated to a client rather than a
+	 * prompt, so they leave the session's activity unchanged.
 	 *
 	 * Host-managed: the host upserts entries with `session/inputNeededSet` as
 	 * chats raise requests and removes them with `session/inputNeededRemoved`
@@ -181,7 +235,7 @@ export interface SessionState extends SessionMetadata {
 	 *
 	 * Clients MAY look for well-known keys here to provide enhanced UI.
 	 * For example, a `git` key may provide extra git metadata about the session's
-	 * workingDirectory.
+	 * working directories.
 	 */
 	_meta?: Record<string, unknown>;
 }
@@ -223,14 +277,17 @@ export interface SessionActiveClient {
  * a `*Kind`.
  *
  * @category Session Input Types
+ * @nonexhaustive
  */
 export const enum SessionInputRequestKind {
-	/** A user-facing elicitation mirrored from a chat's `inputRequests`. */
+	/** A user-facing elicitation mirrored from an unresolved chat response part. */
 	ChatInput = 'chatInput',
 	/** A tool call awaiting parameter- or result-confirmation. */
 	ToolConfirmation = 'toolConfirmation',
 	/** A running tool the session wants an active client to execute. */
 	ToolClientExecution = 'toolClientExecution',
+	/** A tool call blocked on MCP authentication mid-execution. */
+	ToolAuthentication = 'toolAuthentication',
 }
 
 /**
@@ -256,8 +313,8 @@ interface SessionInputRequestBase {
 }
 
 /**
- * A user-input elicitation surfaced at the session level, mirroring one entry
- * of the owning chat's {@link ChatState.inputRequests}.
+ * A user-input elicitation surfaced at the session level, mirroring the request
+ * from an unresolved {@link InputRequestResponsePart} in the owning chat.
  *
  * Respond by dispatching `chat/inputCompleted` (or syncing drafts with
  * `chat/inputAnswerChanged`) to {@link SessionInputRequestBase.chat | `chat`},
@@ -305,6 +362,11 @@ export interface SessionToolConfirmationRequest extends SessionInputRequestBase 
  * `chat/toolCallContentChanged`) to {@link SessionInputRequestBase.chat |
  * `chat`}, keyed by `turnId` and `toolCall.toolCallId`.
  *
+ * Unlike the other variants this does **not** raise
+ * {@link SessionStatus.InputNeeded}: the call has already cleared its
+ * confirmation gate and is merely executing elsewhere, so the session stays
+ * {@link SessionStatus.InProgress} while it runs.
+ *
  * @category Session Input Types
  */
 export interface SessionToolClientExecutionRequest extends SessionInputRequestBase {
@@ -318,10 +380,34 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
 	clientId: string;
 	/**
 	 * The running tool call the session wants the owning client to execute. The
-	 * host only ever populates this with a {@link ToolCallRunningState} (i.e. a
-	 * {@link ToolCallState} in `running` status).
+	 * host only ever populates this with a {@link ToolCallRunningState}.
 	 */
-	toolCall: ToolCallState;
+	toolCall: ToolCallRunningState;
+}
+
+/**
+ * A tool call blocked on MCP authentication mid-execution, surfaced at the
+ * session level.
+ *
+ * The {@link toolCall} is always a {@link ToolCallAuthRequiredState} (a
+ * {@link ToolCallState} in `auth-required` status). Unlike
+ * {@link SessionToolConfirmationRequest}, this is **not** answered by
+ * dispatching a `chat/*` action directly: the client obtains a token for
+ * {@link ToolCallAuthRequiredState.auth | `toolCall.auth`}`.resource` and
+ * pushes it via the existing `authenticate` command (see
+ * {@link /specification/authentication | Authentication}). The host resumes
+ * the tool call and dispatches `chat/toolCallAuthResolved` once the token is
+ * accepted, at which point it also removes this entry with
+ * `session/inputNeededRemoved`.
+ *
+ * @category Session Input Types
+ */
+export interface SessionToolAuthenticationRequest extends SessionInputRequestBase {
+	kind: SessionInputRequestKind.ToolAuthentication;
+	/** The turn the tool call belongs to. */
+	turnId: string;
+	/** The tool call awaiting authentication. */
+	toolCall: ToolCallAuthRequiredState;
 }
 
 /**
@@ -333,15 +419,17 @@ export interface SessionToolClientExecutionRequest extends SessionInputRequestBa
  * to construct the response, so a client can answer by dispatching the ordinary
  * `chat/*` action (`chat/inputCompleted`, `chat/toolCallConfirmed`,
  * `chat/toolCallComplete`, …) to that chat's channel **without having subscribed
- * to the chat**. The host removes the entry with `session/inputNeededRemoved`
- * once the underlying request resolves.
+ * to the chat** — except {@link SessionToolAuthenticationRequest}, which is
+ * resolved via the `authenticate` command instead. The host removes the entry
+ * with `session/inputNeededRemoved` once the underlying request resolves.
  *
  * @category Session Input Types
  */
 export type SessionInputRequest =
 	| SessionChatInputRequest
 	| SessionToolConfirmationRequest
-	| SessionToolClientExecutionRequest;
+	| SessionToolClientExecutionRequest
+	| SessionToolAuthenticationRequest;
 
 /**
  * Server-owned project metadata for a session.
@@ -377,11 +465,12 @@ export interface ProjectInfo {
  *   chat currently driving the promoted status bits when a non-default chat
  *   wins (e.g. the chat that raised `InputNeeded`).
  * - `modifiedAt`: the max of all chats' `modifiedAt`.
- * - `workingDirectory`: the session-level **default**. Individual chats MAY
- *   override via {@link ChatSummary.workingDirectory}; aggregating these up
- *   is meaningless and SHOULD NOT be attempted.
+ * - `workingDirectories`: the session-level set. Individual chats MAY restrict
+ *   to a subset via {@link ChatSummary.workingDirectories}; aggregating these
+ *   up is meaningless and SHOULD NOT be attempted.
  * - `changes`: optional roll-up across all chats. Producers MAY sum the
- *   per-chat changeset stats or report the most expensive chat's stats —
+ *   per-chat {@link ChatSummary.changes | changes summaries} or report the
+ *   most expensive chat's stats —
  *   whichever is cheaper for the host to compute.
  *
  * Sessions with a single chat trivially satisfy all of the above (the chat's
@@ -398,11 +487,11 @@ export interface SessionSummary extends SessionMetadata {
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/**
-	* Aggregate summary of file changes associated with this session. Servers
-	* may populate this to give clients a quick at-a-glance view of the
-	* session's footprint (e.g., for list rendering) without requiring the
-	* client to subscribe to a changeset.
-	*/
+	 * Aggregate summary of file changes associated with this session. Servers
+	 * may populate this to give clients a quick at-a-glance view of the
+	 * session's footprint (e.g., for list rendering) without requiring the
+	 * client to subscribe to a changeset.
+	 */
 	changes?: ChangesSummary;
 	/**
 	 * Lightweight server-defined metadata clients may use for the session
@@ -411,10 +500,63 @@ export interface SessionSummary extends SessionMetadata {
 	 * and session notifications.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Lightweight host-authoritative ordered chat catalog.
+	 */
+	chats?: SessionChatSummary[];
+	/** Chat that receives input when none is selected, independent of catalog position. */
+	defaultChat?: URI;
 }
 
 /**
- * Aggregate counts describing the file changes associated with a session.
+ * Lightweight chat information in a session catalog.
+ *
+ * @category Session State
+ */
+export interface SessionChatSummary {
+	/** Canonical chat URI */
+	resource: URI;
+	/** Human-readable chat title */
+	title: string;
+	/** How this chat was created, when known */
+	origin?: ChatOrigin;
+	/**
+	 * How the user can interact with this chat.
+	 *
+	 * Generic clients use this to omit hidden chats and disable input for
+	 * read-only chats. Absence defaults to {@link ChatInteractivity.Full} for
+	 * backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
+	/**
+	 * Current chat status, matching {@link ChatSummary.status}.
+	 *
+	 * Includes the activity bits and the orthogonal {@link SessionStatus.IsRead}
+	 * and {@link SessionStatus.IsArchived} flags. Generic clients use these bits
+	 * to present read, unread, or archived chats in session lists without
+	 * subscribing to the session or chat channel. Absence means the host did
+	 * not provide the status; clients MUST treat it as unknown, not as unread
+	 * or unarchived.
+	 */
+	status?: SessionStatus;
+	/**
+	 * @deprecated AHP 0.9 compatibility. Use {@link SessionChatSummary.status}
+	 * with {@link SessionStatus.IsArchived} in AHP 0.10 and newer.
+	 */
+	archived?: boolean;
+	/**
+	 * Aggregate summary of file changes associated with this chat.
+	 *
+	 * Servers may populate this so session lists can show per-chat change
+	 * counts without subscribing to the session or chat channel. Updates travel
+	 * with the rest of the catalog in `root/sessionSummaryChanged`.
+	 */
+	changes?: ChangesSummary;
+}
+
+/**
+ * Aggregate counts describing the file changes associated with a session or
+ * chat.
  *
  * All fields are optional so servers can populate only the metrics they
  * cheaply have available.
@@ -580,6 +722,7 @@ export interface ToolAnnotations {
  * a container.
  *
  * @category Customization Types
+ * @nonexhaustive
  */
 export const enum CustomizationType {
 	Plugin = 'plugin',
@@ -591,6 +734,24 @@ export const enum CustomizationType {
 	Hook = 'hook',
 	McpServer = 'mcpServer',
 }
+
+/**
+ * Scope at which customization enablement is decided.
+ *
+ * @category Customization Types
+ * @nonexhaustive
+ */
+export const enum CustomizationEnablementKind {
+	Global = 'global',
+	Workspace = 'workspace',
+	Session = 'session',
+}
+
+/** A single explicit enablement decision. */
+export type CustomizationEnablement =
+	| { kind: CustomizationEnablementKind.Global; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Workspace; uri: URI; enabled: boolean }
+	| { kind: CustomizationEnablementKind.Session; enabled: boolean };
 
 /**
  * Customization types that appear as children of a
@@ -639,12 +800,21 @@ interface CustomizationBase {
 	 * Absent when the customization covers the whole resource.
 	 */
 	range?: TextRange;
+	/**
+	 * Additional provider-specific metadata for this customization.
+	 *
+	 * Mirrors the MCP `_meta` convention. Optional and opaque to the
+	 * protocol; producers and consumers agree on its contents
+	 * out-of-band.
+	 */
+	_meta?: Record<string, unknown>;
 }
 
 /**
  * Discriminant values for {@link CustomizationLoadState}.
  *
  * @category Customization Types
+ * @exhaustive
  */
 export const enum CustomizationLoadStatus {
 	Loading = 'loading',
@@ -711,8 +881,6 @@ export type CustomizationLoadState =
  * @category Customization Types
  */
 interface ContainerCustomizationBase extends CustomizationBase {
-	/** Whether this container is currently enabled. */
-	enabled: boolean;
 	/**
 	 * `clientId` of the client that contributed this container. Absent for
 	 * server-originated entries.
@@ -740,6 +908,17 @@ interface ContainerCustomizationBase extends CustomizationBase {
  */
 export interface PluginCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Plugin;
+	/** Explicit enablement decisions. See {@link McpServerCustomization.enablement}. */
+	enablement?: CustomizationEnablement[];
+	/**
+	 * Version of the plugin, sourced from the
+	 * [Open Plugins](https://open-plugins.com/) manifest's optional
+	 * `version` field (semver, e.g. `"1.2.0"`). Absent when the manifest
+	 * declares no version — the field is optional there — or the source
+	 * has no version concept. Provenance / display only: the host neither
+	 * parses nor enforces it.
+	 */
+	version?: string;
 }
 
 /**
@@ -758,6 +937,17 @@ export interface PluginCustomization extends ContainerCustomizationBase {
 export interface ClientPluginCustomization extends PluginCustomization {
 	/** Opaque version token used by the host to detect changes. */
 	nonce?: string;
+	/**
+	 * Explicit enablement decisions for children this plugin contributes,
+	 * keyed by child name (for MCP servers, the server name as it appears in
+	 * the bundled `.mcp.json`).
+	 *
+	 * Bundled children are discovered by the host rather than published by the
+	 * client, so the client cannot attach `enablement` to them directly. This
+	 * carries the client's global decision for each one; the host applies it
+	 * under the child's durable key.
+	 */
+	childEnablement?: Record<string, CustomizationEnablement[]>;
 }
 
 /**
@@ -775,10 +965,41 @@ export interface ClientPluginCustomization extends PluginCustomization {
  */
 export interface DirectoryCustomization extends ContainerCustomizationBase {
 	type: CustomizationType.Directory;
+	/** Whether this container is currently enabled. */
+	enabled: boolean;
 	/** Which child customization type this directory holds. */
 	contents: ChildCustomizationType;
 	/** Whether clients may write into this directory. */
 	writable: boolean;
+}
+
+/**
+ * Fields shared by the leaf child customizations that live inside a
+ * container — {@link AgentCustomization}, {@link SkillCustomization},
+ * {@link PromptCustomization}, {@link RuleCustomization}, and
+ * {@link HookCustomization}.
+ *
+ * {@link McpServerCustomization} is also a child but does not extend this
+ * base because it can appear as a top-level customization too.
+ *
+ * @category Customization Types
+ */
+interface ChildCustomizationBase extends CustomizationBase {
+	/**
+	 * Whether this child is individually enabled. Absent means enabled, so a
+	 * producer only needs to set it to surface a child that exists but is
+	 * turned off on its own.
+	 *
+	 * This flag is independent of the parent container's: the **effective**
+	 * enabled state of a plugin child is the plugin's derived enabled value and
+	 * `(child.enabled ?? true)`, so a disabled plugin disables every child
+	 * regardless of each child's own flag. A directory child instead uses the
+	 * directory's `enabled` value and its own flag.
+	 *
+	 * A child is turned on or off by id with
+	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
+	 */
+	enabled?: boolean;
 }
 
 /**
@@ -790,7 +1011,7 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
  *
  * @category Customization Types
  */
-export interface AgentCustomization extends CustomizationBase {
+export interface AgentCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Agent;
 	/**
 	 * Short description of what the agent specializes in and when to
@@ -814,11 +1035,17 @@ export interface AgentCustomization extends CustomizationBase {
 	 */
 	tools?: string[];
 	/**
-	 * Additional provider-specific metadata for this custom agent.
-	 *
-	 * Mirrors the MCP `_meta` convention.
+	 * When `true`, the agent will not auto-delegate to this custom agent
+	 * as a sub-agent; it can only be selected by the user. Absent or
+	 * `false` means the agent may delegate to it.
 	 */
-	_meta?: Record<string, unknown>;
+	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot select this custom agent (for example,
+	 * in a picker); it remains available for the agent to auto-delegate
+	 * to. Absent or `false` means the user may select it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -831,7 +1058,7 @@ export interface AgentCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface SkillCustomization extends CustomizationBase {
+export interface SkillCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Skill;
 	/**
 	 * Short description used for help text and auto-invocation matching.
@@ -844,6 +1071,12 @@ export interface SkillCustomization extends CustomizationBase {
 	 * `disable-model-invocation` flag.
 	 */
 	disableModelInvocation?: boolean;
+	/**
+	 * When `true`, the user cannot directly invoke this skill (for example,
+	 * as a slash command); it remains available for the agent to
+	 * auto-invoke. Absent or `false` means the user may invoke it.
+	 */
+	disableUserInvocation?: boolean;
 }
 
 /**
@@ -851,7 +1084,7 @@ export interface SkillCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface PromptCustomization extends CustomizationBase {
+export interface PromptCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Prompt;
 	/** Short description of what the prompt does. */
 	description?: string;
@@ -870,7 +1103,7 @@ export interface PromptCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface RuleCustomization extends CustomizationBase {
+export interface RuleCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Rule;
 	/**
 	 * Description of what the rule enforces.
@@ -894,7 +1127,7 @@ export interface RuleCustomization extends CustomizationBase {
  *
  * @category Customization Types
  */
-export interface HookCustomization extends CustomizationBase {
+export interface HookCustomization extends ChildCustomizationBase {
 	type: CustomizationType.Hook;
 }
 
@@ -913,9 +1146,23 @@ export interface HookCustomization extends CustomizationBase {
 export interface McpServerCustomization extends CustomizationBase {
 	type: CustomizationType.McpServer;
 	/**
-	 * Whether this MCP server is currently enabled.
+	 * Explicit enablement decisions for this customization, one entry per scope
+	 * that has one. This is a wire contract: producers MUST publish entries
+	 * sorted by descending specificity (Session, Workspace, then Global).
+	 * The agent host emits at most one Workspace entry, for the session's primary
+	 * working directory. Consumers MAY treat
+	 * `enablement[0]` as the decisive decision and
+	 * `enablement?.[0]?.enabled ?? true` as the effective enabled value. An
+	 * absent or empty array means no explicit decision exists, so the
+	 * customization is enabled by default.
+	 *
+	 * Flows in both directions. A client publishes this alongside a customization
+	 * to assert its global decision, which is authoritative for the Global scope;
+	 * a client always includes its global entry, even when enabled. The host
+	 * publishes the fully resolved set across all scopes, and consumers derive
+	 * the effective enabled value from that set.
 	 */
-	enabled: boolean;
+	enablement?: CustomizationEnablement[];
 	/**
 	 * Current lifecycle state of the MCP server.
 	 */
@@ -1059,6 +1306,7 @@ export type Customization =
  * Discriminant for the {@link McpServerState} union.
  *
  * @category MCP Server State
+ * @nonexhaustive
  */
 export const enum McpServerStatus {
 	/** Server has been registered but is not yet running. */
@@ -1085,6 +1333,7 @@ export const enum McpServerStatus {
  * [MCP authorization spec](https://modelcontextprotocol.io/specification/2025-11-25/basic/authorization.md).
  *
  * @category MCP Server State
+ * @nonexhaustive
  */
 export const enum McpAuthRequiredReason {
 	/** No token has been provided yet (HTTP 401, no prior token). */
@@ -1119,6 +1368,17 @@ export const enum McpAuthRequiredReason {
  */
 export interface McpServerStartingState {
 	kind: McpServerStatus.Starting;
+	/**
+	 * Hosts SHOULD set this to `true` when this server's startup will hold back
+	 * the processing of new messages (for example, the next turn) while the
+	 * server's contributions — such as its tools — are discovered.
+	 *
+	 * Clients MAY dispatch
+	 * {@link SessionMcpServerBackgroundRequestedAction | `session/mcpServerBackgroundRequested`}
+	 * through an appropriate affordance to ask the host to background the
+	 * startup.
+	 */
+	blocking?: boolean;
 }
 
 /**
@@ -1128,6 +1388,70 @@ export interface McpServerStartingState {
  */
 export interface McpServerReadyState {
 	kind: McpServerStatus.Ready;
+}
+
+/**
+ * A pre-registered OAuth client that clients use instead of dynamic client
+ * registration when resolving an MCP authentication challenge.
+ *
+ * @category MCP Server State
+ */
+export interface McpOAuthClient {
+	/** OAuth client identifier registered with the authorization server. */
+	clientId: string;
+	/**
+	 * OAuth client secret for a confidential client. Absence means the client is
+	 * public and uses a secretless flow such as authorization code with PKCE.
+	 */
+	clientSecret?: string;
+}
+
+/**
+ * Reusable MCP authentication challenge — the RFC 9728 discovery info a
+ * client needs to obtain a token and push it via the `authenticate` command.
+ * Deliberately carries **no token**: this describes what is being asked for,
+ * never the bearer token itself.
+ *
+ * Shared by two independent state machines that describe the same OAuth
+ * challenge from different vantage points:
+ *
+ * - {@link McpServerAuthRequiredState} — the MCP server itself cannot serve
+ *   *any* request until the client authenticates.
+ * - {@link ToolCallAuthRequiredState} — a specific in-flight tool call is
+ *   paused pending authentication (typically
+ *   {@link McpAuthRequiredReason.InsufficientScope} step-up auth
+ *   mid-execution). The server state and the tool-call state remain
+ *   separate on purpose: the server saying "I need auth" and a tool
+ *   invocation saying "I am waiting on that auth" are different facts that
+ *   can be true independently.
+ *
+ * @category MCP Server State
+ */
+export interface McpAuthRequirement {
+	/** Why authentication is required. */
+	reason: McpAuthRequiredReason;
+	/**
+	 * Pre-registered OAuth client to use for authorization. When present, clients
+	 * MUST use these credentials instead of dynamic client registration.
+	 */
+	oauthClient?: McpOAuthClient;
+	/**
+	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
+	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
+	 * indicator. `authorization_servers` is REQUIRED by the MCP
+	 * authorization spec.
+	 */
+	resource: ProtectedResourceMetadata;
+	/**
+	 * Scopes required for the current challenge, parsed from the
+	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
+	 * fallback). Authoritative for the next authorization request — clients
+	 * MUST NOT assume any subset/superset relationship to
+	 * `resource.scopes_supported`.
+	 */
+	requiredScopes?: string[];
+	/** Human-readable hint, typically from the OAuth `error_description`. */
+	description?: string;
 }
 
 /**
@@ -1155,27 +1479,8 @@ export interface McpServerReadyState {
  *
  * @category MCP Server State
  */
-export interface McpServerAuthRequiredState {
+export interface McpServerAuthRequiredState extends McpAuthRequirement {
 	kind: McpServerStatus.AuthRequired;
-	/** Why authentication is required. */
-	reason: McpAuthRequiredReason;
-	/**
-	 * RFC 9728 Protected Resource Metadata. The `resource` field is the
-	 * canonical MCP server URI per RFC 8707, used as the OAuth `resource`
-	 * indicator. `authorization_servers` is REQUIRED by the MCP
-	 * authorization spec.
-	 */
-	resource: ProtectedResourceMetadata;
-	/**
-	 * Scopes required for the current challenge, parsed from the
-	 * `WWW-Authenticate: Bearer scope="…"` header (or `scopes_supported`
-	 * fallback). Authoritative for the next authorization request — clients
-	 * MUST NOT assume any subset/superset relationship to
-	 * `resource.scopes_supported`.
-	 */
-	requiredScopes?: string[];
-	/** Human-readable hint, typically from the OAuth `error_description`. */
-	description?: string;
 }
 
 /**

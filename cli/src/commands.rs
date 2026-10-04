@@ -6,10 +6,13 @@
 mod context;
 
 pub mod agent;
+pub mod agent_discovery;
+pub mod agent_endpoints;
 pub mod agent_host;
 pub mod agent_kill;
 pub mod agent_logs;
 pub mod agent_ps;
+pub mod agent_relay;
 pub mod agent_stop;
 pub mod args;
 pub mod output;

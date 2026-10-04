@@ -7,16 +7,17 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
+import { ChangesetKind } from '../common/changesetUri.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
 export class AgentHostCommitOperationContribution extends Disposable implements IChangesetOperationContribution {
 
 	private _registry: IChangesetOperationRegistry | undefined;
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -32,18 +33,21 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
-		if ((gitState?.uncommittedChanges ?? 0) <= 0) {
+	getOperations({ sessionKey, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+		// Commit always commits every uncommitted change in the working directory,
+		// so it is only advertised on the changeset that shows exactly those changes.
+		if (changesetKind !== ChangesetKind.Uncommitted) {
 			return [];
 		}
 
-		if (!gitHubState?.pullRequestUrl && changesetKind !== 'uncommitted') {
+		const isNewSession = this._stateManager.isUnusedDraft(sessionKey) === true;
+		if (!isNewSession && (gitState?.uncommittedChanges ?? 0) <= 0) {
 			return [];
 		}
 
 		return [{
 			id: AgentHostCommitOperationHandler.OPERATION_COMMIT,
-			label: localize('agentHost.changeset.commit', "Commit Changes"),
+			label: localize('agentHost.changeset.commit', "Commit"),
 			icon: 'git-commit',
 			group: 'commit',
 			scopes: [ChangesetOperationScope.Changeset],

@@ -1,0 +1,116 @@
+# VS Code Configuration Policy
+
+Use this path only when the governed behavior belongs to the editor/workbench, such as editor UI, updates, extension management, or other VS Code-native behavior.
+
+## Delivery
+
+VS Code configuration policy can arrive from:
+
+- OS policy (`NativePolicyService` on Windows/macOS, `FilePolicyService` on Linux);
+- existing GitHub account data (`AccountPolicyService` via `IPolicyData`, deprecated for new properties);
+- Copilot managed-settings projection (native MDM > server > file, per key).
+
+`MultiplexPolicyService` combines the applicable policy services. Managed-settings keys must be declared before they can project into VS Code configuration.
+
+When `forceRemoteSettingsRefresh` is effective, startup and scope changes require a successful fetch before AI use. The pending or failed freshness gate applies restricted policy values, but the Chat composer preserves its selected mode rather than persisting a temporary Ask/Edit fallback. It revalidates when the gate resolves, including when the accepted policy still disables Agent. Submission remains blocked and must recheck the gate after asynchronous preparation and before dispatch; hiding the UI alone does not cancel an in-flight submission. Same-scope background refreshes retain the accepted policy as described in [GitHub managed settings](github-managed-settings.md).
+
+## Declaration
+
+Find the configuration registration, typically in a `*.contribution.ts` file, and add:
+
+```typescript
+policy: {
+	name: 'MyPolicyName',
+	category: PolicyCategory.InteractiveSession,
+	minimumVersion: '1.133',
+	localization: {
+		description: {
+			key: 'my.config.key.policy',
+			value: nls.localize('my.config.key.policy', "Policy description."),
+		},
+	},
+}
+```
+
+Rules:
+
+- Use a unique PascalCase `name`.
+- Derive `minimumVersion` from root `package.json` major/minor.
+- Import `PolicyCategory` from `vs/base/common/policy` and use an existing category (`Extensions`, `IntegratedTerminal`, `InteractiveSession`, `Telemetry`, or `Update`) unless a new category and its localization are necessary.
+- Localize all text.
+- For string enums, provide one localized `enumDescriptions` entry per value.
+- Preserve existing `value(policyData)` callbacks when maintaining historical GitHub account policies; return the restrictive value to override and `undefined` otherwise.
+- Read [github-managed-settings.md](./github-managed-settings.md) before projecting a managed-settings key into VS Code configuration.
+
+Do not add new GitHub-token entitlement or policy fields to `IPolicyData` / `AccountPolicyService`. Use managed settings for new Copilot enterprise controls.
+
+### Existing GitHub preview-feature policies
+
+Some existing preview-feature policies use the historical `policyData.chat_preview_features_enabled` token entitlement. When maintaining one, compare with `=== false` (not negation), return the setting's restrictive value when false, and return `undefined` otherwise. Do not use this pattern for a new control.
+
+If one policy controls multiple VS Code settings, one setting owns `policy`; the others use `policyReference: { name }`.
+
+- A setting cannot declare both `policy` and `policyReference`.
+- Exactly one setting owns the policy metadata.
+- Reference-setting and owner types must match.
+- References contribute no `value`, managed-settings declarations, restricted value, localization, or other policy metadata.
+
+## Agent Host migration readiness
+
+**Developer: Policy Diagnostics** opens with **Agent Host Policy Readiness**,
+showing only currently applied requirements with an identified coverage concern,
+their source, practical impact, and the existing runtime sandbox requirement.
+Unsupported requirements are separated from partial coverage that needs
+verification for the applied source/path. Partial catalog support is not proof
+that the current runtime fails to enforce the value.
+
+All findings are **report-only**. They do not change experiment enrollment,
+automatic harness selection, picker visibility, remembered or explicit choices,
+or existing conversations. There is no compatibility holdback, acceptance
+setting/policy, Chat banner, message block, or additional telemetry. Completing
+inventory coverage removes a diagnostic concern, not a routing restriction.
+The bridge, sandbox mandates, and managed-settings freshness gates remain
+independent and continue enforcing their supported requirements.
+
+Harness selection belongs to its existing controls. `ChatEditorPreferCopilotHarness`
+manages `chat.editor.preferCopilotHarness`, which promotes otherwise-Local new
+chats to Copilot. It is not a hard lock: false does not require Local or prohibit
+explicit/remembered Copilot choices. A hard harness mandate would require a
+separate enforcement contract, not a new reaction to diagnostic uncertainty.
+Remote hosts, Claude, and Codex are outside this inventory's enforcement scope.
+
+Only the non-applied policy inventory is additionally collapsed. Existing account,
+transport, runtime, and authentication sections remain visible in their original
+layout, including their own raw-value disclosures. Unconfigured policies must not
+appear as current gaps. A clean self-check is not an attestation
+of runtime enforcement; user settings and unprojected runtime managed settings
+are outside this check.
+
+Keep the applied-requirement predicates and user-visible impacts in
+`agentHostPolicyReadiness.ts` aligned with the inventory when support changes.
+Do not relabel an accepted rollout gap as enforced: report-only acceptance does
+not establish runtime parity or administrator consent.
+
+## Required Procedure
+
+1. Add/update the policy and focused value/projection tests.
+2. Add the policy's Agent Host enforcement status to `agentHostPolicySupport` in `src/vs/platform/agentHost/common/agentHostPolicySupport.ts`. The export fails without it.
+3. Check the build watch task or run the smallest relevant type check/test (`npm run typecheck-client` when needed).
+4. Run `npm run export-policy-data`.
+5. Verify the policy appears and include `build/lib/policies/policyData.jsonc`.
+
+Never edit or synthesize `policyData.jsonc`, and never invoke a single product entrypoint's `--export-policy-data` directly. Run the npm command from the worktree containing the source change; it exports both Workbench and the Agents window, detects conflicting policy metadata, and produces the complete catalog.
+
+The blocking `src/vs/workbench/contrib/policyExport/test/node/policyExport.integrationTest.ts` uses this canonical export path in check mode.
+
+Key sources:
+
+- `src/vs/base/common/policy.ts`
+- `src/vs/base/common/defaultAccount.ts`
+- `src/vs/platform/policy/common/policy.ts`
+- `src/vs/platform/configuration/common/configurationRegistry.ts`
+- `src/vs/platform/configuration/common/configurations.ts`
+- `src/vs/platform/policy/common/copilotManagedSettings.ts`
+- `src/vs/workbench/services/policies/common/accountPolicyService.ts`
+- `build/lib/policies/policyGenerator.ts`
+- `build/lib/test/policyConversion.test.ts`

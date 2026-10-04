@@ -19,7 +19,8 @@ import { LanguageContextEntry, LanguageContextResponse } from '../../../platform
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
+import { AggressivenessSetting, EarlyDivergenceCancellationMode, isEagernessPrompt, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
@@ -296,7 +297,10 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return Result.error(new NoNextEditReason.GotCancelled('afterNeighborSnippetsAwait'));
 			}
 
-			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget);
+			const rejectedEditHistory = xtabPromptOptions.isRejectedEditMemoryEnabled(promptOptions)
+				? request.xtabRejectedEditHistory
+				: [];
+			const cascade = runGlobalBudgetCascade(activeDocument, request.xtabEditHistory, langCtx, XtabProvider.computeTokens, promptOptions, neighborSnippets, globalBudget, rejectedEditHistory);
 			const currentFileBudget = xtabPromptOptions.GlobalBudgetOptions.currentFileBudget(globalBudget);
 
 			const taggedCurrentFileContentResult = clipCurrentFileToBudget(currentFileBudget + cascade.finalSurplus);
@@ -367,7 +371,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const currentDocument = new CurrentDocument(activeDocument.documentAfterEdits, cursorPosition);
 
-		this._configureDebounceTimings(request, currentDocument, promptOptions, telemetry, delaySession, tracer);
+		this._configureDebounceTimings(request, currentDocument, promptOptions, modelServiceConfig, telemetry, delaySession, tracer);
 
 		const areaAroundEditWindowLinesRange = computeAreaAroundEditWindowLinesRange(currentDocument);
 
@@ -450,7 +454,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const gatherNeighborSnippets = () => promptOptions.neighborFiles.enabled
 			? raceCancellation(
 				raceTimeout(
-					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset),
+					this.similarFilesContextService.getSnippetsForPrompt(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles),
 					delaySession.getDebounceTime()
 				),
 				cancellationToken,
@@ -488,14 +492,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			lintErrors,
 			XtabProvider.computeTokens,
 			promptOptions,
+			request.xtabRejectedEditHistory,
 			neighborSnippets,
 			precomputedCascade,
 		);
 
-		const { prompt: userPrompt, nDiffsInPrompt, diffTokensInPrompt, neighborSnippetsResult } = getUserPrompt(promptPieces);
+		const { prompt: userPrompt, nDiffsInPrompt, neighborSnippetsResult, sectionTokens } = getUserPrompt(promptPieces);
 
 		telemetry.setNDiffsInPrompt(nDiffsInPrompt);
-		telemetry.setDiffTokensInPrompt(diffTokensInPrompt);
 		if (neighborSnippetsResult) {
 			telemetry.setNNeighborSnippetsComputed(neighborSnippetsResult.nComputed);
 			telemetry.setNNeighborSnippetsInPrompt(neighborSnippetsResult.nIncluded);
@@ -504,15 +508,23 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const responseFormat = xtabPromptOptions.ResponseFormat.fromPromptingStrategy(promptOptions.promptingStrategy);
 
-		const prediction = this.getPredictedOutput(activeDocument, currentDocument.cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat);
+		const prediction = this.getPredictedOutput(activeDocument, currentDocument.cursorLineOffset, editWindowLines, cursorLineInEditWindowOffset, responseFormat, modelServiceConfig);
 
+		const systemMsg = pickSystemPrompt(promptOptions.promptingStrategy);
 		const messages = constructMessages({
-			systemMsg: pickSystemPrompt(promptOptions.promptingStrategy),
+			systemMsg,
 			userMsg: userPrompt,
 		});
 
 		logContext.setPrompt(messages);
 		telemetry.setPrompt(messages);
+
+		// Report approximate (char/4) per-section token counts, filling in the
+		// system-prompt count which getUserPrompt cannot know. Do this BEFORE the
+		// HARD_CHAR_LIMIT early-return so oversized prompts still report counts.
+		const promptSectionTokens = { ...sectionTokens, systemPrompt: XtabProvider.computeTokens(systemMsg) };
+		telemetry.setPromptSectionTokens(promptSectionTokens);
+		logContext.setPromptSectionTokens(promptSectionTokens);
 
 		const HARD_CHAR_LIMIT = 30000 * 4; // 30K tokens, assuming 4 chars per token -- we use approximation here because counting tokens exactly is time-consuming
 		const promptCharCount = charCount(messages);
@@ -538,7 +550,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		// Fire-and-forget: compute GhostText-style similar files context for telemetry
 		telemetry.setSimilarFilesContext(
-			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset)
+			this.similarFilesContextService.compute(activeDocument.id.uri, activeDocument.languageId, activeDocument.documentAfterEdits.value, currentDocument.cursorOffset, promptOptions.neighborFiles.includeRelatedFiles)
 		);
 
 		request.fetchIssued = true;
@@ -578,6 +590,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		request: StatelessNextEditRequest,
 		currentDocument: CurrentDocument,
 		promptOptions: ModelConfig,
+		modelServiceConfig: xtabPromptOptions.ModelConfiguration,
 		telemetry: StatelessNextEditTelemetryBuilder,
 		delaySession: DelaySession,
 		tracer: ILogger,
@@ -599,14 +612,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				delaySession.setExtraDebounce(inlineSuggestionDebounce);
 			} else if (isCursorAtEndOfLine) {
 				tracer.trace('Debouncing for cursor at end of line');
-				delaySession.setExtraDebounce(this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, this.expService));
+				delaySession.setExtraDebounce(resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsExtraDebounceEndOfLine, modelServiceConfig.extraDebounceEndOfLine));
 			} else {
 				tracer.trace('No extra debounce applied');
 			}
 		}
 
 		// Adjust debounce based on user aggressiveness setting for non-aggressiveness models
-		if (!isAggressivenessStrategy(promptOptions.promptingStrategy)) {
+		if (!isEagernessPrompt(promptOptions)) {
 			this._applyAggressivenessSettings(delaySession, tracer);
 		}
 	}
@@ -1041,12 +1054,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
 					const activeDoc = request.getActiveDocument();
 					const currentDocument = promptPieces.currentDocument;
-					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
+					const keptRangeEndExclusive = Math.min(clippedTaggedCurrentDoc.keptRange.endExclusive, currentDocument.lines.length);
+					const lastLine = currentDocument.lines[keptRangeEndExclusive - 1];
 					const lastLineLength = lastLine.length;
-					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, keptRangeEndExclusive, lastLineLength + 1));
 					const duplicateAdditionsMode = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDuplicateAdditionsMode, this.expService);
-					const fastYieldLineWithCursor = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, this.expService);
-					const splitPatchOnDiff = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, this.expService);
+					const fastYieldLineWithCursor = resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursor, editStreamCtx.modelServiceConfig.patchFastYieldLineWithCursor);
+					const fastYieldLineWithCursorMultiLine = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchFastYieldLineWithCursorMultiLine, this.expService);
+					const splitPatchOnDiff = resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsXtabSplitPatchOnDiff, editStreamCtx.modelServiceConfig.splitPatchOnDiff);
 					parseResult = new ResponseParseResult.DirectEdits(
 						XtabPatchResponseHandler.handleResponse(
 							linesStream,
@@ -1058,6 +1073,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 							duplicateAdditionsMode,
 							fastYieldLineWithCursor,
 							splitPatchOnDiff,
+							fastYieldLineWithCursorMultiLine,
 						),
 					);
 					break;
@@ -1418,6 +1434,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					request.recordingBookmark,
 					request.recording,
 					request.providerRequestStartDateTime,
+					request.xtabRejectedEditHistory,
 				);
 
 				return yield* this.doGetNextEditWithSelection(
@@ -1549,6 +1566,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			neighborFiles: {
 				enabled: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabIncludeNeighborFiles, this.expService),
 				maxTokens: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesMaxTokens, this.expService),
+				includeRelatedFiles: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNeighborFilesIncludeRelatedFiles, this.expService),
 			},
 			diffHistory: {
 				nEntries: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffNEntries, this.expService),
@@ -1556,7 +1574,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				onlyForDocsInPrompt: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffOnlyForDocsInPrompt, this.expService),
 				useRelativePaths: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabDiffUseRelativePaths, this.expService),
 			},
+			memory: undefined,
 			lintOptions: undefined,
+			eagernessPrompt: undefined,
 			includePostScript: true,
 			globalBudget: this.getGlobalBudget(),
 		};
@@ -1618,14 +1638,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		return createProxyXtabEndpoint(this.instaService, configuredModelName);
 	}
 
-	private getPredictedOutput(doc: StatelessNextEditDocument, cursorLineOffset: number, editWindowLines: string[], cursorLineInEditWindowOffset: number, responseFormat: xtabPromptOptions.ResponseFormat): Prediction | undefined {
+	private getPredictedOutput(doc: StatelessNextEditDocument, cursorLineOffset: number, editWindowLines: string[], cursorLineInEditWindowOffset: number, responseFormat: xtabPromptOptions.ResponseFormat, modelServiceConfig: xtabPromptOptions.ModelConfiguration): Prediction | undefined {
 		const usePrediction = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService);
 		if (!usePrediction) {
 			return undefined;
 		}
 		// Only the CustomDiffPatch shape consults `patchModelPredictionKind`; skip the experiment lookup otherwise.
 		const patchModelPredictionKind = responseFormat === xtabPromptOptions.ResponseFormat.CustomDiffPatch
-			? this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, this.expService)
+			? resolveModelConfigValue(this.configService, this.expService, ConfigKey.TeamInternal.InlineEditsXtabProviderPatchModelPredictionKind, modelServiceConfig.patchModelPredictionKind)
 			: xtabPromptOptions.PatchModelPrediction.FilePath;
 		return {
 			type: 'content',
@@ -1742,6 +1762,7 @@ export function mapChatFetcherErrorToNoNextEditReason(fetchError: ChatFetchError
 		case ChatFetchResponseType.OffTopic:
 		case ChatFetchResponseType.Filtered:
 		case ChatFetchResponseType.PromptFiltered:
+		case ChatFetchResponseType.Refusal:
 		case ChatFetchResponseType.Length:
 		case ChatFetchResponseType.RateLimited:
 		case ChatFetchResponseType.QuotaExceeded:
@@ -1764,6 +1785,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 		...modelConfig,
 		modelName: overridingConfig.modelName,
 		promptingStrategy: overridingConfig.promptingStrategy,
+		eagernessPrompt: overridingConfig.eagernessPrompt ?? modelConfig.eagernessPrompt,
 		includePostScript: overridingConfig.includePostScript ?? modelConfig.includePostScript,
 		currentFile: {
 			...modelConfig.currentFile,
@@ -1771,6 +1793,7 @@ export function overrideModelConfig(modelConfig: ModelConfig, overridingConfig: 
 			includeTags: overridingConfig.includeTagsInCurrentFile,
 		},
 		recentlyViewedDocuments: { ...modelConfig.recentlyViewedDocuments, ...overridingConfig.recentlyViewedDocuments },
+		memory: overridingConfig.memory ? { ...modelConfig.memory, ...overridingConfig.memory } : modelConfig.memory,
 		lintOptions: overridingConfig.lintOptions
 			? mergeLintOptions(modelConfig.lintOptions, overridingConfig.lintOptions)
 			: modelConfig.lintOptions,
@@ -1798,6 +1821,8 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased01:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02Unified:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagerness:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:

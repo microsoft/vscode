@@ -10,24 +10,46 @@
 // (synced from the agent-host-protocol repo). This file adds VS Code-specific
 // helpers and re-exports.
 
+import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { hasKey, type Mutable } from '../../../../base/common/types.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHostWorkingDirectories.js';
+import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
+import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../meta/agentMessageMeta.js';
+export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+export { getInlineToolInput } from '../partialToolInput.js';
+export { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../meta/agentMessageMeta.js';
+import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
+	MessageKind,
+	ResponsePartKind,
+	SessionStatus,
+	ToolCallStatus,
+	TurnState,
 	SessionLifecycle,
 	TerminalState,
 	ToolResultContentType,
 	ToolResultFileEditContent,
 	ChatOriginKind,
+	ChatInteractivity,
 	type ActiveTurn,
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
-	type ChatInputRequest,
+	type ChatOrigin,
+	type CanvasState,
+	type ErrorInfo,
+	type ErrorResponsePart,
 	type PendingMessage,
 	type Turn,
 	type AnnotationsState,
+	type AutomationState,
+	type AutomationRunState,
 	type URI as ProtocolURI,
 	type RootState,
 	type SessionState,
@@ -51,24 +73,22 @@ export {
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
-	ChatInputAnswerState as SessionInputAnswerState,
-	ChatInputAnswerValueKind as SessionInputAnswerValueKind,
-	ChatInputQuestionKind as SessionInputQuestionKind,
-	ChatInputResponseKind as SessionInputResponseKind,
+	ChatInteractivity,
 	ChatOriginKind,
 	SessionLifecycle,
-	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus,
+	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
-	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatInteractivity, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
-	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
-	type ResponsePart,
+	type MessageResourceAttachment, type MessageEmbeddedResourceAttachment, type MessageAnnotationsAttachment, type MessageChatAttachment, type ModelSelection, type PendingMessage, type PluginCustomization, type ProjectInfo, type PromptCustomization, type ReasoningResponsePart,
+	type ErrorResponsePart, type ResponsePart,
 	type RootState, type RuleCustomization, type SessionActiveClient,
-	type SessionConfigState, type ChatInputAnswer as SessionInputAnswer,
-	type ChatInputOption as SessionInputOption, type ChatInputQuestion as SessionInputQuestion, type ChatInputRequest as SessionInputRequest, type SessionModelInfo,
+	type AutomationState, type AutomationRunState,
+	type SessionConfigState,
+	type SessionModelInfo,
 	type SessionState,
 	type SessionSummary, type SkillCustomization, type Snapshot, type StringOrMarkdown, type TerminalState, type TextRange,
 	type ToolAnnotations,
@@ -78,101 +98,220 @@ export {
 	type ToolCallPendingResultConfirmationState,
 	type ToolCallResponsePart,
 	type ToolCallResult,
+	type ToolCallRiskAssessment,
+	type ToolCallRiskAssessmentCompleteState,
+	type ToolCallRiskAssessmentLoadingState,
 	type ToolCallRunningState,
 	type ToolCallState,
 	type ToolCallStreamingState,
 	type ToolCallContributor,
-	type ToolDefinition, type ToolResultContent,
+	type ToolDefinition, type ToolInput, type ToolResultContent,
 	type ToolResultFileEditContent,
-	type ToolResultShellExitContent,
+	type TerminalCommandResult,
 	type ToolResultSubagentContent,
+	type ToolResultTerminalContent,
 	type ToolResultTextContent,
 	type Turn, type URI, type UsageInfo,
 	type Message
 } from './protocol/state.js';
 
-/**
- * Well-known keys that may appear on {@link UsageInfo._meta}.
- * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
- */
-export interface UsageInfoMeta {
-	/** Per-turn credit cost reported by the backend. */
-	cost?: number;
-	/** Copilot-specific usage breakdown, including nano-AIU totals. */
-	copilotUsage?: {
-		totalNanoAiu?: number;
-		[key: string]: unknown;
-	};
-	/**
-	 * Per-category account quota snapshots reported by the backend on the
-	 * model-call usage event, keyed by quota type (e.g. `chat`,
-	 * `premium_interactions`). Clients MAY use these to keep the account quota
-	 * UI current without a separate quota fetch.
-	 */
-	quotaSnapshots?: {
-		[quotaType: string]: {
-			readonly isUnlimitedEntitlement?: boolean;
-			readonly entitlementRequests?: number;
-			readonly usedRequests?: number;
-			readonly remainingPercentage?: number;
-			readonly overage?: number;
-			readonly overageAllowedWithExhaustedQuota?: boolean;
-			/** ISO 8601 date when the quota resets, if applicable. */
-			readonly resetDate?: string;
-		} | undefined;
-	};
-	[key: string]: unknown;
-}
-
-type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
-
-function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+export function getErrorResponsePart(turn: Turn | ActiveTurn | undefined): ErrorResponsePart | undefined {
+	if (!turn) {
 		return undefined;
 	}
-	const raw = value as Record<string, unknown>;
-	const snapshot: Mutable<AccountQuotaSnapshot> = {};
-	if (typeof raw['isUnlimitedEntitlement'] === 'boolean') { snapshot.isUnlimitedEntitlement = raw['isUnlimitedEntitlement']; }
-	if (typeof raw['entitlementRequests'] === 'number') { snapshot.entitlementRequests = raw['entitlementRequests']; }
-	if (typeof raw['usedRequests'] === 'number') { snapshot.usedRequests = raw['usedRequests']; }
-	if (typeof raw['remainingPercentage'] === 'number') { snapshot.remainingPercentage = raw['remainingPercentage']; }
-	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
-	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
-	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
-	return snapshot;
+	const part = turn.responseParts.at(-1);
+	return part?.kind === ResponsePartKind.Error ? part : undefined;
+}
+
+export function createErrorResponsePart(error: ErrorInfo, resumable = false): ErrorResponsePart {
+	return {
+		kind: ResponsePartKind.Error,
+		error,
+		...(resumable ? { resumable: true } : {}),
+	};
+}
+
+export function mergeLogicalTurnUsage(previous: UsageInfo | undefined, current: UsageInfo | undefined): UsageInfo | undefined {
+	if (!previous) {
+		return current;
+	}
+	if (!current) {
+		return previous;
+	}
+
+	const previousMeta = readUsageInfoMeta(previous);
+	const currentMeta = readUsageInfoMeta(current);
+	const cost = sumDefined(previousMeta.cost, currentMeta.cost);
+	const totalNanoAiu = sumDefined(previousMeta.copilotUsage?.totalNanoAiu, currentMeta.copilotUsage?.totalNanoAiu);
+	const turnTokenTotals = mergeTurnTokenTotals(previousMeta.turnTokenTotals, currentMeta.turnTokenTotals);
+	const directTotalNanoAiu = sumDefined(previousMeta.directCopilotUsage?.totalNanoAiu, currentMeta.directCopilotUsage?.totalNanoAiu);
+	const directTurnTokenTotals = mergeTurnTokenTotals(previousMeta.directTurnTokenTotals, currentMeta.directTurnTokenTotals);
+	const meta = previous._meta !== undefined || current._meta !== undefined ? {
+		...previous._meta,
+		...current._meta,
+		...(cost !== undefined ? { cost } : {}),
+		...(previousMeta.copilotUsage || currentMeta.copilotUsage ? {
+			copilotUsage: {
+				...previousMeta.copilotUsage,
+				...currentMeta.copilotUsage,
+				...(totalNanoAiu !== undefined ? { totalNanoAiu } : {}),
+			},
+		} : {}),
+		...(turnTokenTotals ? { turnTokenTotals } : {}),
+		...(directTotalNanoAiu !== undefined ? { directCopilotUsage: { totalNanoAiu: directTotalNanoAiu } } : {}),
+		...(directTurnTokenTotals ? { directTurnTokenTotals } : {}),
+	} : undefined;
+
+	return {
+		...previous,
+		...current,
+		model: current.model ?? previous.model,
+		...(meta ? { _meta: meta } : {}),
+	};
+}
+
+function sumDefined(first: number | undefined, second: number | undefined): number | undefined {
+	return first === undefined ? second : second === undefined ? first : first + second;
+}
+
+function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], current: UsageInfoMeta['turnTokenTotals']): UsageInfoMeta['turnTokenTotals'] {
+	if (!previous && !current) {
+		return undefined;
+	}
+	const totals = new Map<string, ITurnTokenTotal>();
+	for (const total of [...previous ?? [], ...current ?? []]) {
+		const existing = totals.get(total.model);
+		totals.set(total.model, existing ? {
+			model: total.model,
+			inputTokens: existing.inputTokens + total.inputTokens,
+			cachedTokens: existing.cachedTokens + total.cachedTokens,
+			outputTokens: existing.outputTokens + total.outputTokens,
+		} : { ...total });
+	}
+	return [...totals.values()];
 }
 
 /**
- * Reads the well-known {@link UsageInfoMeta} keys from a usage report's open
- * `_meta` bag, ignoring unrelated provider-specific keys and validating each
- * field's type. Always read {@link UsageInfo._meta} through this helper rather
- * than casting the bag to {@link UsageInfoMeta}, so a malformed or partial bag
- * degrades to absent fields instead of producing values of the wrong runtime
- * type. Returns an empty object when the bag is absent.
+ * Singleton channel containing the host-owned automation catalogue.
  */
-export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
-	const meta = usage?._meta;
-	if (!meta) {
-		return {};
+export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
+export const AUTOMATION_CATALOG_URI = `${AHP_AUTOMATIONS_SCHEME}://`;
+
+/**
+ * Returns whether `uri` identifies the singleton automation catalogue channel,
+ * including forms normalized by the workbench {@link ResourceURI} class.
+ */
+export function isAhpAutomationCatalogChannel(uri: string): boolean {
+	if (uri === AUTOMATION_CATALOG_URI) {
+		return true;
 	}
-	const result: Mutable<UsageInfoMeta> = {};
-	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
-	const copilotUsage = meta['copilotUsage'];
-	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
-		const rawUsage = copilotUsage as Record<string, unknown>;
-		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
-		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
-		result.copilotUsage = usage;
+	try {
+		return ResourceURI.parse(uri).scheme === AHP_AUTOMATIONS_SCHEME;
+	} catch {
+		return false;
 	}
-	const quotaSnapshots = meta['quotaSnapshots'];
-	if (quotaSnapshots && typeof quotaSnapshots === 'object' && !Array.isArray(quotaSnapshots)) {
-		const snapshots: Mutable<NonNullable<UsageInfoMeta['quotaSnapshots']>> = {};
-		for (const [quotaType, value] of Object.entries(quotaSnapshots as Record<string, unknown>)) {
-			snapshots[quotaType] = readAccountQuotaSnapshot(value);
+}
+
+/** Returns whether `uri` identifies one automation-run channel. */
+export function isAhpAutomationRunChannel(uri: string): boolean {
+	try {
+		return ResourceURI.parse(uri).scheme === 'ahp-automation-run';
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Whether `turn` is a hidden system notification the host appended purely to
+ * carry a message (e.g. an Agent Merge status change). It never reaches the
+ * provider and never captures a checkpoint, so it can never own file changes
+ * and must be skipped when resolving a "last turn" for per-turn changes.
+ *
+ * A *visible* system notification (a background-agent completion, an Agent
+ * Merge repair prompt) is a real turn and is deliberately not matched.
+ * A hidden workspace-continuation request is also a real provider turn.
+ */
+export function isHostNoticeTurn(turn: { readonly message: Message }): boolean {
+	return turn.message.origin.kind === MessageKind.SystemNotification
+		&& (isMessageHiddenFromTranscript(turn.message) || isMessageRequestHiddenFromTranscript(turn.message))
+		&& !isAgentWorkspaceContinuationMessage(turn.message);
+}
+
+/** Returns the last turn id that can own file changes, or `undefined` if there is none. */
+export function lastAttributableTurnId(turns: readonly { readonly id: string; readonly message: Message }[] | undefined): string | undefined {
+	if (!turns) {
+		return undefined;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (!isHostNoticeTurn(turns[i])) {
+			return turns[i].id;
 		}
-		result.quotaSnapshots = snapshots;
 	}
-	return result;
+	return undefined;
+}
+
+/** Whole-turn token consumption attributed to a single model. */
+export interface ITurnTokenTotal {
+	readonly model: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
+}
+
+export interface IAutoModeResolvedInfo {
+	readonly chosenModel: string;
+	readonly reasoningBucket?: 'low' | 'medium' | 'high';
+	readonly categoryScores?: Readonly<Record<string, number | undefined>>;
+	readonly predictedLabel?: string;
+	readonly confidence?: number;
+	readonly candidateModels?: readonly string[];
+}
+
+/**
+ * Mirrors the SDK's `SessionContextAttribution` shape — a flat list of
+ * per-source entries describing what occupies the session's context window.
+ */
+export interface IContextAttributionData {
+	readonly totalTokens: number;
+	readonly entries: readonly IContextAttributionEntry[];
+	readonly compactions: { readonly count: number };
+}
+
+export interface IContextAttributionEntry {
+	readonly kind: string;
+	readonly id: string;
+	readonly label: string;
+	readonly tokens: number;
+	readonly parentId?: string;
+	readonly attributes?: Readonly<Record<string, string | undefined>>;
+}
+
+/**
+ * Whether a usage report actually records consumption, as opposed to merely
+ * existing.
+ *
+ * A turn can carry a token-less {@link UsageInfo} that exists only to hold
+ * routing metadata — notably a Copilot Auto turn restored from the event log,
+ * which keeps `_meta.autoModeResolved` even though the usage event itself is
+ * ephemeral and was never persisted. Callers that ask "does this turn have
+ * usage?" almost always mean "does it have numbers to show", so route that
+ * question through here rather than testing the object for truthiness.
+ */
+export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
+	if (!usage) {
+		return false;
+	}
+	if (typeof usage.inputTokens === 'number' || typeof usage.outputTokens === 'number') {
+		return true;
+	}
+	const meta = readUsageInfoMeta(usage);
+	// Negative totals are treated as absent, matching how credits are read for display.
+	return (typeof meta.copilotUsage?.totalNanoAiu === 'number' && meta.copilotUsage.totalNanoAiu >= 0)
+		// A report can carry only the session total — a compaction billed while no turn
+		// was active advances it without any per-event billing payload — and that is
+		// still consumption worth showing.
+		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
+		|| (typeof meta.cost === 'number' && meta.cost >= 0);
 }
 
 export {
@@ -182,7 +321,7 @@ export {
 // Canonical chat-input type names (the protocol renamed the former
 // `SessionInput*` types to `ChatInput*` when input requests moved onto the
 // chat channel). Re-exported here so consumers can import them from the glue
-// layer alongside the legacy `SessionInput*` aliases above.
+// layer.
 export {
 	ChatInputAnswerState,
 	ChatInputAnswerValueKind,
@@ -192,6 +331,7 @@ export {
 	type ChatInputOption,
 	type ChatInputQuestion,
 	type ChatInputRequest,
+	type InputRequestResponsePart,
 } from './protocol/state.js';
 
 // ---- File edit kind ---------------------------------------------------------
@@ -361,6 +501,7 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 	if (!result.content || result.content.length === 0) {
 		return undefined;
 	}
+
 	const textParts: ToolResultTextContent[] = [];
 	for (const c of result.content) {
 		if (hasKey(c, { type: true }) && c.type === ToolResultContentType.Text) {
@@ -490,7 +631,7 @@ export function createSessionState(summary: SessionSummary): SessionState {
 	};
 	if (summary.activity !== undefined) { state.activity = summary.activity; }
 	if (summary.project !== undefined) { state.project = summary.project; }
-	if (summary.workingDirectory !== undefined) { state.workingDirectory = summary.workingDirectory; }
+	if (summary.workingDirectories !== undefined) { state.workingDirectories = summary.workingDirectories; }
 	if (summary.annotations !== undefined) { state.annotations = summary.annotations; }
 	if (summary._meta !== undefined) { state._meta = summary._meta; }
 	return state;
@@ -510,7 +651,8 @@ export function createChatState(summary: ChatSummary): ChatState {
 		modifiedAt: summary.modifiedAt,
 		origin: summary.origin,
 		interactivity: summary.interactivity,
-		workingDirectory: summary.workingDirectory,
+		workingDirectories: summary.workingDirectories,
+		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -519,7 +661,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 /**
  * Derives the default-chat {@link ChatSummary} for a session from its
  * {@link SessionSummary}. The default chat inherits the session's title,
- * status, activity and working directory, and is marked as a
+ * activity status and activity, and is marked as a
  * {@link ChatOriginKind.User | user-originated} chat. Both the session and
  * chat `modifiedAt` are ISO-8601 strings, so it is carried over directly.
  */
@@ -527,18 +669,72 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 	const summary: ChatSummary = {
 		resource: chatUri,
 		title: session.title,
-		status: session.status,
+		status: session.status & STATUS_ACTIVITY_MASK,
 		modifiedAt: session.modifiedAt,
 		origin: { kind: ChatOriginKind.User },
 	};
 	if (session.activity !== undefined) { summary.activity = session.activity; }
-	// `workingDirectory` is deliberately NOT copied: per the protocol it is a
-	// per-chat OVERRIDE and, when absent, the chat inherits the session's
-	// working directory (see `mergeSessionWithDefaultChat`). Seeding it here
-	// would denormalize the session default onto every chat as a fake override,
-	// which then goes stale when the session's working directory is resolved
-	// later (e.g. a worktree resolved at materialization).
+	// `workingDirectories` is deliberately NOT copied: per the protocol it is a
+	// per-chat SUBSET override and, when absent, the chat inherits the session's
+	// full set of working directories (see `mergeSessionWithDefaultChat`).
+	// Seeding it here would denormalize the session default onto every chat as a
+	// fake override, which then goes stale when the session's working
+	// directories are resolved later (e.g. a worktree resolved at
+	// materialization).
 	return summary;
+}
+
+/** Activity bits (0-4) of {@link SessionStatus}; the high bits carry orthogonal flags (IsRead / IsArchived). */
+const STATUS_ACTIVITY_MASK = (1 << 5) - 1;
+
+/** Whether the active turn has a `PendingConfirmation` tool call auto-approved by the session's bypass setting. */
+function hasAutoApprovedPendingConfirmation(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part =>
+		part.kind === ResponsePartKind.ToolCall
+		&& part.toolCall.status === ToolCallStatus.PendingConfirmation
+		&& readToolCallMeta(part.toolCall).autoApproveBySetting === true,
+	);
+}
+
+/** Whether the chat is genuinely blocked on user input (an open input request, an auth-required tool, or a non-auto-approved confirmation gate). */
+function chatAwaitsUserInput(state: ChatState): boolean {
+	return !!state.activeTurn?.responseParts.some(part => {
+		// An open elicitation always awaits the user until it is answered.
+		if (part.kind === ResponsePartKind.InputRequest) {
+			return part.response === undefined;
+		}
+		if (part.kind !== ResponsePartKind.ToolCall) {
+			return false;
+		}
+		const status = part.toolCall.status;
+		// Result-confirmation and auth-required gates always require the user; a
+		// parameter-confirmation gate only when it was not auto-approved.
+		if (status === ToolCallStatus.PendingResultConfirmation || status === ToolCallStatus.AuthRequired) {
+			return true;
+		}
+		return status === ToolCallStatus.PendingConfirmation
+			&& readToolCallMeta(part.toolCall).autoApproveBySetting !== true;
+	});
+}
+
+/**
+ * Projects a chat's status for session-summary aggregation, demoting an
+ * `InputNeeded` back to `InProgress` only when it is caused solely by an
+ * auto-approved confirmation — otherwise a session with bypass approvals flashes
+ * "input needed" in the sessions list while an auto-approved tool runs.
+ */
+function chatSummaryStatus(state: ChatState): SessionStatus {
+	const status = state.status;
+	if ((status & SessionStatus.InputNeeded) !== SessionStatus.InputNeeded) {
+		return status;
+	}
+	// Only demote when we can positively attribute the InputNeeded to an
+	// auto-approved confirmation with no genuine blocker present; otherwise (e.g.
+	// a restored summary whose activeTurn is not loaded) preserve the status.
+	if (hasAutoApprovedPendingConfirmation(state) && !chatAwaitsUserInput(state)) {
+		return (status & ~STATUS_ACTIVITY_MASK) | SessionStatus.InProgress;
+	}
+	return status;
 }
 
 /**
@@ -550,23 +746,65 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	const summary: ChatSummary = {
 		resource: state.resource,
 		title: state.title,
-		status: state.status,
+		status: chatSummaryStatus(state),
 		modifiedAt: state.modifiedAt,
 	};
 	if (state.activity !== undefined) { summary.activity = state.activity; }
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
-	if (state.workingDirectory !== undefined) { summary.workingDirectory = state.workingDirectory; }
+	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.changes !== undefined) { summary.changes = state.changes; }
 	return summary;
 }
 
-export function createActiveTurn(id: string, message: Message): ActiveTurn {
+/**
+ * The effective interactivity of a chat given its session's archived state.
+ *
+ * `interactivity` is the general read-only mechanism (e.g. subagent worker
+ * chats are `ReadOnly`). An archived session is read-only too, so its
+ * interactive chats are downgraded to `ReadOnly`. `Hidden` chats stay hidden —
+ * archiving only downgrades `Full` chats. Absent interactivity defaults to
+ * `Full` for backward compatibility.
+ *
+ * The host uses this to enforce read-only turns off a single signal
+ * ({@link isChatReadOnly}) rather than special-casing archived; the same rule
+ * is mirrored client-side to hide the composer.
+ */
+export function effectiveChatInteractivity(interactivity: ChatInteractivity | undefined, sessionArchived: boolean): ChatInteractivity {
+	if (interactivity === ChatInteractivity.Hidden) {
+		return ChatInteractivity.Hidden;
+	}
+	if (sessionArchived) {
+		return ChatInteractivity.ReadOnly;
+	}
+	return interactivity ?? ChatInteractivity.Full;
+}
+
+/**
+ * Whether a chat rejects user-dispatched turns, given its own interactivity and
+ * its session's archived state. `true` for `ReadOnly` chats (including archived
+ * sessions' interactive chats). See {@link effectiveChatInteractivity}.
+ */
+export function isChatReadOnly(interactivity: ChatInteractivity | undefined, sessionArchived: boolean): boolean {
+	return effectiveChatInteractivity(interactivity, sessionArchived) === ChatInteractivity.ReadOnly;
+}
+
+export function createActiveTurn(id: string, message: Message, startedAt: string): ActiveTurn {
 	return {
 		id,
+		startedAt,
 		message,
 		responseParts: [],
 		usage: undefined,
 	};
+}
+
+export function getTurnError(turn: Turn | undefined): ErrorInfo | undefined {
+	if (turn?.state !== TurnState.Error) {
+		return undefined;
+	}
+	const part = turn.responseParts[turn.responseParts.length - 1];
+	return part?.kind === ResponsePartKind.Error ? part.error : readLegacyTurnError(turn);
 }
 
 export const enum StateComponents {
@@ -576,6 +814,9 @@ export const enum StateComponents {
 	Terminal,
 	Changeset,
 	Annotations,
+	AutomationCatalog,
+	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -585,6 +826,9 @@ export type ComponentToState = {
 	[StateComponents.Terminal]: TerminalState;
 	[StateComponents.Changeset]: ChangesetState;
 	[StateComponents.Annotations]: AnnotationsState;
+	[StateComponents.AutomationCatalog]: AutomationState;
+	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -693,6 +937,12 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 	return parseChatUri(uri)?.chatId === DEFAULT_CHAT_ID;
 }
 
+export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
+	return chatId === DEFAULT_CHAT_ID
+		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
+		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
+}
+
 /**
  * Resolves a feature-level `(session, chat)` pair to the single chat URI used by
  * the agent session/chat surface. A session always owns a DEFAULT chat addressed
@@ -702,6 +952,22 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
  */
 export function resolveChatUri(session: ResourceURI, chat: ResourceURI): ResourceURI {
 	return isDefaultChatUri(chat) ? session : chat;
+}
+
+/**
+ * Resolves the URI a chat's persisted data is stored under — the same
+ * {@link resolveChatUri} rule applied to a chat channel URI alone, recovering
+ * the owning session from the channel. Agents key their per-session database
+ * and data directory by this value, so anything reading or writing that storage
+ * from outside the agent must derive it the same way. Returns `undefined` when
+ * `chatChannel` is not a parseable chat channel URI.
+ */
+export function chatStorageUri(chatChannel: ProtocolURI | ResourceURI): ResourceURI | undefined {
+	const parsed = parseChatUri(chatChannel);
+	if (!parsed) {
+		return undefined;
+	}
+	return resolveChatUri(ResourceURI.parse(parsed.session), ResourceURI.parse(chatChannel.toString()));
 }
 
 /** Returns `true` when `uri` identifies a chat channel. */
@@ -717,17 +983,18 @@ export function isAhpChatChannel(uri: string): boolean {
 
 /**
  * A single chat's effective session context: the shared {@link SessionState}
- * (working directory, active clients, config, customizations/MCP scope, …)
+ * (working directories, active clients, config, customizations/MCP scope, …)
  * resolved for one chat and merged with that chat's conversation contents.
  *
- * The protocol moved turns and pending/input state off the session and onto a
- * per-chat channel, and lets a chat override session defaults (e.g.
- * {@link ChatState.workingDirectory}). This composite recombines the session
- * with one of its chats — default or peer — so consumers read the chat's
- * effective context and conversation through one object without walking back to
- * the session to re-derive shared state. The inherited
- * {@link SessionState.workingDirectory} carries the chat's *effective* working
- * directory (its own override when present, else the session default).
+ * The protocol moved turns and pending state off the session and onto a
+ * per-chat channel, and lets a chat override the session's working directories
+ * with a subset (e.g. {@link ChatState.workingDirectories}). This composite
+ * recombines the session with one of its chats — default or peer — so consumers
+ * read the chat's effective context and conversation through one object without
+ * walking back to the session to re-derive shared state. The
+ * {@link ISessionWithDefaultChat.workingDirectories} carry the chat's *effective*
+ * working directories (its own subset override when present, else the session's
+ * full set).
  */
 export interface ISessionWithDefaultChat extends SessionState {
 	/** Completed turns of this chat. */
@@ -738,8 +1005,6 @@ export interface ISessionWithDefaultChat extends SessionState {
 	steeringMessage?: PendingMessage;
 	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
-	/** Input requests outstanding on this chat. */
-	inputRequests?: ChatInputRequest[];
 	/** Draft input of this chat. */
 	draft?: Message;
 }
@@ -747,7 +1012,7 @@ export interface ISessionWithDefaultChat extends SessionState {
 /**
  * Projects a {@link SessionState} and one of its {@link ChatState | chats}
  * (default or peer) into that chat's {@link ISessionWithDefaultChat | effective
- * session context}. Per-chat overrides (currently the working directory) are
+ * session context}. Per-chat overrides (the working-directories subset) are
  * layered over the session defaults, and the conversation fields are taken from
  * the chat. When the chat state is absent (e.g. not yet hydrated) the
  * conversation fields default to empty and the session defaults apply.
@@ -755,12 +1020,11 @@ export interface ISessionWithDefaultChat extends SessionState {
 export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatState | undefined): ISessionWithDefaultChat {
 	return {
 		...session,
-		workingDirectory: chat?.workingDirectory ?? session.workingDirectory,
+		workingDirectories: chat?.workingDirectories ?? session.workingDirectories,
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
 		queuedMessages: chat?.queuedMessages,
-		inputRequests: chat?.inputRequests,
 		draft: chat?.draft,
 	};
 }
@@ -810,14 +1074,192 @@ export type SessionSummaryMeta = Record<string, unknown>;
  */
 export const SESSION_META_GIT_KEY = 'git';
 
+/** Reserved key for Git state keyed by normalized working-directory scope. */
+export const SESSION_META_GIT_DATA_KEY = 'gitData';
+
+/** Host-authored scope ids keyed by their exact backend working-directory list. */
+export const SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY = 'workingDirectoryScopeIds';
+
 /**
- * Reserved key under {@link SessionMeta} for the well-known GitHub-state
- * payload. Value at this key, when present, MUST be shaped like
- * {@link ISessionGitHubState}. This is a VS Code-specific convention layered
- * on top of the protocol's generic `_meta` bag — the protocol itself does
- * not know about GitHub state.
+ * Reserved key under {@link SessionMeta} for a single {@link ISessionGitHubState}
+ * describing the session folder. It is never written to session state: clients
+ * pass it in a new session's configuration to seed the session folder's state
+ * (see {@link readSessionGitHubStateInput}), and sessions recorded before each
+ * folder had its own state are migrated from it into
+ * {@link SESSION_META_GITHUB_DATA_KEY} (see {@link withMigratedSessionGitHubState}).
+ * This is a VS Code-specific convention layered on top of the protocol's generic
+ * `_meta` bag — the protocol itself does not know about GitHub state.
  */
 export const SESSION_META_GITHUB_KEY = 'github';
+
+/** Reserved key for durable source-control workflow provenance. */
+export const SESSION_META_SOURCE_CONTROL_KEY = 'vscode.sourceControl';
+
+export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
+
+export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
+
+/** Reserved key for whether a provider-native session has not yet been adopted. */
+export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
+
+const MAX_WORKSPACE_FILE_LENGTH = 4096;
+
+/** Multi-root workspace provenance attached by the creating client. */
+export interface ISessionMultiRootMetadata {
+	readonly workspaceFile: string;
+}
+
+/** Reads validated multi-root workspace provenance from session metadata. */
+export function readSessionMultiRootMetadata(meta: SessionMeta | undefined): ISessionMultiRootMetadata | undefined {
+	return validateSessionMultiRootMetadata(meta?.[SESSION_META_MULTI_ROOT_KEY]);
+}
+
+/** Parses validated multi-root workspace provenance from its persisted JSON representation. */
+export function parseSessionMultiRootMetadata(value: string | undefined): ISessionMultiRootMetadata | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionMultiRootMetadata(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+/** Returns session metadata with the multi-root workspace provenance updated or removed. */
+export function withSessionMultiRootMetadata(meta: SessionMeta | undefined, multiRoot: ISessionMultiRootMetadata | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (multiRoot) {
+		next[SESSION_META_MULTI_ROOT_KEY] = multiRoot;
+	} else {
+		delete next[SESSION_META_MULTI_ROOT_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function validateSessionMultiRootMetadata(value: unknown): ISessionMultiRootMetadata | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw.workspaceFile !== 'string' || raw.workspaceFile.length === 0 || raw.workspaceFile.length > MAX_WORKSPACE_FILE_LENGTH) {
+		return undefined;
+	}
+	try {
+		if (!ResourceURI.parse(raw.workspaceFile, true).scheme) {
+			return undefined;
+		}
+	} catch {
+		return undefined;
+	}
+	return { workspaceFile: raw.workspaceFile };
+}
+
+/** Latest known prompt-cache state for the model active in an agent session. */
+export interface ISessionPromptCacheState {
+	readonly modelId: string;
+	readonly cacheExpiresAt: string;
+}
+
+/** Reads the latest known prompt-cache state from session metadata. */
+export function readSessionPromptCacheState(meta: SessionMeta | undefined): ISessionPromptCacheState | undefined {
+	const value = meta?.[SESSION_META_PROMPT_CACHE_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	return typeof raw['modelId'] === 'string' && typeof raw['cacheExpiresAt'] === 'string'
+		? { modelId: raw['modelId'], cacheExpiresAt: raw['cacheExpiresAt'] }
+		: undefined;
+}
+
+/** Returns session metadata with the prompt-cache slot updated or removed. */
+export function withSessionPromptCacheState(meta: SessionMeta | undefined, promptCache: ISessionPromptCacheState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (promptCache) {
+		next[SESSION_META_PROMPT_CACHE_KEY] = promptCache;
+	} else {
+		delete next[SESSION_META_PROMPT_CACHE_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Reserved key for the harness-owned new-session folder-picker decision. */
+export const SESSION_META_FOLDER_PICKER_KEY = 'vscode.folderPicker';
+
+/**
+ * Harness-owned decision about the multi-root new-session Folder picker for an
+ * agent-host session, carried under {@link SessionMeta} at
+ * {@link SESSION_META_FOLDER_PICKER_KEY}.
+ *
+ * The provider (harness) owns this because the signal differs per backend — for
+ * example Copilot hides the picker when at most one workspace folder carries
+ * hooks under `.github/hooks/` (pinning that folder as {@link primary} when
+ * exactly one does), since the Copilot agent only applies hooks from the primary
+ * working directory, and shows the picker when several folders carry hooks so
+ * the user resolves the ambiguity. When {@link primary} is set, it names the
+ * working directory the client should auto-select before the session starts.
+ */
+export interface ISessionFolderPickerDecision {
+	/** Whether the client should hide the multi-root Folder picker. */
+	readonly hidden: boolean;
+	/**
+	 * The working directory the client should auto-select as the primary, as a
+	 * URI string. Present only when the harness pins a specific folder (it
+	 * always accompanies `hidden: true`, but a `hidden` decision need not pin
+	 * one — e.g. when no folder carries hooks the current selection is kept).
+	 */
+	readonly primary?: string;
+}
+
+/** Reads the validated folder-picker decision from session metadata. */
+export function readSessionFolderPickerDecision(meta: SessionMeta | undefined): ISessionFolderPickerDecision | undefined {
+	return validateSessionFolderPickerDecision(meta?.[SESSION_META_FOLDER_PICKER_KEY]);
+}
+
+/** Parses the validated folder-picker decision from its persisted JSON representation. */
+export function parseSessionFolderPickerDecision(value: string | undefined): ISessionFolderPickerDecision | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return validateSessionFolderPickerDecision(JSON.parse(value));
+	} catch {
+		return undefined;
+	}
+}
+
+function validateSessionFolderPickerDecision(value: unknown): ISessionFolderPickerDecision | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	const raw = value as Record<string, unknown>;
+	if (typeof raw['hidden'] !== 'boolean') {
+		return undefined;
+	}
+	const primary = raw['primary'];
+	// `primary` is only valid on a hidden, pinned decision (see
+	// ISessionFolderPickerDecision); reject the contradictory `{ hidden: false,
+	// primary }` so malformed persisted/remote metadata can't make the client
+	// both reveal the picker and auto-select/recreate the session.
+	if (primary !== undefined && (typeof primary !== 'string' || primary.length === 0 || raw['hidden'] !== true)) {
+		return undefined;
+	}
+	return primary !== undefined ? { hidden: true, primary } : { hidden: raw['hidden'] };
+}
+
+/** Returns session metadata with the folder-picker decision updated or removed. */
+export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, decision: ISessionFolderPickerDecision | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (decision) {
+		next[SESSION_META_FOLDER_PICKER_KEY] = decision.primary !== undefined
+			? { hidden: decision.hidden, primary: decision.primary }
+			: { hidden: decision.hidden };
+	} else {
+		delete next[SESSION_META_FOLDER_PICKER_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
 
 /**
  * Git state of a session's working directory, carried under
@@ -830,24 +1272,94 @@ export const SESSION_META_GITHUB_KEY = 'github';
  * "unknown" from "known to be zero".
  */
 export interface ISessionGitState {
+	/** Whether the working directory has any Git remote. */
+	readonly hasGitRemote?: boolean;
 	/** Whether the working directory has a `github.com` git remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
 	readonly branchName?: string;
+	/**
+	 * Whether `HEAD` is detached, which is why {@link branchName} is absent.
+	 * Distinguishes a legitimately branch-less checkout from git state left
+	 * behind by a probe that failed before it could resolve the branch.
+	 */
+	readonly isDetachedHead?: boolean;
 	/** Base branch the work targets (e.g. `main`). */
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/**
+	 * Default branch of the `origin` remote (e.g. `main`), read from
+	 * `refs/remotes/origin/HEAD`. Unlike {@link baseBranchName}, it is never
+	 * replaced by a configured base branch.
+	 */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`), present only when that ref exists. */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch has ahead of the upstream branch. */
 	readonly outgoingChanges?: number;
 	/** Number of files with uncommitted changes. */
 	readonly uncommittedChanges?: number;
+	/** Whether the current branch has commits not contained in its local base branch. */
+	readonly hasBaseBranchChanges?: boolean;
 	/** GitHub repository owner parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubOwner?: string;
+	/** GitHub owner parsed from the current branch's upstream or push remote. */
+	readonly githubHeadOwner?: string;
 	/** GitHub repository name parsed from the working copy's GitHub remote (preferring `origin`, falling back to the first GitHub remote). */
 	readonly githubRepo?: string;
+}
+
+export const enum SessionSourceControlOutcome {
+	Merge = 'merge',
+	PullRequest = 'pullRequest',
+}
+
+/** Durable source-control workflow provenance for a session. */
+export interface ISessionSourceControlState {
+	readonly merge?: {
+		/** Resulting target-branch HEAD after the most recent successful merge. */
+		readonly commit: string;
+	};
+	readonly latestOutcome?: SessionSourceControlOutcome;
+}
+
+/** Reads validated source-control workflow provenance from session metadata. */
+export function readSessionSourceControlState(meta: SessionMeta | undefined): ISessionSourceControlState | undefined {
+	const value = meta?.[SESSION_META_SOURCE_CONTROL_KEY];
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+
+	const raw = value as Record<string, unknown>;
+	let merge: ISessionSourceControlState['merge'];
+	const rawMerge = raw['merge'];
+	if (rawMerge && typeof rawMerge === 'object' && !Array.isArray(rawMerge)) {
+		const commit = (rawMerge as Record<string, unknown>)['commit'];
+		merge = typeof commit === 'string' && commit.length > 0 ? { commit } : undefined;
+	}
+
+	const rawLatestOutcome = raw['latestOutcome'];
+	const latestOutcome = rawLatestOutcome === SessionSourceControlOutcome.Merge || rawLatestOutcome === SessionSourceControlOutcome.PullRequest
+		? rawLatestOutcome
+		: undefined;
+	if (!merge && (!latestOutcome || latestOutcome === SessionSourceControlOutcome.Merge)) {
+		return undefined;
+	}
+	return { merge, latestOutcome };
+}
+
+/** Returns session metadata with source-control workflow provenance updated. */
+export function withSessionSourceControlState(meta: SessionMeta | undefined, state: ISessionSourceControlState | undefined): SessionMeta | undefined {
+	const next: SessionMeta = { ...meta };
+	if (state) {
+		next[SESSION_META_SOURCE_CONTROL_KEY] = state;
+	} else {
+		delete next[SESSION_META_SOURCE_CONTROL_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
 }
 
 /**
@@ -864,48 +1376,171 @@ export interface ISessionGitHubState {
 	readonly owner?: string;
 	/** The name of the GitHub repository. */
 	readonly repo?: string;
-	/** The URL of the GitHub pull request. */
-	readonly pullRequestUrl?: string;
+	/** GitHub pull request URLs found for the session's checkouts, most recent first. */
+	readonly pullRequestUrls?: readonly string[];
+	/** Pull requests that predate a folder-isolated session. An empty array is a captured baseline. */
+	readonly initialPullRequestUrls?: readonly string[];
+	/** Pull requests explicitly associated through user intent, most recent first. */
+	readonly associatedPullRequestUrls?: readonly string[];
+	/** Last host-observed state of {@link pullRequestStateUrl}. */
+	readonly pullRequestState?: 'open' | 'closed' | 'merged';
+	/** Pull request URL to which {@link pullRequestState} applies. */
+	readonly pullRequestStateUrl?: string;
+	/**
+	 * The name of the branch the most recent {@link pullRequestUrls} entry was found (or created) for.
+	 * A pull request always relates to a branch: when the working copy switches
+	 * to a different branch the host keeps reporting the known pull request but
+	 * resumes looking for one that belongs to the newly checked out branch.
+	 */
+	readonly pullRequestBranchName?: string;
 }
 
 /**
- * Reads the well-known git-state payload from {@link SessionMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at
- * the git key is not a plain object (e.g. an array or a primitive).
- * Individual fields with wrong types are silently dropped so partial state
- * still propagates.
+ * Whether the known pull request of `gitHubState` belongs to `branchName`.
  *
- * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
- * rather than its parent {@link SessionState}: the sessions provider stores and
- * reads a detached meta snapshot without retaining the owning state.
+ * State persisted before pull requests were tracked per branch has no
+ * {@link ISessionGitHubState.pullRequestBranchName}; such a pull request is
+ * optimistically treated as belonging to the given branch so existing sessions
+ * keep their pull request affordances until the host has verified which branch
+ * it actually belongs to.
  */
-export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
-	const value = meta?.[SESSION_META_GIT_KEY];
+export function hasSessionPullRequestForBranch(gitHubState: ISessionGitHubState | undefined, branchName: string | undefined): boolean {
+	if (!gitHubState?.pullRequestUrls?.length) {
+		return false;
+	}
+	return gitHubState.pullRequestBranchName === undefined || gitHubState.pullRequestBranchName === branchName;
+}
+
+/** Returns pull requests related to the session rather than inherited from its folder checkout. */
+export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubState | undefined): readonly string[] {
+	const pullRequestUrls = gitHubState?.pullRequestUrls ?? [];
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const initialUrls = new Set(initialPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	const associatedUrls = new Set(gitHubState?.associatedPullRequestUrls?.map(url => url.toLowerCase()) ?? []);
+	return pullRequestUrls.filter(url => !initialUrls.has(url.toLowerCase()) || associatedUrls.has(url.toLowerCase()));
+}
+
+/** Maximum pull requests retained for a session. */
+export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
+
+function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
+	const normalizedUrls = urls.map(url => {
+		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
+		const groups = match?.groups;
+		return groups
+			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
+			: url;
+	});
+	return distinct(normalizedUrls, getPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+}
+
+/** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
+export function withMostRecentSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const pullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.pullRequestUrls ?? [])
+	]);
+	const normalizedPullRequestUrl = pullRequestUrls[0]?.toLowerCase();
+	const stateApplies = gitHubState?.pullRequestStateUrl?.toLowerCase() === normalizedPullRequestUrl;
+
+	return {
+		pullRequestUrls,
+		pullRequestBranchName: branchName,
+		...(stateApplies && gitHubState?.pullRequestState && gitHubState.pullRequestStateUrl
+			? { pullRequestState: gitHubState.pullRequestState, pullRequestStateUrl: gitHubState.pullRequestStateUrl }
+			: {}),
+	};
+}
+
+/** Returns state that promotes a pull request from the folder baseline into the session. */
+export function withMostRecentRelatedSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl: string, branchName: string): ISessionGitHubState {
+	const next = withMostRecentSessionPullRequest(gitHubState, pullRequestUrl, branchName);
+	const promotedUrl = normalizeSessionPullRequestUrls([pullRequestUrl])[0]?.toLowerCase();
+	const initialPullRequestUrls = gitHubState?.initialPullRequestUrls;
+	const associatedPullRequestUrls = normalizeSessionPullRequestUrls([
+		pullRequestUrl,
+		...(gitHubState?.associatedPullRequestUrls ?? [])
+	]);
+	return {
+		...next,
+		associatedPullRequestUrls,
+		...(initialPullRequestUrls !== undefined ? {
+			initialPullRequestUrls: initialPullRequestUrls.filter(url => url.toLowerCase() !== promotedUrl)
+		} : {}),
+	};
+}
+
+/** Returns state that records a pull request in the folder-session baseline. */
+export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState | undefined, pullRequestUrl?: string): ISessionGitHubState {
+	return {
+		initialPullRequestUrls: normalizeSessionPullRequestUrls([
+			...(pullRequestUrl ? [pullRequestUrl] : []),
+			...(gitHubState?.initialPullRequestUrls ?? [])
+		])
+	};
+}
+
+/** Parses a Git state payload, dropping fields with invalid types. */
+export function parseSessionGitState(value: unknown): ISessionGitState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
 	const result: {
+		hasGitRemote?: boolean;
 		hasGitHubRemote?: boolean;
 		branchName?: string;
+		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
+		defaultBranchName?: string;
+		defaultRemoteBranchName?: string;
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
+		hasBaseBranchChanges?: boolean;
 		githubOwner?: string;
+		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
+	if (typeof raw['hasGitRemote'] === 'boolean') { result.hasGitRemote = raw['hasGitRemote']; }
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
+	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
+	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
+	if (typeof raw['hasBaseBranchChanges'] === 'boolean') { result.hasBaseBranchChanges = raw['hasBaseBranchChanges']; }
 	if (typeof raw['githubOwner'] === 'string') { result.githubOwner = raw['githubOwner']; }
+	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
+}
+
+/** Reads the well-known Git state payload from {@link SessionMeta}. */
+export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
+	return parseSessionGitState(meta?.[SESSION_META_GIT_KEY]);
+}
+
+/**
+ * Whether a session's git state should be recomputed because it does not
+ * describe a usable checkout.
+ *
+ * A state that was never computed obviously qualifies. So does one that is
+ * missing its branch without a detached `HEAD` to explain it: `git status` is
+ * the only probe that reports the branch, so such a state is the residue of a
+ * probe that failed, and consumers that key off the branch (Agent Merge binds
+ * its pull request that way) stay stranded until it is recomputed. A detached
+ * `HEAD` is a legitimate branch-less checkout and must not be mistaken for it,
+ * or every caller would refresh in a loop against a repository that will never
+ * report a branch.
+ */
+export function needsSessionGitStateRefresh(gitState: ISessionGitState | undefined): boolean {
+	return gitState === undefined || (gitState.branchName === undefined && !gitState.isDetachedHead);
 }
 
 /**
@@ -923,19 +1558,106 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Parses Git state keyed by normalized working-directory scope. */
+export function parseSessionGitData(value: unknown): ReadonlyMap<string, ISessionGitState> {
+	const states = new Map<string, ISessionGitState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+
+	for (const [scopeId, raw] of Object.entries(value)) {
+		const state = parseSessionGitState(raw);
+		if (state) {
+			states.set(scopeId, state);
+		}
+	}
+	return states;
+}
+
+function parseStringMap(value: unknown): ReadonlyMap<string, string> {
+	const entries = new Map<string, string>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return entries;
+	}
+	for (const [key, raw] of Object.entries(value)) {
+		if (typeof raw === 'string') {
+			entries.set(key, raw);
+		}
+	}
+	return entries;
+}
+
+/** Reads Git state keyed by normalized working-directory scope. */
+export function readSessionGitData(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitState> {
+	return parseSessionGitData(meta?.[SESSION_META_GIT_DATA_KEY]);
+}
+
+export function readWorkingDirectoryScopeIds(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, string> {
+	return parseStringMap(meta?.[SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY]);
+}
+
+function workingDirectoryScopeKey(workingDirectories: readonly string[]): string {
+	return JSON.stringify(workingDirectories);
+}
+
+export function readWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[]): string {
+	return readWorkingDirectoryScopeIds(meta).get(workingDirectoryScopeKey(workingDirectories)) ?? getWorkingDirectoryScopeId(workingDirectories);
+}
+
+export function withWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[], scopeId = getWorkingDirectoryScopeId(workingDirectories)): SessionSummaryMeta | undefined {
+	const scopes = new Map(readWorkingDirectoryScopeIds(meta));
+	scopes.set(workingDirectoryScopeKey(workingDirectories), scopeId);
+	const next: SessionSummaryMeta = { ...meta };
+	next[SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY] = Object.fromEntries(scopes);
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Reads the Git state recorded for one normalized working-directory scope. */
+export function readFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string): ISessionGitState | undefined {
+	return readSessionGitData(meta).get(scopeId);
+}
+
+/** Returns `meta` with the Git state for one normalized working-directory scope replaced. */
+export function withFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string, gitState: ISessionGitState | undefined, workingDirectories?: readonly string[]): SessionSummaryMeta | undefined {
+	const scopes = new Map(readSessionGitData(meta));
+	if (gitState !== undefined) {
+		scopes.set(scopeId, gitState);
+	} else {
+		scopes.delete(scopeId);
+	}
+	const next = withSessionGitData(meta, scopes);
+	return workingDirectories ? withWorkingDirectoryScopeId(next, workingDirectories, scopeId) : next;
+}
+
+/** Returns `meta` with all normalized working-directory Git states replaced. */
+export function withSessionGitData(meta: SessionSummaryMeta | undefined, scopes: ReadonlyMap<string, ISessionGitState>): SessionSummaryMeta | undefined {
+	const next: SessionSummaryMeta = { ...meta };
+	if (scopes.size > 0) {
+		next[SESSION_META_GIT_DATA_KEY] = Object.fromEntries(scopes);
+	} else {
+		delete next[SESSION_META_GIT_DATA_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
- * Reads the well-known GitHub state payload from {@link SessionSummaryMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at the
- * GitHub key is not a plain object (e.g. an array or a primitive).
- * Individual fields with wrong types are silently dropped so partial state
- * still propagates.
- *
- * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
- * value rather than its parent {@link SessionState}: the sessions provider stores and
- * reads a detached meta snapshot without retaining the owning state.
+ * Reserved key under {@link SessionSummaryMeta} holding the GitHub and pull
+ * request state of each session folder, keyed by working-directory key (see
+ * `getWorkingDirectoryKey`). The session folder is the session's first working
+ * directory. A session without working directories has no GitHub state. VS
+ * Code-specific convention layered on top of the protocol's generic `_meta` bag.
  */
-export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
-	const value = meta?.[SESSION_META_GITHUB_KEY];
+export const SESSION_META_GITHUB_DATA_KEY = 'githubData';
+
+/** Host-authored folder keys keyed by their exact backend working directory. */
+export const SESSION_META_WORKING_DIRECTORY_KEYS_KEY = 'workingDirectoryKeys';
+
+/**
+ * Parses a GitHub state payload. Returns `undefined` when the value is not a
+ * plain object (e.g. an array or a primitive). Individual fields with wrong
+ * types are silently dropped so partial state still propagates.
+ */
+export function parseSessionGitHubState(value: unknown): ISessionGitHubState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
@@ -943,21 +1665,155 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 	const result: {
 		owner?: string;
 		repo?: string;
-		pullRequestUrl?: string;
+		pullRequestUrls?: readonly string[];
+		initialPullRequestUrls?: readonly string[];
+		associatedPullRequestUrls?: readonly string[];
+		pullRequestState?: 'open' | 'closed' | 'merged';
+		pullRequestStateUrl?: string;
+		pullRequestBranchName?: string;
 	} = {};
 
 	if (typeof raw['owner'] === 'string') { result.owner = raw['owner']; }
 	if (typeof raw['repo'] === 'string') { result.repo = raw['repo']; }
-	if (typeof raw['pullRequestUrl'] === 'string') { result.pullRequestUrl = raw['pullRequestUrl']; }
+	const pullRequestUrls = Array.isArray(raw['pullRequestUrls'])
+		? raw['pullRequestUrls'].filter((url): url is string => typeof url === 'string')
+		: typeof raw['pullRequestUrl'] === 'string'
+			? [raw['pullRequestUrl']]
+			: [];
+	if (pullRequestUrls.length > 0) {
+		result.pullRequestUrls = normalizeSessionPullRequestUrls(pullRequestUrls);
+	}
+	if (Array.isArray(raw['initialPullRequestUrls'])) {
+		result.initialPullRequestUrls = normalizeSessionPullRequestUrls(raw['initialPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+	}
+	if (Array.isArray(raw['associatedPullRequestUrls'])) {
+		const associatedPullRequestUrls = normalizeSessionPullRequestUrls(raw['associatedPullRequestUrls'].filter((url): url is string => typeof url === 'string'));
+		if (associatedPullRequestUrls.length > 0) {
+			result.associatedPullRequestUrls = associatedPullRequestUrls;
+		}
+	}
+	if (raw['pullRequestState'] === 'open' || raw['pullRequestState'] === 'closed' || raw['pullRequestState'] === 'merged') {
+		result.pullRequestState = raw['pullRequestState'];
+	}
+	if (typeof raw['pullRequestStateUrl'] === 'string') { result.pullRequestStateUrl = raw['pullRequestStateUrl']; }
+	if (typeof raw['pullRequestBranchName'] === 'string') { result.pullRequestBranchName = raw['pullRequestBranchName']; }
 	return result;
 }
 
+/** Parses a {@link SESSION_META_GITHUB_DATA_KEY} payload into the GitHub state of each folder, keyed by working-directory key. */
+export function parseSessionGitHubData(value: unknown): ReadonlyMap<string, ISessionGitHubState> {
+	const states = new Map<string, ISessionGitHubState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+	for (const [folderKey, raw] of Object.entries(value)) {
+		const state = parseSessionGitHubState(raw);
+		if (state) {
+			states.set(folderKey, state);
+		}
+	}
+	return states;
+}
+
 /**
- * Returns a new {@link SessionSummaryMeta} with the GitHub-state payload set to
- * `gitHubState`, or with the GitHub slot removed if `gitHubState` is `undefined`.
- * Returns `undefined` if the result would be empty.
+ * Reads the GitHub state recorded for each folder, keyed by working-directory key.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
  */
-export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+export function readSessionGitHubData(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitHubState> {
+	return parseSessionGitHubData(meta?.[SESSION_META_GITHUB_DATA_KEY]);
+}
+
+export function readWorkingDirectoryKeys(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, string> {
+	return parseStringMap(meta?.[SESSION_META_WORKING_DIRECTORY_KEYS_KEY]);
+}
+
+export function readWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string): string {
+	return readWorkingDirectoryKeys(meta).get(workingDirectory) ?? getWorkingDirectoryKey(workingDirectory);
+}
+
+export function withWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string, folderKey = getWorkingDirectoryKey(workingDirectory)): SessionSummaryMeta | undefined {
+	const folders = new Map(readWorkingDirectoryKeys(meta));
+	folders.set(workingDirectory, folderKey);
+	const next: SessionSummaryMeta = { ...meta };
+	next[SESSION_META_WORKING_DIRECTORY_KEYS_KEY] = Object.fromEntries(folders);
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Reads the GitHub state of the folder with working-directory key `folderKey`. */
+export function readFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined): ISessionGitHubState | undefined {
+	return folderKey === undefined ? undefined : readSessionGitHubData(meta).get(folderKey);
+}
+
+/** Reads the GitHub state of the session folder, the session's first working directory. */
+export function readSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): ISessionGitHubState | undefined {
+	return readFolderGitHubState(meta, sessionWorkingDirectory === undefined ? undefined : readWorkingDirectoryKey(meta, sessionWorkingDirectory));
+}
+
+/**
+ * Returns `meta` with the GitHub state of the folder with working-directory key
+ * `folderKey` replaced, removing the entry when `gitHubState` is `undefined`.
+ * Returns `meta` unchanged when `folderKey` is `undefined`, and `undefined` if
+ * the result would be empty.
+ */
+export function withFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined, gitHubState: ISessionGitHubState | undefined, workingDirectory?: string): SessionSummaryMeta | undefined {
+	if (folderKey === undefined) {
+		return meta;
+	}
+	const folders = new Map(readSessionGitHubData(meta));
+	if (gitHubState !== undefined) {
+		folders.set(folderKey, gitHubState);
+	} else {
+		folders.delete(folderKey);
+	}
+	const next = withSessionGitHubData(meta, folders);
+	return workingDirectory ? withWorkingDirectoryKey(next, workingDirectory, folderKey) : next;
+}
+
+/**
+ * Reads the GitHub state of the session folder of a session state or summary:
+ * its first working directory. Agent Merge and the pull request lifecycle
+ * follow this folder's pull request.
+ */
+export function readSessionFolderGitHubState(session: { readonly _meta?: SessionSummaryMeta; readonly workingDirectories?: readonly string[] } | undefined): ISessionGitHubState | undefined {
+	return readSessionGitHubState(session?._meta, session?.workingDirectories?.[0]);
+}
+
+/** Returns `meta` with the GitHub state of the session folder, the session's first working directory, replaced. */
+export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+	return withFolderGitHubState(meta, sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory), gitHubState);
+}
+
+/**
+ * Returns `meta` with the GitHub state of every folder replaced by `folders`,
+ * keyed by working-directory key. Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubData(meta: SessionSummaryMeta | undefined, folders: ReadonlyMap<string, ISessionGitHubState>): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (folders.size > 0) {
+		next[SESSION_META_GITHUB_DATA_KEY] = Object.fromEntries(folders);
+	} else {
+		delete next[SESSION_META_GITHUB_DATA_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reads the GitHub state a client supplies under {@link SESSION_META_GITHUB_KEY}
+ * in a new session's configuration for the session folder.
+ */
+export function readSessionGitHubStateInput(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
+	return parseSessionGitHubState(meta?.[SESSION_META_GITHUB_KEY]);
+}
+
+/**
+ * Returns `meta` with the GitHub state a new session's folder starts with (see
+ * {@link readSessionGitHubStateInput}), or with it removed if `gitHubState` is
+ * `undefined`. Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubStateInput(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
 	const next: { [key: string]: unknown } = { ...meta };
 	if (gitHubState !== undefined) {
 		next[SESSION_META_GITHUB_KEY] = gitHubState;
@@ -965,6 +1821,168 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 		delete next[SESSION_META_GITHUB_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Migrates the single GitHub state of a session recorded before each folder had
+ * its own state: records `legacyState` (by default the one under
+ * {@link SESSION_META_GITHUB_KEY} in `meta`) as the state of the session folder
+ * unless that folder already has one, and removes the original entry. The state
+ * is dropped for a session without working directories.
+ */
+export function withMigratedSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined, legacyState = readSessionGitHubStateInput(meta)): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	delete next[SESSION_META_GITHUB_KEY];
+	const folderKey = sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory);
+	const withoutLegacy = Object.keys(next).length > 0 ? next : undefined;
+	if (!legacyState || folderKey === undefined || readFolderGitHubState(withoutLegacy, folderKey)) {
+		return withoutLegacy;
+	}
+	return withFolderGitHubState(withoutLegacy, folderKey, legacyState);
+}
+
+/**
+ * Moves the GitHub state recorded for working directory `directory` to
+ * `replacement`, for a folder whose checkout moved (for example into a
+ * worktree). An existing entry for `replacement` is kept.
+ */
+export function withReplacedFolderGitHubState(meta: SessionSummaryMeta | undefined, directory: string, replacement: string): SessionSummaryMeta | undefined {
+	const fromKey = getWorkingDirectoryKey(directory);
+	const toKey = getWorkingDirectoryKey(replacement);
+	const folders = readSessionGitHubData(meta);
+	const state = folders.get(fromKey);
+	if (fromKey === toKey || !state) {
+		return meta;
+	}
+	const next = new Map(folders);
+	next.delete(fromKey);
+	if (!next.has(toKey)) {
+		next.set(toKey, state);
+	}
+	return withWorkingDirectoryKey(withSessionGitHubData(meta, next), replacement, toKey);
+}
+
+/**
+ * Every pull request URL related to the session across all of its folders,
+ * deduplicated, including those of an original single-folder entry that was not
+ * migrated yet (see {@link withMigratedSessionGitHubState}).
+ */
+export function getAllSessionRelatedPullRequestUrls(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const urls = new Map<string, string>();
+	for (const state of [readSessionGitHubStateInput(meta), ...readSessionGitHubData(meta).values()]) {
+		for (const url of getSessionRelatedPullRequestUrls(state)) {
+			const key = getPullRequestUrlKey(url);
+			if (!urls.has(key)) {
+				urls.set(key, url);
+			}
+		}
+	}
+	return [...urls.values()];
+}
+
+/**
+ * Reserved key under {@link SessionSummaryMeta} recording how deeply a session
+ * was spawned via the `create_session` host tool (0 for a top-level, user-created
+ * session). Used to bound recursive session creation. VS Code-specific convention
+ * layered on top of the protocol's generic `_meta` bag.
+ */
+export const SESSION_META_SPAWN_DEPTH_KEY = 'agentHost/sessionSpawnDepth';
+
+/**
+ * Reads the `create_session` spawn depth from a {@link SessionSummaryMeta} bag,
+ * returning `0` when the key is absent or not a finite number.
+ */
+export function readSessionSpawnDepth(meta: SessionSummaryMeta | undefined): number {
+	const value = meta?.[SESSION_META_SPAWN_DEPTH_KEY];
+	return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * Returns a new {@link SessionSummaryMeta} with the `create_session` spawn depth
+ * set to `depth`, preserving any other keys in the bag.
+ */
+export function withSessionSpawnDepth(meta: SessionSummaryMeta | undefined, depth: number): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_SPAWN_DEPTH_KEY]: depth };
+}
+
+export const SESSION_META_CREATED_BY_SESSION_KEY = 'agentHost/createdBySession';
+export const AH_META_CREATED_BY_SESSION_DB_KEY = 'agentHost.createdBySession';
+
+export interface ISessionCreationReference {
+	readonly session: string;
+	readonly chat?: string;
+	readonly turnId?: string;
+}
+
+export function readSessionCreationReference(meta: SessionSummaryMeta | undefined): ISessionCreationReference | undefined {
+	return parseSessionCreationReferenceValue(meta?.[SESSION_META_CREATED_BY_SESSION_KEY]);
+}
+
+function parseSessionCreationReferenceValue(value: unknown): ISessionCreationReference | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.session !== 'string') {
+		return undefined;
+	}
+	return {
+		session: candidate.session,
+		...(typeof candidate.chat === 'string' ? { chat: candidate.chat } : {}),
+		...(typeof candidate.turnId === 'string' ? { turnId: candidate.turnId } : {}),
+	};
+}
+
+export function parseSessionCreationReference(value: string | undefined): ISessionCreationReference | undefined {
+	if (!value) {
+		return undefined;
+	}
+	try {
+		return readSessionCreationReference({ [SESSION_META_CREATED_BY_SESSION_KEY]: JSON.parse(value) });
+	} catch {
+		return undefined;
+	}
+}
+
+export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
+}
+
+export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
+
+export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
+
+export interface IAgentSessionComparisonMetadata {
+	readonly id: string;
+	readonly role: AgentSessionComparisonRole;
+	readonly attemptIndex?: number;
+	readonly attemptCount: number;
+}
+
+export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
+	const value = meta?.[SESSION_META_COMPARISON_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
+		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
+		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
+		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
+		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
+	) {
+		return undefined;
+	}
+	return {
+		id: candidate.id,
+		role: candidate.role,
+		attemptIndex: candidate.attemptIndex as number | undefined,
+		attemptCount: candidate.attemptCount as number,
+	};
+}
+
+export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
 }
 
 /**
@@ -985,6 +2003,65 @@ export const SESSION_META_WORKSPACELESS_KEY = 'workspaceless';
  * on resume) and never persist it themselves.
  */
 export const AH_META_WORKSPACELESS_DB_KEY = 'agentHost.workspaceless';
+
+/** Session-database marker indicating that retained turns include workspace-transition boundaries. */
+export const AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY = 'agentHost.hasWorkspaceTransitions';
+
+/** Summary metadata mirror of {@link AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY}. */
+export const SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY = 'hasWorkspaceTransitions';
+
+/** Blocks turns for a session whose provider could not be detached from an untrusted working directory. */
+export const AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY = 'agentHost.workspaceConversionQuarantined';
+
+/**
+ * Session-database metadata key recording whether a session is archived. Written by
+ * the AH orchestrator (`AgentSideEffects` on `SessionIsArchivedChanged`) and read by
+ * both the orchestrator (`AgentService` restore/list) and agents (e.g. `CopilotAgent`
+ * decides whether to recreate a missing worktree vs. resume read-only for history).
+ * {@link AH_META_IS_DONE_DB_KEY} is the legacy name kept for sessions persisted before
+ * the rename; readers fall back to it when {@link AH_META_IS_ARCHIVED_DB_KEY} is absent.
+ */
+export const AH_META_IS_ARCHIVED_DB_KEY = 'isArchived';
+
+/** Timestamp written only when merged-session cleanup automatically archives a session. */
+export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
+
+/** Legacy metadata key for the archived flag; see {@link AH_META_IS_ARCHIVED_DB_KEY}. */
+export const AH_META_IS_DONE_DB_KEY = 'isDone';
+
+/**
+ * Session-database metadata key recording the session aggregate read state. The
+ * in-memory truth is {@link SessionStatus.IsRead}; chat state is stored separately.
+ */
+export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/** Session-database metadata key recording the default chat's independent read state. */
+export const AH_META_DEFAULT_CHAT_IS_READ_DB_KEY = 'defaultChatIsRead';
+
+/** Returns `status` with `flag` set or cleared. */
+export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
+	return set ? (status | flag) : (status & ~flag);
+}
+
+/** Whether the {@link SessionStatus.IsRead} flag bit is set. */
+export function isSessionStatusRead(status: SessionStatus | undefined): boolean {
+	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
+}
+
+/**
+ * Whether a chat participates in the containing session's aggregate read state.
+ * Tool/subagent/hidden chats retain exact per-chat state without making the session unread.
+ */
+export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
+	return origin?.kind !== ChatOriginKind.Tool
+		&& interactivity !== ChatInteractivity.Hidden
+		&& !isSubagentChatUri(resource);
+}
+
+/** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
+export function isSessionStatusArchived(status: SessionStatus | undefined): boolean {
+	return status !== undefined && (status & SessionStatus.IsArchived) !== 0;
+}
 
 /**
  * Reads the workspace-less marker from {@link SessionSummaryMeta}. Returns
@@ -1007,6 +2084,116 @@ export function withSessionWorkspaceless(meta: SessionSummaryMeta | undefined, w
 		delete next[SESSION_META_WORKSPACELESS_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether retained turns in this session include host-owned workspace transitions. */
+export function readSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] === true;
+}
+
+/** Returns summary metadata with the workspace-transition history marker updated. */
+export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | undefined, hasTransitions: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (hasTransitions) {
+		next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY] = true;
+	} else {
+		delete next[SESSION_META_HAS_WORKSPACE_TRANSITIONS_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Whether a provider-native session has not yet been adopted by the host. */
+export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
+}
+
+/** Writes an explicit external flag so clearing it survives serialization and metadata-only refreshes. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EXTERNAL_KEY]: external };
+}
+
+/**
+ * `_meta` key marking a session as an un-adopted legacy Copilot CLI session
+ * surfaced (only under the migrate setting) as adoptable. Clients read it to
+ * avoid passively subscribing to — and thereby migrating — the session before
+ * the user opens it. Cleared implicitly once the session is adopted (it no
+ * longer surfaces as adoptable).
+ */
+export const SESSION_META_EHCLI_ADOPTABLE_KEY = 'ehcliAdoptable';
+
+/** Whether the session is an un-adopted legacy Copilot CLI session surfaced as adoptable. */
+export function readSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTABLE_KEY] === true;
+}
+
+/** Returns a new {@link SessionSummaryMeta} with the adoptable-legacy marker set. */
+export function withSessionEhcliAdoptable(meta: SessionSummaryMeta | undefined): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EHCLI_ADOPTABLE_KEY]: true };
+}
+
+/**
+ * Session-DB key recording that a session was adopted from a legacy Copilot CLI
+ * (extension-host) chat. Unlike {@link SESSION_META_EHCLI_ADOPTABLE_KEY} this
+ * survives adoption, so consumers can keep treating the session as legacy for
+ * the rest of its life — a migrated session must not change how it is listed.
+ */
+export const AH_META_EHCLI_ADOPTED_DB_KEY = 'agentHost.ehcliAdopted';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_ADOPTED_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_ADOPTED_KEY = 'ehcliAdopted';
+
+/** Whether the session was adopted from a legacy Copilot CLI chat. */
+export function readSessionEhcliAdopted(meta: SessionSummaryMeta | undefined): boolean {
+	return meta?.[SESSION_META_EHCLI_ADOPTED_KEY] === true;
+}
+
+/** Returns a copy of `meta` with the adopted-legacy provenance marker updated. */
+export function withSessionEhcliAdopted(meta: SessionSummaryMeta | undefined, adopted: boolean): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (adopted) {
+		next[SESSION_META_EHCLI_ADOPTED_KEY] = true;
+	} else {
+		delete next[SESSION_META_EHCLI_ADOPTED_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Session-DB key recording the id of the final turn that existed when a legacy
+ * Copilot CLI session was adopted. It marks the boundary between the migrated
+ * (checkpoint-less) history and any turns added after adoption, so a consumer
+ * that substitutes the session-wide changeset for a migrated turn's absent
+ * per-turn changeset (see the chat editor fallback) can target exactly that
+ * turn and never a post-adoption one.
+ */
+export const AH_META_EHCLI_LAST_TURN_DB_KEY = 'agentHost.ehcliLastMigratedTurn';
+
+/** `_meta` key mirroring {@link AH_META_EHCLI_LAST_TURN_DB_KEY} on a summary. */
+export const SESSION_META_EHCLI_LAST_TURN_KEY = 'ehcliLastMigratedTurn';
+
+/** The id of the last turn migrated when the legacy Copilot CLI session was adopted, if recorded. */
+export function readSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined): string | undefined {
+	const value = meta?.[SESSION_META_EHCLI_LAST_TURN_KEY];
+	return typeof value === 'string' && value ? value : undefined;
+}
+
+/** Returns a copy of `meta` with the last-migrated-turn marker set, or unchanged when `turnId` is empty. */
+export function withSessionEhcliLastMigratedTurn(meta: SessionSummaryMeta | undefined, turnId: string | undefined): SessionSummaryMeta | undefined {
+	if (!turnId) {
+		return meta;
+	}
+	return { ...meta, [SESSION_META_EHCLI_LAST_TURN_KEY]: turnId };
+}
+
+/**
+ * Whether a session should be matched against a workspace folder by its project
+ * (repository) root in addition to its working directories. True only for
+ * legacy Copilot CLI sessions, which run out of a worktree outside the
+ * repository; agent-host-native worktree sessions are deliberately not surfaced
+ * in a window opened on their source repository.
+ */
+export function readSessionMatchesByProjectRoot(meta: SessionSummaryMeta | undefined): boolean {
+	return readSessionEhcliAdoptable(meta) || readSessionEhcliAdopted(meta);
 }
 
 // ---- RootState _meta accessors ---------------------------------------------

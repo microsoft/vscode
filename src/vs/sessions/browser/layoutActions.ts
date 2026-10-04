@@ -14,9 +14,22 @@ import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../platform/accessibility/common/accessibility.js';
+import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
+import { LayoutDensityMenu } from '../../workbench/browser/actions/layoutDensityActions.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+
+for (const menu of [Menus.TitleBarContext, MenuId.MenubarViewMenu]) {
+	MenuRegistry.appendMenuItem(menu, {
+		title: localize('layoutDensity', "Layout Density"),
+		submenu: LayoutDensityMenu,
+		group: '2_configuration',
+		order: 8,
+		when: IsPhoneLayoutContext.negate(),
+	});
+}
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -72,35 +85,41 @@ class ToggleSidebarVisibilityAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 
-// The editor-title secondary side bar toggle reuses the core `workbench.action.toggleAuxiliaryBar`
-// command (registered by the workbench auxiliary bar part, which is also loaded in the agents
-// window). Two mutually-exclusive menu items give the state-dependent icon without the
-// checked/highlighted background that a single `toggled` menu item would render.
-const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	IsAuxiliaryWindowContext.toNegated(),
-	IsTopRightEditorGroupContext);
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+MenuRegistry.appendMenuItem(Menus.TitleBarAccessibility, {
 	command: {
-		id: 'workbench.action.toggleAuxiliaryBar',
-		title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"),
-		icon: Codicon.rightPanelHide
+		id: 'editor.action.toggleScreenReaderAccessibilityMode',
+		title: localize('screenReaderOptimizedBadge', "Screen Reader Optimized"),
+		tooltip: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
 	},
 	group: 'navigation',
-	order: 99.5,
-	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext)
+	order: 0,
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsPhoneLayoutContext.negate())
 });
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
+const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate());
+
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	command: {
-		id: 'workbench.action.toggleAuxiliaryBar',
-		title: localize('showSecondarySideBar', "Show Secondary Side Bar"),
-		icon: Codicon.rightPanelShow
+		id: TogglePanelAction.ID,
+		title: localize('showPanel', "Show Panel"),
+		icon: Codicon.layoutPanelOff,
+		precondition: CustomViewVisibleContext.negate()
 	},
 	group: 'navigation',
-	order: 99.5,
-	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext.toNegated())
+	order: 10,
+	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
+	command: {
+		id: TogglePanelAction.ID,
+		title: localize('hidePanel', "Hide Panel"),
+		icon: Codicon.layoutPanel,
+		precondition: CustomViewVisibleContext.negate()
+	},
+	group: 'navigation',
+	order: 10,
+	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext)
 });
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {

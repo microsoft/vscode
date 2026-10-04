@@ -27,7 +27,6 @@
     "contribViewsWelcome",
     "editSessionIdentityProvider",
     "envIsConnectionMetered",
-    "findFiles2",
     "quickDiffProvider",
     "quickPickSortByLabel",
     "scmActionButton",
@@ -3744,6 +3743,18 @@
             "experimental"
           ]
         },
+        "git.worktreeSymlinkFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "%config.worktreeSymlinkFolders%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
+        },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",
           "scope": "resource",
@@ -4397,5 +4408,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/microsoft/vscode.git"
+  },
+  "allowScripts": {
+    "@vscode/fs-copyfile@2.0.0": true
   }
 }

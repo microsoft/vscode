@@ -8,7 +8,7 @@ import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { PromptReference } from '../../../prompt/common/conversation';
 import { LinkifyLocationAnchor } from '../../common/linkifiedText';
-import { assertPartsEqual, createTestLinkifierService, linkify, workspaceFile } from './util';
+import { assertPartsEqual, createMultiRootLinkifierService, createTestLinkifierService, linkify, workspaceFile } from './util';
 
 
 suite('File Path Linkifier', () => {
@@ -303,5 +303,48 @@ suite('File Path Linkifier', () => {
 		assertPartsEqual(result.parts, [
 			'config.${TerminalSettingId'  // Should remain as plain text
 		]);
+	});
+
+	test(`Should not linkify bare words that merely share a name with a folder`, async () => {
+		// A response saying "the `web` folder" or "the `FooBar` class" should not become a
+		// link just because a directory happens to have that name.
+		const linkifier = createTestLinkifierService('web/', 'FooBar/');
+
+		assertPartsEqual(
+			(await linkify(linkifier, 'Discussed `web` and `FooBar` today.')).parts,
+			['Discussed `web` and `FooBar` today.']
+		);
+	});
+
+	test(`Should still linkify bare words that name a file`, async () => {
+		const linkifier = createTestLinkifierService('Makefile');
+
+		assertPartsEqual(
+			(await linkify(linkifier, '`Makefile`')).parts,
+			[new LinkifyLocationAnchor(workspaceFile('Makefile'))]
+		);
+	});
+
+	test(`Should not linkify a path that exists in more than one workspace root`, async () => {
+		const rootA = URI.file('/repos/a');
+		const rootB = URI.file('/repos/b');
+		const linkifier = createMultiRootLinkifierService(
+			[rootA, rootB],
+			[URI.joinPath(rootA, 'src/file.ts'), URI.joinPath(rootB, 'src/file.ts')]);
+
+		assertPartsEqual((await linkify(linkifier, '`src/file.ts`')).parts, ['`src/file.ts`']);
+	});
+
+	test(`Should linkify a path that exists in exactly one workspace root`, async () => {
+		const rootA = URI.file('/repos/a');
+		const rootB = URI.file('/repos/b');
+		const linkifier = createMultiRootLinkifierService(
+			[rootA, rootB],
+			[URI.joinPath(rootB, 'src/only.ts')]);
+
+		assertPartsEqual(
+			(await linkify(linkifier, '`src/only.ts`')).parts,
+			[new LinkifyLocationAnchor(URI.joinPath(rootB, 'src/only.ts'))]
+		);
 	});
 });

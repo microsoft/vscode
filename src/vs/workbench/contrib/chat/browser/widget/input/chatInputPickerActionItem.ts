@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from '../../../../../../base/browser/dom.js';
+import './media/chatInputPicker.css';
+import { $, addDisposableListener, EventType, getActiveWindow, getWindow, reset } from '../../../../../../base/browser/dom.js';
 import { IAction } from '../../../../../../base/common/actions.js';
+import { AnchorPosition } from '../../../../../../base/common/layout.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownOptions, withActionWidgetDropdownMotion } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -24,6 +28,58 @@ export interface IChatInputPickerOptions {
 	readonly actionContext?: IChatExecuteActionContext;
 
 	readonly compact: IObservable<boolean>;
+
+	readonly minimal?: IObservable<boolean>;
+
+	readonly listOptions?: IActionListOptions;
+
+	/** Context view layer used when the picker is hosted inside another context view. */
+	readonly contextViewLayer?: number;
+
+	/**
+	 * Forces the provider-tab model picker experience even when the global
+	 * experimental setting is disabled.
+	 */
+	readonly forceTabbedModelPicker?: boolean;
+}
+
+export function withChatInputPickerMotion(listOptions: IActionListOptions | undefined): IActionListOptions {
+	return {
+		...withActionWidgetDropdownMotion(listOptions),
+		anchorPosition: AnchorPosition.ABOVE,
+	};
+}
+
+export function renderChatInputPickerSplit(container: HTMLElement, primaryButton = $('a'), secondaryButton = $('a')): { primaryButton: HTMLElement; secondaryButton: HTMLElement } {
+	container.classList.add('chat-input-picker-split');
+	container.role = 'group';
+	container.tabIndex = -1;
+	container.removeAttribute('aria-haspopup');
+	container.removeAttribute('aria-expanded');
+	primaryButton.classList.add('chat-input-picker-split-button', 'chat-input-picker-split-primary');
+	secondaryButton.classList.add('chat-input-picker-split-button', 'chat-input-picker-split-secondary');
+	for (const button of [primaryButton, secondaryButton]) {
+		button.role = 'button';
+		button.tabIndex = container.ariaDisabled === 'true' ? -1 : 0;
+		button.ariaDisabled = container.ariaDisabled;
+		button.ariaHasPopup ??= 'true';
+		button.ariaExpanded ??= 'false';
+	}
+	if (primaryButton.parentElement !== container || secondaryButton.parentElement !== container) {
+		reset(container, primaryButton, secondaryButton);
+	}
+	return { primaryButton, secondaryButton };
+}
+
+export function trackChatInputPickerFocus(container: HTMLElement): IDisposable {
+	const store = new DisposableStore();
+	const targetWindow = getWindow(container);
+	container.classList.add('chat-input-picker-focus-scope');
+	// Popup focus restoration can inherit :focus-visible from an input even after a pointer dismissal.
+	store.add(addDisposableListener(targetWindow, EventType.POINTER_DOWN, () => container.classList.add('pointer-focus'), true));
+	store.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, () => container.classList.remove('pointer-focus'), true));
+	store.add(toDisposable(() => container.classList.remove('chat-input-picker-focus-scope', 'pointer-focus')));
+	return store;
 }
 
 /**
@@ -31,6 +87,7 @@ export interface IChatInputPickerOptions {
  * Provides common anchor resolution logic for dropdown positioning.
  */
 export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdownActionViewItem {
+	private _externalAnchor: HTMLElement | undefined;
 
 	constructor(
 		action: IAction,
@@ -41,10 +98,16 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		// Inject the anchor getter into the options
+		const listOptionsProvider = actionWidgetOptions.listOptions === undefined ? actionWidgetOptions.listOptionsProvider : undefined;
 		const optionsWithAnchor: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			...actionWidgetOptions,
 			getAnchor: () => this.getAnchorElement(),
+			listOptions: listOptionsProvider
+				? undefined
+				: withChatInputPickerMotion(actionWidgetOptions.listOptions),
+			listOptionsProvider: listOptionsProvider
+				? { getListOptions: () => withChatInputPickerMotion(listOptionsProvider.getListOptions()) }
+				: undefined,
 		};
 
 		super(action, optionsWithAnchor, actionWidgetService, keybindingService, contextKeyService, telemetryService);
@@ -63,10 +126,18 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 	 * Falls back to the overflow anchor if this element is not in the DOM.
 	 */
 	protected getAnchorElement(): HTMLElement {
+		if (this._externalAnchor?.isConnected) {
+			return this._externalAnchor;
+		}
 		if (this.element && getActiveWindow().document.contains(this.element)) {
 			return this.element;
 		}
 		return this.pickerOptions.getOverflowAnchor?.() ?? this.element!;
+	}
+
+	override show(anchor?: HTMLElement): void {
+		this._externalAnchor = anchor;
+		super.show();
 	}
 
 	override render(container: HTMLElement): void {
@@ -78,6 +149,27 @@ export abstract class ChatInputPickerActionViewItem extends ActionWidgetDropdown
 		if (this.element) {
 			this.element.classList.toggle('compact', compact);
 			this.renderLabel(this.element);
+		}
+	}
+
+	override setFocusable(_focusable: boolean): void {
+		// Chat input pickers are distinct Tab stops, not only roving toolbar items.
+		this._updateTabIndex();
+	}
+
+	override blur(): void {
+		super.blur();
+		this._updateTabIndex();
+	}
+
+	protected override updateEnabled(): void {
+		super.updateEnabled();
+		this._updateTabIndex();
+	}
+
+	private _updateTabIndex(): void {
+		if (this.element) {
+			this.element.tabIndex = this.isEnabled() ? 0 : -1;
 		}
 	}
 }

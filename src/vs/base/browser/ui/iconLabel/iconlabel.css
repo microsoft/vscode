@@ -79,11 +79,13 @@
 }
 
 .monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix,
 .monaco-icon-label.bold > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	font-weight: bold;
 }
 
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix,
 .monaco-icon-label.italic > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	font-style: italic;
 }
@@ -94,6 +96,7 @@
 }
 
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-name-container > .label-name,
+.monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-suffix-container > .label-suffix,
 .monaco-icon-label.strikethrough > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	text-decoration: line-through;
 }
@@ -113,7 +116,7 @@
 	color: inherit !important;
 }
 
-.monaco-list-row.focused.selected .label-description,
-.monaco-list-row.selected .label-description {
-	opacity: .8;
+.monaco-list-row.focused .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description,
+.monaco-list-row.selected .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	opacity: 1;
 }

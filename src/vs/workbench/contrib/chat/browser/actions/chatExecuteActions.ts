@@ -22,23 +22,24 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { getModeNameForTelemetry, buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { buildCustomAgentHandoffsInfo, getHandoffId, IChatMode, IChatModeService, IChatModes } from '../../common/chatModes.js';
+import { reportChatModeChange } from '../../common/chatModeTelemetry.js';
 import { chatVariableLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatService } from '../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { isInClaudeAgentsFolder } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ctxHasEditorModification, ctxHasRequestInProgress, ctxIsGlobalEditingSession } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, clearChatSessionPreservingType, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
-import { IVoiceSessionController } from '../voiceClient/voiceSessionController.js';
 import { CreateRemoteAgentJobAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -58,6 +59,10 @@ abstract class SubmitAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+		if (widget?.isTranscriptProgressActive) {
+			return;
+		}
 
 		// Check if there's a pending delegation target
 		const pendingDelegationTarget = widget?.input.pendingDelegationTarget;
@@ -183,8 +188,8 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const whenNoActiveRequest = ChatContextKeys.hasActiveRequest.negate();
-const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
+const whenNoActiveRequest = ContextKeyExpr.and(ChatContextKeys.hasActiveRequest.negate(), ChatContextKeys.transcriptProgressActive.negate());
+const whenNotInProgress = ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.transcriptProgressActive.negate());
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -193,6 +198,8 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
+			ChatContextKeys.inputBlocked.negate(),
+			ChatContextKeys.transcriptProgressActive.negate(),
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
 		);
@@ -202,11 +209,11 @@ export class ChatSubmitAction extends SubmitAction {
 			title: localize2('interactive.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.newLine,
+			icon: Codicon.arrowUpCompact,
 			precondition,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.newLine,
+				icon: Codicon.arrowUpCompact,
 				tooltip: localize('sendToAgent', "Send to Agent"),
 			},
 			keybinding: {
@@ -254,30 +261,6 @@ export interface IToggleChatModeArgs {
 	sessionResource: URI | undefined;
 }
 
-type ChatModeChangeClassification = {
-	owner: 'digitarald';
-	comment: 'Reporting when agent is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent name' };
-	mode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent name' };
-	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
-	storage?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source of the target mode (builtin, local, user, extension)' };
-	extensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension ID if the target mode is from an extension' };
-	toolsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of custom tools in the target mode'; 'isMeasurement': true };
-	handoffsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of handoffs in the target mode'; 'isMeasurement': true };
-	isClaudeAgent?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the target mode is a Claude agent file from .claude/agents/' };
-};
-
-type ChatModeChangeEvent = {
-	fromMode: string;
-	mode: string;
-	requestCount: number;
-	storage?: string;
-	extensionId?: string;
-	toolsCount?: number;
-	handoffsCount?: number;
-	isClaudeAgent?: boolean;
-};
-
 class ToggleChatModeAction extends Action2 {
 
 	static readonly ID = ToggleAgentModeActionId;
@@ -301,6 +284,7 @@ class ToggleChatModeAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		let widget: IChatWidget | undefined;
 		if (arg?.sessionResource) {
 			widget = chatWidgetService.getWidgetBySessionResource(arg.sessionResource);
@@ -327,27 +311,9 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		// Send telemetry for mode change
-		const storage = switchToMode.source?.storage ?? 'builtin';
-		const extensionId = switchToMode.source?.storage === 'extension' ? switchToMode.source.extensionId.value : undefined;
-		const toolsCount = switchToMode.customTools?.get()?.length ?? 0;
-		const handoffsCount = switchToMode.handOffs?.get()?.length ?? 0;
+		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount, getAgentHostProviderForTelemetry(chatSession ? getChatSessionType(chatSession.sessionResource) : undefined, chatSessionsService));
 
-		const modeUri = switchToMode.uri?.get();
-		const isClaudeAgent = modeUri ? isInClaudeAgentsFolder(modeUri) : undefined;
-
-		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
-			fromMode: getModeNameForTelemetry(currentMode),
-			mode: getModeNameForTelemetry(switchToMode),
-			requestCount: requestCount,
-			storage,
-			extensionId,
-			toolsCount,
-			handoffsCount,
-			isClaudeAgent
-		});
-
-		widget.input.setChatMode(switchToMode.id);
+		widget.input.setChatMode(switchToMode.id, true, true);
 
 		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
@@ -443,7 +409,11 @@ export class OpenModelPickerAction extends Action2 {
 						ContextKeyExpr.or(
 							ChatContextKeys.inAgentSessionsWelcome.negate(),
 							ChatContextKeys.chatSessionHasTargetedModels,
-							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local))
+							ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.Local),
+							ContextKeyExpr.and(
+								IsSessionsWindowContext,
+								ChatContextKeys.agentSessionType.isEqualTo(AgentSessionProviders.AgentHostCopilot),
+								ContextKeyExpr.equals(`config.${AgentHostAllowSignedOutWhenUsableSettingId}`, true)))
 					)
 			}
 		});
@@ -480,10 +450,10 @@ export class OpenPermissionPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
 						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.inAutomationsDialog.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.lockedToCodingAgent.negate(),
 							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
-							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Claude),
 						),
 					)
 			}
@@ -607,7 +577,14 @@ export class OpenDelegationPickerAction extends Action2 {
 			tooltip: localize('delegateSession', "Delegate Session"),
 			category: CHAT_CATEGORY,
 			f1: false,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.chatSessionIsEmpty.negate(), ChatContextKeys.currentlyEditingInput.negate(), ChatContextKeys.currentlyEditing.negate()),
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatContextKeys.chatSessionIsEmpty.negate(),
+				ChatContextKeys.currentlyEditingInput.negate(),
+				ChatContextKeys.currentlyEditing.negate(),
+				ChatContextKeys.chatSessionSupportsDelegation,
+				ChatContextKeyExprs.isAgentHostSessionItem?.negate(),
+			),
 			menu: [
 				{
 					id: MenuId.ChatInputSecondary,
@@ -616,9 +593,18 @@ export class OpenDelegationPickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.chatSessionSupportsDelegation,
 						ChatContextKeys.chatSessionIsEmpty.negate(),
-						IsSessionsWindowContext.negate()
+						IsSessionsWindowContext.negate(),
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ChatContextKeyExprs.isAgentHostSessionItem,
+								AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY,
+							),
+							ContextKeyExpr.and(
+								ChatContextKeys.chatSessionSupportsDelegation,
+								ChatContextKeyExprs.isAgentHostSessionItem?.negate(),
+							),
+						),
 					),
 					group: 'navigation',
 				},
@@ -662,41 +648,6 @@ export class OpenWorkspacePickerAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		// The picker is opened via the action view item
-	}
-}
-
-/**
- * Workspace picker chip for the automations dialog. Sits between the mode
- * picker (order 1) and the model picker (order 3) in the primary chat input
- * toolbar. Visible only when the hosting `ChatInputPart` was constructed with
- * a `workspacePickerInput` and the dialog has set
- * {@link ChatContextKeys.inAutomationsDialog} on its scoped context-key
- * service.
- */
-export class OpenAutomationsWorkspacePickerAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.openAutomationsWorkspacePicker';
-
-	constructor() {
-		super({
-			id: OpenAutomationsWorkspacePickerAction.ID,
-			title: localize2('interactive.openAutomationsWorkspacePicker.label', "Open Automations Workspace Picker"),
-			tooltip: localize('selectAutomationsWorkspace', "Select Workspace Folder"),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ChatContextKeys.enabled,
-			menu: [
-				{
-					id: MenuId.ChatInput,
-					order: 2,
-					group: 'navigation',
-					when: ChatContextKeys.inAutomationsDialog,
-				},
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		// The picker is opened via the action view item's trigger.
 	}
 }
 
@@ -797,6 +748,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const notInProgressOrEditing = ContextKeyExpr.and(
+			ChatContextKeys.transcriptProgressActive.negate(),
 			ContextKeyExpr.or(whenNoActiveRequest, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Queue),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Steer)
@@ -805,6 +757,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
+			ChatContextKeys.inputBlocked.negate(),
 			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);
@@ -814,7 +767,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 			title: localize2('edits.submit.label', "Send"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.newLine,
+			icon: Codicon.arrowUpCompact,
 			precondition,
 			menu: [
 				{
@@ -893,7 +846,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -937,11 +890,9 @@ class SendToNewChatAction extends Action2 {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 
 		const widgetService = accessor.get(IChatWidgetService);
-		const viewsService = accessor.get(IViewsService);
 		const dialogService = accessor.get(IDialogService);
 		const chatService = accessor.get(IChatService);
-		const configurationService = accessor.get(IConfigurationService);
-		const chatSessionsService = accessor.get(IChatSessionsService);
+		const instantiationService = accessor.get(IInstantiationService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -963,7 +914,7 @@ class SendToNewChatAction extends Action2 {
 		// Clear the input from the current session before creating a new one
 		widget.setInput('');
 
-		await clearChatSessionPreservingType(widget, viewsService, undefined, configurationService, chatSessionsService);
+		await instantiationService.invokeFunction(clearChatSessionPreservingType, widget, undefined);
 
 		widget.acceptInput(inputBeforeClear, { storeToHistory: true });
 	}
@@ -982,7 +933,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.hasActiveRequest,
+					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),
@@ -992,7 +943,7 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatEditorInlineExecute,
 				when: ContextKeyExpr.and(
 					ctxIsGlobalEditingSession.negate(),
-					ctxHasRequestInProgress,
+					ContextKeyExpr.or(ctxHasRequestInProgress, ChatContextKeys.transcriptProgressActive),
 				),
 				order: 4,
 				group: 'navigation',
@@ -1002,7 +953,7 @@ export class CancelAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.hasActiveRequest,
+					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate()
 				),
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
@@ -1016,7 +967,6 @@ export class CancelAction extends Action2 {
 		const logService = accessor.get(ILogService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		const voiceController = accessor.get(IVoiceSessionController);
 		if (!widget) {
 			telemetryService.publicLog2<ChatStopCancellationNoopEvent, ChatStopCancellationNoopClassification>(ChatStopCancellationNoopEventName, {
 				source: 'cancelAction',
@@ -1025,6 +975,10 @@ export class CancelAction extends Action2 {
 				pendingRequests: 0,
 			});
 			logService.info('ChatCancelAction#run: No focused chat widget was found');
+			return;
+		}
+
+		if (widget.cancelTranscriptProgress?.()) {
 			return;
 		}
 
@@ -1039,11 +993,6 @@ export class CancelAction extends Action2 {
 				pendingRequests: 0,
 			});
 			logService.info('ChatCancelAction#run: Canceled chat widget has no view model');
-		}
-		// Also disconnect voice session if active
-
-		if (voiceController.isConnected.get()) {
-			voiceController.disconnect();
 		}
 	}
 }
@@ -1086,7 +1035,7 @@ export class CancelEdit extends Action2 {
 		if (!widget) {
 			return;
 		}
-		widget.finishedEditing();
+		return widget.cancelEditing();
 	}
 }
 
@@ -1265,7 +1214,6 @@ export function registerChatExecuteActions(): DisposableStore {
 	store.add(registerAction2(OpenSessionTargetPickerAction));
 	store.add(registerAction2(OpenDelegationPickerAction));
 	store.add(registerAction2(OpenWorkspacePickerAction));
-	store.add(registerAction2(OpenAutomationsWorkspacePickerAction));
 	store.add(registerAction2(ChatSessionPrimaryPickerAction));
 	store.add(registerAction2(ChangeChatModelAction));
 	store.add(registerAction2(CancelEdit));

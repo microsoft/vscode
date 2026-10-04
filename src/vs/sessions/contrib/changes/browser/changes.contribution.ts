@@ -4,28 +4,68 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IViewContainersRegistry, ViewContainerLocation, IViewsRegistry, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../workbench/browser/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../../workbench/common/editor.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
-import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
+import { ChangesViewPane, DesktopChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
+import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { SessionChangesEditorInput, SessionChangesEditorSerializer } from './sessionChangesEditorInput.js';
 import { IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionChangesService, SessionChangesService } from './sessionChangesService.js';
 import './changesActions.js';
 import './changesViewActions.js';
+import './changesetReviewActions.js';
 import './checksActions.js';
+import './sessionSyncChanges.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ChangesViewService } from './changesViewService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChangesAccessibilityHelp } from './sessionsChangesAccessibilityHelp.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 
-registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+/**
+ * Registers the custom desktop Changes editor (multi-diff pane with the header
+ * toolbar) and its serializer for the desktop workbench. In the mobile
+ * workbench, changes open as a plain multi-diff editor instead. Registered at
+ * startup (before editor restore) so persisted Changes tabs can be deserialized.
+ */
+class DesktopChangesEditorContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.desktopChangesEditor';
+
+	constructor(
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+	) {
+		super();
+
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
+			return;
+		}
+
+		this._register(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+			EditorPaneDescriptor.create(SessionChangesEditor, SessionChangesEditor.ID, localize('sessionChangesEditor.label', "Changes")),
+			[new SyncDescriptor(SessionChangesEditorInput)]
+		));
+
+		this._register(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+			SessionChangesEditorInput.ID,
+			SessionChangesEditorSerializer
+		));
+	}
+}
+
+registerWorkbenchContribution2(DesktopChangesEditorContribution.ID, DesktopChangesEditorContribution, WorkbenchPhase.BlockStartup);
 
 AccessibleViewRegistry.register(new SessionsChangesAccessibilityHelp());
 
@@ -58,18 +98,39 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
-viewsRegistry.registerViews([{
-	id: CHANGES_VIEW_ID,
-	name: localize2('changes', 'Changes'),
-	containerIcon: changesViewIcon,
-	ctorDescriptor: new SyncDescriptor(ChangesViewPane),
-	canToggleVisibility: false,
-	canMoveView: false,
-	weight: 100,
-	order: 1,
-	when: ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
-	windowEnablement: WindowEnablement.Sessions,
-}], changesViewContainer);
+export const changesViewWhen = ContextKeyExpr.and(IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext);
+
+/**
+ * Registers the Changes view with the presentation-appropriate pane class:
+ * {@link DesktopChangesViewPane} in the desktop workbench and
+ * {@link ChangesViewPane} in the mobile workbench.
+ */
+class ChangesViewContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.sessions.changesView';
+
+	constructor(
+		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+	) {
+		super();
+
+		const ctor = layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop ? DesktopChangesViewPane : ChangesViewPane;
+		viewsRegistry.registerViews([{
+			id: CHANGES_VIEW_ID,
+			name: localize2('changes', 'Changes'),
+			containerIcon: changesViewIcon,
+			ctorDescriptor: new SyncDescriptor(ctor),
+			canToggleVisibility: false,
+			canMoveView: false,
+			weight: 100,
+			order: 1,
+			when: changesViewWhen,
+			windowEnablement: WindowEnablement.Sessions,
+		}], changesViewContainer);
+	}
+}
+
+registerWorkbenchContribution2(ChangesViewContribution.ID, ChangesViewContribution, WorkbenchPhase.BlockStartup);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -84,3 +145,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 });
 
 registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
+registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
