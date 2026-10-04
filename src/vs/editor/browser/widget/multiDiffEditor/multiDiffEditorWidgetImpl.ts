@@ -9,18 +9,20 @@ import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader, ITransaction, autorun, autorunWithStore, constObservable, derived, mapObservableArrayCached, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyValue, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
-import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
+import { EditorOptions, IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IRange } from '../../../common/core/range.js';
 import { ISelection, Selection } from '../../../common/core/selection.js';
 import { IDiffEditor } from '../../../common/editorCommon.js';
 import { IMultiDiffResourceId } from '../../../common/multiDiffEditor.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
+import { SMOOTH_SCROLLING_TIME } from '../../../common/viewLayout/viewLayout.js';
 import { ICodeEditor } from '../../editorBrowser.js';
 import { CompressedVirtualizedScrollView, ICompressedVirtualizedScrollItem, ICompressedVirtualizedScrollItemContext } from './compressedVirtualizedScrollView.js';
 import { ICompressedVirtualizedScrollLayout } from './compressedVirtualizedScrollLayout.js';
@@ -78,6 +80,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		this._logger = this._register(new MultiDiffEditorLogger(logService));
@@ -170,6 +173,23 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		));
 		this._viewItemsInfo = viewItemsInfo;
 		this._viewItems = viewItems;
+
+		// The per-file editors run with `handleMouseWheel: false`, so the scroll view handles
+		// every wheel event and is the only place where the editor scrolling settings can take
+		// effect.
+		const mouseWheelScrollSensitivity = observableConfigValue('editor.mouseWheelScrollSensitivity', EditorOptions.mouseWheelScrollSensitivity.defaultValue, configurationService);
+		const fastScrollSensitivity = observableConfigValue('editor.fastScrollSensitivity', EditorOptions.fastScrollSensitivity.defaultValue, configurationService);
+		const scrollPredominantAxis = observableConfigValue('editor.scrollPredominantAxis', EditorOptions.scrollPredominantAxis.defaultValue, configurationService);
+		const smoothScrolling = observableConfigValue('editor.smoothScrolling', EditorOptions.smoothScrolling.defaultValue, configurationService);
+		this._register(autorun(reader => {
+			this._scrollView.updateScrollOptions({
+				mouseWheelScrollSensitivity: EditorOptions.mouseWheelScrollSensitivity.validate(mouseWheelScrollSensitivity.read(reader)),
+				fastScrollSensitivity: EditorOptions.fastScrollSensitivity.validate(fastScrollSensitivity.read(reader)),
+				scrollPredominantAxis: EditorOptions.scrollPredominantAxis.validate(scrollPredominantAxis.read(reader)),
+			});
+			this._scrollView.setSmoothScrollDuration(EditorOptions.smoothScrolling.validate(smoothScrolling.read(reader)) ? SMOOTH_SCROLLING_TIME : 0);
+		}));
+
 		this.scrollTop = this._scrollView.scrollTop;
 		this.scrollLeft = this._scrollView.scrollLeft;
 		this.layoutDebugState = derived(this, reader => {
