@@ -606,9 +606,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		this._logService.info(`[RemoteAgentHost] Reconciling: desired=[${[...desired].join(', ')}], current=[${[...this._entries.keys()].map(a => `${a}(${this._entries.get(a)!.connected ? 'connected' : 'pending'})`).join(', ')}]`);
 
-		// Remove connections no longer exposed by a factory, before the names are
-		// rebuilt: each removal announces the remaining connections, which must
-		// still carry their names.
+		// Remove connections no longer exposed by a factory first, so each removal still announces the rest by name.
 		for (const address of [...this._entries.keys()]) {
 			if (!desired.has(address)) {
 				this._logService.info(`[RemoteAgentHost] Disconnecting from ${address}`);

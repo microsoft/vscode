@@ -519,7 +519,7 @@ suite('RemoteAgentHostService', () => {
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
 	});
 
-	test('keeps the names of remaining connections while removing several entries at once', async () => {
+	test('keeps the names and operating systems of remaining connections while removing several entries at once', async () => {
 		configService.setEntries([
 			{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } },
 			{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host2:8080' } },
@@ -530,13 +530,16 @@ suite('RemoteAgentHostService', () => {
 		while (service.pendingConnections.length) {
 			await Event.toPromise(service.onDidChangePendingConnections);
 		}
+		while (service.connections.some(connection => connection.operatingSystem !== OperatingSystem.Linux)) {
+			await Event.toPromise(service.onDidChangeConnections);
+		}
 
-		const snapshots: { address: string; name: string }[][] = [];
-		disposables.add(service.onDidChangeConnections(() => snapshots.push(service.connections.map(c => ({ address: c.address, name: c.name })))));
+		const snapshots: { address: string; name: string; operatingSystem: OperatingSystem | undefined }[][] = [];
+		disposables.add(service.onDidChangeConnections(() => snapshots.push(service.connections.map(c => ({ address: c.address, name: c.name, operatingSystem: c.operatingSystem })))));
 		configService.setEntries([]);
 
 		assert.deepStrictEqual(snapshots, [
-			[{ address: 'host2:8080', name: 'Host 2' }],
+			[{ address: 'host2:8080', name: 'Host 2', operatingSystem: OperatingSystem.Linux }],
 			[],
 		]);
 	});
