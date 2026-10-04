@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { GitHubCancellation, toGitHubAbortSignal } from './githubCancellation.js';
 import { asObject, requiredNumber, requiredString } from './githubResponse.js';
@@ -18,29 +18,28 @@ export interface IGitHubRepositoryFile {
 }
 
 export interface IGitHubRepositories {
-	/** Reads a public GitHub.com file at the resolved repository HEAD using one anonymous lease. */
-	readPublicFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile>;
+	/** Reads a file at the resolved repository HEAD using the owning client's API endpoint. */
+	readFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile>;
 }
 
 export class GitHubRepositoryService implements IGitHubRepositories {
-	constructor(private readonly _acquireAnonymousClient: () => IReference<IGitHubAnonymousClient>) { }
+	constructor(private readonly _get: IGitHubAnonymousClient['get']) { }
 
-	async readPublicFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile> {
+	async readFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile> {
 		const lifetime = new DisposableStore();
 		try {
 			const signal = toGitHubAbortSignal(cancellation, lifetime);
 			signal.throwIfAborted();
-			const client = lifetime.add(this._acquireAnonymousClient()).object;
 			const options: GitHubAnonymousReadOptions = { caller: 'github.query', priority: 'interactive', deadline: Date.now() + 5 * 60_000 };
 			const repositoryPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
-			const commitResponse = await client.get<unknown>(`${repositoryPath}/commits/HEAD`, signal, options);
+			const commitResponse = await this._get<unknown>(`${repositoryPath}/commits/HEAD`, signal, options);
 			signal.throwIfAborted();
 			const invalidCommit = localize('githubRepository.invalidCommit', "GitHub returned an invalid repository revision.");
 			const commitSha = requiredString(asObject(commitResponse.data, invalidCommit), 'sha');
 			if (!/^[a-f0-9]{40}$/.test(commitSha)) {
 				throw new GitHubRequestError(invalidCommit, 'malformedResponse');
 			}
-			const fileResponse = await client.get<unknown>(`${repositoryPath}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${commitSha}`, signal, options);
+			const fileResponse = await this._get<unknown>(`${repositoryPath}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${commitSha}`, signal, options);
 			signal.throwIfAborted();
 			const file = asObject(fileResponse.data, localize('githubRepository.invalidFile', "GitHub returned an invalid repository file."));
 			if (requiredString(file, 'type') !== 'file' || requiredString(file, 'encoding') !== 'base64') {

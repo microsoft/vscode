@@ -109,7 +109,14 @@ suite('Dev Container samples', () => {
 		let existing = false;
 		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
 			onContainerStarted: id => calls.push(`started ${id}`),
-			readSource: () => service.repositories.readPublicFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None),
+			readSource: async () => {
+				const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' }));
+				try {
+					return await client.object.repositories.readFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None);
+				} finally {
+					client.dispose();
+				}
+			},
 			docker: async args => {
 				let stdout: string;
 				if (args[0] === 'volume') {

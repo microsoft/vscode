@@ -30,7 +30,6 @@ export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 /** Runtime-owned GitHub engine providing isolated clients with shared admission and quota state. */
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
-	readonly repositories: IGitHubRepositories;
 	acquireClient(options: GitHubClientOptions): IReference<IGitHubClient>;
 	acquireAnonymousClient(options: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient>;
 	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient>;
@@ -40,6 +39,7 @@ export interface IGitHubService {
 export interface IGitHubAnonymousClient {
 	readonly authorization: { readonly kind: 'anonymous' };
 	readonly apiBaseUri: string;
+	readonly repositories: IGitHubRepositories;
 	get<T>(path: string, signal: AbortSignal, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
 }
 
@@ -76,7 +76,6 @@ interface IClientEntry {
 export class GitHubService extends Disposable implements IGitHubService {
 
 	declare readonly _serviceBrand: undefined;
-	readonly repositories: IGitHubRepositories;
 
 	private readonly _clients = new Map<string, IClientEntry>();
 	private readonly _anonymousClients = this._register(new DisposableMap<string, GitHubAnonymousClient>());
@@ -96,7 +95,6 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemRequestScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
 		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemRequestScheduler));
 		this._queue = this._register(new RequestQueue(systemRequestScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
-		this.repositories = new GitHubRepositoryService(() => this.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' }));
 		if (_options.credentialProvider) {
 			this._register(_options.credentialProvider.onDidChange(change => this._invalidateClients(change)));
 		}
@@ -313,6 +311,7 @@ class GitHubClient extends Disposable implements IGitHubClient {
 /** Reference-counted public reader with no access to credential providers or private caches. */
 class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient {
 	readonly authorization = Object.freeze({ kind: 'anonymous' as const });
+	readonly repositories: IGitHubRepositories;
 	references = 0;
 	private readonly _account: AnonymousAccount;
 	private readonly _transport: GitHubTransport;
@@ -336,6 +335,7 @@ class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient
 				getGraphQlUri: () => apiBaseUri,
 			}) : undefined,
 		}, telemetry));
+		this.repositories = new GitHubRepositoryService((path, signal, options) => this.get(path, signal, options));
 	}
 
 	async get<T>(path: string, signal: AbortSignal, options: GitHubAnonymousReadOptions = {}): Promise<GitHubRestResponse<T>> {
