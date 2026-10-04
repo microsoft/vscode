@@ -121,12 +121,14 @@ suite('DebugSession - stopped details', () => {
 		readonly session: DebugSession;
 		fireStopped(body: IRawStoppedDetails): void;
 		fireContinued(threadId: number): void;
+		fireInvalidated(): void;
 	}
 
 	function createSessionWithRaw(): TestRawSession {
 		const model = ds.add(createMockDebugModel(ds));
 		const onDidStop = ds.add(new Emitter<DebugProtocol.StoppedEvent>());
 		const onDidContinued = ds.add(new Emitter<DebugProtocol.ContinuedEvent>());
+		const onDidInvalidated = ds.add(new Emitter<DebugProtocol.InvalidatedEvent>());
 		const noEvent = () => Disposable.None;
 		const raw = {
 			onDidInitialize: noEvent,
@@ -141,7 +143,7 @@ suite('DebugSession - stopped details', () => {
 			onDidProgressStart: noEvent,
 			onDidProgressUpdate: noEvent,
 			onDidProgressEnd: noEvent,
-			onDidInvalidated: noEvent,
+			onDidInvalidated: onDidInvalidated.event,
 			onDidInvalidateMemory: noEvent,
 			onDidExitAdapter: noEvent,
 			capabilities: {},
@@ -153,7 +155,8 @@ suite('DebugSession - stopped details', () => {
 		return {
 			session,
 			fireStopped: body => onDidStop.fire({ seq: 1, type: 'event', event: 'stopped', body } as DebugProtocol.StoppedEvent),
-			fireContinued: threadId => onDidContinued.fire({ seq: 1, type: 'event', event: 'continued', body: { threadId, allThreadsContinued: false } } as DebugProtocol.ContinuedEvent)
+			fireContinued: threadId => onDidContinued.fire({ seq: 1, type: 'event', event: 'continued', body: { threadId, allThreadsContinued: false } } as DebugProtocol.ContinuedEvent),
+			fireInvalidated: () => onDidInvalidated.fire({ seq: 1, type: 'event', event: 'invalidated', body: {} } as DebugProtocol.InvalidatedEvent)
 		};
 	}
 
@@ -168,12 +171,10 @@ suite('DebugSession - stopped details', () => {
 	test('a continued event does not remove a stop reported after it arrived (#339076)', async () => {
 		const { session, fireStopped, fireContinued } = createSessionWithRaw();
 
-		// 1. the session stops initially
+		// the continued event arrives before its asynchronous cleanup has run, and a
+		// newer stop is reported on the same thread while the cleanup is pending
 		fireStopped({ reason: 'stopped', threadId: 2 });
-		// 2. the user resumes; the adapter reports the continued event for the
-		//    earlier stop, whose asynchronous cleanup has not run yet
 		fireContinued(2);
-		// 3. while the cleanup is pending the session stops again, this time on a breakpoint
 		fireStopped({ reason: 'breakpoint', threadId: 2 });
 
 		await flushAsync();
@@ -207,5 +208,20 @@ suite('DebugSession - stopped details', () => {
 		const details = getStoppedDetails(session);
 		assert.strictEqual(details.length, 1);
 		assert.strictEqual(details[0].threadId, 3);
+	});
+
+	test('an invalidated event replaying a pre-continue stop is still removed by the continued cleanup', async () => {
+		const { session, fireStopped, fireContinued, fireInvalidated } = createSessionWithRaw();
+
+		// the adapter invalidates its state while the continued cleanup is still
+		// pending; the replayed stop must keep its original sequence and be removed
+		fireStopped({ reason: 'stopped', threadId: 2 });
+		fireContinued(2);
+		fireInvalidated();
+
+		await flushAsync();
+
+		assert.deepStrictEqual(getStoppedDetails(session), []);
+		assert.strictEqual(session.getStoppedDetails(), undefined);
 	});
 });

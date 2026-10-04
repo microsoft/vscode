@@ -78,10 +78,9 @@ export class DebugSession implements IDebugSession {
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
 	/**
-	 * Sequence numbers, parallel to {@link stoppedDetails}, in the order the
-	 * stop details were reported. Used to make sure that a late `continued`
-	 * cleanup does not remove stop details that were reported after the
-	 * `continued` event was received (#339076).
+	 * Sequence numbers, parallel to {@link stoppedDetails}, used to make sure a late
+	 * `continued` cleanup does not remove stop details reported after the `continued`
+	 * event (#339076). Invalidated state is reprocessed with its original sequences.
 	 */
 	private stoppedDetailsSequences: number[] = [];
 	private stoppedDetailsSequenceCounter = 0;
@@ -1140,11 +1139,7 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.add(this.raw.onDidContinued(async event => {
 			const allThreads = event.body.allThreadsContinued !== false;
 
-			// Only account for stop details that were reported before the
-			// `continued` event arrived. The cleanup below runs asynchronously,
-			// so without this a late cleanup could remove a stop that was
-			// reported after the `continued` event, e.g. a newer breakpoint
-			// stop on the same thread (#339076).
+			// Only account for stop details reported before the `continued` event arrived, as the cleanup runs asynchronously (#339076).
 			const sequenceAtContinued = this.stoppedDetailsSequenceCounter;
 
 			let affectedThreads: number[] | Promise<number[]>;
@@ -1356,10 +1351,12 @@ export class DebugSession implements IDebugSession {
 				this.model.clearThreads(this.getId(), true);
 
 				const details = this.stoppedDetails.slice();
+				const sequences = this.stoppedDetailsSequences.slice();
 				this.stoppedDetails.length = 0;
 				this.stoppedDetailsSequences.length = 0;
 				if (details.length) {
-					await Promise.all(details.map(d => this.handleStop(d)));
+					// Keep the original sequences so a pending `continued` cleanup still recognizes pre-continue stops
+					await Promise.all(details.map((d, i) => this.handleStop(d, sequences[i])));
 				} else if (!this.fetchThreadsScheduler.value.isScheduled()) {
 					// threads are fetched as a side-effect of processing the stopped
 					// event(s), but if there are none, schedule a thread update manually (#282777)
@@ -1376,10 +1373,10 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.add(this.raw.onDidExitAdapter(event => this.onDidExitAdapter(event)));
 	}
 
-	private async handleStop(event: IRawStoppedDetails) {
+	private async handleStop(event: IRawStoppedDetails, sequence?: number) {
 		this.passFocusScheduler.cancel();
 		this.stoppedDetails.push(event);
-		this.stoppedDetailsSequences.push(++this.stoppedDetailsSequenceCounter);
+		this.stoppedDetailsSequences.push(sequence ?? ++this.stoppedDetailsSequenceCounter);
 
 		// do this very eagerly if we have hitBreakpointIds, since it may take a
 		// moment for breakpoints to set and we want to do our best to not miss
