@@ -1,3 +1,5 @@
+> **Personal fork notice:** This repository is a personal fork of [`microsoft/vscode`](https://github.com/microsoft/vscode) maintained by `NguyenCuong1989`. It is not an official Microsoft repository, product, distribution, endorsement, or support channel. The upstream MIT license and third-party notices are preserved. See [`FORK_NOTICE.md`](FORK_NOTICE.md) for provenance, attribution, branding, and redistribution notes.
+
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
