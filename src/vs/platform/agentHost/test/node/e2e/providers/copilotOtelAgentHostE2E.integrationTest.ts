@@ -254,7 +254,10 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		}
 	});
 
-	test('provider turn exports SDK spans through the Agent Host file exporter', async function () {
+	// The bundled runtime emits Agent Host spans but not the Copilot SDK `invoke_agent`
+	// span (service name `github-copilot`); that span requires the not-yet-bundled upstream
+	// runtime fix (see KNOWN_ISSUES.md).
+	(process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1' ? test : test.skip)('provider turn exports SDK spans through the Agent Host file exporter', async function () {
 		this.timeout(180_000);
 		const workspace = await mkdtemp(join(tmpdir(), 'copilot-otel-turn-'));
 		tempDirs.push(workspace);
