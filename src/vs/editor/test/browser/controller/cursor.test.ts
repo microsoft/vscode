@@ -5146,6 +5146,26 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338697: Tab completes an auto-closing pair on a whitespace-only line when the open is a tab', () => {
+		const languageId = 'tabAutoClosingLanguage3';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: '\t', close: 'end' }]
+		}));
+		registerPlainTokenization(disposables, languageService, languageId);
+		usingCursor({
+			text: [''],
+			languageId: languageId,
+			modelOpts: { insertSpaces: false }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.deepStrictEqual(model.getLineContent(1), '\tend');
+			// the cursor is placed between the open and the auto-closed pair
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 2, 1, 2));
+		});
+	});
+
 	test('autoClosingPairs - open parens disabled/enabled open quotes enabled/disabled', () => {
 		usingCursor({
 			text: [

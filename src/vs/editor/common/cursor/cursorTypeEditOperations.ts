@@ -806,6 +806,14 @@ export class TabOperation {
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (selection.isEmpty()) {
+				// When the tab key inserts a literal tab character, typing it may complete an auto-closing pair whose open ends with a tab.
+				const autoClosingPairClose = !config.insertSpaces
+					? AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], '\t', false)
+					: null;
+				if (autoClosingPairClose !== null) {
+					commands[i] = new TypeWithAutoClosingCommand(selection, '\t', true, autoClosingPairClose);
+					continue;
+				}
 				const lineText = model.getLineContent(selection.startLineNumber);
 				if (/^\s*$/.test(lineText) && model.tokenization.isCheapToTokenize(selection.startLineNumber)) {
 					let goodIndent = this._goodIndentForLine(config, model, selection.startLineNumber);
@@ -815,15 +823,6 @@ export class TabOperation {
 						commands[i] = new ReplaceCommand(new Range(selection.startLineNumber, 1, selection.startLineNumber, lineText.length + 1), possibleTypeText, true);
 						continue;
 					}
-				}
-				// When the tab key inserts a literal tab character, typing it may
-				// complete an auto-closing pair whose open ends with a tab.
-				const autoClosingPairClose = !config.insertSpaces
-					? AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], '\t', false)
-					: null;
-				if (autoClosingPairClose !== null) {
-					commands[i] = new TypeWithAutoClosingCommand(selection, '\t', true, autoClosingPairClose);
-					continue;
 				}
 				commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
 			} else {
