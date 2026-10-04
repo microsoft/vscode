@@ -3634,9 +3634,9 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 
 suite('CloudSandboxSessionsProvider discovery metadata', () => {
 	for (const sandbox of [false, true]) {
-		test(`older sandbox cache addresses are normalized only by the sandbox provider (${sandbox})`, async () => {
+		test(`older sandbox addresses in current caches are normalized only by the sandbox provider (${sandbox})`, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
-			storageService.store('remoteAgentHost.cachedSessions.v2.localhost__4321', JSON.stringify([{
+			storageService.store('remoteAgentHost.cachedSessions.v4.localhost__4321', JSON.stringify([{
 				session: 'copilot:/cached-address',
 				provider: 'copilot',
 				startTime: 1000,

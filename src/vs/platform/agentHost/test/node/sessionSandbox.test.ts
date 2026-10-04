@@ -732,11 +732,16 @@ suite('Session sandbox configuration', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('bypass-options');
 		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService()));
-		const options = [false, true].map(canAllowSessionSandboxBypass => permissions.createToolReadyAction({
-			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, canAllowSessionSandboxBypass,
+		const cases = [
+			{ canAllowSessionSandboxBypass: false, requestSandboxPermissive: false },
+			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: false },
+			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: true },
+		];
+		const options = cases.map(({ canAllowSessionSandboxBypass, requestSandboxPermissive }) => permissions.createToolReadyAction({
+			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, requestSandboxPermissive, canAllowSessionSandboxBypass,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },
 		}, owner, 'turn').options?.map(option => option.id));
-		assert.deepStrictEqual(options, [['allow-once', 'skip'], ['allow-session', 'allow-once', 'skip']]);
+		assert.deepStrictEqual(options, [['allow-once', 'skip'], ['allow-session', 'allow-once', 'skip'], ['allow-once', 'skip']]);
 	});
 
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {

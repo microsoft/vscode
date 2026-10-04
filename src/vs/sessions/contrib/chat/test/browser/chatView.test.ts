@@ -1579,6 +1579,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
 		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
+		workbench.style.setProperty('--vscode-spacing-size240', '24px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(0, 0, 0, 0.2)');
 		workbench.style.setProperty('--vscode-toolbar-hoverBackground', 'rgba(0, 0, 0, 0.12)');
@@ -1682,10 +1683,12 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalWorkspaceBackgroundImage: productionExperimentalWorkspaceActionStyle.backgroundImage,
 			productionExperimentalWorkspaceBorderColor: productionExperimentalWorkspaceActionStyle.borderColor,
 			productionExperimentalWorkspaceBorderRadius: productionExperimentalWorkspaceActionStyle.borderRadius,
+			productionExperimentalWorkspaceHeight: productionExperimentalWorkspaceActionStyle.height,
 			productionExperimentalRepositoryBackgroundColor: productionExperimentalRepositoryActionBarStyle.backgroundColor,
 			productionExperimentalRepositoryBackgroundImage: productionExperimentalRepositoryActionBarStyle.backgroundImage,
 			productionExperimentalRepositoryBorderColor: productionExperimentalRepositoryActionBarStyle.borderColor,
 			productionExperimentalRepositoryBorderRadius: productionExperimentalRepositoryActionBarStyle.borderRadius,
+			productionExperimentalRepositoryHeight: productionExperimentalRepositoryActionBarStyle.height,
 			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
 			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
 			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
@@ -1728,10 +1731,12 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalWorkspaceBackgroundImage: 'none',
 			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
 			productionExperimentalWorkspaceBorderRadius: '4px',
+			productionExperimentalWorkspaceHeight: '24px',
 			productionExperimentalRepositoryBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryBackgroundImage: 'none',
 			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
 			productionExperimentalRepositoryBorderRadius: '4px',
+			productionExperimentalRepositoryHeight: '24px',
 			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryActionBackgroundImage: 'none',
 			productionExperimentalRepositoryActionBorderStyle: 'none',
