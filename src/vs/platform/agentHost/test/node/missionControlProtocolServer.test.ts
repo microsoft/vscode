@@ -323,10 +323,11 @@ suite('Experimental Mission Control WPS', () => {
 		try {
 			const { key } = signingFixture();
 			const socket = new FakeWpsSocket(false);
-			const requests: { path: string; status?: unknown }[] = [];
+			const requests: { path: string; status?: unknown; name?: string }[] = [];
 			const fakeFetch: typeof fetch = async (input, init) => {
 				const url = new URL(input.toString());
-				requests.push({ path: url.pathname, status: init?.body ? (JSON.parse(init.body.toString()) as { status?: string }).status : undefined });
+				const body = init?.body ? JSON.parse(init.body.toString()) as { status?: string; name?: string } : undefined;
+				requests.push({ path: url.pathname, status: body?.status, name: body?.name });
 				return Response.json(url.pathname.endsWith('jwks.json') ? { keys: [key] } : {
 					id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
 					webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-wps-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
@@ -342,9 +343,9 @@ suite('Experimental Mission Control WPS', () => {
 			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), /connection closed before joining/);
 			assert.deepStrictEqual({ requests, closed: socket.closed }, {
 				requests: [
-					{ path: '/cmc_internal/api/agents/environments/register', status: undefined },
-					{ path: '/cmc_internal/api/agents/environments/.well-known/jwks.json', status: undefined },
-					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline' },
+					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name: 'VS Code Agent Host (Development)' },
+					{ path: '/cmc_internal/api/agents/environments/.well-known/jwks.json', status: undefined, name: undefined },
+					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name: 'VS Code Agent Host (Development)' },
 				],
 				closed: true,
 			});
@@ -632,6 +633,41 @@ suite('Experimental Mission Control WPS', () => {
 					tokens: [90_000], heartbeats: [{ time: 0, status: 'online' }], sockets: 1, errors: [],
 				});
 			}, 120_000);
+		});
+
+		test('refreshes the host-owned name on startup, periodic, recovery, and withdrawal heartbeats', async () => {
+			await withEnvironment([], async ({ service, clock, requests, sockets, options }) => {
+				const hostName = 'VS Code Agent Host (Development)';
+				const snapshot = () => {
+					let storedName: string | undefined;
+					let registrations = 0;
+					for (const request of requests) {
+						if (request.path.endsWith('/register')) {
+							storedName = `${hostName}-assigned-${++registrations}`;
+						} else if (request.path.endsWith('/heartbeat') && typeof request.body?.name === 'string') {
+							storedName = request.body.name;
+						}
+					}
+					return storedName;
+				};
+				const startup = snapshot();
+				await clock.tickAsync(60_000);
+				const periodic = snapshot();
+				sockets[0].emit('close');
+				await clock.tickAsync(1000);
+				const recovery = snapshot();
+				await service.configure(undefined);
+				const withdrawal = snapshot();
+				await service.configure(options);
+				assert.deepStrictEqual({
+					startup, periodic, recovery, withdrawal, reregistration: snapshot(),
+					registrations: requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.name),
+					heartbeatNames: [...new Set(requests.filter(request => request.path.endsWith('/heartbeat')).map(request => request.body?.name))],
+				}, {
+					startup: hostName, periodic: hostName, recovery: hostName, withdrawal: hostName, reregistration: hostName,
+					registrations: [hostName, hostName], heartbeatNames: [hostName],
+				});
+			});
 		});
 
 		for (const scenario of [
@@ -946,14 +982,16 @@ suite('Experimental Mission Control WPS', () => {
 		});
 	});
 
-	function createIdentityService(userData: string, computeIds: string[]): ExperimentalMissionControlEnvironment {
+	function createIdentityService(userData: string, computeIds: string[], names?: string[]): ExperimentalMissionControlEnvironment {
 		const { key } = signingFixture();
 		return store.add(new ExperimentalMissionControlEnvironment(
 			userData,
 			async (input, init) => {
 				const url = new URL(input.toString());
 				if (url.pathname.endsWith('/register')) {
-					computeIds.push((JSON.parse(String(init?.body)) as { compute_id: string }).compute_id);
+					const body = JSON.parse(String(init?.body)) as { compute_id: string; name: string };
+					computeIds.push(body.compute_id);
+					names?.push(body.name);
 				}
 				return Response.json(url.pathname.endsWith('/jwks.json') ? { keys: [key] } : {
 					id: 'environment', user_id: 'owner', owner_id: 'owner', owner_type: 'user', kind: 'user-local',
@@ -974,8 +1012,9 @@ suite('Experimental Mission Control WPS', () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-identity-'));
 		try {
 			const computeIds: string[] = [];
+			const names: string[] = [];
 			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] };
-			const createService = (userData: string) => createIdentityService(userData, computeIds);
+			const createService = (userData: string) => createIdentityService(userData, computeIds, names);
 			const first = createService(join(path, 'normal'));
 			await Promise.all([first.configure(options), first.configure(options)]);
 			const registrationsForTwoWindows = computeIds.length;
@@ -990,8 +1029,10 @@ suite('Experimental Mission Control WPS', () => {
 				restartIdentityMatches: computeIds[0] === computeIds[1],
 				isolatedIdentityDiffers: computeIds[0] !== computeIds[2],
 				registrations: computeIds.length,
+				names,
 			}, {
 				registrationsForTwoWindows: 1, restartIdentityMatches: true, isolatedIdentityDiffers: true, registrations: 3,
+				names: ['VS Code Agent Host (Development)', 'VS Code Agent Host (Development)', 'VS Code Agent Host (Development)'],
 			});
 		} finally {
 			await rm(path, { recursive: true });

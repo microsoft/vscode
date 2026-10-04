@@ -35,6 +35,7 @@ interface IEnvironmentResponse {
 	};
 }
 
+const environmentName = 'VS Code Agent Host (Development)';
 const heartbeatInterval = 60_000;
 
 function heartbeatRetryAfter(value: string, now: number): number | undefined {
@@ -153,7 +154,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
 					await this._request(
 						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
-						{ status: 'offline' },
+						{ name: environmentName, status: 'offline' },
 						previous,
 					);
 				}
@@ -264,7 +265,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				const previous = this._options;
 				this._withdraw();
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
-					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, { status: 'offline' }, previous);
+					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, { name: environmentName, status: 'offline' }, previous);
 				}
 			} catch (offlineError) {
 				this._onError(offlineError);
@@ -476,8 +477,8 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			? `cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/heartbeat`
 			: 'cmc_internal/api/agents/environments/register';
 		const body = !register
-			? { status: options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}) }
-			: { name: 'VS Code Agent Host (Development)', kind: 'user-local', compute_id: await this._computeId(), capabilities, labels: { embedder: 'vscode' }, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}), ...(remoteControl ? { managed_settings: { remoteControl } } : {}) };
+			? { name: environmentName, status: options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}) }
+			: { name: environmentName, kind: 'user-local', compute_id: await this._computeId(), capabilities, labels: { embedder: 'vscode' }, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}), ...(remoteControl ? { managed_settings: { remoteControl } } : {}) };
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
 			return;
 		}
@@ -599,7 +600,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			this._mirrorAttachment.value = combinedDisposable(attachment, onClose);
 		}
 		if (options.live && Date.now() >= this._heartbeatNotBefore) {
-			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, { status: 'online', encryption_keys: sealing?.advertisedKeys }, options);
+			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, { name: environmentName, status: 'online', encryption_keys: sealing?.advertisedKeys }, options);
 		}
 		if (generation === this._generation && this._options === options && !this._store.isDisposed) {
 			this._onReady?.(response.id);

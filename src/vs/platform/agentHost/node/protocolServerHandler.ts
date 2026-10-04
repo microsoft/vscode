@@ -746,7 +746,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: this._config.relayRoots ? transport.relayHandshakeMeta : {
+				_meta: this._config.relayRoots || this._config.relayRootMeta ? transport.relayHandshakeMeta : {
 					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
 					...transport.relayHandshakeMeta,
 				},

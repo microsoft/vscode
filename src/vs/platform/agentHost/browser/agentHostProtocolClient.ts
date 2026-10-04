@@ -498,7 +498,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (this._state.kind !== AgentHostClientState.Connected) {
+			if (this._state.kind !== AgentHostClientState.Connected || this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
 				return;
 			}
 			const patch: Record<string, unknown> = {};
@@ -2432,6 +2432,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	/** Merge a patch into the agent host's root configuration. */
 	private _dispatchRootConfig(config: Record<string, unknown>): void {
+		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+			return;
+		}
 		this.dispatchAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
 			config,

@@ -3125,10 +3125,13 @@ suite('AgentHostProtocolClient', () => {
 		test('WPS authenticates before refreshing its minimal root snapshot and never forwards host configuration', async () => {
 			const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
 			const workspaceTrust = createWorkspaceTrustServices();
+			const trustedFoldersChanged = disposables.add(new Emitter<void>());
+			workspaceTrust.management.onDidChangeTrustedFolders = trustedFoldersChanged.event;
+			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
 				'test.example:1234', transport,
 				{ resolveInitialAuthentication: async () => ({ resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.ciphertext' }) },
-				new NullLogService(), createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+				new NullLogService(), createPermissionService(), configurationService, NullTelemetryService,
 				workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			const connecting = client.connect();
@@ -3160,6 +3163,14 @@ suite('AgentHostProtocolClient', () => {
 				},
 			});
 			await connecting;
+			await configurationService.setUserConfiguration(SYNC_SETTING_A, false);
+			fireConfigurationChange(configurationService, SYNC_SETTING_A);
+			await configurationService.setUserConfiguration(TELEMETRY_SETTING_ID, TelemetryConfiguration.OFF);
+			fireConfigurationChange(configurationService, TELEMETRY_SETTING_ID);
+			await configurationService.setUserConfiguration(GLOBAL_AUTO_APPROVE_SETTING_ID, false);
+			fireConfigurationChange(configurationService, GLOBAL_AUTO_APPROVE_SETTING_ID);
+			trustedFoldersChanged.fire();
+			await flushMicrotasks();
 			const root = client.rootState.value;
 			assert.ok(root && !(root instanceof Error));
 			assert.deepStrictEqual({

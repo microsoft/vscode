@@ -1811,6 +1811,8 @@ suite('ProtocolServerHandler', () => {
 				actions: messages.filter(isJsonRpcNotification).filter(message => message.method === 'action').map(message => (message.params as ActionEnvelope).action.type).filter(type => type.startsWith('chat/')),
 				handled: agentService.handledActions.map(action => action.type),
 				requiredEncryption: handshake.result._meta?.['copilot.encryptionRequired'],
+				advertisedArtifactRemoval: supportsAgentHostArtifactRemoval(handshake.result),
+				advertisedTiming: supportsAgentHostTiming(handshake.result),
 				sealedPlaintextPublished: JSON.stringify(publishes).includes('fake-local-token'),
 				locallyListed: (localList.result as ListSessionsResult).items.map(item => item.resource),
 				localReceivedRemoteToolCall: local.sent.some(message => isJsonRpcNotification(message) && message.method === 'action'
@@ -1822,6 +1824,8 @@ suite('ProtocolServerHandler', () => {
 				actions: [ActionType.ChatTurnStarted, ActionType.ChatResponsePart, ActionType.ChatDelta, ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallConfirmed],
 				handled: [ActionType.ChatTurnStarted, ActionType.ChatToolCallConfirmed],
 				requiredEncryption: ['auth-token', 'mcp-auth-token'],
+				advertisedArtifactRemoval: false,
+				advertisedTiming: false,
 				sealedPlaintextPublished: false,
 				locallyListed: ['copilot:/local-session', 'copilot:/fake-wps-session'],
 				localReceivedRemoteToolCall: true,
