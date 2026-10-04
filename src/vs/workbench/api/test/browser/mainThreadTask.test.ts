@@ -103,7 +103,7 @@ suite('MainThreadTask custom execution startup', () => {
 		const contributed = new ContributedTask(task.name, {
 			kind: TaskSourceKind.Extension, label: 'test', extension: 'test.tasks', scope: InternalTaskScope.Workspace, workspaceFolder: undefined
 		}, task.name, 'testTask', { ...task.definition, type: 'testTask', _key: task.name },
-		{ runtime: RuntimeType.CustomExecution }, false, RunOptions.defaults, {
+			{ runtime: RuntimeType.CustomExecution }, false, RunOptions.defaults, {
 			name: task.name, identifier: task.name, problemMatchers: []
 		});
 		const registration = store.add(service.registerTaskProvider(extension, 'testTask', {
