@@ -337,6 +337,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	/** Pending JSON-RPC requests keyed by request id. */
 	private readonly _pendingRequests = new Map<number, IPendingRequest>();
 	private readonly _authentication = new Map<string, { readonly params: AuthenticateParams; readonly expiresAt: number | undefined }>();
+	private readonly _authenticationRequests = new Map<string, AuthenticateParams>();
 	private _nextRequestId = 1;
 
 	/**
@@ -652,6 +653,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		}
 		this._handleClose(connectionDisposedError(this._address));
+		this._authenticationRequests.clear();
+		this._authentication.clear();
 		super.dispose();
 	}
 
@@ -1196,6 +1199,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (isConnectionClosedError(error)) {
 					throw error;
 				}
+				if (error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired && this._authentication.get(key) === authentication) {
+					this._authentication.delete(key);
+				}
 				// Only the freshly resolved initial authentication is essential:
 				// without it the host cannot serve this client at all. Every other
 				// entry is a cached per-resource token (an MCP server, say) that the
@@ -1634,16 +1640,31 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		const normalizedParams = this._normalizeAuthenticationParams(params);
 		const expiresAt = getExpirationTime(params.expiresIn);
-		await this._sendRequest('authenticate', {
-			channel: ROOT_STATE_URI,
-			...normalizedParams,
-			scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
-		});
 		const key = this._authenticationKey(normalizedParams);
-		if (params.token) {
-			this._authentication.set(key, { params: normalizedParams, expiresAt });
-		} else {
-			this._authentication.delete(key);
+		this._authenticationRequests.set(key, normalizedParams);
+		try {
+			await this._sendRequest('authenticate', {
+				channel: ROOT_STATE_URI,
+				...normalizedParams,
+				scopes: normalizedParams.scopes ? [...normalizedParams.scopes] : undefined,
+			});
+			if (this._authenticationRequests.get(key) === normalizedParams && !this._didDispose) {
+				if (params.token) {
+					this._authentication.set(key, { params: normalizedParams, expiresAt });
+				} else {
+					this._authentication.delete(key);
+				}
+			}
+		} catch (error) {
+			if (error instanceof ProtocolError && error.code === AhpErrorCodes.AuthRequired
+				&& this._authenticationRequests.get(key) === normalizedParams && this._authentication.get(key)?.params.token === params.token) {
+				this._authentication.delete(key);
+			}
+			throw error;
+		} finally {
+			if (this._authenticationRequests.get(key) === normalizedParams) {
+				this._authenticationRequests.delete(key);
+			}
 		}
 		return { authenticated: true };
 	}

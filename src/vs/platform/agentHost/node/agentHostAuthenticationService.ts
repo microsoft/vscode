@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
 import { getExpirationTime, getRemainingTimeInSeconds, isExpired } from '../../../base/common/date.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -32,6 +32,8 @@ export interface IAgentHostAuthenticationController {
 	readonly _serviceBrand: undefined;
 	authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult>;
 	replay(provider: IAgent): Promise<void>;
+	/** Quarantines only the currently selected credential refused by its resource server. */
+	rejectToken(request: IAgentHostAuthTokenRequest, token: string, accountId: string | undefined): boolean;
 }
 
 interface IStoredAuthToken {
@@ -51,6 +53,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
+	private readonly _rejectedTokens = new Map<string, { readonly token: string; readonly scopes: readonly string[] }[]>();
 	private readonly _authenticationRequests = new Map<string, IAuthenticationRequest>();
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
@@ -61,6 +64,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		super();
 		this._register(toDisposable(() => {
 			this._tokens.clear();
+			this._rejectedTokens.clear();
 			for (const request of this._authenticationRequests.values()) {
 				request.completed.complete();
 			}
@@ -69,6 +73,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	async authenticate(params: AuthenticateParams, providers: Iterable<IAgent>): Promise<AuthenticateResult> {
+		if (this._store.isDisposed || this._isRejectedToken(params, params.token)) {
+			this._logService.debug(`[AgentHostAuthenticationService] Refusing a rejected credential for resource=${params.resource}`);
+			return { authenticated: false };
+		}
 		const scopes = this._normalizeScopes(params.scopes);
 		const key = this._key(params.resource, scopes);
 		const previousRequest = this._authenticationRequests.get(key);
@@ -133,6 +141,9 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				);
 			}
 		}
+		if (this._store.isDisposed || this._isRejectedToken(params, params.token)) {
+			return { authenticated: false };
+		}
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };
 		}
@@ -167,7 +178,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 		const protectedResources = new Set(provider.getProtectedResources().map(resource => resource.resource));
 		for (const [key, stored] of this._tokens) {
-			if (this._authenticationRequests.has(key) || this._tokens.get(key) !== stored) {
+			if (this._authenticationRequests.has(key) || this._tokens.get(key) !== stored || this._isRejectedToken(stored, stored.token)) {
 				continue;
 			}
 			const now = Date.now();
@@ -198,11 +209,36 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
-		return this._getAuthToken(request, false)?.token;
+		const stored = this._getAuthToken(request, false);
+		return stored && !this._isRejectedToken(stored, stored.token) ? stored.token : undefined;
 	}
 
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined {
 		return (this._getAuthToken(request, false) ?? this._getAuthToken(request, true))?.account;
+	}
+
+	rejectToken(request: IAgentHostAuthTokenRequest, token: string, accountId: string | undefined): boolean {
+		const stored = this._getAuthToken(request, false);
+		if (this._store.isDisposed || !stored || stored.token !== token || authenticationAccountId(stored.account) !== accountId || this._isRejectedToken(stored, token)) {
+			return false;
+		}
+		const rejected = this._rejectedTokens.get(request.resource) ?? [];
+		rejected.push({ token, scopes: this._normalizeScopes(request.scopes) });
+		this._rejectedTokens.set(request.resource, rejected);
+		this._logService.debug(`[AgentHostAuthenticationService] Quarantined a refused credential for resource=${request.resource}`);
+		// Let the failing request's promise chain settle before retiring its client.
+		disposableTimeout(() => {
+			if (!this._store.isDisposed && this._getAuthToken(request, false) === stored) {
+				this._onDidChangeAuthToken.fire({ resource: stored.resource, scopes: stored.scopes, token: undefined });
+			}
+		}, 0, this._store);
+		return true;
+	}
+
+	private _isRejectedToken(request: IAgentHostAuthTokenRequest, token: string): boolean {
+		const scopes = this._normalizeScopes(request.scopes);
+		return !!token && (this._rejectedTokens.get(request.resource)?.some(rejected =>
+			rejected.token === token && (scopes.length === 0 || rejected.scopes.every(scope => scopes.includes(scope)))) ?? false);
 	}
 
 	private _getAuthToken(request: IAgentHostAuthTokenRequest, includeExpired: boolean): IStoredAuthToken | undefined {

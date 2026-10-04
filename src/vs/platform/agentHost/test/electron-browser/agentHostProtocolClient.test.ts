@@ -689,6 +689,52 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual([...client['_authentication'].values()], []);
 	});
 
+	test('preserves an authentication refusal and does not cache or replay the refused credential', async () => {
+		const { client, transport } = createClient();
+		const data = { resources: [{ resource: 'https://api.example.com/repository', scopes_supported: ['repo:read'] }] };
+		const expected = { code: AhpErrorCodes.AuthRequired, message: 'Repository authentication required', data };
+		const accepted = client.authenticate({ resource: data.resources[0].resource, scopes: ['repo:read'], token: 'refused' });
+		transport.fireMessage({ jsonrpc: '2.0', id: (transport.sentMessages[0] as JsonRpcRequest).id, result: {} });
+		await accepted;
+		const refused = assertRemoteProtocolError(client.authenticate({
+			resource: data.resources[0].resource, scopes: ['repo:read'], token: 'refused',
+		}), expected);
+		const request = transport.sentMessages[1] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: expected });
+		await refused;
+		assert.deepStrictEqual({ cached: [...client['_authentication'].values()], requests: transport.sentMessages.length }, { cached: [], requests: 2 });
+	});
+
+	for (const oldResult of ['success', 'refusal'] as const) {
+		test(`late authentication ${oldResult} cannot overwrite or clear a replacement credential`, async () => {
+			const { client, transport } = createClient();
+			const request = { resource: 'https://api.example.com/repository', scopes: ['repo:read'] };
+			const old = client.authenticate({ ...request, token: 'old' });
+			const observedOld = oldResult === 'refusal' ? assert.rejects(old, { code: AhpErrorCodes.AuthRequired }) : old;
+			const replacement = client.authenticate({ ...request, token: 'fresh' });
+			transport.fireMessage({ jsonrpc: '2.0', id: (transport.sentMessages[1] as JsonRpcRequest).id, result: {} });
+			await replacement;
+			const id = (transport.sentMessages[0] as JsonRpcRequest).id;
+			transport.fireMessage(oldResult === 'success' ? { jsonrpc: '2.0', id, result: {} }
+				: { jsonrpc: '2.0', id, error: { code: AhpErrorCodes.AuthRequired, message: 'Refused' } });
+			await observedOld;
+			assert.deepStrictEqual([...client['_authentication'].values()].map(value => value.params.token), ['fresh']);
+		});
+	}
+
+	test('preserves structured authentication errors for PR operations without replaying the operation', async () => {
+		const { client, transport } = createClient();
+		const expected = {
+			code: AhpErrorCodes.AuthRequired, message: 'Sign in again',
+			data: { resources: [{ resource: 'https://api.example.com/repository', required: false, scopes_supported: ['repo:read'] }] },
+		};
+		const rejected = assertRemoteProtocolError(client.invokeChangesetOperation({ channel: 'changeset://host/folder', operationId: 'create-pr' }), expected);
+		const request = transport.sentMessages[0] as JsonRpcRequest;
+		transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: expected });
+		await rejected;
+		assert.strictEqual(transport.sentMessages.length, 1);
+	});
+
 	test('listSessions carries the workspace-less marker and compatible working directories', async () => {
 		// Regression: the sessions provider resolves a session's kind (quick
 		// chat vs. workspace) from `_meta.workspaceless`, and after a window

@@ -144,7 +144,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	}
 
 	handleRequestError(credential: GitHubCredential, error: unknown): void {
-		if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication') {
+		if (!(error instanceof GitHubRequestError) || error.kind !== 'authentication' || error.statusCode !== 401) {
 			return;
 		}
 		if (credential.signal.aborted
@@ -284,7 +284,8 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 				priority: 'interactive',
 			}, signal);
 		} catch (error) {
-			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
+			if (error instanceof GitHubRequestError && error.kind === 'authentication' && error.statusCode === 401
+				&& !signal.aborted && this._current?.generation === generation && this._current.token === token) {
 				this._tokenProvider.invalidateToken?.(token);
 			}
 			throw error;

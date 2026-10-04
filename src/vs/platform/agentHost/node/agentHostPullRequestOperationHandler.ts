@@ -21,6 +21,7 @@ import { PullRequestMergeMethod } from '../../github/common/githubPullRequestSer
 import { GitHubPullRequestLookup, GitHubRepositoryMergeCapabilities } from '../../github/common/githubQueryService.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { GitHubRequestTimeoutError } from '../../github/common/githubTypes.js';
+import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
@@ -130,6 +131,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 				capabilities = await client.query.getRepositoryMergeCapabilities({ ...account, ...gitHubState }, signal);
 			} catch (err) {
 				this._throwIfCancelled(token);
+				if (err instanceof GitHubRequestError && err.kind === 'authentication') {
+					throw err;
+				}
 				this._logService.warn('[AgentHostPullRequestOperationHandler] Could not read repository merge settings; GitHub auto-merge is unavailable during PR preparation.', err);
 				capabilities = { autoMergeAllowed: false, mergeMethods: [] };
 			}
@@ -176,6 +180,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 
 	private async _withAbortSignal(token: CancellationToken, operation: (signal: AbortSignal, client: IGitHubClient) => Promise<InvokeChangesetOperationResult>): Promise<InvokeChangesetOperationResult> {
 		this._throwIfCancelled(token);
+		const resource = this._gitHubEndpointService.getRepoResource();
 		const abortController = new AbortController();
 		const store = new DisposableStore();
 		store.add(token.onCancellationRequested(() => abortController.abort()));
@@ -184,6 +189,11 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			return await operation(abortController.signal, client);
 		} catch (error) {
 			this._throwIfCancelled(token);
+			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
+				throw new ProtocolError(AHP_AUTH_REQUIRED,
+					localize('agentHost.changeset.pr.authRejected', "GitHub rejected repository access. Sign in again, then retry the pull request operation."),
+					{ resources: [resource] });
+			}
 			throw error;
 		} finally {
 			store.dispose();
@@ -267,7 +277,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			throw new ProtocolError(
 				AHP_AUTH_REQUIRED,
 				localize('agentHost.changeset.pr.authRequired', "Sign in to GitHub with repository access to create a pull request."),
-				[repoResource],
+				{ resources: [repoResource] },
 			);
 		}
 		this._throwIfCancelled(token);
@@ -308,6 +318,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 		};
 		this._validateAgentMergeAvailable(options);
 		const context = await this._resolveContext(params, token, submitted?.expectedContext);
+		await client.credentials.getCredential(signal);
 		const { sessionUri, sourceUri, ownerUri, sessionState, conversationState, conversationChat, workingDirectory, gitHubState, effectiveBaseBranch, baseBranchName, authToken } = context;
 		let { gitState, branchName } = context;
 		if (submitted?.autoMergeMethod) {

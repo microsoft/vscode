@@ -11,8 +11,10 @@ import { authenticationAccountId } from '../common/meta/agentAuthenticationAccou
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
+import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AuthRequiredReason } from '../common/state/sessionActions.js';
 
 export const IAgentHostGitHubService = refineServiceDecorator<IGitHubService, IAgentHostGitHubService>(IGitHubService);
 
@@ -34,6 +36,8 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 		@IAgentHostGitHubEndpointService private readonly _endpointService: IAgentHostGitHubEndpointService,
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IAgentHostAuthenticationController authenticationController: IAgentHostAuthenticationController,
+		@IAgentHostStateManager stateManager: AgentHostStateManager,
 	) {
 		let hasRepositoryToken = false;
 		const selectedAccount = () => {
@@ -72,6 +76,21 @@ export class AgentHostGitHubService extends GitHubService implements IAgentHostG
 						hasRepositoryToken ||= !!token;
 					}
 					return token;
+				},
+				invalidateToken: (context, token) => {
+					const resource = _endpointService.getRepoResource();
+					const request = { resource: context.sessionId, scopes: context.scopes };
+					if (context.sessionId !== resource.resource || !authenticationController.rejectToken(request, token, context.accountId)) {
+						return;
+					}
+					hasRepositoryToken = false;
+					queueMicrotask(() => {
+						if (!this._store.isDisposed && _endpointService.getRepoResource().resource === resource.resource
+							&& !_authenticationService.getAuthToken(request)
+							&& authenticationAccountId(_authenticationService.getAuthAccount(request)) === context.accountId) {
+							stateManager.emitAuthRequired({ resource, reason: AuthRequiredReason.Expired });
+						}
+					});
 				},
 			},
 		}, logService, telemetryService);

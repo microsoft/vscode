@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgent } from '../../common/agent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -27,20 +27,20 @@ import { GitHubPullRequestLookup, GitHubRepositoryMergeCapabilities, GitHubRepos
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
+import { GitHubRequestError } from '../../../github/common/githubTransport.js';
 import { RequestFetch } from '../../../github/common/types.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
-import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
+import { createTestAgentHostGitHubService, createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
 import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
-import type { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import type { IAgentBranchNameGenerator, IAgentBranchNameGeneratorRequest } from '../../node/shared/agentBranchNameGenerator.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState, type AgentMergeConfiguration, type AgentMergeControllerState, type AgentMergeSessionOverrides } from '../../common/agentMerge.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult, type IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
-import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -376,8 +376,8 @@ function agentMergeFolderPatch(session: URI, state: { readonly enabled: boolean;
 suite('AgentHostPullRequestOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createNetworkClient(fetch: RequestFetch): IGitHubClient {
-		const service = disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
+	function createNetworkClient(fetch: RequestFetch, authentication: IAgentHostAuthenticationService = createAuthenticationService()): IGitHubClient {
+		const service = disposables.add(createTestAgentHostGitHubService({ fetch }, authentication, createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 		return disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 	}
 
@@ -387,6 +387,54 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		draft: false,
 		agentMerge: false,
 	};
+
+	for (const phase of ['creation', 'preparation']) {
+		test(`a bootstrap 401 survives quarantine during PR ${phase} and fails before git mutation`, async () => {
+			const authentication = disposables.add(new AgentHostAuthenticationService(new NullLogService()));
+			await authentication.authenticate({ resource: GITHUB_REPO_PROTECTED_RESOURCE.resource, scopes: ['repo'], token: 'refused-token' }, [new class extends mock<IAgent>() {
+				override getProtectedResources() { return [GITHUB_REPO_PROTECTED_RESOURCE]; }
+				override async authenticate() { return true; }
+			}()]);
+			const git = new TestGitService();
+			git.uncommitted = true;
+			const requests: string[] = [];
+			const client = createNetworkClient(async input => {
+				requests.push(new URL(String(input)).pathname);
+				return new Response('{"message":"Bad credentials"}', { status: 401 });
+			}, authentication);
+			const { handler, session, createdEvents } = setup(disposables, git, client);
+			const channel = buildSessionChangesetUri(session.toString());
+			await assert.rejects(phase === 'creation'
+				? handler.invoke({ channel, operationId: 'create-pr' }, CancellationToken.None)
+				: handler.prepare({ channel, operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None), {
+				code: AHP_AUTH_REQUIRED,
+				data: { resources: [GITHUB_REPO_PROTECTED_RESOURCE] },
+			});
+			assert.deepStrictEqual({ requests, git: git.calls, createdEvents }, { requests: ['/user'], git: [], createdEvents: [] });
+		});
+	}
+
+	test('PR preparation does not substitute default merge settings for authentication failure', async () => {
+		const client = new TestGitHubClient();
+		client.capabilitiesError = new GitHubRequestError('Bad credentials', 'authentication', 401);
+		const git = new TestGitService();
+		const { handler, session, copilotApiService } = setup(disposables, git, client);
+		await assert.rejects(handler.prepare({ channel: buildSessionChangesetUri(session.toString()), operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None), {
+			code: AHP_AUTH_REQUIRED,
+			data: { resources: [GITHUB_REPO_PROTECTED_RESOURCE] },
+		});
+		assert.deepStrictEqual({ git: git.calls, generated: copilotApiService.calls.length }, { git: [], generated: 0 });
+	});
+
+	test('a rejected create is not replayed after authentication fails', async () => {
+		const client = new TestGitHubClient();
+		client.createError = new GitHubRequestError('Bad credentials', 'authentication', 401);
+		const { handler, session, createdEvents } = setup(disposables, new TestGitService(), client);
+		await assert.rejects(handler.invoke({ channel: buildSessionChangesetUri(session.toString()), operationId: 'create-pr' }, CancellationToken.None), { code: AHP_AUTH_REQUIRED });
+		assert.deepStrictEqual({ creates: client.calls.filter(call => call.startsWith('createPullRequest:')), createdEvents }, {
+			creates: ['createPullRequest:false'], createdEvents: [],
+		});
+	});
 
 	for (const operation of ['create', 'validate']) {
 		for (const changed of ['branch', 'repository', 'base', 'working directory', 'head owner', 'upstream', 'unavailable git state', 'detached head', 'removed remote']) {
@@ -1472,7 +1520,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			override getAuthToken() { return selected; }
 		}();
 		const requests: string[] = [];
-		const service = disposables.add(new AgentHostGitHubService({
+		const service = disposables.add(createTestAgentHostGitHubService({
 			fetch: async (input, init) => {
 				const path = new URL(String(input)).pathname;
 				requests.push(`${init?.method}:${path}:${selected}`);
@@ -1523,7 +1571,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 			const requests: string[] = [];
 			let created = false;
 			let createSignal: AbortSignal | undefined;
-			const service = disposables.add(new AgentHostGitHubService({
+			const service = disposables.add(createTestAgentHostGitHubService({
 				fetch: async (input, init) => {
 					const path = new URL(String(input)).pathname;
 					requests.push(`${init?.method}:${path}:${new Headers(init?.headers).get('Authorization')}`);

@@ -52,8 +52,7 @@ class TestTokenProvider extends Disposable implements IGitHubTokenProvider {
 	private _token: string | undefined;
 
 	/**
-	 * `retainInvalidated` models the agent host, whose provider cannot drop a
-	 * token, so a refusal there leaves the very same credential in place.
+	 * `retainInvalidated` models a provider that cannot drop a refused token.
 	 */
 	constructor(private readonly _retainInvalidated = false) {
 		super();
@@ -413,6 +412,23 @@ suite('GitHubCredentialService', () => {
 				invalidatedTokens: [],
 				previousAborted: true,
 				currentAborted: false,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('does not quarantine a credential for synthetic authentication errors or HTTP 403', async () => {
+		await withServer(async server => {
+			server.enqueue(...resolvedUserSteps(1));
+			const tokenProvider = disposables.add(new TestTokenProvider());
+			const transport = disposables.add(new GitHubTransport(nodeFetch));
+			const credentials = disposables.add(new GitHubCredentialService(undefined, undefined, transport, tokenProvider, server.createEndpointService()));
+			tokenProvider.setToken('current');
+			const credential = await credentials.getCredential(signal());
+			credentials.handleRequestError(credential, new GitHubRequestError('Generation changed', 'authentication'));
+			credentials.handleRequestError(credential, new GitHubRequestError('Forbidden', 'authentication', 403));
+			assert.deepStrictEqual({ token: tokenProvider.getToken(), invalidated: tokenProvider.invalidatedTokens, aborted: credential.signal.aborted }, {
+				token: 'current', invalidated: [], aborted: false,
 			});
 			server.assertSatisfied();
 		});

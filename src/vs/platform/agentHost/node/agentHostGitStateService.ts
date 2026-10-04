@@ -68,6 +68,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	private readonly _gitHubStateSaves = new SequencerByKey<string>();
 	private readonly _pendingPullRequestWrites = new SequencerByKey<string>();
 	private readonly _pendingPullRequests = new Map<string, Promise<readonly IPendingRecordedPullRequest[]>>();
+	private readonly _pendingGitHubLookups = new Map<string, string>();
+	private readonly _gitHubLookupRetries = this._register(new ThrottlerByKey<string>());
 	private readonly _pullRequestAssociationResolver: AgentHostPullRequestAssociationResolver;
 	/** Set while a lookup reached the auto-attach experiment's divergence before the assignment context arrived. */
 	private _autoAttachExperimentTriggerPending = false;
@@ -90,6 +92,27 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
+			for (const [source, session] of this._pendingGitHubLookups) {
+				if (session === sessionKey) {
+					this._pendingGitHubLookups.delete(source);
+				}
+			}
+		}));
+		this._register(toDisposable(() => {
+			this._pendingGitHubLookups.clear();
+			this._pendingPullRequests.clear();
+		}));
+		this._register(gitHubService.onDidChangeRepositoryClient(() => {
+			this._pullRequestAssociationResolver.resetRestrictedState();
+			if (!this._getGitHubAuthToken()) {
+				return;
+			}
+			for (const [source, session] of this._pendingGitHubLookups) {
+				this._retryGitHubLookup(source, session, () => this.attachSessionGitHubPullRequest(source, undefined));
+			}
+			for (const session of this._pendingPullRequests.keys()) {
+				this._retryGitHubLookup(`recorded:${session}`, session, () => this.reconcilePendingRecordedPullRequests(session, true));
+			}
 		}));
 
 		let automaticPullRequestAttachmentEnabled = this._isAutomaticPullRequestAttachmentEnabled();
@@ -138,7 +161,21 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		return this._pullRequestSequencer.queue(sessionKey, () => this._attachSessionGitHubPullRequest(sessionKey));
 	}
 
+	private _retryGitHubLookup(key: string, session: string, lookup: () => Promise<void>): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		void this._gitHubLookupRetries.queue(key, async () => {
+			if (!this._store.isDisposed && this._stateManager.getSessionState(session)) {
+				await lookup();
+			}
+		}).catch(error => {
+			this._logService.warn(`[AgentHostGitStateService] Could not resume pull request lookup for ${session}`, error);
+		});
+	}
+
 	private async _attachSessionGitHubPullRequest(sessionKey: string): Promise<void> {
+		this._pendingGitHubLookups.delete(sessionKey);
 		const state = this._stateManager.getSessionState(sessionKey);
 		if (!state) {
 			return;
@@ -168,6 +205,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}
 
 		if (!this._isAutomaticPullRequestAttachmentEnabled()) {
+			this._pendingGitHubLookups.set(sessionKey, sessionKey);
 			try {
 				const result = await this._pullRequestAssociationResolver.reconcileRestricted({
 					sessionKey,
@@ -187,6 +225,8 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				if (result.kind === 'failed') {
 					this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to reconcile artifact pull requests for ${sessionKey}`, result.error);
+				} else if (this._getGitHubAuthToken()) {
+					this._pendingGitHubLookups.delete(sessionKey);
 				}
 			} catch (error) {
 				this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to reconcile artifact pull requests for ${sessionKey}`, error);
@@ -207,6 +247,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 
+		this._pendingGitHubLookups.set(sessionKey, sessionKey);
 		try {
 			const authToken = this._getGitHubAuthToken();
 			if (!authToken) {
@@ -214,6 +255,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 
 			const pr = await this._pullRequestAssociationResolver.resolveForCheckout(state, gitHubState.owner, gitHubState.repo, gitState, branchName);
+			this._pendingGitHubLookups.delete(sessionKey);
 			const currentBranchName = readSessionGitState(this._stateManager.getSessionState(sessionKey)?._meta)?.branchName;
 			if (currentBranchName !== branchName) {
 				return;
@@ -261,6 +303,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * other folders rely on the pull requests created from them.
 	 */
 	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder): Promise<void> {
+		this._pendingGitHubLookups.delete(folder.sourceUri);
 		const state = this._stateManager.getSessionState(folder.sessionUri);
 		if (state?.lifecycle !== SessionLifecycle.Ready) {
 			return;
@@ -280,6 +323,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 
+		this._pendingGitHubLookups.set(folder.sourceUri, folder.sessionUri);
 		try {
 			const authToken = this._getGitHubAuthToken();
 			if (!authToken) {
@@ -287,6 +331,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			}
 			const workingDirectory = folder.workingDirectory;
 			const pr = await this._pullRequestAssociationResolver.resolveForCheckout(state, gitHubState.owner, gitHubState.repo, gitState, branchName, undefined, workingDirectory);
+			this._pendingGitHubLookups.delete(folder.sourceUri);
 			if (!pr?.url || this.getSessionGitState(folder.sourceUri)?.branchName !== branchName) {
 				return;
 			}

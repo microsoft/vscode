@@ -6,13 +6,15 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -24,12 +26,16 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService, IPromptChoice, NoOpNotification, NotificationMessage, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
 import { AgentHostAuthenticationRecovery, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
@@ -69,6 +75,12 @@ function createAuthInstantiationService(disposables: Pick<DisposableStore, 'add'
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
+		override readonly hasFocus = true;
+		override readonly onDidChangeFocus = Event.None;
+	}());
+	instantiationService.stub(INotificationService, new TestNotificationService());
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 	return instantiationService;
 }
 
@@ -419,6 +431,188 @@ suite('AgentHostAuthenticationRecovery', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function refusedTokenHarness(sharedStorage?: IStorageService) {
+		const account = { id: 'account-a', label: 'Account A' };
+		const oldSession: AuthenticationSession = { id: 'old-session', accessToken: 'old-token', scopes: ['repo:read'], account };
+		const freshSession: AuthenticationSession = { ...oldSession, id: 'fresh-session', accessToken: 'fresh-token' };
+		let sessions: readonly AuthenticationSession[] = [oldSession];
+		let signInSession = freshSession;
+		let focused = true;
+		const focus = disposables.add(new Emitter<boolean>());
+		const resource: ProtectedResourceMetadata = {
+			resource: 'https://api.example.com/repository',
+			authorization_servers: ['https://auth.example.com'],
+			scopes_supported: ['repo:read'],
+			required: false,
+		};
+		const signIns: { providerId: string; scopes: readonly string[]; account: string | undefined; server: string | undefined; resource: string | undefined }[] = [];
+		const authService = createMockAuthService({
+			getOrActivateProviderIdForServer: async () => 'test-provider',
+			getSessions: async (_provider, scopes) => scopes
+				? sessions.filter(session => scopes.length === session.scopes.length && scopes.every(scope => session.scopes.includes(scope)))
+				: sessions,
+			createSession: async (providerId: string, scopes: string[], options: IAuthenticationProviderSessionOptions) => {
+				signIns.push({ providerId, scopes, account: options.account?.id, server: options.authorizationServer?.toString(), resource: options.resource });
+				sessions = [signInSession];
+				return signInSession;
+			},
+		});
+		const instantiation = createAuthInstantiationService(disposables, authService);
+		instantiation.stub(IHostService, new class extends mock<IHostService>() {
+			override get hasFocus() { return focused; }
+			override readonly onDidChangeFocus = focus.event;
+		}());
+		if (sharedStorage) {
+			instantiation.stub(IStorageService, sharedStorage);
+		}
+		const notifications: { message: NotificationMessage; choices: IPromptChoice[]; updates: NotificationMessage[]; closed: boolean }[] = [];
+		instantiation.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(_severity: Severity, message: NotificationMessage, choices: IPromptChoice[]) {
+				const item = { message, choices, updates: [] as NotificationMessage[], closed: false };
+				notifications.push(item);
+				return new class extends NoOpNotification {
+					override updateMessage(message: NotificationMessage) { item.updates.push(message); }
+					override close() { item.closed = true; }
+				}();
+			}
+		}());
+		const cache = new AgentHostAuthTokenCache();
+		const recovery = disposables.add(instantiation.createInstance(AgentHostAuthenticationRecovery));
+		const forwarded: string[] = [];
+		const options: IAgentHostAuthenticationOptions = {
+			authTokenCache: cache, recovery, logPrefix: '[test]', reason: AuthRequiredReason.Expired,
+			authenticate: async request => {
+				forwarded.push(request.token);
+				if (request.token === 'old-token') {
+					throw new ProtocolError(AHP_AUTH_REQUIRED, 'Refused');
+				}
+				return { authenticated: true };
+			},
+		};
+		return {
+			account, oldSession, freshSession, resource, options, cache, recovery, forwarded, notifications, signIns, instantiation,
+			recover: (reason = AuthRequiredReason.Expired) => instantiation.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, reason })),
+			setSessions: (value: readonly AuthenticationSession[]) => { sessions = value; },
+			setSignInSession: (value: AuthenticationSession) => { signInSession = value; },
+			setFocused: (value: boolean) => { focused = value; focus.fire(value); },
+		};
+	}
+
+	test('coalesces refused probes and never reuses a rejected bearer under another session id', async () => {
+		const h = refusedTokenHarness();
+		h.setSessions([h.oldSession, { ...h.oldSession, id: 'duplicate' }]);
+		await Promise.all([h.recover(), h.recover()]);
+		await h.recover();
+		assert.deepStrictEqual({ forwarded: h.forwarded, prompts: h.notifications.length, signIns: h.signIns }, {
+			forwarded: ['old-token'], prompts: 1, signIns: [],
+		});
+	});
+
+	test('silently uses only a different same-account credential and ignores late challenges', async () => {
+		const h = refusedTokenHarness();
+		h.setSessions([
+			h.oldSession,
+			{ ...h.freshSession, accessToken: 'other-account-token', account: { id: 'account-b', label: 'Account B' } },
+			{ ...h.freshSession, scopes: ['repo:read', 'repo:write'] },
+		]);
+		await h.recover();
+		await h.recover(AuthRequiredReason.Required);
+		assert.deepStrictEqual({ forwarded: h.forwarded, prompts: h.notifications.length, signIns: h.signIns }, {
+			forwarded: ['old-token', 'fresh-token', 'fresh-token'], prompts: 0, signIns: [],
+		});
+	});
+
+	test('offers scoped sign-in only on user action and forwards the fresh credential', async () => {
+		const h = refusedTokenHarness();
+		await h.recover();
+		assert.deepStrictEqual(h.signIns, []);
+		await h.notifications[0].choices[0].run();
+		assert.deepStrictEqual({ signIns: h.signIns, forwarded: h.forwarded, closed: h.notifications[0].closed }, {
+			signIns: [{
+				providerId: 'test-provider', scopes: ['repo:read'], account: 'account-a',
+				server: 'https://auth.example.com/', resource: h.resource.resource,
+			}],
+			forwarded: ['old-token', 'fresh-token'], closed: true,
+		});
+	});
+
+	for (const scenario of ['same-token', 'different-account', 'wrong-server'] as const) {
+		test(`stops and keeps actionable recovery when sign-in returns ${scenario}`, async () => {
+			const h = refusedTokenHarness();
+			h.setSignInSession(scenario === 'same-token' ? { ...h.oldSession, id: 'new-session-id' }
+				: scenario === 'different-account' ? { ...h.freshSession, account: { id: 'account-b', label: 'Account B' } }
+					: { ...h.freshSession, authorizationServer: URI.parse('https://different.example.com') });
+			await h.recover();
+			await h.notifications[0].choices[0].run();
+			await h.recover();
+			assert.deepStrictEqual({ forwarded: h.forwarded, prompts: h.notifications.length, updates: h.notifications[0].updates.length, signIns: h.signIns.length }, {
+				forwarded: ['old-token'], prompts: 1, updates: 1, signIns: 1,
+			});
+		});
+	}
+
+	test('defers a notification without holding recovery open and drops it on disposal', async () => {
+		const h = refusedTokenHarness();
+		h.setFocused(false);
+		await h.recover();
+		assert.strictEqual(h.notifications.length, 0);
+		h.recovery.dispose();
+		h.setFocused(true);
+		assert.deepStrictEqual({ forwarded: h.forwarded, prompts: h.notifications.length }, { forwarded: ['old-token'], prompts: 0 });
+	});
+
+	test('shares notification cooldown across connections and windows', async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const first = refusedTokenHarness(storage);
+		const second = refusedTokenHarness(storage);
+		await first.recover();
+		await second.recover();
+		assert.deepStrictEqual([first.notifications.length, second.notifications.length], [1, 0]);
+	});
+
+	test('retains host refusal when a rejected session is removed', async () => {
+		const h = refusedTokenHarness();
+		await h.recover();
+		h.cache.clearRejectedSession(h.resource.resource, h.resource.scopes_supported);
+		h.setSessions([{ ...h.oldSession, id: 'reinstalled-session' }]);
+		await h.recover();
+		assert.deepStrictEqual(h.forwarded, ['old-token']);
+	});
+
+	test('accepts an explicitly selected new account after removing a host-refused session without forgetting the refused bearer', async () => {
+		const h = refusedTokenHarness();
+		const agents: AgentInfo[] = [{ provider: 'example', displayName: 'Example', description: '', models: [], protectedResources: [h.resource] }];
+		await h.recover();
+		h.setSessions([]);
+		await h.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'test-provider', [h.oldSession], h.options);
+		h.setSessions([
+			{ ...h.oldSession, id: 'reinstalled-refused-session' },
+			{ ...h.freshSession, accessToken: 'account-b-token', account: { id: 'account-b', label: 'Account B' } },
+		]);
+		await h.instantiation.invokeFunction(authenticateProtectedResources, agents, h.options);
+		assert.deepStrictEqual({
+			forwarded: h.forwarded,
+			accountRestriction: h.cache.getRejectedSession(h.resource.resource, h.resource.scopes_supported)?.accountId,
+			retainedRefusal: h.cache.getRejectedSession(h.resource.resource, h.resource.scopes_supported)?.accessTokens?.has('old-token'),
+			promptClosed: h.notifications[0].closed,
+		}, {
+			forwarded: ['old-token', '', 'account-b-token'], accountRestriction: undefined, retainedRefusal: true, promptClosed: true,
+		});
+	});
+
+	test('a refused initial forward joins recovery without blocking other protected resources', async () => {
+		const h = refusedTokenHarness();
+		h.setSessions([h.oldSession, { ...h.freshSession, scopes: ['profile:read'] }]);
+		const agents: AgentInfo[] = [{
+			provider: 'example', displayName: 'Example', description: '', models: [],
+			protectedResources: [h.resource, { ...h.resource, resource: 'https://api.example.com/profile', scopes_supported: ['profile:read'] }],
+		}];
+		await h.instantiation.invokeFunction(authenticateProtectedResources, agents, h.options);
+		assert.deepStrictEqual({ forwarded: h.forwarded, prompts: h.notifications.length }, {
+			forwarded: ['old-token', 'fresh-token'], prompts: 1,
+		});
+	});
+
 	test('cancels recovery when its enablement generation becomes stale', async () => {
 		const sessions = new DeferredPromise<readonly { scopes: string[]; accessToken: string }[]>();
 		const authService = createMockAuthService({
@@ -427,7 +621,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const authenticateCalls: string[] = [];
 		let current = true;
 		const recoveryPromise = instantiationService.invokeFunction(accessor => recovery.recover(accessor, {
@@ -468,7 +662,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 		const cache = new AgentHostAuthTokenCache();
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -512,7 +706,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -560,7 +754,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -596,7 +790,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		commandService.result = { success: undefined, dialogSkipped: false };
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -643,7 +837,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		const commandService = new TestCommandService();
 		commandService.result = { success: undefined, dialogSkipped: false };
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -676,7 +870,7 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const resource: ProtectedResourceMetadata = {
 			resource: 'https://api.example.com',
 			authorization_servers: ['https://auth.example.com'],
@@ -726,7 +920,7 @@ suite('AgentHost authentication telemetry', () => {
 		commandService.result = { success: undefined, dialogSkipped: false };
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 		instantiationService.stub(ITelemetryService, telemetry);
-		const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const options: IAgentHostAuthenticationOptions = {
 			authTokenCache: new AgentHostAuthTokenCache(),
 			logPrefix: '[AgentHost]',
@@ -754,7 +948,7 @@ suite('AgentHost authentication telemetry', () => {
 		});
 		const instantiationService = createAuthInstantiationService(disposables, authService);
 		instantiationService.stub(ITelemetryService, telemetry);
-		const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const options: IAgentHostAuthenticationOptions = { logPrefix: '[AgentHost]', authenticate: async () => { } };
 		const first = instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
 		const second = instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
@@ -796,7 +990,7 @@ suite('AgentHost authentication telemetry', () => {
 			});
 			const instantiationService = createAuthInstantiationService(disposables, authService);
 			instantiationService.stub(ITelemetryService, telemetry);
-			const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+			const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, {
 				logPrefix: '[AgentHost]',
 				authenticate: async () => { assert.fail('Should not forward a token'); },
@@ -867,7 +1061,7 @@ suite('AgentHost authentication telemetry', () => {
 			commandService.onExecute = () => { signedIn = true; };
 			const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 			instantiationService.stub(ITelemetryService, telemetry);
-			const recovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+			const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 			const options: IAgentHostAuthenticationOptions = { logPrefix: '[AgentHost]', authenticate: async () => { } };
 
 			await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, options));
@@ -1892,7 +2086,7 @@ suite('authenticateProtectedResources', () => {
 		const commandService = new TestCommandService();
 		const instantiationService = createAuthInstantiationService(disposables, authService, commandService);
 		const authTokenCache = new AgentHostAuthTokenCache();
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
 		const tokens: string[] = [];
 		const options: IAgentHostAuthenticationOptions = {
@@ -1939,7 +2133,7 @@ suite('authenticateProtectedResources', () => {
 			},
 		});
 		const instantiationService = createAuthInstantiationService(disposables, authService);
-		const recovery = new AgentHostAuthenticationRecovery(NullTelemetryService);
+		const recovery = disposables.add(instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		const agents: AgentInfo[] = [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], protectedResources: [protectedResource] }];
 		const tokens: string[] = [];
 		const options: IAgentHostAuthenticationOptions = {

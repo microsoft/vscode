@@ -27,6 +27,10 @@ import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../..
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { RemoteAgentHostContribution } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.js';
@@ -40,6 +44,7 @@ import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost
 import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthenticationState {
+	readonly connection: Pick<IAgentConnection, 'authenticate'>;
 	readonly authTokenCache: AgentHostAuthTokenCache;
 	readonly authRecovery: AgentHostAuthenticationRecovery;
 	readonly authenticationPending: ISettableObservable<boolean>;
@@ -66,6 +71,13 @@ interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
 	const service = store.add(new TestInstantiationService());
 	service.stub(IConfigurationService, new TestConfigurationService());
+	service.stub(ITelemetryService, NullTelemetryService);
+	service.stub(INotificationService, new TestNotificationService());
+	service.stub(IStorageService, store.add(new InMemoryStorageService()));
+	service.stub(IHostService, new class extends mock<IHostService>() {
+		override readonly hasFocus = true;
+		override readonly onDidChangeFocus = Event.None;
+	}());
 	return service;
 }
 
@@ -202,7 +214,7 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const address = 'test-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }]]);
+		contribution._connections = new Map([[address, { connection, authTokenCache: new AgentHostAuthTokenCache(), authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)), authenticationPending: observableValue('authenticationPending', false) }]]);
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = { get: () => undefined };
 		contribution._logService = logService;
@@ -242,10 +254,12 @@ suite('RemoteAgentHost auth notifications', () => {
 		});
 		instantiationService.stub(ILogService, new NullLogService());
 		const calls: string[] = [];
+		const firstConnection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } };
+		const secondConnection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } };
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
 		contribution._connections = new Map([
-			['host-one', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }],
-			['host-two', { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }],
+			['host-one', { connection: firstConnection, authTokenCache: new AgentHostAuthTokenCache(), authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)), authenticationPending: observableValue('authenticationPending', false) }],
+			['host-two', { connection: secondConnection, authTokenCache: new AgentHostAuthTokenCache(), authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)), authenticationPending: observableValue('authenticationPending', false) }],
 		]);
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = { get: () => undefined };
@@ -257,8 +271,8 @@ suite('RemoteAgentHost auth notifications', () => {
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Required };
 
-		contribution._handleAuthenticationRequiredNotification('host-one', { authenticate: async request => { calls.push(`one:${request.token}`); return { authenticated: true }; } }, notification);
-		contribution._handleAuthenticationRequiredNotification('host-two', { authenticate: async request => { calls.push(`two:${request.token}`); return { authenticated: true }; } }, notification);
+		contribution._handleAuthenticationRequiredNotification('host-one', firstConnection, notification);
+		contribution._handleAuthenticationRequiredNotification('host-two', secondConnection, notification);
 		await timeout(0);
 
 		assert.deepStrictEqual(calls, ['one:session-token', 'two:session-token']);
@@ -282,8 +296,9 @@ suite('RemoteAgentHost auth notifications', () => {
 		const reasons: (AuthRequiredReason | undefined)[] = [];
 		let envelopeNumber = 0;
 		const address = 'sealed-host';
+		const connection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; } };
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
-		contribution._connections = new Map([[address, { authTokenCache: new AgentHostAuthTokenCache(), authRecovery: new AgentHostAuthenticationRecovery(NullTelemetryService), authenticationPending: observableValue('authenticationPending', false) }]]);
+		contribution._connections = new Map([[address, { connection, authTokenCache: new AgentHostAuthTokenCache(), authRecovery: store.add(instantiationService.createInstance(AgentHostAuthenticationRecovery)), authenticationPending: observableValue('authenticationPending', false) }]]);
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = {
 			get: () => ({
@@ -300,8 +315,6 @@ suite('RemoteAgentHost auth notifications', () => {
 			scopes_supported: ['session:read'],
 		};
 		const notification: INotification = { type: NotificationType.AuthRequired, channel: 'ahp-root://', resource, reason: AuthRequiredReason.Expired };
-		const connection: Pick<IAgentConnection, 'authenticate'> = { authenticate: async request => { envelopes.push(request.token); return { authenticated: true }; } };
-
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);

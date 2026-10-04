@@ -15,7 +15,7 @@ import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourc
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_SCHEME, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AuthRequiredReason, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -149,7 +149,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 	) {
 		super();
-		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
+		this._authRecovery = this._register(this._instantiationService.createInstance(AgentHostAuthenticationRecovery));
 		this._isSessionsWindow = environmentService.isSessionsWindow;
 		this._enableSmokeTestDriver = !!environmentService.enableSmokeTestDriver;
 
@@ -219,7 +219,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			if (notification.type !== NotificationType.AuthRequired) {
 				return;
 			}
-			this._authenticateNotificationResource(notification.resource);
+			this._authenticateNotificationResource(notification.resource, notification.reason);
 		}));
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
 			this._authenticateWithServer(this._getRootAgents()).catch(() => { /* best-effort */ });
@@ -398,6 +398,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			try {
 				await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, agents, providerId, removedSessions, {
 					authTokenCache: this._authTokenCache,
+					recovery: this._authRecovery,
 					logPrefix: '[AgentHost]',
 					isCurrent: () => this._isAuthenticationCurrent(generation),
 					authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -444,6 +445,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache: this._authTokenCache,
+				recovery: this._authRecovery,
 				logPrefix: '[AgentHost]',
 				isCurrent: () => this._isAuthenticationCurrent(generation),
 				authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -462,14 +464,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata): void {
+	private _authenticateNotificationResource(protectedResource: ProtectedResourceMetadata, reason?: AuthRequiredReason): void {
 		const generation = this._authenticationGeneration;
 		if (!this._isAuthenticationCurrent(generation)) {
 			return;
 		}
-		this._agentHostService.setAuthenticationPending(true);
+		if (protectedResource.required !== false) {
+			this._agentHostService.setAuthenticationPending(true);
+		}
 		this._instantiationService.invokeFunction(accessor => this._authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: this._authTokenCache,
+			reason,
 			logPrefix: '[AgentHost]',
 			isCurrent: () => this._isAuthenticationCurrent(generation),
 			authenticate: request => this._authenticateIfCurrent(request, generation),
@@ -524,7 +529,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private _isAuthenticationCurrent(generation: number): boolean {
-		return generation === this._authenticationGeneration && this._agentHostEnablementService.enabled.get();
+		return !this._store.isDisposed && generation === this._authenticationGeneration && this._agentHostEnablementService.enabled.get();
 	}
 
 	private _authenticateIfCurrent(request: { resource: string; scopes?: readonly string[]; token: string }, generation: number): Promise<unknown> {

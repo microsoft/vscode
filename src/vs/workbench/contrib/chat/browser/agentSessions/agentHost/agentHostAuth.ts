@@ -6,11 +6,16 @@
 import { fetchAuthorizationServerMetadata } from '../../../../../../base/common/oauth.js';
 import { SequencerByKey } from '../../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
+import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { type McpAuthRequirement, type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -19,9 +24,11 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { copilotConnectorsScope } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { localize } from '../../../../../../nls.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
@@ -29,6 +36,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IHostService } from '../../../../../services/host/browser/host.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IChatSetupResult } from '../../chatSetup/chatSetup.js';
 import { reportAgentHostAuthRecovery, reportAgentHostAuthSignInResult, type AgentHostAuthSignInData, type AgentHostAuthTrigger } from './agentHostAuthTelemetry.js';
@@ -165,8 +173,15 @@ export class AgentHostAuthTokenCache {
 		}
 	}
 
-	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession): void {
-		this._rejectedSessions.set(this._key(resource, scopes), { id: session.id, accessToken: session.accessToken, accountId: session.account.id });
+	rejectSession(resource: string, scopes: readonly string[] | undefined, session: AuthenticationSession, providerId?: string, rejectedByHost = false): void {
+		const key = this._key(resource, scopes);
+		const previous = this._rejectedSessions.get(key);
+		const accessTokens = new Set(previous?.accessTokens);
+		accessTokens.add(session.accessToken);
+		this._rejectedSessions.set(key, {
+			id: session.id, accessToken: session.accessToken, accountId: session.account.id, account: session.account,
+			providerId, accessTokens, rejectedByHost: rejectedByHost || previous?.rejectedByHost,
+		});
 	}
 
 	getRejectedSession(resource: string, scopes: readonly string[] | undefined): RejectedAuthenticationSession | undefined {
@@ -174,7 +189,13 @@ export class AgentHostAuthTokenCache {
 	}
 
 	clearRejectedSession(resource: string, scopes: readonly string[] | undefined): void {
-		this._rejectedSessions.delete(this._key(resource, scopes));
+		const key = this._key(resource, scopes);
+		const rejected = this._rejectedSessions.get(key);
+		if (rejected?.rejectedByHost) {
+			this._rejectedSessions.set(key, { ...rejected, accountId: undefined, account: undefined });
+		} else {
+			this._rejectedSessions.delete(key);
+		}
 	}
 
 	private _invalidateKey(key: string): void {
@@ -198,15 +219,20 @@ type AuthenticationSessionResolution =
 interface RejectedAuthenticationSession {
 	readonly id: string;
 	readonly accessToken: string;
-	readonly accountId: string;
+	readonly accountId?: string;
+	readonly account?: AuthenticationSession['account'];
+	readonly providerId?: string;
+	readonly accessTokens?: ReadonlySet<string>;
+	readonly rejectedByHost?: boolean;
 }
 
 function isSameAuthenticationSession(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession): boolean {
-	return session.id === rejectedSession.id && session.accessToken === rejectedSession.accessToken;
+	return rejectedSession.accessTokens?.has(session.accessToken) ?? session.accessToken === rejectedSession.accessToken;
 }
 
-function isAuthenticationSessionCandidate(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession | null): boolean {
-	return rejectedSession === null || (session.account.id === rejectedSession.accountId && !isSameAuthenticationSession(session, rejectedSession));
+function isAuthenticationSessionCandidate(session: AuthenticationSession, rejectedSession: RejectedAuthenticationSession | null, authorizationServer?: URI): boolean {
+	return (!authorizationServer || !session.authorizationServer || session.authorizationServer.toString() === authorizationServer.toString())
+		&& (rejectedSession === null || ((rejectedSession.accountId === undefined || session.account.id === rejectedSession.accountId) && !isSameAuthenticationSession(session, rejectedSession)));
 }
 
 /**
@@ -223,17 +249,39 @@ function protectedResourceAuthenticationKey(resource: ProtectedResourceMetadata)
 /**
  * Coordinates recovery from authentication challenges for one agent-host connection.
  */
-export class AgentHostAuthenticationRecovery {
+export class AgentHostAuthenticationRecovery extends Disposable {
 	private readonly _resentTokens = new Map<string, string>();
 	private readonly _pendingRecoveries = new Map<string, Promise<void>>();
+	private readonly _prompts = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _notifiedTokens = new Map<string, string>();
+	private readonly _fallbackTokenCache = new AgentHostAuthTokenCache();
+	private _generation = 0;
 
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-	) { }
+		@IHostService private readonly _hostService: IHostService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService,
+	) {
+		super();
+	}
 
 	clear(): void {
+		this._generation++;
 		this._resentTokens.clear();
 		this._pendingRecoveries.clear();
+		this._prompts.clearAndDisposeAll();
+		this._notifiedTokens.clear();
+		this._fallbackTokenCache.clear();
+	}
+
+	override dispose(): void {
+		this.clear();
+		super.dispose();
+	}
+
+	didAuthenticate(resource: ProtectedResourceMetadata): void {
+		this._prompts.deleteAndDispose(protectedResourceAuthenticationKey(resource));
 	}
 
 	recover(accessor: ServicesAccessor, resource: ProtectedResourceMetadata, options: IAgentHostAuthenticationOptions): Promise<void> {
@@ -243,7 +291,20 @@ export class AgentHostAuthenticationRecovery {
 			return pendingRecovery;
 		}
 
-		const recovery = this._recover(accessor, key, resource, resolveAuthenticationOptions(accessor, options))
+		const generation = this._generation;
+		const authenticationService = accessor.get(IAuthenticationService);
+		const logService = accessor.get(ILogService);
+		const resolvedOptions = resolveAuthenticationOptions(accessor, {
+			...options,
+			isCurrent: () => !this._store.isDisposed && this._generation === generation && options.isCurrent?.() !== false,
+		});
+		const recovery = this._recover(accessor, key, resource, resolvedOptions)
+			.catch(async error => {
+				if (!isAuthenticationRefused(error)) {
+					throw error;
+				}
+				await this._recoverRefusedToken(authenticationService, logService, resource, resolvedOptions);
+			})
 			.finally(() => {
 				if (this._pendingRecoveries.get(key) === recovery) {
 					this._pendingRecoveries.delete(key);
@@ -259,6 +320,11 @@ export class AgentHostAuthenticationRecovery {
 		const commandService = accessor.get(ICommandService);
 		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
+		if ((resource.required === false && options.reason === AuthRequiredReason.Expired)
+			|| options.authTokenCache?.getRejectedSession(resource.resource, scopes)?.rejectedByHost) {
+			await this._recoverRefusedToken(authenticationService, logService, resource, options);
+			return;
+		}
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
 		throwIfAuthenticationStale(options);
@@ -339,6 +405,118 @@ export class AgentHostAuthenticationRecovery {
 			logService.info(`${options.logPrefix} Interactive authentication completed without a new token for ${resource.resource}`);
 		}
 	}
+
+	private async _recoverRefusedToken(authenticationService: IAuthenticationService, logService: ILogService, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
+		options = { ...options, authTokenCache: options.authTokenCache ?? this._fallbackTokenCache };
+		const scopes = resource.scopes_supported ?? [];
+		for (let attempt = 0; attempt < 2; attempt++) {
+			const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options);
+			throwIfAuthenticationStale(options);
+			if (resolution.kind !== 'resolved') {
+				logAuthenticationSessionResolution(logService, options.logPrefix, resource.resource, resolution);
+				break;
+			}
+			options.authTokenCache?.clear(resource.resource, scopes);
+			try {
+				await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session, resolution.providerId);
+				throwIfAuthenticationStale(options);
+				this.didAuthenticate(resource);
+				return;
+			} catch (error) {
+				if (!isAuthenticationRefused(error)) {
+					throw error;
+				}
+				logService.info(`${options.logPrefix} Agent host refused the selected credential for ${resource.resource}`);
+			}
+		}
+		const rejected = options.authTokenCache?.getRejectedSession(resource.resource, scopes);
+		if (rejected?.rejectedByHost) {
+			this._offerSignIn(authenticationService, logService, resource, options, rejected);
+		}
+	}
+
+	private _offerSignIn(authenticationService: IAuthenticationService, logService: ILogService, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions, rejected: RejectedAuthenticationSession): void {
+		const key = protectedResourceAuthenticationKey(resource);
+		if (this._prompts.has(key) || this._notifiedTokens.get(key) === rejected.accessToken) {
+			return;
+		}
+		const store = new DisposableStore();
+		this._prompts.set(key, store);
+		const show = () => {
+			if (options.isCurrent?.() === false || !this._hostService.hasFocus) {
+				return;
+			}
+			const storageKey = `agentHost.authenticationRecovery.${JSON.stringify([rejected.providerId, rejected.accountId, key])}`;
+			const now = Date.now();
+			if (now - this._storageService.getNumber(storageKey, StorageScope.APPLICATION_SHARED, 0) < 60_000) {
+				this._prompts.deleteAndDispose(key);
+				return;
+			}
+			this._storageService.store(storageKey, now, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+			this._notifiedTokens.set(key, rejected.accessToken);
+			let signingIn = false;
+			const notification = this._notificationService.prompt(Severity.Warning,
+				localize('agentHost.resourceAuthRejected', "Authentication for {0} was rejected. Sign in again to restore access.", resource.resource_name ?? resource.resource), [{
+					label: localize('agentHost.resourceSignIn', "Sign In"),
+					keepOpen: true,
+					run: async () => {
+						if (signingIn || options.isCurrent?.() === false || !this._hostService.hasFocus) {
+							return;
+						}
+						signingIn = true;
+						try {
+							await this._signInWithFreshToken(authenticationService, resource, options, rejected);
+							this.didAuthenticate(resource);
+						} catch (error) {
+							if (!isCancellationError(error)) {
+								logService.error(`${options.logPrefix} Could not restore authentication for ${resource.resource}`, error);
+								notification.updateMessage(localize('agentHost.resourceSignInFailed', "Sign-in did not restore access to {0}. Try signing in again with the same account.", resource.resource_name ?? resource.resource));
+							}
+						} finally {
+							signingIn = false;
+						}
+					},
+				}], { sticky: true });
+			store.add(toDisposable(() => notification.close()));
+			store.add(notification.onDidClose(() => this._prompts.deleteAndDispose(key)));
+		};
+		if (this._hostService.hasFocus) {
+			show();
+		} else {
+			store.add(Event.once(Event.filter(this._hostService.onDidChangeFocus, focused => focused))(show));
+		}
+	}
+
+	private async _signInWithFreshToken(authenticationService: IAuthenticationService, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions, rejected: RejectedAuthenticationSession): Promise<void> {
+		throwIfAuthenticationStale(options);
+		const scopes = resource.scopes_supported ?? [];
+		rejected = options.authTokenCache?.getRejectedSession(resource.resource, scopes) ?? rejected;
+		for (const server of resource.authorization_servers ?? []) {
+			const authorizationServer = URI.parse(server);
+			const providerId = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, URI.parse(resource.resource));
+			throwIfAuthenticationStale(options);
+			if (!providerId || providerId !== rejected.providerId) {
+				continue;
+			}
+			const session = await authenticationService.createSession(providerId, scopes, {
+				account: rejected.account, authorizationServer, resource: resource.resource,
+			});
+			throwIfAuthenticationStale(options);
+			if ((rejected.accountId !== undefined && session.account.id !== rejected.accountId) || isSameAuthenticationSession(session, rejected)
+				|| !scopes.every(scope => session.scopes.includes(scope))
+				|| (session.authorizationServer && session.authorizationServer.toString() !== authorizationServer.toString())) {
+				throw new Error(localize('agentHost.noFreshCredential', "Sign-in did not return a new credential for the same account and resource."));
+			}
+			await forwardAuthenticationToken(options, resource.resource, scopes, session, providerId);
+			throwIfAuthenticationStale(options);
+			return;
+		}
+		throw new Error(localize('agentHost.authProviderUnavailable', "The authentication provider for this resource is unavailable."));
+	}
+}
+
+function isAuthenticationRefused(error: unknown): boolean {
+	return error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED;
 }
 
 /**
@@ -401,6 +579,9 @@ async function resolveAuthenticationSessionForResource(
 			continue;
 		}
 		logService.trace(`${logPrefix} Resolved auth provider '${providerId}' for server: ${server}`);
+		if (rejectedSession?.providerId && rejectedSession.providerId !== providerId) {
+			continue;
+		}
 
 		let sessions: readonly AuthenticationSession[];
 		try {
@@ -411,7 +592,7 @@ async function resolveAuthenticationSessionForResource(
 			logService.trace(`${logPrefix} Authentication provider '${providerId}' is not ready to resolve sessions for server: ${server}`, error);
 			continue;
 		}
-		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession));
+		const exactSession = sessions.find(session => isAuthenticationSessionCandidate(session, rejectedSession, serverUri));
 		if (exactSession) {
 			return {
 				kind: 'resolved',
@@ -433,7 +614,7 @@ async function resolveAuthenticationSessionForResource(
 		let bestSession: AuthenticationSession | undefined;
 		let bestExtraScopes = Infinity;
 		for (const session of allSessions) {
-			if (!isAuthenticationSessionCandidate(session, rejectedSession)) {
+			if (!isAuthenticationSessionCandidate(session, rejectedSession, serverUri)) {
 				continue;
 			}
 			const sessionScopes = new Set(session.scopes);
@@ -471,6 +652,8 @@ export interface IAgentHostAuthenticateRequest {
 
 export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
+	readonly recovery?: AgentHostAuthenticationRecovery;
+	readonly reason?: AuthRequiredReason;
 	readonly logPrefix: string;
 	readonly isCurrent?: () => boolean;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
@@ -519,7 +702,10 @@ async function forwardAuthenticationToken(
 	const token = session?.accessToken ?? '';
 	const rejectedSession = options.authTokenCache?.getRejectedSession(resource, scopes);
 	// The lookup may have started before this session was quarantined.
-	if (rejectedSession && rejectedSession.id === session?.id && rejectedSession.accessToken === token) {
+	if (rejectedSession && token && (rejectedSession.accessTokens?.has(token) || rejectedSession.accessToken === token)) {
+		if (rejectedSession.rejectedByHost) {
+			throw new ProtocolError(AHP_AUTH_REQUIRED, localize('agentHost.credentialRejected', "This credential was rejected. Sign in again to restore access."));
+		}
 		throw new CancellationError();
 	}
 	const expiresAfter = session?.expiresAfter;
@@ -535,11 +721,27 @@ async function forwardAuthenticationToken(
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
 		...(account ? { _meta: authenticationAccountMeta(account) } : {}),
 	};
-	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account));
+	const authenticate = async () => {
+		const result = await options.authenticate(request);
+		if (isObject(result) && (result as { readonly authenticated?: boolean }).authenticated === false) {
+			throw new ProtocolError(AHP_AUTH_REQUIRED, localize('agentHost.credentialRejected', "This credential was rejected. Sign in again to restore access."));
+		}
+		throwIfAuthenticationStale(options);
+	};
+	try {
+		if (options.authTokenCache) {
+			return await options.authTokenCache.authenticate(resource, scopes ?? [], token, authenticate, authenticationAccountId(account));
+		}
+		await authenticate();
+		return true;
+	} catch (error) {
+		if (isAuthenticationRefused(error) && session?.id && session.account) {
+			options.authTokenCache?.rejectSession(resource, scopes, {
+				...session, id: session.id, account: session.account, scopes: scopes ?? [],
+			}, providerId, true);
+		}
+		throw error;
 	}
-	await options.authenticate(request);
-	return true;
 }
 
 function throwIfAuthenticationStale(options: Pick<IAgentHostAuthenticationOptions, 'isCurrent'>): void {
@@ -559,10 +761,21 @@ export async function authenticateProtectedResources(
 ): Promise<void> {
 	const authenticationService = accessor.get(IAuthenticationService);
 	const logService = accessor.get(ILogService);
+	const instantiationService = accessor.get(IInstantiationService);
 	const resolvedOptions = resolveAuthenticationOptions(accessor, options);
 	for (const agent of agents) {
 		for (const resource of agent.protectedResources ?? []) {
-			await authenticateProtectedResourceWithServices(authenticationService, logService, resource, resolvedOptions);
+			try {
+				if (await authenticateProtectedResourceWithServices(authenticationService, logService, resource, resolvedOptions)) {
+					options.recovery?.didAuthenticate(resource);
+				}
+			} catch (error) {
+				const recovery = options.recovery;
+				if (!isAuthenticationRefused(error) || !recovery) {
+					throw error;
+				}
+				await instantiationService.invokeFunction(accessor => recovery.recover(accessor, resource, { ...options, reason: AuthRequiredReason.Expired }));
+			}
 		}
 	}
 }
@@ -649,6 +862,7 @@ export async function revokeAuthenticationForRemovedSessions(
 				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session, resolution.providerId)) {
 					logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
 				}
+				options.recovery?.didAuthenticate(resource);
 				continue;
 			}
 

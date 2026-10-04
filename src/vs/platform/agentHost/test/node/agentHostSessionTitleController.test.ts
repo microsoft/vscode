@@ -16,7 +16,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -28,7 +27,7 @@ import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type IC
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
+import { createTestAgentHostGitHubService, createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 class TestCopilotApiService implements ICopilotApiService {
@@ -864,7 +863,7 @@ suite('AgentHostSessionTitleController', () => {
 				override getAuthAccount() { return undefined; }
 				override getAuthToken() { return 'test-token'; }
 			}();
-			const gitHubService = disposables.add(new AgentHostGitHubService({
+			const gitHubService = disposables.add(createTestAgentHostGitHubService({
 				fetch: async (input, init) => {
 					const path = new URL(String(input)).pathname;
 					requests.push(path);

@@ -124,7 +124,8 @@ class ConnectionState extends Disposable {
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 	) {
 		super();
-		this.authRecovery = instantiationService.createInstance(AgentHostAuthenticationRecovery);
+		this.authRecovery = this._register(instantiationService.createInstance(AgentHostAuthenticationRecovery));
+		this._register(toDisposable(() => this.authTokenCache.clear()));
 		this.authenticationPending = this._register(authenticationService.acquire(address)).object;
 		this.authenticationPending.set(true, undefined);
 	}
@@ -483,6 +484,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 				try {
 					await this._instantiationService.invokeFunction(revokeAuthenticationForRemovedSessions, rootState.agents, providerId, removedSessions, {
 						authTokenCache: connState.authTokenCache,
+						recovery: connState.authRecovery,
+						isCurrent: () => this._connections.get(address) === connState,
 						logPrefix: '[RemoteAgentHost]',
 						authenticate: this._authenticateCallback(address, connState.connection),
 					});
@@ -509,6 +512,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}
 			await this._instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				authTokenCache,
+				recovery: connState?.authRecovery,
+				isCurrent: () => this._connections.get(address) === connState && connState?.connection === connection,
 				logPrefix: '[RemoteAgentHost]',
 				authenticate: this._authenticateCallback(address, connection),
 			});
@@ -543,6 +548,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
+			reason,
+			isCurrent: () => this._connections.get(address) === connState && connState.connection === connection,
 			logPrefix: '[RemoteAgentHost]',
 			authenticate: this._authenticateCallback(address, connection, reason),
 		}))
@@ -565,19 +572,16 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 */
 	private _authenticateCallback(address: string, connection: IAgentConnection, reason?: AuthRequiredReason): (request: AuthenticateParams) => Promise<AuthenticateResult> {
 		const transform = this._connectionCustomizations.get(address)?.authenticate;
-		if (!transform) {
-			return request => connection.authenticate(request);
-		}
 		const connState = this._connections.get(address);
 		return async request => {
-			if (this._connections.get(address) !== connState) {
+			if (!connState || this._connections.get(address) !== connState || connState.connection !== connection) {
 				throw new CancellationError();
 			}
 			// An empty token is the protocol's revocation sentinel, not a credential.
 			// Token transforms substitute a live credential for an unsealed one, which
 			// would turn a sign-out into a re-authentication and leave the remote host
 			// holding a credential the user just revoked.
-			if (!request.token) {
+			if (!request.token || !transform) {
 				return connection.authenticate(request);
 			}
 			const transformed = await transform(request, reason);
