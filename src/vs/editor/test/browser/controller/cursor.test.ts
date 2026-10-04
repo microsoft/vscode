@@ -5081,6 +5081,45 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338692: typing the open of an auto-closing pair whose close starts with a newline keeps the cursor on the current line', () => {
+		const languageId = 'multiLineAutoClosingLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin', close: '\nend' }]
+		}));
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+		disposables.add(TokenizationRegistry.register(languageId, {
+			getInitialState: () => NullState,
+			tokenize: undefined!,
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				if (line.length === 0) {
+					return new EncodedTokenizationResult(new Uint32Array(0), [], state);
+				}
+				const result = new Uint32Array(2);
+				result[0] = 0;
+				result[1] = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+					| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET);
+				return new EncodedTokenizationResult(result, [], state);
+			}
+		}));
+		usingCursor({
+			text: [''],
+			languageId: languageId
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			for (const ch of ['b', 'e', 'g', 'i', 'n']) {
+				viewModel.type(ch, 'keyboard');
+			}
+			model.tokenization.forceTokenization(1);
+			model.tokenization.forceTokenization(2);
+			assert.strictEqual(model.getLineContent(1), 'begin');
+			assert.strictEqual(model.getLineContent(2), 'end');
+			// the cursor stays behind the open, on the current line,
+			// instead of being moved to the line of the close
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 6, 1, 6));
+		});
+	});
+
 	test('autoClosingPairs - open parens disabled/enabled open quotes enabled/disabled', () => {
 		usingCursor({
 			text: [

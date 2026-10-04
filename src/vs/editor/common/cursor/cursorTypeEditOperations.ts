@@ -913,25 +913,87 @@ export class BaseTypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCurs
 	}
 
 	protected _computeCursorStateWithRange(model: ITextModel, range: Range, helper: ICursorStateComputerData): Selection {
-		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		this._computeAutoClosingCharacterRanges(model, range);
 		return super.computeCursorState(model, helper);
+	}
+
+	protected _computeAutoClosingCharacterRanges(model: ITextModel, range: Range): void {
+		// The open and close characters may span multiple lines, therefore the
+		// ranges are computed by walking character offsets, not column offsets.
+		const endPosition = range.getEndPosition();
+		this.closeCharacterRange = Range.fromPositions(
+			getPositionWithCharacterOffset(model, endPosition, -this._closeCharacter.length),
+			endPosition
+		);
+		this.enclosingRange = Range.fromPositions(
+			getPositionWithCharacterOffset(model, endPosition, -this._openCharacter.length - this._closeCharacter.length),
+			endPosition
+		);
 	}
 }
 
+/**
+ * Returns the position that is `offset` characters away from `position`,
+ * where a line break counts as a single character. The position must be
+ * valid for `model`, as the line contents are used to walk offsets.
+ */
+function getPositionWithCharacterOffset(model: ITextModel, position: Position, offset: number): Position {
+	let lineNumber = position.lineNumber;
+	let column = position.column;
+
+	if (offset > 0) {
+		while (offset > 0) {
+			const maxColumn = model.getLineMaxColumn(lineNumber);
+			const columnDelta = Math.min(offset, maxColumn - column);
+			column += columnDelta;
+			offset -= columnDelta;
+			if (offset > 0) {
+				if (lineNumber >= model.getLineCount()) {
+					break; // reached the end of the model
+				}
+				lineNumber++;
+				column = 1;
+			}
+		}
+	} else if (offset < 0) {
+		offset = -offset;
+		while (offset > 0) {
+			const columnDelta = Math.min(offset, column - 1);
+			column -= columnDelta;
+			offset -= columnDelta;
+			if (offset > 0) {
+				if (lineNumber <= 1) {
+					column = 1;
+					break;
+				}
+				lineNumber--;
+				column = model.getLineMaxColumn(lineNumber);
+			}
+		}
+	}
+
+	return new Position(lineNumber, column);
+}
+
 class TypeWithAutoClosingCommand extends BaseTypeWithAutoClosingCommand {
+
+	private readonly _openCharacterLength: number;
 
 	constructor(selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
 		const text = (insertOpenCharacter ? openCharacter : '') + closeCharacter;
 		const lineNumberDeltaOffset = 0;
 		const columnDeltaOffset = -closeCharacter.length;
 		super(selection, text, lineNumberDeltaOffset, columnDeltaOffset, openCharacter, closeCharacter);
+		this._openCharacterLength = insertOpenCharacter ? openCharacter.length : 0;
 	}
 
 	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		const inverseEditOperations = helper.getInverseEditOperations();
-		const range = inverseEditOperations[0].range;
-		return this._computeCursorStateWithRange(model, range, helper);
+		const range = helper.getInverseEditOperations()[0].range;
+		this._computeAutoClosingCharacterRanges(model, range);
+		// The cursor is placed between the open and the close characters. The
+		// close characters may span multiple lines, therefore the cursor is
+		// derived from the start of the inserted range instead of its end.
+		return Selection.fromPositions(getPositionWithCharacterOffset(model, range.getStartPosition(), this._openCharacterLength));
 	}
 }
 
