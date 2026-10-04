@@ -291,6 +291,44 @@ suite('Task event replay', () => {
 		}, { defaultChat: defaultChat(SESSION_A), turns: [] });
 	});
 
+	for (const kind of ['user', 'tool', 'sideChat', 'fork']) {
+		test(`does not infer the default from a removed ${kind} chat`, () => {
+			const chat = 'ahp-chat:/removed';
+			const history = replayTaskAhpEvents([
+				event(SESSION_A, 0, SESSION_A, {
+					type: 'session/chatAdded',
+					summary: {
+						resource: chat, title: '', status: 1, modifiedAt: '2026-08-04T12:00:00.000Z',
+						origin: { kind, chat: 'ahp-chat:/main', turnId: 't0', toolCallId: 'tool-1' },
+					},
+				}),
+				...completedTurn(SESSION_A, 1, chat, 't1', 'removed conversation'),
+				event(SESSION_A, 3, SESSION_A, { type: 'session/chatRemoved', chat }),
+			]);
+			const session = history?.sessions[0];
+
+			assert.deepStrictEqual({
+				catalogue: session?.state.chats,
+				defaultChat: session?.defaultChat,
+				turns: session?.chats.get(session.defaultChat)?.turns,
+			}, { catalogue: [], defaultChat: defaultChat(SESSION_A), turns: [] });
+		});
+	}
+
+	test('honours a chat removal even when its addition was not recorded', () => {
+		const chat = 'ahp-chat:/removed';
+		const history = replayTaskAhpEvents([
+			...completedTurn(SESSION_A, 0, chat, 't1', 'removed conversation'),
+			event(SESSION_A, 2, SESSION_A, { type: 'session/chatRemoved', chat }),
+		]);
+		const session = history?.sessions[0];
+
+		assert.deepStrictEqual({
+			defaultChat: session?.defaultChat,
+			turns: session?.chats.get(session.defaultChat)?.turns,
+		}, { defaultChat: defaultChat(SESSION_A), turns: [] });
+	});
+
 	test('uses the sole recorded user chat advertised in the catalogue', () => {
 		const chat = 'ahp-chat:/main';
 		const history = replayTaskAhpEvents([
