@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../../platform/product/common/product.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -83,7 +82,7 @@ suite('Chat configuration', () => {
 		]);
 	});
 
-	test('defaults persistent progress to Draw in Insiders and Off otherwise while allowing experiment overrides', () => {
+	test('defaults persistent progress to Draw regardless of product quality while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -91,7 +90,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -109,7 +108,7 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
 			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
 			descriptions: 4,

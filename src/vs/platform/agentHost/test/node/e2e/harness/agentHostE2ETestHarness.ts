@@ -29,10 +29,11 @@ import {
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
+import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import type { SessionMode } from '../../../../common/agentHostSchema.js';
 import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
-import { CapiReplayMode, type ICapiReplayResponse } from './capiReplayProxy.js';
+import { CapiReplayMode, type ICapiReplayResponse, type IReplayVerificationOptions } from './capiReplayProxy.js';
 import {
 	fetchSessionWithChat, getActionEnvelope, getAgentHostE2ETestTimeout, isActionNotification, IServerHandle, killServer, stopServer, TestProtocolClient,
 } from '../../serverIntegrationTestHelpers.js';
@@ -541,8 +542,12 @@ export interface IDrivenTurnResult {
 	responseText: string;
 }
 
-export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+export interface IDriveTurnOptions {
+	expectUnread?: boolean;
+}
+
+export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
 }
 
 export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
@@ -583,7 +588,7 @@ export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, se
 	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
-async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
+async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
@@ -591,6 +596,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
 	let sawPendingConfirmation = false;
+	let terminalNotification!: AhpNotification;
 
 	while (true) {
 		const notification = await c.waitForNotification(n => {
@@ -654,7 +660,18 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 
 		const action = getActionEnvelope(notification).action as { turnId: string };
 		assert.strictEqual(action.turnId, turnId);
+		terminalNotification = notification;
 		break;
+	}
+
+	if (options?.expectUnread !== false) {
+		await c.waitForNotification(n => {
+			const notifications = c.receivedNotifications();
+			return notifications.indexOf(n) > notifications.indexOf(terminalNotification)
+				&& isActionNotification(n, ActionType.ChatIsReadChanged)
+				&& getActionEnvelope(n).channel === chat
+				&& !(getActionEnvelope(n).action as { isRead: boolean }).isRead;
+		}, 90_000);
 	}
 
 	return { sawInputRequest, sawPendingConfirmation, responseText: getMarkdownResponseText(c) };
@@ -1161,7 +1178,7 @@ export class AgentHostE2EServerLease {
 	 * Dispose the test's sessions and verify replay, reusing a healthy shared server.
 	 * Pass `forceRestart` after a failed test to isolate the next test without obscuring the original failure.
 	 */
-	async release(createdSessions: string[], forceRestart = false): Promise<void> {
+	async release(createdSessions: string[], forceRestart = false, verification?: IReplayVerificationOptions): Promise<void> {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
 		const recordCleanupError = (error: unknown) => {
@@ -1215,7 +1232,7 @@ export class AgentHostE2EServerLease {
 			// Surface this test's strict replay failures but keep the server (and
 			// its cached SDK client) alive for the next test.
 			try {
-				this._server?.capiReplay?.assertNoReplayMismatches();
+				this._server?.capiReplay?.assertNoReplayMismatches(verification);
 			} catch (error) {
 				recordCleanupError(error);
 				try {
@@ -1241,7 +1258,7 @@ export class AgentHostE2EServerLease {
 				if (forceRestart) {
 					await this._server?.capiReplay?.close();
 				} else {
-					await this._server?.capiReplay?.stop();
+					await this._server?.capiReplay?.stop(verification);
 				}
 			} catch (error) {
 				recordCleanupError(error);

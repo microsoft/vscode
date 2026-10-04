@@ -20,13 +20,14 @@ import { isAnthropicContextEditingEnabled, isExtendedCacheTtlEnabled } from '../
 import { FinishedCallback, getRequestId, gitHubCopilotRequestTeProperty, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { createCapiRequestBody, IChatEndpoint, IChatEndpointTokenPricing, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions, InteractionTypeOverride, PENDING_DEPRECATION_CODE } from '../../networking/common/networking';
-import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, RawMessageConversionCallback } from '../../networking/common/openai';
-import { prepareChatCompletionForReturn } from '../../networking/node/chatStream';
+import { CAPIChatMessage, ChatCompletion, FinishedCompletionReason, rawMessageToCAPI, RawMessageConversionCallback } from '../../networking/common/openai';
+import { prepareChatCompletionForReturn, sendEngineMessagesTelemetry } from '../../networking/node/chatStream';
 import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { SSEProcessor } from '../../networking/node/stream';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
+import { ThinkingDataInMessage } from '../../thinking/common/thinking';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
 import { getModelCapabilityOverride, isAnthropicFamily, isGeminiFamily, isKimiFamily, modelSupportsContextEditing, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../common/chatModelCapabilities';
@@ -77,7 +78,7 @@ export function normalizeKimiToolCallIds(messages: CAPIChatMessage[], style: Kim
 }
 
 /**
- * The default processor for the stream format from CAPI
+ * Processes CAPI completions immediately, deferring content telemetry until trailing stream metadata arrives.
  */
 export async function defaultChatResponseProcessor(
 	telemetryService: ITelemetryService,
@@ -90,15 +91,34 @@ export async function defaultChatResponseProcessor(
 ) {
 	const processor = await SSEProcessor.create(logService, telemetryService, expectedNumChoices, response, cancellationToken);
 	const finishedCompletions = processor.processSSE(finishCallback);
-	const chatCompletions = AsyncIterableObject.map(finishedCompletions, (solution) => {
-		const loggedReason = solution.reason ?? 'client-trimmed';
-		const dataToSendToTelemetry = telemetryData.extendedBy({
-			completionChoiceFinishReason: loggedReason,
-			headerRequestId: solution.requestId.headerRequestId,
-			...gitHubCopilotRequestTeProperty(solution.requestId.gitHubCopilotRequestTe),
-		});
-		telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
-		return prepareChatCompletionForReturn(telemetryService, logService, solution, telemetryData);
+	const chatCompletions = new AsyncIterableObject<ChatCompletion>(async emitter => {
+		const pendingTelemetry: { message: CAPIChatMessage; reasoning: ThinkingDataInMessage; telemetryData: TelemetryData }[] = [];
+		try {
+			for await (const solution of finishedCompletions) {
+				const loggedReason = solution.reason ?? 'client-trimmed';
+				const dataToSendToTelemetry = telemetryData.extendedBy({
+					completionChoiceFinishReason: loggedReason,
+					headerRequestId: solution.requestId.headerRequestId,
+					...gitHubCopilotRequestTeProperty(solution.requestId.gitHubCopilotRequestTe),
+				});
+				telemetryService.sendGHTelemetryEvent('completion.finishReason', dataToSendToTelemetry.properties, dataToSendToTelemetry.measurements);
+				const completion = prepareChatCompletionForReturn(logService, solution, telemetryData);
+				pendingTelemetry.push({
+					message: rawMessageToCAPI(completion.message),
+					reasoning: solution.solution.reasoning,
+					telemetryData: completion.telemetryData,
+				});
+				emitter.emitOne(completion);
+			}
+		} finally {
+			// Keep completion delivery immediate, but include reasoning metadata that trails finish_reason.
+			for (const { message, reasoning, telemetryData } of pendingTelemetry) {
+				sendEngineMessagesTelemetry(telemetryService, [{
+					...message,
+					...reasoning,
+				}], telemetryData, true, logService);
+			}
+		}
 	});
 	return chatCompletions;
 }

@@ -271,7 +271,142 @@ suite('GitHubService', () => {
 				}
 			}));
 		}
+
+		test(`unexpected REST fallback allows GraphQL after credential ${change}`, () => runWithFakedTimers({}, async () => {
+			const changes = disposables.add(new Emitter<GitHubCredentialChange>());
+			let token = 'first-token';
+			const requests: { path: string; at: number }[] = [];
+			const service = setup({
+				credentialProvider: { onDidChange: changes.event, getToken: () => token },
+				fetch: async input => {
+					const path = new URL(String(input)).pathname;
+					requests.push({ path, at: Date.now() });
+					if (path === '/user') {
+						return Response.json({ id: 101 });
+					}
+					if (path === '/repos/owner/repo') {
+						return Response.json({}, {
+							headers: {
+								'x-ratelimit-resource': 'custom_resource', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '3600',
+							}
+						});
+					}
+					assert.strictEqual(path, '/graphql');
+					return Response.json({
+						data: {
+							pullRequest: { fields: [] },
+							repository: { fields: [], pullRequests: { nodes: [], pageInfo: { endCursor: null, hasNextPage: false } } },
+						}
+					});
+				},
+			});
+			try {
+				const first = disposables.add(service.acquireClient(clientOptions()));
+				const credential = await first.object.credentials.getCredential(signal());
+				await first.object.transport.rest(credential.account, credential.token, {
+					method: 'GET', url: 'https://api.github.com/repos/owner/repo',
+				}, signal());
+				token = 'replacement-token';
+				if (change === 'release') {
+					first.dispose();
+				} else if (change === 'revoke') {
+					changes.fire({ providerId: 'github', sessionIds: ['session'] });
+				}
+				const replacement = disposables.add(service.acquireClient(clientOptions())).object;
+				const page = await replacement.query.listPullRequests({ ...credential.account, owner: 'owner', repo: 'repo' }, undefined, signal());
+				const renewed = await replacement.credentials.getCredential(signal());
+				await assert.rejects(replacement.transport.rest(renewed.account, renewed.token, {
+					method: 'GET', url: 'https://api.github.com/repos/owner/repo', deadline: Date.now() + 100,
+				}, signal()), { kind: 'timeout' });
+				assert.deepStrictEqual({ requests, page }, {
+					requests: [
+						{ path: '/user', at: 0 }, { path: '/repos/owner/repo', at: 0 },
+						{ path: '/user', at: 0 }, { path: '/graphql', at: 0 }, { path: '/graphql', at: 0 },
+					],
+					page: { pullRequests: [], cursor: undefined, hasNextPage: false },
+				});
+			} finally {
+				service.dispose();
+			}
+		}));
 	}
+
+	test('an unexpected identity-response bucket still gates credential renewal', () => runWithFakedTimers({}, async () => {
+		let token = 'first-token';
+		const requests: number[] = [];
+		const service = setup({
+			credentialProvider: { onDidChange: Event.None, getToken: () => token },
+			fetch: async () => {
+				requests.push(Date.now());
+				return requests.length === 1
+					? Response.json({}, { status: 429, headers: { 'x-ratelimit-resource': 'custom_identity', 'Retry-After': '5' } })
+					: Response.json({ id: 101 });
+			},
+		});
+		try {
+			const client = disposables.add(service.acquireClient(clientOptions())).object;
+			await assert.rejects(client.credentials.getCredential(signal()), { kind: 'rateLimit' });
+			token = 'replacement-token';
+			await client.credentials.getCredential(signal());
+			assert.deepStrictEqual(requests, [0, 5_000]);
+		} finally {
+			service.dispose();
+		}
+	}));
+
+	test('a successful identity-response fallback survives bootstrap cleanup', () => runWithFakedTimers({}, async () => {
+		let token = 'first-token';
+		const requests: { path: string; at: number }[] = [];
+		const service = setup({
+			credentialProvider: { onDidChange: Event.None, getToken: () => token },
+			fetch: async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push({ path, at: Date.now() });
+				if (path === '/user') {
+					return Response.json({ id: 101 }, requests.length === 1 ? {
+						headers: { 'x-ratelimit-resource': 'custom_identity', 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '5' },
+					} : {});
+				}
+				if (path === '/graphql') {
+					return Response.json({
+						data: {
+							pullRequest: { fields: [] },
+							repository: { fields: [], pullRequests: { nodes: [], pageInfo: { endCursor: null, hasNextPage: false } } },
+						}
+					});
+				}
+				assert.strictEqual(path, '/repos/owner/repo');
+				return Response.json({});
+			},
+		});
+		try {
+			const client = disposables.add(service.acquireClient(clientOptions())).object;
+			const credential = await client.credentials.getCredential(signal());
+			const delays = {
+				rest: client.transport.rateLimits.getRequestDelay(credential.account, 'core'),
+				core: client.transport.rateLimits.getDelay(credential.account, 'core'),
+				graphql: client.transport.rateLimits.getRequestDelay(credential.account, 'graphql'),
+			};
+			const page = await client.query.listPullRequests({ ...credential.account, owner: 'owner', repo: 'repo' }, undefined, signal());
+			const request = { method: 'GET' as const, url: 'https://api.github.com/repos/owner/repo' };
+			await assert.rejects(client.transport.rest(credential.account, credential.token, {
+				...request, deadline: Date.now() + 100,
+			}, signal()), { kind: 'timeout' });
+			token = 'replacement-token';
+			const renewed = await client.credentials.getCredential(signal());
+			await client.transport.rest(renewed.account, renewed.token, request, signal());
+			assert.deepStrictEqual({ requests, delays, page }, {
+				requests: [
+					{ path: '/user', at: 0 }, { path: '/graphql', at: 0 }, { path: '/graphql', at: 0 },
+					{ path: '/user', at: 5_000 }, { path: '/repos/owner/repo', at: 5_000 },
+				],
+				delays: { rest: 5_000, core: 0, graphql: 0 },
+				page: { pullRequests: [], cursor: undefined, hasNextPage: false },
+			});
+		} finally {
+			service.dispose();
+		}
+	}));
 
 	test('a retained bootstrap cooldown does not delay a peer with an already-resolved identity', () => runWithFakedTimers({}, async () => {
 		const service = setup({ fetch: async () => new Response('{"id":101}') });

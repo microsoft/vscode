@@ -9,10 +9,22 @@
  * The hover is portaled but mounts inside this workbench root, so it inherits this value. */
 .monaco-workbench.agent-sessions-workbench {
 	background-color: var(--vscode-agents-background);
+	--agents-floating-panel-gap: var(--vscode-agents-layout-floatingPanelGap);
+	--agents-part-corner-radius: var(--vscode-cornerRadius-large);
 	--model-hover-surface-background: var(--vscode-agentsPanel-background);
 	--modern-ui-notifications-inline-inset: var(--vscode-spacing-size80);
 	--modern-ui-notifications-block-end-inset: var(--vscode-spacing-size80);
 	--modern-ui-notifications-block-start-inset: var(--vscode-spacing-size400);
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact {
+	--agents-floating-panel-gap: 0px;
+	--agents-part-corner-radius: 0px;
+	--agents-part-frame-border-width: var(--vscode-strokeThickness) 0 0 var(--vscode-strokeThickness);
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact:is(.hc-black, .hc-light) {
+	--agents-part-frame-border-width: var(--vscode-strokeThickness);
 }
 
 /* ---- Workbench Shell ---- */
@@ -22,9 +34,15 @@
 }
 
 .monaco-workbench.agent-sessions-workbench > .monaco-grid-view {
-	margin: 0 var(--vscode-agents-layout-floatingPanelGap) var(--vscode-agents-layout-floatingPanelGap) 0;
+	margin: 0 var(--agents-floating-panel-gap) var(--agents-floating-panel-gap) 0;
 	width: auto;
-	height: calc(100% - var(--vscode-agents-layout-floatingPanelGap));
+	height: calc(100% - var(--agents-floating-panel-gap));
+}
+
+/* Keep the title bar inset when compact content expands into the grid gutter. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact > .monaco-grid-view .part.titlebar {
+	box-sizing: border-box;
+	padding-right: var(--vscode-agents-layout-floatingPanelGap);
 }
 
 .monaco-workbench.agent-sessions-workbench.shell-gradient-background {
@@ -111,8 +129,8 @@
 	border-right-width: 0;
 	border-top-right-radius: 0;
 	border-bottom-right-radius: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius);
+	border-bottom-left-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 	overflow: hidden;
 }
@@ -123,26 +141,26 @@
 
 .agent-sessions-workbench.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) {
 	border-right-width: var(--vscode-strokeThickness);
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-top-right-radius: var(--agents-part-corner-radius);
+	border-bottom-right-radius: var(--agents-part-corner-radius);
 }
 
 .agent-sessions-workbench.nosidebar.nosessionspart:not(.phone-layout) .monaco-grid-view .part.editor:not(.modal-editor-part) {
-	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+	margin-left: var(--agents-floating-panel-gap);
 }
 
 /* Floating content card. Shared by every full-surface content part (the
 	sessions grid and the custom view grid) so they are visually identical. */
 .agent-sessions-workbench .agents-part-card {
-	margin: 0 var(--vscode-agents-layout-floatingPanelGap) 0 0;
+	margin: 0 var(--agents-floating-panel-gap) 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench.nosidebar:not(.phone-layout) .agents-part-card {
-	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+	margin-left: var(--agents-floating-panel-gap);
 }
 
 .agent-sessions-workbench.noeditorpane .agents-part-card {
@@ -156,15 +174,19 @@
 	border: 1px solid var(--part-border-color, transparent);
 	border-top-left-radius: 0;
 	border-bottom-left-radius: 0;
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-top-right-radius: var(--agents-part-corner-radius);
+	border-bottom-right-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
 }
 
 .agent-sessions-workbench:not(.dock-detail-panel).nomaineditorarea .part.auxiliarybar {
 	padding-left: 0;
-	border-top-left-radius: 8px;
-	border-bottom-left-radius: 8px;
+	border-top-left-radius: var(--agents-part-corner-radius);
+	border-bottom-left-radius: var(--agents-part-corner-radius);
+}
+
+.agent-sessions-workbench.modern-ui-compact:not(.dock-detail-panel) .part.auxiliarybar {
+	padding-left: 0;
 }
 
 .agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
@@ -172,11 +194,40 @@
 }
 
 .agent-sessions-workbench .part.panel {
-	margin: var(--vscode-agents-layout-floatingPanelGap) 0 0 0;
+	margin: var(--agents-floating-panel-gap) 0 0 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: var(--agents-part-corner-radius);
 	box-sizing: border-box;
+}
+
+/* Compact surfaces share a single separator without reserving space for card frames. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar),
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part) {
+	border-width: 0;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar)::after,
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact .monaco-grid-view .part.editor:not(.modal-editor-part)::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border: var(--vscode-strokeThickness) solid var(--part-border-color, var(--vscode-agentsPanel-border, transparent));
+	border-width: var(--agents-part-frame-border-width);
+	box-sizing: border-box;
+	pointer-events: none;
+	z-index: 10;
+}
+
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact.dock-detail-panel .part.auxiliarybar::before {
+	display: none;
+}
+
+/* The tab strip owns the top edge of docked details. */
+.monaco-workbench.agent-sessions-workbench.modern-ui-compact.dock-detail-panel .part.auxiliarybar::after {
+	border-top-width: 0;
 }
 
 .monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
@@ -199,6 +250,10 @@
 	border-radius: var(--vscode-sash-size);
 }
 
+.agent-sessions-workbench.modern-ui-compact .monaco-sash::after {
+	display: none;
+}
+
 /*
  * SplitView centers each sash on its logical boundary, but the card margins put
  * the Sessions/Editor gap before that boundary and the Panel gap after it.
@@ -206,13 +261,13 @@
  * without moving the split itself. `max()` preserves larger configured sashes.
  */
 .agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child {
-	width: max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap));
-	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap)) - var(--vscode-agents-layout-floatingPanelGap)) / 2));
+	width: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
+	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) - var(--agents-floating-panel-gap)) / 2));
 }
 
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal {
-	height: max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap));
-	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--vscode-agents-layout-floatingPanelGap)) + var(--vscode-agents-layout-floatingPanelGap)) / 2));
+	height: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
+	transform: translateY(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) + var(--agents-floating-panel-gap)) / 2));
 }
 
 /*
@@ -237,11 +292,11 @@
 }
 
 .agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after {
-	box-shadow: 0 calc(-1 * var(--vscode-agents-layout-floatingPanelGap)) currentColor, 0 var(--vscode-agents-layout-floatingPanelGap) currentColor;
+	box-shadow: 0 calc(-1 * var(--agents-floating-panel-gap)) currentColor, 0 var(--agents-floating-panel-gap) currentColor;
 }
 
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
-	box-shadow: calc(-1 * var(--vscode-agents-layout-floatingPanelGap)) 0 currentColor, var(--vscode-agents-layout-floatingPanelGap) 0 currentColor;
+	box-shadow: calc(-1 * var(--agents-floating-panel-gap)) 0 currentColor, var(--agents-floating-panel-gap) 0 currentColor;
 }
 
 .agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:is(.hover, .active)::after,
@@ -271,8 +326,8 @@
 	overflow: hidden;
 	background: var(--vscode-editor-background);
 	border-right-width: var(--vscode-strokeThickness);
-	border-top-right-radius: 8px;
-	border-bottom-right-radius: 8px;
+	border-top-right-radius: var(--agents-part-corner-radius);
+	border-bottom-right-radius: var(--agents-part-corner-radius);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar {
@@ -285,8 +340,8 @@
 }
 
 /* Only the card next to a native window corner follows the frame's inset curve. */
-.monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout) {
-	--agents-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--vscode-agents-layout-floatingPanelGap)));
+.monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout):not(.modern-ui-compact) {
+	--agents-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--agents-floating-panel-gap)));
 
 	&.nopanel.nosidebar .agents-part-card {
 		border-bottom-left-radius: var(--agents-window-corner-radius);
@@ -347,6 +402,12 @@
 	right: var(--vscode-spacing-size40);
 	width: auto;
 	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.agent-sessions-workbench.modern-ui-compact .explorer-folders-view .monaco-list-row,
+.agent-sessions-workbench.modern-ui-compact .changes-file-list .monaco-list-row {
+	left: var(--vscode-spacing-size20);
+	right: var(--vscode-spacing-size20);
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {

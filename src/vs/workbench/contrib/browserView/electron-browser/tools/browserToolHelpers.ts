@@ -88,10 +88,14 @@ export function getBrowserPagesContext(
 	agentNetworkFilterService: IAgentNetworkFilterService,
 	options?: {
 		activeSessionId?: string;
+		sandboxSessionId?: string;
 		canPromptUser?: boolean;
 	},
 ): string | undefined {
-	const views = [...browserViewService.getContextualBrowserViews({ activeSessionId: options?.activeSessionId }).values()];
+	const views = [...browserViewService.getContextualBrowserViews({
+		activeSessionId: options?.activeSessionId,
+		...(options?.sandboxSessionId !== undefined ? { sandboxSessionId: options.sandboxSessionId } : {}),
+	}).values()];
 	const sharedViews = views.filter(view => view.model?.sharingState === BrowserViewSharingState.Shared);
 	const unsharedCount = views.filter(view => !view.model || view.model.sharingState === BrowserViewSharingState.Available).length;
 	const blockedCount = views.filter(view => view.model?.sharingState === BrowserViewSharingState.BlockedByNetworkPolicy).length;

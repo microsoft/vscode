@@ -25,7 +25,7 @@ import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelatio
 import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationType, McpServerStatus, SessionInputRequestKind, type McpServerCustomization } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildSubagentChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
@@ -292,6 +292,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostClientConnectionService, clientConnectionService],
 			[IAgentHostPeerChatPersistenceService, {
 				_serviceBrand: undefined,
+				setRead: async () => { },
 				setArchived: async () => { },
 			}],
 			[ISessionWorkspaceConversionService, {
@@ -390,6 +391,30 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				msg: undefined,
 			},
 		}]);
+	});
+
+	test('classifies tool calls in subagent chats by subagent kind and reports the phase model', () => {
+		setupSession();
+		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
+		startTurn('turn-1');
+		const runSubagentTool = (toolCallId: string, phase?: { subagentKind: 'fusionPhase'; model: string }) => {
+			const chatUri = buildSubagentChatUri(sessionUri, toolCallId);
+			stateManager.addChat(sessionKey, chatUri);
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'agent', agentDisplayName: 'Agent', ...phase });
+			const turnId = stateManager.getActiveTurnId(chatUri) ?? 'missing-subagent-turn';
+			const fireOnChat = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });
+			fireOnChat({ type: ActionType.ChatToolCallStart, turnId, toolCallId: `${toolCallId}-view`, toolName: 'view', displayName: 'view' });
+			fireOnChat({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: `${toolCallId}-view`, result: { success: true, pastTenseMessage: 'viewed' } });
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId });
+		};
+		runSubagentTool('call-task');
+		runSubagentTool('fusion:fusion-1:phase-1', { subagentKind: 'fusionPhase', model: 'gpt-5.5' });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual(agentHostToolEvents().map(({ data }) => ({ toolCallId: data.toolCallId, isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind, model: data.model })), [
+			{ toolCallId: 'call-task-view', isSubagentSession: true, subagentKind: 'task', model: undefined },
+			{ toolCallId: 'fusion:fusion-1:phase-1-view', isSubagentSession: true, subagentKind: 'fusionPhase', model: { trusted: true, value: 'gpt-5.5' } },
+		]);
 	});
 
 	test('attributes tool telemetry to the initiating turn client', () => {

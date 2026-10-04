@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
 import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
@@ -25,9 +24,8 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
-import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
-import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
+import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentKind, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal, type IAgentSubagentStartedSignal } from '../common/agent.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
 import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionResponseMeta.js';
@@ -174,6 +172,8 @@ interface ISubagentSessionRef {
 	readonly chatUri: ProtocolURI;
 	readonly turnStopWatch: StopWatch;
 	readonly taskModelSource: AgentSubagentTaskModelSource | undefined;
+	readonly subagentKind: AgentSubagentKind | undefined;
+	readonly model: string | undefined;
 }
 
 interface ISubagentParentTurnTelemetryContext {
@@ -313,6 +313,7 @@ export class AgentSideEffects extends Disposable {
 			undefined,
 			(session, turnId) => this._turnTracker.getClientTelemetryContext(session, turnId),
 			(session, turnId) => this._turnTracker.getTelemetryContext(session, turnId),
+			(session, turnId) => this._turnTracker.getSubagentKind(session, turnId),
 		);
 		this._permissionManager = this._register(this._instantiationService.createInstance(SessionPermissionManager, this._stateManager, {}));
 		this._register(this._stateManager.onDidSnapshotDefaultChatTitle(event => this._persistDefaultChatTitleSnapshot(event.session, event.chat, event.title)));
@@ -671,8 +672,12 @@ export class AgentSideEffects extends Disposable {
 	 * once the `subagent_started` arrives.
 	 */
 	private _handleAgentSignal(agent: IAgent, signal: AgentSignal): void {
+		if (signal.kind === 'canvas') {
+			this._stateManager.setCanvasState(signal.chat.toString(), signal.resource.toString(), signal.state);
+			return;
+		}
 		if (signal.kind === 'subagent_started') {
-			this._handleSubagentStarted(signal.chat.toString(), signal.toolCallId, signal.agentName, signal.agentDisplayName, signal.agentDescription, signal.taskPrompt, signal.parentToolCallId, signal.taskModelSource);
+			this._handleSubagentStarted(signal);
 			this._drainPendingSubagentSignals(signal.chat.toString(), signal.toolCallId);
 			return;
 		}
@@ -921,10 +926,8 @@ export class AgentSideEffects extends Disposable {
 			if (!isSubagentChatUri(sessionKey)) {
 				this._turnTracker.updateBilledNanoAiu(sessionKey, action.turnId, usageMeta.copilotUsage?.totalNanoAiu);
 			}
-			if (action.usage.model && agent) {
-				const modelContext = getModelTelemetryContext(agent, action.usage.model);
-				this._turnTracker.updateModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
-				this._toolCallTracker.updateTurnModel(sessionKey, action.turnId, modelContext.model, modelContext.modelTelemetryKind);
+			if (agent) {
+				this._updateTurnModel(agent, sessionKey, action.turnId, action.usage.model);
 			}
 		}
 
@@ -1169,25 +1172,18 @@ export class AgentSideEffects extends Disposable {
 	 * before this runs, so this only drives the turn/tracking/parent content
 	 * — it does not add the chat.
 	 *
-	 * `chatURI` is always the agent's top-level chat: the subagent is
+	 * `signal.chat` is always the agent's top-level chat: the subagent is
 	 * registered (and inner events routed) under it because inner-tool
-	 * signals carry the top-level chat as their resource. `spawningToolParentId`,
+	 * signals carry the top-level chat as their resource. `signal.parentToolCallId`,
 	 * when set, is the tool call one level up from the spawning `toolCallId`
 	 * — the tool call in whose (subagent) chat the spawning tool lives — and
 	 * is used to route the discovery content block to that immediate parent
 	 * chat. Since subagent chats are flat (keyed off the root session), this
 	 * one-hop reference resolves the parent chat at any nesting depth.
 	 */
-	private _handleSubagentStarted(
-		chatURI: ProtocolURI,
-		toolCallId: string,
-		agentName: string,
-		agentDisplayName: string,
-		agentDescription?: string,
-		taskPrompt?: string,
-		spawningToolParentId?: string,
-		taskModelSource?: AgentSubagentTaskModelSource,
-	): void {
+	private _handleSubagentStarted(signal: IAgentSubagentStartedSignal): void {
+		const chatURI = signal.chat.toString();
+		const { toolCallId, agentName, agentDisplayName, agentDescription, taskPrompt, parentToolCallId: spawningToolParentId, taskModelSource, subagentKind, model } = signal;
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(chatURI);
 		const subagentChatUri = buildSubagentChatUri(parentSessionUri, toolCallId);
 		const immediateParentChatUri = spawningToolParentId
@@ -1197,6 +1193,9 @@ export class AgentSideEffects extends Disposable {
 
 		const existing = this._subagentChats.get(chatURI, toolCallId);
 		if (existing) {
+			if (model && model !== existing.model) {
+				this._subagentChats.set({ ...existing, model }, chatURI, toolCallId);
+			}
 			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined, immediateParentChatUri);
 			return;
 		}
@@ -1217,11 +1216,12 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(parentSessionUri)?.config);
-			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI));
+			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI), subagentKind);
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
+			this._updateTurnModel(agent, subagentChatUri, turnId, model);
 		}
 
-		this._subagentChats.set({ parentChatUri: chatURI, immediateParentChatUri, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false), taskModelSource }, chatURI, toolCallId);
+		this._subagentChats.set({ parentChatUri: chatURI, immediateParentChatUri, toolCallId, sessionUri: parentSessionUri, chatUri: subagentChatUri, turnStopWatch: StopWatch.create(false), taskModelSource, subagentKind, model }, chatURI, toolCallId);
 
 		// Dispatch the discovery content on the spawning tool call's own chat; the top-level chat is a no-op when nested.
 		if (parentTurnId) {
@@ -1293,14 +1293,25 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(subagent.sessionUri)?.config);
-			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource, URI.parse(parentChatURI));
+			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource, URI.parse(parentChatURI), subagent.subagentKind);
 			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
+			this._updateTurnModel(agent, subagent.chatUri, turnId, subagent.model);
 		}
 		this._subagentChats.set({ ...subagent, immediateParentChatUri: correlatedParentChatUri, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
 	}
 
+	private _updateTurnModel(agent: IAgent, chat: ProtocolURI, turnId: string, model: string | undefined): void {
+		if (!model) {
+			return;
+		}
+		const modelContext = getModelTelemetryContext(agent, model);
+		this._turnTracker.updateModel(chat, turnId, modelContext.model, modelContext.modelTelemetryKind);
+		this._toolCallTracker.updateTurnModel(chat, turnId, modelContext.model, modelContext.modelTelemetryKind);
+	}
+
 	private _getSubagentParentTurnTelemetryContext(immediateParentChatUri: ProtocolURI | undefined, fallbackParentChatUri: ProtocolURI): ISubagentParentTurnTelemetryContext {
-		const parentChatUri = immediateParentChatUri ?? fallbackParentChatUri;
+		immediateParentChatUri = immediateParentChatUri && this._turnOwningChat(immediateParentChatUri);
+		const parentChatUri = immediateParentChatUri ?? this._turnOwningChat(fallbackParentChatUri);
 		const parentTurnId = this._stateManager.getActiveTurnId(parentChatUri);
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(parentChatUri);
 		const parentMessageOriginKind = parentTurnId ? this._turnTracker.getMessageOriginKind(parentChatUri, parentTurnId) : undefined;
@@ -1313,6 +1324,19 @@ export class AgentSideEffects extends Disposable {
 			correlatedParentTurnId: immediateParentChatUri ? parentTurnId : undefined,
 			initiatorClientId: parentTurnId ? this._turnTracker.getInitiatorClientId(parentChatUri, parentTurnId) : undefined,
 		};
+	}
+
+	/** A Fusion phase chat only presents part of its parent's turn, so that parent owns the work done in it. */
+	private _turnOwningChat(chatUri: ProtocolURI): ProtocolURI {
+		if (!isSubagentChatUri(chatUri)) {
+			return chatUri;
+		}
+		for (const subagent of this._subagentChats.values()) {
+			if (subagent.chatUri === chatUri && subagent.subagentKind === 'fusionPhase') {
+				return this._turnOwningChat(subagent.immediateParentChatUri ?? subagent.parentChatUri);
+			}
+		}
+		return chatUri;
 	}
 
 	/**
@@ -2045,15 +2069,6 @@ export class AgentSideEffects extends Disposable {
 			}));
 
 			await Promise.all(selectionUpdates);
-			if (agent.id === CODEX_AGENT_PROVIDER_ID) {
-				const state = this._stateManager.getSessionState(sessionChannel);
-				if (state?.defaultChat === chat) {
-					const model = agent.chats.getModel?.(chatUri, clientOperationContext) ?? message.model;
-					if (model && readCodexSessionModel(state)?.id !== model.id) {
-						this._stateManager.setSessionMeta(sessionChannel, withCodexSessionModel(state._meta, model));
-					}
-				}
-			}
 
 			// A provider can prepare the turn — e.g. materialize a deferred session
 			// with the selection applied above — while attachments, contributions
@@ -2079,8 +2094,6 @@ export class AgentSideEffects extends Disposable {
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId, workingDirectories: resolvedWorkingDirectories });
 			const sendContext = {
 				...clientOperationContext,
-				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
-				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),

@@ -53,7 +53,6 @@ suite('AgentHostPolicyReadiness', () => {
 			ChatAgentMode: true,
 			ChatToolsTerminalEnableAutoApprove: true,
 			ChatAgentSandboxEnabled: 'off',
-			ChatAgentSandboxAllowAutoApprove: true,
 			ChatPluginsEnabled: true,
 			ChatHooks: true,
 			CopilotOtelEnabled: true,
@@ -76,8 +75,6 @@ suite('AgentHostPolicyReadiness', () => {
 			ChatMCP: 'registry',
 			ChatAgentMode: false,
 			ChatToolsTerminalEnableAutoApprove: false,
-			ChatAgentSandboxEnabled: 'on',
-			ChatAgentSandboxAllowAutoApprove: false,
 			ChatPluginsEnabled: false,
 			ChatHooks: false,
 			CopilotOtelCaptureIdentity: false,
@@ -121,7 +118,6 @@ suite('AgentHostPolicyReadiness', () => {
 			}, {
 				[AgentNetworkDomainSettingId.NetworkFilter]: false,
 				[AgentSandboxSettingId.AgentSandboxEnabled]: enabled,
-				[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: enabled,
 			});
 			assert.deepStrictEqual(getAgentHostPolicyGaps(service).map(gap => gap.policyName),
 				['ChatAgentAllowedNetworkDomains', 'ChatAgentDeniedNetworkDomains']);
@@ -136,22 +132,31 @@ suite('AgentHostPolicyReadiness', () => {
 		}, {
 			[AgentNetworkDomainSettingId.NetworkFilter]: false,
 			[AgentSandboxSettingId.AgentSandboxEnabled]: 'on',
-			[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: 'on',
 		})), []);
 	});
 
-	test('merged sandbox and identity fixes retain only lifecycle and runtime verification concerns', () => {
-		const service = configuration({ ChatAgentSandboxEnabled: 'on', CopilotOtelCaptureIdentity: true });
+	test('retired legacy sandbox policies are outside Agent Host readiness scope', () => {
+		for (const enabled of ['on', 'off', true, false]) {
+			for (const allowed of [true, false]) {
+				assert.deepStrictEqual(getAgentHostPolicyGaps(configuration({
+					ChatAgentSandboxEnabled: enabled,
+					ChatAgentSandboxAllowNetwork: allowed,
+					ChatAgentSandboxAllowUnsandboxedCommands: allowed,
+				})), []);
+			}
+		}
+	});
+
+	test('retired sandbox policies do not suppress unrelated policy verification', () => {
+		const service = configuration({
+			ChatAgentSandboxEnabled: 'on',
+			CopilotOtelCaptureIdentity: true,
+		});
 		assert.deepStrictEqual(getAgentHostPolicyGaps(service).map(gap => ({
 			policyName: gap.policyName,
 			status: gap.status,
 			impact: getAgentHostPolicyGapImpact(gap.policyName),
 		})), [
-			{
-				policyName: 'ChatAgentSandboxEnabled',
-				status: 'partial',
-				impact: 'Policy-required sandboxing blocks direct session Off overrides on macOS/Linux. Verify delayed policy loading and loss/reapplication of the last client\'s requirement across disconnect-grace expiry.',
-			},
 			{
 				policyName: 'CopilotOtelCaptureIdentity',
 				status: 'partial',

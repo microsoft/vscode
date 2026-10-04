@@ -37,7 +37,7 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
@@ -393,6 +393,42 @@ suite('SessionsManagementService', () => {
 				same: part.getSessionView('a') === aView,
 				disposed: aChat.disposed, input: aChat.input.value,
 			}, { visible: ['b', 'a', 'c'], sticky: [false, true, false], active: 'a', above: 'b', same: true, disposed: false, input: 'still here' });
+		});
+
+		test('a foreground remote open mounts its chat while provider preparation is pending', async () => {
+			const active = created('active');
+			const connectionStatus = observableValue<SessionRemoteConnectionStatus>('connectionStatus', { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+			const target = {
+				...created('target'),
+				remoteConnectionStatus: connectionStatus,
+			};
+			const preparation = new DeferredPromise<void>();
+			const { view, part, container } = harness([active, target], {
+				prepare: async session => {
+					if (session === target) {
+						connectionStatus.set({ kind: 'connecting' }, undefined);
+						await preparation.p;
+					}
+				},
+			});
+			await view.openSession(active.resource);
+			const opening = view.openSession(target.resource);
+			await timeout(0);
+			const before = {
+				active: view.activeSession.get()?.sessionId,
+				mounted: part.getSessionView('target')?.getSession()?.sessionId,
+				focused: part.getSessionView('target')?.element.contains(container.ownerDocument.activeElement),
+				progress: container.querySelector('.remote-host-unavailable-empty-state-progress')?.textContent,
+			};
+			preparation.complete();
+			await opening;
+			assert.deepStrictEqual({
+				before,
+				after: view.activeSession.get()?.sessionId,
+			}, {
+				before: { active: 'target', mounted: 'target', focused: true, progress: 'Waiting for agent host connection...' },
+				after: 'target',
+			});
 		});
 
 		test('balanced subset changes preserve caller order and retained widgets', async () => {
@@ -1318,15 +1354,242 @@ suite('SessionsManagementService', () => {
 			return { ...createSessionsManagementService(session, disposables, provider), session, other, isRead, status, readChanges };
 		}
 
-		test('marks the active session as read via its provider even when its provider state was unread', async () => {
-			const { session, view } = createReadStateSessions();
+		test('opening a session leaves its parent state unchanged when the main chat is already read', async () => {
+			const { session, view, readChanges } = createReadStateSessions();
 			const readBeforeActive = session.isRead.get();
 			await view.openSession(session.resource);
 
 			assert.deepStrictEqual(
-				{ readBeforeActive, readWhileActive: session.isRead.get(), activeId: view.activeSession.get()?.sessionId },
-				{ readBeforeActive: false, readWhileActive: true, activeId: 'unread' },
+				{ readBeforeActive, readWhileActive: session.isRead.get(), activeId: view.activeSession.get()?.sessionId, readChanges },
+				{ readBeforeActive: false, readWhileActive: false, activeId: 'unread', readChanges: [] },
 			);
+		});
+
+		test('preserves an explicit unread active single chat until the chat advances', async () => {
+			const sessionIsRead = observableValue('sessionIsRead', false);
+			const mainIsRead = observableValue('mainIsRead', true);
+			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', new Date(1));
+			const main = { ...stubChat, isRead: mainIsRead, lastTurnEnd };
+			const session = stubSession({
+				sessionId: 'explicit-unread',
+				providerId: 'test',
+				isRead: sessionIsRead,
+				mainChat: constObservable(main),
+				chats: constObservable([main]),
+			});
+			const readChanges: { readonly chat: string; readonly isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					readChanges.push({ chat: chatResource.toString(), isRead });
+					mainIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service, view } = createSessionsManagementService(session, disposables, provider);
+			await view.openSession(session.resource);
+
+			await service.markUnread(session);
+			const afterExplicitUnread = mainIsRead.get();
+			lastTurnEnd.set(new Date(2), undefined);
+
+			assert.deepStrictEqual({
+				afterExplicitUnread,
+				afterNewTurn: mainIsRead.get(),
+				sessionIsRead: sessionIsRead.get(),
+				readChanges,
+			}, {
+				afterExplicitUnread: false,
+				afterNewTurn: true,
+				sessionIsRead: false,
+				readChanges: [
+					{ chat: 'test:/chat', isRead: false },
+					{ chat: 'test:/chat', isRead: true },
+				],
+			});
+		});
+
+		test('marks the active main chat as read once without changing the parent or peer', async () => {
+			const mainIsRead = observableValue('mainIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainIsRead };
+			const peer = { ...stubChat, resource: URI.parse('test:///peer') };
+			const session = stubSession({
+				sessionId: 'multi-chat',
+				providerId: 'test',
+				isRead: constObservable(false),
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const readChanges: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					if (mainIsRead.get() !== isRead) {
+						mainIsRead.set(isRead, undefined);
+						readChanges.push({ sessionId, chat: chatResource.toString(), isRead });
+					}
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openSession(session.resource);
+			const mainIsReadAfterOpen = mainIsRead.get();
+			mainIsRead.set(false, undefined);
+
+			assert.deepStrictEqual({
+				mainIsReadAfterOpen,
+				mainIsReadAfterStaleEcho: mainIsRead.get(),
+				sessionIsRead: session.isRead.get(),
+				peerIsRead: peer.isRead.get(),
+				readChanges,
+			}, {
+				mainIsReadAfterOpen: true,
+				mainIsReadAfterStaleEcho: false,
+				sessionIsRead: false,
+				peerIsRead: true,
+				readChanges: [{ sessionId: 'multi-chat', chat: 'test:/main', isRead: true }],
+			});
+		});
+
+		test('retries marking the active chat read after provider loading completes', async () => {
+			const mainIsRead = observableValue('mainIsRead', false);
+			const loading = observableValue('loading', false);
+			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainIsRead };
+			const session = stubSession({
+				sessionId: 'startup-read-retry',
+				providerId: 'test',
+				loading,
+				mainChat: constObservable(main),
+				chats: constObservable([main]),
+			});
+			const attempts: boolean[] = [];
+			let ready = false;
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, _chatResource: URI, isRead: boolean): Promise<boolean> {
+					attempts.push(ready);
+					if (!ready) {
+						return false;
+					}
+					mainIsRead.set(isRead, undefined);
+					return true;
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openSession(session.resource);
+			await timeout(0);
+			const afterRejectedAttempt = mainIsRead.get();
+			loading.set(true, undefined);
+			ready = true;
+			loading.set(false, undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterRejectedAttempt,
+				afterReady: mainIsRead.get(),
+				attempts,
+			}, {
+				afterRejectedAttempt: false,
+				afterReady: true,
+				attempts: [false, true],
+			});
+		});
+
+		test('uses the main chat read operation when only a tool peer accompanies it', async () => {
+			const sessionIsRead = observableValue('sessionIsRead', false);
+			const mainIsRead = observableValue('mainIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainIsRead };
+			const toolIsRead = observableValue('toolIsRead', false);
+			const tool = {
+				...stubChat,
+				resource: URI.parse('test:///tool'),
+				isRead: toolIsRead,
+				origin: { kind: ChatOriginKind.Tool },
+				interactivity: constObservable(ChatInteractivity.ReadOnly),
+			};
+			const session = stubSession({
+				sessionId: 'tool-peer',
+				providerId: 'test',
+				isRead: sessionIsRead,
+				mainChat: constObservable(main),
+				chats: constObservable([main, tool]),
+			});
+			const readChanges: string[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, chatResource: URI, read: boolean): Promise<void> {
+					readChanges.push(`chat:${chatResource.toString()}:${read}`);
+					if (chatResource.toString() === main.resource.toString()) {
+						mainIsRead.set(read, undefined);
+					}
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openSession(session.resource);
+
+			assert.deepStrictEqual({
+				session: session.isRead.get(),
+				main: main.isRead.get(),
+				tool: tool.isRead.get(),
+				readChanges,
+			}, {
+				session: false,
+				main: true,
+				tool: false,
+				readChanges: ['chat:test:/main:true'],
+			});
+		});
+
+		test('marks the active peer chat as read once through its provider', async () => {
+			const mainIsRead = observableValue('mainIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainIsRead };
+			const peerIsRead = observableValue('peerIsRead', false);
+			const peerUpdatedAt = observableValue<Date | undefined>('peerUpdatedAt', new Date(1));
+			const peer = { ...stubChat, resource: URI.parse('test:///peer'), isRead: peerIsRead, updatedAt: peerUpdatedAt };
+			const session = stubSession({
+				sessionId: 'multi-chat',
+				providerId: 'test',
+				mainChat: constObservable(main),
+				chats: constObservable([main, peer]),
+			});
+			const readChanges: { sessionId: string; chat: string; isRead: boolean }[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					if (chatResource.toString() === peer.resource.toString()) {
+						peerIsRead.set(isRead, undefined);
+					} else if (chatResource.toString() === main.resource.toString()) {
+						mainIsRead.set(isRead, undefined);
+					}
+					readChanges.push({ sessionId, chat: chatResource.toString(), isRead });
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openChat(session, peer.resource);
+			const peerIsReadAfterOpen = peerIsRead.get();
+			peerIsRead.set(false, undefined);
+			const peerIsReadAfterStaleEcho = peerIsRead.get();
+			peerUpdatedAt.set(new Date(2), undefined);
+			const peerIsReadAfterNewTurn = peerIsRead.get();
+			peerIsRead.set(false, undefined);
+
+			assert.deepStrictEqual({
+				activeChat: view.activeSession.get()?.activeChat.get().resource.toString(),
+				mainIsRead: mainIsRead.get(),
+				peerIsReadAfterOpen,
+				peerIsReadAfterStaleEcho,
+				peerIsReadAfterNewTurn,
+				peerIsReadAfterRepeatedEcho: peerIsRead.get(),
+				readChanges,
+			}, {
+				activeChat: 'test:/peer',
+				mainIsRead: false,
+				peerIsReadAfterOpen: true,
+				peerIsReadAfterStaleEcho: false,
+				peerIsReadAfterNewTurn: true,
+				peerIsReadAfterRepeatedEcho: false,
+				readChanges: [
+					{ sessionId: 'multi-chat', chat: 'test:/peer', isRead: true },
+					{ sessionId: 'multi-chat', chat: 'test:/peer', isRead: true },
+				],
+			});
 		});
 
 		test('leaves a non-active session in its provider read state', async () => {
@@ -1339,65 +1602,50 @@ suite('SessionsManagementService', () => {
 			);
 		});
 
-		for (const destination of ['another session', 'the new-session composer']) {
-			test(`keeps an explicitly unread active session unread until navigating to ${destination} and back`, async () => {
-				const { session, other, service, view, readChanges } = createReadStateSessions();
-				await view.openSession(session.resource);
-				await service.markUnread(session);
-				const afterMarkUnread = session.isRead.get();
-
-				await view.openSession(session.resource);
-				const afterReopeningActive = session.isRead.get();
-
-				if (destination === 'another session') {
-					await view.openSession(other.resource);
-				} else {
-					await view.openNewSession();
-				}
-				const afterLeaving = session.isRead.get();
-				await view.openSession(session.resource);
-
-				assert.deepStrictEqual(
-					{ afterMarkUnread, afterReopeningActive, afterLeaving, afterReturning: session.isRead.get(), readChanges },
-					{ afterMarkUnread: false, afterReopeningActive: false, afterLeaving: false, afterReturning: true, readChanges: [true, false, true] },
-				);
+		test('explicit session row read actions update the main chat only', async () => {
+			const sessionIsRead = observableValue('sessionIsRead', false);
+			const mainIsRead = observableValue('mainIsRead', true);
+			const main = { ...stubChat, isRead: mainIsRead };
+			const session = stubSession({
+				sessionId: 'explicit-main-chat-read',
+				providerId: 'test',
+				isRead: sessionIsRead,
+				mainChat: constObservable(main),
+				chats: constObservable([main]),
 			});
-		}
-
-		test('automatically reads active-session updates without overriding an explicit unread mark', async () => {
-			const { session, service, view, isRead, status, readChanges } = createReadStateSessions();
-			await view.openSession(session.resource);
-			isRead.set(false, undefined);
-			const afterProviderUpdate = isRead.get();
+			const chatReadChanges: boolean[] = [];
+			const sessionReadChanges: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, _chatResource: URI, isRead: boolean): Promise<void> {
+					chatReadChanges.push(isRead);
+					mainIsRead.set(isRead, undefined);
+				}
+				override async setSessionReadState(_sessionId: string, isRead: boolean): Promise<void> {
+					sessionReadChanges.push(isRead);
+					sessionIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
 
 			await service.markUnread(session);
-			status.set(SessionStatus.InProgress, undefined);
-			status.set(SessionStatus.Completed, undefined);
+			const afterMarkUnread = { main: mainIsRead.get(), session: sessionIsRead.get() };
+			await service.markRead(session);
 
 			assert.deepStrictEqual(
-				{ afterProviderUpdate, afterTurn: isRead.get(), readChanges },
-				{ afterProviderUpdate: true, afterTurn: false, readChanges: [true, true, false] },
+				{
+					afterMarkUnread,
+					afterMarkRead: { main: mainIsRead.get(), session: sessionIsRead.get() },
+					chatReadChanges,
+					sessionReadChanges,
+				},
+				{
+					afterMarkUnread: { main: false, session: false },
+					afterMarkRead: { main: true, session: false },
+					chatReadChanges: [false, true],
+					sessionReadChanges: [],
+				},
 			);
 		});
-
-		for (const all of [false, true]) {
-			test(`${all ? 'marking all sessions read' : 'marking the session read'} resumes automatic reading`, async () => {
-				const { session, service, view, isRead, readChanges } = createReadStateSessions();
-				await view.openSession(session.resource);
-				await service.markUnread(session);
-				if (all) {
-					await service.markAllRead([session]);
-				} else {
-					await service.markRead(session);
-				}
-				isRead.set(false, undefined);
-
-				assert.deepStrictEqual(
-					{ isRead: isRead.get(), readChanges },
-					{ isRead: true, readChanges: [true, false, true, true] },
-				);
-			});
-		}
 	});
 
 	test('archiving the active session keeps the custom view open', async () => {
@@ -2564,7 +2812,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('openSession awaits provider preparation before activation', async () => {
+	test('openSession activates before awaiting provider preparation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
 		const target = stubSession({ sessionId: 'target', providerId: 'test' });
 		const preparation = new DeferredPromise<void>();
@@ -2587,8 +2835,30 @@ suite('SessionsManagementService', () => {
 			activeBeforePreparation,
 			activeAfterPreparation: view.activeSession.get()?.sessionId,
 		}, {
-			activeBeforePreparation: 'active',
+			activeBeforePreparation: 'target',
 			activeAfterPreparation: 'target',
+		});
+	});
+
+	test('provider preparation cannot reclaim the active session after navigation', async () => {
+		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const next = stubSession({ sessionId: 'next', providerId: 'test' });
+		const preparation = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [target, next]; }
+			override prepareSessionForOpen(session: ISession): Promise<void> {
+				return session === target ? preparation.p : Promise.resolve();
+			}
+		}(target);
+		const { view } = createSessionsManagementService(target, disposables, provider);
+		const opening = view.openSession(target.resource);
+		await timeout(0);
+		const duringPreparation = view.activeSession.get()?.sessionId;
+		await view.openSession(next.resource);
+		preparation.complete();
+		await opening;
+		assert.deepStrictEqual({ duringPreparation, afterNavigation: view.activeSession.get()?.sessionId }, {
+			duringPreparation: 'target', afterNavigation: 'next',
 		});
 	});
 
@@ -3570,27 +3840,23 @@ suite('SessionsManagementService', () => {
 		}), /does not support model configuration/);
 	});
 
-	test('createNewSession forwards exact permission and mode choices and rejects unavailable permissions', () => {
+	test('createNewSession forwards exact permission and mode choices for provider validation', () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 		});
 		const providerOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
 		const provider = new class extends TestSessionsProvider {
+			override readonly supportsPermissionsForCreation = true;
 			override readonly sessionTypes: readonly ISessionType[] = [
 				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'supported', label: 'Supported', icon: Codicon.vm },
 				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'unsupported', label: 'Unsupported', icon: Codicon.vm },
 			];
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
-			override getPermissionOptionsForCreation(sessionTypeId: string) {
-				return sessionTypeId === 'supported' ? [{
-					id: 'allowAll',
-					label: 'Allow all',
-					description: 'Allow all tools.',
-					isAllowAll: true,
-				}] : [];
-			}
 			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				if (_sessionTypeId === 'unsupported') {
+					throw new Error(`Provider does not support permission '${options?.permissionId}'`);
+				}
 				providerOptions.push(options);
 				return session;
 			}
@@ -3612,6 +3878,18 @@ suite('SessionsManagementService', () => {
 			permissionId: 'allowAll',
 			modeId: 'autopilot',
 		}]);
+	});
+
+	test('createNewSession rejects permissions when the provider cannot apply them', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: URI.parse('test:///folder'), label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override createNewSession(): ISession { assert.fail('Must not create a session with ignored permissions'); }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), { permissionId: 'allowAll' }), /does not support permission 'allowAll'/);
 	});
 
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {

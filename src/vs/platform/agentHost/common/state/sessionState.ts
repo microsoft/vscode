@@ -41,6 +41,8 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ChatOrigin,
+	type CanvasState,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -77,7 +79,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -814,6 +816,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -825,6 +828,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -2026,11 +2030,13 @@ export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
- * Session-database metadata key recording whether a session has been read. This is
- * the only durable representation of read state; the in-memory truth is
- * {@link SessionStatus.IsRead}. The host owns it — no agent SDK tracks read state.
+ * Session-database metadata key recording the session aggregate read state. The
+ * in-memory truth is {@link SessionStatus.IsRead}; chat state is stored separately.
  */
 export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/** Session-database metadata key recording the default chat's independent read state. */
+export const AH_META_DEFAULT_CHAT_IS_READ_DB_KEY = 'defaultChatIsRead';
 
 /** Returns `status` with `flag` set or cleared. */
 export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
@@ -2040,6 +2046,16 @@ export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus
 /** Whether the {@link SessionStatus.IsRead} flag bit is set. */
 export function isSessionStatusRead(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
+}
+
+/**
+ * Whether a chat participates in the containing session's aggregate read state.
+ * Tool/subagent/hidden chats retain exact per-chat state without making the session unread.
+ */
+export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
+	return origin?.kind !== ChatOriginKind.Tool
+		&& interactivity !== ChatInteractivity.Hidden
+		&& !isSubagentChatUri(resource);
 }
 
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */
