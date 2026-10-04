@@ -70,6 +70,20 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	override readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._status;
 	disposed = false;
 	taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
+	taskArchiveHandler: { readonly rawId: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
+
+	override setTaskArchiveHandler(rawId: string, setArchived: (archived: boolean) => Promise<void>): void {
+		this.taskArchiveHandler = { rawId, setArchived };
+	}
+
+	override setSessionArchived(rawId: string, archived: boolean): void {
+		const index = this.seeded.findIndex(meta => AgentSession.id(meta.session) === rawId);
+		if (index !== -1) {
+			const meta = this.seeded[index];
+			const status = meta.status ?? SessionStatus.Idle;
+			this.seeded[index] = { ...meta, status: archived ? status | SessionStatus.IsArchived : status & ~SessionStatus.IsArchived };
+		}
+	}
 
 	override setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
 		this.taskRenameHandler = { rawId, rename };
@@ -231,6 +245,7 @@ interface ITestHarness {
 	readonly historyRequests: string[];
 	readonly deletedTasks: string[];
 	readonly renamedTasks: { taskId: string; title: string }[];
+	readonly archivedTasks: { taskId: string; archived: boolean }[];
 	/** Host groups currently declared to the filter service. */
 	readonly hostGroups: IAgentHostGroup[];
 	readonly discoveryModes: boolean[];
@@ -251,6 +266,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly getEnvironment?: (id: string, token: CancellationToken) => Promise<ICloudSandboxEnvironmentRecord>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly renameTask?: (taskId: string, title: string, token: CancellationToken) => Promise<void>;
+	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
 	readonly aiDisabled?: boolean;
@@ -270,6 +286,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const historyRequests: string[] = [];
 	const deletedTasks: string[] = [];
 	const renamedTasks: { taskId: string; title: string }[] = [];
+	const archivedTasks: { taskId: string; archived: boolean }[] = [];
 	const onDidChangeSentiment = store.add(new Emitter<void>());
 	let chatHidden = options?.chatHidden ?? false;
 	const discoveryModes: boolean[] = [];
@@ -292,6 +309,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		historyRequests,
 		deletedTasks,
 		renamedTasks,
+		archivedTasks,
 		hostGroups,
 		discoveryModes,
 		changeAccount: value => {
@@ -359,6 +377,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		override async renameTask(taskId: string, title: string, token: CancellationToken): Promise<void> {
 			renamedTasks.push({ taskId, title });
 			await options?.renameTask?.(taskId, title, token);
+		}
+		override async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
+			archivedTasks.push({ taskId, archived });
+			await options?.setTaskArchived?.(taskId, archived, token);
 		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
@@ -460,6 +482,70 @@ function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>):
 suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('archives the owning task without connecting and persists the flag for offline restoration', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const harness = await createContribution(store, [discoveredSession()], { storageService: storage });
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		await provider.taskArchiveHandler!.setArchived(true);
+		harness.contribution.dispose();
+		const restored = await createContribution(store, [], {
+			storageService: storage, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		assert.deepStrictEqual({
+			rawId: provider.taskArchiveHandler!.rawId,
+			archivedTasks: harness.archivedTasks, connectedTo: harness.connectedTo,
+			restoredArchived: !!(restored.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!.seeded[0].status! & SessionStatus.IsArchived),
+		}, {
+			rawId: 'sess-1', archivedTasks: [{ taskId: 'task-1', archived: true }], connectedTo: [], restoredArchived: true,
+		});
+	});
+
+	test('reconciles task archive and unarchive updates from another client without removing the provider', async () => {
+		const harness = await createContribution(store, [discoveredSession()]);
+		const address = cloudSandboxAddress('env-1');
+		const provider = harness.contribution.stubProviders.get(address)!;
+		harness.discovered = [discoveredSession({ isArchived: true })];
+		await harness.runDiscovery();
+		const archived = !!(provider.seeded[0].status! & SessionStatus.IsArchived);
+		harness.discovered = [discoveredSession({ isArchived: false })];
+		await harness.runDiscovery();
+		assert.deepStrictEqual({
+			archived, unarchived: !(provider.seeded[0].status! & SessionStatus.IsArchived),
+			sameProvider: harness.contribution.stubProviders.get(address) === provider, disposed: provider.disposed,
+		}, { archived: true, unarchived: true, sameProvider: true, disposed: false });
+	});
+
+	test('does not persist rejected task archives', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const harness = await createContribution(store, [discoveredSession()], {
+			storageService: storage, setTaskArchived: async () => { throw new Error('archive rejected'); },
+		});
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		await assert.rejects(provider.taskArchiveHandler!.setArchived(true), /archive rejected/);
+		harness.contribution.dispose();
+		const restored = await createContribution(store, [], {
+			storageService: storage, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		assert.strictEqual(!!(restored.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!.seeded[0].status! & SessionStatus.IsArchived), false);
+	});
+
+	test('cancels task archive updates when the account changes', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const harness = await createContribution(store, [discoveredSession()], {
+			setTaskArchived: async () => {
+				await entered.complete();
+				await pending.p;
+			},
+		});
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		const archive = provider.taskArchiveHandler!.setArchived(true);
+		await entered.p;
+		harness.changeAccount(undefined);
+		await pending.complete();
+		await assert.rejects(archive, CancellationError);
+	});
 
 	test('renames the discovered task without connecting and persists its new inventory name', async () => {
 		const storage = store.add(new InMemoryStorageService());

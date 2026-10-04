@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -32,6 +33,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	override get automations(): undefined { return undefined; }
 
 	private _taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
+	private _taskArchiveHandler: { readonly rawId: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
+	private readonly _archiveSequencer = new Sequencer();
 
 	/**
 	 * Provisional sessions kept out of {@link getSessions} because the caller is still showing a
@@ -72,7 +75,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
-		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
+		return this._taskArchiveHandler?.rawId === rawId
+			? this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived
+			: super._resolveArchivedState(rawId, isArchived);
+	}
+
+	/** Bind the discovered session's Mission Control archive operation. */
+	setTaskArchiveHandler(rawId: string, setArchived: (archived: boolean) => Promise<void>): void {
+		this._taskArchiveHandler = { rawId, setArchived };
 	}
 
 	/** Bind the discovered session's Mission Control rename operation. */
@@ -105,22 +115,42 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
-		this._setLocalArchived(sessionId, true);
+		await this._archiveSequencer.queue(() => this._setArchived(sessionId, true));
 	}
 
 	override async unarchiveSession(sessionId: string): Promise<void> {
-		this._setLocalArchived(sessionId, false);
+		await this._archiveSequencer.queue(() => this._setArchived(sessionId, false));
 	}
 
-	private _setLocalArchived(sessionId: string, isArchived: boolean): void {
+	private async _setArchived(sessionId: string, isArchived: boolean): Promise<void> {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session || !rawId) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+		const handler = this._taskArchiveHandler;
+		if (handler?.rawId !== rawId) {
+			if (!this.connection) {
+				throw new Error(localize('cloudSandbox.archiveUnavailable', "Connect to the environment to change this session's archive state."));
+			}
+			return isArchived ? super.archiveSession(sessionId) : super.unarchiveSession(sessionId);
+		}
+		await handler.setArchived(isArchived);
+		if (this._store.isDisposed || this._sessionCache.get(rawId) !== session) {
+			throw new CancellationError();
+		}
+		this.setSessionArchived(rawId, isArchived);
+	}
+
+	setSessionArchived(rawId: string, archived: boolean): void {
+		const session = this._sessionCache.get(rawId);
 		if (!session) {
 			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
 		}
-
-		// TODO: Reconcile local archive state with Mission Control so sessions are archived across clients.
-		session.isArchived.set(isArchived, undefined);
+		if (session.isArchived.get() === archived) {
+			return;
+		}
+		session.isArchived.set(archived, undefined);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 

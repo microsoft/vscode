@@ -64,6 +64,7 @@ export interface ICloudSandboxSessionEnvironment {
 	readonly name: string;
 	readonly repoName?: string;
 	readonly updatedAt?: string;
+	readonly isArchived?: boolean;
 }
 
 function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDiscoveredSession {
@@ -75,7 +76,8 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& typeof candidate.name === 'string'
 		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
-		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string');
+		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
+		&& (candidate.isArchived === undefined || typeof candidate.isArchived === 'boolean');
 }
 
 /**
@@ -100,6 +102,7 @@ export interface ICloudSandboxSessionList extends IDisposable {
 	setLabel?(label: string): void;
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void;
+	setSessionArchived(rawId: string, archived: boolean): void;
 }
 
 export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSessionList> extends Disposable implements IWorkbenchContribution {
@@ -301,7 +304,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			const address = cloudSandboxAddress(session.environmentId);
 			present.add(address);
 			updatedTasks.add(session.taskId);
-			this._seedDiscoveredSession(session);
+			this._seedDiscoveredSession({ ...session, isArchived: session.isArchived === true });
 		}
 
 		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
@@ -342,6 +345,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			...(session.status !== undefined ? { status: session.status } : {}),
 			...(project ? { project } : {}),
 		}], { updateExisting: true });
+		if (session.isArchived !== undefined) {
+			provider?.setSessionArchived(session.sessionId, session.isArchived);
+		}
 	}
 
 	protected _restoreAccount(accountKey: string | undefined): boolean {
@@ -410,6 +416,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					name: environment.name,
 					repoName: environment.repoName,
 					updatedAt: environment.updatedAt,
+					...(environment.isArchived ? { isArchived: true } : {}),
 				};
 				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
 				const value = JSON.stringify({ version: 1, sessions: [session] });
@@ -457,6 +464,33 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			throw new CancellationError();
 		}
 		this._environments.set(address, { ...current, name: title });
+		this._persistInventory();
+	}
+
+	protected async _setSandboxSessionArchived(address: string, rawId: string, archived: boolean, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || environment.sessionId !== rawId) {
+			throw new Error(localize('cloudSandbox.archiveSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		store.add(token.onCancellationRequested(() => source.cancel()));
+		try {
+			await this._apiService.setTaskArchived(environment.taskId, archived, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		const current = this._environments.get(address);
+		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
+			throw new CancellationError();
+		}
+		this._environments.set(address, { ...current, isArchived: archived });
 		this._persistInventory();
 	}
 

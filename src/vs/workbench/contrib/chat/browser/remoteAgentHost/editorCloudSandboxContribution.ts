@@ -162,6 +162,13 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 				}
 				await this._deleteSandboxSession(address, [rawId], id => provider.removeDeletedSession(id), token);
 				return true;
+			},
+			async (rawId, archived, token) => {
+				if (!this._ownsSandboxSession(address, rawId)) {
+					return false;
+				}
+				await this._setSandboxSessionArchived(address, rawId, archived, token);
+				return true;
 			}));
 		store.add(this._connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
 			connectionAddress: address,

@@ -165,7 +165,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[] };
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -263,6 +263,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
 			calls.deletedTasks.push(taskId);
 			await options?.deleteTask?.(taskId, token);
+		}
+		override async setTaskArchived(taskId: string, archived: boolean): Promise<void> {
+			calls.archivedTasks.push({ taskId, archived });
 		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
@@ -393,6 +396,44 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('archives and unarchives a discovered task without connecting', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		controller.setChatSessionItemArchived!(resource, true);
+		await timeout(0);
+		const archived = h.items()[0].archived;
+		controller.setChatSessionItemArchived!(resource, false);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived, unarchived: h.items()[0].archived,
+			tasks: h.calls.archivedTasks, connected: h.calls.connected,
+		}, {
+			archived: true, unarchived: false,
+			tasks: [{ taskId: discovered.taskId, archived: true }, { taskId: discovered.taskId, archived: false }],
+			connected: [],
+		});
+	});
+
+	test('reconciles remote task archive state while connected and after disconnection', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, isArchived: true }] };
+		await h.refresh();
+		const connectedArchived = h.items()[0].archived;
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		const disconnectedArchived = h.items()[0].archived;
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, isArchived: false }] };
+		await h.refresh();
+		assert.deepStrictEqual({
+			connectedArchived, disconnectedArchived, unarchived: h.items()[0].archived,
+		}, { connectedArchived: true, disconnectedArchived: true, unarchived: false });
+	});
 
 	test('trusts only discovered sandbox authorities and releases trust on teardown', async () => {
 		const h = createHarness(store);
@@ -550,7 +591,7 @@ suite('Editor cloud sandbox discovery', () => {
 			isNew: h.resolvers.get(sessionType)?.isNew(resource),
 			group: h.contributions.get(sessionType)?.sessionListGroup,
 		}, {
-			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: undefined, isRead: undefined }],
+			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: false, isRead: undefined }],
 			created: 0, connected: [], isNew: false, group: SessionType.CopilotCloud,
 		});
 	});
@@ -1132,7 +1173,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('waits for authentication before adopting host read and archive flags', async () => {
+	test('waits for authentication before adopting host read flags and preserves task archive state', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -1144,12 +1185,12 @@ suite('Editor cloud sandbox discovery', () => {
 		h.authenticationPending.set(false, undefined);
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ before, after: h.items().map(item => [item.label, item.isRead, item.archived]) }, {
-			before: [[discovered.name, undefined, undefined]],
-			after: [['Host title', true, true]],
+			before: [[discovered.name, undefined, false]],
+			after: [['Host title', true, false]],
 		});
 	});
 
-	test('publishes unknown read and archive flags on disconnect without changing activity', async () => {
+	test('publishes unknown read flags on disconnect without changing task archive state or activity', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -1173,16 +1214,16 @@ suite('Editor cloud sandbox discovery', () => {
 			})),
 			items: controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]),
 		}, {
-			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, true]],
+			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, false]],
 			deltas: [{
-				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, false]],
 				removed: undefined,
 			}],
-			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, false]],
 		});
 	});
 
-	test('publishes host read and archive flags again when connection availability returns', async () => {
+	test('publishes host read flags again when connection availability returns without overriding task archive state', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -1199,7 +1240,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.connected = true;
 		h.connectionsChanged.fire();
 
-		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, true]]]);
+		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, false]]]);
 	});
 
 	test('falls back to original history after a failed live connection, without creating a replacement', async () => {

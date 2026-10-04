@@ -3971,6 +3971,8 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 			workingDirectory: URI.file('/remote/project'),
 		});
 		const first = sandbox(storage);
+		assert.ok(first instanceof CloudSandboxSessionsProvider);
+		first.setTaskArchiveHandler('discovered', async () => { });
 		first.seedSessions([metadata]);
 		await first.archiveSession(first.getSessions()[0].sessionId);
 		await storage.flush();
@@ -4325,19 +4327,26 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void> }): RemoteAgentHostSessionsProvider {
-		return createProvider(disposables, connection, {
+	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void>; setArchived?: (archived: boolean) => Promise<void> }): CloudSandboxSessionsProvider {
+		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:archive-test',
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 			ctor: CloudSandboxSessionsProvider,
 			noConnection: true,
 			...overrides,
 		});
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.setTaskArchiveHandler('sandbox-session', overrides?.setArchived ?? (async () => { }));
+		return provider;
 	}
 
-	test('archives and unarchives without connecting or dispatching host actions', async () => {
+	test('archives and unarchives the owning task without connecting or dispatching host actions', async () => {
 		let connectCalls = 0;
-		const provider = createSandboxProvider({ connectOnDemand: async () => { connectCalls++; } });
+		const taskArchives: boolean[] = [];
+		const provider = createSandboxProvider({
+			connectOnDemand: async () => { connectCalls++; },
+			setArchived: async archived => { taskArchives.push(archived); },
+		});
 		provider.seedSessions([metadata]);
 		const session = provider.getSessions()[0];
 		const archivedStates: boolean[] = [];
@@ -4350,12 +4359,103 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 			archivedStates,
 			connectCalls,
 			hostActions: connection.dispatchedActions,
+			taskArchives,
 		}, {
 			archivedStates: [false, true, false],
 			connectCalls: 0,
 			hostActions: [],
+			taskArchives: [true, false],
 		});
 	});
+
+	test('retains archive state when Mission Control rejects a mutation', async () => {
+		const provider = createSandboxProvider({ setArchived: async () => { throw new Error('archive rejected'); } });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.archiveSession(session.sessionId), /archive rejected/);
+		const afterArchive = session.isArchived.get();
+		provider.setSessionArchived('sandbox-session', true);
+		await assert.rejects(provider.unarchiveSession(session.sessionId), /archive rejected/);
+		assert.deepStrictEqual({ afterArchive, afterUnarchive: session.isArchived.get() }, { afterArchive: false, afterUnarchive: true });
+	});
+
+	test('serializes task mutations and changes local state only after success', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const mutations: boolean[] = [];
+		const provider = createSandboxProvider({
+			setArchived: async archived => {
+				mutations.push(archived);
+				if (archived) {
+					await entered.complete();
+					await pending.p;
+				}
+			}
+		});
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const archive = provider.archiveSession(session.sessionId);
+		await entered.p;
+		const unarchive = provider.unarchiveSession(session.sessionId);
+		const before = { archived: session.isArchived.get(), mutations: [...mutations] };
+		await pending.complete();
+		await Promise.all([archive, unarchive]);
+		assert.deepStrictEqual({ before, after: { archived: session.isArchived.get(), mutations } }, {
+			before: { archived: false, mutations: [true] },
+			after: { archived: false, mutations: [true, false] },
+		});
+	});
+
+	test('applies archive and unarchive discoveries from another client despite conflicting host state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		provider.seedSessions([metadata]);
+		connection.addSession({ ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.setSessionArchived('sandbox-session', true);
+		connection.fireNotification({
+			channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged,
+			session: backendResource.toString(), changes: { status: ProtocolSessionStatus.Idle },
+		});
+		const archived = session.isArchived.get();
+		provider.setSessionArchived('sandbox-session', false);
+		connection.fireAction({
+			channel: backendResource.toString(),
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 1, origin: undefined,
+		});
+		assert.deepStrictEqual({ archived, unarchived: session.isArchived.get() }, { archived: true, unarchived: false });
+	}));
+
+	test('rejects offline mutations for sessions without an owning task', async () => {
+		const provider = createSandboxProvider();
+		provider.seedSessions([createSession('additional-session')]);
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.archiveSession(session.sessionId), /Connect to the environment/);
+		assert.strictEqual(session.isArchived.get(), false);
+	});
+
+	test('uses AHP for additional sessions sharing the sandbox', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		connection.addSession({ ...createSession('additional-session', { provider: 'copilot' }), session: AgentSession.uri('ahp-session', 'additional-session') });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.archiveSession(session.sessionId);
+		connection.fireAction({
+			channel: 'ahp-session:/additional-session',
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+			serverSeq: 1, origin: undefined,
+		});
+		assert.deepStrictEqual({
+			archived: session.isArchived.get(),
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			archived: false,
+			actions: [{ channel: 'ahp-session:/additional-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	}));
 
 	test('restores local archive and unarchive choices through rediscovery and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
