@@ -7,17 +7,19 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
-import { computePullRequestIcon } from '../../../../common/chatPullRequest.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { chatPersistentContentVisibleClass } from '../../../../contrib/chat/browser/widget/chatWidget.js';
+import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS } from '../../../../contrib/chat/common/sessionChatPills.js';
 import { BrowserEditorInput } from '../../../../contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../contrib/browserView/common/browserView.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IAgentFeedbackService } from '../../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -37,13 +39,13 @@ import { ISessionChangesService } from '../../../../../sessions/contrib/changes/
 // eslint-disable-next-line local/code-import-patterns
 import { ChatOriginKind, type IGitHubInfo, type IGitHubPullRequestRef, ISessionArtifact, ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, IChat, ISessionCapabilities, ISessionFolder, ISessionGitRepository, SessionArtifactKind, SessionCustomizationKind, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IActiveSession } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, type ServiceRegistration } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from '../chat/chatFixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from '../chat/chatWidget.fixture.js';
-import { createFixtureGitHubService } from './githubFixtureUtils.js';
+import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
 
 // ============================================================================
 // Mock helpers
@@ -70,6 +72,7 @@ interface ISessionSpec {
 	readonly subagents?: readonly string[];
 	/** Artifacts and references the agent recorded on the session. */
 	readonly artifacts?: readonly ISessionArtifact[];
+	readonly removableArtifacts?: boolean;
 	/** Customizations the chat used or read. */
 	readonly customizations?: readonly ISessionChatCustomization[];
 	readonly pullRequests?: readonly IGitHubPullRequestRef[];
@@ -80,9 +83,10 @@ interface IMockSessionAndChat {
 	readonly session: IActiveSession;
 	readonly chat: IChat;
 	readonly browsers: readonly BrowserEditorInput[];
+	removeArtifact(id: string): void;
 }
 
-function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
+export function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 	const workspaceRoot = URI.file('/repo');
 	const gitHubInfo: IGitHubInfo | undefined = spec.pullRequests ? {
 		owner: 'microsoft',
@@ -126,16 +130,18 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 		override readonly status = constObservable(SessionStatus.InProgress);
 		override readonly origin = { kind: ChatOriginKind.Tool, parentChat: chat.resource };
 	}());
+	const artifacts = observableValue<readonly ISessionArtifact[]>('fixture.artifacts', spec.artifacts ?? []);
 	const session = new class extends mock<IActiveSession>() {
 		override readonly resource = URI.parse('session:1');
+		override readonly sessionId = 'fixture-session';
 		override readonly providerId = spec.providerId ?? LOCAL_AGENT_HOST_PROVIDER_ID;
 		override readonly chats = constObservable([chat, ...subagents]);
 		override readonly status = constObservable(spec.status ?? SessionStatus.InProgress);
 		override readonly isArchived = constObservable(false);
 		override readonly isRead = constObservable(true);
-		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false });
+		override readonly capabilities: IObservable<ISessionCapabilities> = constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: spec.removableArtifacts });
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly artifacts: IObservable<readonly ISessionArtifact[]> = constObservable(spec.artifacts ?? []);
+		override readonly artifacts = artifacts;
 	}();
 	const browsers = (spec.browsers ?? []).map((browser, index) => {
 		const owner = browser.ownerSubagent === undefined ? chat : subagents[browser.ownerSubagent];
@@ -149,7 +155,7 @@ function createMockSession(spec: ISessionSpec): IMockSessionAndChat {
 			override readonly onDidChangeLabel = Event.None;
 		}();
 	});
-	return { session, chat, browsers };
+	return { session, chat, browsers, removeArtifact: id => artifacts.set(artifacts.get().filter(artifact => artifact.id !== id), undefined) };
 }
 
 function createBrowserViewService(inputs: readonly BrowserEditorInput[]): IBrowserViewWorkbenchService {
@@ -173,6 +179,14 @@ function registerSessionChatPillFixtureServices(registration: ServiceRegistratio
 		override async openChangesEditor(): Promise<undefined> { return undefined; }
 	}());
 	registration.defineInstance(IGitHubService, createFixtureGitHubService([]));
+	registration.defineInstance(IWorkbenchGitHubService, createFixtureWorkbenchGitHubService({}));
+	if (sessionMock.session.capabilities.get().supportsRemoveArtifacts) {
+		registration.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async removeSessionArtifact(_session: IActiveSession, artifactId: string): Promise<void> {
+				sessionMock.removeArtifact(artifactId);
+			}
+		}());
+	}
 }
 
 // ============================================================================
@@ -198,11 +212,12 @@ async function createImageReferenceContent(resource: URI): Promise<IFileContent>
 	};
 }
 
-function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string }): void {
+export function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndChat, options?: { readonly compact?: boolean | 'auto'; readonly debugData?: ISessionChatPillsDebugData; readonly height?: string; readonly width?: string; readonly popupPlacement?: 'above'; readonly additionalServices?: (reg: ServiceRegistration) => void; readonly prepareServices?: (services: TestInstantiationService) => void }): void {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
+		fileIconTheme: ctx.fileIconTheme,
 		additionalServices: (reg) => {
 			// Broad chat service graph: provides IContextMenuService and the
 			// ResourceLabels dependencies (decorations, text file, workspace, label
@@ -217,7 +232,6 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 				override getContainer(): HTMLElement { return container; }
 			}());
 			reg.define(IContextViewService, ContextViewService);
-			reg.define(IActionWidgetService, ActionWidgetService);
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 				override readonly onDidRunOperation = Event.None;
@@ -235,9 +249,19 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 					override getFeedbackSessionResource() { return undefined; }
 				}());
 			}
+			options?.additionalServices?.(reg);
 		},
 	});
+	const actionWidgetService = disposableStore.add(instantiationService.createInstance(ActionWidgetService));
+	instantiationService.stub(IActionWidgetService, actionWidgetService);
+	options?.prepareServices?.(instantiationService);
 
+	const visibility = instantiationService.get(ISessionChatPillVisibilityService);
+	for (const kind of SESSION_CHAT_PILL_KINDS) {
+		if (!visibility.isVisible(kind, undefined)) {
+			visibility.toggle(kind);
+		}
+	}
 	const pills = disposableStore.add(instantiationService.createInstance(SessionChatInputToolbar, options?.compact ?? false, undefined));
 	pills.setSession(sessionMock.session, sessionMock.chat);
 	pills.setDebugData(options?.debugData);
@@ -252,6 +276,14 @@ function renderPills(ctx: ComponentFixtureContext, sessionMock: IMockSessionAndC
 	container.style.height = options?.height ?? 'auto';
 	container.style.width = options?.width ?? 'auto';
 	container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	if (options?.popupPlacement === 'above') {
+		container.style.position = 'relative';
+		pills.element.style.position = 'absolute';
+		pills.element.style.left = '24px';
+		pills.element.style.right = '24px';
+		pills.element.style.bottom = '52px';
+		pills.element.style.width = 'auto';
+	}
 }
 
 async function renderChatViewWithPills(ctx: ComponentFixtureContext, mock: IMockSessionAndChat, messages: IFixtureMessage[], options?: { readonly height?: number; readonly scrollOffsetFromBottom?: number }): Promise<void> {
@@ -404,90 +436,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		})),
 	}),
 
-	// --- Agent-set artifacts and references ----------------------------------
-
-	SessionChatPills_ArtifactSingleFile: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
-		})),
-	}),
-
-	SessionChatPills_ArtifactSinglePullRequest: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true }],
-		})),
-	}),
-
-	SessionChatPills_PullRequests: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({
-			pullRequests: [{
-				owner: 'microsoft',
-				repo: 'vscode',
-				number: 333,
-				uri: URI.parse('https://github.com/microsoft/vscode/pull/333'),
-				icon: computePullRequestIcon('open'),
-				state: 'open',
-				title: 'Keep stable pills',
-			}, {
-				owner: 'microsoft',
-				repo: 'vscode',
-				number: 222,
-				uri: URI.parse('https://github.com/microsoft/vscode/pull/222'),
-				icon: computePullRequestIcon('merged'),
-				state: 'merged',
-			}, {
-				owner: 'microsoft',
-				repo: 'vscode',
-				number: 111,
-				uri: URI.parse('https://github.com/microsoft/vscode/pull/111'),
-				icon: computePullRequestIcon('closed'),
-				state: 'closed',
-			}],
-		})),
-	}),
-
-	SessionChatPills_ArtifactsEveryType: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [
-				{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true },
-				{ id: 'a2', kind: SessionArtifactKind.Issue, label: 'Crash on startup', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/issues/99'), isGitHub: true },
-				{ id: 'a3', kind: SessionArtifactKind.Commit, label: 'Extract auth helper', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/commit/abc1234'), commitHash: 'abc1234' },
-				{ id: 'a4', kind: SessionArtifactKind.Website, label: 'Design doc', isArtifact: true, link: URI.parse('https://example.com/design') },
-				{ id: 'a5', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') },
-				{ id: 'a6', kind: SessionArtifactKind.Resource, label: 'Dashboard', isArtifact: true, uri: URI.parse('https://example.com/dashboard') },
-			],
-		})),
-	}),
-
-	// A single reference still summarizes as a count, unlike a single artifact.
-	SessionChatPills_ReferenceSingle: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [{ id: 'r1', kind: SessionArtifactKind.Commit, label: 'Commit that broke login', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/def5678'), commitHash: 'def5678' }],
-		})),
-	}),
-
-	SessionChatPills_ImageReferences: defineComponentFixture({
-		render: ctx => renderPills(ctx, createMockSession({
-			artifacts: [
-				{ id: 'r1', kind: SessionArtifactKind.File, label: 'Swipe action', isArtifact: false, uri: URI.file('/repo/design/refined-swipe-right-320.png') },
-				{ id: 'r2', kind: SessionArtifactKind.File, label: 'Mobile chat', isArtifact: false, uri: URI.file('/repo/design/refined-chat-320.png') },
-				{ id: 'r3', kind: SessionArtifactKind.File, label: 'Voice state', isArtifact: false, uri: URI.file('/repo/design/refined-voice-idle-320.png') },
-			],
-		}), { height: '500px', width: '760px' }),
-	}),
-
-	SessionChatPills_ArtifactsAndReferences: defineComponentFixture({
-		render: (ctx) => renderPills(ctx, createMockSession({
-			artifacts: [
-				{ id: 'a1', kind: SessionArtifactKind.PullRequest, label: 'Fix login redirect', isArtifact: true, link: URI.parse('https://github.com/microsoft/vscode/pull/1234'), isGitHub: true },
-				{ id: 'a2', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') },
-				{ id: 'r1', kind: SessionArtifactKind.Issue, label: 'Crash on startup', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/issues/99'), isGitHub: true },
-				{ id: 'r2', kind: SessionArtifactKind.Commit, label: 'Commit that broke login', isArtifact: false, link: URI.parse('https://github.com/microsoft/vscode/commit/def5678'), commitHash: 'def5678' },
-				{ id: 'r3', kind: SessionArtifactKind.Website, label: 'OAuth redirect spec', isArtifact: false, link: URI.parse('https://example.com/spec') },
-			],
-		})),
-	}),
-
 	// --- Customizations used by the chat ------------------------------------
 
 	SessionChatPills_CustomizationSingle: defineComponentFixture({
@@ -597,29 +545,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		}),
 	}),
 
-	SessionChatPills_ResponsiveWide: defineComponentFixture({
+	...Object.fromEntries([
+		['Wide', '600px'],
+		['Medium', '280px'],
+		['Narrow', '180px'],
+		['Overflow', '60px'],
+	].map(([name, width]) => [`SessionChatPills_Responsive${name}`, defineComponentFixture({
 		render: ctx => renderPills(ctx, createMockSession({
 			status: SessionStatus.NeedsInput,
 			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
 			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
 			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
-		}), {
-			compact: 'auto',
-			width: '600px',
-		}),
-	}),
-
-	SessionChatPills_ResponsiveNarrow: defineComponentFixture({
-		render: ctx => renderPills(ctx, createMockSession({
-			status: SessionStatus.NeedsInput,
-			turnChanges: [editedFile('app.ts', 452, 85), editedFile('util.ts', 8, 2)],
-			artifacts: [{ id: 'a1', kind: SessionArtifactKind.File, label: 'Implementation plan', isArtifact: true, uri: URI.file('/repo/docs/plan.md') }],
-			browsers: [{ title: 'Project Preview' }, { title: 'Component Explorer' }],
-		}), {
-			compact: 'auto',
-			width: '180px',
-		}),
-	}),
+			subagents: ['Review implementation', 'Review tests'],
+		}), { compact: 'auto', width }),
+	})])),
 
 	// --- Gating -------------------------------------------------------------
 

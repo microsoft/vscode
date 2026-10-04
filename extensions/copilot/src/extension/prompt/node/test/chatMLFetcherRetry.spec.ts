@@ -18,7 +18,7 @@ import { ICAPIClientService } from '../../../../platform/endpoint/common/capiCli
 import { MockAuthenticationService } from '../../../../platform/ignore/node/test/mockAuthenticationService';
 import { MockCAPIClientService } from '../../../../platform/ignore/node/test/mockCAPIClientService';
 import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
 import { IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
@@ -26,9 +26,9 @@ import { NoopOTelService } from '../../../../platform/otel/common/noopOtelServic
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
+import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyingTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { InstantiationServiceBuilder } from '../../../../util/common/services';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
@@ -45,6 +45,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 	let configurationService: InMemoryConfigurationService;
 	let cancellationTokenSource: CancellationTokenSource;
 	let endpoint: IChatEndpoint;
+	let telemetryService: SpyingTelemetryService;
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -56,7 +57,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		configurationService.setConfig(ConfigKey.TeamInternal.RetryNetworkErrors, true);
 
 		const logService = new TestLogService();
-		const telemetryService = new NullTelemetryService();
+		telemetryService = new SpyingTelemetryService();
 		const experimentationService = new NullExperimentationService();
 
 		endpoint = createMockEndpoint();
@@ -237,6 +238,58 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			// All invalid means no valid status codes - should fail without retry
 			expect(result.type).toBe(ChatFetchResponseType.Failed);
 			expect(mockFetcherService.fetchCallCount).toBe(1);
+		});
+	});
+
+	describe('gitHubCopilotRequestTe', () => {
+		function getRequestTeByEvent(eventNames: readonly string[]) {
+			return telemetryService.getEvents().telemetryServiceEvents
+				.filter(e => eventNames.includes(e.eventName))
+				.map(e => [e.eventName, (e.properties as Record<string, string> | undefined)?.gitHubCopilotRequestTe]);
+		}
+
+		it('forwards the header from an HTTP error response unchanged to the result and error events', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(404, 'Not Found', { 'X-GitHub-Copilot-Request-Te': ' TRUE ' }));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({
+				type: result.type,
+				result: result.gitHubCopilotRequestTe,
+				events: getRequestTeByEvent(['request.shownWarning', 'response.error']),
+			}).toEqual({
+				type: ChatFetchResponseType.NotFound,
+				result: ' TRUE ',
+				events: [['request.shownWarning', ' TRUE '], ['response.error', ' TRUE ']],
+			});
+		});
+
+		it('reports each attempt\'s own value when a server error is retried', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(500, 'Internal Server Error', { 'x-github-copilot-request-te': 'false' }));
+			mockFetcherService.queueResponse(createSuccessResponse('{}')); // connectivity check
+			mockFetcherService.queueResponse(createSuccessResponse('Hello!', { 'X-GitHub-Copilot-Request-Te': 'yes' })); // retry
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			expect({
+				result: result.gitHubCopilotRequestTe,
+				events: getRequestTeByEvent(['response.error', 'response.success']),
+			}).toEqual({
+				result: 'yes',
+				events: [['response.error', 'false'], ['response.success', 'yes']],
+			});
+		});
+
+		it('omits the property on error events when the header is absent', async () => {
+			mockFetcherService.queueResponse(createErrorResponse(404, 'Not Found'));
+
+			const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
+
+			const events = telemetryService.getEvents().telemetryServiceEvents;
+			expect({
+				resultHasProperty: 'gitHubCopilotRequestTe' in result,
+				eventsWithProperty: events.filter(e => 'gitHubCopilotRequestTe' in (e.properties ?? {})).map(e => e.eventName),
+			}).toEqual({ resultHasProperty: false, eventsWithProperty: [] });
 		});
 	});
 
@@ -513,6 +566,7 @@ function createMockEndpoint(): IChatEndpoint {
 						requestId: {
 							headerRequestId: response.headers.get('x-request-id') || 'test-request-id',
 							gitHubRequestId: response.headers.get('x-github-request-id') || '',
+							gitHubCopilotRequestTe: getGitHubCopilotRequestTe(response.headers),
 							completionId: '',
 							created: 0,
 							serverExperiments: '',
@@ -569,24 +623,25 @@ class FakeHeaders implements IHeaders {
 	}
 }
 
-function createSuccessResponse(content: string): Response {
+function createSuccessResponse(content: string, headers: Record<string, string> = {}): Response {
 	const streamContent = `data: {"choices":[{"delta":{"content":"${content}"},"index":0}]}\n\ndata: {"choices":[{"delta":{},"finish_reason":"stop","index":0}]}\n\ndata: [DONE]\n\n`;
 	return Response.fromText(
 		200,
 		'OK',
 		new FakeHeaders(new Map([
 			['content-type', 'text/event-stream'],
+			...Object.entries(headers),
 		])),
 		streamContent,
 		'node-fetch'
 	);
 }
 
-function createErrorResponse(status: number, statusText: string): Response {
+function createErrorResponse(status: number, statusText: string, headers: Record<string, string> = {}): Response {
 	return Response.fromText(
 		status,
 		statusText,
-		new FakeHeaders(),
+		new FakeHeaders(new Map(Object.entries(headers))),
 		JSON.stringify({ error: { message: statusText } }),
 		'node-fetch'
 	);

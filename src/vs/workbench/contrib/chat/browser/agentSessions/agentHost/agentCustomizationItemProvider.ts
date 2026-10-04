@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -33,6 +34,7 @@ import { getAgentHostPluginEnablementActions } from '../../agentPluginActions.js
 
 const REMOTE_HOST_GROUP = 'remote-host';
 const REMOTE_CLIENT_GROUP = 'remote-client';
+const SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS = 2000;
 
 
 type PluginMeta = { item: ICustomizationItem; nonce: string | undefined; status: ReturnType<typeof toStatusString>; statusMessage: string | undefined; enabled: boolean | undefined; disabledReason: CustomizationDisabledReason | undefined; childGroupKey: string; isBundleItem: boolean; pluginLabel: string | undefined };
@@ -44,7 +46,9 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 
 	/** Cache: pluginUri → last expansion (keyed by nonce and label so we re-fetch on content or display-name changes). */
 	private readonly _expansionCache = new ResourceMap<{ nonce: string | undefined; pluginLabel: string | undefined; children: readonly ICustomizationItem[] }>();
+	private readonly _sourceFolderReadiness = new ResourceMap<Promise<boolean | undefined>>();
 	private readonly _contentExpander: AgentCustomizationContentExpander;
+	protected readonly _sourceFolderReadinessTimeoutMs: number = SOURCE_FOLDER_CUSTOMIZATION_READINESS_TIMEOUT_MS;
 	private _draftCustomAgents: IObservable<readonly AgentCustomization[]> | undefined;
 	private _draftCustomizations: IObservable<readonly ClientPluginCustomization[]> | undefined;
 
@@ -196,8 +200,17 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 		// One-shot callers (the migration hint) must not read the empty
 		// placeholder a still-loading session reports, or they conclude there is
 		// nothing to migrate.
-		await this._customAgentsService.whenCustomizationsReady(sessionResource, token);
+		let readiness = this._sourceFolderReadiness.get(sessionResource);
+		if (!readiness) {
+			readiness = raceTimeout(
+				this._customAgentsService.whenCustomizationsReady(sessionResource),
+				this._sourceFolderReadinessTimeoutMs,
+			);
+			this._sourceFolderReadiness.set(sessionResource, readiness);
+		}
+		await raceCancellation(readiness, token);
 		const workingDirectories = this._customAgentsService.getWorkingDirectories(sessionResource);
+		const clientWorkingDirectories = this._customAgentsService.getClientWorkingDirectoryUris(sessionResource);
 
 		const folders: ICustomizationSourceFolder[] = [];
 		for (const customization of this._customAgentsService.getCustomizations(sessionResource)) {
@@ -208,14 +221,22 @@ export class AgentCustomizationItemProvider extends Disposable implements ICusto
 				continue;
 			}
 			const source = isUnderAnyRoot(workingDirectories, customization.uri) ? AICustomizationSources.local : AICustomizationSources.user;
+			const workspaceFolderIndex = workingDirectories.findIndex(root => isParentOrEqual(root, customization.uri));
 			folders.push({
 				uri: this.toRemoteUri(customization.uri),
 				label: customization.name,
 				source,
 				destinationGroupId: dirname(this.toRemoteUri(customization.uri)).toString(),
+				workspaceGroupId: clientWorkingDirectories[workspaceFolderIndex]?.toString(),
 			});
 		}
 		return folders;
+	}
+
+	getWorkspaceGroupId(sessionResource: URI, resource: URI): string | undefined {
+		return this._customAgentsService.getClientWorkingDirectoryUris(sessionResource)
+			.find(root => extUriBiasedIgnorePathCase.isEqualOrParent(resource, root))
+			?.toString();
 	}
 
 	async provideCustomAgents(sessionResource: URI): Promise<readonly ICustomAgent[]> {

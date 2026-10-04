@@ -133,11 +133,16 @@ registerAction2(class extends Action2 {
 			const subscribeToProviders = () => {
 				observerStore.clear();
 				for (const p of sessionsProvidersService.getProviders()) {
-					if (isAgentHostProvider(p) && p.connectionStatus) {
-						observerStore.add(autorun(reader => {
-							p.connectionStatus!.read(reader);
-							refresh();
-						}));
+					if (isAgentHostProvider(p)) {
+						if (p.connectionStatus) {
+							observerStore.add(autorun(reader => {
+								p.connectionStatus!.read(reader);
+								refresh();
+							}));
+						}
+						if (p.onDidChangeSessionTypes) {
+							observerStore.add(p.onDidChangeSessionTypes(() => refresh()));
+						}
 					}
 				}
 			};

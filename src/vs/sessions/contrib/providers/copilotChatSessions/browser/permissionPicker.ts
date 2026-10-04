@@ -86,8 +86,10 @@ export interface IPermissionPickerDelegate {
 	readonly sandboxToggleSettingId?: IObservable<string | undefined>;
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxConfirmedEnabled?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
 	readonly managedSandboxEnforced?: IObservable<boolean>;
+	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
 	readonly sandboxToggleConfigurationKeys?: readonly string[];
 }
 
@@ -250,8 +252,9 @@ export class PermissionPicker extends Disposable {
 			this._delegate.isApplicable?.read(reader);
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
+			this._delegate.sandboxConfirmedEnabled?.read(reader);
 			this._delegate.sandboxToggleSettingId?.read(reader);
-			this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
+			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			this._updateTriggerLabel(trigger);
 		}));
 		this._renderDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
@@ -433,8 +436,9 @@ export class PermissionPicker extends Disposable {
 			}
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
+			this._delegate.sandboxConfirmedEnabled?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
-			this.agentHostEnablementService.managedSandboxAllowsBypass.read(reader);
+			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			const standaloneToggle = this._getSandboxStandaloneToggle();
 			if (equalsAgentHostSandboxTogglePresentation(previousToggle, standaloneToggle)) {
 				return;
@@ -527,8 +531,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxToggleAvailable(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true
-			&& this._delegate.isSandboxToggleApplicable?.() === true
+		return this._delegate.isSandboxToggleApplicable?.() === true
 			&& this._delegate.setSandboxEnabled !== undefined
 			&& this._delegate.getSandboxToggleSettingId?.() !== undefined;
 	}
@@ -542,16 +545,16 @@ export class PermissionPicker extends Disposable {
 		return {
 			provider: this._delegate.getSandboxToggleProvider?.(),
 			sessionEnabled: this._delegate.sandboxEnabled?.get(),
+			confirmedEnabled: this._delegate.sandboxConfirmedEnabled?.get(),
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: this._delegate.managedSandboxEnforced?.get() === true,
-			allowsBypass: this.agentHostEnablementService.managedSandboxAllowsBypass.get(),
+			allowsBypass: (this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).get(),
 		};
 	}
 
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {
 		const settingId = this._delegate.getSandboxToggleSettingId?.();
-		return event.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-			|| (settingId !== undefined && event.affectsConfiguration(settingId))
+		return (settingId !== undefined && event.affectsConfiguration(settingId))
 			|| this._delegate.sandboxToggleConfigurationKeys?.some(key => event.affectsConfiguration(key)) === true;
 	}
 

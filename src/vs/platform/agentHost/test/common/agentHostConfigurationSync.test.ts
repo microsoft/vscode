@@ -316,6 +316,25 @@ suite('AgentHostConfigurationSync', () => {
 		});
 	});
 
+	test('default overrides leave non-experimental hidden settings unchanged', () => {
+		const configurationService = createConfigurationService({});
+		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
+		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
+		try {
+			registry.registerDefaultConfigurations([first]);
+			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+			registry.registerDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([first]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			assert.deepStrictEqual(values, [false, false, false, false]);
+		} finally {
+			registry.deregisterDefaultConfigurations([first, second]);
+		}
+	});
+
 	test('deregistering drops mirroring entries, including for hidden settings', () => {
 		const node = {
 			id: 'testAgentHostSyncTransient',

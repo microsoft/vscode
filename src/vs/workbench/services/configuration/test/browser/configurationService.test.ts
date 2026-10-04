@@ -8,7 +8,9 @@ import * as sinon from 'sinon';
 import { URI } from '../../../../../base/common/uri.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { IConfigurationDefaults, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { allSettings, IConfigurationDefaults, IConfigurationNode, IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, keyFromOverrideIdentifiers } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationService } from '../../../../../platform/configuration/common/configurationService.js';
+import { getGlobalConfigurationValue } from '../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
 import { ConfigurationDefaultOverridesContribution, WorkspaceService } from '../../browser/configurationService.js';
 import { ConfigurationEditingErrorCode } from '../../common/configurationEditing.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -129,6 +131,80 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			}
 		}
 	};
+
+	test('applies and refetches hidden experiments through configuration change events', async () => {
+		const key = 'test.hiddenAutoExperiment';
+		const hiddenConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: 'boolean', default: false, included: false, experiment: { mode: 'auto' }, agentHost: { key: 'testHiddenExperiment' } } },
+		};
+		configurationRegistry.registerConfiguration(hiddenConfiguration);
+		const logService = new NullLogService();
+		const fileService = store.add(new FileService(logService));
+		store.add(fileService.registerProvider('test-experiments', store.add(new InMemoryFileSystemProvider())));
+		const configurationService = store.add(new ConfigurationService(URI.from({ scheme: 'test-experiments', path: '/settings.json' }), fileService, new NullPolicyService(), logService));
+		await configurationService.initialize();
+		const onDidRefetchAssignments = store.add(new Emitter<void>());
+		let treatment: boolean | undefined = true;
+		const assignmentService = {
+			onDidRefetchAssignments: onDidRefetchAssignments.event,
+			getTreatmentWithAssignment: async (name: string) => ({
+				value: name === `config.${key}` ? treatment : undefined,
+				hasAssignment: Promise.resolve(name === `config.${key}` && treatment !== undefined),
+			}),
+		} as unknown as IWorkbenchAssignmentService;
+		const defaults = [configurationService.inspect<boolean>(key).defaultValue];
+		const mirrored: (boolean | undefined)[] = [];
+		store.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.source === ConfigurationTarget.DEFAULT && e.affectsConfiguration(key)) {
+				mirrored.push(getGlobalConfigurationValue<boolean>(configurationService, key));
+			}
+		}));
+		const contribution = store.add(new ConfigurationDefaultOverridesContribution(
+			assignmentService,
+			{ whenInstalledExtensionsRegistered: async () => true } as unknown as IExtensionService,
+			configurationService as unknown as WorkspaceService,
+			{ isSessionsWindow: false } as unknown as IWorkbenchEnvironmentService,
+			logService,
+			store.add(new ExperimentalSettingsService()),
+		));
+		const waitForDefault = async (value: boolean) => {
+			for (let i = 0; i < 100 && configurationService.inspect(key).defaultValue !== value; i++) {
+				await timeout(0);
+			}
+			defaults.push(configurationService.inspect<boolean>(key).defaultValue);
+		};
+		try {
+			await waitForDefault(true);
+			await configurationService.updateValue(key, false);
+			const userOverride = getGlobalConfigurationValue(configurationService, key);
+			treatment = false;
+			onDidRefetchAssignments.fire();
+			await waitForDefault(false);
+			await configurationService.updateValue(key, undefined);
+			treatment = true;
+			onDidRefetchAssignments.fire();
+			await waitForDefault(true);
+			treatment = undefined;
+			onDidRefetchAssignments.fire();
+			await waitForDefault(false);
+			assert.deepStrictEqual({
+				defaults,
+				mirrored,
+				userOverride,
+				visible: !!configurationRegistry.getConfigurationProperties()[key] || !!allSettings.properties[key],
+			}, {
+				defaults: [false, true, false, true, false],
+				mirrored: [true, false, true, false],
+				userOverride: false,
+				visible: false,
+			});
+		} finally {
+			contribution.dispose();
+			const internals = contribution as unknown as TestContribution;
+			configurationRegistry.deregisterDefaultConfigurations([...internals.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([hiddenConfiguration]);
+		}
+	});
 
 	test('replaces and removes auto-refetched overrides without changing other experiment defaults', async () => {
 		const treatments: Record<string, string | undefined> = {
@@ -400,6 +476,36 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 			assert.strictEqual(contribution.experimentalSettingsService.hasAssignment(firstSetting), false);
 		} finally {
 			configurationRegistry.deregisterConfigurations([configuration]);
+		}
+	});
+
+	test('ignores a pending treatment after a hidden setting is deregistered', async () => {
+		const key = 'test.removedHiddenExperiment';
+		const hiddenConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: 'boolean', default: false, included: false, experiment: { mode: 'auto' } } },
+		};
+		const contribution = createTestContribution({});
+		const gate = new DeferredPromise<void>();
+		contribution.workbenchAssignmentService.getTreatmentWithAssignment = async <T extends string | number | boolean>() => {
+			await gate.p;
+			return { value: true as T, hasAssignment: Promise.resolve(true) };
+		};
+		configurationRegistry.registerConfiguration(hiddenConfiguration);
+		try {
+			const pending = contribution.processExperimentalSettings([key], false);
+			configurationRegistry.deregisterConfigurations([hiddenConfiguration]);
+			await contribution.processExperimentalSettings([key], false);
+			await gate.complete();
+			await pending;
+			assert.deepStrictEqual({
+				registeredDefault: contribution.registeredExperimentalDefaults.has(key),
+				override: configurationRegistry.getConfigurationDefaultsOverrides().get(key),
+				assigned: contribution.experimentalSettingsService.hasAssignment(key),
+			}, { registeredDefault: false, override: undefined, assigned: false });
+		} finally {
+			await gate.complete();
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([hiddenConfiguration]);
 		}
 	});
 

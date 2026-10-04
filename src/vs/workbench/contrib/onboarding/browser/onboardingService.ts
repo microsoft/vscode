@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -160,12 +160,30 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		return onboardingScenarioRegistry.getScenarios();
 	}
 
-	async runScenario(id: string): Promise<OnboardingOutcome> {
+	async runScenario(id: string, token: CancellationToken = CancellationToken.None): Promise<OnboardingOutcome> {
 		const scenario = onboardingScenarioRegistry.getScenario(id);
 		if (!scenario) {
 			throw new Error(`Unknown onboarding scenario '${id}'.`);
 		}
-		return this._enqueue(scenario);
+		if (token.isCancellationRequested) {
+			return OnboardingOutcome.Aborted;
+		}
+		const store = new DisposableStore();
+		try {
+			store.add(token.onCancellationRequested(() => {
+				const index = this._queue.findIndex(entry => entry.scenario.id === id);
+				if (index >= 0) {
+					const [entry] = this._queue.splice(index, 1);
+					this._pending.delete(id);
+					entry.deferred.complete(OnboardingOutcome.Aborted);
+				} else if (this._inflight.has(id)) {
+					this._activeAbort?.fire();
+				}
+			}));
+			return await this._enqueue(scenario);
+		} finally {
+			store.dispose();
+		}
 	}
 
 	hasBeenShown(id: string): boolean {
@@ -397,24 +415,24 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			return OnboardingOutcome.Aborted;
 		}
 
-		const cancellation = new CancellationTokenSource();
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource());
+		const abort = store.add(new Emitter<void>());
+		let running = false;
+		store.add(abort.event(() => {
+			// Only cancel the queue wait; active presentations must finish their abort cleanup.
+			if (!running) {
+				cancellation.cancel();
+			}
+		}));
+		this._activeAbort = abort;
 		try {
 			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
 				if (this._stopped) {
 					throw new CancellationError();
 				}
-				const abort = new Emitter<void>();
-				const listener = abort.event(() => cancellation.cancel());
-				this._activeAbort = abort;
-				try {
-					return await this._showPresentation(scenario, presentation, abort);
-				} finally {
-					if (this._activeAbort === abort) {
-						this._activeAbort = undefined;
-					}
-					listener.dispose();
-					abort.dispose();
-				}
+				running = true;
+				return this._showPresentation(scenario, presentation, abort);
 			});
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -422,7 +440,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 			}
 			throw error;
 		} finally {
-			cancellation.dispose(true);
+			if (this._activeAbort === abort) {
+				this._activeAbort = undefined;
+			}
+			store.dispose();
 		}
 	}
 

@@ -329,6 +329,14 @@ describe('cloud session visibility', () => {
 			.toEqual({ results: [true, true, true, false, true], owned: ['newest', 'touched'] });
 	});
 
+	it('retains an adopted task application across reload and repeated adoption', async () => {
+		const state = new MockExtensionContext().globalState;
+		const ownership = new CloudTaskOwnership(state);
+		await ownership.record('cli', 1, 'github/cli');
+		await new CloudTaskOwnership(state).record('cli', 2, 'vscode');
+		expect(new CloudTaskOwnership(state).getApplication('cli')).toBe('github/cli');
+	});
+
 	describe('CopilotCloudSessionsProvider discovery', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -516,6 +524,12 @@ describe('cloud session visibility', () => {
 			});
 		});
 
+		it('publishes raw application event types for each discovered cloud session', async () => {
+			fetchSessionList.mockResolvedValue(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT'].map(eventType => ({ ...session(eventType), eventType })));
+			const items = await createProvider().provideChatSessionItems(CancellationToken.None);
+			expect(items.map(item => item.metadata?.event_type)).toEqual(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT']);
+		});
+
 		it('marks unrecorded tasks as external until a message adopts them, even when the message fails', async () => {
 			await new CloudTaskOwnership(extensionContext.globalState).record('started-here');
 			fetchSessionList.mockResolvedValue([session('started-here'), session('external')]);
@@ -524,7 +538,7 @@ describe('cloud session visibility', () => {
 			const provider = createProvider();
 			const changes = vi.fn();
 			store.add(provider.onDidChangeChatSessionItems(changes));
-			const externalByLabel = (items: vscode.ChatSessionItem[]) => items.map(item => [item.label, item.metadata?.external]);
+			const externalByLabel = (items: vscode.ChatSessionItem[]) => items.map(item => [item.label, item.metadata?.external, item.metadata?.event_type]);
 			const before = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
 
 			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
@@ -539,8 +553,8 @@ describe('cloud session visibility', () => {
 			const after = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
 
 			expect({ before, after, changeEvents: changes.mock.calls.length, output: stream.output }).toEqual({
-				before: [['started-here', undefined], ['external', true]],
-				after: [['started-here', undefined], ['external', undefined]],
+				before: [['started-here', undefined, 'vscode'], ['external', true, 'github/autopilot']],
+				after: [['started-here', undefined, 'vscode'], ['external', undefined, 'github/autopilot']],
 				changeEvents: 1,
 				output: ['Could not find the task for this chat session.'],
 			});
@@ -1059,6 +1073,46 @@ class FakeTaskApiClient implements ITaskApiClient {
 }
 
 describe('TaskApiBackend', () => {
+	it.each([true, false])('fetchSessionList excludes sandbox and local environments when isAgentSessionsWorkspace=%s', async isAgentSessionsWorkspace => {
+		const task = {
+			...makeTask([], 'in_progress'),
+			name: 'New task',
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		};
+		const tasks = [
+			{ ...task, id: 'cloud', compute: { provider: 'actions' } },
+			{ ...task, id: 'legacy' },
+			{ ...task, id: 'sandbox', current_environment: { id: 'sandbox-env', kind: 'managed-sandbox' } },
+			{ ...task, id: 'local', current_environment: { id: 'local-env', kind: 'user-local' } },
+			{ ...task, id: 'sandbox-compute', compute: { provider: 'sandboxes' } },
+		];
+		const client = new FakeTaskApiClient({ globalTasks: tasks, repoTasks: tasks });
+		const octoKitService = new MockOctoKitService();
+		octoKitService.getCurrentAuthedUser = async () => ({ id: 4242, login: 'octocat', name: 'The Octocat', avatar_url: '' });
+		const backend = new TaskApiBackend(client, new TestLogService(), octoKitService, NullCloudBackendInstrumentation);
+
+		const result = await backend.fetchSessionList([new GithubRepoId('octocat', 'hello-world')], isAgentSessionsWorkspace);
+
+		expect(result.map(({ taskId, title, state }) => ({ taskId, title, state }))).toEqual([
+			{ taskId: 'cloud', title: 'New task', state: 'in_progress' },
+			{ taskId: 'legacy', title: 'New task', state: 'in_progress' },
+		]);
+	});
+
+	it('maps event_type from task responses into session application metadata', async () => {
+		const eventTypes = ['github/cli', 'github/autopilot', 'slack', 'teams', 'CUSTOM_EVENT', undefined];
+		const tasks = eventTypes.map((event_type, index) => ({
+			...makeTask([], 'idle'),
+			id: `task-${index}`,
+			event_type,
+			html_url: `https://github.com/microsoft/vscode/agents/tasks/task-${index}`,
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		}));
+		const backend = new TaskApiBackend(new FakeTaskApiClient({ globalTasks: tasks }), new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const sessions = await backend.fetchSessionList(undefined, true);
+		expect(sessions.map(session => session.eventType)).toEqual(eventTypes);
+	});
+
 	it('preserves most recent activity for every task lifecycle state', async () => {
 		const states: AgentTaskState[] = ['queued', 'in_progress', 'idle', 'waiting_for_user', 'completed', 'failed', 'cancelled', 'timed_out'];
 		const tasks = states.map(state => ({
@@ -1226,6 +1280,29 @@ describe('TaskApiBackend', () => {
 });
 
 describe('isCloudCodingAgentTask', () => {
+	it.each(['copilot-developer', 'copilot-swe-agent'])('rejects sandbox and local environments even with the %s slug', slug => {
+		const task = {
+			...makeTask(),
+			agent_collaborators: [{ slug }],
+		};
+
+		expect({
+			'missing-environment': isCloudCodingAgentTask(task),
+			'null-environment': isCloudCodingAgentTask({ ...task, current_environment: null }),
+			'unknown-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'future-environment' } }),
+			'sandbox-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'managed-sandbox' } }),
+			'local-environment': isCloudCodingAgentTask({ ...task, current_environment: { kind: 'user-local' } }),
+			'sandbox-compute': isCloudCodingAgentTask({ ...task, compute: { provider: 'sandboxes' } }),
+		}).toEqual({
+			'missing-environment': true,
+			'null-environment': true,
+			'unknown-environment': true,
+			'sandbox-environment': false,
+			'local-environment': false,
+			'sandbox-compute': false,
+		});
+	});
+
 	it('keeps cloud coding agent slugs and rejects local-client / missing / malformed slugs', () => {
 		const classify = (agent_collaborators?: Array<{ slug?: unknown }>) =>
 			isCloudCodingAgentTask({ id: 't', state: 'idle', created_at: '2026-03-27T00:00:00Z', ...(agent_collaborators && { agent_collaborators }) } as unknown as AgentTask);

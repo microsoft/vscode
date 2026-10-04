@@ -5,25 +5,21 @@
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { posix } from '../../../../../base/common/path.js';
 import { dirname, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
-import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
 
 const installationRecordStoragePrefix = 'chat.customizations.marketplace.installationRecord.v1.';
 const installationRecordSchemaVersion = 1;
-const maxInstallationRecords = 1000;
-const maxInstallationRecordStorageLength = 2 * 1024 * 1024;
-const maxInstallationRecordStorageTotalLength = 32 * 1024 * 1024;
-const maxStoredStringLength = 8192;
-const maxStoredSkillFiles = 1000;
-const maxStoredSkillPathCharacters = 1024 * 1024;
 
-/** A durable association between one marketplace resource and its exact installed target. */
+type RecordedCustomizationMarketplaceInstallation = CustomizationMarketplaceInstallation;
+
+/** A durable association between one marketplace resource and its exact local or account-scoped target. */
 export interface ICustomizationMarketplaceInstallationRecord {
 	readonly id: string;
 	readonly sourceId: string;
@@ -32,7 +28,8 @@ export interface ICustomizationMarketplaceInstallationRecord {
 	readonly displayName: string;
 	readonly description: string;
 	readonly mediaType: string;
-	readonly installation: CustomizationMarketplaceInstallation;
+	readonly installation: RecordedCustomizationMarketplaceInstallation;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly target: CustomizationMarketplaceInstallationRecordTarget;
 }
 
@@ -50,7 +47,14 @@ export type CustomizationMarketplaceInstallationRecordTarget =
 		readonly session?: URI;
 	}
 	| { readonly kind: 'plugin'; readonly uri: URI; readonly resolvedRevision?: string }
-	| { readonly kind: 'mcp'; readonly id: string };
+	| { readonly kind: 'mcp'; readonly id: string }
+	| {
+		readonly kind: 'copilotConnector';
+		readonly name: string;
+		readonly providerId: string;
+		readonly accountName: string;
+		readonly enterprise: boolean;
+	};
 
 interface IStoredCustomizationMarketplaceInstallationRecord {
 	readonly version: number;
@@ -62,7 +66,9 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 		readonly displayName: string;
 		readonly description: string;
 		readonly mediaType: string;
-		readonly installation: CustomizationMarketplaceInstallation;
+		readonly installation: RecordedCustomizationMarketplaceInstallation;
+		readonly icon?: unknown;
+		readonly iconDark?: unknown;
 		readonly target:
 		| {
 			readonly kind: 'skill';
@@ -77,11 +83,18 @@ interface IStoredCustomizationMarketplaceInstallationRecord {
 			readonly session?: string;
 		}
 		| { readonly kind: 'plugin'; readonly uri: string; readonly resolvedRevision?: string }
-		| { readonly kind: 'mcp'; readonly id: string };
+		| { readonly kind: 'mcp'; readonly id: string }
+		| {
+			readonly kind: 'copilotConnector';
+			readonly name: string;
+			readonly providerId: string;
+			readonly accountName: string;
+			readonly enterprise: boolean;
+		};
 	};
 }
 
-/** Persists bounded, independently writable installation records in machine-local profile storage. */
+/** Persists independently writable installation records in machine-local profile storage. */
 export class CustomizationMarketplaceInstallationRecordStore extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -105,25 +118,9 @@ export class CustomizationMarketplaceInstallationRecordStore extends Disposable 
 		}));
 	}
 
-	ensureCanAdd(): void {
-		const keys = this.getStorageKeys();
-		const storedLength = keys.reduce((total, key) => total + (this.storageService.get(key, StorageScope.PROFILE)?.length ?? 0), 0);
-		if (keys.length >= maxInstallationRecords || storedLength + maxInstallationRecordStorageLength > maxInstallationRecordStorageTotalLength) {
-			throw new Error(localize('customizationMarketplace.tooManyInstallationRecords', "Too many customization marketplace installations are recorded. Uninstall an existing marketplace customization before installing another."));
-		}
-	}
-
 	upsert(record: ICustomizationMarketplaceInstallationRecord): void {
 		const storageKey = this.getStorageKey(record.id);
-		if (!this._records.has(record.id) && !this.storageService.get(storageKey, StorageScope.PROFILE)) {
-			this.ensureCanAdd();
-		}
-		const stored = serializeInstallationRecord(record);
-		const raw = JSON.stringify(stored);
-		const storedLength = this.getStorageKeys().reduce((total, key) => key === storageKey ? total : total + (this.storageService.get(key, StorageScope.PROFILE)?.length ?? 0), raw.length);
-		if (raw.length > maxInstallationRecordStorageLength || storedLength > maxInstallationRecordStorageTotalLength) {
-			throw new Error(localize('customizationMarketplace.installationRecordTooLarge', "The customization installation contains too much metadata to record safely."));
-		}
+		const raw = JSON.stringify(serializeInstallationRecord(record));
 		this.storageService.store(storageKey, raw, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._records.set(record.id, record);
 	}
@@ -134,26 +131,23 @@ export class CustomizationMarketplaceInstallationRecordStore extends Disposable 
 	}
 
 	private reload(): void {
-		const keys = this.getStorageKeys();
-		if (keys.length > maxInstallationRecords) {
-			this.logService.error(`[CustomizationMarketplace] Ignoring ${keys.length - maxInstallationRecords} installation records beyond the supported limit.`);
-		}
 		const records = new Map<string, ICustomizationMarketplaceInstallationRecord>();
-		let storedLength = 0;
-		for (const key of keys.slice(0, maxInstallationRecords)) {
+		for (const key of this.getStorageKeys()) {
 			const raw = this.storageService.get(key, StorageScope.PROFILE);
-			storedLength += raw?.length ?? 0;
-			if (!raw || raw.length > maxInstallationRecordStorageLength || storedLength > maxInstallationRecordStorageTotalLength) {
+			if (!raw) {
 				this.logService.error(`[CustomizationMarketplace] Ignoring invalid installation record '${key}'.`);
 				continue;
 			}
 			try {
 				const stored: unknown = JSON.parse(raw);
-				const record = reviveInstallationRecord(stored);
-				if (!record || this.getStorageKey(record.id) !== key) {
+				const revived = reviveInstallationRecord(stored);
+				if (!revived || this.getStorageKey(revived.record.id) !== key) {
 					throw new Error('Invalid installation record');
 				}
-				records.set(record.id, record);
+				if (revived.sanitizedIconFields.length > 0) {
+					this.logService.warn(`[CustomizationMarketplace] Sanitized invalid icon metadata fields [${revived.sanitizedIconFields.join(', ')}] for installation record '${key}'.`);
+				}
+				records.set(revived.record.id, revived.record);
 			} catch (error) {
 				this.logService.error(`[CustomizationMarketplace] Unable to load installation record '${key}'`, error);
 			}
@@ -191,18 +185,33 @@ export function toRecordedMarketplaceResource(record: ICustomizationMarketplaceI
 		capabilities: [],
 		representativeQueries: [],
 		installation: record.installation,
+		icon: record.icon,
 	};
 }
 
-function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInstallationRecord | undefined {
+interface IRevivedCustomizationMarketplaceInstallationRecord {
+	readonly record: ICustomizationMarketplaceInstallationRecord;
+	readonly sanitizedIconFields: readonly ('icon' | 'iconDark')[];
+}
+
+function reviveInstallationRecord(value: unknown): IRevivedCustomizationMarketplaceInstallationRecord | undefined {
 	if (!isStoredInstallationRecord(value)) {
 		return undefined;
 	}
 	try {
 		const record = value.record;
+		const sanitizedIcon = sanitizeStoredIcon(record.icon, record.iconDark);
 		let target: CustomizationMarketplaceInstallationRecordTarget;
 		if (record.target.kind === 'mcp') {
 			target = { kind: 'mcp', id: record.target.id };
+		} else if (record.target.kind === 'copilotConnector') {
+			target = {
+				kind: 'copilotConnector',
+				name: record.target.name,
+				providerId: record.target.providerId,
+				accountName: record.target.accountName,
+				enterprise: record.target.enterprise,
+			};
 		} else if (record.target.kind === 'plugin') {
 			target = { kind: 'plugin', uri: URI.parse(record.target.uri), resolvedRevision: record.target.resolvedRevision };
 		} else {
@@ -226,15 +235,19 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 			};
 		}
 		return {
-			id: record.id,
-			sourceId: record.sourceId,
-			identifier: record.identifier,
-			version: record.version,
-			displayName: record.displayName,
-			description: record.description,
-			mediaType: record.mediaType,
-			installation: record.installation,
-			target,
+			record: {
+				id: record.id,
+				sourceId: record.sourceId,
+				identifier: record.identifier,
+				version: record.version,
+				displayName: record.displayName,
+				description: record.description,
+				mediaType: record.mediaType,
+				installation: record.installation,
+				icon: sanitizedIcon.icon,
+				target,
+			},
+			sanitizedIconFields: sanitizedIcon.sanitizedFields,
 		};
 	} catch {
 		return undefined;
@@ -244,20 +257,28 @@ function reviveInstallationRecord(value: unknown): ICustomizationMarketplaceInst
 function serializeInstallationRecord(record: ICustomizationMarketplaceInstallationRecord): IStoredCustomizationMarketplaceInstallationRecord {
 	const target: IStoredCustomizationMarketplaceInstallationRecord['record']['target'] = record.target.kind === 'mcp'
 		? { kind: 'mcp', id: record.target.id }
-		: record.target.kind === 'plugin'
-			? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
-			: {
-				kind: 'skill',
-				uri: record.target.uri.toString(),
-				files: record.target.files,
-				resolvedRevision: record.target.resolvedRevision,
-				source: record.target.source,
-				harness: record.target.harness,
-				sourceFolder: record.target.sourceFolder.toString(),
-				destinationGroupId: record.target.destinationGroupId,
-				project: record.target.project?.toString(),
-				session: record.target.session?.toString(),
-			};
+		: record.target.kind === 'copilotConnector'
+			? {
+				kind: 'copilotConnector',
+				name: record.target.name,
+				providerId: record.target.providerId,
+				accountName: record.target.accountName,
+				enterprise: record.target.enterprise,
+			}
+			: record.target.kind === 'plugin'
+				? { kind: 'plugin', uri: record.target.uri.toString(), resolvedRevision: record.target.resolvedRevision }
+				: {
+					kind: 'skill',
+					uri: record.target.uri.toString(),
+					files: record.target.files,
+					resolvedRevision: record.target.resolvedRevision,
+					source: record.target.source,
+					harness: record.target.harness,
+					sourceFolder: record.target.sourceFolder.toString(),
+					destinationGroupId: record.target.destinationGroupId,
+					project: record.target.project?.toString(),
+					session: record.target.session?.toString(),
+				};
 	return {
 		version: installationRecordSchemaVersion,
 		record: {
@@ -269,6 +290,7 @@ function serializeInstallationRecord(record: ICustomizationMarketplaceInstallati
 			description: record.description,
 			mediaType: record.mediaType,
 			installation: record.installation,
+			...serializeStoredIcon(record.icon),
 			target,
 		},
 	};
@@ -279,82 +301,156 @@ function isStoredInstallationRecord(value: unknown): value is IStoredCustomizati
 		return false;
 	}
 	const record = value.record;
-	if (!isBoundedString(record.id, 64, 64) || !/^[0-9a-f]{64}$/i.test(record.id)
-		|| !isBoundedString(record.sourceId)
-		|| !isBoundedString(record.identifier)
-		|| record.version !== undefined && !isBoundedString(record.version)
-		|| !isBoundedString(record.displayName)
-		|| typeof record.description !== 'string' || record.description.length > maxStoredStringLength
-		|| !isBoundedString(record.mediaType)
+	if (!isExactLengthString(record.id, 64) || !/^[0-9a-f]{64}$/i.test(record.id)
+		|| !isNonEmptyString(record.sourceId)
+		|| !isNonEmptyString(record.identifier)
+		|| record.version !== undefined && !isNonEmptyString(record.version)
+		|| !isNonEmptyString(record.displayName)
+		|| typeof record.description !== 'string'
+		|| !isNonEmptyString(record.mediaType)
 		|| !isStoredInstallation(record.installation)
 		|| !isRecord(record.target)
-		|| record.target.kind !== (record.installation.kind === 'configuredPlugin' ? 'plugin' : record.installation.kind)) {
+		|| !isStoredTargetKind(record.target.kind, record.installation.kind)) {
 		return false;
 	}
 	if (record.target.kind === 'mcp') {
-		return record.mediaType === CustomizationMarketplaceMediaType.McpServer && isBoundedString(record.target.id);
+		return record.mediaType === CustomizationMarketplaceMediaType.McpServer && isNonEmptyString(record.target.id);
+	}
+	if (record.target.kind === 'copilotConnector') {
+		return record.mediaType === CustomizationMarketplaceMediaType.McpServer
+			&& isNonEmptyString(record.target.name)
+			&& record.installation.kind === 'copilotConnector'
+			&& record.installation.name === record.target.name
+			&& isNonEmptyString(record.target.providerId)
+			&& isNonEmptyString(record.target.accountName)
+			&& typeof record.target.enterprise === 'boolean';
 	}
 	if (record.target.kind === 'plugin') {
 		return (record.mediaType === CustomizationMarketplaceMediaType.CopilotPlugin || record.mediaType === CustomizationMarketplaceMediaType.ClaudePlugin)
-			&& isBoundedString(record.target.uri)
+			&& isNonEmptyString(record.target.uri)
 			&& (record.installation.kind === 'configuredPlugin'
 				? record.target.resolvedRevision === undefined
-				: isBoundedString(record.target.resolvedRevision, 40, 40) && /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision));
+				: isExactLengthString(record.target.resolvedRevision, 40) && /^[0-9a-f]{40}$/i.test(record.target.resolvedRevision));
 	}
 	if (record.mediaType !== CustomizationMarketplaceMediaType.Skill) {
 		return false;
 	}
 	if (record.target.kind !== 'skill'
-		|| !isBoundedString(record.target.uri)
+		|| !isNonEmptyString(record.target.uri)
 		|| !Array.isArray(record.target.files)
 		|| record.target.files.length === 0
-		|| record.target.files.length > maxStoredSkillFiles
 		|| !record.target.files.includes(SKILL_FILENAME)
 		|| new Set(record.target.files).size !== record.target.files.length
-		|| record.target.files.reduce((total, file) => total + (typeof file === 'string' ? file.length : 0), 0) > maxStoredSkillPathCharacters
 		|| !record.target.files.every(isSafeStoredRelativePath)
-		|| !isBoundedString(record.target.resolvedRevision, 40, 40) || !/^[0-9a-f]{40}$/i.test(record.target.resolvedRevision)
+		|| !isExactLengthString(record.target.resolvedRevision, 40) || !/^[0-9a-f]{40}$/i.test(record.target.resolvedRevision)
 		|| (record.target.source !== 'local' && record.target.source !== 'user')
-		|| !isBoundedString(record.target.harness)
-		|| !isBoundedString(record.target.sourceFolder)
-		|| record.target.destinationGroupId !== undefined && !isBoundedString(record.target.destinationGroupId)
-		|| record.target.project !== undefined && !isBoundedString(record.target.project)
-		|| record.target.session !== undefined && !isBoundedString(record.target.session)) {
+		|| !isNonEmptyString(record.target.harness)
+		|| !isNonEmptyString(record.target.sourceFolder)
+		|| record.target.destinationGroupId !== undefined && !isNonEmptyString(record.target.destinationGroupId)
+		|| record.target.project !== undefined && !isNonEmptyString(record.target.project)
+		|| record.target.session !== undefined && !isNonEmptyString(record.target.session)) {
 		return false;
 	}
 	return true;
 }
 
-function isStoredInstallation(value: unknown): value is CustomizationMarketplaceInstallation {
+function isStoredInstallation(value: unknown): value is RecordedCustomizationMarketplaceInstallation {
 	if (!isRecord(value) || typeof value.kind !== 'string') {
 		return false;
 	}
 	if (value.kind === 'mcp') {
-		return isBoundedString(value.name) && isBoundedString(value.version);
+		return isNonEmptyString(value.name) && isNonEmptyString(value.version);
+	}
+	if (value.kind === 'mcpGallery') {
+		return isNonEmptyString(value.name)
+			&& (value.registry === 'custom' || value.registry === 'default')
+			&& isNonEmptyString(value.registryUrl);
+	}
+	if (value.kind === 'copilotConnector') {
+		return isNonEmptyString(value.name);
 	}
 	if (value.kind === 'configuredPlugin') {
 		return Object.keys(value).length === 1;
 	}
 	return (value.kind === 'skill' || value.kind === 'plugin')
-		&& isBoundedString(value.repository)
-		&& isBoundedString(value.ref)
-		&& typeof value.path === 'string'
-		&& value.path.length <= maxStoredStringLength;
+		&& isNonEmptyString(value.repository)
+		&& isNonEmptyString(value.ref)
+		&& typeof value.path === 'string';
+}
+
+function isStoredTargetKind(targetKind: unknown, installationKind: RecordedCustomizationMarketplaceInstallation['kind']): boolean {
+	return targetKind === installationKind
+		|| targetKind === 'mcp' && installationKind === 'mcpGallery'
+		|| targetKind === 'plugin' && installationKind === 'configuredPlugin';
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isBoundedString(value: unknown, minimumLength = 1, maximumLength = maxStoredStringLength): value is string {
-	return typeof value === 'string' && value.length >= minimumLength && value.length <= maximumLength;
+function isNonEmptyString(value: unknown): value is string {
+	return typeof value === 'string' && value.length > 0;
+}
+
+function isExactLengthString(value: unknown, length: number): value is string {
+	return typeof value === 'string' && value.length === length;
 }
 
 function isSafeStoredRelativePath(value: unknown): value is string {
 	return typeof value === 'string'
 		&& value.length > 0
-		&& value.length <= maxStoredStringLength
 		&& !value.startsWith('/')
 		&& !value.includes('\u0000')
 		&& value.split('/').every(segment => !!segment && segment !== '.' && segment !== '..' && segment.toLowerCase() !== '.git');
+}
+
+function isSafeStoredIcon(value: unknown): value is string {
+	if (!isNonEmptyString(value)) {
+		return false;
+	}
+	try {
+		const url = new URL(value);
+		return (url.protocol === `${Schemas.http}:` || url.protocol === `${Schemas.https}:`)
+			&& !url.username
+			&& !url.password;
+	} catch {
+		return false;
+	}
+}
+
+function sanitizeStoredIcon(light: unknown, dark: unknown): {
+	readonly icon: CustomizationMarketplaceIcon | undefined;
+	readonly sanitizedFields: readonly ('icon' | 'iconDark')[];
+} {
+	const sanitizedFields: ('icon' | 'iconDark')[] = [];
+	const lightUri = isSafeStoredIcon(light) ? URI.parse(light) : undefined;
+	const darkUri = isSafeStoredIcon(dark) ? URI.parse(dark) : undefined;
+	if (light !== undefined && !lightUri) {
+		sanitizedFields.push('icon');
+	}
+	if (dark !== undefined && !darkUri) {
+		sanitizedFields.push('iconDark');
+	}
+	if (lightUri && darkUri) {
+		return { icon: { light: lightUri, dark: darkUri }, sanitizedFields };
+	}
+	if (lightUri) {
+		return { icon: lightUri, sanitizedFields };
+	}
+	if (darkUri) {
+		if (light === undefined) {
+			sanitizedFields.push('iconDark');
+		}
+		return { icon: darkUri, sanitizedFields };
+	}
+	return { icon: undefined, sanitizedFields };
+}
+
+function serializeStoredIcon(icon: CustomizationMarketplaceIcon | undefined): Pick<IStoredCustomizationMarketplaceInstallationRecord['record'], 'icon' | 'iconDark'> {
+	if (!icon) {
+		return {};
+	}
+	return URI.isUri(icon)
+		? { icon: icon.toString(true) }
+		: { icon: icon.light.toString(true), iconDark: icon.dark.toString(true) };
 }

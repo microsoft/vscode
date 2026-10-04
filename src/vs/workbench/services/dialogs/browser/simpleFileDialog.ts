@@ -258,14 +258,15 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	}
 
 	private remoteUriFrom(path: string, hintUri?: URI): URI {
+		if (this.scopedAuthority) {
+			path = path.replace(/\\/g, '/');
+			if (path && !path.startsWith('/')) {
+				path = `/${path}`;
+			}
+			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path, query: hintUri?.query, fragment: hintUri?.fragment });
+		}
 		if (!path.startsWith('\\\\')) {
 			path = path.replace(/\\/g, '/');
-		}
-		// When scoped to a specific authority (e.g. agenthost://host/...),
-		// construct the URI directly with the authority to avoid
-		// toLocalResource stripping or replacing it.
-		if (this.scopedAuthority) {
-			return URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path, query: hintUri?.query, fragment: hintUri?.fragment });
 		}
 		const uri: URI = this.scheme === Schemas.file ? URI.file(path) : URI.from({ scheme: this.scheme, path, query: hintUri?.query, fragment: hintUri?.fragment });
 		// If the default scheme is file, then we don't care about the remote authority or the hint authority
@@ -335,9 +336,8 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 	private async pickResource(isSave: boolean = false): Promise<URI[] | URI | undefined> {
 		this.allowFolderSelection = !!this.options.canSelectFolders;
 		this.allowFileSelection = !!this.options.canSelectFiles;
-		this.separator = this.scopedAuthority ? '/' : this.labelService.getSeparator(this.scheme, this.remoteAuthority);
+		await this.resolvePathFormatting();
 		this.hidden = false;
-		this.isWindows = this.scopedAuthority ? false : await this.checkIsWindowsOS();
 		let homedir: URI = this.options.defaultUri ? this.options.defaultUri : this.workspaceContextService.getWorkspace().folders[0].uri;
 		let stat: IFileStatWithPartialMetadata | undefined;
 		const ext: string = resources.extname(homedir);
@@ -1071,12 +1071,30 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		return updatingPromise;
 	}
 
+	private async resolvePathFormatting(): Promise<void> {
+		if (this.scopedAuthority) {
+			const resource = URI.from({ scheme: this.scheme, authority: this.scopedAuthority, path: '/' });
+			const [operatingSystem, path] = await Promise.all([
+				this.pathService.getOperatingSystem(resource),
+				this.pathService.getPath(resource),
+			]);
+			this.isWindows = operatingSystem === OperatingSystem.Windows;
+			this.separator = path?.sep ?? '/';
+			return;
+		}
+
+		this.separator = this.labelService.getSeparator(this.scheme, this.remoteAuthority);
+		this.isWindows = await this.checkIsWindowsOS();
+	}
+
 	private pathFromUri(uri: URI, endWithSeparator: boolean = false): string {
-		// For authority-scoped schemes, use the raw path component instead
-		// of fsPath, which would prepend the authority as a UNC prefix.
 		let result: string;
 		if (this.scopedAuthority) {
 			result = uri.path.replace(/\n/g, '');
+			if (this.isWindows && /^\/[a-zA-Z]:/.test(result)) {
+				result = result.slice(1);
+			}
+			result = normalizeDriveLetter(result, this.isWindows);
 		} else {
 			result = normalizeDriveLetter(uri.fsPath, this.isWindows).replace(/\n/g, '');
 		}

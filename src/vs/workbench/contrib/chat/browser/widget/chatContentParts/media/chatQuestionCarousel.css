@@ -460,6 +460,7 @@
 }
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-conversation.chat-question-carousel-used {
+	margin: 0 0 var(--vscode-spacing-size160);
 	max-height: none;
 	overflow: visible;
 	border: none;
@@ -478,11 +479,11 @@
 
 .interactive-session .chat-question-carousel-conversation-summary {
 	gap: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size80) 0;
+	padding: 0;
 
 	.chat-question-summary-item {
 		gap: var(--vscode-spacing-size60);
-		padding: var(--vscode-spacing-size40) 0 0;
+		padding: 0;
 		font-size: var(--vscode-fontSize-body1);
 	}
 
@@ -530,8 +531,9 @@
 		line-height: 1;
 	}
 
-	.chat-question-answer-collapsible {
+	.chat-question-summary-decision > .chat-question-answer-collapsible {
 		min-width: 0;
+		gap: 0;
 		margin-bottom: 0;
 	}
 

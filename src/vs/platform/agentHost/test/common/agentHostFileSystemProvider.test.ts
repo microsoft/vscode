@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
-import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
+import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
 import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
@@ -886,6 +886,7 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		readonly mkdirCalls: ResourceMkdirParams[] = [];
 		readonly copyCalls: ResourceCopyParams[] = [];
 		readonly watchCalls: CreateResourceWatchParams[] = [];
+		onDidReconnect?: Event<void>;
 		nextWatchHandle: { onDidChange: Event<readonly IFileChange[]>; dispose(): void } | undefined;
 		watchError: unknown | undefined;
 		nextResolveResult: ResourceResolveResult = { uri: '', type: ResourceType.File, size: 42, mtime: '2026-01-15T12:34:56.789Z', etag: 'etag-1' };
@@ -1146,6 +1147,110 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 				[[agentHostUri('remote', '/watched/a.txt').toString(), FileChangeType.UPDATED]],
 				[[agentHostUri('remote', '/watched/b.txt').toString(), FileChangeType.ADDED]],
 			],
+		});
+	});
+
+	test('watch discards a late setup result from before the same connection recovered', async () => {
+		const { provider, connection } = setup();
+		const reconnect = disposables.add(new Emitter<void>());
+		connection.onDidReconnect = reconnect.event;
+		const oldChanges = disposables.add(new Emitter<readonly IFileChange[]>());
+		const newChanges = disposables.add(new Emitter<readonly IFileChange[]>());
+		const setupResult = new DeferredPromise<IRemoteWatchHandle>();
+		let oldDisposed = 0;
+		let newDisposed = 0;
+		connection.watchResource = async params => {
+			connection.watchCalls.push(params);
+			return connection.watchCalls.length === 1 ? setupResult.p : {
+				onDidChange: newChanges.event,
+				dispose: () => { newDisposed++; },
+			};
+		};
+		const received: string[] = [];
+		disposables.add(provider.onDidChangeFile(changes => received.push(...changes.map(change => change.resource.toString()))));
+		const watch = disposables.add(provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [] }));
+		reconnect.fire();
+		setupResult.complete({ onDidChange: oldChanges.event, dispose: () => { oldDisposed++; } });
+		await timeout(0);
+		await timeout(0);
+		oldChanges.fire([{ resource: URI.file('/watched/stale.txt'), type: FileChangeType.UPDATED }]);
+		newChanges.fire([{ resource: URI.file('/watched/current.txt'), type: FileChangeType.UPDATED }]);
+		watch.dispose();
+		reconnect.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			calls: connection.watchCalls.length,
+			oldDisposed,
+			newDisposed,
+			received,
+		}, {
+			calls: 2,
+			oldDisposed: 1,
+			newDisposed: 1,
+			received: [agentHostUri('remote', '/watched/current.txt').toString()],
+		});
+	});
+
+	test('watch reports a failed recovery and retries on a later reconnect', async () => {
+		const { provider, connection } = setup();
+		const reconnect = disposables.add(new Emitter<void>());
+		connection.onDidReconnect = reconnect.event;
+		let firstDisposed = 0;
+		connection.nextWatchHandle = { onDidChange: Event.None, dispose: () => { firstDisposed++; } };
+		const errors: string[] = [];
+		disposables.add(provider.onDidWatchError(error => errors.push(error)));
+		const watch = disposables.add(provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [] }));
+		await timeout(0);
+		connection.watchError = new Error('Watch unavailable');
+		reconnect.fire();
+		await timeout(0);
+
+		connection.watchError = undefined;
+		let recoveredDisposed = 0;
+		connection.nextWatchHandle = { onDidChange: Event.None, dispose: () => { recoveredDisposed++; } };
+		reconnect.fire();
+		await timeout(0);
+		watch.dispose();
+
+		assert.deepStrictEqual({
+			calls: connection.watchCalls.length,
+			firstDisposed,
+			recoveredDisposed,
+			errors,
+		}, {
+			calls: 3,
+			firstDisposed: 1,
+			recoveredDisposed: 1,
+			errors: ['Watch unavailable'],
+		});
+	});
+
+	test('watch ignores reconnects from an authority connection that was replaced', async () => {
+		const { provider, connection } = setup();
+		const oldReconnect = disposables.add(new Emitter<void>());
+		connection.onDidReconnect = oldReconnect.event;
+		connection.nextWatchHandle = { onDidChange: Event.None, dispose: () => { } };
+		disposables.add(provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [] }));
+		await timeout(0);
+
+		const replacement = new FullConnection();
+		const newReconnect = disposables.add(new Emitter<void>());
+		replacement.onDidReconnect = newReconnect.event;
+		replacement.nextWatchHandle = { onDidChange: Event.None, dispose: () => { } };
+		disposables.add(provider.registerAuthority('remote', replacement));
+		await timeout(0);
+		oldReconnect.fire();
+		await timeout(0);
+		newReconnect.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			oldCalls: connection.watchCalls.length,
+			newCalls: replacement.watchCalls.length,
+		}, {
+			oldCalls: 1,
+			newCalls: 2,
 		});
 	});
 

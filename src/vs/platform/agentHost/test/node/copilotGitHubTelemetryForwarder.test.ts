@@ -92,6 +92,95 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
+	test('forwards HydraFusion route, failure, phase, and turn events', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		const notification = (kind: string, properties: Record<string, string>, metrics: Record<string, number> = {}): GitHubTelemetryNotification => ({
+			sessionId: 'fusion-session',
+			restricted: false,
+			event: { kind, properties, metrics },
+		});
+
+		forwarder.forward(notification('hydrafusion_route', {
+			fusion_id: 'fusion-1',
+			synthetic_model: 'hydrafusion',
+			pattern: 'critique',
+			primary_model: 'gpt-5.6-sol',
+		}, {
+			routing_latency_ms: 12,
+			reasoning_score: 0.75,
+		}));
+		forwarder.forward(notification('hydrafusion_route_failed', {
+			synthetic_model: 'hydrafusion',
+			reason: 'route_unavailable',
+			fallback_model: 'claude-opus-5',
+		}));
+		forwarder.forward(notification('hydrafusion_phase', {
+			fusion_id: 'fusion-1',
+			phase_id: 'phase-1',
+			phase_kind: 'primary',
+			status: 'succeeded',
+			model: 'gpt-5.6-sol',
+		}, {
+			duration_ms: 100,
+			request_count: 1,
+			total_nano_aiu: 2_000_000_000,
+		}));
+		forwarder.forward(notification('hydrafusion_turn', {
+			fusion_id: 'fusion-1',
+			synthetic_model: 'hydrafusion',
+			pattern: 'critique',
+			outcome: 'succeeded',
+			final_source_model: 'gpt-5.6-sol',
+		}, {
+			duration_ms: 120,
+			phase_count: 1,
+			total_nano_aiu: 2_000_000_000,
+		}));
+
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName,
+			sessionId: data?.sdk_session_id,
+			fusionId: data?.fusion_id,
+			syntheticModel: data?.synthetic_model,
+			durationMs: data?.duration_ms,
+			totalNanoAiu: data?.total_nano_aiu,
+		})), [
+			{
+				eventName: 'copilotSdk/hydrafusion_route',
+				sessionId: 'fusion-session',
+				fusionId: 'fusion-1',
+				syntheticModel: 'hydrafusion',
+				durationMs: undefined,
+				totalNanoAiu: undefined,
+			},
+			{
+				eventName: 'copilotSdk/hydrafusion_route_failed',
+				sessionId: 'fusion-session',
+				fusionId: undefined,
+				syntheticModel: 'hydrafusion',
+				durationMs: undefined,
+				totalNanoAiu: undefined,
+			},
+			{
+				eventName: 'copilotSdk/hydrafusion_phase',
+				sessionId: 'fusion-session',
+				fusionId: 'fusion-1',
+				syntheticModel: undefined,
+				durationMs: 100,
+				totalNanoAiu: 2_000_000_000,
+			},
+			{
+				eventName: 'copilotSdk/hydrafusion_turn',
+				sessionId: 'fusion-session',
+				fusionId: 'fusion-1',
+				syntheticModel: 'hydrafusion',
+				durationMs: 120,
+				totalNanoAiu: 2_000_000_000,
+			},
+		]);
+	});
+
 	test('gates restricted events on the restricted telemetry option', () => {
 		const telemetryService = new TestTelemetryService();
 		let restrictedTelemetryEnabled = false;
@@ -167,6 +256,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 					tool_name: 'grep',
 					result_type: 'SUCCESS',
 					invoke_outcome: 'success',
+					search_engine: 'tgrep',
 					model: 'gpt-5.5',
 					tool_call_id: 'call-1',
 				},
@@ -184,6 +274,102 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		assert.strictEqual(event.data?.result_token_count, 34);
 		assert.strictEqual(event.data?.duration_ms, 12);
 		assert.strictEqual(event.data?.tool_call_id, 'call-1');
+		assert.strictEqual(event.data?.search_engine, 'tgrep');
+	});
+
+	test('forwards indexed search telemetry and gates restricted errors', () => {
+		const telemetryService = new TestTelemetryService();
+		let restrictedTelemetryEnabled = false;
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => restrictedTelemetryEnabled, telemetryService);
+
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'tgrep_startup',
+				properties: { outcome: 'started', forced_by_env: 'false', warm_start: 'true', eligible: 'true' },
+				metrics: { file_count: 50_000, startup_duration_ms: 120 },
+			},
+		});
+		forwarder.forward({
+			sessionId: 'session',
+			restricted: false,
+			event: {
+				kind: 'tgrep_incremental_indexing',
+				properties: { phase: 'updated' },
+				metrics: { changed_file_count: 2, total_change_count: 2, total_duration_ms: 15 },
+			},
+		});
+		const serverError: GitHubTelemetryNotification = {
+			sessionId: 'session',
+			restricted: true,
+			event: {
+				kind: 'tgrep_server_error',
+				properties: { error_type: 'unexpected_exit', error_message: '/private/repository failed' },
+				metrics: { exit_code: 1 },
+			},
+		};
+		forwarder.forward(serverError);
+		restrictedTelemetryEnabled = true;
+		forwarder.forward(serverError);
+
+		assert.deepStrictEqual(telemetryService.events.map(event => ({
+			eventName: event.eventName,
+			data: event.data,
+		})), [
+			{
+				eventName: 'copilotSdk/tgrep_startup',
+				data: {
+					outcome: 'started',
+					forced_by_env: 'false',
+					warm_start: 'true',
+					eligible: 'true',
+					file_count: 50_000,
+					startup_duration_ms: 120,
+					created_at: undefined,
+					model_call_id: undefined,
+					exp_assignment_context: undefined,
+					session_id: 'session',
+					sdk_session_id: 'session',
+					copilot_tracking_id: undefined,
+					kind: 'tgrep_startup',
+					restricted: false,
+				},
+			},
+			{
+				eventName: 'copilotSdk/tgrep_incremental_indexing',
+				data: {
+					phase: 'updated',
+					changed_file_count: 2,
+					total_change_count: 2,
+					total_duration_ms: 15,
+					created_at: undefined,
+					model_call_id: undefined,
+					exp_assignment_context: undefined,
+					session_id: 'session',
+					sdk_session_id: 'session',
+					copilot_tracking_id: undefined,
+					kind: 'tgrep_incremental_indexing',
+					restricted: false,
+				},
+			},
+			{
+				eventName: 'copilotSdk/tgrep_server_error',
+				data: {
+					error_type: 'unexpected_exit',
+					error_message: '/private/repository failed',
+					exit_code: 1,
+					created_at: undefined,
+					model_call_id: undefined,
+					exp_assignment_context: undefined,
+					session_id: 'session',
+					sdk_session_id: 'session',
+					copilot_tracking_id: undefined,
+					kind: 'tgrep_server_error',
+					restricted: true,
+				},
+			},
+		]);
 	});
 
 	test('only accepts host correlation diagnostics on response events', () => {

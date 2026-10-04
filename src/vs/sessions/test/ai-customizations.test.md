@@ -25,6 +25,7 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 
 - AI features are enabled.
 - Enable `chat.customizations.marketplace.enabled` (experimental and disabled by default) to show Discover. Existing configured MCP and Plugin marketplaces then move from their management surfaces into Discover. `chat.customizations.marketplace.sources.publicFeed.enabled` independently controls the GitHub Feed; disabling it includes the default MCP and Plugin providers, while enabling it suppresses their duplicate public content. Custom registries remain available in either case.
+- Enable `chat.customizations.copilotConnectors.enabled` independently to include authenticated Copilot connectors.
 - Open Agent Customizations in either the editor workbench or Agents Window.
 
 #### Actions and Expected Results
@@ -59,6 +60,28 @@ In the treatment, Automations and Customizations are the first rows in the Sessi
 28. With Marketplace visible, verify the Plugin management page hides only Available, while Installed, create, updates, trust, and install-from-source still work. Disable Marketplace visibility and verify the legacy Available browse/search UI returns. Open Marketplace for Plugins routes to Discover filtered to plugins only while Marketplace is visible; otherwise it retains the legacy route.
 29. Install a configured-marketplace plugin. Verify the existing installer prompts for marketplace trust, records the opaque marketplace identity and exact installed URI, applies strict allowlist policy, and supports repair/uninstall without fabricating Git provenance. Removing the marketplace or changing policy before installation or repair must fail rather than guessing an alternate repository.
 30. Have a test source require explicit sign-in. Show its neutral prompt and primary **Sign In** action without a warning icon or failed/empty-results message; an incomplete-results hint appears only for genuine source failures. Healthy-source results remain available. Repeat with only the sign-in-required source enabled and with another source failing. The action is keyboard accessible, documented in Accessibility Help and Accessible View, and runs only on explicit activation before restarting the combined query.
+
+### Copilot connectors
+
+#### Preconditions
+
+- Enable `chat.customizations.copilotConnectors.enabled` and Marketplace visibility to test Connector discovery and connection.
+- Optionally enable `chat.customizations.marketplace.sources.publicFeed.enabled` to include public resources.
+- Use a GitHub.com account that has Copilot connector access. Begin signed out for the sign-in checks.
+
+#### Actions and Expected Results
+
+1. Search Discover for a Copilot connector. It appears as an MCP resource with GitHub Copilot provenance and offers **Connect**. Connecting explicitly requests any missing Connector permission.
+2. Connect the connector and finish browser authorization. The action remains pending until the connected catalog confirms success; **Cancel**, experiment disablement, and hidden AI features stop polling without announcing success. Restart VS Code and confirm the account-scoped installation record first remains checking, then restores the connector under `@installed` after connection status is known. Remove it from an authoritative current catalog and verify the recorded connector remains visible as disconnected with an unavailable-reconnect explanation; restore it as disconnected and verify **Reconnect** reconnects it. Switching accounts hides the record, switching back restores it, and explicit disconnect removes it. Disconnecting a connector already known absent, or receiving HTTP 404 while disconnecting it, also removes the stale local record.
+3. Open MCP Servers. Only connected connector MCP servers appear under Installed; disconnected and otherwise available connectors remain exclusively in Discover. Each connected Connector row exposes its Connector lifecycle actions rather than a local MCP enablement toggle.
+4. Open a connected Connector MCP row. Its detail shows status, metadata, contained MCP servers, external information, and connection lifecycle actions instead of a raw editable MCP configuration.
+5. Start a Copilot chat before connecting a connector and verify its tool is unavailable. Connect the connector while that chat remains open; without creating a new chat, the next turn can use the connector tool. Repeat while a turn is active: the active turn finishes against its original tool set and the following turn sees the connector. Disconnect it and verify the same open chat no longer exposes the tool on its next turn.
+6. Start a Connector repair, leave its browser sign-in incomplete, then cancel from Discover. The pending state clears immediately and the resource returns to **Disconnected** with **Reconnect**, never **Missing files**. Disable `chat.customizations.copilotConnectors.enabled`; Connector discovery and pending authorization stop, the MCP list retains its pre-feature presentation, and fresh Copilot sessions omit connector MCP servers.
+7. Compare exact connector names, prefixes, abbreviations, mixed-case multi-word queries, keywords/tags/capabilities, and descriptions/example queries. Exact full names score 100; otherwise each word's best match is averaged from name (70–95), keyword/capability/tag (40–65), or description/example (10–35) bands. These heuristic scores are not calibrated equivalents to AgentFinder semantic scores.
+8. Verify connector requests use their dedicated scoped transport, public-feed IPC never receives connector credentials, and normal default-account sign-in never adds `write:plugin_gateway_connections`.
+9. Switch accounts, sign out, rotate authentication sessions, or disable/re-enable connectors between pages. Old continuations require a new search and late responses never overwrite the active account's catalog.
+10. Start signed out. Discover shows a neutral **Sign In** invitation without making a catalog request or consent prompt. Selecting **Connect** explicitly requests connector permission before connecting the service.
+11. Deny or cancel sign-in/consent, switch accounts, disable the experiment, or close the editor while authorization is pending. Do not announce success, switch accounts, send stale credentials, or apply a late result.
 
 ### Scenario 1: Empty state — no session, no customizations
 

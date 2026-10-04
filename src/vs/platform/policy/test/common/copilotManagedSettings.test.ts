@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -401,6 +401,130 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			suppressedTelemetry: new Map(),
 			activeSources: ['server'],
 		});
+	});
+
+	for (const [field, key] of [['sandboxMcpServers', COPILOT_SANDBOX_MCP_SERVERS_KEY], ['sandboxLspServers', COPILOT_SANDBOX_LSP_SERVERS_KEY]]) {
+		test(`${field} is force-on-wins across all managed channels`, () => {
+			for (const native of [undefined, false, true]) {
+				for (const server of [undefined, false, true]) {
+					for (const file of [undefined, false, true]) {
+						const pick = pickManagedSettings(
+							native === undefined ? undefined : { [key]: native },
+							server === undefined ? undefined : { [key]: server },
+							file === undefined ? undefined : { [key]: file },
+						);
+						assert.strictEqual(pick.values[key], [native, server, file].includes(true) ? true : native ?? server ?? file);
+					}
+				}
+			}
+		});
+
+		test(`${field} projects booleans and restores the remaining policy after removal`, () => {
+			const pick = pickManagedSettings({ [key]: false }, { [key]: true }, { [key]: false });
+			assert.deepStrictEqual({
+				projected: [true, false, 'true'].map(value => projectManagedSettings(
+					normalizeManagedSettings({ sandbox: { [field]: value } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+				)),
+				value: pick.values[key],
+				resolution: pick.resolutions.get(key),
+				removed: pickManagedSettings({ [key]: false }, undefined, { [key]: false }).values[key],
+				malformed: pickManagedSettings({ [key]: 'false' }, { [key]: true }, undefined).values[key],
+			}, {
+				projected: [{ [key]: true }, { [key]: false }, {}],
+				value: true,
+				resolution: {
+					value: true,
+					source: 'server',
+					contributions: [
+						{ channel: 'nativeMdm', value: false },
+						{ channel: 'server', value: true },
+						{ channel: 'file', value: false },
+					],
+				},
+				removed: false,
+				malformed: true,
+			});
+		});
+	}
+
+	for (const key of [COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]) {
+		test(`${key} is deny-wins across every channel combination`, () => {
+			const values = [undefined, false, true];
+			for (const native of values) {
+				for (const server of values) {
+					for (const file of values) {
+						const pick = pickManagedSettings(
+							native === undefined ? undefined : { [key]: native },
+							server === undefined ? undefined : { [key]: server },
+							file === undefined ? undefined : { [key]: file },
+						);
+						const denied = [native, server, file].includes(false);
+						assert.deepStrictEqual(pick.values[key], denied ? false : native ?? server ?? file, JSON.stringify({ native, server, file }));
+					}
+				}
+			}
+		});
+
+		test(`${key} reports the restrictive source and restores the remaining value after removal`, () => {
+			const pick = pickManagedSettings({ [key]: true }, { [key]: false }, { [key]: true });
+			assert.deepStrictEqual({
+				value: pick.values[key],
+				resolution: pick.resolutions.get(key),
+				activeSources: pick.activeSources,
+				removed: pickManagedSettings({ [key]: true }, undefined, { [key]: true }).values[key],
+				malformed: pickManagedSettings({ [key]: 'true' }, { [key]: false }, undefined).values[key],
+			}, {
+				value: false,
+				resolution: {
+					value: false,
+					source: 'server',
+					contributions: [
+						{ channel: 'nativeMdm', value: true },
+						{ channel: 'server', value: false },
+						{ channel: 'file', value: true },
+					],
+				},
+				activeSources: ['server'],
+				removed: true,
+				malformed: false,
+			});
+		});
+	}
+
+	test('outbound network access is projected from the canonical boolean managed setting', () => {
+		const project = (value: boolean | string) => projectManagedSettings(
+			normalizeManagedSettings({ sandbox: { userPolicy: { network: { allowOutbound: value } } } }),
+			MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		);
+		assert.deepStrictEqual({
+			denied: project(false),
+			allowed: project(true),
+			invalid: project('false'),
+		}, {
+			denied: { [COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: false },
+			allowed: { [COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: true },
+			invalid: {},
+		});
+	});
+
+	test('sandbox developer tool access projects only the canonical boolean values', () => {
+		assert.deepStrictEqual([false, true, 'false'].map(allowDevToolAccess => projectManagedSettings(
+			normalizeManagedSettings({ sandbox: { allowDevToolAccess } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		)), [
+			{ [COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: false },
+			{ [COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: true },
+			{},
+		]);
+	});
+
+	test('sandbox local network access projects only canonical nested boolean values', () => {
+		assert.deepStrictEqual([false, true, 'false'].map(allowLocalNetwork => projectManagedSettings(
+			normalizeManagedSettings({ sandbox: { userPolicy: { network: { allowLocalNetwork } } } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		)), [
+			{ [COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: false },
+			{ [COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: true },
+			{},
+		]);
 	});
 
 	test('malformed higher-precedence sandbox values cannot mask a managed force-on', () => {

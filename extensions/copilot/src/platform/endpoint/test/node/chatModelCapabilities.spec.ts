@@ -8,10 +8,10 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
-	return { family, model } as unknown as IChatEndpoint;
+	return { family, model, name: model } as unknown as IChatEndpoint;
 }
 
 describe('OpenAI prompt model classification', () => {
@@ -95,6 +95,28 @@ describe('GPT-6 family capabilities', () => {
 			isGpt6Family(family),
 			isGpt6Family(fakeModel(family, 'gpt-6')),
 		]).toEqual([false, false]);
+	});
+});
+
+describe('VSC Model F edit tool capabilities', () => {
+	test('uses replace-string tools exclusively when identified by family', () => {
+		const model = fakeModel('vscModelF-preview', 'opaque-model-id');
+
+		expect({
+			supportsApplyPatch: modelSupportsApplyPatch(model),
+			canUseApplyPatchExclusively: modelCanUseApplyPatchExclusively(model),
+			supportsSimplifiedApplyPatchInstructions: modelSupportsSimplifiedApplyPatchInstructions(model),
+			supportsReplaceString: modelSupportsReplaceString(model),
+			supportsMultiReplaceString: modelSupportsMultiReplaceString(model),
+			canUseReplaceStringExclusively: modelCanUseReplaceStringExclusively(model),
+		}).toEqual({
+			supportsApplyPatch: false,
+			canUseApplyPatchExclusively: false,
+			supportsSimplifiedApplyPatchInstructions: false,
+			supportsReplaceString: true,
+			supportsMultiReplaceString: true,
+			canUseReplaceStringExclusively: true,
+		});
 	});
 });
 
@@ -194,6 +216,27 @@ describe('Kimi edit tool capabilities', () => {
 				canUseApplyPatchExclusively: false,
 			},
 		});
+	});
+});
+
+describe('modelSupportsThinkingContentInHistory', () => {
+	test.each([
+		{ family: 'kimi-k3', id: 'deployment', expected: true },
+		{ family: 'moonshotai/Kimi-K3', id: 'deployment', expected: true },
+		{ family: 'unknown', id: 'kimi-k3-preview', expected: true },
+		{ family: 'unknown', id: 'moonshotai/Kimi-K3:latest', expected: true },
+		{ family: 'k3', id: 'deployment', expected: true },
+		{ family: 'unknown', id: 'k3-256k', expected: true },
+		{ family: 'unknown', id: 'moonshotai/k3', expected: true },
+		{ family: 'kimi-k2.6', id: 'deployment', expected: false },
+		{ family: 'kimi-k2.7-code', id: 'deployment', expected: false },
+		{ family: 'kimi-k30', id: 'deployment', expected: false },
+		{ family: 'k30', id: 'deployment', expected: false },
+		{ family: 'not-k3', id: 'deployment', expected: false },
+		{ family: 'claude-haiku-4-5', id: 'deployment', expected: false },
+		{ family: 'unknown', id: 'deployment', expected: false },
+	])('uses the preserved-thinking default for $family / $id: $expected', ({ family, id, expected }) => {
+		expect(modelSupportsThinkingContentInHistory(fakeModel(family, id))).toBe(expected);
 	});
 });
 

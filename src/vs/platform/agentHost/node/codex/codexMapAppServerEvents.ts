@@ -16,6 +16,7 @@ import { ActiveClientToolSet } from '../activeClientState.js';
 import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { parseCodexDelegation } from './codexDelegation.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
+import { codexRetainedCommandOutputContent } from './codexTerminalOutput.js';
 import type { AgentMessageDeltaNotification } from './protocol/generated/v2/AgentMessageDeltaNotification.js';
 import type { CommandExecutionOutputDeltaNotification } from './protocol/generated/v2/CommandExecutionOutputDeltaNotification.js';
 import type { FileChangeOutputDeltaNotification } from './protocol/generated/v2/FileChangeOutputDeltaNotification.js';
@@ -116,6 +117,20 @@ export interface ICodexSessionMapState {
 	 * per turn by {@link resetCodexTurnMapState}; see {@link mapItemStartedBody}.
 	 */
 	agentMessagePartCount: number;
+	/**
+	 * Thread-cumulative token usage just before the current turn's first model
+	 * call. Codex reports `tokenUsage.total` for the whole thread, so subtracting
+	 * this baseline yields whole-turn totals that stay stable when a notification
+	 * is repeated. Keyed by turn id, so a new turn records a fresh baseline.
+	 */
+	turnTokenUsageBaseline: ICodexTurnTokenUsageBaseline | undefined;
+}
+
+interface ICodexTurnTokenUsageBaseline {
+	readonly turnId: string;
+	readonly inputTokens: number;
+	readonly cachedTokens: number;
+	readonly outputTokens: number;
 }
 
 /**
@@ -156,6 +171,7 @@ export function createCodexSessionMapState(serverToolNames: ReadonlySet<string> 
 		deferredResponseActions: [],
 		pendingPreflight: undefined,
 		agentMessagePartCount: 0,
+		turnTokenUsageBaseline: undefined,
 	};
 }
 
@@ -491,8 +507,9 @@ export function clearReasoningForItem(state: ICodexSessionMapState, itemId: stri
 	}
 }
 
-export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification, modelId?: string): (SessionAction | ChatAction)[] {
+export function mapTokenUsageUpdated(state: ICodexSessionMapState, params: ThreadTokenUsageUpdatedNotification, modelId?: string): (SessionAction | ChatAction)[] {
 	const last = params.tokenUsage.last;
+	const turnTotal = getTurnTokenUsage(state, params);
 	return [{
 		type: ActionType.ChatUsage,
 		turnId: params.turnId,
@@ -504,9 +521,37 @@ export function mapTokenUsageUpdated(params: ThreadTokenUsageUpdatedNotification
 			_meta: {
 				reasoningOutputTokens: last.reasoningOutputTokens,
 				modelContextWindow: params.tokenUsage.modelContextWindow,
+				...(modelId ? {
+					turnTokenTotals: [{ model: modelId, ...turnTotal }],
+					directTurnTokenTotals: [{ model: modelId, ...turnTotal }],
+				} : {}),
 			},
 		},
 	}];
+}
+
+/**
+ * Whole-turn token totals derived from Codex's thread-cumulative usage. The
+ * first notification seen for a turn records the thread total before that
+ * call, so repeated notifications for the same call are not counted twice.
+ */
+function getTurnTokenUsage(state: ICodexSessionMapState, params: ThreadTokenUsageUpdatedNotification): Omit<ICodexTurnTokenUsageBaseline, 'turnId'> {
+	const { total, last } = params.tokenUsage;
+	let baseline = state.turnTokenUsageBaseline;
+	if (baseline?.turnId !== params.turnId) {
+		baseline = {
+			turnId: params.turnId,
+			inputTokens: total.inputTokens - last.inputTokens,
+			cachedTokens: total.cachedInputTokens - last.cachedInputTokens,
+			outputTokens: total.outputTokens - last.outputTokens,
+		};
+		state.turnTokenUsageBaseline = baseline;
+	}
+	return {
+		inputTokens: Math.max(0, total.inputTokens - baseline.inputTokens),
+		cachedTokens: Math.max(0, total.cachedInputTokens - baseline.cachedTokens),
+		outputTokens: Math.max(0, total.outputTokens - baseline.outputTokens),
+	};
 }
 
 /**
@@ -550,7 +595,7 @@ export function mapItemStarted(
 	// state, so nothing new is emitted here.
 	if (params.item.type === 'commandExecution') {
 		const pending = state.pendingPreflight;
-		if (pending && pending.turnId === params.turnId && pending.command === unwrapShellInvocation(params.item.command ?? '')) {
+		if (pending && pending.turnId === params.turnId && pending.command === (params.item.command ?? '')) {
 			state.pendingPreflight = undefined;
 			state.itemToToolCall.set(params.item.id, {
 				toolCallId: pending.toolCallId,
@@ -596,10 +641,10 @@ function mapItemStartedBody(
 		];
 	}
 	if (params.item.type === 'commandExecution') {
-		// Phase 4: surface shell commands as tool calls. We allocate a
-		// fresh toolCallId; the `commandExecution` item id only
-		// disambiguates the codex side.
-		const toolCallId = generateUuid();
+		// Phase 4: surface shell commands as tool calls. The codex item id is
+		// stable across live delivery and thread replay, so it also identifies
+		// the command's retained output after a reload.
+		const toolCallId = params.item.id;
 		const meta = toToolCallMeta({ toolKind: 'terminal' });
 		state.itemToToolCall.set(params.item.id, {
 			toolCallId,
@@ -1023,11 +1068,14 @@ export function mapAgentMessageDelta(
  * (auto-confirmed; the codex server already decided to run the command
  * — any host-side approval was settled via the `requestApproval`
  * server-request handler before we got here) followed by a
- * `ChatToolCallComplete` carrying the aggregated output.
+ * `ChatToolCallComplete` carrying the aggregated output. When
+ * `retainedOutputResource` is set, the completion carries a preview and
+ * that terminal resource instead of the complete output.
  */
 export function mapItemCompleted(
 	state: ICodexSessionMapState,
 	params: ItemCompletedNotification,
+	retainedOutputResource?: string,
 ): (SessionAction | ChatAction)[] {
 	if (params.item.type === 'agentMessage') {
 		state.itemToPartId.delete(params.item.id);
@@ -1076,9 +1124,11 @@ export function mapItemCompleted(
 				result: {
 					success,
 					pastTenseMessage: pastTense,
-					content: output
-						? [{ type: ToolResultContentType.Text, text: output }]
-						: undefined,
+					content: retainedOutputResource
+						? codexRetainedCommandOutputContent(retainedOutputResource, output, exit)
+						: output
+							? [{ type: ToolResultContentType.Text, text: output }]
+							: undefined,
 					error: success ? undefined : {
 						message: exit !== null ? `Exit code ${exit}` : 'Command failed',
 						...(declined ? { code: 'denied' } : {}),
@@ -1093,7 +1143,7 @@ export function mapItemCompleted(
 		// turn end (see mapItemStarted / mapTurnCompleted).
 		if (success && !output && !declined) {
 			const flushed = flushPendingPreflight(state);
-			state.pendingPreflight = { toolCallId: entry.toolCallId, turnId: entry.turnId, command, completion };
+			state.pendingPreflight = { toolCallId: entry.toolCallId, turnId: entry.turnId, command: params.item.command ?? '', completion };
 			return [...flushed, ...flushDeferredResponseActions(state)];
 		}
 		return [...flushPendingPreflight(state), ...completion, ...flushDeferredResponseActions(state)];
@@ -1200,6 +1250,10 @@ export function mapItemCompleted(
 	return [];
 }
 
+export function shouldRecoverCommandCompletion(state: ICodexSessionMapState, item: ItemCompletedNotification['item']): boolean {
+	return item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id);
+}
+
 /**
  * `turn/completed` translates to either a normal complete signal or, when
  * the turn ended with `status: 'failed'`, an error followed by the
@@ -1209,6 +1263,7 @@ export function mapTurnCompleted(
 	state: ICodexSessionMapState,
 	params: TurnCompletedNotification,
 	fallbackDuration?: number,
+	retainedOutputResources?: ReadonlyMap<string, string>,
 ): (SessionAction | ChatAction)[] {
 	state.currentTurnId = undefined;
 	state.itemToPartId.clear();
@@ -1218,13 +1273,13 @@ export function mapTurnCompleted(
 	// Live notifications normally use `itemsView: 'notLoaded'` and empty items.
 	const recoveredToolCallActions: (SessionAction | ChatAction)[] = [];
 	for (const item of params.turn.items) {
-		if (item.type === 'commandExecution' && (item.exitCode !== null || item.status !== 'completed') && state.itemToToolCall.has(item.id)) {
+		if (shouldRecoverCommandCompletion(state, item)) {
 			recoveredToolCallActions.push(...mapItemCompleted(state, {
 				threadId: params.threadId,
 				turnId: params.turn.id,
 				item,
 				completedAtMs: typeof params.turn.completedAt === 'number' ? params.turn.completedAt * 1000 : 0,
-			}));
+			}, retainedOutputResources?.get(item.id)));
 		}
 	}
 	// Finalize any command whose completion was deferred to coalesce a possible

@@ -39,6 +39,9 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
   - clientToServer:
       - channel: ${chat_0}
         action:
@@ -68,3 +71,6 @@ rounds:
         action:
           type: chat/turnComplete
           turnId: ${turn_1}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
