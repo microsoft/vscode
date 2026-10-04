@@ -35,6 +35,8 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 
 	private _modelOperations: Promise<ModelOperations> | undefined;
 	private _loadFailed: boolean = false;
+	private _modelHasRun: boolean = false;
+	private readonly _loggedFailures = new Set<string>();
 
 	/** Pre-loaded chunks of the model bundle, keyed by the id webpack asks for. */
 	private readonly _modelChunks = new Map<string, unknown>();
@@ -290,7 +292,11 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	 */
 	private logFailure(level: 'warn' | 'error', what: string, error: unknown): void {
 		const detail = error instanceof Error ? error.stack ?? error.message : String(error);
-		this._host.$logMessage(level, `Language detection ${what}: ${detail}`);
+		const message = `Language detection ${what}: ${detail}`;
+		if (!this._loggedFailures.has(message)) {
+			this._loggedFailures.add(message);
+			this._host.$logMessage(level, message);
+		}
 	}
 
 	private async * detectLanguagesImpl(content: string): AsyncGenerator<ModelResult, void, unknown> {
@@ -314,7 +320,14 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 
 		try {
 			modelResults = await modelOperations.runModel(content);
+			this._modelHasRun = true;
 		} catch (e) {
+			// The model loads lazily on its first run, so a failure before any success is a load failure.
+			if (!this._modelHasRun) {
+				this._loadFailed = true;
+				this.logFailure('error', 'failed to load the language detection model', e);
+				return;
+			}
 			this.logFailure('error', 'the language detection model failed to run', e);
 		}
 
