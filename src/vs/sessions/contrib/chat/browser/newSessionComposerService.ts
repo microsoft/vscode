@@ -70,6 +70,7 @@ export interface INewSessionComposerPicker {
 export interface INewSessionComposer {
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly modelPicker?: INewSessionComposerPicker;
+	showDevContainerSamples?(): boolean;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;

@@ -452,6 +452,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this._newChatModelPickerService.activePicker;
 	}
 
+	showDevContainerSamples(): boolean {
+		return this.options.showDevContainerSamples?.() ?? false;
+	}
+
 	get workspacePreselectionSource(): NewSessionWorkspacePreselectionSource | undefined {
 		return this.options.getWorkspacePreselectionSource?.();
 	}
@@ -615,6 +619,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			getContextPickerActions?: () => readonly IWorkspacePickerContextAction[];
 			getWorkspacePreselectionSource?: () => NewSessionWorkspacePreselectionSource;
 			getWorkspaceSelection?: () => IWorkspaceSelectionSnapshot;
+			showDevContainerSamples?: () => boolean;
 			onDidChangeWorkspaceSelection?: Event<void>;
 			canApplyWorkspaceDefault?: () => boolean;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;

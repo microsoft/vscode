@@ -4,7 +4,7 @@
 
 Open this file, then run **Developer: Open Current File as Release Notes**.
 
-This page demonstrates the model-picker and diff-editor examples.
+This page demonstrates the model-picker, Dev Container samples, and diff-editor examples.
 
 ## Try it: Smart diff layout
 
@@ -21,6 +21,12 @@ Use this pattern for a control whose choices have important capability, speed, p
 The action opens a new unsent composer in the Agents window, highlights the model picker, and opens its details. Review the available models and providers, but close the picker without selecting anything if you want to leave your current model unchanged. The example never sends a prompt or chooses a billing provider for you.
 
 `try(chat.model-provider-selection,Explore Models and Providers)`
+
+## Help me get ready: Dev Container samples
+
+Open the Agents window's new-session page and samples picker without replacing an existing draft. If required settings are disabled, choose **Enable and Continue** to enable just those settings, or cancel to leave them unchanged. Docker is needed when you choose a sample and send your first prompt; this example does neither for you.
+
+`try(chat.devContainerSamples,Explore Dev Container Samples)`
 
 ## Compatibility: existing release-note behavior
 

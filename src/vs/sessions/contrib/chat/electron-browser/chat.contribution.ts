@@ -40,6 +40,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHandoff.js';
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
 import { ParallelWorkOnboarding } from '../../onboardingTours/browser/parallelWorkOnboarding.js';
+import './devContainerSamplesTryout.js';
 
 export class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 

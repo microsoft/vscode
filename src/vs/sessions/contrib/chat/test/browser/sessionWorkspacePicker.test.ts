@@ -1040,6 +1040,61 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
+	test('opens only samples directly without selecting a workspace and restores the normal picker after closing', () => {
+		providersService.setProviders([{
+			...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }),
+			supportsLocalWorkspaces: true,
+		}]);
+		const shown: Array<Array<string | undefined>> = [];
+		let onHide: (() => void) | undefined;
+		const widget = upcastPartial<IActionWidgetService>({
+			isVisible: false,
+			hide: () => onHide?.(),
+			show: (_user, _preview, items, currentDelegate) => {
+				shown.push(items.map(item => item.label));
+				onHide = currentDelegate.onHide;
+			},
+		});
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, WorkspacePicker, undefined, undefined, undefined, {
+			restoreFromSessions: false,
+			configuration: {
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+			},
+		}, undefined, widget);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		const selections: URI[] = [];
+		disposables.add(picker.onDidSelectWorkspace(uri => { if (uri) { selections.push(uri); } }));
+		const opened = picker.showDevContainerSamples();
+		picker.showPicker(true, undefined, SESSION_WORKSPACE_GROUP_LOCAL, false);
+		onHide?.();
+		picker.showPicker(false, undefined, SESSION_WORKSPACE_GROUP_LOCAL, false);
+		assert.deepStrictEqual({
+			opened,
+			samples: shown.slice(0, 2),
+			selections,
+			normalPicker: shown[2].includes('Dev Container Sample'),
+		}, {
+			opened: true,
+			samples: [0, 1].map(() => devContainerSamples.map(sample => sample.name)),
+			selections: [],
+			normalPicker: true,
+		});
+	});
+
+	test('refuses to open samples without enabled prerequisites or a connected trigger', () => {
+		const picker = createTestPicker(disposables, providersService);
+		assert.strictEqual(picker.showDevContainerSamples(), false);
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		picker.render(container);
+		assert.strictEqual(picker.showDevContainerSamples(), false);
+	});
+
 	test('offers Dev Container execution from a local folder submenu and updates the trigger label', async () => {
 		const folderUri = URI.file('/agent-host/project');
 		const unavailableFolderUri = URI.file('/agent-host/without-config');

@@ -299,6 +299,7 @@ export class WorkspacePicker extends Disposable {
 	private _activeTriggerElement: HTMLElement | undefined;
 	protected _directPickerGroup: string | undefined;
 	protected _directPickerAttachesContext: boolean | undefined;
+	private _showingDevContainerSamples = false;
 
 	/**
 	 * Currently active workspace tab (a group label contributed by a
@@ -754,6 +755,7 @@ export class WorkspacePicker extends Disposable {
 		if (!triggerElement) {
 			return;
 		}
+		const showingDevContainerSamples = force && this._showingDevContainerSamples;
 		const alreadyVisible = this.actionWidgetService.isVisible || this._tabbedWidget.isVisible;
 		if (alreadyVisible) {
 			if (this._activeTriggerElement === triggerElement) {
@@ -764,6 +766,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			this._hidePicker();
 		}
+		this._showingDevContainerSamples = showingDevContainerSamples;
 		this._activeTriggerElement = triggerElement;
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		if (preferredGroup === SESSION_WORKSPACE_GROUP_GITHUB && attachesContext === false && !this._getCurrentRepositoryId()) {
@@ -815,6 +818,19 @@ export class WorkspacePicker extends Disposable {
 		if (group !== undefined) {
 			this._selectWorkspaceGroup(group);
 		}
+	}
+
+	showDevContainerSamples(): boolean {
+		const triggerElement = this._triggerElement;
+		if (!triggerElement?.isConnected || !this._getDevContainerSampleItems().length) {
+			return false;
+		}
+		this._hidePicker();
+		this._activeTriggerElement = triggerElement;
+		this._showingDevContainerSamples = true;
+		this._setDirectPickerFilter(SESSION_WORKSPACE_GROUP_LOCAL, false);
+		this._showFlatPicker(triggerElement);
+		return true;
 	}
 
 	refreshPresentation(): void {
@@ -878,6 +894,7 @@ export class WorkspacePicker extends Disposable {
 					this._activeTriggerElement = undefined;
 					this._directPickerGroup = undefined;
 					this._directPickerAttachesContext = undefined;
+					this._showingDevContainerSamples = false;
 				}
 				triggerElement.focus();
 			},
@@ -1214,6 +1231,7 @@ export class WorkspacePicker extends Disposable {
 		this._activeTriggerElement = undefined;
 		this._directPickerGroup = undefined;
 		this._directPickerAttachesContext = undefined;
+		this._showingDevContainerSamples = false;
 	}
 
 	/**
@@ -1560,6 +1578,9 @@ export class WorkspacePicker extends Disposable {
 	 * recent folders.
 	 */
 	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
+		if (this._showingDevContainerSamples) {
+			return this._getDevContainerSampleItems();
+		}
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		// Collect recent workspaces from picker storage across all providers
@@ -1781,21 +1802,14 @@ export class WorkspacePicker extends Disposable {
 			}
 		});
 
+		const sampleItems = this._getDevContainerSampleItems();
 		if (this._directPickerAttachesContext !== true
 			&& (!activeGroup || activeGroup === SESSION_WORKSPACE_GROUP_LOCAL)
-			&& areDevContainerSamplesEnabled(this.configurationService)
-			&& allProviders.some(provider => provider.id === LOCAL_AGENT_HOST_PROVIDER_ID && isAgentHostProvider(provider))) {
+			&& sampleItems.length) {
 			const sampleItem: { folderUri?: URI; providerId: string; preferDevContainer: boolean } = {
 				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
 				preferDevContainer: true,
 			};
-			const filterItems = devContainerSamples.map(sample => ({
-				kind: ActionListItemKind.Action,
-				label: sample.name,
-				description: getDevContainerSampleUrl(sample),
-				group: { title: '', icon: Codicon.remote },
-				item: { folderUri: devContainerSampleUri(sample), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true },
-			}));
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.devContainer.samples', "Dev Container Sample"),
@@ -1807,7 +1821,7 @@ export class WorkspacePicker extends Disposable {
 					tooltip: getDevContainerSampleUrl(sample),
 					run: () => { sampleItem.folderUri = devContainerSampleUri(sample); },
 				})))],
-				filterItems,
+				filterItems: sampleItems,
 				openSubmenuOnClick: true,
 			});
 		}
@@ -1986,6 +2000,20 @@ export class WorkspacePicker extends Disposable {
 		return items.length > 0
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]
 			: [noWorkspace];
+	}
+
+	private _getDevContainerSampleItems(): IActionListItem<IWorkspacePickerItem>[] {
+		if (!areDevContainerSamplesEnabled(this.configurationService)
+			|| !this.sessionsProvidersService.getProviders().some(provider => provider.id === LOCAL_AGENT_HOST_PROVIDER_ID && isAgentHostProvider(provider))) {
+			return [];
+		}
+		return devContainerSamples.map(sample => ({
+			kind: ActionListItemKind.Action,
+			label: sample.name,
+			description: getDevContainerSampleUrl(sample),
+			group: { title: '', icon: Codicon.remote },
+			item: { folderUri: devContainerSampleUri(sample), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true },
+		}));
 	}
 
 	protected _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
