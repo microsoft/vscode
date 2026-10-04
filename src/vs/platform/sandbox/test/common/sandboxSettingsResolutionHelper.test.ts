@@ -29,6 +29,18 @@ suite('SandboxSettingsResolutionHelper', () => {
 		}
 	});
 
+	test('network restrictions distinguish outbound blocking from host filtering', () => {
+		assert.deepStrictEqual([
+			SandboxSettingsResolutionHelper.getNetworkRestrictions(AgentSandboxEnabledValue.Off, true),
+			SandboxSettingsResolutionHelper.getNetworkRestrictions(AgentSandboxEnabledValue.On, true),
+			SandboxSettingsResolutionHelper.getNetworkRestrictions(AgentSandboxEnabledValue.On, false),
+		], [
+			{ sandboxEnabled: false, allowNetwork: true, applyDomainRestrictions: false },
+			{ sandboxEnabled: true, allowNetwork: true, applyDomainRestrictions: true },
+			{ sandboxEnabled: true, allowNetwork: false, applyDomainRestrictions: false },
+		]);
+	});
+
 	test('only managed true forces server sandboxing', () => {
 		for (const local of [undefined, false, true]) {
 			assert.deepStrictEqual(
