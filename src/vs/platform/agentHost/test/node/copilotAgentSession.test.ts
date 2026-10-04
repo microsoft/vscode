@@ -14579,6 +14579,18 @@ Use the attached image as context.
 			});
 		});
 
+		test('a Fusion phase chat is announced as a phase chat running the model last reported for the phase', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'subagent_started' ? [{ toolCallId: signal.toolCallId, subagentKind: signal.subagentKind, model: signal.model }] : []), [
+				{ toolCallId: 'fusion:fusion-1:phase-1', subagentKind: 'fusionPhase', model: 'actual-model' },
+			]);
+		});
+
 		test('Fusion tools stay at the root when their phase has no child chat', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');

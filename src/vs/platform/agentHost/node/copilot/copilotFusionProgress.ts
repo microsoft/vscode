@@ -149,6 +149,12 @@ export class CopilotFusionProgress {
 		return this._phase ? getFusionPhaseToolCallId(this._phase.fusionId, this._phase.phaseId) : undefined;
 	}
 
+	/** The model last reported for a phase of this workflow. */
+	getPhaseModel(toolCallId: string): string | undefined {
+		const toolCall = this._phaseTools.get(toolCallId);
+		return toolCall ? readToolCallMeta(toolCall).fusionPhase?.model : undefined;
+	}
+
 	reset(): void {
 		this._milestones.clear();
 		this._finishedFusions.clear();
