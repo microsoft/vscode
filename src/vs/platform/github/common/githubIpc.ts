@@ -10,7 +10,6 @@ import { hasKey } from '../../../base/common/types.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { toAbortSignal } from './cancellation.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubAnonymousReadOptions, GitHubRestResponse } from './githubTransport.js';
 import { GitHubAnonymousClientOptions, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError } from './githubTypes.js';
@@ -63,10 +62,8 @@ export class GitHubChannel implements IServerChannel {
 	private async getAnonymous(request: GitHubAnonymousRequest, token: CancellationToken): Promise<GitHubResponse<unknown>> {
 		const lifetime = new DisposableStore();
 		try {
-			const signal = toAbortSignal(token, lifetime);
-			signal.throwIfAborted();
 			const client = lifetime.add(this.service.acquireAnonymousClient({ apiBaseUri: request.apiBaseUri })).object;
-			return { result: await client.get(request.path, signal, request.options) };
+			return { result: await client.get(request.path, token, request.options) };
 		} catch (error) {
 			if (!(error instanceof GitHubRequestError)) {
 				throw error;

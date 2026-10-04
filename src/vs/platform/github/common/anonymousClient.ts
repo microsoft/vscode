@@ -28,9 +28,9 @@ export interface IGitHubRepositoryFile {
 export interface IGitHubAnonymousClient {
 	readonly authorization: { readonly kind: 'anonymous' };
 	readonly apiBaseUri: string;
-	get<T>(path: string, signal: AbortSignal, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
+	get<T>(path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
 	/** Reads a file at the resolved repository HEAD using the owning client's API endpoint. */
-	readFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile>;
+	readFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<IGitHubRepositoryFile>;
 }
 
 /** Reference-counted public reader with no access to credential providers or private caches. */
@@ -61,28 +61,34 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 		}, telemetry));
 	}
 
-	async get<T>(path: string, signal: AbortSignal, options: GitHubAnonymousReadOptions = {}): Promise<GitHubRestResponse<T>> {
-		signal.throwIfAborted();
-		const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
-		return this._transport.anonymousGet<T>(this._account, apiBasePath, { ...options, url: url.href }, signal);
-	}
-
-	async readFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile> {
+	async get<T>(path: string, signal: GitHubCancellation, options: GitHubAnonymousReadOptions = {}): Promise<GitHubRestResponse<T>> {
 		const lifetime = new DisposableStore();
 		try {
-			const signal = toAbortSignal(cancellation, lifetime);
-			signal.throwIfAborted();
-			const options: GitHubAnonymousReadOptions = { caller: 'github.query', priority: 'interactive', deadline: Date.now() + 5 * 60_000 };
+			const abortSignal = toAbortSignal(signal, lifetime);
+			abortSignal.throwIfAborted();
+			const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
+			return await this._transport.anonymousGet<T>(this._account, apiBasePath, { ...options, url: url.href }, abortSignal);
+		} finally {
+			lifetime.dispose();
+		}
+	}
+
+	async readFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options: GitHubAnonymousReadOptions = {}): Promise<IGitHubRepositoryFile> {
+		const lifetime = new DisposableStore();
+		try {
+			const abortSignal = toAbortSignal(signal, lifetime);
+			abortSignal.throwIfAborted();
+			const requestOptions: GitHubAnonymousReadOptions = { ...options, deadline: options.deadline ?? Date.now() + 5 * 60_000 };
 			const repositoryPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
-			const commitResponse = await this.get<unknown>(`${repositoryPath}/commits/HEAD`, signal, options);
-			signal.throwIfAborted();
+			const commitResponse = await this.get<unknown>(`${repositoryPath}/commits/HEAD`, abortSignal, requestOptions);
+			abortSignal.throwIfAborted();
 			const invalidCommit = localize('githubRepository.invalidCommit', "GitHub returned an invalid repository revision.");
 			const commitSha = requiredString(asObject(commitResponse.data, invalidCommit), 'sha');
 			if (!/^[a-f0-9]{40}$/.test(commitSha)) {
 				throw new GitHubRequestError(invalidCommit, 'malformedResponse');
 			}
-			const fileResponse = await this.get<unknown>(`${repositoryPath}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${commitSha}`, signal, options);
-			signal.throwIfAborted();
+			const fileResponse = await this.get<unknown>(`${repositoryPath}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${commitSha}`, abortSignal, requestOptions);
+			abortSignal.throwIfAborted();
 			const file = asObject(fileResponse.data, localize('githubRepository.invalidFile', "GitHub returned an invalid repository file."));
 			if (requiredString(file, 'type') !== 'file' || requiredString(file, 'encoding') !== 'base64') {
 				throw new GitHubRequestError(localize('githubRepository.unsupportedFile', "GitHub did not return a base64-encoded repository file."), 'malformedResponse');

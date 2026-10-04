@@ -34,7 +34,11 @@ class RecordingGitHubService extends GitHubService {
 	releasedClients = 0;
 
 	get reads(): { readonly path: string; readonly signal: AbortSignal; readonly options: GitHubAnonymousReadOptions | undefined }[] {
-		return [...this._getSpies.values()].flatMap(spy => spy.getCalls().map(call => ({ path: call.args[0], signal: call.args[1], options: call.args[2] })));
+		return [...this._getSpies.values()].flatMap(spy => spy.getCalls().map(call => {
+			const [path, signal, options] = call.args;
+			assert.ok(!CancellationToken.isCancellationToken(signal));
+			return { path, signal, options };
+		}));
 	}
 
 	override acquireAnonymousClient(options?: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient> {
@@ -96,6 +100,68 @@ suite('GitHub anonymous clients', () => {
 			seen: [{ url: `${apiBaseUri}/search/issues?q=test`, authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer', method: 'GET', body: undefined }],
 		});
 		assertRequestError(() => service.acquireClient(authorizedOptions), 'authentication');
+	});
+
+	test('get rejects an already cancelled token without fetching', async () => {
+		const service = create({ fetch: async () => assert.fail('No fetch expected') });
+		const client = store.add(service.acquireAnonymousClient()).object;
+		await assert.rejects(client.get('/repos/owner/repo', CancellationToken.Cancelled), CancellationError);
+	});
+
+	test('get propagates token cancellation and releases the request listener', async () => {
+		const cancelled = store.add(new Emitter<void>());
+		const started = new DeferredPromise<AbortSignal>();
+		const service = create({
+			fetch: async (_input, init) => {
+				assert.ok(init?.signal);
+				const signal = init.signal;
+				return new Promise<Response>((_resolve, reject) => {
+					signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+					started.complete(signal);
+				});
+			},
+		});
+		const client = store.add(service.acquireAnonymousClient()).object;
+		const pending = assert.rejects(client.get('/repos/owner/repo', {
+			isCancellationRequested: false, onCancellationRequested: cancelled.event,
+		}), CancellationError);
+		const active = await started.p;
+		cancelled.fire();
+		await pending;
+		assert.deepStrictEqual({ aborted: active.aborted, listening: cancelled.hasListeners() }, { aborted: true, listening: false });
+	});
+
+	for (const fails of [false, true]) {
+		test(`get retains its token listener until settlement and then removes it (fails: ${fails})`, async () => {
+			const cancelled = store.add(new Emitter<void>());
+			let listeningDuringRequest = false;
+			const service = create({
+				fetch: async () => {
+					listeningDuringRequest = cancelled.hasListeners();
+					return new Response('{}', { status: fails ? 404 : 200 });
+				},
+			});
+			const client = store.add(service.acquireAnonymousClient()).object;
+			const pending = client.get('/repos/owner/repo', { isCancellationRequested: false, onCancellationRequested: cancelled.event });
+			if (fails) {
+				await assert.rejects(pending, { kind: 'notFound' });
+			} else {
+				await pending;
+			}
+			assert.deepStrictEqual({ listeningDuringRequest, listeningAfterRequest: cancelled.hasListeners() }, {
+				listeningDuringRequest: true, listeningAfterRequest: false,
+			});
+		});
+	}
+
+	test('get removes its token listener when path validation fails', async () => {
+		const cancelled = store.add(new Emitter<void>());
+		const service = create({ fetch: async () => assert.fail('No fetch expected') });
+		const client = store.add(service.acquireAnonymousClient()).object;
+		await assert.rejects(client.get('//other.example.test', {
+			isCancellationRequested: false, onCancellationRequested: cancelled.event,
+		}), { kind: 'validation' });
+		assert.strictEqual(cancelled.hasListeners(), false);
 	});
 
 	test('anonymous clients share an origin without being invalidated by sign-out', async () => {
@@ -460,10 +526,10 @@ suite('GitHub public repository files', () => {
 		}, new NullLogService(), NullTelemetryService));
 	}
 
-	async function read(service: IGitHubService, cancellation: GitHubCancellation = new AbortController().signal) {
+	async function read(service: IGitHubService, signal: GitHubCancellation = new AbortController().signal, options?: GitHubAnonymousReadOptions) {
 		const client = store.add(service.acquireAnonymousClient());
 		try {
-			return await client.object.readFile('microsoft', 'sample', path, cancellation);
+			return await client.object.readFile('microsoft', 'sample', path, signal, options);
 		} finally {
 			client.dispose();
 		}
@@ -533,13 +599,35 @@ suite('GitHub public repository files', () => {
 				result: { commitSha, content },
 				apiBases: [apiBaseUri],
 				releasedClients: 1,
-				reads: paths.map(path => ({ path, options: { caller: 'github.query', priority: 'interactive', deadline: startedAt + 5 * 60_000 }, sameSignal: true, aborted: false })),
+				reads: paths.map(path => ({ path, options: { deadline: startedAt + 5 * 60_000 }, sameSignal: true, aborted: false })),
 				requests: paths.map(path => ({ url: `${apiBaseUri}${path}`, method: 'GET', credentials: 'omit', authorization: null })),
 			});
 		} finally {
 			service.dispose();
 		}
 	}));
+
+	test('readFile forwards caller-selected options and a shared deadline without mutating them', async () => {
+		const options = Object.freeze({
+			caller: 'test.repositoryReader',
+			priority: 'background' as const,
+			deadline: Date.now() + 10_000,
+			etag: false,
+		});
+		const service = create(async input => new Response(JSON.stringify(String(input).endsWith('/commits/HEAD') ? { sha: commitSha } : file(content))));
+		const result = await read(service, CancellationToken.None, options);
+		assert.deepStrictEqual({
+			result, requests: service.reads.map(read => ({ path: read.path, options: read.options })),
+		}, {
+			result: { commitSha, content }, requests: paths.map(path => ({ path, options })),
+		});
+	});
+
+	test('readFile honors a caller deadline without fetching', async () => {
+		const service = create(async () => assert.fail('No fetch expected'));
+		await assert.rejects(read(service, CancellationToken.None, { deadline: Date.now() - 1 }), { kind: 'timeout' });
+		assert.strictEqual(service.releasedClients, 1);
+	});
 
 	for (const [name, response] of [
 		['missing', undefined], ['null', null], ['array', []], ['missing SHA', {}],

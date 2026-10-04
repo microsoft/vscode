@@ -425,7 +425,10 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				const lifetime = new DisposableStore();
 				try {
 					const client = lifetime.add(this._gitHubService.acquireAnonymousClient()).object;
-					return await client.readFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token);
+					return await client.readFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token, {
+						caller: 'devContainerSample',
+						priority: 'interactive',
+					});
 				} finally {
 					lifetime.dispose();
 				}
