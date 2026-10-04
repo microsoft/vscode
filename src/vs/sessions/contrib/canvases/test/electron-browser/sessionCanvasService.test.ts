@@ -18,6 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../../workbench/common/contextkeys.js';
+import { IEditorIdentifier, ITextDiffEditorPane } from '../../../../../workbench/common/editor.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -58,18 +59,20 @@ suite('SessionCanvasService', () => {
 		const opened: SessionCanvasInput[] = [];
 		const openOptions: unknown[] = [];
 		const openSettled: Promise<void>[] = [];
-		let openEditorHandler = () => Promise.resolve<undefined>(undefined);
+		let openEditorHandler = (input: SessionCanvasInput) => Promise.resolve<ITextDiffEditorPane | undefined>(upcastPartial<ITextDiffEditorPane>({ input }));
+		let findEditorsHandler = (_resource: URI): readonly IEditorIdentifier[] => [];
 		let closeCount = 0;
 		const editorService = new class extends mock<IEditorService>() {
-			override openEditor(...args: unknown[]): Promise<undefined> {
-				opened.push(args[0] as SessionCanvasInput);
+			override openEditor(...args: unknown[]): Promise<ITextDiffEditorPane | undefined> {
+				const input = args[0] as SessionCanvasInput;
+				opened.push(input);
 				openOptions.push(args[1]);
-				const result = openEditorHandler();
+				const result = openEditorHandler(input);
 				openSettled.push(result.then(() => undefined, () => undefined));
 				return result;
 			}
-			override findEditors(): never[] {
-				return [];
+			override findEditors(...args: unknown[]): readonly IEditorIdentifier[] {
+				return findEditorsHandler(args[0] as URI);
 			}
 			override async closeEditors(): Promise<void> {
 				closeCount++;
@@ -94,8 +97,9 @@ suite('SessionCanvasService', () => {
 				affectsConfiguration: key => key === CanvasesEnabledSettingId,
 			}));
 		};
-		const setOpenEditorHandler = (handler: () => Promise<undefined>) => openEditorHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setOpenEditorHandler };
+		const setOpenEditorHandler = (handler: (input: SessionCanvasInput) => Promise<ITextDiffEditorPane | undefined>) => openEditorHandler = handler;
+		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
+		return { activeChat, activeSession, canvas, canvasService, canvases, chat, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setFindEditorsHandler, setOpenEditorHandler };
 	}
 
 	test('automatically reveals a newly opened canvas', () => {
@@ -149,6 +153,47 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
+	test('restores dismissal when opening resolves undefined without an open editor', async () => {
+		const { canvasService, opened, setOpenEditorHandler } = createHarness();
+		opened[0].dispose();
+		const reopenable = canvasService.reopenableCanvases.get()[0];
+		setOpenEditorHandler(() => Promise.resolve(undefined));
+
+		await assert.rejects(canvasService.reopenCanvas(reopenable.reference), /Canvas editor failed to open/);
+
+		assert.deepStrictEqual({
+			openCount: opened.length,
+			reopenable: canvasService.reopenableCanvases.get().map(target => target.canvas.resource.toString()),
+		}, {
+			openCount: 2,
+			reopenable: ['agent-host-canvas:/preview'],
+		});
+	});
+
+	test('accepts an undefined result when the canvas editor is already open', async () => {
+		const { canvasService, opened, setFindEditorsHandler, setOpenEditorHandler } = createHarness();
+		opened[0].dispose();
+		const reopenable = canvasService.reopenableCanvases.get()[0];
+		let openedInput: SessionCanvasInput | undefined;
+		setOpenEditorHandler(input => {
+			openedInput = input;
+			return Promise.resolve(undefined);
+		});
+		setFindEditorsHandler(() => openedInput
+			? [upcastPartial<IEditorIdentifier>({ editor: openedInput, groupId: 1 })]
+			: []);
+
+		await canvasService.reopenCanvas(reopenable.reference);
+
+		assert.deepStrictEqual({
+			openCount: opened.length,
+			reopenable: canvasService.reopenableCanvases.get().length,
+		}, {
+			openCount: 2,
+			reopenable: 0,
+		});
+	});
+
 	test('restores dismissal when reopening fails after switching chats', async () => {
 		const { activeChat, canvasService, chat, opened, setOpenEditorHandler } = createHarness();
 		opened[0].dispose();
@@ -174,7 +219,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('does not restore dismissal when the canvas disappears during a failed reopen', async () => {
+	test('does not let an older failed open clear a newer presentation', async () => {
 		const { canvas, canvasService, canvases, opened, setOpenEditorHandler } = createHarness();
 		opened[0].dispose();
 		const reopenable = canvasService.reopenableCanvases.get()[0];
@@ -183,10 +228,11 @@ suite('SessionCanvasService', () => {
 
 		const reopenRejected = assert.rejects(canvasService.reopenCanvas(reopenable.reference), /open failed/);
 		canvases.set([], undefined);
+		setOpenEditorHandler(input => Promise.resolve(upcastPartial<ITextDiffEditorPane>({ input })));
+		canvases.set([canvas], undefined);
 		await failedOpen.error(new Error('open failed'));
 		await reopenRejected;
-		setOpenEditorHandler(() => Promise.resolve(undefined));
-		canvases.set([canvas], undefined);
+		canvases.set([{ ...canvas, status: 'updated' }], undefined);
 
 		assert.deepStrictEqual({
 			openCount: opened.length,

@@ -27,7 +27,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	private readonly _inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _dismissed = new Map<string, ISessionCanvasReference>();
 	private readonly _presented = new Set<string>();
-	private readonly _programmaticCloses = new Set<string>();
+	private readonly _programmaticCloses = new Set<SessionCanvasInput>();
 	private readonly _dismissedChanged = observableSignal(this);
 
 	constructor(
@@ -146,11 +146,17 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	private async _openInput(key: string, input: SessionCanvasInput): Promise<void> {
 		this._presented.add(key);
 		try {
-			await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
+			const pane = await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
+			const opened = pane || this.editorService.findEditors(input.resource).some(identifier => identifier.editor.matches(input));
+			if (!opened) {
+				throw new Error('Canvas editor failed to open');
+			}
 		} catch (error) {
-			this._presented.delete(key);
-			if (this.enabled.get() && this._inputs.get(key) === input && !input.isDisposed()) {
-				this._rememberDismissed(key, input.reference);
+			if (this._inputs.get(key) === input) {
+				this._presented.delete(key);
+				if (this.enabled.get() && !input.isDisposed()) {
+					this._rememberDismissed(key, input.reference);
+				}
 			}
 			throw error;
 		}
@@ -167,16 +173,19 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		const lifetime = new DisposableStore();
 		this._inputLifetimes.set(key, lifetime);
 		lifetime.add(Event.once(input.onWillDispose)(() => {
-			if (!this._programmaticCloses.delete(key)) {
+			const isCurrentInput = this._inputs.get(key) === input;
+			if (isCurrentInput && !this._programmaticCloses.delete(input)) {
 				this._rememberDismissed(key, reference);
 			}
-			if (this._inputs.get(key) === input) {
+			if (isCurrentInput) {
 				this._inputs.deleteAndLeak(key);
 			}
 			if (this._inputLifetimes.get(key) === lifetime) {
 				this._inputLifetimes.deleteAndLeak(key);
 			}
-			this._presented.delete(key);
+			if (isCurrentInput) {
+				this._presented.delete(key);
+			}
 			lifetime.dispose();
 		}));
 		return input;
@@ -196,10 +205,10 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	}
 
 	private async _closeInput(key: string, input: SessionCanvasInput): Promise<void> {
-		if (this._programmaticCloses.has(key)) {
+		if (this._programmaticCloses.has(input)) {
 			return;
 		}
-		this._programmaticCloses.add(key);
+		this._programmaticCloses.add(input);
 		const lifetime = this._inputLifetimes.get(key);
 		if (this._inputs.get(key) === input) {
 			this._inputs.deleteAndLeak(key);
@@ -209,12 +218,15 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}
 		this._deleteDismissed(key);
 		this._presented.delete(key);
-		await this.editorService.closeEditors(this.editorService.findEditors(input.resource), { preserveFocus: true });
-		if (!input.isDisposed()) {
-			input.dispose();
+		try {
+			await this.editorService.closeEditors(this.editorService.findEditors(input.resource), { preserveFocus: true });
+		} finally {
+			if (!input.isDisposed()) {
+				input.dispose();
+			}
+			lifetime?.dispose();
+			this._programmaticCloses.delete(input);
 		}
-		lifetime?.dispose();
-		this._programmaticCloses.delete(key);
 	}
 
 	private _rememberDismissed(key: string, reference: ISessionCanvasReference): void {
