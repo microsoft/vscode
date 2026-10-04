@@ -33,7 +33,7 @@ import { IDialogService, IFileDialogService } from '../../../../../platform/dial
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
-import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
@@ -532,6 +532,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1673,7 +1674,11 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			const recoveryBundleFolder = URI.joinPath(this.environmentService.workspaceStorageHome, 'customizationMigrations', migrationFlowId);
 			await this.fileService.createFolder(recoveryBundleFolder);
+
 			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, recoveryBundleFolder, customizations, new Map(targetFolderEntries));
+			if (!await this.closeForAgentMigration()) {
+				return;
+			}
 			const migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, { prompt });
 			if (migrationSessionResource) {
 				this.customizationMigrationTelemetryService.watchAgentMigrationResult(
@@ -1697,6 +1702,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 			onUnexpectedError(error);
 			this.notificationService.error(localize('startAgentMigrationFailed', "Could not start the agent-guided customization migration."));
 		}
+	}
+
+	private async closeForAgentMigration(): Promise<boolean> {
+		const modalEditorPart = this.editorGroupsService.activeModalEditorPart;
+		if (modalEditorPart?.groups.some(group => group.id === this.group.id)) {
+			return modalEditorPart.close();
+		}
+		return this.input ? this.group.closeEditor(this.input) : true;
 	}
 
 	private getMigrationCategorySummaries(): readonly ICustomizationMigrationCategorySummary[] {

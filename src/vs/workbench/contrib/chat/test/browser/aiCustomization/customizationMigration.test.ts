@@ -131,10 +131,11 @@ suite('customizationMigration', () => {
 	});
 
 	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
+		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
 		const prompt = createCustomizationMigrationAgentPrompt(
 			{ id: 'agent-host-copilotcli', label: 'Copilot' },
 			'migration-flow-id',
-			URI.file('/recovery/vscode-customization-migration'),
+			recoveryBundleFolder,
 			[
 				{
 					category: CustomizationMigrationType.PromptFiles,
@@ -171,7 +172,7 @@ suite('customizationMigration', () => {
 			'Selected harness: Copilot (agent-host-copilotcli)',
 			'Migration telemetry flow: migration-flow-id',
 			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
-			'Recovery bundle filesystem path: /recovery/vscode-customization-migration',
+			`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
 			'',
 			'Customizations that need migration:',
 			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
