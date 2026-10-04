@@ -433,11 +433,11 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 
 	override async markRead(session: ISession): Promise<void> {
-		this.find(session.resource)?.isRead.set(true, undefined);
+		this.find(session.resource)?.mainChat.isRead.set(true, undefined);
 	}
 
 	override async markUnread(session: ISession): Promise<void> {
-		this.find(session.resource)?.isRead.set(false, undefined);
+		this.find(session.resource)?.mainChat.isRead.set(false, undefined);
 	}
 
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {

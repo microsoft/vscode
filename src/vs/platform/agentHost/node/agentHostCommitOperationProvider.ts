@@ -8,8 +8,7 @@ import { localize } from '../../../nls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import type { IChangesetOperationContribution, IChangesetOperationContext, IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { ChangesetKind } from '../common/changesetUri.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, hasSessionPullRequestForBranch, type ChangesetOperation } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, type ChangesetOperation } from '../common/state/sessionState.js';
 import { AgentHostCommitOperationHandler } from './agentHostCommitOperationHandler.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 
@@ -34,14 +33,15 @@ export class AgentHostCommitOperationContribution extends Disposable implements 
 		return store;
 	}
 
-	getOperations({ sessionKey, changesetKind, gitHubState, gitState }: IChangesetOperationContext): ChangesetOperation[] {
-		const isNewSession = this._stateManager.isUnusedDraft(sessionKey) === true;
-		if (!isNewSession && (gitState?.uncommittedChanges ?? 0) <= 0) {
+	getOperations({ sessionKey, changesetKind, gitState }: IChangesetOperationContext): ChangesetOperation[] {
+		// Commit always commits every uncommitted change in the working directory,
+		// so it is only advertised on the changeset that shows exactly those changes.
+		if (changesetKind !== ChangesetKind.Uncommitted) {
 			return [];
 		}
 
-		const isFolderSession = this._stateManager.getSessionState(sessionKey)?.config?.values[SessionConfigKey.Isolation] === 'folder';
-		if (!isFolderSession && !hasSessionPullRequestForBranch(gitHubState, gitState?.branchName) && changesetKind !== ChangesetKind.Uncommitted) {
+		const isNewSession = this._stateManager.isUnusedDraft(sessionKey) === true;
+		if (!isNewSession && (gitState?.uncommittedChanges ?? 0) <= 0) {
 			return [];
 		}
 

@@ -161,28 +161,17 @@ const harnessSwitchQuestions: IChatQuestion[] = [{
 	],
 	allowFreeformInput: false,
 	required: true,
-}, {
-	id: 'feedback',
-	type: 'text',
-	title: 'Any feedback?',
-	description: 'Share any additional feedback (optional).',
-	required: false,
-	validation: { maxLength: 1000 },
 }];
 
-function createHarnessSwitchCarousel(currentIndex: number): ChatQuestionCarouselData {
-	const carousel = new ChatQuestionCarouselData(harnessSwitchQuestions, true, 'fixture.harnessSwitchSurvey');
-	carousel.draftCurrentIndex = currentIndex;
-	if (currentIndex > 0) {
-		carousel.draftAnswers = { reason: { selectedValue: 'preferLocal' } };
-	}
-	return carousel;
+function createHarnessSwitchCarousel(): ChatQuestionCarouselData {
+	return new ChatQuestionCarouselData(harnessSwitchQuestions, true, 'fixture.harnessSwitchSurvey');
 }
 
 const harnessSwitchCarouselOptions: Partial<IChatQuestionCarouselOptions> = {
 	dismissLabel: 'Dismiss Survey',
 	submissionAcknowledgement: {
 		message: 'Thanks, your feedback has been recorded.',
+		description: new MarkdownString('Have specific feedback? [Share it on GitHub](https://github.com/microsoft/vscode/issues).'),
 		dismissLabel: 'Dismiss Feedback Acknowledgement',
 		onDidDismiss: () => { },
 	},
@@ -219,18 +208,18 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 	HarnessSwitchSurveyReason: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderCarousel(context, createHarnessSwitchCarousel(0), true, harnessSwitchCarouselOptions),
-	}),
-
-	HarnessSwitchSurveyFeedback: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: context => renderCarousel(context, createHarnessSwitchCarousel(1), true, harnessSwitchCarouselOptions),
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(), true, harnessSwitchCarouselOptions),
 	}),
 
 	HarnessSwitchSurveySubmitted: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: context => renderCarousel(context, createHarnessSwitchCarousel(1), true, harnessSwitchCarouselOptions, part => {
-			part.domNode.querySelector<HTMLElement>('.chat-question-submit-button')?.click();
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(), true, harnessSwitchCarouselOptions, part => {
+			const option = part.domNode.querySelector<HTMLElement>('.chat-question-list-item');
+			if (!option) {
+				throw new Error('Expected the harness switch survey reason option.');
+			}
+			option.click();
 		}),
 	}),
 

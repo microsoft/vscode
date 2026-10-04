@@ -58,6 +58,29 @@ suite('GitHub bootstrap clients', () => {
 		});
 	});
 
+	for (const accountId of [undefined, '101']) {
+		test(`a generic 403 does not throttle ${accountId ? 'known' : 'unknown'} bootstrap credentials`, () => runWithFakedTimers({}, async () => {
+			const requests: string[] = [];
+			const blockedUntil: number[] = [];
+			const service = create(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				return path === '/denied'
+					? Response.json({ message: 'Rate Limit Exceeded' }, { status: 403, headers: { 'x-ratelimit-remaining': '4999' } })
+					: Response.json({ ok: true });
+			});
+			const first = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'first', accountId }));
+			await assert.rejects(first.object.get('/denied', signal()), { kind: 'authorization', statusCode: 403 });
+			await first.object.get('/after', signal(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
+			first.dispose();
+			const second = store.add(service.acquireBootstrapClient({ apiBaseUri, token: 'second', accountId })).object;
+			await second.get('/replacement', signal(), { deadline: Date.now() + 100, onBlockedUntil: time => blockedUntil.push(time) });
+			assert.deepStrictEqual({ requests, hasCooldown: blockedUntil.some(time => time > Date.now()) }, {
+				requests: ['/denied', '/after', '/replacement'], hasCooldown: false,
+			});
+		}));
+	}
+
 	test('unknown credentials retain a shared origin cooldown across disposal and token changes', () => runWithFakedTimers({}, async () => {
 		let calls = 0;
 		const service = create(async () => { calls++; return new Response(null, { status: 429, headers: { 'Retry-After': '60' } }); });

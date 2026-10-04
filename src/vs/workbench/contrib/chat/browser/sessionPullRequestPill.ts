@@ -6,7 +6,7 @@
 import { derived, IObservable, isObservable } from '../../../../base/common/observable.js';
 import type { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
-import { getChatPillEntries, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
+import { getChatPillEntries, getChatPillEntryHoverActions, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { computePullRequestIcon, getHighestPriorityPullRequestIcon, type ChatPullRequestState } from '../../../common/chatPullRequest.js';
 import { type ISessionChatPillVisibilityService, SessionChatPillKind } from '../common/sessionChatPills.js';
 import type { IStandardChatInputPillSections } from './chatInputPills.js';
@@ -58,7 +58,7 @@ export function createSessionPullRequestPillData(
 		}),
 		getContextMenuPrimaryActions: () => {
 			const entries = filteredSections.get().flatMap(section => section.entries);
-			return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
+			return entries.length === 1 ? getChatPillEntryHoverActions(entries[0]) : [];
 		},
 	} satisfies IStandardChatInputPillSections;
 }

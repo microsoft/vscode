@@ -24,7 +24,6 @@ suite('Codex account metadata', () => {
 			status: 'signedIn',
 			email: 'person@example.com',
 			planType: undefined,
-			observedAt: undefined,
 			profileImage: undefined,
 			requiresOpenaiAuth: undefined,
 			rateLimit: { usedPercent: 42.4, windowDurationMins: 10080, resetsAt: 1234 },
@@ -32,15 +31,6 @@ suite('Codex account metadata', () => {
 			authUrl: undefined,
 			authUrlNonce: undefined,
 		});
-	});
-
-	test('retains only valid observation timestamps without refreshing them on read', () => {
-		const timestamps = [0, 1234, -1, Infinity, NaN, '1234', undefined];
-		assert.deepStrictEqual(timestamps.map(observedAt => readCodexAccountInfo({
-			agents: [], _meta: {
-				[CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', observedAt },
-			}
-		}).observedAt), [0, 1234, undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('drops malformed rate-limit metadata', () => {

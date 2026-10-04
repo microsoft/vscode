@@ -1576,12 +1576,56 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		for (const key of ['promptRequest', 'permissionRequest'] as const) {
+			test(`Copilot D write ${key} identifies the file through the wire without changing approval options`, async () => {
+				const { startRequest, fire, peer, echo, chatUri } = await openWireSession();
+				const { turnId, progress, finish } = await startRequest();
+				const options = [
+					{ id: 'approve-once', label: 'Approve once', kind: ConfirmationOptionKind.Approve },
+					{ id: 'approve-for-session', label: 'Approve for this session', kind: ConfirmationOptionKind.Approve },
+				];
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'write-permission', toolName: 'edit', displayName: 'Edit' });
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'write-permission',
+					invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: '/workspaces/simple-server/index.js', options,
+					_meta: { [key]: { kind: 'write', intention: 'Edit file', fileName: '/workspaces/simple-server/index.js' } },
+				});
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const messages = IChatToolInvocation.getConfirmationMessages(invocation);
+				const observed = {
+					message: textOf(invocation.invocationMessage),
+					title: textOf(messages?.title),
+					body: textOf(messages?.message),
+					options: messages?.customOptions,
+					state: invocation.state.get().type,
+				};
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: 'approve-for-session' });
+				const sent = await confirmation;
+				echo(sent);
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'write-permission', result: { success: true, pastTenseMessage: 'Edited file', content: [] } });
+				await finish();
+				const message = `Edit [](${toAgentHostUri(URI.file('/workspaces/simple-server/index.js'), agentHostAuthority('sandbox.example:443'))})`;
+				assert.deepStrictEqual({ ...observed, channel: sent.channel, action: sent.action }, {
+					message, title: 'Edit index.js', body: message, options,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					channel: chatUri,
+					action: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'write-permission', approved: true,
+						selectedOptionId: 'approve-for-session', confirmed: ToolCallConfirmationReason.UserAction,
+						_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				});
+			});
+		}
+
 		const appToolCases = [
 			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
 			{ name: 'glob', args: { pattern: '*.ts' }, kind: 'search', running: 'Searching `*.ts`', completed: 'Searched `*.ts`' },
 			{ name: 'read_file', args: { file_path: '/remote/file.ts' }, kind: undefined, running: 'Reading `/remote/file.ts`', completed: 'Read `/remote/file.ts`' },
 			{ name: 'write_file', args: { path: '/remote/file.ts' }, kind: undefined, running: 'Creating file `/remote/file.ts`', completed: 'Created file `/remote/file.ts`' },
-			{ name: 'bash', args: { command: 'echo output', description: 'Check output' }, kind: 'terminal', running: 'Running command `Check output`', completed: 'Ran command `Check output`' },
+			{ name: 'bash', args: { command: 'echo output', description: 'Check output' }, kind: 'terminal', running: 'Running command `Check output`', completed: undefined },
 			{ name: 'write_bash', args: {}, kind: undefined, running: 'Sending input to shell', completed: 'Sent input to shell' },
 			{ name: 'web_search', args: { query: 'auth' }, kind: undefined, running: 'Searching the web `auth`', completed: 'Searched the web `auth`' },
 			{ name: 'apply_patch', args: {}, kind: undefined, running: 'Applying patch', completed: 'Applied patch' },

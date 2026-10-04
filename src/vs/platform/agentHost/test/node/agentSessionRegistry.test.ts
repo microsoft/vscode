@@ -287,6 +287,7 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
 	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
 	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
+	async recoverSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
 	async markSessionChatCatalogLegacyMirrored(_session: string, _expectedRevision: number): Promise<boolean> { return false; }
 	async recordSessionChatCatalogLegacyMirrorPayload(_session: string, _expectedRevision: number, _payload: string): Promise<boolean> { return false; }
 

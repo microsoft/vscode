@@ -11,12 +11,13 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import type { IConfigurationValue } from '../../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../../networkFilter/common/settings.js';
 import type { IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { resolveManagedSettingsPermissions } from '../../../common/agentHostManagedSettings.js';
-import { TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../../common/agentHostSchema.js';
+import { TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from '../../../common/agentHostSchema.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
@@ -32,8 +33,10 @@ function resultType(result: RuntimeToolResult): string {
 suite('Agent Host Provider Integration - Copilot managed permissions', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const restriction of ['none', 'denied domain', 'terminal ask'] as const) {
-		test(`${restriction} preserves unrelated approvals on create, cold resume, and removal`, async function () {
+	for (const restriction of ['none', 'denied domain', 'terminal ask', 'terminal approval policy'] as const) {
+		const terminalApprovalPolicy = restriction === 'terminal approval policy';
+		const approvalScope = terminalApprovalPolicy ? 'requires all shell approvals' : 'preserves unrelated approvals';
+		test(`${restriction} ${approvalScope} on create, cold resume, and removal`, async function () {
 			this.timeout(120_000);
 			const directory = await mkdtemp(`${tmpdir()}/copilot-managed-permissions-`);
 			const registry = new ByokLmBridgeRegistry();
@@ -62,13 +65,26 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 				})),
 			});
 			const matchingCommand = isWindows ? 'Write-Output' : 'echo';
-			const configuration = new TestConfigurationService(restriction === 'denied domain' ? {
+			const configuration = new class extends TestConfigurationService {
+				override inspect<T>(key: string): IConfigurationValue<T> {
+					const inspected = super.inspect<T>(key);
+					return terminalApprovalPolicy && key === TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID
+						? { ...inspected, policyValue: inspected.value, userValue: undefined, userLocalValue: undefined }
+						: inspected;
+				}
+			}(restriction === 'denied domain' ? {
 				[AgentNetworkDomainSettingId.NetworkFilter]: true,
 				[AgentNetworkDomainSettingId.DeniedNetworkDomains]: ['blocked.example'],
-			} : restriction === 'terminal ask' ? {
-				[TERMINAL_AUTO_APPROVE_SETTING_ID]: { [matchingCommand]: false },
+			} : terminalApprovalPolicy ? {
+				[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 			} : {});
 			store.add(configuration.onDidChangeConfigurationEmitter);
+			const permissions = restriction === 'terminal ask'
+				? { ask: [`Shell(${matchingCommand})`] }
+				: resolveManagedSettingsPermissions(configuration);
+			if (terminalApprovalPolicy) {
+				assert.deepStrictEqual(permissions, { ask: ['Shell'] });
+			}
 			const requests: { kind: PermissionRequest['kind']; managedApprovalRequired: boolean }[] = [];
 			const sessionId = `managed-permissions-${restriction.replaceAll(' ', '-')}`;
 			const config: SessionConfig = {
@@ -82,7 +98,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					baseUrl: handle.providerBaseUrl('test'),
 					bearerToken: `${handle.nonce}.${sessionId}`,
 				},
-				managedSettings: { permissions: resolveManagedSettingsPermissions(configuration) },
+				managedSettings: { permissions },
 				onPermissionRequest: request => {
 					requests.push({ kind: request.kind, managedApprovalRequired: request.managedApprovalRequired === true });
 					// Observe URL permissions without making external network requests.
@@ -97,6 +113,8 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 				await session.sendAndWait({ prompt: 'Reply ready.' }, 30_000);
 				const shell = isWindows ? 'powershell' : 'bash';
 				for (const phase of ['fresh', 'resumed', 'removed'] as const) {
+					const terminalPolicyActive = terminalApprovalPolicy && phase !== 'removed';
+					const managedShellApprovalRequired = (restriction === 'terminal ask' || terminalApprovalPolicy) && phase !== 'removed';
 					if (phase !== 'fresh') {
 						await session.disconnect();
 						await client.stop();
@@ -121,7 +139,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					}, {
 						results: ['success', 'success', 'success', 'rejected'],
 						written: phase,
-						requests: ['shell', 'read', 'write', 'url'].map(kind => ({ kind, managedApprovalRequired: false })),
+						requests: ['shell', 'read', 'write', 'url'].map(kind => ({ kind, managedApprovalRequired: kind === 'shell' && terminalPolicyActive })),
 					}, phase);
 
 					requests.length = 0;
@@ -133,10 +151,10 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
 					} : {
 						result: 'success',
-						requests: [{ kind: 'shell', managedApprovalRequired: restriction === 'terminal ask' && phase !== 'removed' }],
+						requests: [{ kind: 'shell', managedApprovalRequired: managedShellApprovalRequired }],
 					}, phase);
 
-					if (restriction === 'terminal ask' && phase !== 'removed') {
+					if (managedShellApprovalRequired) {
 						for (const mode of ['allow-all', 'assisted'] as const) {
 							assert.strictEqual((await session.rpc.permissions.setMode({ mode })).success, true);
 							requests.length = 0;
@@ -152,8 +170,10 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						await session.rpc.tools.execute({ name: 'view', arguments: { path: join(directory, 'input.txt') } }),
 						await session.rpc.tools.execute({ name: 'create', arguments: { path: join(directory, `${phase}-allow-all.txt`), file_text: phase } }),
 					];
-					assert.deepStrictEqual({ results: unrestricted.map(resultType), requests },
-						{ results: ['success', 'success', 'success'], requests: [] }, `${phase}: unrelated allow-all requests`);
+					assert.deepStrictEqual({ results: unrestricted.map(resultType), requests }, {
+						results: ['success', 'success', 'success'],
+						requests: terminalPolicyActive ? [{ kind: 'shell', managedApprovalRequired: true }] : [],
+					}, `${phase}: unrelated allow-all requests`);
 				}
 			} finally {
 				try {

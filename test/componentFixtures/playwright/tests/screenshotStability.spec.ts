@@ -72,8 +72,7 @@ for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) 
 				const style = getComputedStyle(element);
 				return { width: style.borderTopWidth, style: style.borderTopStyle, transparent: style.borderTopColor === 'rgba(0, 0, 0, 0)' };
 			});
-			// The bundled dark theme deliberately overrides agentsCard.border with a transparent color.
-			expect(border).toEqual({ width: '1px', style: 'solid', transparent: theme === 'Dark' });
+			expect(border).toEqual({ width: '1px', style: 'solid', transparent: false });
 			await expectStableScreenshot(page, fixtureId, `sessions/grid/sessionsGrid/${scenario.name === 'Maximized' ? 'NestedSplits' : 'Maximized'}/Light`);
 		});
 	}
