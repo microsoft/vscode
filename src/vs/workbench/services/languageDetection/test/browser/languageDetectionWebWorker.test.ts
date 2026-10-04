@@ -77,6 +77,22 @@ suite('LanguageDetectionWorker - ranking model results', () => {
 		assert.deepStrictEqual(rank(['py', 0.45], ['sql', 0.30]), ['py']);
 	});
 
+	test('ranks by corrected confidence', () => {
+		assert.deepStrictEqual(rank(['rs', 0.19], ['js', 0.18]), ['js']);
+	});
+
+	test('a strict language below its bar does not hide the candidates after it', () => {
+		assert.deepStrictEqual(rank(['rs', 0.60], ['sql', 0.49], ['go', 0.48]), ['rs', 'go']);
+	});
+
+	test('a strict leader below its bar does not hide a close runner up', () => {
+		assert.deepStrictEqual(rank(['sql', 0.45], ['go', 0.35]), ['go']);
+	});
+
+	test('a clear drop-off still counts after a skipped strict leader', () => {
+		assert.deepStrictEqual(rank(['ini', 0.48], ['rs', 0.21]), []);
+	});
+
 	test('minimumConfidenceFor distinguishes strict languages', () => {
 		assert.strictEqual(minimumConfidenceFor('rs'), 0.2);
 		assert.strictEqual(minimumConfidenceFor('js'), 0.2);

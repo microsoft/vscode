@@ -97,26 +97,22 @@ export function* rankModelResults(modelResults: ModelResult[] | undefined): Gene
 		return;
 	}
 
-	const top = adjustLanguageConfidence(modelResults[0]);
-	if (top.confidence < minimumConfidenceFor(top.languageId)) {
-		return;
-	}
-	yield top;
+	// Corrections can reorder the model's ranking.
+	const candidates = modelResults.map(adjustLanguageConfidence).sort((a, b) => b.confidence - a.confidence);
 
-	let previous = top;
-	for (let i = 1; i < modelResults.length; i++) {
-		const current = adjustLanguageConfidence(modelResults[i]);
-
-		// A clear drop-off in confidence means everything worth reporting was already yielded.
-		if (previous.confidence - current.confidence >= expectedRelativeConfidence) {
+	let previous: ModelResult | undefined;
+	for (const candidate of candidates) {
+		// Sorted, so nothing after this clears even the lowest bar.
+		if (candidate.confidence < expectedRelativeConfidence) {
 			return;
 		}
-		if (current.confidence < minimumConfidenceFor(current.languageId)) {
+		if (previous && previous.confidence - candidate.confidence >= expectedRelativeConfidence) {
 			return;
 		}
-
-		yield current;
-		previous = current;
+		previous = candidate;
+		if (candidate.confidence >= minimumConfidenceFor(candidate.languageId)) {
+			yield candidate;
+		}
 	}
 }
 
