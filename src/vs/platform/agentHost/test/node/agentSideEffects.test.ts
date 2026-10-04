@@ -7469,6 +7469,32 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('a child-scoped error ends the subagent turn as failed before its completion signal', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code', agentDescription: 'Searches' });
+			const error = { errorType: 'subagentFailed', message: 'Search failed' };
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-search',
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 42, part: { kind: ResponsePartKind.Error, error } },
+			});
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-search' });
+
+			const subState = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-search'));
+			assert.deepStrictEqual({
+				activeTurn: subState?.activeTurn,
+				turnStates: subState?.turns.map(turn => turn.state),
+				error: subState?.turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.Error),
+			}, {
+				activeTurn: undefined,
+				turnStates: [TurnState.Error],
+				error: { kind: ResponsePartKind.Error, error },
+			});
+		});
+
 		test('permission requests for inactive and unroutable subagents are denied', () => {
 			setupSession();
 			startTurn('turn-1');
