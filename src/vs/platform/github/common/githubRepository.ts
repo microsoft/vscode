@@ -6,6 +6,7 @@
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore, IReference } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
+import { GitHubCancellation, toGitHubAbortSignal } from './githubCancellation.js';
 import { asObject, requiredNumber, requiredString } from './githubResponse.js';
 import type { IGitHubAnonymousClient } from './githubService.js';
 import { GitHubAnonymousReadOptions } from './githubTransport.js';
@@ -18,16 +19,17 @@ export interface IGitHubRepositoryFile {
 
 export interface IGitHubRepositories {
 	/** Reads a public GitHub.com file at the resolved repository HEAD using one anonymous lease. */
-	readPublicFile(owner: string, repo: string, path: string, signal: AbortSignal): Promise<IGitHubRepositoryFile>;
+	readPublicFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile>;
 }
 
 export class GitHubRepositoryService implements IGitHubRepositories {
 	constructor(private readonly _acquireAnonymousClient: () => IReference<IGitHubAnonymousClient>) { }
 
-	async readPublicFile(owner: string, repo: string, path: string, signal: AbortSignal): Promise<IGitHubRepositoryFile> {
-		signal.throwIfAborted();
+	async readPublicFile(owner: string, repo: string, path: string, cancellation: GitHubCancellation): Promise<IGitHubRepositoryFile> {
 		const lifetime = new DisposableStore();
 		try {
+			const signal = toGitHubAbortSignal(cancellation, lifetime);
+			signal.throwIfAborted();
 			const client = lifetime.add(this._acquireAnonymousClient()).object;
 			const options: GitHubAnonymousReadOptions = { caller: 'github.query', priority: 'interactive', deadline: Date.now() + 5 * 60_000 };
 			const repositoryPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;

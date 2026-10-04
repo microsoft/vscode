@@ -892,43 +892,16 @@ suite('Dev Container Agent Host Main Service', () => {
 			));
 		}
 
-		test('does not call the repository domain when the token is already cancelled', async () => {
-			const service = createSampleService(async () => assert.fail('Repository reads must not run'));
-			await assert.rejects(service.prepareSample(CancellationToken.Cancelled), CancellationError);
-		});
-
-		test('bridges token cancellation to the repository AbortSignal', async () => {
+		test('passes the caller token directly to the repository domain', async () => {
 			const token = store.add(new CancellationTokenSource());
-			const started = new DeferredPromise<AbortSignal>();
-			const service = createSampleService(async (_owner, _repo, _path, signal) => {
-				return new Promise((_resolve, reject) => {
-					signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-					started.complete(signal);
-				});
+			const calls: { owner: string; repo: string; path: string; sameToken: boolean }[] = [];
+			const service = createSampleService(async (owner, repo, path, cancellation) => {
+				calls.push({ owner, repo, path, sameToken: cancellation === token.token });
+				return { commitSha: 'a'.repeat(40), content: '{"image":"image","features":{"java":{}}}' };
 			});
-			const rejected = assert.rejects(service.prepareSample(token.token), CancellationError);
-			const signal = await started.p;
-			token.cancel();
-			await rejected;
-			assert.deepStrictEqual({ aborted: signal.aborted, cancellationError: signal.reason instanceof CancellationError }, { aborted: true, cancellationError: true });
+			await assert.rejects(service.prepareSample(token.token), /requires an image build/);
+			assert.deepStrictEqual(calls, [{ owner: 'microsoft', repo: 'vscode-remote-try-node', path: '.devcontainer/devcontainer.json', sameToken: true }]);
 		});
-
-		for (const fails of [false, true]) {
-			test(`releases the token listener after the repository read (fails: ${fails})`, async () => {
-				const token = store.add(new CancellationTokenSource());
-				const signals: AbortSignal[] = [];
-				const service = createSampleService(async (_owner, _repo, _path, signal) => {
-					signals.push(signal);
-					if (fails) {
-						throw new Error('Repository read failed');
-					}
-					return { commitSha: 'a'.repeat(40), content: '{"image":"image","features":{"java":{}}}' };
-				});
-				await assert.rejects(service.prepareSample(token.token), fails ? /Repository read failed/ : /requires an image build/);
-				token.cancel();
-				assert.deepStrictEqual(signals.map(signal => signal.aborted), [false]);
-			});
-		}
 	});
 
 	for (const failure of ['clone', 'lifecycle', 'cancellation'] as const) {

@@ -131,9 +131,11 @@ This is not a proxy for `IGitHubClient`'s nested functions, resources or disposa
 
 ### Public repository files
 
-[The service-owned repository domain](common/githubRepository.ts), `IGitHubService.repositories.readPublicFile`, accepts an `AbortSignal`, resolves `GET /repos/{owner}/{repo}/commits/HEAD`, then reads the Contents API with the resolved commit as `ref`. Both JSON reads share an anonymous client lease, the caller's signal and abort reason, and a five-minute absolute deadline. The domain validates the file envelope and base64 payload, accepts files up to 1 MiB, and never follows `download_url` or substitutes a blob SHA for the repository commit.
+[The service-owned repository domain](common/githubRepository.ts), `IGitHubService.repositories.readPublicFile`, accepts `GitHubCancellation` (`AbortSignal | CancellationToken`), resolves `GET /repos/{owner}/{repo}/commits/HEAD`, then reads the Contents API with the resolved commit as `ref`. Both JSON reads share an anonymous client lease, one normalized signal, and a five-minute absolute deadline. The domain validates the file envelope and base64 payload, accepts files up to 1 MiB, and never follows `download_url` or substitutes a blob SHA for the repository commit.
 
-Dev Container sample preparation calls this domain on the owning host's local `IGitHubService`, adapting its `CancellationToken` to an `AbortSignal` only at the caller boundary and disposing that listener when the read settles. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client.
+[The shared cancellation helper](common/githubCancellation.ts) passes existing signals and their abort reasons through unchanged. It converts tokens to signals that abort with `CancellationError`, registering the listener in the service operation's disposable store. The repository domain and GitHub IPC boundary use this helper and dispose their operation stores on success, failure, or cancellation; the internal request engine continues to use `AbortSignal`.
+
+Dev Container sample preparation passes its `CancellationToken` directly to the owning host's local repository domain, without caller-side adapter boilerplate or desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client or create a token adapter.
 
 Desktop sample reads inherit the shared-process proxy and certificate behavior and its documented Chromium-compatibility limits above. Standalone hosts retain their local `AgentHostProxyResolver.fetch` binding.
 
@@ -142,7 +144,7 @@ Focused offline validation (from the repository root, with `COPILOT_HOME` cleare
 ```powershell
 npm run transpile-client
 npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
-npm run test-node -- --run src\vs\platform\github\test\common\githubRepository.test.ts --run src\vs\platform\agentHost\test\node\devContainerSamples.test.ts --run src\vs\platform\agentHost\test\node\devContainerAgentHostService.test.ts --run src\vs\platform\agentHost\test\node\agentHostServices.test.ts
+npm run test-node -- --run src\vs\platform\github\test\common\githubCancellation.test.ts --run src\vs\platform\github\test\common\githubRepository.test.ts --run src\vs\platform\agentHost\test\node\devContainerSamples.test.ts --run src\vs\platform\agentHost\test\node\devContainerAgentHostService.test.ts --run src\vs\platform\agentHost\test\node\agentHostServices.test.ts
 .\scripts\test.bat --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'Workbench GitHub service|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
 ```
 
