@@ -4429,6 +4429,115 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		await timeout(0);
 	}
 
+	for (const source of ['session-added notification', 'host listing'] as const) {
+		test(`a provisional rename reaches the host after delayed creation via ${source}`, async () => {
+			const rawId = 'delayed-title';
+			let hostTitle: string | undefined;
+			const rejectedTitles: string[] = [];
+			connection = new class extends MockAgentConnection {
+				override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+					if (action.type === ActionType.SessionTitleChanged) {
+						if (hostTitle === undefined) {
+							rejectedTitles.push(action.title);
+						} else {
+							hostTitle = action.title;
+							this.addSession(createSession(rawId, { provider: 'ahp-session', summary: hostTitle }));
+						}
+					}
+					super.dispatch(channel, action);
+				}
+			}();
+			const provider = createProvider(disposables, connection, {
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+			}) as CloudSandboxSessionsProvider;
+			const metadata = createSession(rawId, { provider: 'copilot', summary: 'owner/repository' });
+			provider.seedProvisionalSession(metadata);
+			provider.setConnection(connection);
+			await timeout(0);
+			const session = provider.getCachedSession(rawId)!;
+
+			await provider.renameSession(session.sessionId, 'Fix the login bug');
+			provider.seedSessions([{ ...metadata, summary: 'Discovery title', modifiedTime: metadata.modifiedTime + 1 }], { updateExisting: true });
+			const beforeHostCreation = {
+				localTitle: session.title.get(),
+				actions: [...connection.dispatchedActions],
+			};
+
+			hostTitle = 'main';
+			connection.addSession(createSession(rawId, { provider: 'ahp-session', summary: hostTitle }));
+			if (source === 'session-added notification') {
+				fireSessionAdded(connection, rawId, { provider: 'ahp-session', title: hostTitle });
+			} else {
+				await refreshViaTurnComplete(connection, rawId);
+			}
+			await refreshViaTurnComplete(connection, rawId);
+
+			assert.deepStrictEqual({
+				beforeHostCreation,
+				localTitle: session.title.get(),
+				hostTitle,
+				rejectedTitles,
+				actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			}, {
+				beforeHostCreation: { localTitle: 'Fix the login bug', actions: [] },
+				localTitle: 'Fix the login bug',
+				hostTitle: 'Fix the login bug',
+				rejectedTitles: [],
+				actions: [{ channel: `ahp-session:/${rawId}`, action: { type: ActionType.SessionTitleChanged, title: 'Fix the login bug' } }],
+			});
+		});
+	}
+
+	test('a newer rename replaces the queued initial title before host creation', async () => {
+		const provider = createSandboxProvider(disposables, connection, { noConnection: true });
+		provider.seedProvisionalSession(createSession('renamed-before-create'));
+		const session = provider.getCachedSession('renamed-before-create')!;
+
+		await provider.renameSession(session.sessionId, 'First prompt');
+		await provider.renameSession(session.sessionId, 'My chosen title');
+		provider.setConnection(connection);
+		await timeout(0);
+		fireSessionAdded(connection, 'renamed-before-create', { title: 'main' });
+
+		assert.deepStrictEqual({
+			title: session.title.get(),
+			actions: connection.dispatchedActions.map(({ action }) => action),
+		}, {
+			title: 'My chosen title',
+			actions: [{ type: ActionType.SessionTitleChanged, title: 'My chosen title' }],
+		});
+	});
+
+	for (const removal of ['local deletion', 'host removal'] as const) {
+		test(`a queued title is discarded on ${removal}`, async () => {
+			const provider = createSandboxProvider(disposables, connection, { noConnection: true });
+			const metadata = createSession('removed-before-create');
+			provider.seedProvisionalSession(metadata);
+			const session = provider.getCachedSession('removed-before-create')!;
+			await provider.renameSession(session.sessionId, 'First prompt');
+			provider.setConnection(connection);
+			await timeout(0);
+
+			if (removal === 'local deletion') {
+				provider.removeDeletedSession('removed-before-create');
+			} else {
+				fireSessionRemoved(connection, 'removed-before-create');
+			}
+			provider.seedSessions([metadata]);
+			fireSessionAdded(connection, 'removed-before-create', { title: 'main' });
+
+			assert.deepStrictEqual({
+				title: provider.getCachedSession('removed-before-create')?.title.get(),
+				actions: connection.dispatchedActions,
+			}, {
+				title: 'main',
+				actions: [],
+			});
+		});
+	}
+
 	test('a provisional session survives a host listing that does not know it yet', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// The first listing after connecting can legitimately omit a just-minted session.
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));

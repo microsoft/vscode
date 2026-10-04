@@ -11,6 +11,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
+import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 /**
@@ -42,6 +43,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * waking a sandbox can take minutes.
 	 */
 	private readonly _provisionalSessions = new Map<string, number | undefined>();
+	private readonly _pendingSessionTitles = new Map<string, string>();
 
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
@@ -66,6 +68,39 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	private _localSessionStorageKey(rawId: string): string {
 		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
+	}
+
+	override async renameSession(sessionId: string, title: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (rawId && session && this._provisionalSessions.has(rawId)) {
+			this._pendingSessionTitles.set(rawId, title);
+			session.title.set(title, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+			return;
+		}
+		await super.renameSession(sessionId, title);
+	}
+
+	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		const changed = super.updateAdapter(adapter, meta);
+		const rawId = AgentSession.id(meta.session);
+		// Unlike discovery seeds, this metadata comes from the host's listing or session-added notification.
+		this._provisionalSessions.delete(rawId);
+		const title = this._pendingSessionTitles.get(rawId);
+		if (title !== undefined && this.connection) {
+			this._pendingSessionTitles.delete(rawId);
+			void super.renameSession(adapter.sessionId, title).catch(error => {
+				this._logService.error(`[CloudSandboxSessionsProvider] Failed to apply initial title for ${rawId}`, error);
+			});
+			return true;
+		}
+		return changed;
+	}
+
+	protected override _onBackendSessionRemoved(rawId: string): void {
+		super._onBackendSessionRemoved(rawId);
+		this._pendingSessionTitles.delete(rawId);
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
@@ -145,6 +180,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const session = this._removeCachedSession(rawId);
 		this._withheldSessions.delete(rawId);
 		this._provisionalSessions.delete(rawId);
+		this._pendingSessionTitles.delete(rawId);
 		if (session) {
 			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 			session.dispose();
@@ -167,6 +203,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return false;
 		}
 		this._provisionalSessions.delete(rawId);
+		this._pendingSessionTitles.delete(rawId);
 		return true;
 	}
 
