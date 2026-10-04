@@ -161,8 +161,8 @@ Focused offline validation (from the repository root, with `COPILOT_HOME` cleare
 
 ```powershell
 npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
-npm run test-node -- --run src\vs\platform\github\test\common\cancellation.test.ts --run src\vs\platform\github\test\common\githubRepository.test.ts --run src\vs\platform\agentHost\test\node\devContainerSamples.test.ts --run src\vs\platform\agentHost\test\node\devContainerAgentHostService.test.ts --run src\vs\platform\agentHost\test\node\agentHostServices.test.ts
+npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
+npm run test-node -- --run src\vs\platform\github\test\common\anonymousClient.test.ts --run src\vs\platform\github\test\common\cancellation.test.ts --run src\vs\platform\agentHost\test\node\devContainerSamples.test.ts --run src\vs\platform\agentHost\test\node\devContainerAgentHostService.test.ts --run src\vs\platform\agentHost\test\node\agentHostServices.test.ts
 .\scripts\test.bat --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'Workbench GitHub service|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
 ```
 
