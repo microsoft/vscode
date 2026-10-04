@@ -1,7 +1,7 @@
 ---
 name: migrate-customizations
-description: Guide a safe, reversible migration of VS Code local agent customizations to locations and formats supported by the selected Agent Host harness such as Copilot, Claude, and Codex.
-argument-hint: Migration inventory and harness-reported target folders
+description: Guide a safe, reversible migration of VS Code local agent customizations when launched from the Agent Customizations Migrations page with VS Code-generated migration context.
+argument-hint: Launch from Agent Customizations > Migrations > Migrate with Agent
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -9,6 +9,18 @@ disable-model-invocation: true
 # Migrate Agent Customizations
 
 Guide the user through migrating the inventory included in the invoking prompt. The source locations and valid target folders in that prompt were evaluated for the selected harness. Treat them as authoritative: do not substitute hardcoded destination paths or migrate to a folder that is not listed.
+
+## Required Migration Context
+
+Before doing anything else, verify that the invoking prompt includes all of the following VS Code-generated values:
+
+- Selected harness
+- Migration telemetry flow
+- Recovery bundle folder and filesystem path
+- Customizations that need migration
+- Valid target folders reported by the selected harness
+
+If any value is missing, do not inspect, copy, move, convert, or delete customizations. Explain that this workflow must be started from **Agent Customizations > Migrations** by selecting **Migrate with Agent**, then stop. Do not ask the user to manually reconstruct or paste the missing context.
 
 Read [migration techniques](./references/migration-techniques.md) before proposing changes.
 
