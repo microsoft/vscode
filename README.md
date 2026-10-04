@@ -1,54 +1,53 @@
-# Personal Code - OSS Fork
 # Visual Studio Code - Open Source ("Code - OSS")
 [![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 [![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
 
-This repository is a personal development and research fork of [`microsoft/vscode`](https://github.com/microsoft/vscode), the open-source **Code - OSS** codebase.
+## The Repository
 
-It is maintained by [`NguyenCuong1989`](https://github.com/NguyenCuong1989) and is **not** an official Microsoft repository, Visual Studio Code distribution, endorsement, or support channel.
+This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, but we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
 
-## Provenance
+## Visual Studio Code
 
-- Upstream source: [`microsoft/vscode`](https://github.com/microsoft/vscode)
-- Upstream project: **Code - OSS**
-- Upstream license: [MIT](LICENSE.txt)
-- Third-party notices: [ThirdPartyNotices.txt](ThirdPartyNotices.txt)
-- Fork-specific attribution and redistribution notes: [FORK_NOTICE.md](FORK_NOTICE.md)
+<p align="center">
+  <img alt="VS Code in action" src="https://github.com/user-attachments/assets/56af271c-949d-454c-a3ea-16188c063414">
+</p>
 
-The Microsoft copyright notice and upstream MIT license are intentionally preserved. Third-party notices inherited from upstream are also preserved.
+[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
 
-## Fork scope
+[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
 
-The fork-specific changes are intentionally kept separate from the upstream project. They currently focus on personal development automation, Codespaces/Git identity setup, repository guardrails, and provenance documentation rather than replacing the upstream core license or claiming ownership of Code - OSS.
 Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on the [Visual Studio Code website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
 
-For the exact changes relative to the upstream base used by this fork, use Git history/compare views. Any future third-party code or dependency added specifically by this fork should carry the attribution and license material required by that component.
+## Contributing
 
-## Upstream documentation and support
+There are many ways in which you can participate in this project, for example:
 
-For official Code - OSS development documentation, contribution guidance, issues, roadmap, and build instructions, use the upstream project:
-
-- Repository: https://github.com/microsoft/vscode
-- Contributing: https://github.com/microsoft/vscode/wiki/How-to-Contribute
-- Issues: https://github.com/microsoft/vscode/issues
-- Visual Studio Code product site: https://code.visualstudio.com/
 * [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues), and help us verify them as they are checked in
 * Review [source code changes](https://github.com/microsoft/vscode/pulls)
 * Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
 
 If you are interested in fixing issues and contributing directly to the codebase, please see the document [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute), which covers the following:
 
-Links to Microsoft or Visual Studio Code are descriptive references to the upstream project/product. They do not imply affiliation.
+* [How to build and run from source](https://github.com/microsoft/vscode/wiki/How-to-Contribute)
+* [The development workflow, including debugging and running tests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#debugging)
+* [Coding guidelines](https://github.com/microsoft/vscode/wiki/Coding-Guidelines)
+* [Submitting pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests)
+* [Finding an issue to work on](https://github.com/microsoft/vscode/wiki/How-to-Contribute#where-to-contribute)
+* [Contributing to translations](https://aka.ms/vscodeloc)
 
-## Branding and redistribution
+## Feedback
 
-`Code - OSS` source and Microsoft's separately distributed **Visual Studio Code** product are not the same distribution. An independently published binary should use distinct branding and should be reviewed for product names, logos/icons, marketplace/service integrations, bundled extensions, and third-party license obligations before release.
+* Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
+* [Request a new feature](CONTRIBUTING.md)
+* Upvote [popular feature requests](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
+* [File an issue](https://github.com/microsoft/vscode/issues)
+* Connect with the extension author community on [GitHub Discussions](https://github.com/microsoft/vscode-discussions/discussions) or [Slack](https://aka.ms/vscode-dev-community)
+* Follow [@code](https://x.com/code) and let us know what you think!
 
-No release binaries are published from this repository at the time of this notice.
+See our [wiki](https://github.com/microsoft/vscode/wiki/Feedback-Channels) for a description of each of these channels and information on some other available community-driven channels.
 
-## Development container
+## Related Projects
 
-This fork inherits the upstream Dev Container / Codespaces setup. The fork also contains local Git-identity normalization and verification logic under `.devcontainer/` and `.github/workflows/codespaces-git-identity.yml`.
 Many of the core components and extensions to VS Code live in their own repositories on GitHub. For example, the [node debug adapter](https://github.com/microsoft/vscode-node-debug) and the [mono debug adapter](https://github.com/microsoft/vscode-mono-debug) repositories are separate from each other. For a complete list, please visit the [Related Projects](https://github.com/microsoft/vscode/wiki/Related-Projects) page on our [wiki](https://github.com/microsoft/vscode/wiki).
 
 ## Bundled Extensions
@@ -72,10 +71,6 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 
 ## License
 
-Upstream Code - OSS source:
-
 Copyright (c) Microsoft Corporation. All rights reserved.
 
-Licensed under the [MIT License](LICENSE.txt).
-
-Fork-specific changes do not remove or supersede upstream or third-party license obligations. See [FORK_NOTICE.md](FORK_NOTICE.md).
+Licensed under the [MIT](LICENSE.txt) license.
