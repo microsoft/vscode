@@ -1533,9 +1533,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (task.command.runtime === RuntimeType.CustomExecution) {
 			this._currentTask.shellLaunchConfig = launchConfigs = {
 				customPtyImplementation: (id, cols, rows) => new TerminalProcessExtHostProxy(id, cols, rows, this._terminalService),
-				// Mark the terminal as a task terminal so that guards keyed on the
-				// terminal type (e.g. the shell integration executeCommand API guard)
-				// treat it the same as shell and process task terminals (#338610).
+				// Mark as a task terminal so type-keyed guards (e.g. the shell integration executeCommand API) apply (#338610).
 				type: TaskTerminalType,
 				waitOnExit,
 				name: this._createTerminalName(task),

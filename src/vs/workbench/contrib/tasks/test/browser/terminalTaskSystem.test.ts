@@ -13,9 +13,10 @@ import { IAccessibilitySignalService } from '../../../../../platform/accessibili
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
+import { IShellLaunchConfig } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalInstance, ITerminalService } from '../../../../contrib/terminal/browser/terminal.js';
 import { ITaskService } from '../../common/taskService.js';
-import { CustomTask, PanelKind, RevealKind, RuntimeType, TaskScope } from '../../common/tasks.js';
+import { CustomTask, PanelKind, RevealKind, RevealProblemKind, RuntimeType } from '../../common/tasks.js';
 import { ITaskSystemInfo, TaskError } from '../../common/taskSystem.js';
 import { TerminalTaskSystem } from '../../browser/terminalTaskSystem.js';
 
@@ -28,29 +29,35 @@ suite('TerminalTaskSystem', () => {
 			'task-test-id',
 			{
 				kind: 'workspace',
-				config: { type: 'test' },
-				scope: TaskScope.Workspace
+				label: 'testTask',
+				config: { file: 'test.tasks.json', index: 0, element: { type: 'test' } }
 			},
 			'testTask',
 			'test',
 			{
-				type: 'test',
 				runtime: RuntimeType.CustomExecution,
-				task: 'test-provider',
 				presentation: {
 					reveal: RevealKind.Never,
+					revealProblems: RevealProblemKind.Never,
+					echo: false,
+					focus: false,
 					panel: PanelKind.Shared,
-					echo: false
+					showReuseMessage: false,
+					clear: false
 				}
 			},
 			false,
-			undefined,
+			{},
 			{
 				group: 'build',
 				presentation: {
 					reveal: RevealKind.Never,
+					revealProblems: RevealProblemKind.Never,
+					echo: false,
+					focus: false,
 					panel: PanelKind.Shared,
-					echo: false
+					showReuseMessage: false,
+					clear: false
 				}
 			}
 		);
@@ -73,16 +80,16 @@ suite('TerminalTaskSystem', () => {
 		const terminalService = upcastPartial<ITerminalService>({
 			instances: [fakeTerminal],
 			onDidChangeActiveInstance: onDidChangeActiveInstance.event,
-			createTerminal: async (options: { config?: { type?: string; isFeatureTerminal?: boolean } }) => {
-				createdConfigs.push(options.config ?? {});
+			createTerminal: async (options) => {
+				const config = options?.config as IShellLaunchConfig | undefined;
+				createdConfigs.push(config ? { type: config.type, isFeatureTerminal: config.isFeatureTerminal } : {});
 				return fakeTerminal;
 			}
 		});
-		const onDidStateChange = new Emitter<unknown>();
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ITaskService, upcastPartial<ITaskService>({ onDidStateChange: onDidStateChange.event }));
+		instantiationService.stub(ITaskService, upcastPartial<ITaskService>({ onDidStateChange: () => Disposable.None }));
 		instantiationService.stub(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() {
-			override playSignal() { }
+			override async playSignal() { }
 		});
 		const system = store.add(new TerminalTaskSystem(
 			terminalService,
@@ -104,11 +111,10 @@ suite('TerminalTaskSystem', () => {
 			undefined!, // _notificationService
 			instantiationService.createInstance(MockContextKeyService),
 			instantiationService,
-			() => Promise.resolve(undefined), // taskSystemInfoResolver
+			() => undefined, // taskSystemInfoResolver
 			() => Promise.resolve(undefined)  // _taskLookup
 		));
-		// The problem monitor keeps a `DisposableMap` that is not disposed by the
-		// monitor itself; dispose it explicitly to satisfy the leak checker.
+		// Dispose the monitor's terminal disposables explicitly to satisfy the leak checker.
 		const monitor = (system as unknown as { _taskProblemMonitor: { terminalDisposables: DisposableMap<number> } })._taskProblemMonitor;
 		store.add(toDisposable(() => monitor.terminalDisposables.dispose()));
 		return { system, createdConfigs };
@@ -131,9 +137,6 @@ suite('TerminalTaskSystem', () => {
 		const [, error] = await createTerminal(task, resolver, undefined);
 		assert.strictEqual(error, undefined);
 		assert.strictEqual(createdConfigs.length, 1);
-		// The shell launch config must be typed as a task terminal so that the
-		// executeCommand guard in the shell integration API applies consistently
-		// for custom execution tasks, like it does for shell and process tasks.
 		assert.strictEqual(createdConfigs[0].type, 'Task');
 		assert.strictEqual(createdConfigs[0].isFeatureTerminal, true);
 	});
