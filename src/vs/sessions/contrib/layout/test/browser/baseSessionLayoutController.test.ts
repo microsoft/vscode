@@ -19,7 +19,7 @@ import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposit
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
 
-/** Mirrors the single-pane panel model: workbench-level visibility, per-session view. */
+/** Mirrors the desktop panel model: workbench-level visibility, per-session view. */
 class TestWorkbenchPanelLayoutController extends BaseLayoutController {
 	protected override get _isPanelVisibilityPerSession(): boolean { return false; }
 }

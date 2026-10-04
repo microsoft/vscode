@@ -157,10 +157,12 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	protected override getCompletionsCallback(): RawMessageConversionCallback {
 		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 		return (out, data) => {
-			if (data?.id) {
-				out.cot_id = data.id;
+			if (data) {
 				const text = Array.isArray(data.text) ? data.text.join('') : data.text;
-				out.cot_summary = text;
+				if (data.id) {
+					out.cot_id = data.id;
+					out.cot_summary = text;
+				}
 				if (supportsThinking) {
 					out.reasoning_content = text;
 					out.reasoning = text;

@@ -1549,8 +1549,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should route remote Windows sandbox commands through MXC', async () => {
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
@@ -1595,7 +1594,8 @@ suite('TerminalSandboxService - network domains', () => {
 		ok(!config.filesystem.deniedPaths.includes('c:\\Users\\test'), 'User home should not be denied by default in the MXC config on Windows');
 	});
 
-	test('should keep remote Windows sandbox disabled unless Windows sandbox setting is enabled', async () => {
+	test('should keep remote Windows sandbox disabled when the unified setting is off', async () => {
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		remoteAgentService.remoteEnvironment = {
 			...remoteAgentService.remoteEnvironment!,
 			os: OperatingSystem.Windows,
@@ -1609,10 +1609,10 @@ suite('TerminalSandboxService - network domains', () => {
 		workspaceContextService.setWorkspaceFolders([URI.file('/c:/workspace-one')]);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled when the Windows sandbox setting is off');
-		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the Windows setting is enabled');
+		strictEqual(await sandboxService.isEnabled(), false, 'Windows sandbox should be disabled when the unified setting is off');
+		strictEqual(await sandboxService.getSandboxConfigPath(), undefined, 'Windows sandbox config should not be created unless the unified setting is enabled');
 		const prereqs = await sandboxService.checkForSandboxingPrereqs();
-		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the Windows setting is disabled');
+		strictEqual(prereqs.enabled, false, 'Prereq checks should report Windows sandbox disabled when the unified setting is off');
 		strictEqual(prereqs.failedCheck, undefined, 'No prereq check should fail when Windows sandboxing is disabled');
 	});
 

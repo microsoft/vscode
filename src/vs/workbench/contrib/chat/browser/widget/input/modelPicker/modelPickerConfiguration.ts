@@ -12,19 +12,23 @@ import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../.
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues } from './modelPickerModelConfig.js';
-import { logModelConfigurationChange } from './modelPickerTelemetry.js';
-import { isAutoModel } from './modelPickerPresentation.js';
+import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, getModelConfigValueLabel, IModelConfigurationAccess, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
+import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
+import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 
 export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly getConfigurationAccess: () => IModelConfigurationAccess;
+	readonly getChatSessionId: () => string | undefined;
+	readonly getProvider?: () => string | undefined;
 	readonly isDisabled: () => boolean;
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
+	readonly getContextViewLayer?: () => number | undefined;
+	readonly setExpanded?: (expanded: boolean) => void;
 }
 
 export class ModelPickerConfiguration {
@@ -33,6 +37,7 @@ export class ModelPickerConfiguration {
 		private readonly _host: IModelPickerConfigurationHost,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 	) { }
 
 	renderButton(button: HTMLElement, compact: boolean, noModelsAvailable: boolean, useTabbedPicker = false): void {
@@ -50,7 +55,7 @@ export class ModelPickerConfiguration {
 			dom.reset(button, dom.$('span.chat-input-picker-label', undefined, label));
 			button.style.display = '';
 			const description = getModelConfigDescription(model, this._host.getConfigurationAccess()) ?? label;
-			button.ariaLabel = isAutoModel(model)
+			button.ariaLabel = isAutoModel(model) || isHydraFusionModel(model)
 				? localize('chat.modelPicker.autoOptionsAriaLabel', "{0} options, {1}", model.metadata.name, description)
 				: localize('chat.modelPicker.detailsAriaLabel', "{0} details, {1}", model.metadata.name, description);
 			return;
@@ -90,25 +95,26 @@ export class ModelPickerConfiguration {
 		button.ariaLabel = ariaParts.join(', ');
 	}
 
-	show(button: HTMLElement | undefined, focusGroup?: string): void {
-		if (this._host.isDisabled() || !button || !this._host.getSelectedModel()) {
+	show(button: HTMLElement | undefined, focusGroup: string | undefined, trigger: IModelPickerOpenTrigger): void {
+		const model = this._host.getSelectedModel();
+		if (this._host.isDisabled() || !button || !model || (!this._getConfigProperty(MODEL_CONFIG_GROUP_EFFORT) && !this._getConfigProperty(MODEL_CONFIG_GROUP_CONTEXT))) {
 			return;
 		}
 
-		const items = this._buildItems();
-		if (!items.length) {
-			return;
-		}
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId(), this._host.getProvider ? this._host.getProvider() : 'unknown');
+		const items = this._buildItems(telemetrySession);
 
 		const previouslyFocusedElement = dom.getActiveElement();
 		const delegate = {
 			onSelect: async (action: IActionWidgetDropdownAction) => {
 				this._actionWidgetService.focusItemById(action.id);
 				await action.run();
-				this._actionWidgetService.updateItems(this._buildItems(), action.id);
+				this._actionWidgetService.updateItems(this._buildItems(telemetrySession), action.id);
 			},
 			onHide: () => {
+				telemetrySession.close(whenModelConfigValuesSaved(this._host.getConfigurationAccess()));
 				button.setAttribute('aria-expanded', 'false');
+				this._host.setExpanded?.(false);
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -116,6 +122,7 @@ export class ModelPickerConfiguration {
 		};
 
 		button.setAttribute('aria-expanded', 'true');
+		this._host.setExpanded?.(true);
 		const showCacheBreakHint = this._host.shouldShowCacheBreakHint();
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',
@@ -137,6 +144,7 @@ export class ModelPickerConfiguration {
 				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
 				reserveSubmenuSpace: false,
 			}),
+			this._host.getContextViewLayer?.(),
 		);
 
 		if (focusGroup) {
@@ -151,7 +159,7 @@ export class ModelPickerConfiguration {
 		return getModelConfigProperty(this._host.getSelectedModel(), this._host.getConfigurationAccess(), group);
 	}
 
-	private _buildItems(): IActionListItem<IActionWidgetDropdownAction>[] {
+	private _buildItems(telemetrySession: ModelPickerTelemetrySession): IActionListItem<IActionWidgetDropdownAction>[] {
 		const model = this._host.getSelectedModel();
 		if (!model) {
 			return [];
@@ -184,7 +192,7 @@ export class ModelPickerConfiguration {
 						tooltip: enumDescription ?? '',
 						label: displayLabel,
 						run: () => setModelConfigValues(model, configurationAccess, { [config.key]: value },
-							(group, key, fromValue, toValue) => logModelConfigurationChange(this._telemetryService, model, group, key, fromValue, toValue)),
+							(...change) => telemetrySession.logConfigurationChange(model, ...change)),
 					},
 					kind: ActionListItemKind.Action,
 					disabled: readOnly,

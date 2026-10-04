@@ -11,7 +11,7 @@ import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
+import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -297,6 +297,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
 			// matching how the Copilot Chat extension groups it.
 			case 'tier':
+			case 'autoTier':
 			case 'thinkingLevel':
 			// `reasoningEffort` / `contextTier` are what the Copilot agent host inside a cloud
 			// sandbox names the same two knobs. Without them the picker finds no property in
@@ -315,7 +316,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
 	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
 	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
-	 * `resolveByokSessionConfig`), so their upstream vendor is the id prefix; native
+	 * `synthesizeByokSessionConfig`), so their upstream vendor is the id prefix; native
 	 * harness models have no prefix and group under their `provider` (the harness,
 	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
 	 * registry — no name mapping lives here.

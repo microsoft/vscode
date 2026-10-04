@@ -7,7 +7,7 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derivedOpts, IObservable } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, derivedOpts, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -22,7 +22,6 @@ import { getCompactCodicon } from '../../../chatIcons.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
-import { getToolInvocationIcon } from '../chatThinkingContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatMcpAppSubPart, IMcpAppRenderData } from './chatMcpAppSubPart.js';
@@ -44,7 +43,7 @@ import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfir
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
 import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 import { ChatOtherClientToolProgressPart } from './chatOtherClientToolProgressPart.js';
-import { hasToolInvocationError, isCarouselToolConfirmation } from './chatToolPartUtilities.js';
+import { getToolInvocationIcon, hasToolInvocationError, isCarouselToolConfirmation } from './chatToolPartUtilities.js';
 
 /**
  * Value equality for {@link IMcpAppRenderData}, used so the App's derived
@@ -82,6 +81,8 @@ export function shouldRenderGeneratedImageResult(toolSpecificDataKind: string | 
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
+	private readonly _isVisible = observableValue(this, true);
+	public readonly isVisible: IObservable<boolean> = this._isVisible;
 
 	public get toolCallId(): string {
 		return this.toolInvocation.toolCallId;
@@ -139,12 +140,17 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			isResponseVM(context.element) && context.element.isComplete,
 		);
 		this.domNode = dom.$('.chat-tool-invocation-part');
+		this._register(autorun(reader => {
+			dom.setVisibility(this.isVisible.read(reader), this.domNode);
+			this._onDidChangeHeight.fire();
+		}));
 		this.domNode.classList.toggle('generated-image-tool-invocation', this.renderedGeneratedImageResult);
 		if (toolInvocation.presentation === 'hidden') {
+			this._isVisible.set(false, undefined);
 			return;
 		}
 
-		const toolIcon = context.suppressProgressShimmer ? dom.append(this.domNode, dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' })) : undefined;
+		const toolIcon = !context.inToolConfirmationCarousel ? dom.append(this.domNode, dom.$('span.chat-tool-call-icon', { 'aria-hidden': 'true' })) : undefined;
 		this.domNode.classList.toggle('chat-tool-call-with-icon', !!toolIcon);
 
 		// Update the todo list service if this tool invocation contains todo data
@@ -227,22 +233,21 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const error = hasToolInvocationError(toolInvocation);
 			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			if (toolIcon) {
-				const registeredIcon = toolInvocation.toolSpecificData?.kind === 'search' ? Codicon.search
-					: toolInvocation.icon ?? (toolInvocation.toolSpecificData?.kind === 'terminal' ? Codicon.terminal : undefined);
-				const icon = error ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, registeredIcon, undefined, toolInvocation.source);
+				const message = IChatToolInvocation.isComplete(toolInvocation) ? toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage : undefined;
+				const icon = error ? Codicon.error : getToolInvocationIcon(toolInvocation.toolId, toolInvocation, typeof message === 'string' ? message : message?.value);
 				toolIcon.className = 'chat-tool-call-icon';
 				toolIcon.classList.add(...ThemeIcon.asClassNameArray(getCompactCodicon(icon)));
 			}
 
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden || (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && IChatToolInvocation.isComplete(toolInvocation))) {
-				dom.hide(this.domNode);
+				this._isVisible.set(false, undefined);
 				return;
 			}
 
-			// Deciding visibility here, on every render, keeps the transcript copy hidden however the
-			// part was (re)built while the carousel above the input owns the confirmation.
-			dom.setVisibility(!this.defersConfirmationToCarousel(), this.domNode);
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
+			partStore.add(autorun(reader => {
+				this._isVisible.set(!this.defersConfirmationToCarousel() && (!this.subPart.isHidden.read(reader) || !!appData.read(reader)), undefined);
+			}));
 			subPartDomNode.replaceWith(this.subPart.domNode);
 			subPartDomNode = this.subPart.domNode;
 

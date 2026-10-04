@@ -24,6 +24,28 @@ suite('AgentHostLanguageModelProvider', () => {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
 
+	test('groups native autoTier without inventing a default or losing fast', async () => {
+		const provider = createProvider();
+		provider.updateModels([{
+			...makeModel('auto'),
+			configSchema: {
+				type: 'object', properties: {
+					autoTier: { type: 'string', title: 'Auto tier', enum: ['default', 'efficiency', 'balance', 'intelligence', 'fast'] },
+					contextTier: { type: 'string', title: 'Context', enum: ['default', 'long_context'] },
+				}
+			},
+		}]);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const properties = model.metadata.configurationSchema!.properties!;
+		assert.deepStrictEqual({
+			tier: { group: properties.autoTier.group, values: properties.autoTier.enum, default: properties.autoTier.default },
+			context: properties.contextTier.group,
+		}, {
+			tier: { group: 'navigation', values: ['default', 'efficiency', 'balance', 'intelligence', 'fast'], default: undefined },
+			context: 'tokens',
+		});
+	});
+
 	test('groups the Auto routing-profile picker where thinking level renders for other models', async () => {
 		const provider = createProvider();
 		provider.updateModels([

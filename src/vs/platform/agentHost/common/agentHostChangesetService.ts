@@ -29,6 +29,14 @@ export const META_LEGACY_DIFFS = 'diffs';
 export const META_CHANGES_SUMMARY = 'agentHost.changes';
 
 /**
+ * Returns the containing-session metadata key for one chat's cached Session
+ * Changes aggregate, which session lists read without subscribing to the chat.
+ */
+export function getChatChangesSummaryMetadataKey(chat: string): string {
+	return `${META_CHANGES_SUMMARY}:${chat}`;
+}
+
+/**
  * The set of session-DB metadata keys the changeset service needs in a
  * batched read to synthesise the `summary.changes` aggregate for the
  * session-list overlay. {@link IAgentHostChangesetService.getListMetadataKeys}
@@ -294,4 +302,13 @@ export interface IAgentHostChangesetService {
 	/** Cancels pending changeset work after a chat or folder owner is removed. */
 	onChangesetOwnerRemoved?(owner: ProtocolURI): void;
 
+	/**
+	 * Computes the chat's Session Changes aggregate when the chat has turns
+	 * but no aggregate yet, e.g. a chat restored from a build that did not
+	 * record per-chat aggregates.
+	 */
+	ensureChatChangesSummary(chat: ProtocolURI): void;
+
+	/** Recomputes a chat's Session Changes aggregate after its folder scope changes. */
+	refreshChatChangesSummary(chat: ProtocolURI): void;
 }

@@ -175,7 +175,7 @@ suite('Release notes editor Try This integration', () => {
 			htmlWrites: 1,
 			messages: [{
 				type: 'releaseNotesTryouts', documentId: documentId(),
-				states: [{ id: 'sample', kind: 'hidden', label: '', ariaLabel: '', href: '', message: '', setupLabel: '', setupAriaLabel: '' }],
+				states: [{ id: 'sample', index: 0, kind: 'hidden', label: '', ariaLabel: '', href: '', message: '', setupLabel: '', setupAriaLabel: '' }],
 			}],
 		});
 	});
@@ -335,11 +335,12 @@ suite('Release notes editor Try This integration', () => {
 			unsentChat: provider.provideContent().includes('do not send it automatically'),
 			otherWindow: provider.provideContent().includes('another editor or window'),
 			explicitSetup: provider.provideContent().includes('Setup does not automatically run the example'),
+			customLabels: provider.provideContent().includes('custom labels'),
 			unfocused, focusCount,
 		}, {
 			releaseNotes: true, find: false, other: false,
 			id: AccessibleViewProviderId.ReleaseNotes, verbosity: AccessibilityVerbositySettingId.ReleaseNotes,
-			unsentChat: true, otherWindow: true, explicitSetup: true,
+			unsentChat: true, otherWindow: true, explicitSetup: true, customLabels: true,
 			unfocused: undefined, focusCount: 1,
 		});
 	});

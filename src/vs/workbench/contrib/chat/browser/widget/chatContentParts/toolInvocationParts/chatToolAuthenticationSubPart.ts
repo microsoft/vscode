@@ -29,6 +29,7 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 			throw new Error('Tool authentication state is missing');
 		}
+		const mcpServer = customizationService.getMcpServers(context.element.sessionResource).find(server => server.id === state.server.id);
 
 		const widget = this._register(instantiationService.createInstance(
 			ChatCustomConfirmationWidget<() => Promise<void>>,
@@ -51,6 +52,14 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 						},
 						isSecondary: true,
 					},
+					...(mcpServer ? [{
+						label: localize('chat.toolAuthentication.disableForSession', "Disable for This Session"),
+						data: async () => {
+							mcpServer.setEnabled(false);
+							state.cancel();
+						},
+						isSecondary: true,
+					}] : []),
 				],
 				message: localize('chat.toolAuthentication.message', "The MCP server {0} requires authentication to continue this tool call.", state.server.name),
 				toolbarData: {

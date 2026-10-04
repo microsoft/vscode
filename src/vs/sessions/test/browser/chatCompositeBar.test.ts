@@ -122,14 +122,14 @@ class TestEditorGroupsService extends mock<IEditorGroupsService>() {
 	}
 }
 
-function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed, options?: { readonly isArchived?: boolean; readonly canArchive?: boolean }): IChat {
+function createChat(id: string, title: string, status: SessionStatus = SessionStatus.Completed, options?: { readonly isArchived?: boolean; readonly isRead?: boolean; readonly canArchive?: boolean }): IChat {
 	const resource = URI.parse(`test-chat://${id}`);
 	return new class extends mock<IChat>() {
 		override readonly resource = resource;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly status: IObservable<SessionStatus> = constObservable(status);
 		override readonly isArchived: IObservable<boolean> = constObservable(options?.isArchived ?? false);
-		override readonly isRead: IObservable<boolean> = constObservable(true);
+		override readonly isRead: IObservable<boolean> = constObservable(options?.isRead ?? true);
 		override readonly interactivity: IObservable<ChatInteractivity> = constObservable(ChatInteractivity.Full);
 		override readonly capabilities = constObservable({ canRename: true, canArchive: options?.canArchive ?? false, canDelete: true });
 	}();
@@ -172,15 +172,15 @@ interface IChatCompositeBarHarness {
 	readonly showSessionActions: ISettableObservable<boolean>;
 }
 
-function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean }): IChatCompositeBarHarness {
+function createHarness(disposables: Pick<DisposableStore, 'add'>, options?: { readonly isAgentHost?: boolean; readonly isQuickChat?: boolean; readonly resizeObserverCtor?: typeof ResizeObserver; readonly mainIsRead?: boolean; readonly secondaryIsRead?: boolean; readonly secondaryArchived?: boolean; readonly secondaryCanArchive?: boolean }): IChatCompositeBarHarness {
 	const store = disposables.add(new DisposableStore());
 	const instantiationService = workbenchInstantiationService(undefined, store);
 	const commandService = new TestCommandService();
 	const contextMenuService = new TestContextMenuService();
 	const sessionsService = new TestSessionsService();
 	const editorGroupsService = store.add(new TestEditorGroupsService());
-	const mainChat = createChat('main', 'Main Chat');
-	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, canArchive: options?.secondaryCanArchive });
+	const mainChat = createChat('main', 'Main Chat', SessionStatus.Completed, { isRead: options?.mainIsRead });
+	const secondaryChat = createChat('secondary', 'Secondary Chat', SessionStatus.Completed, { isArchived: options?.secondaryArchived, isRead: options?.secondaryIsRead, canArchive: options?.secondaryCanArchive });
 	const session = createSession([mainChat, secondaryChat], mainChat, options?.isQuickChat);
 	const chats = observableValue<readonly IChat[]>('test.chats', [mainChat, secondaryChat]);
 	const activeChatResource = observableValue('test.activeChatResource', mainChat.resource.toString());
@@ -345,6 +345,46 @@ suite('Sessions - ChatCompositeBar', () => {
 			closeOpacity: mainWindow.getComputedStyle(actions.querySelector<HTMLElement>('.action-label')!).opacity,
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
 	});
+
+	for (const connected of [false, true]) {
+		test(`keeps ${connected ? 'connected' : 'pill'} chat tab presentation unchanged across layout densities`, () => {
+			const harness = createHarness(disposables);
+			const root = attachConnectedBar(harness);
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			harness.activeChatResource.set(harness.tabs[1].dataset.chatResource!, undefined);
+			const row = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs-row')!;
+			const fill = harness.tabs[1].querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+
+			for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+				root.classList.add(theme);
+				const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+				const height = row.getBoundingClientRect().height;
+				const states = [false, true, false].map(compact => {
+					root.classList.toggle('modern-ui-compact', compact);
+					const separator = mainWindow.getComputedStyle(row, '::after');
+					return {
+						bottomBorder: mainWindow.getComputedStyle(row).borderBottomWidth,
+						separator: separator.content !== 'none' && separator.display !== 'none',
+						capBorder: mainWindow.getComputedStyle(fill).borderTop,
+						height: row.getBoundingClientRect().height,
+						selected: harness.tabs[1].getAttribute('aria-selected'),
+						tabIndex: harness.tabs[1].tabIndex,
+					};
+				});
+
+				const expected = {
+					bottomBorder: connected ? '0px' : '1px',
+					separator: connected,
+					capBorder,
+					height,
+					selected: 'true',
+					tabIndex: 0,
+				};
+				assert.deepStrictEqual(states, [expected, expected, expected], theme);
+				root.classList.remove(theme);
+			}
+		});
+	}
 
 	test('uses the side-panel border color fallback for the chat cap, shoulders, and separator', () => {
 		const harness = createHarness(disposables);
@@ -592,6 +632,29 @@ suite('Sessions - ChatCompositeBar', () => {
 				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
 			],
 			hasMetadataRow: false,
+		});
+	});
+
+	test('renders unread state from each chat', () => {
+		const { tabs, activeChatResource } = createHarness(disposables, { mainIsRead: false, secondaryIsRead: false });
+		const snapshot = () => tabs.map(tab => ({
+			unread: tab.classList.contains('unread'),
+			ariaLabel: tab.getAttribute('aria-label'),
+		}));
+
+		const mainActive = snapshot();
+		activeChatResource.set('test-chat://secondary', undefined);
+		const secondaryActive = snapshot();
+
+		assert.deepStrictEqual({ mainActive, secondaryActive }, {
+			mainActive: [
+				{ unread: false, ariaLabel: 'Main Chat, State: Completed, unread' },
+				{ unread: true, ariaLabel: 'Secondary Chat, State: Completed, unread' },
+			],
+			secondaryActive: [
+				{ unread: true, ariaLabel: 'Main Chat, State: Completed, unread' },
+				{ unread: false, ariaLabel: 'Secondary Chat, State: Completed, unread' },
+			],
 		});
 	});
 

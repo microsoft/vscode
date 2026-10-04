@@ -12,7 +12,6 @@ import { IAccessibleViewImplementation } from '../../../../platform/accessibilit
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { FocusedViewContext } from '../../../../workbench/common/contextkeys.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { CHANGES_VIEW_ID, CreatePullRequestFocusedContext } from '../common/changes.js';
 import { ChangesViewPane } from './changesView.js';
 
@@ -48,7 +47,6 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 			);
 		}
 		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
 		const content: string[] = [];
 		content.push(localize('sessionsChanges.overview', "You are in the Changes view. It shows the files changed by the current session as a tree, followed by a collapsible Checks section."));
@@ -57,9 +55,7 @@ export class SessionsChangesAccessibilityHelp implements IAccessibleViewImplemen
 		content.push(localize('sessionsChanges.viewMode', "The Changes view can show files as a tree or a flat list. Use the view's toolbar actions to switch between Tree and List modes."));
 		content.push(localize('sessionsChanges.operations', "When available, the Changes toolbar or editor title bar also provides actions to commit, merge, sync, or create a pull request. When Agent Merge is the primary action, activate it to toggle Agent Merge and use its dropdown to configure it. Use Tab and Shift+Tab to move between the file list and toolbar actions."));
 		content.push(localize('sessionsChanges.createPR', "For Agent Host sessions, Create PR opens a form with generated, editable title and description, a draft checkbox, and merge options. The form appears while generation is in progress and preserves anything you type. Use Tab to navigate and Escape to dismiss while keeping your text. Cancel discards your text."));
-		content.push(layoutService.isSinglePaneLayoutEnabled
-			? localize('sessionsChanges.diffView.singlePane', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>')
-			: localize('sessionsChanges.diffView.classic', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
+		content.push(localize('sessionsChanges.diffView', "Use Diff View in the editor title area's More Actions menu to select inline, side-by-side, or automatic layout. The Toggle Preferred Diff View command switches between inline and automatic layout{0}.", '<keybinding:toggle.diff.renderSideBySide>'));
 		content.push(localize('sessionsChanges.editorWordWrap', "Use Word Wrap in the editor title area's More Actions menu to control word wrapping independently for code and multi-diff editors in the Agents window."));
 
 		return new AccessibleContentProvider(

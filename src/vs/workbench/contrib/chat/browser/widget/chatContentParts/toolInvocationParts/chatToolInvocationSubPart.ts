@@ -6,6 +6,7 @@
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
@@ -14,6 +15,7 @@ import { hasToolInvocationError } from './chatToolPartUtilities.js';
 export abstract class BaseChatToolInvocationSubPart extends Disposable {
 	protected static idPool = 0;
 	public abstract readonly domNode: HTMLElement;
+	public readonly isHidden: IObservable<boolean> = constObservable(false);
 
 	protected _onNeedsRerender = this._register(new Emitter<void>());
 	public readonly onNeedsRerender = this._onNeedsRerender.event;

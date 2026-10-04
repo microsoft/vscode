@@ -13,6 +13,7 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { SessionsTitleBarContribution } from './sessionsTitleBarWidget.js';
 import { SessionsTelemetryContribution } from './sessionsTelemetry.contribution.js';
+import { SessionsAccountTelemetryContribution } from './sessionsAccountTelemetry.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from './sessionsActions.js';
 import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
@@ -69,7 +70,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			tags: ['preview'],
 			description: localize('sessions.list.groupExternalSessions', "Controls whether external sessions are shown in a separate External section instead of workspace or time groups. Pinned sessions and custom groups keep their placement."),
-			default: true,
+			default: false,
 			experiment: { mode: 'auto' }
 		},
 		[SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING]: {
@@ -104,6 +105,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('sessions.showChatTabs', "Controls whether chats in a session are shown as individual tabs or whether the active chat is shown as the session view."),
 			default: SESSIONS_CHAT_TABS_DEFAULT,
+			experiment: { mode: 'auto' },
 		},
 		[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: {
 			type: 'boolean',
@@ -157,5 +159,6 @@ registerWorkbenchContribution2(NewSessionActionViewItemContribution.ID, NewSessi
 registerWorkbenchContribution2(SessionListActionsExperimentContribution.ID, SessionListActionsExperimentContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsMouseNavigationContribution.ID, SessionsMouseNavigationContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTelemetryContribution.ID, SessionsTelemetryContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SessionsAccountTelemetryContribution.ID, SessionsAccountTelemetryContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionsWindowNotifier.ID, SessionsWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionConversationActionsContribution.ID, SessionConversationActionsContribution, WorkbenchPhase.AfterRestored);

@@ -57,6 +57,7 @@ export const enum TerminalSettingId {
 	EnableMultiLinePasteWarning = 'terminal.integrated.enableMultiLinePasteWarning',
 	DrawBoldTextInBrightColors = 'terminal.integrated.drawBoldTextInBrightColors',
 	FontFamily = 'terminal.integrated.fontFamily',
+	FontRendering = 'terminal.integrated.fontRendering',
 	FontSize = 'terminal.integrated.fontSize',
 	LetterSpacing = 'terminal.integrated.letterSpacing',
 	LineHeight = 'terminal.integrated.lineHeight',
