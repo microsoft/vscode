@@ -118,6 +118,13 @@ function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	return jsonRpcError(id, JSON_RPC_INTERNAL_ERROR, message);
 }
 
+/** AHP has no cancellation-specific code, but a cancelled request still needs an error response. */
+class SubscriptionCancelledError extends ProtocolError {
+	constructor(channel: string) {
+		super(JSON_RPC_INTERNAL_ERROR, `Subscription cancelled: ${channel}`);
+	}
+}
+
 function shouldLogFailedRequest(method: string, params: unknown, err: unknown): boolean {
 	if (!(err instanceof ProtocolError) || err.code !== AhpErrorCodes.NotFound || !isFileResourceRead(method, params)) {
 		return true;
@@ -1613,7 +1620,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				// is JSON over the wire, so narrowing at this boundary is safe.
 				return { snapshot: snapshot as SubscribeResult['snapshot'] };
 			} catch (err) {
-				if (!pendingSubscription.active && client.subscriptions.get(classified.uri) === pendingSubscription) {
+				// Losing request ownership cancels the subscription, not the resource.
+				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
+					throw new SubscriptionCancelledError(params.channel);
+				}
+				if (!pendingSubscription.active) {
 					client.subscriptions.delete(classified.uri);
 				}
 				if (err instanceof ProtocolError) {
@@ -1893,7 +1904,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
-				if (shouldLogFailedRequest(method, params, err)) {
+				if (err instanceof SubscriptionCancelledError) {
+					this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} cancelled`, err.message);
+				} else if (shouldLogFailedRequest(method, params, err)) {
 					this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
 				}
 				client.transport.send(jsonRpcErrorFrom(id, err));
