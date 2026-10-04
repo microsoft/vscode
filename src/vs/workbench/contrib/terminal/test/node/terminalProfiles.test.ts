@@ -220,6 +220,37 @@ suite('Workbench - TerminalProfiles', () => {
 				];
 				profilesEqual(profiles, expected);
 			});
+			test('should find a bare-name profile at the login shell path when it is not on PATH', async () => {
+				const config = ({
+					profiles: {
+						windows: {},
+						osx: {
+							'fish': { path: 'fish', args: ['-l'], overrideName: true },
+							'zsh': { path: 'zsh' },
+							'tmux': { path: 'tmux' }
+						},
+						linux: {
+							'fish': { path: 'fish', args: ['-l'], overrideName: true },
+							'zsh': { path: 'zsh' },
+							'tmux': { path: 'tmux' }
+						}
+					},
+					useWslProfiles: false
+				} as ITestTerminalConfig) as ITerminalConfiguration;
+				const fsProvider = createFsProvider([
+					'/opt/homebrew/bin/fish',
+					'/opt/homebrew/bin/tmux',
+					'/bin/zsh',
+					'/opt/homebrew/bin/zsh'
+				]);
+				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+				const profiles = await detectAvailableProfiles(undefined, 'fish', false, configurationService, { PATH: '/usr/bin:/bin' }, fsProvider, undefined, undefined, undefined, ['/opt/homebrew/bin/zsh', '/opt/homebrew/bin/fish']);
+				const expected: ITerminalProfile[] = [
+					{ profileName: 'fish', path: '/opt/homebrew/bin/fish', args: ['-l'], overrideName: true, isDefault: true },
+					{ profileName: 'zsh', path: '/bin/zsh', isFromPath: true, isDefault: false }
+				];
+				profilesEqual(profiles, expected);
+			});
 		}
 	});
 
