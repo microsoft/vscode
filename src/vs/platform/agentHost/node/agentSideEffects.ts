@@ -173,7 +173,6 @@ interface ISubagentSessionRef {
 	readonly turnStopWatch: StopWatch;
 	readonly taskModelSource: AgentSubagentTaskModelSource | undefined;
 	readonly subagentKind: AgentSubagentKind | undefined;
-	/** The model the provider declared for a chat that reports no usage of its own. */
 	readonly model: string | undefined;
 }
 
@@ -1195,7 +1194,6 @@ export class AgentSideEffects extends Disposable {
 		const existing = this._subagentChats.get(chatURI, toolCallId);
 		if (existing) {
 			if (model && model !== existing.model) {
-				// A reopened chat reports the model its provider now declares.
 				this._subagentChats.set({ ...existing, model }, chatURI, toolCallId);
 			}
 			this._resumeSubagentSession(chatURI, toolCallId, taskPrompt ? { text: taskPrompt, origin: { kind: MessageKind.User } } : undefined, immediateParentChatUri);
@@ -1302,7 +1300,6 @@ export class AgentSideEffects extends Disposable {
 		this._subagentChats.set({ ...subagent, immediateParentChatUri: correlatedParentChatUri, turnStopWatch: StopWatch.create(false) }, parentChatURI, toolCallId);
 	}
 
-	/** Records the model a turn runs on for its turn and tool-call telemetry. */
 	private _updateTurnModel(agent: IAgent, chat: ProtocolURI, turnId: string, model: string | undefined): void {
 		if (!model) {
 			return;

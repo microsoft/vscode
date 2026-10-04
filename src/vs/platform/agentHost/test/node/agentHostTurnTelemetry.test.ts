@@ -1300,7 +1300,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			return turnId;
 		};
 		const phaseTurnId = runPhaseTurn('gpt-5.5');
-		// Reopening a phase chat resumes it with the model the phase runs on by then.
 		const resumedPhaseTurnId = runPhaseTurn('gpt-5.5-mini');
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
 

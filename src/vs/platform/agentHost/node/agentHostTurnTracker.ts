@@ -82,7 +82,6 @@ interface ITurnTiming {
 	/** Who produced the message that started the turn, when known. */
 	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
 	readonly subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
-	/** What the subagent chat owning this turn represents; the reporter treats an unset kind in a subagent chat as `task`. */
 	readonly subagentKind: AgentSubagentKind | undefined;
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	telemetryContext: IAgentTelemetryContext | undefined;

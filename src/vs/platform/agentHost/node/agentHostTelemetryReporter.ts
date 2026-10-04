@@ -80,7 +80,6 @@ export interface IAgentHostEventTelemetry extends IAgentHostInitiatorTelemetry, 
 
 export type IAgentHostEventClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification;
 
-/** Shared by the events that decide `isSubagentSession` per chat, so presentation-only chats can be told apart from delegated subagents. */
 export type IAgentHostSubagentKindClassification = {
 	subagentKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the subagent chat represents, set only when isSubagentSession is true: task for a delegated subagent, or fusionPhase for a presentation-only HydraFusion phase chat that shows part of the parent turn.' };
 };
@@ -1102,7 +1101,6 @@ export function toInitiatorTelemetry(clientContext: IAgentHostClientTelemetryCon
 
 export const IAgentHostTelemetryReporter = createDecorator<AgentHostTelemetryReporter>('agentHostTelemetryReporter');
 
-/** Subagent chats default to `task` when the provider did not classify them; non-subagent chats report no kind. */
 function toSubagentKindTelemetry(isSubagent: boolean, kind: AgentSubagentKind | undefined): { subagentKind?: AgentSubagentKind } {
 	return isSubagent ? { subagentKind: kind ?? 'task' } : {};
 }

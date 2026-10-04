@@ -8202,7 +8202,6 @@ export class CopilotAgentSession extends Disposable {
 			agentName: COPILOT_FUSION_PHASE_AGENT_NAME,
 			agentDisplayName: label,
 			taskDescription: label,
-			// The phase runs the parent turn's own work, so telemetry must not count it as a delegated subagent.
 			subagentKind: 'fusionPhase',
 			model: this._fusionProgress.getPhaseModel(toolCallId),
 		});
