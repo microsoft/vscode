@@ -835,7 +835,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeConfigs.push(config);
 				return session;
 			},
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }), proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { } } },
 		};
 		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
 			disableBypassPermissionsMode: 'disable',
@@ -1180,7 +1180,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 				return session;
 			},
 			resumeSession: async () => { throw new Error('Unexpected resume'); },
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }), proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { } } },
 		} as unknown as CopilotClient;
 		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
 		const plan: CopilotSessionLaunchPlan = {
@@ -1231,7 +1231,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 				return session;
 			},
 			resumeSession: async () => { throw new Error('Unexpected resume'); },
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }), proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { } } },
 		} as unknown as CopilotClient;
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
@@ -1295,7 +1295,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			resumeSession: async () => {
 				throw new TestSdkError(message, code);
 			},
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }), proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { } } },
 		};
 		return {
 			launcher: createTestLauncher(undefined, {}, logService, sessionOpenTelemetry),
@@ -2200,7 +2200,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			},
 		} as unknown as CopilotSession;
 		const client: CopilotSessionLaunchPlan['client'] = {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }), proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { } } },
 			createSession: async config => {
 				capiCalls.push(config.capi);
 				return session;

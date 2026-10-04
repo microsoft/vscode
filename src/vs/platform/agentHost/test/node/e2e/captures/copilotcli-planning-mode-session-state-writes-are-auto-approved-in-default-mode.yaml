@@ -137,6 +137,8 @@ exchanges:
                 Plan approved! Exited plan mode.
 
                 You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
+        - role: user
+          content: ''
     response:
       content: Plan approved. Let me know when you'd like me to proceed with creating `hello.py`.
       stopReason: end_turn
@@ -187,6 +189,8 @@ exchanges:
                 Plan approved! Exited plan mode.
 
                 You are now in interactive mode without automatic execution (wait for the user's next prompt). Wait for the user to prompt you before taking any action.
+        - role: user
+          content: ''
         - role: assistant
           content: Plan approved. Let me know when you'd like me to proceed with creating `hello.py`.
         - role: user
