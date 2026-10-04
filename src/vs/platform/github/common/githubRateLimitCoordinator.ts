@@ -37,7 +37,7 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 			? undefined
 			: rateLimit !== undefined || (isGraphQL && remaining === 0)
 				? refusedUntil
-				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
+				: hinted;
 		if (secondaryLimited) {
 			const accountKey = RequestQueue.accountKey(account);
 			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));

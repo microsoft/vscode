@@ -90,6 +90,53 @@ suite('GitHub HTTP rate limits', () => {
 		}
 	}
 
+	const exhaustedResponseCases: {
+		readonly name: string;
+		readonly headers: Readonly<Record<string, string>>;
+		readonly delay: number;
+	}[] = [
+			{ name: 'extend the cooldown to a later reset', headers: { 'x-ratelimit-reset': '1240' }, delay: 240_000 },
+			{ name: 'preserve the cooldown over an earlier reset', headers: { 'x-ratelimit-reset': '1060' }, delay: 120_000 },
+			{ name: 'prefer Retry-After over the later reset', headers: { 'x-ratelimit-reset': '1240', 'retry-after': '180' }, delay: 180_000 },
+			{ name: 'preserve the cooldown over a shorter Retry-After', headers: { 'x-ratelimit-reset': '1240', 'retry-after': '60' }, delay: 120_000 },
+		];
+	for (const entry of exhaustedResponseCases) {
+		test(`successive exhausted REST responses ${entry.name}`, async () => {
+			const scheduler = store.add(new FakeScheduler({ now: 1_000_000 }));
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const dispatchTimes: number[] = [];
+			const transport = store.add(new GitHubTransport(async () => {
+				dispatchTimes.push(scheduler.now());
+				if (dispatchTimes.length === 1) {
+					await started.complete();
+					return response.p;
+				}
+				return Response.json({}, { headers: healthyQuota });
+			}, scheduler));
+			const inFlight = transport.rest(account, 'token', { method: 'GET', url }, signal());
+			await started.p;
+			transport.rateLimits.updateFromResponse(account, new Response(null, { headers: spentQuota }));
+			const initialDelay = transport.rateLimits.getDelay(account, 'core');
+			await response.complete(Response.json({}, { headers: { ...spentQuota, ...entry.headers } }));
+			await inFlight;
+			const updatedDelay = transport.rateLimits.getDelay(account, 'core');
+			const pending = transport.rest(account, 'token', { method: 'GET', url: `${url}/after` }, signal());
+			scheduler.advanceBy(entry.delay - 1);
+			await Promise.resolve();
+			const beforeExpiry = dispatchTimes.length;
+			scheduler.advanceBy(1);
+			await pending;
+			assert.deepStrictEqual({
+				initialDelay, updatedDelay, beforeExpiry, dispatchTimes,
+				expired: transport.rateLimits.getDelay(account, 'core'), timers: scheduler.pendingCount,
+			}, {
+				initialDelay: 120_000, updatedDelay: entry.delay, beforeExpiry: 1,
+				dispatchTimes: [1_000_000, 1_000_000 + entry.delay], expired: 0, timers: 0,
+			});
+		});
+	}
+
 	for (const source of ['successful exhausted quota', 'primary refusal', 'secondary refusal'] as const) {
 		test(`a generic 403 with healthy quota preserves a concurrent ${source} cooldown`, async () => {
 			const scheduler = store.add(new FakeScheduler({ now: 1_000_000 }));
