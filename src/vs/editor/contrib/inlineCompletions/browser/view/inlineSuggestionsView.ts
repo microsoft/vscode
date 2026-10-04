@@ -173,7 +173,7 @@ export class InlineSuggestionsView extends Disposable {
 				inlineSuggestion: state.inlineSuggestion,
 				model,
 			};
-		} else if (state?.kind === 'inlineEdit') {
+		} else if (state?.kind === 'inlineEdit' && state.inlineSuggestion.getSourceCompletion().showInlineEditMenu !== false) {
 			const inlineEditWidget = this._inlineEditWidget.read(reader)?.view;
 			if (!inlineEditWidget) { return undefined; }
 
