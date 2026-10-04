@@ -33,6 +33,7 @@ suite('CustomizationMigrationDashboard', () => {
 			actionClicked: (action, categoryId) => telemetryActions.push(categoryId ? `${action}:${categoryId}` : action),
 			configureLocations: () => { },
 			dismissResult: () => { },
+			migrateWithAgent: () => { },
 			migrateCategory: () => { },
 			setItemSelected: () => { },
 			showItemActions: () => { },
@@ -107,12 +108,23 @@ suite('CustomizationMigrationDashboard', () => {
 		const actions: string[] = [];
 		const { parent, dashboard, telemetryActions } = createDashboard({
 			configureLocations: (id, storage) => actions.push(`destinations:${id}:${storage}`),
+			migrateWithAgent: () => actions.push('agent'),
 			migrateCategory: (id, storage) => actions.push(`migrate:${id}:${storage}`),
+		});
+
+		test('hides agent migration for unsupported harnesses', () => {
+			const { parent, dashboard } = createDashboard();
+			dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
+
+			assert.strictEqual(parent.querySelector('[aria-label="Start an agent-guided customization migration"]'), null);
 		});
 		dashboard.showOverview(overview());
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
-		button(parent, 'Migrate Convert Prompt to Skills (Workspace)').click();
+		const agentMigrationButton = button(parent, 'Start an agent-guided customization migration');
+		const migrateButton = button(parent, 'Migrate Convert Prompt to Skills (Workspace)');
+		agentMigrationButton.click();
+		migrateButton.click();
 		button(parent, 'Migrate Convert Prompt to Skills (User)').click();
 		button(parent, 'Migrate MCP Servers (Workspace)').click();
 		button(parent, 'Migrate User Data (User)').click();
@@ -127,6 +139,10 @@ suite('CustomizationMigrationDashboard', () => {
 			sources: [...parent.querySelectorAll('.migration-tree-item-source')].map(element => element.textContent),
 			changes: [...parent.querySelectorAll('.migration-tree-item-changes')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
 			checklistCopy: parent.textContent?.includes('Your migration checklist'),
+			intro: parent.querySelector('.migration-intro')?.textContent,
+			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
+			agentButtonIsSecondary: agentMigrationButton.classList.contains('migration-secondary-button'),
+			migrateButtonIsSecondary: migrateButton.classList.contains('migration-secondary-button'),
 			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
 			actions,
@@ -139,10 +155,14 @@ suite('CustomizationMigrationDashboard', () => {
 			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
 			changes: ['The gallery property will be removed.'],
 			checklistCopy: false,
+			intro: 'Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.',
+			agentButtonInTitleRow: true,
+			agentButtonIsSecondary: true,
+			migrateButtonIsSecondary: true,
 			initialFocus: 'Migrate Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',
-			actions: ['migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
-			telemetryActions: ['migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
+			actions: ['agent', 'migrate:promptFiles:local', 'migrate:promptFiles:user', 'migrate:mcpServers:local', 'migrate:userData:user', 'migrate:configuredLocations:local', 'destinations:promptFiles:user'],
+			telemetryActions: ['agentMigrationClicked', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:promptFiles', 'migrationCategoryClicked:mcpServers', 'migrationCategoryClicked:userData', 'migrationCategoryClicked:configuredLocations', 'destinationsClicked'],
 		});
 	});
 

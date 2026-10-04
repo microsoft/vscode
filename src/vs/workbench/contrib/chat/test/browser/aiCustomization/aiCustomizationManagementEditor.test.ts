@@ -437,6 +437,7 @@ suite('aiCustomizationManagementEditor', () => {
 			actionClicked: () => { },
 			migrationClicked: () => { },
 			migrationCompleted: () => { },
+			watchAgentMigrationResult: () => { },
 		};
 		editor.dialogService = {
 			confirm: async () => ({ confirmed: false }),

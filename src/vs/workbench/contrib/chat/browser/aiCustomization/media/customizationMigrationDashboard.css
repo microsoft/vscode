@@ -33,6 +33,13 @@
 	gap: var(--vscode-spacing-size160);
 }
 
+.customization-migration-dashboard .migration-page-title-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size120);
+}
+
 .customization-migration-dashboard h1,
 .customization-migration-dashboard h2,
 .customization-migration-dashboard h3,
@@ -53,7 +60,7 @@
 }
 
 .customization-migration-dashboard .migration-intro {
-	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size240);
+	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -139,7 +146,7 @@
 	flex: 1 1 auto;
 	min-height: 0;
 	width: 100%;
-	margin-top: var(--vscode-spacing-size160);
+	margin-top: var(--vscode-spacing-size80);
 	overflow: hidden;
 }
 
