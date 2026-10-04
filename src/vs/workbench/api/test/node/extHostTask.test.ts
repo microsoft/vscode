@@ -64,15 +64,19 @@ for (const host of ['node', 'worker'] as const) {
 			return { ...dto, _id: task.name };
 		}
 
-		function createService(createTaskId: (task: ITaskDTO) => Promise<string> = async task => task.name!) {
+		function createService(
+			createTaskId: (task: ITaskDTO) => Promise<string> = async task => task.name!,
+			unregister: (handle: number) => Promise<void> = async () => { }
+		) {
 			let lastHandle = -1;
+			let unregistered = Promise.resolve();
 			const knownTasks = new Map<string, ITaskDTO>();
 			const attached: vscode.Pseudoterminal[] = [];
 			const proxy = new class extends mock<MainThreadTaskShape>() {
 				override async $registerSupportedExecutions() { }
 				override $registerTaskSystem() { }
 				override async $registerTaskProvider(handle: number) { lastHandle = handle; }
-				override async $unregisterTaskProvider() { }
+				override $unregisterTaskProvider(handle: number) { return unregistered = unregister(handle); }
 				override async $createTaskId(task: ITaskDTO) {
 					const id = await createTaskId(task);
 					knownTasks.set(id, { ...task, _id: id });
@@ -109,7 +113,7 @@ for (const host of ['node', 'worker'] as const) {
 
 			function register(provider: vscode.TaskProvider) {
 				const registration = store.add(service.registerTaskProvider(extension, 'testTask', provider));
-				return { handle: lastHandle, dispose: () => registration.dispose() };
+				return { handle: lastHandle, dispose: async () => { registration.dispose(); await unregistered; } };
 			}
 			return {
 				service,
@@ -127,6 +131,59 @@ for (const host of ['node', 'worker'] as const) {
 			return { provideTasks: () => [task], resolveTask: value => value };
 		}
 
+		test('ending during callback creation closes the unclaimed terminal without a late start', async () => {
+			const h = createService();
+			const result = new DeferredPromise<vscode.Pseudoterminal>();
+			let closed = 0;
+			let started = 0;
+			const task = createTask('canceled', () => result.p);
+			const registration = h.register(provider(task));
+			await h.provide(registration.handle);
+			store.add(h.service.onDidStartTask(() => started++));
+			h.service.$onWillStartTask(task.name);
+			const starting = h.start(task);
+			await registration.dispose();
+			await h.end(task);
+			await result.complete({ ...pty, close: () => closed++ });
+			await starting;
+			assert.deepStrictEqual({
+				closed, started, attached: h.attached, cached: [...h.cache], active: [...h.active], executions: h.service.taskExecutions
+			}, { closed: 1, started: 0, attached: [], cached: [], active: [], executions: [] });
+		});
+
+		test('a failed callback releases its startup reservation when the task ends', async () => {
+			const h = createService();
+			const task = createTask('failed', async () => { throw new Error('callback failed'); });
+			const registration = h.register(provider(task));
+			await h.provide(registration.handle);
+			h.service.$onWillStartTask(task.name);
+			await registration.dispose();
+			await assert.rejects(h.start(task), /callback failed/);
+			await h.end(task);
+			await h.start(task);
+			await h.end(task);
+			assert.deepStrictEqual({ attached: h.attached, cached: [...h.cache], active: [...h.active], executions: h.service.taskExecutions },
+				{ attached: [], cached: [], active: [], executions: [] });
+		});
+
+		test('an unregister reply cannot remove a newer registration with the same identity', async () => {
+			const unregistered = new DeferredPromise<void>();
+			const h = createService(undefined, () => unregistered.p);
+			const first = h.register(provider(createTask('same')));
+			await h.provide(first.handle);
+			h.service.$onWillStartTask('same');
+			const disposing = first.dispose();
+			const replacement = createTask('same');
+			const second = h.register(provider(replacement));
+			await h.provide(second.handle);
+			await unregistered.complete();
+			await disposing;
+			await h.start(replacement);
+			await h.end(replacement);
+			assert.deepStrictEqual({ cached: [...h.cache], active: [...h.active], attached: h.attached },
+				{ cached: [['same', replacement.execution]], active: [], attached: [pty] });
+		});
+
 		test('releases every successfully discovered identity when its provider is disposed', async () => {
 			const h = createService();
 			let task = createTask('warmup');
@@ -136,7 +193,7 @@ for (const host of ['node', 'worker'] as const) {
 				await h.provide(registration.handle);
 			}
 			assert.strictEqual(h.cache.size, 5);
-			registration.dispose();
+			await registration.dispose();
 			assert.deepStrictEqual([...h.cache], []);
 		});
 
@@ -148,7 +205,7 @@ for (const host of ['node', 'worker'] as const) {
 			task = createTask('same');
 			await h.provide(registration.handle);
 			assert.deepStrictEqual([...h.cache], [['same', task.execution]]);
-			registration.dispose();
+			await registration.dispose();
 			assert.strictEqual(h.cache.size, 0);
 		});
 
@@ -158,7 +215,7 @@ for (const host of ['node', 'worker'] as const) {
 			for (let i = 0; i < 5; i++) {
 				const registration = h.register(provider(createTask(`task-${i}`)));
 				await h.provide(registration.handle);
-				registration.dispose();
+				await registration.dispose();
 				sizes.push(h.cache.size);
 			}
 			assert.deepStrictEqual(sizes, [0, 0, 0, 0, 0]);
@@ -170,7 +227,7 @@ for (const host of ['node', 'worker'] as const) {
 			const b = h.register(provider(createTask('b')));
 			await h.provide(a.handle);
 			await h.provide(b.handle);
-			a.dispose();
+			await a.dispose();
 			assert.deepStrictEqual([...h.cache.keys()], ['b']);
 		});
 
@@ -183,9 +240,9 @@ for (const host of ['node', 'worker'] as const) {
 				const b = h.register(provider(second));
 				await h.provide(a.handle);
 				await h.provide(b.handle);
-				(disposeNewest ? b : a).dispose();
+				await (disposeNewest ? b : a).dispose();
 				assert.deepStrictEqual([...h.cache], [['same', (disposeNewest ? first : second).execution]]);
-				(disposeNewest ? a : b).dispose();
+				await (disposeNewest ? a : b).dispose();
 				assert.strictEqual(h.cache.size, 0);
 			});
 		}
@@ -197,9 +254,9 @@ for (const host of ['node', 'worker'] as const) {
 			const b = h.register(provider(task));
 			await h.provide(a.handle);
 			await h.provide(b.handle);
-			a.dispose();
+			await a.dispose();
 			assert.deepStrictEqual([...h.cache], [['same', task.execution]]);
-			b.dispose();
+			await b.dispose();
 			assert.strictEqual(h.cache.size, 0);
 		});
 
@@ -212,7 +269,7 @@ for (const host of ['node', 'worker'] as const) {
 			});
 			await h.service.$resolveTask(registration.handle, toDTO(task));
 			assert.deepStrictEqual([...h.cache], [['resolved', task.execution]]);
-			registration.dispose();
+			await registration.dispose();
 			assert.strictEqual(h.cache.size, 0);
 		});
 
@@ -221,7 +278,7 @@ for (const host of ['node', 'worker'] as const) {
 			const result = new DeferredPromise<Task[]>();
 			const registration = h.register({ provideTasks: () => result.p, resolveTask: value => value });
 			const pending = h.provide(registration.handle);
-			registration.dispose();
+			await registration.dispose();
 			await result.complete([createTask('late')]);
 			assert.deepStrictEqual({ tasks: (await pending).tasks, callbacks: [...h.cache] }, { tasks: [], callbacks: [] });
 		});
@@ -240,7 +297,7 @@ for (const host of ['node', 'worker'] as const) {
 					? h.service.$resolveTask(registration.handle, toDTO(task))
 					: h.provide(registration.handle);
 				await requested.p;
-				registration.dispose();
+				await registration.dispose();
 				await taskId.complete('late');
 				await pending;
 				assert.deepStrictEqual([...h.cache], []);
@@ -259,7 +316,7 @@ for (const host of ['node', 'worker'] as const) {
 			const pending = h.service.$resolveTask(registration.handle, toDTO(task));
 			const resolving = await requested.p;
 			resolving.execution = task.execution;
-			registration.dispose();
+			await registration.dispose();
 			await result.complete(resolving);
 			assert.deepStrictEqual({ task: await pending, callbacks: [...h.cache] }, { task: undefined, callbacks: [] });
 		});
@@ -278,7 +335,7 @@ for (const host of ['node', 'worker'] as const) {
 			const first = h.register(provider(createTask('same')));
 			const pending = h.provide(first.handle);
 			await requested.p;
-			first.dispose();
+			await first.dispose();
 			const replacement = createTask('same');
 			const second = h.register(provider(replacement));
 			await h.provide(second.handle);
@@ -293,7 +350,7 @@ for (const host of ['node', 'worker'] as const) {
 			const registration = h.register(provider(task));
 			await h.provide(registration.handle);
 			await h.start(task);
-			registration.dispose();
+			await registration.dispose();
 			assert.deepStrictEqual({ active: [...h.active], cached: [...h.cache] }, { active: [['running', task.execution]], cached: [] });
 			await h.end(task);
 			assert.deepStrictEqual({ active: [...h.active], cached: [...h.cache], tasks: h.service.taskExecutions }, { active: [], cached: [], tasks: [] });
@@ -306,7 +363,7 @@ for (const host of ['node', 'worker'] as const) {
 			const registration = h.register(provider(task));
 			await h.provide(registration.handle);
 			const starting = h.start(task);
-			registration.dispose();
+			await registration.dispose();
 			await result.complete(pty);
 			await starting;
 			assert.deepStrictEqual({ callback: h.service.taskExecutions[0].task.execution, attached: h.attached }, { callback: task.execution, attached: [pty] });
@@ -321,7 +378,7 @@ for (const host of ['node', 'worker'] as const) {
 			const a = h.register(provider(first));
 			await h.provide(a.handle);
 			await h.start(first);
-			a.dispose();
+			await a.dispose();
 			const b = h.register(provider(second));
 			await h.provide(b.handle);
 			await h.end(first);
@@ -347,7 +404,7 @@ for (const host of ['node', 'worker'] as const) {
 			const task = createTask('held');
 			const registration = h.register(provider(task));
 			await h.provide(registration.handle);
-			registration.dispose();
+			await registration.dispose();
 			await h.service.executeTask(extension, task);
 			await h.start(task);
 			await h.end(task);
@@ -361,7 +418,7 @@ for (const host of ['node', 'worker'] as const) {
 			await h.provide(registration.handle);
 			task._id = task.name;
 			await h.service.executeTask(extension, task);
-			registration.dispose();
+			await registration.dispose();
 			await h.start(task);
 			await h.end(task);
 			assert.deepStrictEqual({ attached: h.attached, active: [...h.active] }, { attached: [pty], active: [] });
@@ -394,7 +451,7 @@ for (const host of ['node', 'worker'] as const) {
 			await h.start(next);
 			await h.end(next);
 			assert.deepStrictEqual(h.cache.get('same'), provided.execution);
-			registration.dispose();
+			await registration.dispose();
 			assert.deepStrictEqual([...h.cache.keys()], ['next']);
 		});
 
@@ -406,7 +463,7 @@ for (const host of ['node', 'worker'] as const) {
 			await h.service.executeTask(extension, direct);
 			const registration = h.register(provider(provided));
 			await h.provide(registration.handle);
-			registration.dispose();
+			await registration.dispose();
 			await h.start(direct);
 			await h.end(direct);
 			assert.deepStrictEqual(called, ['direct']);
