@@ -14,21 +14,16 @@
 // shape. The envelopes are folded by the same `sessionReducer` / `chatReducer` the live
 // subscriptions use, so a replayed session and a live one cannot drift.
 
+import { equals } from '../../../base/common/objects.js';
 import { ChunkEnvelope, Reassembler } from './webPubSub/chunking.js';
-import { ActionEnvelope, ActionType, StateAction } from './state/protocol/common/actions.js';
-import { SessionDefaultChatChangedAction } from './state/protocol/channels-session/actions.js';
+import { ActionEnvelope, StateAction } from './state/protocol/common/actions.js';
 import { chatReducer } from './state/protocol/channels-chat/reducer.js';
 import { ChatState } from './state/protocol/channels-chat/state.js';
 import { sessionReducer } from './state/protocol/channels-session/reducer.js';
 import { SessionLifecycle, SessionState, SessionStatus } from './state/protocol/channels-session/state.js';
 import { ChatAction, SessionAction } from './state/sessionActions.js';
 
-/**
- * Highest transport sequence number that may legitimately appear *below* the expected next
- * sequence. Mission Control re-hosts a dormant session on a fresh mirror process whose transport
- * sequence restarts at 0 or 1 while `/events` continues with only the new actions; anything
- * further back is a genuine gap.
- */
+/** Highest starting sequence allowed for a new mirror epoch after exact duplicates are removed. */
 const MAX_RESTART_EPOCH_INITIAL_SEQUENCE = 1;
 
 /** A persisted history that could not be decoded. Distinct from a transport/HTTP failure. */
@@ -48,11 +43,8 @@ export interface IReplayedSession {
 	/** Folded chat-channel state, keyed by chat channel URI. */
 	readonly chats: ReadonlyMap<string, ChatState>;
 	/**
-	 * Channel of the session's default chat, as the recorded history named it.
-	 *
-	 * Resolved from the history rather than derived locally: the host writes whatever channel
-	 * convention it uses (today `<session>/chat`), which need not match the URI a client would
-	 * build for the same chat.
+	 * Host-announced default chat, or the sole recorded chat when no designation was persisted.
+	 * An empty history retains the legacy `<session>/chat` placeholder.
 	 */
 	readonly defaultChat: string;
 	/** Timestamp of the last persisted event, ISO 8601. */
@@ -75,6 +67,7 @@ export interface IReplayedTaskHistory {
 /** Per-session accumulator used while decoding the transport layer. */
 interface ISessionReplayState {
 	readonly envelopes: ActionEnvelope[];
+	readonly eventsBySeq: Map<number, Record<string, unknown>>;
 	modifiedAt: string;
 	nextSeq: number;
 	reassembler: Reassembler;
@@ -154,7 +147,8 @@ function seedChatState(chatChannel: string, modifiedAt: string): ChatState {
 }
 
 /**
- * Decode the persisted transport layer into ordered envelopes, grouped by session.
+ * Decode the persisted transport layer into ordered envelopes, grouped by session, ignoring exact
+ * duplicate records within each mirror epoch.
  *
  * Throws on a genuine sequence gap or a corrupt record — a history that cannot be trusted must
  * not be shown as if it were complete.
@@ -176,10 +170,13 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 
 		let entry = sessions.get(session);
 		if (!entry) {
-			entry = { envelopes: [], modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
+			entry = { envelopes: [], eventsBySeq: new Map(), modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
 			sessions.set(session, entry);
 		}
-		entry.modifiedAt = at;
+		// Persisted batches can overlap; never fold an already-seen delta or chunk twice.
+		if (equals(entry.eventsBySeq.get(seq), value)) {
+			continue;
+		}
 
 		const startsRestartEpoch = seq !== entry.nextSeq && seq < entry.nextSeq && seq <= MAX_RESTART_EPOCH_INITIAL_SEQUENCE;
 		if (seq !== entry.nextSeq && !startsRestartEpoch) {
@@ -192,9 +189,12 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 			// buffered at the restart is an action the previous epoch never finished emitting, so
 			// remember it — replacing the reassembler is what would otherwise lose that fact.
 			entry.abandonedChunkGroup ||= entry.reassembler.inFlightGroupCount > 0;
+			entry.eventsBySeq.clear();
 			entry.nextSeq = seq;
 			entry.reassembler = new Reassembler();
 		}
+		entry.eventsBySeq.set(seq, value);
+		entry.modifiedAt = at;
 		entry.nextSeq += 1;
 
 		let reassembled: unknown;
@@ -227,19 +227,12 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 /**
  * Fold one session's envelopes into session state plus a chat state per chat channel.
  *
- * Routed by **action type**, not channel scheme: recorded channels are whatever the host wrote
- * (today `<session>/chat`, not the `ahp-chat://` URI a client builds), so matching on a scheme would
- * silently drop every chat action. The live subscriptions route the same way.
- *
- * A session may own several peer chats, so each chat channel found in the history gets its own fold
- * — discovered from the envelopes rather than assumed, which keeps forked and peer chats intact.
+ * Routed by action type, not channel scheme: recorded channels are host-authoritative.
+ * Each recorded chat channel is folded separately to keep peer transcripts intact.
  */
 function foldSession(session: string, entry: ISessionReplayState): IReplayedSession {
 	let state = seedSessionState();
 	const chats = new Map<string, ChatState>();
-	// The host announces its default chat via `session/defaultChatChanged`; until then the
-	// deterministic `<session>/chat` is the convention it writes.
-	let defaultChat = `${session}/chat`;
 
 	for (const envelope of entry.envelopes) {
 		const channel = envelope.channel;
@@ -247,9 +240,6 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 
 		if (action.type.startsWith('session/') && channel === session) {
 			state = sessionReducer(state, action as SessionAction);
-			if (action.type === ActionType.SessionDefaultChatChanged) {
-				defaultChat = (action as SessionDefaultChatChangedAction).defaultChat || `${session}/chat`;
-			}
 			continue;
 		}
 		if (action.type.startsWith('chat/')) {
@@ -260,8 +250,11 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	// A session whose history never announced its chats still owns a default chat, so surface an
-	// empty one rather than a session that appears to have no conversation at all.
+	const onlyChat = chats.size === 1 ? chats.keys().next().value : undefined;
+	const defaultChat = state.defaultChat ?? onlyChat ?? `${session}/chat`;
+	if (!state.defaultChat && chats.size > 1 && !chats.has(defaultChat)) {
+		throw new TaskEventReplayError(`Task AHP history for session '${session}' has multiple chats but no default chat.`);
+	}
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
 	}
