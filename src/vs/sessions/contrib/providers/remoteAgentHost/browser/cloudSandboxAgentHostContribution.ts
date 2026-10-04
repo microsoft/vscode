@@ -4,19 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
-import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAuthenticationRequiredError, cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -24,6 +30,7 @@ import { CloudSandboxSessionContribution, discoveredSessionProject, ICloudSandbo
 import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { getGitHubRepositoryFromRemoteUrl } from '../../../../../workbench/contrib/git/common/utils.js';
 import { IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -66,8 +73,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 	constructor(
 		@ICloudSandboxAgentHostService cloudSandboxService: ICloudSandboxAgentHostService,
 		@ICloudSandboxApiService apiService: ICloudSandboxApiService,
-		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
-		@IRemoteAgentHostConnectionCustomizationService connectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
+		@IRemoteAgentHostService private readonly _remoteService: IRemoteAgentHostService,
+		@IRemoteAgentHostConnectionCustomizationService private readonly _sandboxConnectionCustomizations: IRemoteAgentHostConnectionCustomizationService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -80,7 +87,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		@IStorageService storageService: IStorageService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
+		super(cloudSandboxService, apiService, _remoteService, _sandboxConnectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		this._updateRegistration();
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		this._register(this._agentHostFilterService.onDidChange(() => {
@@ -88,6 +95,24 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 				void this._refreshIfStale();
 			}
 		}));
+	}
+
+	async prepareSession(environmentId: string, repoNwo: string, token: CancellationToken): Promise<void> {
+		const address = cloudSandboxAddress(environmentId);
+		const connection = this._remoteService.getConnection(address);
+		if (!connection) {
+			throw new Error('The cloud sandbox connection is no longer available.');
+		}
+		const store = new DisposableStore();
+		try {
+			const prepare = this._sandboxConnectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
+			if (!prepare) {
+				throw new Error('Cloud sandbox repository preparation is not registered.');
+			}
+			await prepare(URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repoNwo}` }), token);
+		} finally {
+			store.dispose();
+		}
 	}
 
 	protected override _updateRegistration(): void {
@@ -128,7 +153,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		return this._instantiationService.createInstance(CloudSandboxSessionsProvider, config);
 	}
 
-	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxProvisionedSession> {
+	async provisionSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, progress?: IProgress<string>): Promise<ICloudSandboxProvisionedSession> {
 		if (!this._isEnabled()) {
 			throw new Error('Copilot cloud sandbox connections are not enabled.');
 		}
@@ -141,6 +166,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		}
 		this._restoreAccount(accountKey);
 		const enabledToken = this._enabledCts.token;
+		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
 		const created = await this._apiService.createSession(request, token);
 		const name = request.repoNwo ?? created.taskId;
 		const address = cloudSandboxAddress(created.environmentId);
@@ -166,8 +192,9 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			});
 			seededProvider = provider;
 			this._persistInventory();
-			await this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' });
-			if (!this._isEnabled() || this._providerInstances.get(address) !== provider) {
+			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
+			await raceCancellationError(this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' }), token);
+			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
 			}
 			const session = provider.getCachedSession(created.sessionId);
@@ -184,5 +211,39 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		} finally {
 			this._provisioning.delete(address);
 		}
+	}
+
+	/** Observe repository setup until the caller finishes dispatching the first turn. */
+	trackSessionCreationProgress(environmentId: string, repoNwo: string, progress: IProgress<string>): IDisposable {
+		const store = new DisposableStore();
+		const connection = this._remoteService.getConnection(cloudSandboxAddress(environmentId));
+		if (!connection) {
+			return store;
+		}
+		const update = () => {
+			const state = connection.rootState.value;
+			if (!state || state instanceof Error) {
+				return;
+			}
+			const projects = readCloudSandboxProjects(state)?.filter(project => {
+				const remote = project.remoteUrl && getGitHubRepositoryFromRemoteUrl(project.remoteUrl, ['github.com']);
+				return remote && equalsIgnoreCase(`${remote.owner}/${remote.repo}`, repoNwo);
+			});
+			const project = projects?.find(project => project.status === 'ready') ?? projects?.find(project => project.status === 'cloning') ?? projects?.[0];
+			if (project?.status === 'cloning') {
+				progress.report(project.progress === undefined
+					? localize('sandbox.cloningRepository', "Cloning repository")
+					: localize('sandbox.cloningRepositoryProgress', "Cloning repository ({0}%)", Math.round(project.progress)));
+			} else if (project?.status === 'ready') {
+				progress.report(localize('sandbox.startingAgent', "Starting Copilot agent"));
+				store.dispose();
+			} else if (project?.status === 'failed') {
+				progress.report(localize('sandbox.cloningFailed', "Repository cloning failed"));
+				store.dispose();
+			}
+		};
+		store.add(connection.rootState.onDidChange(update));
+		update();
+		return store;
 	}
 }

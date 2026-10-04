@@ -5,8 +5,8 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
@@ -16,7 +16,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { URI } from '../../../../../../base/common/uri.js';
 import { StorageValue } from '../../../../../../base/parts/storage/common/storage.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
-import { IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
@@ -36,6 +36,8 @@ import {
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
@@ -56,6 +58,7 @@ import { ISessionsProvider } from '../../../../../services/sessions/common/sessi
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution } from '../../browser/cloudSandboxAgentHostContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
+import { createCloudSandboxSessionPreparation } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxLegacySessionPreparation.js';
 import { IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
 
@@ -247,6 +250,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly storageService?: IStorageService;
 	readonly accountKey?: string | null;
 	readonly waitForDiscovery?: boolean;
+	readonly connection?: IAgentConnection;
 }): Promise<ITestHarness> {
 	const discoveryHandlers: (() => Promise<void>)[] = [];
 	const hostGroups: IAgentHostGroup[] = [];
@@ -359,11 +363,18 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		override readonly connections = [];
 		// No live protocol client is modelled, so activation stops once the connect has been made
 		// rather than going on to wait for the host to advertise its agents.
-		override getConnection() { return undefined; }
+		override getConnection(address: string) { return address === cloudSandboxAddress('env-new') ? options?.connection : undefined; }
 		override async removeRemoteAgentHost(): Promise<void> { }
 	}());
 	instantiationService.stub(IRemoteAgentHostConnectionCustomizationService, new class extends mock<IRemoteAgentHostConnectionCustomizationService>() {
 		override register(): IDisposable { return toDisposable(() => { }); }
+		override get() {
+			return {
+				createSessionPreparation: (connection: IAgentConnection, owner: DisposableStore) => createCloudSandboxSessionPreparation(connection.rootState, async () => {
+					throw new Error('Unexpected clone request');
+				}, owner),
+			};
+		}
 	}());
 	instantiationService.stub(ISessionsProvidersService, store.add(new StubSessionsProvidersService()) as unknown as ISessionsProvidersService);
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
@@ -1567,8 +1578,9 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		const harness = await createContribution(store, []);
 		let connectionSource: ICloudSandboxConnectOptions['connectionSource'];
 		harness.onConnect = async options => { connectionSource = options.connectionSource; };
+		const progress: string[] = [];
 
-		const provisioned = await harness.contribution.provisionSession({ repoNwo: 'osortega/simple-server', prompt: 'fix it' }, CancellationToken.None);
+		const provisioned = await harness.contribution.provisionSession({ repoNwo: 'osortega/simple-server', prompt: 'fix it' }, CancellationToken.None, { report: message => progress.push(message) });
 
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
 		assert.deepStrictEqual({
@@ -1579,13 +1591,107 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			connectedTo: harness.connectedTo,
 			connectionSource,
 			resolvedSession: provisioned.session.resource.path,
+			progress,
 		}, {
 			ids: { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' },
 			seeded: [{ session: 'copilot:/sess-new', summary: 'osortega/simple-server', project: 'osortega/simple-server' }],
 			connectedTo: ['env-new'],
 			connectionSource: 'created',
 			resolvedSession: '/sess-new',
+			progress: ['Setting up cloud container', 'Connecting to cloud container'],
 		});
+	});
+
+	test('tracks initial and live clone percentages only for the selected repository', async () => {
+		const root = store.add(new RootStateSubscription('test', () => { }));
+		let sequence = 0;
+		const update = (status: string, progress?: number) => root.handleSnapshot({
+			agents: [],
+			_meta: { 'copilot.projectManagement': { available: true } },
+			config: {
+				schema: { type: 'object', properties: {} },
+				values: {
+					copilot: {
+						projects: [
+							{ id: 'other', path: '/other', git: true, status: 'ready', remoteUrl: 'https://github.com/other/repo' },
+							{ id: 'checkout', path: '/checkout', git: true, status, progress, remoteUrl: 'git@github.com:Microsoft/VSCode.git' },
+						]
+					}
+				},
+			},
+		}, sequence++);
+		update('cloning', 0);
+		const harness = await createContribution(store, [], { connection: upcastPartial<IAgentConnection>({ rootState: root }) });
+		const messages: string[] = [];
+		store.add(harness.contribution.trackSessionCreationProgress('env-new', 'microsoft/vscode', { report: message => messages.push(message) }));
+		update('cloning', 58);
+		update('ready');
+		update('cloning', 1);
+
+		assert.deepStrictEqual(messages, ['Cloning repository (0%)', 'Cloning repository (58%)', 'Starting Copilot agent']);
+	});
+
+	test('reuses repository preparation and waits for the host to report the clone ready', async () => {
+		const root = store.add(new RootStateSubscription('test', () => { }));
+		const state = (status: 'cloning' | 'ready'): RootState => ({
+			agents: [],
+			_meta: { 'copilot.projectManagement': { available: true } },
+			config: {
+				schema: { type: 'object', properties: {} },
+				values: { copilot: { projects: [{ id: 'checkout', path: '/checkout', git: true, status, remoteUrl: 'https://github.com/microsoft/vscode' }] } },
+			},
+		});
+		root.handleSnapshot(state('cloning'), 0);
+		const harness = await createContribution(store, [], { connection: upcastPartial<IAgentConnection>({ rootState: root }) });
+		let ready = false;
+		const preparation = harness.contribution.prepareSession('env-new', 'microsoft/vscode', CancellationToken.None).then(() => ready = true);
+		await timeout(0);
+		const beforeReady = ready;
+		root.handleSnapshot(state('ready'), 1);
+		await preparation;
+		assert.deepStrictEqual({ beforeReady, afterReady: ready }, { beforeReady: false, afterReady: true });
+	});
+
+	test('keeps unknown clone percentages indeterminate and releases the observer on failure or disposal', async () => {
+		const results: string[][] = [];
+		for (const failed of [false, true]) {
+			const root = store.add(new RootStateSubscription('test', () => { }));
+			const state = (status: string): RootState => ({
+				agents: [],
+				_meta: { 'copilot.projectManagement': { available: true } },
+				config: {
+					schema: { type: 'object', properties: {} },
+					values: { copilot: { projects: [{ id: 'checkout', path: '/checkout', git: true, status, remoteUrl: 'https://github.com/microsoft/vscode' }] } },
+				},
+			});
+			root.handleSnapshot(state('cloning'), 0);
+			const harness = await createContribution(store, [], { connection: upcastPartial<IAgentConnection>({ rootState: root }) });
+			const messages: string[] = [];
+			const tracker = store.add(harness.contribution.trackSessionCreationProgress('env-new', 'microsoft/vscode', { report: message => messages.push(message) }));
+			if (failed) {
+				root.handleSnapshot(state('failed'), 1);
+			} else {
+				tracker.dispose();
+			}
+			root.handleSnapshot(state('ready'), 2);
+			results.push(messages);
+		}
+		assert.deepStrictEqual(results, [['Cloning repository'], ['Cloning repository', 'Repository cloning failed']]);
+	});
+
+	test('does not invent clone progress for missing capabilities, projects, or connections', async () => {
+		const messages: string[] = [];
+		const root = store.add(new RootStateSubscription('test', () => { }));
+		root.handleSnapshot({ agents: [] }, 0);
+		const harness = await createContribution(store, [], { connection: upcastPartial<IAgentConnection>({ rootState: root }) });
+		store.add(harness.contribution.trackSessionCreationProgress('env-new', 'microsoft/vscode', { report: message => messages.push(message) }));
+		store.add(harness.contribution.trackSessionCreationProgress('missing', 'microsoft/vscode', { report: message => messages.push(message) }));
+		root.handleSnapshot({
+			agents: [],
+			_meta: { 'copilot.projectManagement': { available: true } },
+			config: { schema: { type: 'object', properties: {} }, values: { copilot: { projects: [] } } },
+		}, 1);
+		assert.deepStrictEqual(messages, []);
 	});
 
 	test('a discovery pass that cannot see the new task yet does not tear it down mid-provision', async () => {
@@ -1624,6 +1730,29 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			withheld: [],
 			listed: ['sess-new'],
 		});
+	});
+
+	test('cancels provisioning while connecting without leaving the created session withheld', async () => {
+		const harness = await createContribution(store, []);
+		const connecting = new DeferredPromise<void>();
+		const connected = new DeferredPromise<void>();
+		harness.onConnect = async () => {
+			await connecting.complete();
+			await connected.p;
+		};
+		const source = store.add(new CancellationTokenSource());
+		const request = harness.contribution.provisionSession({ prompt: 'fix it' }, source.token);
+		const rejected = assert.rejects(request, isCancellationError);
+		await connecting.p;
+		source.cancel();
+		await rejected;
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
+		await connected.complete();
+		await harness.contribution.connect({ environmentId: 'env-new', name: 'Sandbox' });
+		assert.deepStrictEqual({
+			withheld: [...(provider?.withheld ?? [])],
+			listed: provider?.getSessions().map(session => AgentSession.id(session.resource)),
+		}, { withheld: [], listed: ['sess-new'] });
 	});
 
 	test('rejects when the feature is disabled while the sandbox is waking', async () => {
