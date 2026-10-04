@@ -4406,6 +4406,28 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		});
 	});
 
+	test('cancels queued task mutations when the provider is disposed', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const mutations: boolean[] = [];
+		const provider = createSandboxProvider({
+			setArchived: async archived => {
+				mutations.push(archived);
+				await entered.complete();
+				await pending.p;
+			},
+		});
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const archive = assert.rejects(provider.archiveSession(session.sessionId), CancellationError);
+		await entered.p;
+		const unarchive = assert.rejects(provider.unarchiveSession(session.sessionId), CancellationError);
+		provider.dispose();
+		await pending.complete();
+		await Promise.all([archive, unarchive]);
+		assert.deepStrictEqual(mutations, [true]);
+	});
+
 	test('applies archive and unarchive discoveries from another client despite conflicting host state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createSandboxProvider();
 		provider.seedSessions([metadata]);

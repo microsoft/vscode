@@ -6,8 +6,9 @@
 import { Sequencer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -21,6 +22,7 @@ import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../.
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
 import { IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../common/chatSessionsService.js';
 import { AgentHostSessionListController } from '../agentSessions/agentHost/agentHostSessionListController.js';
@@ -52,6 +54,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		private readonly _archiveSession: (rawId: string, archived: boolean, token: CancellationToken) => Promise<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 		const authority = agentHostAuthority(address);
@@ -201,17 +204,27 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 
 	setChatSessionItemArchived(resource: URI, archived: boolean): void {
 		void this._archiveSequencer.queue(async () => {
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
 			if (resource.scheme !== this.sessionType || resource.fragment) {
 				throw new Error(localize('cloudSandbox.archiveInvalidSession', "The session does not belong to this sandbox."));
 			}
 			const rawId = AgentSession.id(resource);
 			if (await this._archiveSession(rawId, archived, CancellationToken.None)) {
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
 				this.setSessionArchived(rawId, archived);
 			} else {
 				this._requireConnection();
 				this._controller.setChatSessionItemArchived(resource, archived);
 			}
-		}).catch(onUnexpectedError);
+		}).catch(error => {
+			if (!isCancellationError(error)) {
+				this._notificationService.error(localize('cloudSandbox.archiveFailed', "Unable to change the sandbox session's archive state: {0}", toErrorMessage(error)));
+			}
+		});
 	}
 
 	private _listItem(item: IChatSessionItem, connected: boolean, archivedStates: ReadonlyMap<string, boolean>): IChatSessionItem {

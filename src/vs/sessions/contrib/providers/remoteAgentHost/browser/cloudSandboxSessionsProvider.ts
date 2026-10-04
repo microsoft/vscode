@@ -123,6 +123,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	private async _setArchived(sessionId: string, isArchived: boolean): Promise<void> {
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		const session = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (!session || !rawId) {

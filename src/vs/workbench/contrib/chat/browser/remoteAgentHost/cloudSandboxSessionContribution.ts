@@ -416,7 +416,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					name: environment.name,
 					repoName: environment.repoName,
 					updatedAt: environment.updatedAt,
-					...(environment.isArchived ? { isArchived: true } : {}),
+					...(environment.isArchived !== undefined ? { isArchived: environment.isArchived } : {}),
 				};
 				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
 				const value = JSON.stringify({ version: 1, sessions: [session] });

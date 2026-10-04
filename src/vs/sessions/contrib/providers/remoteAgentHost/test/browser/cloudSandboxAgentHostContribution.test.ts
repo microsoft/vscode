@@ -71,12 +71,14 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	disposed = false;
 	taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
 	taskArchiveHandler: { readonly rawId: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
+	readonly archiveUpdates: { rawId: string; archived: boolean }[] = [];
 
 	override setTaskArchiveHandler(rawId: string, setArchived: (archived: boolean) => Promise<void>): void {
 		this.taskArchiveHandler = { rawId, setArchived };
 	}
 
 	override setSessionArchived(rawId: string, archived: boolean): void {
+		this.archiveUpdates.push({ rawId, archived });
 		const index = this.seeded.findIndex(meta => AgentSession.id(meta.session) === rawId);
 		if (index !== -1) {
 			const meta = this.seeded[index];
@@ -514,6 +516,24 @@ suite('CloudSandboxAgentHostContribution', () => {
 			archived, unarchived: !(provider.seeded[0].status! & SessionStatus.IsArchived),
 			sameProvider: harness.contribution.stubProviders.get(address) === provider, disposed: provider.disposed,
 		}, { archived: true, unarchived: true, sameProvider: true, disposed: false });
+	});
+
+	test('restores explicit unarchived inventory state without network discovery', async () => {
+		const storage: IStorageService = store.add(new InMemoryStorageService());
+		const session = discoveredSession({ isArchived: true });
+		const harness = await createContribution(store, [session], { storageService: storage });
+		harness.discovered = [{ ...session, isArchived: false }];
+		await harness.runDiscovery();
+		harness.contribution.dispose();
+		const restored = await createContribution(store, [], {
+			storageService: storage, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+		});
+		const key = `sessions.cloudSandbox.inventory.["github","account-1"].${JSON.stringify([session.environmentId, session.sessionId])}`;
+		const inventory = storage.getObject<{ sessions: ICloudSandboxDiscoveredSession[] }>(key, StorageScope.PROFILE);
+		assert.deepStrictEqual({
+			persisted: inventory?.sessions[0].isArchived,
+			restoredUpdates: restored.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId))!.archiveUpdates,
+		}, { persisted: false, restoredUpdates: [{ rawId: session.sessionId, archived: false }] });
 	});
 
 	test('does not persist rejected task archives', async () => {
@@ -1178,7 +1198,7 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		}, {
 			offlineTrusted: true,
 			previousRegistrationReleased: false,
-			cached: [session],
+			cached: [{ ...session, isArchived: false }],
 			machineKeys: [entryKey(session)],
 			seeded: [{ id: session.sessionId, title: session.name, modifiedTime: Date.parse(session.updatedAt!), repository: session.repoName }],
 			connected: [], history: [],
@@ -1225,8 +1245,8 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		assert.deepStrictEqual({
 			merged, afterRemoval: readInventory(storageService),
 		}, {
-			merged: [discoveredSession(), other],
-			afterRemoval: [other],
+			merged: [discoveredSession({ isArchived: false }), { ...other, isArchived: false }],
+			afterRemoval: [{ ...other, isArchived: false }],
 		});
 	});
 
@@ -1315,7 +1335,7 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		}, {
 			otherAccountRows: 0, restoredImmediately: true, hiddenOnSignOut: true,
 			signedOutRows: 0, signedOutRequests: [],
-			saved: [discoveredSession()],
+			saved: [discoveredSession({ isArchived: false })],
 		});
 	});
 
@@ -1383,8 +1403,8 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			currentAccount: readInventory(storageService, otherAccount),
 		}, {
 			cancelled: true, visible: [cloudSandboxAddress('env-2')],
-			previousAccount: [discoveredSession()],
-			currentAccount: sessions,
+			previousAccount: [discoveredSession({ isArchived: false })],
+			currentAccount: sessions.map(session => ({ ...session, isArchived: false })),
 		});
 	});
 
@@ -1451,7 +1471,7 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		await second.runDiscovery();
 
 		assert.deepStrictEqual({ afterUpdate, afterRemoval: readInventory(shared) }, {
-			afterUpdate: [updated],
+			afterUpdate: [{ ...updated, isArchived: false }],
 			afterRemoval: [],
 		});
 	});

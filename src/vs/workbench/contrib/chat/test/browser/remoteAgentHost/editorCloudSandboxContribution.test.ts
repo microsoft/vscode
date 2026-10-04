@@ -34,6 +34,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -144,6 +145,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
 	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
+	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -165,6 +167,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
+	const errorNotifications: NotificationMessage[] = [];
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override error(message: NotificationMessage): void { errorNotifications.push(message); }
+	}());
 	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
@@ -264,8 +270,9 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			calls.deletedTasks.push(taskId);
 			await options?.deleteTask?.(taskId, token);
 		}
-		override async setTaskArchived(taskId: string, archived: boolean): Promise<void> {
+		override async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
 			calls.archivedTasks.push({ taskId, archived });
+			await options?.setTaskArchived?.(taskId, archived, token);
 		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
@@ -355,7 +362,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -433,6 +440,46 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.deepStrictEqual({
 			connectedArchived, disconnectedArchived, unarchived: h.items()[0].archived,
 		}, { connectedArchived: true, disconnectedArchived: true, unarchived: false });
+	});
+
+	test('notifies the user when Mission Control rejects archiving and preserves the current flag', async () => {
+		const h = createHarness(store, { setTaskArchived: async () => { throw new Error('archive rejected'); } });
+		await h.refresh();
+		h.controllers.get(sessionType)!.setChatSessionItemArchived!(resource, true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived: h.items()[0].archived, notifications: h.errorNotifications,
+		}, {
+			archived: false, notifications: ['Unable to change the sandbox session\'s archive state: archive rejected'],
+		});
+	});
+
+	test('drops old queued archive operations after disable and re-enable without notifying cancellation', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			setTaskArchived: async () => {
+				await entered.complete();
+				await pending.p;
+			},
+		});
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		controller.setChatSessionItemArchived!(resource, true);
+		await entered.p;
+		controller.setChatSessionItemArchived!(resource, false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, true);
+		await h.refresh();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			mutations: h.calls.archivedTasks, notifications: h.errorNotifications,
+			replaced: h.controllers.get(sessionType) !== controller, archived: h.items()[0].archived,
+		}, {
+			mutations: [{ taskId: discovered.taskId, archived: true }], notifications: [],
+			replaced: true, archived: false,
+		});
 	});
 
 	test('trusts only discovered sandbox authorities and releases trust on teardown', async () => {
