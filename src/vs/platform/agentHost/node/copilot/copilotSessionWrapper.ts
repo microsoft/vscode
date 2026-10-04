@@ -230,6 +230,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSessionInfo ??= this._sdkEvent('session.info');
 	}
 
+	private _onIndexedSearch: Event<SessionEventPayload<'session.indexed_search'>> | undefined;
+	get onIndexedSearch(): Event<SessionEventPayload<'session.indexed_search'>> {
+		return this._onIndexedSearch ??= this._sdkEvent('session.indexed_search');
+	}
+
 	private _onSessionWarning: Event<SessionEventPayload<'session.warning'>> | undefined;
 	get onSessionWarning(): Event<SessionEventPayload<'session.warning'>> {
 		return this._onSessionWarning ??= this._sdkEvent('session.warning');

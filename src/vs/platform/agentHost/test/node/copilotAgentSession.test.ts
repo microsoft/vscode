@@ -3102,6 +3102,28 @@ suite('CopilotAgentSession', () => {
 		);
 	});
 
+	test('logs indexed search events without sensitive error details', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.indexed_search', {
+			kind: 'startup',
+			outcome: 'failed',
+			startupDurationMs: 42,
+			forcedByEnv: false,
+			warmStart: true,
+			errorMessage: '/private/repository failed to index',
+		});
+
+		assert.deepStrictEqual({
+			indexedSearch: logService.traces.filter(t => t.message.includes('session.indexed_search')).map(t => t.message),
+			unhandled: logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+		}, {
+			indexedSearch: ['[Copilot:test-session-1] session.indexed_search: {"kind":"startup","outcome":"failed","startupDurationMs":42,"forcedByEnv":false,"warmStart":true}'],
+			unhandled: [],
+		});
+	});
+
 	test('logs only envelope metadata for unknown Fusion events', async () => {
 		const logService = new CapturingLogService();
 		const { mockSession, signals } = await createAgentSession(disposables, { logService });
@@ -12428,6 +12450,22 @@ Use the attached image as context.
 			}]);
 		});
 
+		test('marks todo store telemetry from inside a Fusion phase as phase activity', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-sql', toolName: 'sql', arguments: { query: 'SELECT * FROM todos' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-sql', success: true, fusion });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete) && signal.parentToolCallId !== undefined);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind };
+			}), [{ isSubagentSession: true, subagentKind: 'fusionPhase' }]);
+		});
+
 		test('does not emit todo store telemetry for failed or contributed SQL', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { mockSession } = await createAgentSession(disposables, {
@@ -14559,6 +14597,18 @@ Use the attached image as context.
 				afterEdit: ['subagent_started', 'subagent_started'],
 				afterIdle: ['subagent_started', 'subagent_started', 'subagent_completed'],
 			});
+		});
+
+		test('a Fusion phase chat is announced as a phase chat running the model last reported for the phase', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'subagent_started' ? [{ toolCallId: signal.toolCallId, subagentKind: signal.subagentKind, model: signal.model }] : []), [
+				{ toolCallId: 'fusion:fusion-1:phase-1', subagentKind: 'fusionPhase', model: 'actual-model' },
+			]);
 		});
 
 		test('Fusion tools stay at the root when their phase has no child chat', async () => {

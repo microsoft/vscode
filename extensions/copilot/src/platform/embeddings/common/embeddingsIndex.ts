@@ -38,7 +38,7 @@ export enum RemoteCacheType {
 // These values are the blob storage container names where we publish computed embeddings
 enum RemoteEmbeddingsContainer {
 	TEXT3SMALL = 'text-3-small',
-	METIS_1024_I16_BINARY = 'metis-1024-I16-Binary'
+	METIS_1024_I16_BINARY = 'metis-1024-i16-binary'
 }
 
 function embeddingsModelToRemoteContainer(embeddingType: EmbeddingType): RemoteEmbeddingsContainer {
@@ -150,8 +150,8 @@ class EmbeddingsCache {
 			await this.fileSystemService.stat(this.cacheStorageUri);
 			await this.fileSystemService.delete(cacheFile, { useTrash: false });
 		} catch (e) {
-			if (e.code === 'ENOENT') {
-				throw new Error(`Cache file ${cacheFile} does not exist`);
+			if (e.code !== 'ENOENT' && e.code !== 'FileNotFound') {
+				throw e;
 			}
 		}
 	}
@@ -196,7 +196,7 @@ export class LocalEmbeddingsCache implements IEmbeddingsCache {
 		this._embeddingsCache = instantiationService.createInstance(
 			EmbeddingsCache,
 			cacheType,
-			cacheKey,
+			`${cacheKey}-${embeddingType.id}`,
 			cacheVersion
 		);
 	}
@@ -235,13 +235,14 @@ export class RemoteEmbeddingsCache implements IEmbeddingsCache {
 		@IFetcherService protected readonly fetcherService: IFetcherService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
+		const modelCacheKey = `${cacheKey}-${embeddingType.id}`;
 		this.embeddingsCache = instantiationService.createInstance(
 			EmbeddingsCache,
 			cacheType,
-			cacheKey,
+			modelCacheKey,
 			cacheVersion
 		);
-		this.remoteCacheVersionKey = `${cacheKey}-version-remote`;
+		this.remoteCacheVersionKey = `${modelCacheKey}-version-remote`;
 	}
 
 	async clearCache(): Promise<void> {

@@ -7,7 +7,9 @@ import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lif
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { createSandboxNetworkFilter, IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { equals } from '../../../base/common/objects.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
@@ -62,6 +64,29 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessions = this._register(new DisposableMap<string, PlaywrightSession>());
+	private readonly _networkRestrictions = new Map<string, ISandboxNetworkRestrictions>();
+	private readonly _networkRestrictionUpdates = new Map<string, Promise<void>>();
+
+	async setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void> {
+		const apply = async () => {
+			await this._pendingInits.get(sessionId);
+			await this.browserViewGroupRemoteService.setSessionNetworkRestrictions(sessionId, restrictions);
+			if (!equals(this._networkRestrictions.get(sessionId), restrictions)) {
+				await this.disposeSession(sessionId);
+				this._networkRestrictions.set(sessionId, restrictions);
+			}
+		};
+		// A failed update is reported to its caller but must not prevent a later retry.
+		const update = (this._networkRestrictionUpdates.get(sessionId) ?? Promise.resolve()).then(apply, apply);
+		this._networkRestrictionUpdates.set(sessionId, update);
+		try {
+			await update;
+		} finally {
+			if (this._networkRestrictionUpdates.get(sessionId) === update) {
+				this._networkRestrictionUpdates.delete(sessionId);
+			}
+		}
+	}
 
 	/** In-flight session initializations keyed by session ID. */
 	private readonly _pendingInits = new Map<string, Promise<PlaywrightSession>>();
@@ -86,6 +111,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	 * connection if the session does not already exist.
 	 */
 	private async _getOrCreateSession(sessionId: string): Promise<PlaywrightSession> {
+		await this._networkRestrictionUpdates.get(sessionId);
 		const existing = this._sessions.get(sessionId);
 		if (existing) {
 			this._touchSession(sessionId);
@@ -113,14 +139,17 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	 */
 	private async _initSession(sessionId: string): Promise<PlaywrightSession> {
 		this.logService.debug(`[PlaywrightService] Initializing session ${sessionId}`);
+		const restrictions = this._networkRestrictions.get(sessionId);
 
 		const group = await this.browserViewGroupRemoteService.createGroup(
-			{ audience: { type: 'agent', sessionId } },
+			{ audience: { type: 'agent', sessionId }, ...(restrictions?.sandboxEnabled ? { sandboxSessionId: sessionId } : {}) },
 			{
 				host: {
 					windowId: this.windowId
 				},
-				...getAgentBrowserViewCreationDefaults(sessionId, this.useSessionStorageAffinity ? sessionId : undefined)
+				...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.useSessionStorageAffinity ? sessionId : undefined),
+				...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
+				...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
 			}
 		);
 
@@ -179,7 +208,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			group,
 			actionScope,
 			this.logService,
-			this.agentNetworkFilterService,
+			restrictions ? createSandboxNetworkFilter(this.agentNetworkFilterService, restrictions) : this.agentNetworkFilterService,
 			this.telemetryService,
 		);
 
@@ -187,8 +216,10 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		// recreated fresh on the next tool call.
 		browser.on('disconnected', () => {
 			this.logService.debug(`[PlaywrightService] Browser disconnected for session ${sessionId}`);
-			this._sessions.deleteAndDispose(sessionId);
-			this._inactivityTimers.deleteAndDispose(sessionId);
+			if (this._sessions.get(sessionId) === session) {
+				this._sessions.deleteAndDispose(sessionId);
+				this._inactivityTimers.deleteAndDispose(sessionId);
+			}
 		});
 
 		this._sessions.set(sessionId, session);
@@ -237,6 +268,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	// --- Session lifecycle ---
 
 	async disposeSession(sessionId: string): Promise<void> {
+		this._networkRestrictions.delete(sessionId);
 		if (this._sessions.has(sessionId)) {
 			this.logService.debug(`[PlaywrightService] Disposing session ${sessionId}`);
 			this._sessions.deleteAndDispose(sessionId);

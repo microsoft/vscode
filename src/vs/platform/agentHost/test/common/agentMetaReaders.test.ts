@@ -40,6 +40,17 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
+		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
+		const key = 'vscode.copilotSandboxNetworkRestrictions';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: restrictions })))[key],
+			readToolCallMeta(toolCall(undefined))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, sandboxEnabled: 'true' } }))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, deniedDomains: [5] } }))[key],
+		], [restrictions, undefined, undefined, undefined]);
+	});
+
 	suite('session sandbox policy', () => {
 		const policies = [
 			undefined,
