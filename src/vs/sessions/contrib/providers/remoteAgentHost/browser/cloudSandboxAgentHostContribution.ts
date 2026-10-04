@@ -107,6 +107,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			const rawId = env.sessionId;
 			const address = cloudSandboxAddress(env.environmentId);
 			this._providerInstances.get(address)?.setTaskRenameHandler(rawId, title => this._renameSandboxSession(address, rawId, title));
+			this._providerInstances.get(address)?.setTaskArchiveHandler(rawId, archived => this._setSandboxSessionArchived(address, rawId, archived));
 		}
 	}
 
