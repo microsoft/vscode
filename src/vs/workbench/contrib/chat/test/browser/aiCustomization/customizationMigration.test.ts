@@ -166,13 +166,13 @@ suite('customizationMigration', () => {
 			]),
 		);
 
-		assert.strictEqual(prompt, [
+		assert.strictEqual(prompt.replace(/\\/g, '/'), [
 			'/migrate-customizations',
 			'',
 			'Selected harness: Copilot (agent-host-copilotcli)',
 			'Migration telemetry flow: migration-flow-id',
 			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
-			`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
+			`Recovery bundle filesystem path: ${recoveryBundleFolder.path}`,
 			'',
 			'Customizations that need migration:',
 			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
