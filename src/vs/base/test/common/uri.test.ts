@@ -358,6 +358,12 @@ suite('URI', () => {
 		assert.strictEqual(value.toString(), 'http://f%C3%B6%C3%B6:b%C3%B6r@l%C3%B6calhost:8080/far');
 	});
 
+	test('URI#toString, colon in password splits userinfo at the first colon', () => {
+		const value = URI.parse('http://foo:pa:ss@localhost/far');
+		assert.strictEqual(value.toString(), 'http://foo:pa%3Ass@localhost/far');
+		assert.strictEqual(URI.parse(value.toString()).authority, 'foo:pa:ss@localhost');
+	});
+
 	test('correctFileUriToFilePath2', () => {
 
 		const test = (input: string, expected: string) => {
