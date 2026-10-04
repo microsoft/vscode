@@ -365,9 +365,7 @@ export class CursorsController extends Disposable {
 		const result = this._executeCommands(opResult.commands, opResult.type, editReason);
 
 		if (result && opResult.commandsAfterUndoStop) {
-			// Execute the remaining commands as a separate edit operation, with an
-			// undo stop between the two batches, so that the auto-closed characters
-			// can be undone on their own.
+			// Undo stop between the two command batches so the auto-closed characters can be undone on their own
 			this._model.pushStackElement();
 			this._executeCommands(opResult.commandsAfterUndoStop, opResult.type, editReason);
 		}

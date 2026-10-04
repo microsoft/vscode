@@ -161,10 +161,7 @@ export class AutoClosingOpenCharTypeOperation {
 
 	private static _runAutoClosingOpenCharType(config: CursorConfiguration, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
 		const commands: ICommand[] = [];
-		// When the open sequence consists of multiple characters, the typed
-		// character and the auto-closed close characters are executed as two
-		// separate edit operations with an undo stop between them, so that the
-		// close characters can be undone on their own.
+		// Multi-character open sequences split the typed character and the close characters into two edit operations with an undo stop between them, so the close characters can be undone on their own.
 		const commandsAfterUndoStop: ICommand[] | null = this._shouldPushUndoStopAfterOpenChar(config, ch, chIsAlreadyTyped, autoClosingPairClose) ? [] : null;
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -186,7 +183,6 @@ export class AutoClosingOpenCharTypeOperation {
 		if (chIsAlreadyTyped || autoClosingPairClose.length === 0) {
 			return false;
 		}
-		// Only multi-character open sequences need an undo stop after the typed character
 		const candidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(autoClosingPairClose.charAt(autoClosingPairClose.length - 1));
 		if (candidates) {
 			for (const candidate of candidates) {
@@ -962,16 +958,13 @@ class TypeWithAutoClosingCommand extends BaseTypeWithAutoClosingCommand {
 	}
 }
 
-// Inserts the auto-closed close characters right after the typed open character.
-// It is executed in a separate edit operation from the open character, with an
-// undo stop in between, so that the close characters can be undone on their own.
+// Inserts the auto-closed close characters right after the typed open character, as a separate edit operation with an undo stop in between so the close characters can be undone on their own.
 class AutoClosingCloseCharInsertCommand extends BaseTypeWithAutoClosingCommand {
 
 	private readonly _openCharacterLength: number;
 
 	constructor(selection: Selection, openCharacter: string, closeCharacter: string) {
-		// The close characters are inserted right after the open character,
-		// i.e. right after the (empty) selection.
+		// The close characters go right after the (empty) selection, i.e. after the typed open character.
 		const range = new Selection(selection.positionLineNumber, selection.positionColumn + openCharacter.length, selection.positionColumn + openCharacter.length);
 		super(range, closeCharacter, 0, 0, openCharacter, closeCharacter);
 		this._openCharacterLength = openCharacter.length;
