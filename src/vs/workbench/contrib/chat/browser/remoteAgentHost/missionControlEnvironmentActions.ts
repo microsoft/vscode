@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService, type IMissionControlEnvironment } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -46,16 +47,72 @@ registerAction2(class extends Action2 {
 		const local = accessor.get(IAgentHostService);
 		try {
 			const ownEnvironment = await local.getExperimentalMissionControlEnvironmentId?.();
-			const items = api.listEnvironments(CancellationToken.None).then(environments => environments
+			const toItems = (environments: readonly IMissionControlEnvironment[]): IEnvironmentPick[] => environments
 				.filter(environment => environment.kind === 'user-local' && environment.id !== ownEnvironment)
 				.sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online') || a.name.localeCompare(b.name))
-				.map(environment => ({ label: environment.name, description: environment.status, detail: environment.id, environment })));
-			const selection = await picker.pick<IEnvironmentPick>(items, {
-				title: localize('missionControlEnvironments', "Mission Control Environments"),
-				placeHolder: localize('selectMissionControlEnvironment', "Select an existing user-local host; no replacement compute is provisioned"),
-				matchOnDescription: true,
-				matchOnDetail: true,
-			});
+				.map(environment => ({ label: environment.name, description: environment.status, detail: environment.id, environment }));
+			const resources = new DisposableStore();
+			let selection: IEnvironmentPick | undefined;
+			try {
+				const cancellation = new CancellationTokenSource();
+				resources.add(toDisposable(() => cancellation.dispose(true)));
+				const quickPick = resources.add(picker.createQuickPick<IEnvironmentPick>());
+				const cached = api.getCachedEnvironments();
+				quickPick.title = localize('missionControlEnvironments', "Mission Control Environments");
+				quickPick.placeholder = localize('selectMissionControlEnvironment', "Select an existing user-local host; no replacement compute is provisioned");
+				quickPick.matchOnDescription = true;
+				quickPick.matchOnDetail = true;
+				quickPick.keepScrollPosition = true;
+				quickPick.items = toItems(cached ?? []);
+				quickPick.busy = cached === undefined;
+				selection = await new Promise<IEnvironmentPick | undefined>((resolve, reject) => {
+					resources.add(quickPick.onDidAccept(() => {
+						const selected = quickPick.selectedItems[0] ?? quickPick.activeItems[0];
+						if (selected) {
+							resolve(selected);
+							quickPick.hide();
+						}
+					}));
+					resources.add(quickPick.onDidHide(() => {
+						cancellation.cancel();
+						resolve(undefined);
+					}));
+					const refresh = async () => {
+						try {
+							const environments = await api.listEnvironments(cancellation.token, { refresh: true });
+							if (cancellation.token.isCancellationRequested) {
+								return;
+							}
+							const active = new Set(quickPick.activeItems.map(item => item.environment.id));
+							const items = toItems(environments);
+							quickPick.items = items;
+							if (active.size) {
+								quickPick.activeItems = items.filter(item => active.has(item.environment.id));
+							}
+							quickPick.busy = false;
+						} catch (error) {
+							if (cancellation.token.isCancellationRequested) {
+								return;
+							}
+							if (isCancellationError(error)) {
+								quickPick.hide();
+								return;
+							}
+							quickPick.busy = false;
+							if (!quickPick.items.length) {
+								reject(error);
+								quickPick.hide();
+							} else {
+								notifications.error(error);
+							}
+						}
+					};
+					quickPick.show();
+					void refresh();
+				});
+			} finally {
+				resources.dispose();
+			}
 			if (!selection) {
 				return;
 			}

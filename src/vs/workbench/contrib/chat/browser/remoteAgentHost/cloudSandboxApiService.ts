@@ -287,10 +287,16 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return environment;
 	}
 
+	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined {
+		return this._environments?.generation === this._discoveryGeneration && Date.now() - this._environments.fetchedAt < 60_000
+			? this._environments.values : undefined;
+	}
+
 	async listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]> {
 		const generation = this._discoveryGeneration;
-		if (!options?.refresh && this._environments?.generation === generation && Date.now() - this._environments.fetchedAt < 60_000) {
-			return this._environments.values;
+		const cached = this.getCachedEnvironments();
+		if (!options?.refresh && cached) {
+			return cached;
 		}
 		const context = await this._request(`${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments`, 'mc.environmentClient.list', 'listEnvironments', {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,

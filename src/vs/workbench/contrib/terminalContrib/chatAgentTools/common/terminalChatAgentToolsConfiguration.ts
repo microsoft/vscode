@@ -569,7 +569,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) !== false),
 		order: 20,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDescription: localize('agentSandbox.allowNetwork', "Allow the sandboxed process to reach the Internet."),
+		markdownDescription: localize('agentSandbox.allowNetwork', "Allow outbound network access in the sandbox (`allowOutbound` in the SDK). Configured allowed and denied network domains still restrict destinations. When disabled, outbound network access is blocked, including for the integrated browser."),
 		type: 'boolean',
 		default: true,
 		restricted: true,

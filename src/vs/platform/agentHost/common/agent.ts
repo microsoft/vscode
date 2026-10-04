@@ -1056,6 +1056,9 @@ export interface IAgentToolPendingConfirmationSignal {
 
 export type AgentSubagentTaskModelSource = 'task_argument' | 'subagent_configuration' | 'custom_agent_definition' | 'unset';
 
+/** `task` is a delegated subagent; `fusionPhase` is a presentation-only chat for one HydraFusion phase of the parent turn. */
+export type AgentSubagentKind = 'task' | 'fusionPhase';
+
 /**
  * A subagent was spawned by a tool call. The host creates a child session
  * silently and routes subsequent inner-tool events to it.
@@ -1071,6 +1074,10 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
 	readonly taskModelSource?: AgentSubagentTaskModelSource;
+	/** Absent means `task`. */
+	readonly subagentKind?: AgentSubagentKind;
+	/** For telemetry, when the chat reports no usage of its own. */
+	readonly model?: string;
 	/**
 	 * The spawning Task tool's short (typically 3-5 word) `description`
 	 * input, e.g. "Review package.json structure". Distinct from

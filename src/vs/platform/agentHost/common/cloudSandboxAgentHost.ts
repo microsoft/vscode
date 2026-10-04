@@ -274,6 +274,8 @@ export interface ICloudSandboxApiService {
 	getEnvironment(environmentId: string, token: CancellationToken): Promise<ICloudSandboxEnvironment>;
 	/** Lists the authenticated account's environments without attaching or provisioning compute. */
 	listEnvironments(token: CancellationToken, options?: { readonly refresh?: boolean }): Promise<readonly IMissionControlEnvironment[]>;
+	/** Returns fresh credential-free inventory for the current account without issuing a request. */
+	getCachedEnvironments(): readonly IMissionControlEnvironment[] | undefined;
 
 	/** Enumerate sandbox sessions, optionally returning changes since the last successful scan. */
 	listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult>;

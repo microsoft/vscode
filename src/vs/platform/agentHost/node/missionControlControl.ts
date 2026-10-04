@@ -8,7 +8,7 @@ import { hasKey } from '../../../base/common/types.js';
 import type { IMissionControlMirrorBackfill } from './missionControlSessionMirror.js';
 
 const MAX_SKEW_SECONDS = 300;
-const P256_ORDER_HALF = BigInt('0x7fffffff800000007fffffffffffffffffffffffffffffffde737d56d38bcf427');
+const P256_ORDER_HALF = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551') / 2n;
 
 export interface IMissionControlSpawn {
 	readonly kind: 'spawn_request';

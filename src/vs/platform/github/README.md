@@ -60,6 +60,16 @@ VS Code forwards optional account provenance through the standard authentication
 
 Private caches and request sharing remain token/base-specific. Host-supplied account provenance affects only quota accounting: known IDs share applicable GitHub account limits, while unknown identities use a conservative origin-wide bootstrap bucket. Known bootstrap clients also honor outstanding unresolved-origin waits. A bootstrap waiter fails promptly as rate-limited when the cooldown cannot fit its deadline; authenticated repository and anonymous reads keep their existing deadline behavior. Client release preserves live server cooldowns and cannot cancel another token's work. Migrating Copilot discovery to this capability is a separate, deferred change.
 
+### Repository queries
+
+Authorized clients expose one-shot `getRepository`, `listRepositories` and `searchRepositories` operations in addition to repository subscriptions. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them.
+
+Discovery takes an account handle, not a synthetic repository or Agent Host/session context. Each call fetches one page (1–100 items, default 100) and returns an optional `nextPage` from the server's pagination signal. Callers own iteration, selection, sorting, query qualifiers and operation budgets; the service does not fetch organizations, scope a search to the current user, or automatically drain every page. Empty queries and invalid pagination fail with a validation error before credential resolution or network dispatch.
+
+Search also returns `totalCount`, `incompleteResults` and `limitReached`. The last field identifies searches exceeding GitHub's 1,000 retrievable results; pagination never advertises a page beyond that ceiling. A missing `nextPage` does not imply a complete search when either flag is set. Malformed completeness fields are errors, not empty successful results.
+
+These contracts cover metadata/discovery requirements of core repository presentations, the legacy Sessions repository picker, and the built-in GitHub remote-source provider without taking over their UI, account selection or git workflows. Those legacy renderer/extension consumers remain unmigrated; shared-process authenticated-client IPC and repository creation/fork/branch APIs are separate work.
+
 ### Agent Host repository and PR operations
 
 The [association resolver](../agentHost/node/agentHostPullRequestAssociationResolver.ts), [creation handler](../agentHost/node/agentHostPullRequestOperationHandler.ts) and [title controller](../agentHost/node/agentHostSessionTitleController.ts) retain an authorized client for each operation. They reuse the binding's selected repository resource and existing silent missing-token checks; title context does not introduce another scope requirement or a sign-in prompt.
@@ -90,6 +100,12 @@ Internal requests carry caller attribution and a deadline. Current transport def
 - Server cooldowns also gate repeated identity lookups and authenticated download redirects. Download error classification inspects at most an 8 KiB diagnostic prefix, without exposing it in errors or telemetry.
 - Credential resolution has a separate five-minute caller deadline covering token acquisition, identity backoff and shared identity lookup. A caller timing out does not erase server cooldowns or cancel another caller's identity lookup.
 - Long server cooldowns use bounded native timer chunks. Queue drains also expire overdue active requests after wall-clock jumps; rejected unique reads never retain coalescing entries or waiter timers.
+
+HTTP error classification, response telemetry and cooldowns share the same quota-evidence check. A generic HTTP 403 with "Rate Limit Exceeded" wording remains an authorization failure unless valid exhausted-quota or `Retry-After` headers, an explicit primary message without usable remaining-quota feedback, or explicit secondary-limit evidence establish throttling. HTTP 429 still establishes throttling; malformed refusal headers do not invent cooldowns, healthy quota observations do not erase existing waits, and storage-origin download denials do not establish GitHub account limits. Later exhausted-quota responses extend existing waits while preserving `Retry-After` precedence.
+
+REST admission recognizes fixed core, checks, code-search, semantic-search and other-search route families, including the Enterprise `/api/v3` prefix. Checks also honor legacy core waits; specialized searches honor legacy search waits, and code search honors its expanded bucket. This deliberately favors safe backoff over exact credential-specific quota isolation.
+
+An unexpected REST resource uses one account-scoped REST cooldown in the existing storage instead of a learned route mapping. This aggregate stores only deadlines derived from each response's own validated hints, not quota counters from unrelated resources. Valid server retry/reset timing governs admission, retries, authenticated downloads and bootstrap waiters; an exhausted successful response also establishes a wait. Such a wait can delay otherwise independent REST requests, but does not block another account or GraphQL. REST admission waits are separate from identity's core/secondary cooldown checks, so token renewal does not promote an unrelated REST wait into credential resolution; cooldowns returned by the identity request itself remain enforced. Successful identity responses preserve their fallback on the resolved account and renewal gate before bootstrap cleanup. HTTP quota counters and retry hints are validated strictly, and healthy feedback cannot erase a live wait.
 
 ### Request identification
 

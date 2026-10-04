@@ -330,6 +330,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 	) {
 		super();
 		this._connectionFactory = this._register(this._instantiationService.createInstance(CloudSandboxConnectionFactory));
@@ -370,8 +371,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		let userLocalAccount: string | undefined;
 		const accountGeneration = this._accountGeneration;
 		if (options.environmentKind === 'user-local') {
-			const local = this._instantiationService.invokeFunction(accessor => accessor.get(IAgentHostService));
-			if (await local.getExperimentalMissionControlEnvironmentId?.() === options.environmentId) {
+			if (await this._localAgentHostService.getExperimentalMissionControlEnvironmentId?.() === options.environmentId) {
 				throw new Error('Use local IPC for this window\'s own Agent Host, not its Mission Control relay.');
 			}
 			const account = await this._apiService.getAccountKey();

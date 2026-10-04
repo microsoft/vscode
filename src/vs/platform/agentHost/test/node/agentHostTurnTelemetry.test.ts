@@ -1259,13 +1259,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.deepStrictEqual({
 			completed: completedEvents().map(event => {
 				const data = event.data as Record<string, unknown>;
-				return { isSubagentSession: data.isSubagentSession, interactionMode: data.interactionMode, modelCallCount: data.modelCallCount, subagentTaskModelSource: data.subagentTaskModelSource };
+				return { isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind, interactionMode: data.interactionMode, modelCallCount: data.modelCallCount, subagentTaskModelSource: data.subagentTaskModelSource };
 			}),
 			correlations: agent.modelCallTurnCorrelationCalls.map(({ chat, ...correlation }) => ({ chat: chat.toString(), ...correlation })),
 		}, {
 			completed: [
-				{ isSubagentSession: true, interactionMode: 'plan', modelCallCount: 1, subagentTaskModelSource: 'task_argument' },
-				{ isSubagentSession: false, interactionMode: 'plan', modelCallCount: 0, subagentTaskModelSource: undefined },
+				{ isSubagentSession: true, subagentKind: 'task', interactionMode: 'plan', modelCallCount: 1, subagentTaskModelSource: 'task_argument' },
+				{ isSubagentSession: false, subagentKind: undefined, interactionMode: 'plan', modelCallCount: 0, subagentTaskModelSource: undefined },
 			],
 			correlations: [{
 				chat: defaultChatUri,
@@ -1273,6 +1273,73 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				turnId: subagentTurnId,
 			}],
 		});
+	});
+
+	test('classifies HydraFusion phase chats separately from task subagents and reports the phase model', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5-mini', name: 'GPT 5.5 Mini', supportsVision: false },
+		]);
+		startTurn('turn-parent');
+		const phaseToolCallId = 'fusion:fusion-1:phase-1';
+		const phaseChatUri = buildSubagentChatUri(sessionUri, phaseToolCallId);
+		stateManager.addChat(sessionKey, phaseChatUri);
+		const runPhaseTurn = (model: string) => {
+			agent.fireProgress({
+				kind: 'subagent_started',
+				chat: URI.parse(defaultChatUri),
+				toolCallId: phaseToolCallId,
+				agentName: 'hydrafusion-phase',
+				agentDisplayName: 'Main pass',
+				subagentKind: 'fusionPhase',
+				model,
+			});
+			const turnId = stateManager.getActiveTurnId(phaseChatUri);
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: phaseToolCallId });
+			return turnId;
+		};
+		const phaseTurnId = runPhaseTurn('gpt-5.5');
+		const resumedPhaseTurnId = runPhaseTurn('gpt-5.5-mini');
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
+
+		assert.deepStrictEqual({
+			phaseTurnsStarted: phaseTurnId !== undefined && resumedPhaseTurnId !== undefined && phaseTurnId !== resumedPhaseTurnId,
+			completed: completedEvents().map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { turnId: data.turnId, isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind, parentToolCallId: data.parentToolCallId, model: capturedModel(data).value };
+			}),
+		}, {
+			phaseTurnsStarted: true,
+			completed: [
+				{ turnId: phaseTurnId, isSubagentSession: true, subagentKind: 'fusionPhase', parentToolCallId: phaseToolCallId, model: 'gpt-5.5' },
+				{ turnId: resumedPhaseTurnId, isSubagentSession: true, subagentKind: 'fusionPhase', parentToolCallId: phaseToolCallId, model: 'gpt-5.5-mini' },
+				{ turnId: 'turn-parent', isSubagentSession: false, subagentKind: undefined, parentToolCallId: undefined, model: undefined },
+			],
+		});
+	});
+
+	test('reports the root turn as the parent of a subagent launched inside a HydraFusion phase', () => {
+		setupSession();
+		startTurn('turn-parent');
+		const phaseToolCallId = 'fusion:fusion-1:phase-1';
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId));
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'));
+		const chat = URI.parse(defaultChatUri);
+		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: phaseToolCallId, agentName: 'hydrafusion-phase', agentDisplayName: 'Main pass', subagentKind: 'fusionPhase' });
+		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: 'call-task', agentName: 'explore', agentDisplayName: 'Explore', parentToolCallId: phaseToolCallId });
+		agent.fireProgress({ kind: 'subagent_completed', chat, toolCallId: 'call-task' });
+		agent.fireProgress({ kind: 'subagent_completed', chat, toolCallId: phaseToolCallId });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { parentToolCallId: data.parentToolCallId, subagentKind: data.subagentKind, parentTurnId: data.parentTurnId };
+		}), [
+			{ parentToolCallId: 'call-task', subagentKind: 'task', parentTurnId: 'turn-parent' },
+			{ parentToolCallId: phaseToolCallId, subagentKind: 'fusionPhase', parentTurnId: 'turn-parent' },
+			{ parentToolCallId: undefined, subagentKind: undefined, parentTurnId: undefined },
+		]);
 	});
 
 	test('attributes subagent model-call attempt durations only to the subagent turn', () => {

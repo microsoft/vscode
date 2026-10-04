@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { generateKeyPairSync, randomUUID, sign, type JsonWebKey } from 'crypto';
+import { createPublicKey, generateKeyPairSync, randomUUID, sign, verify, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
 import { realpathSync } from 'fs';
@@ -119,6 +119,32 @@ suite('Experimental Mission Control WPS', () => {
 			owner: 'Control request does not match this environment',
 		});
 	});
+
+	for (const kind of ['spawn_request', 'backfill_request'] as const) {
+		test(`rejects a cryptographically valid high-S ${kind} without consuming the nonce`, () => {
+			const { key, signedControl } = signingFixture();
+			const payload = kind === 'spawn_request'
+				? { kind, client_id: 'client-a', spawn_request_id: 'spawn-a', passive: false }
+				: { kind, environment_id: 'environment', session_id: 'ahp-session:/session', ns: 'ahp', from_seq: 0, to_seq: 0, request_id: 'request-a' };
+			const low = signedControl(payload, `nonce-${kind}`);
+			const [header, claims, encodedSignature] = low.signature.split('.');
+			const signature = Buffer.from(encodedSignature, 'base64url');
+			const lowS = BigInt(`0x${signature.subarray(32).toString('hex')}`);
+			Buffer.from((order - lowS).toString(16).padStart(64, '0'), 'hex').copy(signature, 32);
+			const high = { ...low, signature: `${header}.${claims}.${signature.toString('base64url')}` };
+			assert.deepStrictEqual({
+				lowS: lowS <= order / 2n,
+				highS: order - lowS > order / 2n,
+				validSignature: verify('sha256', Buffer.from(`${header}.${claims}`), {
+					key: createPublicKey({ key, format: 'jwk' }), dsaEncoding: 'ieee-p1363',
+				}, signature),
+			}, { lowS: true, highS: true, validSignature: true });
+			const verifier = new MissionControlControlVerifier('environment', 'owner', [key]);
+			const verifyRequest = kind === 'spawn_request' ? (value: typeof low) => verifier.verify(value) : (value: typeof low) => verifier.verifyBackfill(value);
+			assert.throws(() => verifyRequest(high), /Invalid Mission Control signature/);
+			assert.doesNotThrow(() => verifyRequest(low));
+		});
+	}
 
 	test('failed WPS join rejects the handshake and closes the socket', async () => {
 		const { key } = signingFixture();

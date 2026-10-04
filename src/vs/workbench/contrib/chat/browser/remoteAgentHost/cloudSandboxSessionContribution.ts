@@ -153,6 +153,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IHostService private readonly _hostService: IHostService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 	) {
 		super();
 
@@ -175,12 +176,12 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 						throw new Error('Mission Control environment or host is unavailable for sealing.');
 					}
 					const initialization = client.initializeResult.get();
-					const local = this._instantiationService.invokeFunction(accessor => accessor.get(IAgentHostService));
-					if (!local.sealMissionControlCredential) {
-						throw new Error('Trusted local credential sealing is unavailable.');
-					}
-					const seal = local.sealMissionControlCredential.bind(local);
-					const result = await sealMissionControlMcpCredential(request, environment.encryption_keys, root, initialization?._meta, seal);
+					const result = await sealMissionControlMcpCredential(request, environment.encryption_keys, root, initialization?._meta, sealingRequest => {
+						if (!this._localAgentHostService.sealMissionControlCredential) {
+							throw new Error('Trusted local credential sealing is unavailable.');
+						}
+						return this._localAgentHostService.sealMissionControlCredential(sealingRequest);
+					});
 					if (this._remoteAgentHostService.getConnection(address) !== client || client.initializeResult.get() !== initialization) {
 						throw new CancellationError();
 					}

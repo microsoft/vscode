@@ -394,11 +394,30 @@ suite('Mission Control environment discovery', () => {
 		});
 		const first = await service.listEnvironments(CancellationToken.None);
 		assert.strictEqual(await service.listEnvironments(CancellationToken.None), first);
+		assert.strictEqual(service.getCachedEnvironments(), first);
 		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online' }]);
 		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 1);
 		changeAuthentication();
+		assert.strictEqual(service.getCachedEnvironments(), undefined);
 		await service.listEnvironments(CancellationToken.None);
 		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 2);
+	});
+
+	test('does not return expired cached inventory or fetch merely to read the cache', async () => {
+		await runWithFakedTimers({}, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([]) : undefined,
+			});
+			const empty = service.getCachedEnvironments();
+			await service.listEnvironments(CancellationToken.None);
+			const cached = service.getCachedEnvironments();
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				empty, cached, expired: service.getCachedEnvironments(),
+				requests: requestedUrls.filter(url => url.endsWith('/agents/environments')).length,
+			}, { empty: undefined, cached: [], expired: undefined, requests: 1 });
+		});
 	});
 
 	test('skips unusable metadata without hiding other valid environments or rejecting future statuses', async () => {
