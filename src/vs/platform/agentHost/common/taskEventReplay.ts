@@ -15,10 +15,9 @@
 // subscriptions use, so a replayed session and a live one cannot drift.
 
 import { ChunkEnvelope, Reassembler } from './webPubSub/chunking.js';
-import { ActionEnvelope, ActionType, StateAction } from './state/protocol/common/actions.js';
-import { SessionDefaultChatChangedAction } from './state/protocol/channels-session/actions.js';
+import { ActionEnvelope, StateAction } from './state/protocol/common/actions.js';
 import { chatReducer } from './state/protocol/channels-chat/reducer.js';
-import { ChatState } from './state/protocol/channels-chat/state.js';
+import { ChatOriginKind, ChatState } from './state/protocol/channels-chat/state.js';
 import { sessionReducer } from './state/protocol/channels-session/reducer.js';
 import { SessionLifecycle, SessionState, SessionStatus } from './state/protocol/channels-session/state.js';
 import { ChatAction, SessionAction } from './state/sessionActions.js';
@@ -48,11 +47,8 @@ export interface IReplayedSession {
 	/** Folded chat-channel state, keyed by chat channel URI. */
 	readonly chats: ReadonlyMap<string, ChatState>;
 	/**
-	 * Channel of the session's default chat, as the recorded history named it.
-	 *
-	 * Resolved from the history rather than derived locally: the host writes whatever channel
-	 * convention it uses (today `<session>/chat`), which need not match the URI a client would
-	 * build for the same chat.
+	 * The host-announced default chat, or an unambiguous sole recorded chat when none was announced.
+	 * History without either retains the legacy `<session>/chat` fallback.
 	 */
 	readonly defaultChat: string;
 	/** Timestamp of the last persisted event, ISO 8601. */
@@ -227,9 +223,7 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 /**
  * Fold one session's envelopes into session state plus a chat state per chat channel.
  *
- * Routed by **action type**, not channel scheme: recorded channels are whatever the host wrote
- * (today `<session>/chat`, not the `ahp-chat://` URI a client builds), so matching on a scheme would
- * silently drop every chat action. The live subscriptions route the same way.
+ * Routed by action type, not channel scheme, so host-defined chat URIs are preserved.
  *
  * A session may own several peer chats, so each chat channel found in the history gets its own fold
  * — discovered from the envelopes rather than assumed, which keeps forked and peer chats intact.
@@ -237,9 +231,6 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 function foldSession(session: string, entry: ISessionReplayState): IReplayedSession {
 	let state = seedSessionState();
 	const chats = new Map<string, ChatState>();
-	// The host announces its default chat via `session/defaultChatChanged`; until then the
-	// deterministic `<session>/chat` is the convention it writes.
-	let defaultChat = `${session}/chat`;
 
 	for (const envelope of entry.envelopes) {
 		const channel = envelope.channel;
@@ -247,9 +238,6 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 
 		if (action.type.startsWith('session/') && channel === session) {
 			state = sessionReducer(state, action as SessionAction);
-			if (action.type === ActionType.SessionDefaultChatChanged) {
-				defaultChat = (action as SessionDefaultChatChangedAction).defaultChat || `${session}/chat`;
-			}
 			continue;
 		}
 		if (action.type.startsWith('chat/')) {
@@ -260,8 +248,11 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	// A session whose history never announced its chats still owns a default chat, so surface an
-	// empty one rather than a session that appears to have no conversation at all.
+	const [recordedChat] = chats.keys();
+	const unambiguousChat = chats.size === 1 && state.chats.every(chat =>
+		chat.resource === recordedChat && (!chat.origin || chat.origin.kind === ChatOriginKind.User))
+		? recordedChat : undefined;
+	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
 	}

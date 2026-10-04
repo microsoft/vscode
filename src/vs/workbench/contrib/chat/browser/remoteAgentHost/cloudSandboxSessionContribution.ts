@@ -579,11 +579,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		};
 
 		// Without a task there is no history fallback, so connecting is the only way to open it.
-		const shouldConnect = !env.taskId || await this._isEnvironmentOnline(env, token);
+		const shouldConnect = !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;
 		}
-		if (!shouldConnect) {
+		if (!shouldConnect && !this._pendingConnects.has(address)) {
 			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
 			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
