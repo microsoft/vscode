@@ -9,26 +9,41 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Color } from '../../../../../base/common/color.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestChatEntitlementService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAchievementIds, getChatPetAchievement, getChatPetAchievementPresentation } from '../../browser/chatPetAchievements.js';
 import '../../browser/chatPetAchievements.contribution.js';
 import { CHAT_PET_BLOBBY_COMMAND_ID, CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, chatPetColorPresets, getChatPetBodyColor, getChatPetColoredSprite, getChatPetEyeColor, parseChatPetColor, setChatPetImageSource } from '../../browser/chatPetColors.js';
-import { ChatPetService, IChatPetService } from '../../browser/chatPetService.js';
+import { ChatPetContextKeys, ChatPetService, IChatPetService } from '../../browser/chatPetService.js';
 import { ChatPetAchievementsEditorInput, IChatPetCustomizationEditorOptions } from '../../browser/chatPetAchievementsEditorInput.js';
 import { ChatPetColorsWidget } from '../../browser/chatPetColorsWidget.js';
+import { IChatWidgetService } from '../../browser/chat.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
+import { ChatSlashCommandsContribution } from '../../browser/chatSlashCommands.js';
 import { getChatPetSpriteSources } from '../../browser/widget/chatPetWidget.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatAgentService } from '../../common/participants/chatAgents.js';
+import { IChatSlashCommandService, IChatSlashData } from '../../common/participants/chatSlashCommands.js';
 
 suite('Chat Pet Colors', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -267,6 +282,61 @@ suite('Chat Pet Colors', () => {
 			await run(command);
 		}
 		assert.deepStrictEqual({ activated, unlocked: service.unlockedAchievements.get(), opened }, { activated: false, unlocked: [], opened: [] });
+	});
+
+	test('workbench slash command and Command Palette availability respect the AI opt-out independently of agent registration', () => {
+		const slashCommands: IChatSlashData[] = [];
+		const configuration = new TestConfigurationService();
+		store.add(new ChatSlashCommandsContribution(
+			new class extends mock<IChatSlashCommandService>() {
+				override registerSlashCommand(data: IChatSlashData) {
+					slashCommands.push(data);
+					return Disposable.None;
+				}
+			}(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IChatAgentService>() { }(),
+			store.add(new TestInstantiationService()),
+			new class extends mock<IAgentSessionsService>() { }(),
+			new class extends mock<IChatService>() { }(),
+			configuration,
+			new class extends mock<IChatWidgetService>() { }(),
+			new class extends mock<IAgentHostService>() { }(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() { }(),
+			new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(),
+			new class extends mock<IWorkspaceContextService>() { }(),
+			createService(),
+			new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
+		));
+		const blobby = slashCommands.find(command => command.command === 'blobby');
+		const changeColor = MenuRegistry.getCommand(CHAT_PET_CHANGE_COLOR_COMMAND_ID);
+		assert.ok(blobby?.when && changeColor?.precondition);
+		const context = store.add(new ContextKeyService(configuration));
+		const chatEnabled = ChatContextKeys.enabled.bindTo(context);
+		const chatHidden = ChatContextKeys.Setup.hidden.bindTo(context);
+		const petEnabled = ChatPetContextKeys.enabled.bindTo(context);
+		const cases = [
+			{ enabled: true, hidden: false, pet: true },
+			{ enabled: true, hidden: true, pet: true },
+			{ enabled: false, hidden: false, pet: true },
+			{ enabled: true, hidden: false, pet: false },
+			{ enabled: true, hidden: false, pet: true },
+		];
+		assert.deepStrictEqual(cases.map(value => {
+			chatEnabled.set(value.enabled);
+			chatHidden.set(value.hidden);
+			petEnabled.set(value.pet);
+			return {
+				slash: context.contextMatchesRules(blobby.when),
+				palette: context.contextMatchesRules(changeColor.precondition),
+			};
+		}), [
+			{ slash: true, palette: true },
+			{ slash: false, palette: false },
+			{ slash: false, palette: false },
+			{ slash: true, palette: false },
+			{ slash: true, palette: true },
+		]);
 	});
 
 	test('represents color customization as an achievement without inventing a hat', () => {

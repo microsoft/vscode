@@ -141,7 +141,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CHAT_PET_BLOBBY_COMMAND_ID,
 			title: localize2('chatPet.blobby', "Customize Blobby"),
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
@@ -166,7 +166,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: CHAT_PET_CHANGE_COLOR_COMMAND_ID,
 			title: localize2('chatPet.changeColor', "Change Blobby's Color"),
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatPetContextKeys.enabled),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate(), ChatPetContextKeys.enabled),
 			f1: true,
 		});
 	}

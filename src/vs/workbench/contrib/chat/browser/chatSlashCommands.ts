@@ -85,7 +85,7 @@ export class ChatSlashCommandsContribution extends Disposable {
 			executeDuringRequest: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			when: ChatContextKeys.enabled,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
 		}, async () => {
 			await commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID);
 		}));

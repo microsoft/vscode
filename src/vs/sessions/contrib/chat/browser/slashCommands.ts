@@ -17,7 +17,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -177,7 +177,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			detail: localize('slashCommand.blobby', "Show Blobby or open its color customization"),
 			sortText: 'z3_blobby',
 			executeImmediately: true,
-			when: ChatContextKeys.enabled,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
 			execute: () => this.commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID),
 		});
 		this._slashCommands.push({

@@ -75,6 +75,7 @@ suite('SlashCommandHandler', () => {
 
 		await withTestCodeEditor(model, { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {
 			const chatEnabled = ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService));
+			const chatHidden = ChatContextKeys.Setup.hidden.bindTo(instantiationService.get(IContextKeyService));
 			chatEnabled.set(true);
 			const handler = store.add(instantiationService.createInstance(SlashCommandHandler, editor));
 			const agentHostHandled = await handler.tryHandle({
@@ -104,6 +105,11 @@ suite('SlashCommandHandler', () => {
 			const completionContext = { triggerKind: CompletionTriggerKind.Invoke } as const;
 			const ownCompletions = await staticProvider.provideCompletionItems(model, new Position(1, 2), completionContext, CancellationToken.None);
 			const foreignCompletions = await staticProvider.provideCompletionItems(foreignModel, new Position(1, 2), completionContext, CancellationToken.None);
+			chatHidden.set(true);
+			const hiddenCompletions = await staticProvider.provideCompletionItems(model, new Position(1, 2), completionContext, CancellationToken.None);
+			const hiddenBlobbyHandled = handler.tryExecuteSlashCommand('/blobby');
+			chatHidden.set(false);
+			const restoredCompletions = await staticProvider.provideCompletionItems(model, new Position(1, 2), completionContext, CancellationToken.None);
 			chatEnabled.set(false);
 			const disabledCompletions = await staticProvider.provideCompletionItems(model, new Position(1, 2), completionContext, CancellationToken.None);
 
@@ -112,8 +118,11 @@ suite('SlashCommandHandler', () => {
 				localHandled,
 				agentHostBlobbyHandled,
 				localBlobbyHandled,
+				hiddenBlobbyHandled,
+				hiddenBlobbyOffered: hiddenCompletions?.suggestions.some(item => item.label === '/blobby'),
+				restoredBlobbyOffered: restoredCompletions?.suggestions.some(item => item.label === '/blobby'),
 				disabledBlobbyHandled: handler.tryExecuteSlashCommand('/blobby'),
-				disabledBlobbyOffered: disabledCompletions?.suggestions.some(item => item.insertText === '/blobby'),
+				disabledBlobbyOffered: disabledCompletions?.suggestions.some(item => item.label === '/blobby'),
 				commandCalls,
 				ownCommands: ownCompletions?.suggestions.map(item => typeof item.label === 'string' ? item.label : item.label.label),
 				foreignCommands: foreignCompletions?.suggestions,
@@ -122,6 +131,9 @@ suite('SlashCommandHandler', () => {
 				localHandled: true,
 				agentHostBlobbyHandled: true,
 				localBlobbyHandled: true,
+				hiddenBlobbyHandled: false,
+				hiddenBlobbyOffered: false,
+				restoredBlobbyOffered: true,
 				disabledBlobbyHandled: false,
 				disabledBlobbyOffered: false,
 				commandCalls: [CHAT_PET_BLOBBY_COMMAND_ID, AICustomizationManagementCommands.OpenEditor, CHAT_PET_BLOBBY_COMMAND_ID],
