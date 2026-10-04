@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, window, workspace } from 'vscode';
+import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
@@ -142,6 +142,77 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('CustomExecution', () => {
+			test('main-thread startup survives provider disposal before the extension host observes the start', async () => {
+				window.terminals.forEach(terminal => terminal.dispose());
+				const name = 'Custom task startup disposal';
+				const folder = workspace.workspaceFolders?.[0];
+				assert.ok(folder);
+				const writes = new EventEmitter<string>();
+				const closes = new EventEmitter<number>();
+				disposables.push(writes, closes);
+				let callbackCount = 0;
+				let startCount = 0;
+				let disposedBeforeStart = false;
+				let definition: TaskDefinition | undefined;
+				let terminal: Terminal | undefined;
+				const task = new Task({ type: 'customTesting', customProp1: '${workspaceFolder}' }, folder, name, 'customTesting', new CustomExecution(async value => {
+					callbackCount++;
+					definition = value;
+					return {
+						onDidWrite: writes.event,
+						onDidClose: closes.event,
+						open: () => writes.fire(`${name}\r\n`),
+						close() { }
+					};
+				}));
+				const registration = tasks.registerTaskProvider('customTesting', {
+					provideTasks: () => [task],
+					resolveTask: value => value
+				});
+				disposables.push(registration);
+				disposables.push(window.onDidOpenTerminal(value => {
+					if (value.name === name) {
+						terminal = value;
+						disposables.push(value);
+						disposedBeforeStart = callbackCount === 0 && startCount === 0;
+						registration.dispose();
+					}
+				}));
+				disposables.push(tasks.onDidStartTask(event => {
+					if (event.execution.task.name === name) {
+						startCount++;
+					}
+				}));
+				const output = new Promise<string>(resolve => {
+					disposables.push(window.onDidWriteTerminalData(event => {
+						if (event.terminal === terminal && event.data.includes(name)) {
+							resolve(event.data);
+						}
+					}));
+				});
+				const ended = new Promise<void>(resolve => {
+					disposables.push(tasks.onDidEndTask(event => {
+						if (event.execution.task.name === name) {
+							resolve();
+						}
+					}));
+				});
+				const running = commands.executeCommand('workbench.action.tasks.runTask', `customTesting: ${name}`);
+				const data = await output;
+				closes.fire(0);
+				await ended;
+				await running;
+				assert.deepStrictEqual({
+					data, callbackCount, startCount, disposedBeforeStart,
+					resolvedFolder: typeof definition?.customProp1 === 'string' ? Uri.file(definition.customProp1).fsPath : undefined,
+					discovered: await tasks.fetchTasks({ type: 'customTesting' }),
+					active: tasks.taskExecutions.some(execution => execution.task.name === name)
+				}, {
+					data: `${name}\r\n`, callbackCount: 1, startCount: 1, disposedBeforeStart: true,
+					resolvedFolder: folder.uri.fsPath, discovered: [], active: false
+				});
+			});
+
 			for (const disposeBeforeExecution of [true, false]) {
 				test(`provider disposal ${disposeBeforeExecution ? 'before execution preserves an extension-held task' : 'during execution preserves output and completion'}`, async () => {
 					window.terminals.forEach(terminal => terminal.dispose());
