@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parsePushRejectionReasons } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -641,6 +641,66 @@ suite('git', () => {
 				parseCoAuthors('Fix bug\n\nSigned-off-by: Admin <admin@corp.com>\nCo-authored-by: Jane Doe <jane@example.com>'),
 				[{ name: 'Jane Doe', email: 'jane@example.com' }]
 			);
+		});
+	});
+
+	suite('parsePushRejectionReasons', () => {
+		test('single remote rejection', function () {
+			const stderr = [
+				'To github.com:user/repo.git',
+				' ! [remote rejected] main -> main (pre-receive hook declined)',
+				'error: failed to push some refs to \'github.com:user/repo.git\''
+			].join('\n');
+
+			assert.deepStrictEqual(parsePushRejectionReasons(stderr), ['pre-receive hook declined']);
+		});
+
+		test('GitHub fatal error in commit_refs', function () {
+			const stderr = [
+				'remote: fatal error in commit_refs',
+				'To github.com:user/repo.git',
+				' ! [remote rejected]           main -> main (failure)',
+				'error: failed to push some refs to \'github.com:user/repo.git\''
+			].join('\n');
+
+			assert.deepStrictEqual(parsePushRejectionReasons(stderr), ['failure']);
+		});
+
+		test('non-fast-forward rejection', function () {
+			const stderr = [
+				'To github.com:user/repo.git',
+				' ! [rejected]        main -> main (fetch first)',
+				'error: failed to push some refs to \'github.com:user/repo.git\''
+			].join('\n');
+
+			assert.deepStrictEqual(parsePushRejectionReasons(stderr), []);
+		});
+
+		test('mixed rejection', function () {
+			const stderr = [
+				'To github.com:user/repo.git',
+				' ! [rejected]        main -> main (fetch first)',
+				' ! [remote rejected] other -> other (pre-receive hook declined)',
+				'error: failed to push some refs to \'github.com:user/repo.git\''
+			].join('\n');
+
+			assert.deepStrictEqual(parsePushRejectionReasons(stderr), []);
+		});
+
+		test('multiple remote rejections', function () {
+			const stderr = [
+				'To github.com:user/repo.git',
+				' ! [remote rejected] main -> main (pre-receive hook declined)',
+				' ! [remote rejected] v1.0 -> v1.0 (protected tag hook declined)',
+				'error: failed to push some refs to \'github.com:user/repo.git\''
+			].join('\r\n');
+
+			assert.deepStrictEqual(parsePushRejectionReasons(stderr), ['pre-receive hook declined', 'protected tag hook declined']);
+		});
+
+		test('empty or unrelated stderr', function () {
+			assert.deepStrictEqual(parsePushRejectionReasons(''), []);
+			assert.deepStrictEqual(parsePushRejectionReasons('fatal: Could not read from remote repository.'), []);
 		});
 	});
 

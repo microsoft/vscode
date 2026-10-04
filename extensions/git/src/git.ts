@@ -993,6 +993,35 @@ export function parseCoAuthors(message: string): CoAuthor[] {
 	return coAuthors;
 }
 
+const pushRejectedRegex = /^\s*!\s+\[rejected\]\s/;
+const pushRemoteRejectedRegex = /^\s*!\s+\[remote rejected\]\s+\S+\s+->\s+\S+\s+\((.+)\)\s*$/;
+
+/**
+ * Returns the reasons of `! [remote rejected]` push status lines. Returns an
+ * empty array when any ref has a plain `! [rejected]` status, since pulling
+ * may resolve the push failure in that case.
+ */
+export function parsePushRejectionReasons(stderr: string): string[] {
+	if (!stderr) {
+		return [];
+	}
+
+	const reasons: string[] = [];
+
+	for (const line of stderr.split(/\r?\n/)) {
+		if (pushRejectedRegex.test(line)) {
+			return [];
+		}
+
+		const match = pushRemoteRejectedRegex.exec(line);
+		if (match) {
+			reasons.push(match[1].trim());
+		}
+	}
+
+	return reasons;
+}
+
 const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
 
 function parseGitDiffShortStat(data: string): CommitShortStat {
