@@ -150,7 +150,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess'>, allowLocalNetwork?: boolean) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'auth'>, allowLocalNetwork?: boolean) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -176,6 +176,11 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 						if (allowLocalNetwork === false && options.sandboxConfig?.userPolicy?.network?.allowLocalNetwork === true) {
 							throw new Error('Local network access violates managed policy');
 						}
+						for (const field of ['git', 'gh'] as const) {
+							if (sandboxToggles?.auth?.[field] === false && options.sandboxConfig?.auth?.[field] === true) {
+								throw new Error(`${field} authentication violates managed policy`);
+							}
+						}
 						for (const [key, managedValue] of [['sandboxMcpServers', true], ['sandboxLspServers', true], ['allowDevToolAccess', false]] as const) {
 							if (sandboxToggles?.[key] === managedValue && options.sandboxConfig && options.sandboxConfig[key] !== managedValue) {
 								throw new Error(`${key} violates managed policy`);
@@ -187,13 +192,14 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				}
 			},
 		} as unknown as CopilotSession;
+		const { auth, ...sandboxOptions } = sandboxToggles ?? {};
 		const initialize = (config: ResumeSessionConfig | undefined) => {
 			captured = config;
 			if (reportPolicy) {
 				config?.onEvent?.({
 					id: 'resolved', parentId: null, timestamp: '2026-01-01T00:00:00Z',
 					type: 'session.managed_settings_resolved', ephemeral: true,
-					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxToggles, userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
+					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxOptions, ...(auth ? { auth: { ...auth } } : {}), userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
 				});
 			}
 			return raw;
@@ -216,6 +222,28 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		for (const [key, field] of [
+			['authenticateGit', 'git'],
+			['authenticateGh', 'gh'],
+		] as const) {
+			test(`${kind} applies managed ${field} authentication denial and preserves local restrictions`, async () => {
+				for (const local of [undefined, false, true]) {
+					for (const managed of [undefined, false, true]) {
+						const fixture = setup(kind, true, true, false, undefined, undefined, { auth: { [field]: managed } });
+						fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) } });
+						store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+						assert.deepStrictEqual({
+							applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.auth),
+							stored: fixture.configuration.getRootConfigValues()?.sandbox,
+						}, {
+							applied: [{ git: true, gh: true, [field]: managed === false ? false : local ?? true }],
+							stored: { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) },
+						});
+					}
+				}
+			});
+		}
+
 		for (const [format, error] of [
 			['structured', Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } })],
 			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],

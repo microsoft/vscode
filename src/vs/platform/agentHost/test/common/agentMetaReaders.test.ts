@@ -9,6 +9,7 @@ import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMe
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -49,6 +50,20 @@ suite('Agent host _meta readers', () => {
 			readToolCallMeta(toolCall({ [key]: { ...restrictions, sandboxEnabled: 'true' } }))[key],
 			readToolCallMeta(toolCall({ [key]: { ...restrictions, deniedDomains: [5] } }))[key],
 		], [restrictions, undefined, undefined, undefined]);
+	});
+
+	test('validates slash command resource metadata', () => {
+		const resource = URI.parse('agenthost-content:///reports/sandbox-policy.md');
+		assert.deepStrictEqual([
+			readSlashCommandResource({ _meta: toSlashCommandResourceMeta(resource, true) }),
+			...[undefined, null, [], {}, { resource: 1, preview: true }, { resource: resource.toString(), preview: 'true' }, { resource: '/reports/policy.md', preview: true }]
+				.map(value => readSlashCommandResource({ _meta: { 'vscode.slashCommandResource': value } })),
+			readSlashCommandResource({}),
+		].map(value => value ? { resource: value.resource.toString(), preview: value.preview } : undefined), [
+			{ resource: resource.toString(), preview: true },
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			undefined,
+		]);
 	});
 
 	suite('session sandbox policy', () => {

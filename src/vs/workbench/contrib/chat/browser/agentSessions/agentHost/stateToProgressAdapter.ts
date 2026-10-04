@@ -11,6 +11,7 @@ import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, M
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
+import { readSlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
@@ -548,6 +549,16 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	}
 	if (!content) {
 		return undefined;
+	}
+	if (readSlashCommandResource({ _meta }) && typeof content !== 'string') {
+		return {
+			kind: 'markdownContent',
+			content: new MarkdownString(rewriteMarkdownSource(content.markdown, {
+				rewriteLink: token => token.type === 'link'
+					? new MarkdownString().appendLink(rewriteAgentHostLinkTarget(token.href, connectionAuthority), token.text).value
+					: undefined,
+			})),
+		};
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;

@@ -44,6 +44,7 @@ import { filterSessionConfigValues } from '../../../../../../platform/agentHost/
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
@@ -67,6 +68,7 @@ import { packErrorForTelemetry } from '../../../../../../platform/telemetry/comm
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
@@ -248,6 +250,7 @@ interface IObserveTurnOptions {
 	readonly requireActiveTurn?: boolean;
 	readonly onTurnEnded?: (lastTurn: Turn | undefined) => void;
 	readonly onResponseText?: (text: string) => void;
+	readonly onOpenResponseResource?: (resource: ISlashCommandResource) => void;
 	/**
 	 * When set, a failed turn does NOT emit its error as a markdown progress
 	 * part. The caller surfaces it instead as the agent result's
@@ -1264,6 +1267,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
@@ -3326,7 +3330,24 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// surfaced through the same path: the observer disposes itself when
 		// `cancellationToken` fires, then calls `onTurnEnded(undefined)`.
 		onFailureStage('observeTurn');
-		return new Promise<Turn | undefined>(resolve => {
+		const resourceOpens: Promise<void>[] = [];
+		let resourceOpenError: Error | undefined;
+		const openResponseResource = async ({ resource, preview }: ISlashCommandResource): Promise<void> => {
+			if (this._isInvocationAbandoned(cancellationToken)) {
+				return;
+			}
+			const editor = await this._editorService.openEditor({
+				resource: this._config.connection.resourceUris.fromAgentHost(resource),
+				options: { pinned: true, ...(preview ? { override: 'vscode.markdown.preview.editor' } : {}) },
+			});
+			if (!editor) {
+				throw new Error(localize('agentHost.openSandboxPolicyFailed', "Could not open the sandbox policy in the editor."));
+			}
+			if (!this._isInvocationAbandoned(cancellationToken)) {
+				progress([{ kind: 'markdownContent', content: new MarkdownString(localize('agentHost.openedSandboxPolicy', "Opened the sandbox policy in the editor.")) }]);
+			}
+		};
+		return new Promise<Turn | undefined>((resolve, reject) => {
 			const store = this._createTurnObservation(resolve);
 			const cancelSub = store.add(cancellationToken.onCancellationRequested(() => {
 				cancelSub.dispose();
@@ -3347,11 +3368,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				cancellationToken,
 				suppressErrorMarkdown: true,
 				onResponseText,
-				onTurnEnded: (lastTurn) => {
-					resolve(lastTurn);
-					this._turnObservations.deleteAndDispose(store);
-					this._clientDispatchedTurnIds.delete(turnId);
-					this._completeSessionTurn(session, request.sessionResource, turnId);
+				onOpenResponseResource: request.message.trimStart().startsWith('/')
+					? resource => {
+						resourceOpens.push(openResponseResource(resource).catch(error => {
+							resourceOpenError = error instanceof Error ? error : new Error(String(error));
+							this._logService.error('[AgentHost] Failed to open slash command resource', resourceOpenError);
+						}));
+					}
+					: undefined,
+				onTurnEnded: async (lastTurn) => {
+					try {
+						await Promise.all(resourceOpens);
+						if (resourceOpenError) {
+							throw resourceOpenError;
+						}
+						resolve(lastTurn);
+					} catch (error) {
+						reject(error);
+					} finally {
+						this._turnObservations.deleteAndDispose(store);
+						this._clientDispatchedTurnIds.delete(turnId);
+						this._completeSessionTurn(session, request.sessionResource, turnId);
+					}
 				},
 			}));
 		});
@@ -3659,6 +3697,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					case ResponsePartKind.SystemNotification:
 						// System notifications don't have an id, so we have to identify it by index
 						if (responseParts$.get().indexOf(initial) >= (opts.initialResponsePartCount ?? 0) && opts.subAgentInvocationId === undefined) {
+							const resource = readSlashCommandResource(initial);
+							if (resource && opts.onOpenResponseResource) {
+								opts.onOpenResponseResource(resource);
+								break;
+							}
 							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta);
 							if (progress) {
 								if (progress.kind === 'systemNotification' && progress.presentation === 'workspaceTransition' && progress.accessibilityLabel) {

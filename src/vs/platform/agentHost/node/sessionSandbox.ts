@@ -38,7 +38,7 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 }
 
 /** Resolves the owning session's toggle overrides without changing global settings. */
-export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers> {
+export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
 	session = resolveAgentHostSession(URI.parse(session)).toString();
 	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
@@ -54,6 +54,8 @@ export function getSessionSandboxOverrides(configuration: IAgentConfigurationSer
 	const allowDevToolAccess = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.allowDevToolAccess);
 	const sandboxMcpServers = SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, policy?.sandboxMcpServers);
 	const sandboxLspServers = SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, policy?.sandboxLspServers);
+	const authenticateGit = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.authenticateGit);
+	const authenticateGh = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.authenticateGh);
 	return {
 		...(enabled !== undefined ? {
 			[AgentHostSandboxKey.Enabled]: enabled,
@@ -64,5 +66,7 @@ export function getSessionSandboxOverrides(configuration: IAgentConfigurationSer
 		...(allowDevToolAccess !== undefined ? { [AgentHostSandboxKey.AllowDevToolAccess]: allowDevToolAccess } : {}),
 		...(sandboxMcpServers !== undefined ? { [AgentHostSandboxKey.SandboxMcpServers]: sandboxMcpServers } : {}),
 		...(sandboxLspServers !== undefined ? { [AgentHostSandboxKey.SandboxLspServers]: sandboxLspServers } : {}),
+		...(authenticateGit !== undefined ? { [AgentHostSandboxKey.AuthenticateGit]: authenticateGit } : {}),
+		...(authenticateGh !== undefined ? { [AgentHostSandboxKey.AuthenticateGh]: authenticateGh } : {}),
 	};
 }
