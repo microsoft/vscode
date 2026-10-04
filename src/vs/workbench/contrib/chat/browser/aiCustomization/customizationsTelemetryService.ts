@@ -41,7 +41,7 @@ type CustomizationsDefinedEvent = {
 
 type CustomizationsDefinedClassification = {
 	owner: 'aeschli';
-	comment: 'Tracks how many customizations of each type and source are defined when a new Agents window session initializes.';
+	comment: 'Tracks how many customizations of each type and source are defined when a new Agent Host chat session is first used.';
 	customizationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The bounded customization type being counted.' };
 	userCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of user-level customizations of this type.' };
 	workspaceCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of workspace-level customizations of this type.' };
