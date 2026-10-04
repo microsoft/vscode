@@ -786,6 +786,76 @@ suite('CloudSandboxAgentHostContribution', () => {
 		});
 	});
 
+	for (const fails of [false, true]) {
+		test(`waits for an explicit sandbox wake before ${fails ? 'falling back to history' : 'completing activation'}`, async () => {
+			const harness = await createContribution(store, [discoveredSession()]);
+			const wake = new DeferredPromise<void>();
+			harness.onConnect = () => wake.p;
+			const connection = harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: 'Sandbox' });
+			const connectionResult = connection.then(() => 'connected', () => 'failed');
+			let opened: boolean | undefined;
+			const activation = harness.activate('env-1').then(result => { opened = result; });
+			await timeout(0);
+
+			const duringWake = { opened, historyRequests: [...harness.historyRequests], servedFromHistory: harness.readOnlySessionTypes.length };
+			if (fails) {
+				await wake.error(new Error('Expected wake failure'));
+			} else {
+				await wake.complete();
+			}
+			await activation;
+
+			assert.deepStrictEqual({
+				duringWake,
+				connection: await connectionResult,
+				connectedTo: harness.connectedTo,
+				historyRequests: harness.historyRequests,
+				servedFromHistory: harness.readOnlySessionTypes.length,
+			}, {
+				duringWake: { opened: undefined, historyRequests: [], servedFromHistory: 0 },
+				connection: fails ? 'failed' : 'connected',
+				connectedTo: ['env-1'],
+				historyRequests: fails ? ['task-1'] : [],
+				servedFromHistory: fails ? 1 : 0,
+			});
+		});
+	}
+
+	test('joins a sandbox wake that starts during the environment lookup', async () => {
+		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
+		const requested = new DeferredPromise<void>();
+		const wake = new DeferredPromise<void>();
+		const harness = await createContribution(store, [discoveredSession()], {
+			getEnvironment: () => {
+				requested.complete();
+				return environment.p;
+			},
+		});
+		let opened: boolean | undefined;
+		const activation = harness.activate('env-1').then(result => { opened = result; });
+		await requested.p;
+		harness.onConnect = () => wake.p;
+		const connection = harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: 'Sandbox' });
+		await environment.complete({ id: 'env-1', status: 'offline' });
+		await timeout(0);
+
+		const duringWake = { opened, historyRequests: [...harness.historyRequests], servedFromHistory: harness.readOnlySessionTypes.length };
+		await wake.complete();
+		await Promise.all([connection, activation]);
+
+		assert.deepStrictEqual({
+			duringWake,
+			connectedTo: harness.connectedTo,
+			historyRequests: harness.historyRequests,
+			servedFromHistory: harness.readOnlySessionTypes.length,
+		}, {
+			duringWake: { opened: undefined, historyRequests: [], servedFromHistory: 0 },
+			connectedTo: ['env-1'],
+			historyRequests: [],
+			servedFromHistory: 0,
+		});
+	});
+
 	test('does not wake an environment whose state could not be read', async () => {
 		const harness = await createContribution(store, [discoveredSession()], {
 			getEnvironment: async () => { throw new Error('Expected environment lookup failure'); },
