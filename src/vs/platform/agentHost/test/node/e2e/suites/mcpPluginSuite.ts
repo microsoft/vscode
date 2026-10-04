@@ -83,7 +83,7 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				.join(' ');
 			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({
 				hooks: {
-					[options.hookType]: [{ hooks: [{ type: 'command', command }] }],
+					[options.hookType]: [{ hooks: [{ type: 'command', command, env: { ELECTRON_RUN_AS_NODE: '1' } }] }],
 				},
 			}));
 		}
