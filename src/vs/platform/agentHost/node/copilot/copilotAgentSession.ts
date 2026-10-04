@@ -175,6 +175,11 @@ interface IPendingMcpAuthRequest {
 	readonly toolCalls: IMcpAuthToolCall[];
 }
 
+interface ISubagentLifecycleFailure {
+	readonly message: string;
+	readonly durationMs: number | undefined;
+}
+
 interface IMcpAuthToolCall {
 	readonly turnId: string;
 	readonly toolCallId: string;
@@ -948,7 +953,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _autoModeResolvedByToolCallId = new Map<string, NonNullable<UsageInfoMeta['autoModeResolved']>>();
 	private readonly _activeSubagentAgentIds = new Set<string>();
 	private readonly _subagentTaskCompletionSchedulers = this._register(new DisposableMap<string, RunOnceScheduler>());
-	private readonly _pendingSubagentLifecycleCompletions = new Map<string, { readonly toolCallId: string; readonly activityRevision: number | undefined }>();
+	private readonly _pendingSubagentLifecycleCompletions = new Map<string, { readonly toolCallId: string; readonly activityRevision: number | undefined; readonly failure?: ISubagentLifecycleFailure }>();
 	private readonly _subagentTaskCompletionDelay: number;
 	/** Bumped when a child starts a model round so a task snapshot taken earlier cannot complete it; entries are dropped on completion. */
 	private readonly _subagentActivityRevisions = new Map<string, number>();
@@ -1911,10 +1916,11 @@ export class CopilotAgentSession extends Disposable {
 		scheduler.schedule();
 	}
 
-	private _scheduleSubagentLifecycleCompletion(agentId: string | undefined, toolCallId: string): void {
+	private _scheduleSubagentLifecycleCompletion(agentId: string | undefined, toolCallId: string, failure?: ISubagentLifecycleFailure): void {
 		const mappedAgentId = agentId ?? [...this._parentToolCallIdsByAgentId].find(([, parentToolCallId]) => parentToolCallId === toolCallId)?.[0];
 		if (!mappedAgentId) {
 			if (this._rootTurnIdBySubagentToolCallId.has(toolCallId)) {
+				this._emitSubagentFailure(toolCallId, failure);
 				this._completeSubagentTurn(undefined, toolCallId);
 			}
 			return;
@@ -1925,8 +1931,22 @@ export class CopilotAgentSession extends Disposable {
 		this._pendingSubagentLifecycleCompletions.set(mappedAgentId, {
 			toolCallId,
 			activityRevision: this._subagentActivityRevisions.get(mappedAgentId),
+			failure,
 		});
 		this._getOrCreateSubagentCompletionScheduler(mappedAgentId).schedule();
+	}
+
+	/** Ends the child turn as failed; the completion that follows then finds no active turn. */
+	private _emitSubagentFailure(toolCallId: string, failure: ISubagentLifecycleFailure | undefined): void {
+		if (!failure) {
+			return;
+		}
+		this._emitAction({
+			type: ActionType.ChatError,
+			turnId: this._turnId,
+			duration: failure.durationMs ?? 0,
+			part: createErrorResponsePart({ errorType: 'subagentFailed', message: failure.message }),
+		}, toolCallId);
 	}
 
 	private _observeTokenUsage(parentToolCallId: string | undefined, eventId: string, model: string | undefined, scope: 'direct-model' | 'compaction', tokens: UsageContext, reasoningEffort?: string, apiCallId?: string): void {
@@ -2022,6 +2042,7 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const scheduler = this._subagentTaskCompletionSchedulers.get(agentId);
 				if (scheduler && !scheduler.isScheduled()) {
+					this._emitSubagentFailure(pending.toolCallId, pending.failure);
 					this._completeSubagentTurn(agentId, pending.toolCallId);
 				}
 			}
@@ -7096,7 +7117,7 @@ export class CopilotAgentSession extends Disposable {
 		}));
 
 		this._register(wrapper.onSubagentFailed(e => {
-			this._scheduleSubagentLifecycleCompletion(e.agentId, e.data.toolCallId);
+			this._scheduleSubagentLifecycleCompletion(e.agentId, e.data.toolCallId, { message: e.data.error, durationMs: e.data.durationMs });
 		}));
 
 		this._register(wrapper.onSubagentConfigured(e => {

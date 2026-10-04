@@ -6610,15 +6610,24 @@ suite('CopilotAgentSession', () => {
 			if (eventType === 'subagent.completed') {
 				mockSession.fire(eventType, identity, { agentId: 'search-agent' });
 			} else {
-				mockSession.fire(eventType, { ...identity, error: 'Search failed' }, { agentId: 'search-agent' });
+				mockSession.fire(eventType, { ...identity, error: 'Search failed', durationMs: 42 }, { agentId: 'search-agent' });
 			}
 			await timeout(0);
 
 			assert.deepStrictEqual({
-				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				outcome: signals.flatMap<{ completed: string } | { error: unknown; duration: number; parentToolCallId: string | undefined }>(signal => signal.kind === 'subagent_completed'
+					? [{ completed: signal.toolCallId }]
+					: signal.kind === 'action' && signal.action.type === ActionType.ChatError
+						? [{ error: signal.action.part.error, duration: signal.action.duration, parentToolCallId: signal.parentToolCallId }]
+						: []),
 				taskListCalls: mockSession.backgroundTaskListCalls,
 			}, {
-				completed: ['tc-search'],
+				outcome: [
+					...(eventType === 'subagent.failed'
+						? [{ error: { errorType: 'subagentFailed', message: 'Search failed' }, duration: 42, parentToolCallId: 'tc-search' }]
+						: []),
+					{ completed: 'tc-search' },
+				],
 				taskListCalls: 1,
 			});
 		});
