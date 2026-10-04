@@ -6593,6 +6593,37 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	for (const eventType of ['subagent.completed', 'subagent.failed'] as const) {
+		test(`completes a taskless search subagent on ${eventType}`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			const identity = {
+				toolCallId: 'tc-search',
+				agentName: 'search_code_subagent',
+				agentDisplayName: 'Search code',
+			};
+			mockSession.fire('subagent.started', {
+				...identity,
+				agentDescription: 'Search the codebase',
+			}, { agentId: 'search-agent' });
+
+			if (eventType === 'subagent.completed') {
+				mockSession.fire(eventType, identity, { agentId: 'search-agent' });
+			} else {
+				mockSession.fire(eventType, { ...identity, error: 'Search failed' }, { agentId: 'search-agent' });
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				completed: signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId),
+				taskListCalls: mockSession.backgroundTaskListCalls,
+			}, {
+				completed: ['tc-search'],
+				taskListCalls: 1,
+			});
+		});
+	}
+
 	test('waits for subagent events to settle before completing an inactive task', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 50 });
 		session.resetTurnState('turn-parent');
@@ -7399,7 +7430,7 @@ suite('CopilotAgentSession', () => {
 		const data = { model: 'gpt-5.5', inputTokens: 5 } as SessionEventPayload<'assistant.usage'>['data'];
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		const first = session.getTurnTokenUsage('child-turn-1', 'child-tool');
-		// Completion now flows through background-task reconciliation, not the subagent.completed event.
+		// Task-backed completion flows through background-task reconciliation.
 		mockSession.backgroundTasks = [{
 			type: 'agent', id: 'child', toolCallId: 'child-tool', description: 'Explore',
 			status: 'completed', agentType: 'explore', prompt: 'Explore', startedAt: new Date(0).toISOString(),
