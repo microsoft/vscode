@@ -2716,6 +2716,49 @@ suite('CopilotChatSessionsProvider', () => {
 					listed: provider.getSessions(),
 				}, { progress: undefined, active: false, listed: [] });
 			});
+
+			test(`${providerMode} rejected overlapping request does not clear the active sandbox preparation`, async () => {
+				const pending = new DeferredPromise<ICloudSandboxProvisionedSession>();
+				let token: CancellationToken | undefined;
+				let progress: IProgress<string> | undefined;
+				const { provider } = createSandboxProvider({
+					providerMode,
+					provision: (_request, requestToken, reporter) => {
+						token = requestToken;
+						progress = reporter;
+						return pending.p;
+					},
+				});
+				const draft = provider.createNewSession(repoWorkspace, providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id);
+				provider.getSession(draft.sessionId)!.setUseSandbox(true);
+				const firstActivity = disposables.add(provider.startNewSessionRequest(draft.sessionId)!);
+				const request = provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'fix it' });
+				const secondActivity = disposables.add(provider.startNewSessionRequest(draft.sessionId)!);
+				await assert.rejects(provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'duplicate' }), /already being started/);
+				secondActivity.dispose();
+				secondActivity.dispose();
+				progress?.report('Connecting to cloud container');
+				const afterRejectedRequest = {
+					message: draft.preparationProgress?.get()?.message,
+					active: draft.isNewSessionRequestInProgress?.get(),
+					cancelled: token?.isCancellationRequested,
+				};
+				firstActivity.dispose();
+				const stillSending = draft.isNewSessionRequestInProgress?.get();
+				await pending.complete(provisionedSession());
+				await request;
+				assert.deepStrictEqual({
+					afterRejectedRequest,
+					stillSending,
+					progress: draft.preparationProgress?.get(),
+					active: draft.isNewSessionRequestInProgress?.get(),
+				}, {
+					afterRejectedRequest: { message: 'Connecting to cloud container', active: true, cancelled: false },
+					stillSending: true,
+					progress: undefined,
+					active: false,
+				});
+			});
 		}
 
 		test('does not start sandbox preparation for a normal Cloud session or a disabled sandbox preference', () => {

@@ -8,7 +8,7 @@ import { raceCancellationError, raceTimeout } from '../../../../../base/common/a
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore, IDisposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, DisposableMap, IReference, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -299,6 +299,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 	readonly preparationProgress = observableValue<ISessionPreparationProgress | undefined>(this, undefined);
 	readonly isNewSessionRequestInProgress = this.preparationProgress.map(progress => !!progress);
 	private readonly _preparationCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _preparationActivities = 0;
 
 	private readonly _isArchived = observableValue(this, false);
 	readonly isArchived: IObservable<boolean> = this._isArchived;
@@ -418,12 +419,19 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		this._status.set(status, undefined);
 	}
 
-	startPreparation(): CancellationToken {
+	startPreparation(): IReference<CancellationToken> {
 		if (!this._preparationCts.value) {
 			this._preparationCts.value = new CancellationTokenSource(this.lifetimeToken);
 			this.reportPreparationProgress(localize('sandbox.provisioningContainer', "Setting up cloud container"));
 		}
-		return this._preparationCts.value.token;
+		this._preparationActivities++;
+		const token = this._preparationCts.value.token;
+		const activity = toDisposable(() => {
+			if (--this._preparationActivities === 0) {
+				this.clearPreparation();
+			}
+		});
+		return { object: token, dispose: () => activity.dispose() };
 	}
 
 	reportPreparationProgress(message: string): void {
@@ -433,7 +441,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		}
 	}
 
-	clearPreparation(): void {
+	private clearPreparation(): void {
 		this.preparationProgress.set(undefined, undefined);
 		this._preparationCts.clear();
 	}
@@ -1664,8 +1672,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (!session || !this._usesSandbox(session)) {
 			return undefined;
 		}
-		session.startPreparation();
-		return toDisposable(() => session.clearPreparation());
+		return session.startPreparation();
 	}
 
 	private _usesSandbox(session: RemoteNewSession): boolean {
@@ -1707,7 +1714,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 */
 	private async _sendFirstChatToSandbox(session: RemoteNewSession, repoNwo: string, options: ISendRequestOptions): Promise<ISession> {
 		this._sandboxSends.add(session.sessionId);
-		const token = session.startPreparation();
+		const preparation = session.startPreparation();
+		const token = preparation.object;
 		session.setTitle((options.title || options.query.split('\n')[0]).substring(0, 100) || localize('new session', "New Session"));
 		session.setStatus(SessionStatus.InProgress);
 		this._sessionCache.set(session.resource.toString(), session);
@@ -1719,6 +1727,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// only record of what the user picked for this turn.
 		const selectedModel = this.providerMode === 'sandbox' ? undefined : this._selectedCloudModel(session);
 		const store = new DisposableStore();
+		store.add(preparation);
 		store.add(token.onCancellationRequested(() => store.dispose()));
 		const progress: IProgress<string> = {
 			report: message => {
@@ -1766,7 +1775,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		} finally {
 			store.dispose();
 			this._sandboxSends.delete(session.sessionId);
-			session.clearPreparation();
 		}
 	}
 

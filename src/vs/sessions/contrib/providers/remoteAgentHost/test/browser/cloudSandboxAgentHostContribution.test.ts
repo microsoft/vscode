@@ -1741,6 +1741,35 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		assert.deepStrictEqual({ beforeReady, afterReady: ready }, { beforeReady: false, afterReady: true });
 	});
 
+	test('continues tracking a retry after an initially failed checkout', async () => {
+		const results: string[][] = [];
+		for (const outcome of ['ready', 'failed'] as const) {
+			const root = store.add(new RootStateSubscription('test', () => { }));
+			const state = (status: string, progress?: number): RootState => ({
+				agents: [],
+				_meta: { 'copilot.projectManagement': { available: true } },
+				config: {
+					schema: { type: 'object', properties: {} },
+					values: { copilot: { projects: [{ id: 'checkout', path: '/checkout', git: true, status, progress, remoteUrl: 'https://github.com/microsoft/vscode' }] } },
+				},
+			});
+			root.handleSnapshot(state('failed'), 0);
+			const harness = await createContribution(store, [], { connection: upcastPartial<IAgentConnection>({ rootState: root }) });
+			const messages: string[] = [];
+			store.add(harness.contribution.trackSessionCreationProgress('env-new', 'microsoft/vscode', { report: message => messages.push(message) }));
+			root.handleSnapshot(state('failed'), 1);
+			root.handleSnapshot(state('cloning', 0), 2);
+			root.handleSnapshot(state('cloning', 58), 3);
+			root.handleSnapshot(state(outcome), 4);
+			root.handleSnapshot(state('cloning', 1), 5);
+			results.push(messages);
+		}
+		assert.deepStrictEqual(results, [
+			['Cloning repository (0%)', 'Cloning repository (58%)', 'Starting Copilot agent'],
+			['Cloning repository (0%)', 'Cloning repository (58%)', 'Repository cloning failed'],
+		]);
+	});
+
 	test('keeps unknown clone percentages indeterminate and releases the observer on failure or disposal', async () => {
 		const results: string[][] = [];
 		for (const failed of [false, true]) {
@@ -1821,27 +1850,48 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 		});
 	});
 
-	test('cancels provisioning while connecting without leaving the created session withheld', async () => {
-		const harness = await createContribution(store, []);
-		const connecting = new DeferredPromise<void>();
-		const connected = new DeferredPromise<void>();
-		harness.onConnect = async () => {
-			await connecting.complete();
-			await connected.p;
-		};
-		const source = store.add(new CancellationTokenSource());
-		const request = harness.contribution.provisionSession({ prompt: 'fix it' }, source.token);
-		const rejected = assert.rejects(request, isCancellationError);
-		await connecting.p;
-		source.cancel();
-		await rejected;
-		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
-		await connected.complete();
-		await harness.contribution.connect({ environmentId: 'env-new', name: 'Sandbox' });
-		assert.deepStrictEqual({
-			withheld: [...(provider?.withheld ?? [])],
-			listed: provider?.getSessions().map(session => AgentSession.id(session.resource)),
-		}, { withheld: [], listed: ['sess-new'] });
+	test('keeps cancelled provisioning protected from discovery until connection success or failure', async () => {
+		const results = [];
+		for (const success of [true, false]) {
+			const harness = await createContribution(store, []);
+			const connecting = new DeferredPromise<void>();
+			const connected = new DeferredPromise<void>();
+			let connectToken: CancellationToken | undefined;
+			harness.onConnect = async (_options, token) => {
+				connectToken = token;
+				await connecting.complete();
+				await connected.p;
+			};
+			const source = store.add(new CancellationTokenSource());
+			const request = harness.contribution.provisionSession({ prompt: 'fix it' }, source.token);
+			const rejected = assert.rejects(request, isCancellationError);
+			await connecting.p;
+			source.cancel();
+			await rejected;
+			await harness.runDiscovery();
+			const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-new'));
+			const beforeSettled = {
+				disposed: provider?.disposed,
+				connectCancelled: connectToken?.isCancellationRequested,
+				withheld: [...(provider?.withheld ?? [])],
+				listed: provider?.getSessions().map(session => AgentSession.id(session.resource)),
+			};
+			const completion = harness.contribution.connect({ environmentId: 'env-new', name: 'Sandbox' });
+			if (success) {
+				await connected.complete();
+				await completion;
+			} else {
+				const failed = assert.rejects(completion, /connection failed/);
+				await connected.error(new Error('connection failed'));
+				await failed;
+			}
+			await harness.runDiscovery();
+			results.push({ beforeSettled, afterSettled: provider?.disposed });
+		}
+		assert.deepStrictEqual(results, [true, false].map(() => ({
+			beforeSettled: { disposed: false, connectCancelled: false, withheld: [], listed: ['sess-new'] },
+			afterSettled: true,
+		})));
 	});
 
 	test('rejects when the feature is disabled while the sandbox is waking', async () => {

@@ -101,13 +101,13 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		const address = cloudSandboxAddress(environmentId);
 		const connection = this._remoteService.getConnection(address);
 		if (!connection) {
-			throw new Error('The cloud sandbox connection is no longer available.');
+			throw new Error(localize('sandbox.connectionUnavailable', "The cloud sandbox connection is no longer available."));
 		}
 		const store = new DisposableStore();
 		try {
 			const prepare = this._sandboxConnectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 			if (!prepare) {
-				throw new Error('Cloud sandbox repository preparation is not registered.');
+				throw new Error(localize('sandbox.preparationUnavailable', "Cloud sandbox repository preparation is not registered."));
 			}
 			await prepare(URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repoNwo}` }), token);
 		} finally {
@@ -184,6 +184,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		}
 		this._provisioning.add(address);
 		let seededProvider: CloudSandboxSessionsProvider | undefined;
+		let connectionAttempt: Promise<string> | undefined;
 		try {
 			const now = Date.now();
 			this._ensureProvider({ ...created, name, repoName: request.repoNwo, updatedAt: new Date(now).toISOString() });
@@ -202,7 +203,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			seededProvider = provider;
 			this._persistInventory();
 			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
-			await raceCancellationError(this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' }), token);
+			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created' });
+			await raceCancellationError(connectionAttempt, token);
 			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
 				throw new CancellationError();
 			}
@@ -218,7 +220,13 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			}
 			throw error;
 		} finally {
-			this._provisioning.delete(address);
+			const releaseProvisioning = () => { this._provisioning.delete(address); };
+			if (connectionAttempt) {
+				// A canceled caller must not let discovery tear down a connection that is still waking.
+				void connectionAttempt.then(releaseProvisioning, releaseProvisioning);
+			} else {
+				releaseProvisioning();
+			}
 		}
 	}
 
@@ -229,6 +237,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		if (!connection) {
 			return store;
 		}
+		let cloningProjectId: string | undefined;
 		const update = () => {
 			const state = connection.rootState.value;
 			if (!state || state instanceof Error) {
@@ -240,13 +249,14 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			});
 			const project = projects?.find(project => project.status === 'ready') ?? projects?.find(project => project.status === 'cloning') ?? projects?.[0];
 			if (project?.status === 'cloning') {
+				cloningProjectId = project.id;
 				progress.report(project.progress === undefined
 					? localize('sandbox.cloningRepository', "Cloning repository")
 					: localize('sandbox.cloningRepositoryProgress', "Cloning repository ({0}%)", Math.round(project.progress)));
 			} else if (project?.status === 'ready') {
 				progress.report(localize('sandbox.startingAgent', "Starting Copilot agent"));
 				store.dispose();
-			} else if (project?.status === 'failed') {
+			} else if (project?.status === 'failed' && project.id === cloningProjectId) {
 				progress.report(localize('sandbox.cloningFailed', "Repository cloning failed"));
 				store.dispose();
 			}
