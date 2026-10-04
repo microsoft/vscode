@@ -318,6 +318,7 @@ export type IChatSessionHistoryItem = {
 	type: 'request';
 	prompt: string;
 	participant: string;
+	metadata?: Record<string, unknown>;
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
@@ -350,6 +351,7 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	readonly metadata?: Record<string, unknown>;
 	/**
 	 * Identifier of the backing provider turn.
 	 */
@@ -425,6 +427,15 @@ export function isAgentHostTarget(target: string): boolean {
 
 export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
+}
+
+/** Returns the registered agent implementation handling the session. */
+export function getAgentHostProviderForTelemetry(sessionType: string | undefined, chatSessionsService: IChatSessionsService): string | undefined {
+	if (!sessionType) {
+		return 'unknown';
+	}
+	const provider = chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId;
+	return provider !== undefined ? provider || 'unknown' : (isAgentHostTarget(sessionType) ? 'unknown' : undefined);
 }
 
 /**
@@ -565,7 +576,14 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+	readonly attachment: IChatInputCompletionTextAttachment | IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+}
+
+/**
+ * Plain text associated with a completion item.
+ */
+export interface IChatInputCompletionTextAttachment {
+	readonly kind: 'text';
 }
 
 /**
@@ -593,6 +611,8 @@ export interface IChatInputCompletionCommandAttachment {
 	readonly command: string;
 	readonly isSkill?: true;
 	readonly description: string;
+	readonly retriggerSuggestions?: true;
+	readonly submitOnAccept?: true;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a

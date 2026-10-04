@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { hasKey } from '../../../../base/common/types.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
@@ -45,7 +46,13 @@ suite('DevContainerAgentHostProtocol', () => {
 		const workspaceFolder = '/C:/repo with spaces';
 		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, workspaceFolder });
 		const expected = OS === OperatingSystem.Windows ? 'C:\\repo with spaces' : workspaceFolder;
-		assert.deepStrictEqual({ trusted: workspaces, launched: service.connects[0].workspaceFolder }, { trusted: [expected], launched: expected });
+		assert.deepStrictEqual({ trusted: workspaces, launched: hasKey(service.connects[0], { workspaceFolder: true }) ? service.connects[0].workspaceFolder : undefined }, { trusted: [expected], launched: expected });
+	});
+
+	test('does not forward local-only sample sources through the remote protocol', async () => {
+		const { service, protocol } = setup();
+		await protocol.handleRequest(DevContainerConnectExtensionMethod, { ...config, sampleId: 'node' });
+		assert.deepStrictEqual(service.connects.map(config => hasKey(config, { sampleId: true })), [false]);
 	});
 
 	test('isolates IDs and notifications between transports', async () => {

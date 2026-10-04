@@ -18,6 +18,12 @@ Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
+Cloud sandbox environments are automatically trusted like Codespaces. The sandbox contribution registers each environment's exact filesystem scheme and authority with workspace trust before publishing its provider, including cached offline providers, and releases that registration when the environment is removed. Registrations do not persist user-granted folder trust or trust other authorities. The connection customization also exempts sandbox message sending from the current window's workspace-trust gate.
+
+Remote providers may delegate deletion to their inventory owner instead of AHP. In both windows, sandbox deletion addresses the owning Mission Control task without connecting to the environment; successful deletion removes the cached session, persisted discovery inventory, and environment provider. Failed deletion retains those entries, and stale discovery responses cannot restore a successfully deleted task.
+
+In the Agents Window, renaming a discovered sandbox session updates its owning Mission Control task without waking the environment. After success, the provider updates the local title and sends an AHP rename only if already connected; offline renames are not queued for replay. Host-reported titles remain authoritative on connection. Sessions sharing the environment but not owned by the discovered task continue to use AHP.
+
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity
@@ -35,11 +41,15 @@ Copilot agents may share a logical session type with local and cloud Copilot pro
 
 Never use the logical session type where host-specific routing is required. Resource schemes and provider IDs are created through the shared Agent Host identifier helpers rather than hand-built strings.
 
+Provider-owned session resolution policies retain the remote address for the provider's lifetime, independently of the live connection catalog. Client log discovery uses that identity to find address-keyed transcripts and forwarded logs after disconnection removes the connection.
+
 The remote Agent Host service owns client-local display-name overrides in machine-local application storage, keyed by normalized connection address. Overrides take precedence over configured or discovered names in provider and resource labels without changing connection details or routing identities; clearing an override restores the current default name.
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity, not authoritative read/archive flags or proof that the host is available.
 
 Both sandbox adapters let fresh discovery update disk-cached activity while preserving host-owned workspace information and user flags. Host-reported activity takes precedence over discovery for the rest of that adapter's lifetime, including after disconnection; older discovery responses cannot replace a newer discovery result. The Agents Window's persisted discovery baselines let title, timestamp, and project fields continue to refresh until the host changes them. Missing activity does not clear a previously reported status. Sandbox connection availability and read-only interactivity remain separate from conversation activity, so disconnection does not turn a reported input request into a conversation error.
+
+In the Agents Window, all sandbox sessions discovered through Mission Control are non-external, regardless of which client created them or the host's external-session metadata. This classification applies to discovery, connected sessions, and cached summaries restored in any VS Code profile.
 
 ## Host groups
 
@@ -116,6 +126,8 @@ Focused tests live beside the remote provider and remote-host services. Tests ow
 ## Dev Container connections
 
 `DevContainerAgentHostService` provides the desktop connection boundary for an Agent Host running inside a Dev Container. Source workspaces may be local files or belong to an SSH, Tunnel, or WSL host. The source URI, including its remote authority, owns the container connection identity, so identical paths on different hosts or WSL distributions remain distinct.
+
+Sample workspaces use a catalog-validated `vscode-dev-container-sample` source URI rather than a host folder. Selecting a sample creates only a required-container draft: no sample download, clone, container, or local backend session is created before the first prompt. First-send preparation requests trust, provisions the repository in a local Docker volume, and hands off to the container provider. The launcher tracks the container before cloning and lifecycle hooks so failed or canceled preparation can stop it, subject to the existing cross-window ownership check, without removing the repository volume. The sample source URI is persisted for lazy restoration and container lifecycle operations. Disabling sample discovery hides new sample choices without preventing existing sessions from reconnecting or being cleaned up; the global Agent Host and AI gates still apply. Repository volume names and container identity labels follow the Dev Containers extension, and Open in VS Code uses its repository-in-volume authority. Container removal preserves the repository volume.
 
 VS Code bundles `@devcontainers/cli`; the workspace's host runs that pinned version, resolves Docker and related tools from its own environment, and owns the CLI processes and relays. For local workspaces this runs in the desktop shared process. For SSH, Tunnel, and WSL workspaces it runs in the connected source Agent Host through a capability-gated VS Code protocol extension. Older hosts do not offer container execution. WSL sources require Docker inside the selected distribution, for example through Docker Desktop's WSL integration. The connector runs `devcontainer up`, installs the matching VS Code remote CLI inside the container, and reuses or launches a dedicated standalone Agent Host. Its WebSocket protocol is relayed over `devcontainer exec` standard input/output and, for remote workspaces, over the existing source-host connection.
 

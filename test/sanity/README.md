@@ -166,6 +166,19 @@ For the following platforms only downloads are validated (and not install/runtim
 - [product-sanity-tests.yml](../../build/azure-pipelines/product-sanity-tests.yml) - Main pipeline definition
 - [sanity-tests.yml](../../build/azure-pipelines/common/sanity-tests.yml) - Reusable job template
 
+### macOS Diagnostics
+
+macOS jobs log the exact OS version/build, hardware configuration, memory pressure, swap usage,
+VM page counters, and process memory rankings before dependency setup, before and after the tests,
+and every minute while tests run. These snapshots help distinguish application regressions from
+unhealthy build VMs even when the pool image name and Darwin kernel version have not changed.
+
+Process rankings include memory footprint, compressed memory, RSS, and summed RSS by executable.
+RSS sums can double-count shared pages and exclude compressed/nonresident memory; they are not
+total physical usage. Only executable names are collected, not process arguments or environment
+variables. Diagnostic commands have bounded execution times and report failures as warnings;
+the monitored test command retains its exit status and the existing test timeouts.
+
 ## References
 
 The following public documentation pages provide details on end-user VS Code setup scenarios.

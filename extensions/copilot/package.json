@@ -2,7 +2,7 @@
   "name": "copilot-chat",
   "displayName": "GitHub Copilot",
   "description": "AI chat features powered by Copilot",
-  "version": "0.68.0",
+  "version": "0.69.0",
   "build": "1",
   "completionsCoreVersion": "1.378.1799",
   "internalLargeStorageAriaKey": "ec712b3202c5462fb6877acae7f1f9d7-c19ad55e-3e3c-4f99-984b-827f6d95bd9e-6917",
@@ -22,7 +22,7 @@
   "icon": "assets/copilot.png",
   "pricing": "Trial",
   "engines": {
-    "vscode": "^1.140.0",
+    "vscode": "^1.141.0",
     "npm": ">=9.0.0",
     "node": ">=22.14.0"
   },
@@ -81,7 +81,6 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
-    "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
@@ -2464,7 +2463,8 @@
         "command": "github.copilot.cli.sessions.rename",
         "title": "%github.copilot.command.cli.sessions.rename%",
         "icon": "$(edit)",
-        "category": "Copilot CLI"
+        "category": "Copilot CLI",
+        "enablement": "!sessionItem.isMultiSelection"
       },
       {
         "command": "github.copilot.cli.sessions.setTitle",
@@ -4353,6 +4353,15 @@
               "experimental",
               "onExp"
             ]
+          },
+          "github.copilot.chat.tools.readFile.allowLineAdjustments": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%github.copilot.chat.tools.readFile.allowLineAdjustments%",
+            "tags": [
+              "experimental",
+              "onExp"
+            ]
           }
         }
       },
@@ -4429,6 +4438,10 @@
                 "family": {
                   "type": "string",
                   "description": "Alias the model's family for capability routing (e.g. 'claude-opus-4.7')."
+                },
+                "thinkingInHistory": {
+                  "type": "boolean",
+                  "description": "%github.copilot.config.thinkingInHistory%"
                 }
               },
               "additionalProperties": false
@@ -6890,6 +6903,13 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "when": "config.chat.canvases.enabled",
+        "sessionTypes": [
+          "copilotcli"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/chronicle/SKILL.md",
         "when": "github.copilot.sessionSearch.enabled",
         "sessionTypes": [
@@ -6998,7 +7018,7 @@
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",
     "dotenv": "^17.2.0",
-    "electron": "^42.5.0",
+    "electron": "^42.10.0",
     "esbuild": "0.28.1",
     "fastq": "^1.19.1",
     "glob": "^11.1.0",

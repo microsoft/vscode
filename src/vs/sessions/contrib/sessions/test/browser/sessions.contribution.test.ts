@@ -24,14 +24,14 @@ const showArchivedByDefaultProperty = configurationRegistry.getConfigurationProp
 suite('Sessions Contribution', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('enables the External section by default with automatic experiments', () => {
+	test('disables the External section by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: groupExternalSessionsProperty.type,
 			default: groupExternalSessionsProperty.default,
 			experiment: groupExternalSessionsProperty.experiment,
 		}, {
 			type: 'boolean',
-			default: true,
+			default: false,
 			experiment: { mode: 'auto' },
 		});
 	});
@@ -64,17 +64,19 @@ suite('Sessions Contribution', () => {
 		});
 	});
 
-	test('shows chats as tabs by default', () => {
+	test('shows chats as tabs by default with automatic experiments', () => {
 		assert.deepStrictEqual({
 			type: showChatTabsProperty.type,
 			enum: showChatTabsProperty.enum,
 			default: showChatTabsProperty.default,
 			scope: showChatTabsProperty.scope,
+			experiment: showChatTabsProperty.experiment,
 		}, {
 			type: 'string',
 			enum: [SessionsChatTabsMode.Multiple, SessionsChatTabsMode.Single],
 			default: SESSIONS_CHAT_TABS_DEFAULT,
 			scope: ConfigurationScope.WINDOW,
+			experiment: { mode: 'auto' },
 		});
 	});
 

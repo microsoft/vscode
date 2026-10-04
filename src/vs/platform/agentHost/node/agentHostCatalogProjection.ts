@@ -10,11 +10,12 @@ import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
+import { SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../common/state/sessionState.js';
 
-export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 1;
+export const AGENT_HOST_CATALOG_PAYLOAD_VERSION = 2;
 export const AGENT_HOST_CATALOG_GITHUB_REFERENCE_LIMIT = 10;
 export const AGENT_HOST_CATALOG_ARTIFACT_LIMIT = 100;
 export const AGENT_HOST_CATALOG_CHILD_LIMIT = 1000;
@@ -272,6 +273,8 @@ const gitValidator = plainObject(vObj({
 	isDetachedHead: vOptionalProp(vBoolean()),
 	baseBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	upstreamBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	defaultBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	defaultRemoteBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	incomingChanges: vOptionalProp(safeInteger()),
 	outgoingChanges: vOptionalProp(safeInteger()),
 	uncommittedChanges: vOptionalProp(safeInteger()),
@@ -301,6 +304,7 @@ const sourceControlValidator = new RefinedValidator(plainObject(vObj({
 
 const artifactValidator = plainObject(vObj({
 	id: boundedString(),
+	chat: vOptionalProp(boundedString()),
 	type: vEnum('pullRequest', 'issue', 'commit', 'website', 'file', 'resource'),
 	label: boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT),
 	isArtifact: vOptionalProp(vBoolean()),
@@ -355,6 +359,11 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_SOURCE_CONTROL_KEY]: vOptionalProp(sourceControlValidator),
 	[SESSION_META_ARTIFACTS_KEY]: vOptionalProp(artifactsValidator),
 	[SESSION_META_CREATED_BY_SESSION_KEY]: vOptionalProp(creationReferenceValidator),
+	[SESSION_INITIATOR_METADATA_KEY]: vOptionalProp(plainObject(vObj({
+		name: boundedString(),
+		title: vOptionalProp(boundedString()),
+		version: vOptionalProp(boundedString()),
+	}))),
 	[REMOTE_SESSION_ORIGIN_METADATA_KEY]: vOptionalProp(remoteSessionOriginValidator),
 	[SESSION_META_WORKSPACELESS_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
@@ -376,8 +385,10 @@ const chatValidator = plainObject(vObj({
 	origin: vOptionalProp(jsonValue()),
 	interactivity: vOptionalProp(vEnum(ChatInteractivity.Full, ChatInteractivity.ReadOnly, ChatInteractivity.Hidden)),
 	archived: vOptionalProp(vBoolean()),
+	isRead: vOptionalProp(vBoolean()),
 	inheritedTurnId: vOptionalProp(boundedString(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT)),
 	workingDirectories: vOptionalProp(workingDirectoriesValidator),
+	changes: vOptionalProp(agentHostCatalogChangesValidator),
 }));
 
 const chatsValidator = new RefinedValidator(

@@ -20,13 +20,16 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { LocalSelectionTransfer } from '../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../workbench/browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../workbench/services/editor/common/editorGroupsService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
+import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -99,8 +102,10 @@ class TestChat extends mock<IChat>() {
 	override readonly origin: IChat['origin'];
 	override readonly title: IObservable<string>;
 	override readonly status: ISettableObservable<SessionStatus>;
+	override readonly isArchived = observableValue(this, false);
 	override readonly isRead: IObservable<boolean> = constObservable(true);
 	override readonly interactivity: ISettableObservable<ChatInteractivity>;
+	override readonly capabilities = observableValue(this, { canRename: true, canArchive: false, canDelete: true });
 
 	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI, originKind = ChatOriginKind.Tool) {
 		super();
@@ -448,6 +453,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const { instantiationService, view, configurationService } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
+		secondary.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		const sideChat = createChat('side', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
 		const session = new TestActiveSession([main, secondary, sideChat], [main, secondary]);
 		view.setSession(session, options);
@@ -469,8 +475,19 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const closeActionContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsClosableContext.key));
+		const deleteActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsDeletableContext.key));
+		const archiveActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
+		secondary.isArchived.set(true, undefined);
+		const archivedActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
+		const untitledChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsUntitledContext.key));
 		const headerShowsChatContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const headerTargetsChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderTargetsChatContext.key));
 		const activeChatResources = groups.map(group =>
 			contextKeyService.getContext(group).getValue<string>(SessionActiveChatResourceContext.key));
 		const activeChatHasSideChats = groups.map(group =>
@@ -479,7 +496,12 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual({
 			groups: readGroups(),
 			closeActionContexts,
+			deleteActionContexts,
+			archiveActionContexts,
+			archivedActionContexts,
+			untitledChatContexts,
 			headerShowsChatContexts,
+			headerTargetsChatContexts,
 			activeChatResources,
 			activeChatHasSideChats,
 		}, {
@@ -496,7 +518,12 @@ suite('Sessions - ChatGroupsView', () => {
 				},
 			],
 			closeActionContexts: [true, true],
+			deleteActionContexts: [false, true],
+			archiveActionContexts: [false, true],
+			archivedActionContexts: [false, false],
+			untitledChatContexts: [false, false],
 			headerShowsChatContexts: [true, true],
+			headerTargetsChatContexts: [false, true],
 			activeChatResources: [main.resource.toString(), secondary.resource.toString()],
 			activeChatHasSideChats: [true, false],
 		});
@@ -620,6 +647,115 @@ suite('Sessions - ChatGroupsView', () => {
 			active: peer.resource.toString(),
 		}]);
 	});
+
+	for (const zone of ['left', 'right'] as const) {
+		test(`single mode opens a hidden peer dropped on the ${zone} edge beside the visible peer`, async () => {
+			const { configurationService, sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const visiblePeer = createChat('visible-peer');
+			const draggedPeer = createChat('dragged-peer');
+			const session = new TestActiveSession([main, visiblePeer, draggedPeer], [main, visiblePeer]);
+			view.setSession(session, options);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+			await sessionsService.openChat(session, visiblePeer.resource);
+
+			await view['_onChatDrop'](view['_groups'][0].id, zone, { sessionId: session.sessionId, resource: draggedPeer.resource.toString() });
+
+			assert.deepStrictEqual({
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+				activeChat: session.activeChat.get().resource.toString(),
+			}, {
+				groups: zone === 'left'
+					? [draggedPeer.resource.toString(), visiblePeer.resource.toString()]
+					: [visiblePeer.resource.toString(), draggedPeer.resource.toString()],
+				activeChat: draggedPeer.resource.toString(),
+			});
+		});
+	}
+
+	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		test(`dropping the main session row in ${mode} mode opens its main chat beside the peer`, async () => {
+			const { configurationService, instantiationService, sessionsService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const peer = createChat('peer');
+			const session = new TestActiveSession([main, peer], [main]);
+			view.setSession(session, options);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+			await sessionsService.openChat(session, peer.resource);
+
+			const container = mainWindow.document.createElement('div');
+			disposables.add(toDisposable(() => container.remove()));
+			mainWindow.document.body.appendChild(container);
+			container.appendChild(view.element);
+			view.layout(1200, 600, 0, 0);
+			disposables.add(instantiationService.createInstance(SessionDropTarget, container, {
+				findTargetView: child => container.contains(child) ? { sessionId: session.sessionId, element: container } : undefined,
+			}));
+			const transfer = LocalSelectionTransfer.getInstance<DraggedSessionIdentifier>();
+			transfer.setData([new DraggedSessionIdentifier(session.sessionId, session.resource)], DraggedSessionIdentifier.prototype);
+			disposables.add(toDisposable(() => transfer.clearData(DraggedSessionIdentifier.prototype)));
+			const dataTransfer = new DataTransfer();
+			dataTransfer.setData(SessionsDataTransfers.SESSION, JSON.stringify({ sessionId: session.sessionId, resource: session.resource.toString() }));
+			const group = view.element.querySelector<HTMLElement>('.chat-group-view');
+			assert.ok(group);
+			group.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer }));
+			const chatOverlay = view.element.querySelector<HTMLElement>('#monaco-workbench-chat-group-drop-overlay');
+			const sessionOverlay = container.querySelector('#monaco-workbench-session-drop-overlay');
+			chatOverlay?.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer }));
+			chatOverlay?.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer }));
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				chatOverlayShown: !!chatOverlay,
+				sessionOverlayShown: !!sessionOverlay,
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+				activeChat: session.activeChat.get().resource.toString(),
+			}, {
+				chatOverlayShown: true,
+				sessionOverlayShown: false,
+				groups: [main.resource.toString(), peer.resource.toString()],
+				activeChat: main.resource.toString(),
+			});
+		});
+	}
+
+	for (const mode of [SessionsChatTabsMode.Single, SessionsChatTabsMode.Multiple]) {
+		test(`dropping a single-chat session onto itself in ${mode} mode does not create a group`, async () => {
+			const { configurationService, view } = createHarness(disposables);
+			const main = createChat('main');
+			const session = new TestActiveSession([main]);
+			view.setSession(session, options);
+			await configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, mode);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([SESSIONS_CHAT_TABS_SETTING]),
+				change: { keys: [SESSIONS_CHAT_TABS_SETTING], overrides: [] },
+				affectsConfiguration: key => key === SESSIONS_CHAT_TABS_SETTING,
+			});
+
+			await view['_onChatDrop'](view['_groups'][0].id, 'right', { sessionId: session.sessionId, resource: main.resource.toString() });
+
+			assert.deepStrictEqual({
+				groupCount: view.groupCount.get(),
+				groups: view['_groups'].map(group => group.activeResourceId.get()),
+			}, {
+				groupCount: 1,
+				groups: [main.resource.toString()],
+			});
+		});
+	}
 
 	test('keeps a pinned chat visible while reusing an unpinned group', async () => {
 		const { sessionsService, view } = createHarness(disposables);
@@ -1435,21 +1571,27 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const singleGroup = view.element.querySelector<HTMLElement>('.chat-group-view')!;
 		const singleGroupHeaderShowsChat = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionHeaderShowsChatContext.key);
+		const singleGroupToolbarShowsSession = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionToolbarShowsSessionContext.key);
 		view.splitChatToSide(secondary.resource);
-		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
-		const splitGroupHeaderShowsChat = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'))
-			.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const splitGroupActions = splitGroups.map(group => group.querySelector<HTMLElement>('.session-chat-tabs-actions'));
+		const splitGroupHeaderShowsChat = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroupToolbarShowsSession = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionToolbarShowsSessionContext.key));
 
 		assert.deepStrictEqual({
 			singleGroupHidden,
 			singleGroupHeaderShowsChat,
-			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+			singleGroupToolbarShowsSession,
+			splitGroupsHidden: splitGroupActions.map(actions => actions?.classList.contains('hidden')),
 			splitGroupHeaderShowsChat,
+			splitGroupToolbarShowsSession,
 		}, {
 			singleGroupHidden: false,
 			singleGroupHeaderShowsChat: false,
+			singleGroupToolbarShowsSession: true,
 			splitGroupsHidden: [true, true],
 			splitGroupHeaderShowsChat: [false, false],
+			splitGroupToolbarShowsSession: [false, false],
 		});
 	});
 
@@ -1475,6 +1617,33 @@ suite('Sessions - ChatGroupsView', () => {
 		session.isArchived.set(true, undefined);
 		assert.deepStrictEqual({ readOnly, blocked, archived: readBanner(view).message }, {
 			readOnly: true, blocked: false, archived: 'Archived sessions are read-only.',
+		});
+	});
+
+	test('does not show a transient read-only banner while a peer transcript loads', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer]);
+		view.setSession(session, options);
+		const current = chatViewFactory.views[chatViewFactory.views.length - 1];
+		current.isLoadingTranscript.set(true, undefined);
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		session.activeChat.set(peer, undefined);
+		const loading = readBanner(view).visible;
+
+		transaction(tx => {
+			peer.interactivity.set(ChatInteractivity.Full, tx);
+			current.isLoadingTranscript.set(false, tx);
+		});
+		const ready = readBanner(view).visible;
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const readOnly = readBanner(view).visible;
+		current.isLoadingTranscript.set(true, undefined);
+		session.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ loading, ready, readOnly, archived: readBanner(view).message }, {
+			loading: false, ready: false, readOnly: true, archived: 'Archived sessions are read-only.',
 		});
 	});
 

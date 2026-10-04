@@ -261,7 +261,7 @@ suite('Edit Source Tracking Windows', () => {
 				sourceKey: event.sourceKey,
 				sourceKeyCleaned: event.sourceKeyCleaned,
 				origin: event.origin,
-				harness: event.harness,
+				provider: event.provider,
 				modelId: event.modelId,
 				conversationId: event.conversationId,
 				requestId: event.requestId,
@@ -285,7 +285,7 @@ suite('Edit Source Tracking Windows', () => {
 					sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					origin: 'agentHost',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 					modelId: 'gpt-5',
 					conversationId: 'session-1',
 					requestId: 'turn-1',
@@ -298,7 +298,7 @@ suite('Edit Source Tracking Windows', () => {
 					sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					origin: 'agentHost',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 					modelId: 'gpt-5',
 					conversationId: 'session-1',
 					requestId: 'turn-1',
@@ -357,11 +357,11 @@ suite('Edit Source Tracking Windows', () => {
 
 		assert.deepStrictEqual(context.allDetails.map(event => ({
 			mode: event.mode,
-			harness: event.harness,
+			provider: event.provider,
 			requestId: event.requestId,
 		})).sort((a, b) => a.mode.localeCompare(b.mode)), [
-			{ mode: '10minFocusWindow', harness: 'claude', requestId: 'turn-late' },
-			{ mode: '20minFocusWindow', harness: 'claude', requestId: 'turn-late' },
+			{ mode: '10minFocusWindow', provider: 'claude', requestId: 'turn-late' },
+			{ mode: '20minFocusWindow', provider: 'claude', requestId: 'turn-late' },
 		]);
 
 		context.disposables.dispose();
@@ -992,7 +992,7 @@ function setup(
 		sourceKey: string;
 		sourceKeyCleaned: string;
 		origin: string | undefined;
-		harness: string | undefined;
+		provider: string | undefined;
 		modelId: string | undefined;
 		autoTier?: string;
 		conversationId: string | undefined;

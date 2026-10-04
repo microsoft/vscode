@@ -601,6 +601,18 @@
 			"problemMatcher": []
 		},
 		{
+			"label": "Install, Build Fast & Watch Client",
+			"detail": "Install dependencies, build VS Code, and watch client transpilation.",
+			"dependsOn": [
+				"Install Dependencies",
+				"Build Fast",
+				"Watch Client Transpile"
+			],
+			"dependsOrder": "sequence",
+			"inAgents": true,
+			"problemMatcher": []
+		},
+		{
 			"type": "npm",
 			"script": "watch-client",
 			"label": "Watch Client",

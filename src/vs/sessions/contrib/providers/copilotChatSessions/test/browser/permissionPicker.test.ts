@@ -201,7 +201,6 @@ suite('Copilot PermissionPicker', () => {
 			}
 		}();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let allowBypass: boolean | undefined;
@@ -272,7 +271,7 @@ suite('Copilot PermissionPicker', () => {
 						disabled,
 						title: managed
 							? 'Sandboxing is required by your organization'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (initiallyChecked ? [false, true] : [true]).map(enabled => ({ session: 'test-session', enabled })),
 					});
 				}
@@ -314,15 +313,13 @@ suite('Copilot PermissionPicker', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
-			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.', hasHover: false },
+			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.', hasHover: false },
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 		]);
 	});
 
 	test('sandbox re-enablement observes host confirmation and session bypass policy', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-		});
+		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const allowsBypass = observableValue('sessionAllowsBypass', false);
 		const confirmedEnabled = observableValue<boolean | undefined>('confirmedEnabled', undefined);
@@ -403,7 +400,6 @@ suite('Copilot PermissionPicker', () => {
 	test('updates the shield icon when sandbox configuration finishes resolving', () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.On);
 		const isResolving = observableValue('isResolving', true);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);

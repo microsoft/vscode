@@ -24,14 +24,15 @@ import { AgentSession, IAgentHostService } from '../../../../../../platform/agen
 import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
+import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
-import { ConfirmationOptionKind, McpAuthRequiredReason, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason, ResponsePartKind, SessionInputRequestKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ConfirmedReason, IChatProgress, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -361,6 +362,17 @@ suite('AgentHostClientTools', () => {
 	// ── toolDataToDefinition ─────────────────────────────────────────────
 
 	suite('toolDataToDefinition', () => {
+
+		test('publishes explicit loading and chat-scope preferences without guessing defaults', () => {
+			const tool: IToolData = {
+				id: 'tool', displayName: 'Tool', modelDescription: 'Tool', source: ToolDataSource.Internal,
+				agentHostPreferences: { defer: 'auto', availability: 'userChats' },
+			};
+			assert.deepStrictEqual(toolDataToDefinition(tool), {
+				name: 'tool', title: 'Tool', description: 'Tool',
+				_meta: { 'copilot.toolDefer': 'auto', 'copilot.toolAvailability': 'userChats' },
+			});
+		});
 
 		test('maps toolReferenceName, displayName, modelDescription, and inputSchema', () => {
 			const tool: IToolData = {
@@ -1222,7 +1234,7 @@ suite('AgentHostClientTools', () => {
 			}));
 			session.dispose();
 			assert.deepStrictEqual({ shown, remaining: inputNotifications.size }, {
-				shown: [{ description: 'Install bubblewrap.', sessions: [sessionResource.toString()] }],
+				shown: [{ description: new MarkdownString().appendText('Install bubblewrap.'), sessions: [sessionResource.toString()] }],
 				remaining: 0,
 			});
 		});
@@ -2041,8 +2053,119 @@ suite('AgentHostClientTools', () => {
 					toolCallId: 'tool-call-1',
 					approved: true,
 					confirmed: ToolCallConfirmationReason.NotNeeded,
+					_meta: { 'agentHost.permissionDecisionSource': 'host_policy' },
 				},
 			});
+		});
+
+		test('attributes explicit client decisions and preserves current tool metadata for approval and denial', async () => {
+			const cases: { reason: ConfirmedReason; approved: boolean; decisionSource?: string }[] = [
+				{ reason: { type: ToolConfirmKind.UserAction }, approved: true, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Denied, source: 'user' }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'user' }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Denied, source: 'hook' }, approved: false, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, approved: false, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.UserAction, selectedButton: 'skip', selectedButtonKind: ConfirmationOptionKind.Deny }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Setting, id: 'setting' }, approved: true, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.ConfirmationNotNeeded }, approved: true, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.LmServicePerTool, scope: 'session' }, approved: true, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.Denied }, approved: false },
+				{ reason: { type: ToolConfirmKind.Skipped }, approved: false },
+			];
+			const currentMeta = { toolKind: 'terminal', language: 'pwsh', isSandboxWrapped: true, futureMetadata: { preserve: true } };
+			const results = [];
+			for (const entry of cases) {
+				const local = disposables.add(new DisposableStore());
+				const { handler, connection, toolsService } = createHandlerWithMocks(local, [testRunTaskTool], { requireConfirmation: true });
+				const chatURI = await provideSessionWithPendingConfirmationClientTool(handler, connection);
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'tool-call-1', invocationMessage: 'Run Task',
+					toolInput: '{"task":"build"}', confirmationTitle: 'Run Task',
+					_meta: { ...currentMeta, 'agentHost.permissionDecisionSource': 'human_response' },
+				});
+				const subscription = local.add(connection.getSubscription<ChatState>(StateComponents.Chat, chatURI));
+				IChatToolInvocation.confirmWith(toolsService.begunToolCalls[0], entry.reason);
+				await timeout(0);
+				await timeout(0);
+				const action = connection.dispatchedActions.find(entry => entry.action.type === ActionType.ChatToolCallConfirmed)?.action;
+				assert.ok(action?.type === ActionType.ChatToolCallConfirmed);
+				const state = subscription.object.value;
+				assert.ok(state && !(state instanceof Error));
+				const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'tool-call-1');
+				results.push({
+					approved: action.approved,
+					decisionSource: readAgentPermissionResponseMeta(action).decisionSource,
+					actionMeta: action._meta,
+					stateMeta: part?.kind === ResponsePartKind.ToolCall ? part.toolCall._meta : undefined,
+				});
+				disposables.delete(local);
+			}
+			assert.deepStrictEqual(results, cases.map(({ approved, decisionSource }) => ({
+				approved, decisionSource,
+				actionMeta: { ...currentMeta, ...(decisionSource ? { 'agentHost.permissionDecisionSource': decisionSource } : {}) },
+				stateMeta: { ...currentMeta, ...(decisionSource ? { 'agentHost.permissionDecisionSource': decisionSource } : {}) },
+			})));
+		});
+
+		test('preserves server confirmation reason and decision provenance including custom deny', async () => {
+			const cases: { reason: ConfirmedReason; approved: boolean; confirmed?: ToolCallConfirmationReason; decisionSource?: string }[] = [
+				{ reason: { type: ToolConfirmKind.UserAction }, approved: true, confirmed: ToolCallConfirmationReason.UserAction, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.UserAction, selectedButton: 'skip', selectedButtonKind: ConfirmationOptionKind.Deny }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'user' }, approved: false, decisionSource: 'human_response' },
+				{ reason: { type: ToolConfirmKind.Denied, source: 'hook' }, approved: false, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, approved: false, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.Denied }, approved: false },
+				{ reason: { type: ToolConfirmKind.Setting, id: 'setting' }, approved: true, confirmed: ToolCallConfirmationReason.Setting, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.ConfirmationNotNeeded }, approved: true, confirmed: ToolCallConfirmationReason.NotNeeded, decisionSource: 'host_policy' },
+				{ reason: { type: ToolConfirmKind.LmServicePerTool, scope: 'session' }, approved: true, confirmed: ToolCallConfirmationReason.Setting, decisionSource: 'host_policy' },
+			];
+			const currentMeta = { toolKind: 'terminal', language: 'pwsh', isSandboxWrapped: true, mcpServerName: 'server', futureMetadata: { preserve: true } };
+			const results = [];
+			for (const entry of cases) {
+				const local = disposables.add(new DisposableStore());
+				const { handler, connection } = createHandlerWithMocks(local, []);
+				const chatURI = URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'session-1').toString()));
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatTurnStarted, turnId: 'turn-1', startedAt: '2025-01-01T00:00:00.000Z',
+					message: { text: 'run tool', origin: { kind: MessageKind.User } },
+				});
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1', toolCallId: 'server-tool', toolName: 'shell', displayName: 'Shell',
+				});
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'server-tool', invocationMessage: 'Run tool', confirmationTitle: 'Allow tool?',
+					options: [{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny }],
+					_meta: { toolKind: 'terminal', language: 'bash', removed: 'stale' },
+				});
+				const session = await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/session-1'), CancellationToken.None);
+				const invocation = session.progressObs?.get().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				connection.applySessionAction(chatURI, {
+					type: ActionType.ChatToolCallReady, turnId: 'turn-1', toolCallId: 'server-tool', invocationMessage: 'Run tool', confirmationTitle: 'Allow tool?',
+					options: [{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny }],
+					_meta: { ...currentMeta, 'agentHost.permissionDecisionSource': 'human_response' },
+				});
+				const subscription = local.add(connection.getSubscription<ChatState>(StateComponents.Chat, chatURI));
+				IChatToolInvocation.confirmWith(invocation, entry.reason);
+				await timeout(0);
+				const action = connection.dispatchedActions.find(entry => entry.action.type === ActionType.ChatToolCallConfirmed)?.action;
+				assert.ok(action?.type === ActionType.ChatToolCallConfirmed);
+				const state = subscription.object.value;
+				assert.ok(state && !(state instanceof Error));
+				const part = state.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === 'server-tool');
+				results.push({
+					approved: action.approved, confirmed: action.approved ? action.confirmed : undefined,
+					decisionSource: readAgentPermissionResponseMeta(action).decisionSource,
+					actionMeta: action._meta,
+					stateMeta: part?.kind === ResponsePartKind.ToolCall ? part.toolCall._meta : undefined,
+				});
+				disposables.delete(local);
+			}
+			assert.deepStrictEqual(results, cases.map(({ approved, confirmed, decisionSource }) => ({
+				approved, confirmed, decisionSource,
+				actionMeta: { ...currentMeta, ...(decisionSource ? { 'agentHost.permissionDecisionSource': decisionSource } : {}) },
+				stateMeta: { ...currentMeta, ...(decisionSource ? { 'agentHost.permissionDecisionSource': decisionSource } : {}) },
+			})));
 		});
 
 		test('preserves the client tool confirmation reason through execution', async () => {
@@ -2137,9 +2260,12 @@ suite('AgentHostClientTools', () => {
 			assert.deepStrictEqual({
 				cancelled: toolsService.invocationTokens[0]?.isCancellationRequested,
 				state: toolsService.begunToolCalls[0]?.state.get().type,
+				humanResponses: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed
+					&& readAgentPermissionResponseMeta(entry.action).decisionSource === 'human_response').length,
 			}, {
 				cancelled: true,
 				state: IChatToolInvocation.StateKind.Cancelled,
+				humanResponses: 0,
 			});
 		});
 
@@ -2161,12 +2287,14 @@ suite('AgentHostClientTools', () => {
 			assert.deepStrictEqual({
 				executed: toolsService.executedToolCalls.length,
 				state: toolsService.begunToolCalls[0]?.state.get().type,
+				confirmations: connection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatToolCallConfirmed).length,
 				completions: connection.dispatchedActions.filter(entry => isChatAction(entry.action)
 					&& entry.action.type === ActionType.ChatToolCallComplete
 					&& entry.action.toolCallId === 'tool-call-1').length,
 			}, {
 				executed: 0,
 				state: IChatToolInvocation.StateKind.Cancelled,
+				confirmations: 0,
 				completions: 0,
 			});
 		});

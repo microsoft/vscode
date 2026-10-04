@@ -248,6 +248,7 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
 
 	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
@@ -301,7 +302,7 @@ export interface ICommonNativeHostService {
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -349,6 +350,8 @@ export interface ICommonNativeHostService {
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	isGPUCompositingEnabled(): Promise<boolean>;
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
