@@ -15,12 +15,12 @@ Reusable GitHub engine and cross-target architecture.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
-- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with the existing default fetch implementation. Its separate, opt-in [typed service boundary](common/githubIpc.ts) exposes anonymous JSON reads for the desktop issue reporter; other callers remain process-local.
+- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with proxy-aware Node fetch. Its separate, opt-in [typed service boundary](common/githubIpc.ts) exposes anonymous JSON reads for the desktop issue reporter; other callers remain process-local.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
 Desktop issue reporters share the shared-process engine across editor and Agents windows. Independent engines do not share application-wide request state.
 
-> **Desktop issue-reporter migration landing blocker:** This dependent patch must not land until an approved shared-process transport preserves desktop proxy and certificate behavior. The current shared binding uses Node's default fetch, not the Chromium session configured from `http.proxy` / `http.noProxy`, and has no equivalent proxy or system-certificate integration. Injected-fetch tests validate the migration offline, not enterprise reachability. This slice adds no transport implementation or cross-process fallback.
+> **Desktop issue-reporter migration landing blocker:** This dependent patch now uses the shared-process proxy and certificate integration, but must not land until its [documented differences from Chromium](#shared-process-proxy-and-certificate-behavior) are approved for the desktop reporter. Focused offline tests validate the migration and client lifetime, not enterprise reachability or full Chromium parity. This slice adds no transport implementation or cross-process fallback.
 
 The [client inventory](client-inventory.md) maps runtime callers, migration boundaries, and remaining gaps.
 
@@ -103,24 +103,46 @@ Bindings supply trusted product/channel/version and originating component/versio
 
 Browser fetch, including desktop renderers, sends only `X-Client-Application` to `https://api.github.com`. The other headers are not in GitHub.com's CORS allowlist. Enterprise browser endpoints receive no identification headers until their allowlists are established; CAPI requires its own endpoint policy. This is an explicit egress policy, not a fallback after failed requests. Cross-origin download storage hops receive no identification or retry headers.
 
+### Host networking
+
+GitHub service implementations own their plain [RequestFetch](common/types.ts) functions. The workbench uses browser fetch, the shared-process service creates its proxy-aware fetch in its constructor, and Agent Host reuses its existing host fetch. There is no fetch service, fetch IPC or automatic move to a different machine after a failure.
+
+- **Web and desktop workbench:** browser fetch is used directly, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
+- **Standalone Agent Host:** GitHub receives the same fetch as Copilot and other host services, without an additional wrapper. The existing Agent Host proxy resolver owns host/PAC, authentication and certificate handling. The foundation preserves explicit test overrides for all consumers.
+- **Shared process:** [createFetch](electron-utility/githubFetch.ts) lazily configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. System/PAC lookup uses the native host's existing `resolveProxy` API, which uses Electron's application-level resolver for windowless callers.
+
+The bindings retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
+
+The transport enforces manual redirects. Anonymous and bootstrap requests also enforce credential omission and no-referrer policy in the transport. Anonymous requests never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
+
+#### Shared-process proxy and certificate behavior
+
+Routing follows the proxy helper's precedence and loopback bypass: `http.noProxy`/`NO_PROXY`, configured/environment proxies, then host system/PAC lookup. Network-interface changes invalidate cached system routes at `http.experimental.networkInterfaceCheckInterval`. Configuration comes from local-user/default values, not remote-workspace settings.
+
+On the first GitHub request, the shared-process fetch uses the [standard shell environment resolver](../shell/node/shellEnv.ts) and merges its result over the inherited process environment. This preserves login-shell proxy variables on GUI launches without delaying shared-process startup, and honors the resolver's Windows, CLI-launch, and user-environment flags. Lookup failures are logged once per fetch instance and retain the inherited environment, matching the existing request service.
+
+`http.proxyAuthorization` is supplied to proxy CONNECT requests rather than the origin and is not repeatedly resent after rejection. Kerberos uses the existing host lookup. With `http.systemCertificates` enabled, additional host certificates honor `http.systemCertificatesNode` and retain Node's default CA set.
+
+Certificate and hostname verification remain enabled by default. `http.proxyStrictSSL: false` is not translated into a verification bypass or weaker-TLS retry. Extension-specific proxy/fetch switches do not select this GitHub helper. Proxy diagnostics do not include URLs, credentials or response bodies.
+
+The helper does not promise full Chromium parity: SOCKS4/4a, native NTLM, ordered PAC failover and Chromium certificate exceptions are not reproduced.
+
 ### Shared-process preparation
 
 `IGitHubService` is registered locally in the shared process. Desktop consumers may explicitly use `ISharedProcessGitHubService` for an anonymous, API-relative GET, with a cancellation token, request options and serializable result metadata. The boundary preserves domain error kinds, HTTP details, rate-limit delays and timeout dispatch status; disconnecting one caller cancels only its waiter and releases its lease. The complete shared engine still owns admission, cooldowns and response limits.
 
 This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
 
-The binding still uses the engine's default fetch. Host-specific fetch, proxy and certificate integration is deferred; this patch does not modify the Agent Host proxy resolver or add another transport. Resolve that integration before landing the desktop issue-reporter migration.
-
 Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
 
 ```powershell
 npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\node\githubService.test.ts
-.\scripts\test.bat --run src\vs\platform\github\test\electron-utility\githubService.test.ts
+npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts --run src\vs\platform\github\test\node\githubService.test.ts --run src\vs\platform\github\test\electron-utility\githubService.test.ts
+.\scripts\test.bat --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'Workbench GitHub service|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
 .\scripts\test.bat --run src\vs\workbench\contrib\issue\test\browser\issueFormService.test.ts --run src\vs\workbench\contrib\issue\test\electron-browser\nativeIssueFormService.test.ts --run src\vs\workbench\contrib\issue\test\browser\baseIssueReporterService.test.ts --run src\vs\workbench\contrib\issue\test\browser\issueReporterOverlay.test.ts --grep "IssueFormService|BaseIssueReporterService|IssueReporterOverlay (stops a public issue search|leaving review)"
 ```
 
-Tests use injected fetchers, not live GitHub requests or inference.
+Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.
 
 ### Telemetry
 
