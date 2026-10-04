@@ -327,6 +327,12 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	return rowStatus;
 }
 
+function getSessionRowIsRead(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): boolean {
+	return deriveFromMainChat
+		? session.mainChat.read(reader).isRead.read(reader)
+		: session.isRead.read(reader);
+}
+
 function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
 	return isActiveSessionStatus(session.status.read(reader));
 }
@@ -724,6 +730,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
+			const isRead = element.chat.isRead.read(reader);
 			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
 				? getHighestPriorityPullRequestIcon(
 					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
@@ -738,12 +745,13 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.isArchivedContext.set(isArchived);
 			template.statusIcon.setStatus(
 				status,
-				true,
+				isRead,
 				isArchived,
 				completedStateIcon,
 				element.chat.resource,
 			);
 			template.container.classList.toggle('archived', isArchived);
+			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
@@ -1563,15 +1571,16 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// CSS spin animation.
 		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
+			const collapsed = this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const sessionStatus = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options.deriveStatusFromMainChat,
-				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			template.statusContext.set(sessionStatus);
-			const isRead = element.isRead.read(reader);
-			template.isReadContext.set(isRead);
+			const isRead = getSessionRowIsRead(element, reader, !!this.options.deriveStatusFromMainChat);
+			template.isReadContext.set(element.mainChat.read(reader).isRead.read(reader));
 			const isArchived = element.isArchived.read(reader);
 			template.isArchivedContext.set(isArchived);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
@@ -2014,6 +2023,13 @@ const enum SessionHeaderStatus {
 	Unread,
 }
 
+function hasUnreadSessionListChat(session: ISession, reader: IReader): boolean {
+	if (!session.mainChat.read(reader).isRead.read(reader)) {
+		return true;
+	}
+	return getSessionListChats(session, reader).some(chat => !chat.isRead.read(reader));
+}
+
 function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader, sessionsWithFailingCI: ReadonlySet<string> | undefined): SessionHeaderStatus | undefined {
 	let hasFailingCI = false;
 	let hasUnread = false;
@@ -2026,7 +2042,7 @@ function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader, 
 			return SessionHeaderStatus.NeedsInput;
 		}
 		hasFailingCI ||= status !== SessionStatus.InProgress && sessionsWithFailingCI?.has(session.sessionId) === true;
-		hasUnread ||= !session.isRead.read(reader);
+		hasUnread ||= hasUnreadSessionListChat(session, reader);
 	}
 	return hasFailingCI ? SessionHeaderStatus.FailingCI : hasUnread ? SessionHeaderStatus.Unread : undefined;
 }
@@ -2054,7 +2070,7 @@ function couldShowSessionHeaderStatus(sessions: readonly ISession[], reader: IRe
 		}
 		const status = session.status.read(reader);
 		return status === SessionStatus.NeedsInput
-			|| !session.isRead.read(reader)
+			|| hasUnreadSessionListChat(session, reader)
 			|| (status !== SessionStatus.InProgress && !!session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest);
 	});
 }
@@ -2796,9 +2812,13 @@ class SessionsAccessibilityProvider {
 				if (diffStats) {
 					label = localize('sessionChatItemChangesAria', "{0}, {1} lines added, {2} lines removed", label, diffStats.insertions, diffStats.deletions);
 				}
-				return element.chat.isArchived.read(reader)
-					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
+				const isArchived = element.chat.isArchived.read(reader);
+				const readLabel = !isArchived && !element.chat.isRead.read(reader)
+					? localize('sessionChatItemUnreadAria', "{0}, unread", label)
 					: label;
+				return isArchived
+					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
+					: readLabel;
 			});
 		}
 		if (isSessionGroupItem(element)) {
@@ -2879,14 +2899,18 @@ class SessionsAccessibilityProvider {
 			} else {
 				label = updatedAt ? localize('sessionItemAria', "{0}, updated {1}", title, fromNow(updatedAt, true)) : title;
 			}
+			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const status = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options?.deriveStatusFromMainChat,
-				this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat)) {
+				label = localize('sessionItemUnreadAria', "{0}, unread", label);
 			}
 			const inputNeededMessage = this.options
 				? getCompactInputNeededMessage(element, reader, this.options, this.options.approvalModel)
@@ -5190,7 +5214,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		if (this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+		const sessionRowRepresentsSession = getSessionListChats(session).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
+		if (!request.chat && sessionRowRepresentsSession && this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
 			this.markRead(session);
 		}
 		this.invokeOpenRequest(request);
@@ -5457,7 +5482,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
-			[SessionIsReadContext.key, element.isRead.get()],
+			[SessionIsReadContext.key, element.mainChat.get().isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
@@ -6607,7 +6632,7 @@ export class SessionsFlatList extends Disposable {
 		const disposables = new DisposableStore();
 		const contextKeyService = this.contextKeyService.createOverlay([
 			[SessionIsArchivedContext.key, session.isArchived.get()],
-			[SessionIsReadContext.key, session.isRead.get()],
+			[SessionIsReadContext.key, session.mainChat.get().isRead.get()],
 			[SessionTypeContext.key, session.sessionType],
 			[SessionProviderIdContext.key, session.providerId],
 			[SessionSupportsMultipleChatsContext.key, session.capabilities.get().supportsMultipleChats],

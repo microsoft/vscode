@@ -94,7 +94,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		super();
 		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemRequestScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
 		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemRequestScheduler));
-		this._queue = this._register(new RequestQueue(systemRequestScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
+		this._queue = this._register(new RequestQueue(systemRequestScheduler, context => this._rateLimits.getRequestDelay(context.account, context.resource), undefined, this._telemetry));
 		if (_options.credentialProvider) {
 			this._register(_options.credentialProvider.onDidChange(change => this._invalidateClients(change)));
 		}

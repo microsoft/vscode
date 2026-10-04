@@ -10,7 +10,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { toGitHubAbortSignal } from './githubCancellation.js';
+import { toGitHubAbortSignal } from './cancellation.js';
 import { IGitHubService } from './githubService.js';
 import { GitHubAnonymousReadOptions, GitHubRestResponse } from './githubTransport.js';
 import { GitHubAnonymousClientOptions, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError } from './githubTypes.js';

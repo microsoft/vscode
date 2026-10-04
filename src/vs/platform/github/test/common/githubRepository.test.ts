@@ -15,7 +15,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { GitHubCancellation } from '../../common/githubCancellation.js';
+import { GitHubCancellation } from '../../common/cancellation.js';
 import { GitHubService, IGitHubAnonymousClient, IGitHubService } from '../../common/githubService.js';
 import { GitHubAnonymousReadOptions } from '../../common/githubTransport.js';
 import { GitHubAnonymousClientOptions } from '../../common/githubTypes.js';

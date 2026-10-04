@@ -6,7 +6,7 @@
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
-import { GitHubCancellation, toGitHubAbortSignal } from './githubCancellation.js';
+import { GitHubCancellation, toGitHubAbortSignal } from './cancellation.js';
 import { asObject, requiredNumber, requiredString } from './githubResponse.js';
 import type { IGitHubAnonymousClient } from './githubService.js';
 import { GitHubAnonymousReadOptions } from './githubTransport.js';

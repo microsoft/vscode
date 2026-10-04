@@ -9,7 +9,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { toGitHubAbortSignal } from '../../common/githubCancellation.js';
+import { toGitHubAbortSignal } from '../../common/cancellation.js';
 
 suite('GitHub cancellation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -33,8 +33,11 @@ suite('GitHub cancellation', () => {
 		const reason = new Error('Caller cancelled');
 		controller.abort(reason);
 		const signal = toGitHubAbortSignal(controller.signal, lifetime);
+		function isExpectedError(error: unknown): boolean {
+			return error === reason;
+		}
 		assert.strictEqual(signal, controller.signal);
-		assert.throws(() => signal.throwIfAborted(), error => error === reason);
+		assert.throws(() => signal.throwIfAborted(), isExpectedError);
 	});
 
 	test('converts token cancellation to a CancellationError', () => {
