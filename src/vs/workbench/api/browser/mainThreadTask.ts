@@ -458,6 +458,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
 	private readonly _providers: Map<number, { disposable: IDisposable; provider: ITaskProvider }>;
+	private readonly _taskStarts = new Map<string, ITaskExecutionDTO>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -476,9 +477,14 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			const task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
+				const isCustomExecution = execution.task?.execution && CustomExecutionDTO.is(execution.task.execution);
+				if (isCustomExecution) {
+					this._taskStarts.set(execution.id, execution);
+					this._proxy.$onWillStartTask(execution.id);
+				}
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
-				if (execution.task?.execution && CustomExecutionDTO.is(execution.task.execution) && event.resolvedVariables) {
-					const expr = ConfigurationResolverExpression.parse(execution.task.definition);
+				if (isCustomExecution && event.resolvedVariables) {
+					const expr = ConfigurationResolverExpression.parse(resolvedDefinition);
 					for (const replacement of expr.unresolved()) {
 						const value = event.resolvedVariables.get(replacement.inner);
 						if (value !== undefined) {
@@ -488,12 +494,19 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 
 					resolvedDefinition = await this._configurationResolverService.resolveAsync(task.getWorkspaceFolder(), expr);
 				}
+				if (isCustomExecution) {
+					if (this._taskStarts.get(execution.id) !== execution) {
+						return;
+					}
+					this._taskStarts.delete(execution.id);
+				}
 				this._proxy.$onDidStartTask(execution, event.terminalId, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
 				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
 				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
+				this._taskStarts.delete(task._id);
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			} else if (event.kind === TaskEventKind.ProblemMatcherStarted) {
 				this._proxy.$onDidStartTaskProblemMatchers(TaskProblemMatcherStartedDto.from({ execution: task.getTaskExecution() }));
@@ -511,6 +524,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			value.disposable.dispose();
 		}
 		this._providers.clear();
+		this._taskStarts.clear();
 		super.dispose();
 	}
 

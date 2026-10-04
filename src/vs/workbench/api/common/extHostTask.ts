@@ -414,6 +414,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	protected _providedCustomExecutions2: Map<string, types.CustomExecution>;
 	// An undefined owner represents callbacks supplied directly through executeTask.
 	private readonly _customExecutionOwners = new Map<string, Map<HandlerData | undefined, types.CustomExecution>>();
+	private readonly _taskStarts = new Map<string, { readonly customExecution: types.CustomExecution | undefined }>();
 	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
 	protected _activeCustomExecutions2: Map<string, types.CustomExecution>;
 	private _lastStartedTask: string | undefined;
@@ -463,10 +464,12 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return new types.Disposable(() => {
 			handler.isDisposed = true;
 			this._handlers.delete(handle);
-			for (const taskId of this._customExecutionOwners.keys()) {
-				this.removeCustomExecution(taskId, handler);
-			}
-			this._proxy.$unregisterTaskProvider(handle);
+			// Startup notifications sent before unregistration must claim their callbacks before cleanup.
+			this._proxy.$unregisterTaskProvider(handle).finally(() => {
+				for (const taskId of this._customExecutionOwners.keys()) {
+					this.removeCustomExecution(taskId, handler);
+				}
+			}).catch(error => this._logService.error(error));
 		});
 	}
 
@@ -506,16 +509,33 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return this._onDidExecuteTask.event;
 	}
 
+	public $onWillStartTask(taskId: string): void {
+		this._taskStarts.set(taskId, {
+			customExecution: this._providedCustomExecutions2.get(taskId) ?? this._activeCustomExecutions2.get(taskId)
+		});
+	}
+
 	public async $onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): Promise<void> {
-		const customExecution = this._providedCustomExecutions2.get(execution.id) ?? this._activeCustomExecutions2.get(execution.id);
+		const starting = this._taskStarts.get(execution.id) ?? { customExecution: undefined };
+		this._taskStarts.set(execution.id, starting);
+		const customExecution = this._providedCustomExecutions2.get(execution.id) ?? starting.customExecution ?? this._activeCustomExecutions2.get(execution.id);
 		if (customExecution) {
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, customExecution);
-			this._terminalService.attachPtyToTerminal(terminalId, await customExecution.callback(resolvedDefinition));
+			const pty = await customExecution.callback(resolvedDefinition);
+			if (this._taskStarts.get(execution.id) !== starting) {
+				pty.close();
+				return;
+			}
+			this._terminalService.attachPtyToTerminal(terminalId, pty);
 		}
 		this._lastStartedTask = execution.id;
 
 		const taskExecution = await this.getTaskExecution(execution);
+		if (this._taskStarts.get(execution.id) !== starting) {
+			return;
+		}
+		this._taskStarts.delete(execution.id);
 		const terminal = this._terminalService.getTerminalById(terminalId)?.value;
 		if (taskExecution) {
 			taskExecution.terminal = terminal;
@@ -531,6 +551,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	}
 
 	public async $OnDidEndTask(execution: tasks.ITaskExecutionDTO): Promise<void> {
+		if (this._taskStarts.delete(execution.id)) {
+			this.customExecutionComplete(execution);
+		}
 		if (!this._taskExecutionPromises.has(execution.id)) {
 			// Event already fired by the main thread
 			// See https://github.com/microsoft/vscode/commit/aaf73920aeae171096d205efb2c58804a32b6846
