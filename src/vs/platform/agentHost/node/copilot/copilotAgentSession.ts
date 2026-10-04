@@ -8418,6 +8418,13 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] Unhandled SDK event: ${safeStringify(loggedEvent)}`);
 		}));
 
+		this._register(wrapper.onIndexedSearch(e => {
+			const data = e.data.kind === 'startup' || e.data.kind === 'server_error'
+				? (({ errorMessage: _, ...data }) => data)(e.data)
+				: e.data;
+			this._logService.trace(`[Copilot:${sessionId}] session.indexed_search: ${safeStringify(data)}`);
+		}));
+
 		this._register(wrapper.onExtensionsLoaded(() => {
 			if (wrapper.canvasRuntimeEnabled) {
 				this._canvasProjectionReady = true;

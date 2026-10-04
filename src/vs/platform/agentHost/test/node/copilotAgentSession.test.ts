@@ -3102,6 +3102,28 @@ suite('CopilotAgentSession', () => {
 		);
 	});
 
+	test('logs indexed search events without sensitive error details', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.indexed_search', {
+			kind: 'startup',
+			outcome: 'failed',
+			startupDurationMs: 42,
+			forcedByEnv: false,
+			warmStart: true,
+			errorMessage: '/private/repository failed to index',
+		});
+
+		assert.deepStrictEqual({
+			indexedSearch: logService.traces.filter(t => t.message.includes('session.indexed_search')).map(t => t.message),
+			unhandled: logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+		}, {
+			indexedSearch: ['[Copilot:test-session-1] session.indexed_search: {"kind":"startup","outcome":"failed","startupDurationMs":42,"forcedByEnv":false,"warmStart":true}'],
+			unhandled: [],
+		});
+	});
+
 	test('logs only envelope metadata for unknown Fusion events', async () => {
 		const logService = new CapturingLogService();
 		const { mockSession, signals } = await createAgentSession(disposables, { logService });
