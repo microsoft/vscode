@@ -22079,7 +22079,7 @@ suite('AgentService (node dispatcher)', () => {
 			await timeout(0);
 			await acknowledgement.release();
 			await timeout(0);
-			// The session's catalog writes run in order, so this one settles only after the automatic rename's have.
+			// The session's catalog writes run in order, so this one settles only after the automatic rename's writes have.
 			await agent.serverToolHost!.executeTool(otherChat, SessionServerToolName.RenameChat, { title: 'Other title' });
 
 			// The second chat's session write waits behind another catalog write, which the user's rename then joins.
