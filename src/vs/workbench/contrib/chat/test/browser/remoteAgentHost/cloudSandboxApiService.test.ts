@@ -250,6 +250,50 @@ suite('CloudSandboxApiService connection credentials', () => {
 		};
 	}
 
+	test('loads cloud models and reasoning metadata without creating a task or environment', async () => {
+		const requests: { path: string; method: string | undefined; integration: string | string[] | undefined }[] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, method: options.type, integration: options.headers?.['Copilot-Integration-Id'] });
+				return jsonResponse({
+					default_model: 'auto',
+					data: [
+						{ id: 'auto', name: 'Auto' },
+						{ id: 'brand-new-model', name: 'New Model', capabilities: { supports: { vision: true, reasoning_effort: ['low', 'high', 'new-effort'] }, limits: { max_prompt_tokens: 1000 } } },
+						{ id: 'disabled', name: 'Disabled', policy: { state: 'disabled' } },
+						{ id: 'hidden', name: 'Hidden', model_picker_enabled: false },
+					],
+				});
+			},
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		assert.deepStrictEqual({
+			requests,
+			defaultModel: catalog.defaultModel,
+			models: catalog.models.map(model => ({ id: model.id, vision: model.supportsVision, input: model.maxPromptTokens, efforts: model.configSchema?.properties.reasoningEffort.enum })),
+		}, {
+			requests: [{ path: '/agents/swe/models', method: 'GET', integration: COPILOT_INTEGRATION_ID }],
+			defaultModel: 'auto',
+			models: [
+				{ id: 'auto', vision: undefined, input: undefined, efforts: undefined },
+				{ id: 'brand-new-model', vision: true, input: 1000, efforts: ['low', 'high', 'new-effort'] },
+			],
+		});
+	});
+
+	for (const body of [{}, { data: [null] }, { data: [{ id: 'bad', name: 'Bad', capabilities: { supports: { reasoning_effort: [1] } } }] }]) {
+		test(`rejects invalid cloud model metadata: ${JSON.stringify(body)}`, async () => {
+			const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse(body) });
+			await assert.rejects(service.listModels(CancellationToken.None), /invalid model/);
+		});
+	}
+
+	test('reports cloud catalog HTTP failures instead of treating them as an empty catalog', async () => {
+		const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse({}, 403) });
+		await assert.rejects(service.listModels(CancellationToken.None), /model catalog failed: HTTP 403/);
+	});
+
 	for (const action of ['connect', 'reconnect'] as const) {
 		test(`${action} preserves valid credentials and the scoped request`, async () => {
 			const progress: string[] = [];

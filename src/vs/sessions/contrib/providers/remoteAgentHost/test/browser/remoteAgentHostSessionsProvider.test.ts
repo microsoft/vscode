@@ -3539,6 +3539,37 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		}) as CloudSandboxSessionsProvider;
 	}
 
+	test('resolves initial configuration before the host knows the provisional session', async () => {
+		const provider = createSandboxProvider();
+		provider.seedProvisionalSession(metadata);
+		provider.setConnection(connection);
+		connection.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'] },
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] },
+				}
+			},
+			values: { mode: 'plan', approvalMode: 'manual' },
+		};
+		const session = provider.getCachedSession('discovered-session')!;
+		const values = await provider.resolveInitialSessionConfig(session.sessionId, { mode: 'plan', approvalMode: 'manual' }, CancellationToken.None);
+		assert.deepStrictEqual({ values, created: connection.createdSessionUris, dispatched: connection.dispatchedActions }, {
+			values: { mode: 'plan', approvalMode: 'manual' }, created: [], dispatched: [],
+		});
+	});
+
+	test('rejects a host that cannot apply initial configuration', async () => {
+		const provider = createSandboxProvider();
+		provider.seedProvisionalSession(metadata);
+		provider.setConnection(connection);
+		connection.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'] } } },
+			values: { mode: 'interactive' },
+		};
+		await assert.rejects(provider.resolveInitialSessionConfig(provider.getCachedSession('discovered-session')!.sessionId, { mode: 'plan' }, CancellationToken.None), /could not apply/);
+	});
+
 	test('opts out of workspace selection while retaining workspace resolution', () => {
 		const provider = createSandboxProvider();
 		const uri = toAgentHostUri(URI.file('/workspace'), agentHostAuthority(provider.remoteAddress));

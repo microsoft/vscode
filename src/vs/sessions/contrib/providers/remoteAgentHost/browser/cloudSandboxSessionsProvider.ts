@@ -12,6 +12,10 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../platfor
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { raceCancellationError } from '../../../../../base/common/async.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 
 /**
  * Sessions provider for a Copilot cloud sandbox.
@@ -45,6 +49,23 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
+
+	/** Resolves creation options without requiring the host to know the preallocated session yet. */
+	async resolveInitialSessionConfig(sessionId: string, values: Record<string, unknown>, token: CancellationToken): Promise<Record<string, unknown>> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const connection = this.connection;
+		if (!connection || !rawId || !this._sessionCache.has(rawId)) {
+			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
+		}
+		const config = await raceCancellationError(connection.resolveSessionConfig({ provider: CLOUD_SANDBOX_AGENT_PROVIDER, config: values }), token);
+		for (const [key, value] of Object.entries(values)) {
+			validateSessionConfigWrite(config.schema, config.values, key, value, true);
+			if (config.values[key] !== value) {
+				throw new Error(localize('cloudSandbox.configNotApplied', "The sandbox could not apply the selected {0}. Your prompt was not sent.", key));
+			}
+		}
+		return { ...values };
+	}
 
 	protected override _adapterOptions() {
 		return {

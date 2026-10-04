@@ -44,6 +44,8 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService } from './remoteAgentHostAuthentication.js';
+import { CloudSandboxModels } from './cloudSandboxModels.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 
 Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).register({
 	matchSessionType: sessionType => isRemoteAgentHostSessionType(sessionType),
@@ -460,6 +462,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		agentStore.add(toDisposable(() => connState.modelProviders.delete(agent.provider)));
 		agentStore.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
 		modelProvider.updateModels(agent.models);
+		if (isCloudSandboxConnectionAddress(address) && agent.provider === CLOUD_SANDBOX_AGENT_PROVIDER) {
+			// Sandbox runtimes can accept cloud-service models omitted from their AHP catalog.
+			const cloudModels = agentStore.add(this._instantiationService.createInstance(CloudSandboxModels, sessionType, vendor, modelProvider));
+			cloudModels.load();
+		}
 
 		this._logService.info(`[RemoteAgentHost] Registered agent ${agent.provider} from ${address} as ${sessionType}`);
 	}

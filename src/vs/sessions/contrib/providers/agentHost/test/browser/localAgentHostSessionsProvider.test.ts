@@ -2505,6 +2505,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
+	test('initial configuration and model preferences reach the first send of a host-listed session', async () => {
+		const modelId = 'agent-host-copilotcli:configured-model';
+		const metadata = {
+			...createTestLanguageModel('configured-model'), targetChatSessionType: 'agent-host-copilotcli',
+			configurationSchema: { type: 'object' as const, properties: { reasoningEffort: { type: 'string' as const, enum: ['low', 'high'] } } },
+		};
+		let sent: object | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			languageModelIds: [modelId],
+			lookupLanguageModel: () => metadata,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (_resource, _message, options) => {
+				sent = { config: options?.agentHostSessionConfig, model: options?.userSelectedModelId, modelConfiguration: options?.userSelectedModelConfiguration };
+				return { kind: 'sent' as const, data: {} as IChatSendRequestData };
+			},
+		});
+		agentHost.addSession(createSession('initial-options', { summary: 'Initial Options' }));
+		fireSessionAdded(agentHost, 'initial-options', { title: 'Initial Options' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Initial Options')!;
+		provider.setModel(session.sessionId, session.resource, modelId, ChatModelSource.Chosen);
+		await provider.getAutomationModelConfiguration(session.sessionId)!.setModelConfiguration(modelId, { reasoningEffort: 'high' });
+		await provider.sendRequest(session.sessionId, session.resource, { query: 'first turn', sessionConfig: { mode: 'plan', approvalMode: 'manual' } });
+		assert.deepStrictEqual(sent, { config: { mode: 'plan', approvalMode: 'manual' }, model: modelId, modelConfiguration: { reasoningEffort: 'high' } });
+	});
+
 	test('setAgent updates existing session agent and lets draft debounce persist it', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-agent', { title: 'Set Agent Session' });
