@@ -183,7 +183,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 			return [...rootCustomizations, ...(sessionState.customizations ?? [])];
 		},
 		getFolderPickerDecision: () => undefined,
-		whenCustomizationsReady: () => Promise.resolve(),
+		whenCustomizationsReady: () => Promise.resolve(true),
 		getWorkingDirectory(sessionResource: URI): string | undefined {
 			return undefined;
 		},
