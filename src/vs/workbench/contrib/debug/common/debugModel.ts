@@ -42,6 +42,7 @@ export class ExpressionContainer implements IExpressionContainer {
 	public type: string | undefined;
 	public valueChanged = false;
 	private _value: string = '';
+	private lazyEvaluationId = 0;
 	protected children?: Promise<IExpression[]>;
 
 	constructor(
@@ -71,14 +72,17 @@ export class ExpressionContainer implements IExpressionContainer {
 			return;
 		}
 
+		const evaluationId = ++this.lazyEvaluationId;
 		let response: DebugProtocol.VariablesResponse | undefined;
 		try {
 			response = await this.session!.variables(this.reference, this.threadId, undefined, undefined, undefined);
 		} catch (e) {
-			this.value = e.message;
+			if (evaluationId === this.lazyEvaluationId) {
+				this.value = e.message;
+			}
 			return;
 		}
-		if (!response || !response.body || !response.body.variables || response.body.variables.length !== 1) {
+		if (evaluationId !== this.lazyEvaluationId || !response || !response.body || !response.body.variables || response.body.variables.length !== 1) {
 			return;
 		}
 

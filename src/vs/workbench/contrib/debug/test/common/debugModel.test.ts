@@ -41,6 +41,30 @@ suite('DebugModel', () => {
 			assert.deepStrictEqual({ value: variable.value, reference: variable.reference, lazy: variable.presentationHint?.lazy }, { value: '42', reference: 0, lazy: undefined });
 		});
 
+		for (const staleFailure of [true, false]) {
+			test(`ignores stale lazy evaluation completions (stale failure: ${staleFailure})`, async () => {
+				const requests = [new DeferredPromise<DebugProtocol.VariablesResponse>(), new DeferredPromise<DebugProtocol.VariablesResponse>()];
+				let request = 0;
+				const variable = createVariable(() => requests[request++].p);
+				const first = variable.evaluateLazy();
+				const second = variable.evaluateLazy();
+				const response: DebugProtocol.VariablesResponse = { seq: 1, type: 'response', request_seq: 1, success: true, command: 'variables', body: { variables: [{ name: 'resolved', value: '42', variablesReference: 0 }] } };
+				if (staleFailure) {
+					await requests[1].complete(response);
+				} else {
+					await requests[1].error(new Error('Current failure'));
+				}
+				await second;
+				if (staleFailure) {
+					await requests[0].error(new Error('Stale failure'));
+				} else {
+					await requests[0].complete(response);
+				}
+				await first;
+				assert.deepStrictEqual({ value: variable.value, reference: variable.reference, lazy: variable.presentationHint?.lazy }, staleFailure ? { value: '42', reference: 0, lazy: undefined } : { value: 'Current failure', reference: 2, lazy: true });
+			});
+		}
+
 		test('preserves sibling variables when automatic lazy expansion fails', async () => {
 			const session = upcastPartial<IDebugSession>({
 				autoExpandLazyVariables: true,
