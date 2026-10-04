@@ -530,7 +530,7 @@ export class AgentHostSessionListStore extends Disposable {
 		return {
 			provider: entry.provider,
 			rawId: entry.rawId,
-			session: AgentSession.uri(entry.provider, entry.rawId),
+			session: URI.parse(entry.summary.resource),
 		};
 	}
 

@@ -933,9 +933,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * Inverse of {@link _adoptSessionMeta}: map the UI scheme back to the one the host's session
 	 * registry is keyed by, so backend calls address the URI the host knows.
 	 */
-	protected override _backendSessionScheme(agentProvider: string): string {
+	protected override _backendSessionScheme(agentProvider: string, existingSession?: URI): string {
 		const alias = this._sessionSchemeAlias;
-		return alias && agentProvider === alias.ui ? alias.backend : agentProvider;
+		return alias && agentProvider === alias.ui ? alias.backend : existingSession?.scheme ?? agentProvider;
 	}
 
 	protected override _logicalSessionTypeForBackendScheme(backendScheme: string): string {

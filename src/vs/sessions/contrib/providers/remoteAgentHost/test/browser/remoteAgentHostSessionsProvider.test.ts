@@ -960,7 +960,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0); // let the eager createSession promise resolve
 
 		const rawId = session.resource.path.substring(1);
-		const expectedBackendUri = AgentSession.uri(provider.sessionTypes[0].id, rawId);
+		const expectedBackendUri = URI.from({ scheme: provider.sessionTypes[0].id, path: `/${rawId}` });
 		assert.deepStrictEqual(
 			connection.createdSessionUris.map(u => u.toString()),
 			[expectedBackendUri.toString()],

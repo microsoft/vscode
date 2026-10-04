@@ -5704,7 +5704,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return provisionalSession;
 		}
 		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
+		return this._config.backendSessionScheme
+			? URI.from({ scheme: this._config.backendSessionScheme, path: `/${rawId}` })
+			: AgentSession.uri(this._config.provider, rawId);
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {
