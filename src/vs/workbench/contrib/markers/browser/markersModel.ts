@@ -171,6 +171,7 @@ export class MarkersModel {
 			removed.add(resourceMarker);
 		}
 		this.resourcesByUri.clear();
+		this.cachedSortedResources = undefined;
 		this._total = 0;
 		this._onDidChange.fire({ removed, added: new Set<ResourceMarkers>(), updated: new Set<ResourceMarkers>() });
 	}
