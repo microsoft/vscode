@@ -2288,6 +2288,7 @@ suite('ProtocolServerHandler', () => {
 				{ id: 30, method: 'resourceRead', params: { uri: buildSessionDbUri(buildChatUri('copilot:/unknown', 'second'), 'peer-tool', '/file', 'before') }, allowed: false },
 				{ id: 31, method: 'resourceRead', params: { uri: buildSessionDbUri('ahp-chat://broken', 'peer-tool', '/file', 'before') }, allowed: false },
 				{ id: 33, method: 'resourceRead', params: { uri: workerContent }, allowed: true },
+				{ id: 34, method: 'resourceWrite', params: { uri: URI.file(join(workspace, 'not-directory.txt', 'child')).toString(), data: 'invalid', encoding: ContentEncoding.Utf8 }, allowed: false },
 			];
 			for (const item of cases) {
 				transport.simulateMessage(request(item.id, item.method, { channel: ROOT_STATE_URI, ...item.params }));
@@ -2315,7 +2316,7 @@ suite('ProtocolServerHandler', () => {
 				reads: [cases[0].params.uri, cases[1].params.uri, dbContent, gitContent, gitHeadContent, pendingContent, peerContent, peerDbContent, workerContent],
 				writes: [URI.file(join(workspace, 'new.txt')).toString()],
 				terminalDirectories: [URI.file(workspace).toString()],
-				rejectedDirectories: ['Working-directory resource could not be authorized'],
+				rejectedDirectories: ['Working directory is outside the host workspace grants'],
 				deniedCodes: cases.filter(item => !item.allowed).map(() => AhpErrorCodes.PermissionDenied),
 			});
 			for (const { id, data } of [{ id: 21, data: 'default preview' }, { id: 26, data: 'peer preview' }, { id: 33, data: 'worker preview' }]) {

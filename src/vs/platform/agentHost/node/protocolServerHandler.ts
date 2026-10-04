@@ -2217,9 +2217,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		let canonical: string;
 		while (true) {
 			try {
-				canonical = resolve(realpathSync(ancestor), relative(ancestor, uri.fsPath));
+				const resolvedAncestor = realpathSync(ancestor);
+				if (ancestor !== uri.fsPath && !statSync(resolvedAncestor).isDirectory()) {
+					return false;
+				}
+				canonical = resolve(resolvedAncestor, relative(ancestor, uri.fsPath));
 				break;
 			} catch (error) {
+				if (isParamsObject(error) && error.code === 'ENOTDIR') {
+					return false;
+				}
 				if (!isParamsObject(error) || error.code !== 'ENOENT' || dirname(ancestor) === ancestor) {
 					throw error;
 				}
