@@ -28,6 +28,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { IChatModel } from '../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, ChatPetAccessoryId, getChatPetAccessory, getChatPetAchievement } from '../chatPetAchievements.js';
 import { CHAT_PET_DEFAULT_SCALE, ChatPetVariant, IChatPetService } from '../chatPetService.js';
+import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, getChatPetColoredSprite, getChatPetColorVariant, getChatPetEyeColor, setChatPetImageSource } from '../chatPetColors.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
 
@@ -176,8 +177,10 @@ interface ChatPetSpriteElement {
 	readonly image: HTMLImageElement;
 	readonly accessoryImages?: readonly HTMLImageElement[];
 	readonly canvas: HTMLCanvasElement;
+	color: ChatPetColor;
 	activeAccessory?: ChatPetAccessoryId;
 	activeAccessoryImage?: HTMLImageElement;
+	redrawFrame?: () => void;
 }
 
 interface ChatPetPendingRender {
@@ -408,7 +411,7 @@ export function getChatPetRespawnFrameDurations(): readonly number[] {
 	return RESPAWN_FRAME_DURATIONS;
 }
 
-function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPetSpriteSources> {
+export function getChatPetSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPetSpriteSources> {
 	let sources = spriteSources.get(variant);
 	if (!sources) {
 		const createStateSpriteSources = (state: ChatPetState) => createSpriteSources(getChatPetSpriteName(state, variant), state, doesChatPetStateTrackCursor(state));
@@ -496,8 +499,8 @@ function doesChatPetStateSpeak(state: ChatPetState | undefined): boolean {
 	return state === 'rendering' || state === 'achievementUnlocked';
 }
 
-export function drawChatPetAchievementStar(context: CanvasRenderingContext2D, variant: ChatPetVariant): void {
-	context.fillStyle = variant === 'stable' ? 'rgb(35, 168, 242)' : 'rgb(36, 191, 165)';
+export function drawChatPetAchievementStar(context: CanvasRenderingContext2D, color: ChatPetColor): void {
+	context.fillStyle = getChatPetBodyColor(color);
 	context.fillRect(56, 34, 24, 24);
 	context.fillStyle = 'rgb(255, 205, 15)';
 	const rows = ['..#..', '.###.', '#####', '.#.#.', '#...#'];
@@ -1322,6 +1325,7 @@ export class ChatPetWidget extends Disposable {
 	private _respawnPosition: readonly [number, number] | undefined;
 	private readonly _resizeObserver: dom.DisposableResizeObserver;
 	private _variant: ChatPetVariant;
+	private _color: ChatPetColor;
 	private _selectedAccessory: ChatPetAccessoryId | undefined;
 	private _scale = 1;
 
@@ -1341,7 +1345,8 @@ export class ChatPetWidget extends Disposable {
 		this.dragBounds = host.dragBounds;
 		this.movementBounds = host.movementBounds;
 		this._host = observableValue(this, host);
-		this._variant = this.chatPetService.variant.get();
+		this._color = this.chatPetService.color.get();
+		this._variant = getChatPetColorVariant(this._color);
 		this._selectedAccessory = this.chatPetService.selectedAccessory.get();
 		this.parent.classList.add('chat-pet-host');
 		this._overlay = dom.$(`.${CHAT_PET_OVERLAY_CLASS}`);
@@ -1372,7 +1377,7 @@ export class ChatPetWidget extends Disposable {
 		const respawnEffectImage = dom.append(this._overlay, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 		respawnEffectImage.alt = '';
 		respawnEffectImage.setAttribute('aria-hidden', 'true');
-		this._respawnEffect = { container: respawnEffectCanvas, image: respawnEffectImage, canvas: respawnEffectCanvas };
+		this._respawnEffect = { container: respawnEffectCanvas, image: respawnEffectImage, canvas: respawnEffectCanvas, color: this._color };
 		this._register(dom.addDisposableListener(respawnEffectImage, 'load', () => this._startRespawnEffectAnimation()));
 		this._register(dom.addDisposableListener(respawnEffectImage, 'error', () => {
 			this.logService.error(`[ChatPetWidget] Failed to load respawn sprite: ${respawnEffectImage.getAttribute('src')}`);
@@ -1397,7 +1402,7 @@ export class ChatPetWidget extends Disposable {
 				accessoryImage.setAttribute('aria-hidden', 'true');
 				return accessoryImage;
 			});
-			const sprite: ChatPetSpriteElement = { container, image, accessoryImages, canvas };
+			const sprite: ChatPetSpriteElement = { container, image, accessoryImages, canvas, color: this._color };
 			this._register(dom.addDisposableListener(image, 'load', () => this._onBodyImageLoad(sprite)));
 			this._register(dom.addDisposableListener(image, 'error', () => this._onBodyImageError(sprite)));
 			for (const accessoryImage of accessoryImages) {
@@ -1407,6 +1412,7 @@ export class ChatPetWidget extends Disposable {
 			return sprite;
 		});
 		this._eyes = dom.append(this._visual, dom.$('.chat-pet-eyes'));
+		this._eyes.style.color = getChatPetEyeColor(this._color);
 		this._eyes.setAttribute('aria-hidden', 'true');
 		for (const side of ['left', 'right']) {
 			const eye = dom.append(this._eyes, dom.$(`.chat-pet-eye.${side}`));
@@ -1428,7 +1434,7 @@ export class ChatPetWidget extends Disposable {
 		const speechBubbleImage = dom.append(speechBubbleContainer, dom.$('img.chat-pet-spritesheet')) as HTMLImageElement;
 		speechBubbleImage.alt = '';
 		speechBubbleImage.setAttribute('aria-hidden', 'true');
-		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas };
+		this._speechBubble = { container: speechBubbleContainer, image: speechBubbleImage, canvas: speechBubbleCanvas, color: this._color };
 		this._resizeObserver = this._register(new dom.DisposableResizeObserver('ChatPetWidget.dragBounds', () => this._handleHostLayoutChange(), dom.getWindow(this._button.element), { resizeObserverCtor }));
 		this._observeHost(host);
 		if (this._getHorizontalBounds() !== undefined) {
@@ -1609,9 +1615,21 @@ export class ChatPetWidget extends Disposable {
 				this._setScale(scale);
 			}
 			const enabled = isChatPetVisible(serviceEnabled, isWindowActive);
-			const variant = this.chatPetService.variant.read(reader);
+			const color = this.chatPetService.color.read(reader);
+			const colorChanged = color !== this._color;
+			this._color = color;
+			const variant = getChatPetColorVariant(color);
 			const variantChanged = variant !== this._variant;
 			this._variant = variant;
+			if (colorChanged && (!variantChanged || color.startsWith('#'))) {
+				this._eyes.style.color = getChatPetEyeColor(color);
+				for (const sprite of [this._activeSprite, this._speechBubble, this._respawnEffect]) {
+					if (sprite) {
+						sprite.color = color;
+						sprite.redrawFrame?.();
+					}
+				}
+			}
 			const selectedAccessory = this.chatPetService.selectedAccessory.read(reader);
 			const accessoryChanged = selectedAccessory !== this._selectedAccessory;
 			this._selectedAccessory = selectedAccessory;
@@ -2480,10 +2498,13 @@ export class ChatPetWidget extends Disposable {
 			true,
 			() => this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID)
 		));
-		const stable = actions.add(new Action('chat.pet.variant.stable', localize('chatPet.variant.stable.action', "Stable Colors"), undefined, true, () => this.chatPetService.setVariant('stable')));
-		stable.checked = this.chatPetService.variant.get() === 'stable';
-		const insiders = actions.add(new Action('chat.pet.variant.insiders', localize('chatPet.variant.insiders.action', "Insiders Colors"), undefined, true, () => this.chatPetService.setVariant('insiders')));
-		insiders.checked = this.chatPetService.variant.get() === 'insiders';
+		const changeColor = actions.add(new Action(
+			CHAT_PET_CHANGE_COLOR_COMMAND_ID,
+			localize('chatPet.changeColor.action', "Change Color"),
+			undefined,
+			true,
+			() => this.commandService.executeCommand(CHAT_PET_CHANGE_COLOR_COMMAND_ID),
+		));
 		const grow = actions.add(new Action('chat.pet.grow', localize('chatPet.grow.action', "Grow"), undefined, true, () => {
 			const scale = getChatPetScale(this._scale, CHAT_PET_SCALE_STEP);
 			this.chatPetService.setScale(scale);
@@ -2520,8 +2541,7 @@ export class ChatPetWidget extends Disposable {
 				shrink,
 				resetSize,
 				appearanceSeparator,
-				stable,
-				insiders,
+				changeColor,
 			],
 			onHide: () => {
 				this._contextMenuVisible = false;
@@ -2803,8 +2823,7 @@ export class ChatPetWidget extends Disposable {
 		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
 		if (!isChatPetImageSource(this._respawnEffect.image, source.url)) {
 			this._respawnAnimation.clear();
-			this._respawnEffect.image.removeAttribute('src');
-			this._respawnEffect.image.src = source.url;
+			setChatPetImageSource(this._respawnEffect.image, source.url);
 			return;
 		}
 		if (this._respawnEffect.image.complete && this._respawnEffect.image.naturalWidth > 0) {
@@ -3213,7 +3232,7 @@ export class ChatPetWidget extends Disposable {
 		if (state !== 'idle' || useStaticSprite) {
 			this._facingController.setState(state, useStaticSprite);
 		}
-		const sources = getSpriteSources(this._variant)[state];
+		const sources = getChatPetSpriteSources(this._variant)[state];
 		const source = this._motionReduced || useStaticSprite ? sources.reducedMotion : sources.animated;
 		if (!restart && this._activeSprite && isChatPetImageSource(this._activeSprite.image, source.url)) {
 			this._pendingRender = undefined;
@@ -3249,11 +3268,9 @@ export class ChatPetWidget extends Disposable {
 			state,
 			useStaticSprite,
 		};
-		sprite.image.removeAttribute('src');
-		sprite.image.src = source.url;
+		setChatPetImageSource(sprite.image, source.url);
 		if (accessoryImage && accessorySource && accessoryImage !== cachedAccessoryImage) {
-			accessoryImage.removeAttribute('src');
-			accessoryImage.src = accessorySource.url;
+			setChatPetImageSource(accessoryImage, accessorySource.url);
 		}
 	}
 
@@ -3417,8 +3434,7 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		this._pendingAccessorySwitch = { generation, sprite, source, image, accessory };
-		image.removeAttribute('src');
-		image.src = source.url;
+		setChatPetImageSource(image, source.url);
 	}
 
 	private _tryCompleteAccessorySwitch(): void {
@@ -3514,6 +3530,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState): void {
+		sprite.color = this._color;
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
 		const displaySize = sprite === this._speechBubble ? 72 : sprite === this._respawnEffect ? this._getDisplaySize() : CHAT_PET_DISPLAY_SIZE;
@@ -3532,7 +3549,9 @@ export class ChatPetWidget extends Disposable {
 			return;
 		}
 		context.imageSmoothingEnabled = false;
+		let renderedFrameIndex = 0;
 		const drawFrame = (frameIndex: number) => {
+			renderedFrameIndex = frameIndex;
 			if (state) {
 				const activeAccessory = sprite.activeAccessory ? getChatPetAccessory(sprite.activeAccessory) : undefined;
 				drawChatPetComposite(
@@ -3549,18 +3568,25 @@ export class ChatPetWidget extends Disposable {
 					false,
 					activeAccessory?.eyeAccessoryMirrorsWithFacing !== false,
 					activeAccessory?.coversAntennae === true,
+					sprite.color,
 				);
 				this._drawEyeAccessory(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? frameIndex);
 			} else {
 				context.clearRect(0, 0, source.frameWidth, frameHeight);
-				context.drawImage(image, frameIndex * source.frameWidth, 0, source.frameWidth, frameHeight, 0, 0, source.frameWidth, frameHeight);
+				context.drawImage(getChatPetColoredSprite(image, sprite.color), frameIndex * source.frameWidth, 0, source.frameWidth, frameHeight, 0, 0, source.frameWidth, frameHeight);
 			}
 			if (sprite === this._activeSprite) {
 				this._activeFrameIndex = frameIndex;
 			}
 			onFrame?.(frameIndex);
 		};
+		sprite.redrawFrame = () => {
+			if (image.complete && image.naturalWidth > 0 && isChatPetImageSource(image, source.url)) {
+				drawFrame(renderedFrameIndex);
+			}
+		};
 		if (sprite === this._activeSprite) {
+			this._eyes.style.color = getChatPetEyeColor(sprite.color);
 			this._redrawActiveFrame = () => drawFrame(this._activeFrameIndex);
 			this._redrawEyeAccessory = state
 				? () => this._drawEyeAccessory(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? this._activeFrameIndex)
@@ -3679,8 +3705,7 @@ export class ChatPetWidget extends Disposable {
 		const source = this._motionReduced ? sources.reducedMotion : sources.animated;
 		if (!isChatPetImageSource(this._speechBubble.image, source.url)) {
 			this._speechAnimation.clear();
-			this._speechBubble.image.removeAttribute('src');
-			this._speechBubble.image.src = source.url;
+			setChatPetImageSource(this._speechBubble.image, source.url);
 			return;
 		}
 		if ((restart || stateChanged) && this._speechBubble.image.complete && this._speechBubble.image.naturalWidth > 0) {
@@ -3694,7 +3719,7 @@ export class ChatPetWidget extends Disposable {
 				state === 'achievementUnlocked' ? () => {
 					const context = this._speechBubble.canvas.getContext('2d');
 					if (context) {
-						drawChatPetAchievementStar(context, this._variant);
+						drawChatPetAchievementStar(context, this._speechBubble.color);
 					}
 				} : undefined,
 			);

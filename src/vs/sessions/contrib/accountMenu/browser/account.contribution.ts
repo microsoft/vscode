@@ -61,6 +61,7 @@ import { CHAT_SETUP_ACTION_ID } from '../../../../workbench/contrib/chat/browser
 import { AGENTIC_SIGN_IN_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { SessionsChatPetAchievementBadges } from './chatPetAchievementBadges.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { CHAT_PET_CHANGE_COLOR_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = Menus.AccountMenu;
@@ -736,11 +737,13 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 			}
 		}
 
-		panelStore.add(this.instantiationService.createInstance(SessionsChatPetAchievementBadges, panel, () => {
-			this.hoverService.hideHover(true);
-			this.clickPanelDisposable.clear();
-			void this.commandService.executeCommand(CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
-		}));
+		if (!this.chatEntitlementService.sentiment.hidden) {
+			panelStore.add(this.instantiationService.createInstance(SessionsChatPetAchievementBadges, panel, tab => {
+				this.hoverService.hideHover(true);
+				this.clickPanelDisposable.clear();
+				void this.commandService.executeCommand(tab === 'color' ? CHAT_PET_CHANGE_COLOR_COMMAND_ID : CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID);
+			}));
+		}
 
 		if (this.shouldShowCopilotDashboardHover()) {
 			const footer = append(panel, $('section.sessions-account-titlebar-panel-footer', {
