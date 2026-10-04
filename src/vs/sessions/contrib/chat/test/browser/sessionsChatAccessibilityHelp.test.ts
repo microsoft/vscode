@@ -148,6 +148,24 @@ suite('SessionsChatAccessibilityHelp', () => {
 		]);
 	});
 
+	test('describes teaching the pet with /pet and Taught Moves', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			command: content.includes('type /pet followed by a request to have the agent teach it'),
+			taughtMoves: content.includes('open its context menu and choose Taught Moves'),
+		}, { command: true, taughtMoves: true });
+	});
+
 	test('describes automatic external session adoption', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();

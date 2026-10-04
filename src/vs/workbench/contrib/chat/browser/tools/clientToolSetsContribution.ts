@@ -92,6 +92,15 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 		}));
 
 		this._register(this._registerDynamicToolSet(toolsService, {
+			id: 'vscode-pet',
+			referenceName: 'vscodePet',
+			icon: Codicon.robot,
+			description: localize('clientToolSet.pet.description', "VS Code Pet"),
+			detail: localize('clientToolSet.pet.detail', "Teach the VS Code pet new moves and reactions to your messages."),
+			members: ['petGuide', 'teachPet'],
+		}));
+
+		this._register(this._registerDynamicToolSet(toolsService, {
 			id: 'vscode-general',
 			referenceName: 'vscodeGeneral',
 			icon: Codicon.vscode,

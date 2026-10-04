@@ -6,8 +6,10 @@
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ChatPetAccessoryId, ChatPetAchievementId } from '../../../../contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetMove } from '../../../../contrib/chat/browser/chatPetMoves.js';
+import { IChatPetReaction, IChatPetReactionInput } from '../../../../contrib/chat/browser/chatPetReactions.js';
 import { ChatPetVariant, IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 
 export interface IChatPetFixtureOptions {
@@ -39,6 +41,8 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 	private readonly selectedAccessoryValue: ISettableObservable<ChatPetAccessoryId | undefined>;
 	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
 	readonly onDidUnlockAchievement = Event.None;
+	readonly moves: IObservable<readonly IChatPetMove[]> = constObservable([]);
+	readonly reactions: IObservable<readonly IChatPetReaction[]> = constObservable([]);
 
 	constructor(options: IChatPetFixtureOptions) {
 		super();
@@ -105,6 +109,20 @@ export class FixtureChatPetService extends Disposable implements IChatPetService
 		this.unlockedAchievementsValue.set([], undefined);
 		this.unseenAchievementsValue.set([], undefined);
 		this.selectedAccessoryValue.set(undefined, undefined);
+	}
+
+	learnMove(): void { }
+
+	forgetMove(): boolean {
+		return false;
+	}
+
+	addReaction(reaction: IChatPetReactionInput): IChatPetReaction {
+		return { id: '', ...reaction };
+	}
+
+	removeReaction(): boolean {
+		return false;
 	}
 }
 

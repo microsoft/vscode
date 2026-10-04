@@ -326,6 +326,20 @@ Do not add art without completing the runtime contract.
 
 Keep the visuals silent: images, canvases, eyes, and effects use empty alt text and `aria-hidden`. The button owns the accessible label, focusability, and localized `status()` announcements. Hidden, dead, or non-interactive states must leave the tab order.
 
+## Taught moves
+
+Users can teach the pet moves in chat with `/pet` (`chatPetTeaching.ts`). A taught move is plain text, one character per logical pixel (`chatPetMoves.ts`), and plays in the single `custom` state:
+
+- Agents draw moves in layers (`chatPetMoveLayers.ts`): a real pose with an expression, props drawn once and placed on frames, and text in a pixel font shaded with color ramps. Composing flattens the layers into the stored rows.
+- `chatPetMoveExamples.ts` holds moves designed with the team. The guide lists them by what they show, and agents study the closest ones whole before drawing (`petGuide` with `examples`). They are also the pet's built-in moves (`chatPetBuiltInMoves.ts`), which play by name like taught moves until a taught move takes their name. Hold them to the art rules of this skill; a test checks the pet can play them.
+- `teachPet` with `preview` returns a picture of every frame on a dark and a light theme (`renderChatPetMovePreview`), so agents check their drawing before saving it.
+- In the Agents window, `/pet-play <move>` plays a taught move without the agent (`petPlaySlashCommand.contribution.ts`); a name the pet doesn't know falls through to the built-in `pet-play` skill.
+- `chatPetMoveSprites.ts` draws its sheets at runtime as data URLs, in the same format as the shipped sheets: `8×8` source pixels per logical pixel, frames side by side, and a separate still frame for reduced motion.
+- The body stays in the bottom-left `12×12` logical box; extra rows and columns hold props, like the overhang of wide shipped art.
+- Left-facing sheets are drawn already mirrored, keeping `fixed:` letters readable, so CSS must not mirror the `custom` canvas again.
+- `custom` has baked eyes and wears no accessories.
+- `ChatPetMovePoses` holds the real idle, crouch, airborne, and love poses as rows. A test checks them against the PNGs, so update them when that art changes.
+
 ## Validation checklist
 
 ### Art

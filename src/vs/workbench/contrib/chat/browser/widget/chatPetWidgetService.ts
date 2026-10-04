@@ -20,10 +20,16 @@ export interface IChatPetWidgetHostRegistration extends IDisposable {
 export interface IChatPetWidgetService {
 	readonly _serviceBrand: undefined;
 	register(owner: object, host: IChatPetWidgetHost, preferred?: IObservable<boolean>, onDidFocus?: Event<void>): IChatPetWidgetHostRegistration;
+	/**
+	 * Plays a taught move or a built-in reaction on the pet of `owner`'s window (the window of
+	 * the most recently focused host when `owner` has no pet). Returns false if no pet can play it.
+	 */
+	playReaction(name: string, owner?: object): boolean;
 }
 
-interface IChatPetWidgetInstance extends IDisposable {
+export interface IChatPetWidgetInstance extends IDisposable {
 	setHost(host: IChatPetWidgetHost): void;
+	playReaction(name: string): boolean;
 }
 
 interface IChatPetHostEntry {
@@ -102,6 +108,13 @@ export class ChatPetWidgetCoordinator extends Disposable {
 			active: entry.active,
 			dispose: () => this.unregister(entry),
 		};
+	}
+
+	playReaction(name: string, owner?: object): boolean {
+		const lastFocused = this.chatWidgetService.lastFocusedWidget;
+		const entry = (owner ? this.hosts.get(owner) : undefined) ?? (lastFocused ? this.hosts.get(lastFocused) : undefined);
+		const window = entry ? this.windows.get(entry.windowId) : Array.from(this.windows.values()).find(candidate => candidate.activeHost);
+		return window?.pet.playReaction(name) ?? false;
 	}
 
 	private activate(entry: IChatPetHostEntry): void {
@@ -228,5 +241,9 @@ export class ChatPetWidgetService extends Disposable implements IChatPetWidgetSe
 
 	register(owner: object, host: IChatPetWidgetHost, preferred?: IObservable<boolean>, onDidFocus?: Event<void>): IChatPetWidgetHostRegistration {
 		return this.coordinator.register(owner, host, preferred, onDidFocus);
+	}
+
+	playReaction(name: string, owner?: object): boolean {
+		return this.coordinator.playReaction(name, owner);
 	}
 }

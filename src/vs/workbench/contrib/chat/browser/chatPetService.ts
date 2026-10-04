@@ -6,7 +6,7 @@
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { IObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,7 +14,11 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import product from '../../../../platform/product/common/product.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { allChatPetAchievements, chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, ChatPetAchievementIds, getChatPetAchievementForAccessory, isChatPetAccessoryId, isChatPetAchievementEnabled, isChatPetAchievementId } from './chatPetAchievements.js';
+import { getChatPetBuiltInMoveNames } from './chatPetBuiltInMoves.js';
+import { ChatPetMoveLimits, IChatPetMove, parseChatPetMove, serializeChatPetMove, validateChatPetMove } from './chatPetMoves.js';
+import { ChatPetReactionLimits, IChatPetReaction, IChatPetReactionInput, sanitizeChatPetReaction } from './chatPetReactions.js';
 
 const CHAT_PET_ENABLED_STORAGE_KEY = 'chat.vscodePet.enabled';
 const CHAT_PET_VARIANT_STORAGE_KEY = 'chat.vscodePet.variant';
@@ -27,6 +31,10 @@ const CHAT_PET_LOCAL_ACHIEVEMENT_MIGRATION_VERSION_STORAGE_KEY = 'chat.vscodePet
 const CHAT_PET_LOCAL_ACHIEVEMENT_MIGRATION_VERSION = 1;
 const CHAT_PET_SCALE_STORAGE_KEY = 'chat.vscodePet.scale';
 const CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY = 'chat.vscodePet.horizontalPosition';
+const CHAT_PET_MOVES_STORAGE_KEY = 'chat.vscodePet.moves';
+const CHAT_PET_REACTIONS_STORAGE_KEY = 'chat.vscodePet.reactions';
+/** How many moves the pet can learn. */
+export const CHAT_PET_MAX_MOVES = 24;
 export const CHAT_PET_DEFAULT_SCALE = 1;
 
 export type ChatPetVariant = 'stable' | 'insiders';
@@ -59,6 +67,56 @@ function getChatPetScale(storedScale: string | undefined): number {
 	return Number.isFinite(scale) && scale > 0 ? scale : CHAT_PET_DEFAULT_SCALE;
 }
 
+/** Reads stored moves (move file texts), skipping anything that no longer parses or validates. */
+function readChatPetStoredMoves(stored: string | undefined): IChatPetMove[] {
+	const moves: IChatPetMove[] = [];
+	for (const text of parseStoredArray(stored)) {
+		if (typeof text !== 'string' || text.length > ChatPetMoveLimits.maxSourceLength) {
+			continue;
+		}
+		try {
+			const move = parseChatPetMove(text);
+			if (!validateChatPetMove(move).errors.length && !moves.some(existing => existing.name === move.name)) {
+				moves.push(move);
+			}
+		} catch {
+			// A move that doesn't parse any more is dropped.
+		}
+	}
+	return moves.slice(0, CHAT_PET_MAX_MOVES);
+}
+
+/** Reads stored reactions, dropping malformed ones and ones whose move is gone. */
+function readChatPetStoredReactions(stored: string | undefined, knownMoves: readonly string[]): IChatPetReaction[] {
+	const reactions: IChatPetReaction[] = [];
+	for (const item of parseStoredArray(stored)) {
+		if (!item || typeof item !== 'object') {
+			continue;
+		}
+		const { id, when, phrases, play, chance } = item as Record<string, unknown>;
+		if (typeof id !== 'string' || typeof when !== 'string' || !Array.isArray(phrases) || typeof play !== 'string' || typeof chance !== 'number') {
+			continue;
+		}
+		const sanitized = sanitizeChatPetReaction({ when, phrases: phrases.filter((phrase): phrase is string => typeof phrase === 'string'), play, chance }, knownMoves);
+		if (typeof sanitized !== 'string') {
+			reactions.push({ id, ...sanitized });
+		}
+	}
+	return reactions.slice(0, ChatPetReactionLimits.maxReactions);
+}
+
+function parseStoredArray(stored: string | undefined): unknown[] {
+	if (!stored) {
+		return [];
+	}
+	try {
+		const parsed = JSON.parse(stored);
+		return Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+}
+
 function getChatPetHorizontalPosition(storedPosition: string | undefined): number | undefined {
 	const position = storedPosition === undefined ? Number.NaN : Number.parseFloat(storedPosition);
 	return Number.isFinite(position) ? Math.max(0, Math.min(1, position)) : undefined;
@@ -77,6 +135,10 @@ export interface IChatPetService {
 	readonly selectedAccessory: IObservable<ChatPetAccessoryId | undefined>;
 	readonly onDidUnlockAchievement: Event<ChatPetAchievementId>;
 	readonly horizontalPosition: IObservable<number | undefined>;
+	/** Moves agents taught the pet with the `teachPet` tool, shared by every window. */
+	readonly moves: IObservable<readonly IChatPetMove[]>;
+	/** Reactions agents taught the pet: which move to play when a chat message says certain things. */
+	readonly reactions: IObservable<readonly IChatPetReaction[]>;
 	toggle(): boolean;
 	setVariant(variant: ChatPetVariant): void;
 	setOnTheRun(onTheRun: boolean): void;
@@ -87,6 +149,13 @@ export interface IChatPetService {
 	setAccessory(id: ChatPetAccessoryId | undefined): void;
 	resetAchievements(): void;
 	setHorizontalPosition(position: number): void;
+	/** Stores a move, replacing a move with the same name. `validateChatPetLesson` checks moves and limits first. */
+	learnMove(move: IChatPetMove): void;
+	/** Forgets a taught move and every reaction that plays it. */
+	forgetMove(name: string): boolean;
+	/** Stores a reaction, as `validateChatPetLesson` returns it, and returns it with its new id. */
+	addReaction(reaction: IChatPetReactionInput): IChatPetReaction;
+	removeReaction(id: string): boolean;
 }
 
 export class ChatPetService extends Disposable implements IChatPetService {
@@ -113,6 +182,10 @@ export class ChatPetService extends Disposable implements IChatPetService {
 	private locallyUnlockingAchievement = false;
 	private readonly _horizontalPosition;
 	readonly horizontalPosition: IObservable<number | undefined>;
+	private readonly _moves;
+	readonly moves: IObservable<readonly IChatPetMove[]>;
+	private readonly _reactions;
+	readonly reactions: IObservable<readonly IChatPetReaction[]>;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -138,6 +211,19 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		this.selectedAccessory = this._selectedAccessory;
 		this._horizontalPosition = observableValue(this, getChatPetHorizontalPosition(this.storageService.get(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, StorageScope.APPLICATION)));
 		this.horizontalPosition = this._horizontalPosition;
+		this._moves = observableValue<readonly IChatPetMove[]>(this, readChatPetStoredMoves(this.storageService.get(CHAT_PET_MOVES_STORAGE_KEY, StorageScope.APPLICATION_SHARED)));
+		this.moves = this._moves;
+		this._reactions = observableValue<readonly IChatPetReaction[]>(this, this._readReactions());
+		this.reactions = this._reactions;
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CHAT_PET_MOVES_STORAGE_KEY, this._store)(() => {
+			transaction(tx => {
+				this._moves.set(readChatPetStoredMoves(this.storageService.get(CHAT_PET_MOVES_STORAGE_KEY, StorageScope.APPLICATION_SHARED)), tx);
+				this._reactions.set(this._readReactions(), tx);
+			});
+		}));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CHAT_PET_REACTIONS_STORAGE_KEY, this._store)(() => {
+			this._reactions.set(this._readReactions(), undefined);
+		}));
 
 		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, CHAT_PET_ENABLED_STORAGE_KEY, this._store)(() => {
 			this._setEnabled(this.storageService.getBoolean(CHAT_PET_ENABLED_STORAGE_KEY, StorageScope.APPLICATION, false));
@@ -220,6 +306,64 @@ export class ChatPetService extends Disposable implements IChatPetService {
 		const normalizedPosition = Math.max(0, Math.min(1, position));
 		this._horizontalPosition.set(normalizedPosition, undefined);
 		this.storageService.store(CHAT_PET_HORIZONTAL_POSITION_STORAGE_KEY, normalizedPosition, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	}
+
+	learnMove(move: IChatPetMove): void {
+		this._storeMoves([...this._moves.get().filter(existing => existing.name !== move.name), move]);
+	}
+
+	forgetMove(name: string): boolean {
+		const moves = this._moves.get();
+		const remaining = moves.filter(move => move.name !== name);
+		const reactions = this._reactions.get();
+		const remainingReactions = reactions.filter(reaction => reaction.play !== name);
+		if (remaining.length === moves.length && remainingReactions.length === reactions.length) {
+			return false;
+		}
+		transaction(tx => {
+			this._storeReactions(remainingReactions, tx);
+			this._storeMoves(remaining, tx);
+		});
+		return true;
+	}
+
+	addReaction(input: IChatPetReactionInput): IChatPetReaction {
+		const reaction: IChatPetReaction = { id: generateUuid().slice(0, 8), ...input };
+		this._storeReactions([...this._reactions.get(), reaction]);
+		return reaction;
+	}
+
+	removeReaction(id: string): boolean {
+		const reactions = this._reactions.get();
+		const remaining = reactions.filter(reaction => reaction.id !== id);
+		if (remaining.length === reactions.length) {
+			return false;
+		}
+		this._storeReactions(remaining);
+		return true;
+	}
+
+	private _readReactions(): IChatPetReaction[] {
+		// Reactions play taught or built-in moves.
+		return readChatPetStoredReactions(this.storageService.get(CHAT_PET_REACTIONS_STORAGE_KEY, StorageScope.APPLICATION_SHARED), [...this._moves.get().map(move => move.name), ...getChatPetBuiltInMoveNames()]);
+	}
+
+	private _storeMoves(moves: readonly IChatPetMove[], tx?: ITransaction): void {
+		this._moves.set(moves, tx);
+		if (moves.length) {
+			this.storageService.store(CHAT_PET_MOVES_STORAGE_KEY, JSON.stringify(moves.map(serializeChatPetMove)), StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		} else {
+			this.storageService.remove(CHAT_PET_MOVES_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+		}
+	}
+
+	private _storeReactions(reactions: readonly IChatPetReaction[], tx?: ITransaction): void {
+		this._reactions.set(reactions, tx);
+		if (reactions.length) {
+			this.storageService.store(CHAT_PET_REACTIONS_STORAGE_KEY, JSON.stringify(reactions), StorageScope.APPLICATION_SHARED, StorageTarget.USER);
+		} else {
+			this.storageService.remove(CHAT_PET_REACTIONS_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+		}
 	}
 
 	unlockAchievement(id: ChatPetAchievementId): boolean {
