@@ -86,9 +86,10 @@ suite('MarkersView', () => {
 
 					assert.deepStrictEqual({
 						markers: view['markersModel'].total,
+						resources: view.getAllResourceMarkers(),
 						retained: markers.map(marker => view['markersViewModel'].getViewModel(marker) !== null),
 						disposed: viewModels.map(viewModel => viewModel?.['_store'].isDisposed)
-					}, { markers: 0, retained: [false, false], disposed: [true, true] });
+					}, { markers: 0, resources: [], retained: [false, false], disposed: [true, true] });
 				});
 			}
 
