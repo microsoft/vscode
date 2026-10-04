@@ -16,9 +16,9 @@
 
 import { equals } from '../../../base/common/objects.js';
 import { ChunkEnvelope, Reassembler } from './webPubSub/chunking.js';
-import { ActionEnvelope, StateAction } from './state/protocol/common/actions.js';
+import { ActionEnvelope, ActionType, StateAction } from './state/protocol/common/actions.js';
 import { chatReducer } from './state/protocol/channels-chat/reducer.js';
-import { ChatState } from './state/protocol/channels-chat/state.js';
+import { ChatOriginKind, ChatState } from './state/protocol/channels-chat/state.js';
 import { sessionReducer } from './state/protocol/channels-session/reducer.js';
 import { SessionLifecycle, SessionState, SessionStatus } from './state/protocol/channels-session/state.js';
 import { ChatAction, SessionAction } from './state/sessionActions.js';
@@ -43,8 +43,8 @@ export interface IReplayedSession {
 	/** Folded chat-channel state, keyed by chat channel URI. */
 	readonly chats: ReadonlyMap<string, ChatState>;
 	/**
-	 * Host-announced default chat, or the sole recorded chat when no designation was persisted.
-	 * An empty history retains the legacy `<session>/chat` placeholder.
+	 * The host-announced default chat, or a sole recorded chat consistent with all recorded catalogue evidence.
+	 * History without either retains the legacy `<session>/chat` fallback.
 	 */
 	readonly defaultChat: string;
 	/** Timestamp of the last persisted event, ISO 8601. */
@@ -227,18 +227,25 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 /**
  * Fold one session's envelopes into session state plus a chat state per chat channel.
  *
- * Routed by action type, not channel scheme: recorded channels are host-authoritative.
- * Each recorded chat channel is folded separately to keep peer transcripts intact.
+ * Routed by action type, not channel scheme, so host-defined chat URIs are preserved.
+ *
+ * A session may own several peer chats, so each chat channel found in the history gets its own fold
+ * — discovered from the envelopes rather than assumed, which keeps forked and peer chats intact.
  */
 function foldSession(session: string, entry: ISessionReplayState): IReplayedSession {
 	let state = seedSessionState();
 	const chats = new Map<string, ChatState>();
+	let hasChatCatalogueEvidence = false;
 
 	for (const envelope of entry.envelopes) {
 		const channel = envelope.channel;
 		const action: StateAction = envelope.action;
 
 		if (action.type.startsWith('session/') && channel === session) {
+			hasChatCatalogueEvidence ||= action.type === ActionType.SessionChatAdded
+				|| action.type === ActionType.SessionChatRemoved
+				|| action.type === ActionType.SessionChatUpdated
+				|| action.type === ActionType.SessionChatsReordered;
 			state = sessionReducer(state, action as SessionAction);
 			continue;
 		}
@@ -250,11 +257,13 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	const onlyChat = chats.size === 1 ? chats.keys().next().value : undefined;
-	const defaultChat = state.defaultChat ?? onlyChat ?? `${session}/chat`;
-	if (!state.defaultChat && chats.size > 1 && !chats.has(defaultChat)) {
-		throw new TaskEventReplayError(`Task AHP history for session '${session}' has multiple chats but no default chat.`);
-	}
+	const [recordedChat] = chats.keys();
+	const unambiguousChat = chats.size === 1
+		&& (!hasChatCatalogueEvidence || state.chats.length === 1)
+		&& state.chats.every(chat =>
+			chat.resource === recordedChat && (!chat.origin || chat.origin.kind === ChatOriginKind.User))
+		? recordedChat : undefined;
+	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
 	}
