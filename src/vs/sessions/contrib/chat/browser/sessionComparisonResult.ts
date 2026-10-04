@@ -287,16 +287,15 @@ export class SessionComparisonResult extends Disposable {
 		const columns = dom.append(scorecard, dom.$('.session-comparison-scorecard-columns'));
 		columns.setAttribute('aria-hidden', 'true');
 		dom.append(columns, dom.$('span'));
-		for (const label of [
-			localize('sessionComparisonResult.attempt', "Attempt"),
-			localize('sessionComparisonResult.checks', "Checks"),
-			localize('sessionComparisonResult.time', "Time"),
-			localize('sessionComparisonResult.tokens', "Tokens"),
-		]) {
-			dom.append(columns, dom.$('span')).textContent = label;
-		}
+		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.attempt', "Attempt");
+		const checksHeader = dom.append(columns, dom.$('span'));
+		checksHeader.textContent = localize('sessionComparisonResult.checks', "Checks");
+		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.time', "Time");
+		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.tokens', "Tokens");
 		if (context.uniformValidationNote) {
-			dom.append(scorecard, dom.$('p.session-comparison-scorecard-checks-note')).textContent = context.uniformValidationNote;
+			// Explained on hover rather than as a standing sentence, so the scorecard stays compact
+			// when every attempt shares the same non-informative check state.
+			this.renderStore.add(this.hoverService.setupDelayedHover(checksHeader, { content: context.uniformValidationNote }));
 		}
 
 		const list = dom.append(scorecard, dom.$('ul.session-comparison-scorecard-rows'));

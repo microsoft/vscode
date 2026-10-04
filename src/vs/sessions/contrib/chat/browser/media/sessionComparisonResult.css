@@ -128,12 +128,6 @@
 	font-size: var(--vscode-fontSize-label2);
 }
 
-.session-comparison-scorecard .session-comparison-scorecard-checks-note {
-	margin: var(--vscode-spacing-size60) var(--vscode-spacing-size160) 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
-}
-
 .session-comparison-scorecard-rows {
 	padding: 0;
 	list-style: none;

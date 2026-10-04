@@ -321,7 +321,13 @@ suite('Sessions - Comparison Result', () => {
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { });
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
-		instantiationService.stub(IHoverService, NullHoverService);
+		const hoverCalls: { target: HTMLElement; content: unknown }[] = [];
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
+			override setupDelayedHover(target: HTMLElement, options: (() => { content?: unknown }) | { content?: unknown }) {
+				hoverCalls.push({ target, content: (typeof options === 'function' ? options() : options).content });
+				return { dispose: () => { } };
+			}
+		}());
 		const markdownRenderer: IMarkdownRenderer = {
 			render(markdown: IMarkdownString, _options, outElement): IRenderedMarkdown {
 				const element = outElement ?? mainWindow.document.createElement('div');
@@ -335,12 +341,15 @@ suite('Sessions - Comparison Result', () => {
 		store.add({ dispose: () => result.domNode.remove() });
 
 		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
+		const checksHeaderHover = hoverCalls.find(call => call.target.textContent === 'Checks')?.content;
 		assert.deepStrictEqual({
-			note: result.domNode.querySelector('.session-comparison-scorecard-checks-note')?.textContent,
+			note: result.domNode.querySelector('.session-comparison-scorecard-checks-note'),
+			checksHeaderHover,
 			perRowChecks: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check')].length),
 			perRowSummaryDash: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check-summary')?.textContent),
 		}, {
-			note: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			note: null,
+			checksHeaderHover: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
 			perRowChecks: [0, 0],
 			perRowSummaryDash: ['\u2014', '\u2014'],
 		});
