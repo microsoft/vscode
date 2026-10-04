@@ -27,6 +27,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { formatBrowserViewAccessibility } from './browserViewAccessibility.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -457,7 +458,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	private _createBrowserView(id: string, options: IBrowserViewCreateOptions, editorOpenRequest?: IBrowserViewEditorOpenOptions, electronOptions?: Electron.WebContentsViewConstructorOptions): BrowserView {
 		const hasAgentAccess = options.owner.type === 'agent' || options.initialAudiences?.some(audience => audience.type === 'agent') === true;
+		if (options.sandboxNetworkRestrictions && (options.owner.type !== 'agent'
+			|| typeof options.session === 'string' || options.session.scope !== BrowserViewStorageScope.Agent
+			|| options.session.affinity !== options.owner.sessionId)) {
+			throw new Error('Sandboxed browser views must use their owning agent session storage affinity');
+		}
 		const browserSession = this._resolveBrowserSession(id, options.host.windowId, options.session);
+		if (options.sandboxNetworkRestrictions && options.owner.type === 'agent') {
+			browserSession.setSandboxNetworkRestrictions(options.owner.sessionId, options.sandboxNetworkRestrictions);
+		}
 		if (hasAgentAccess) {
 			this.validateAgentStorageScope(browserSession.storageScope);
 		}
@@ -540,6 +549,14 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 		for (const viewId of staleAgentViewIds) {
 			this.browserViews.deleteAndDispose(viewId);
+		}
+	}
+
+	async setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void> {
+		for (const [, view] of this.browserViews) {
+			if (view.owner.type === 'agent' && view.owner.sessionId === sessionId && view.session.sandboxSessionId === sessionId) {
+				view.session.setSandboxNetworkRestrictions(sessionId, restrictions);
+			}
 		}
 	}
 
