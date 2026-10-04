@@ -423,6 +423,7 @@ suite('Remote agent host provider ownership', () => {
 		owner._providerInstances = new Map([['cloudsandbox:native', { label: 'Native', defaultLabel: 'Native' }]]);
 		owner._remoteAgentHostService = { configuredEntries: entries, getConnection: () => undefined };
 		assert.deepStrictEqual(owner._getProviderEntries(), [entries[0]]);
+		assert.deepStrictEqual(Object.keys(owner._getProviderOptions(entries[0])), ['connectOnDemand', 'disconnectOnDemand']);
 		owner._environment = { isBuilt: true };
 		assert.deepStrictEqual(owner._getProviderEntries(), []);
 	});

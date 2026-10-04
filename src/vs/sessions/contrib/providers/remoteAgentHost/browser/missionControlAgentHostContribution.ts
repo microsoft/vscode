@@ -61,15 +61,10 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		if (entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox) {
 			throw new Error('Mission Control provider requires an MC connection.');
 		}
-		const connection = this._remoteAgentHostService.getConnection(entry.connection.address);
-		const root = connection?.rootState.value;
-		const provider = root && !(root instanceof Error) ? root.agents.find(agent => agent.provider === 'copilotcli')?.provider
-			?? root.agents.find(agent => agent.provider === 'copilot')?.provider : undefined;
 		const options = { environmentId: entry.connection.environmentId, name: entry.name, environmentKind: 'user-local' as const };
 		return {
 			connectOnDemand: async () => { await this._connections.connect(options, CancellationToken.None); },
 			disconnectOnDemand: () => this._connections.disconnect(options.environmentId),
-			sessionSchemeAlias: provider ? { ui: provider, backend: 'ahp-session' } : undefined,
 		};
 	}
 }

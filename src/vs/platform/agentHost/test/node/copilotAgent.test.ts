@@ -1544,6 +1544,27 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP authentication during session initialization', () => {
+		test('standard host sessions reserve independent Copilot backing IDs without changing their address', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const session = URI.parse('ahp-session:/new-copilot');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				assert.deepStrictEqual({
+					session: result.session.toString(),
+					provisional: result.provisional,
+					backingProvider: result.backingSession?.scheme,
+					separateBacking: result.backingSession && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				}, { session: session.toString(), provisional: true, backingProvider: 'copilotcli', separateBacking: true });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		const authenticationParams = (scopes: readonly string[] = TEST_MCP_SCOPES): AuthenticateParams => ({
 			resource: TEST_MCP_RESOURCE,
 			scopes,
@@ -9983,7 +10004,7 @@ suite('CopilotAgent', () => {
 					initialCandidates: filterCalls[0].length,
 					runtimeCandidates: filterCalls.slice(1),
 					requests: context.client.sessionListRequests,
-					originLogged: logs.args.some(([message]) => /Publishing (?:copilotcli|ahp-session):\/live: external=true, clientName=github\/cli, scan=2, reason=directoryAdded, observedMsAgo=\d+$/.test(message)),
+					originLogged: logs.args.some(([message]) => /Publishing copilotcli:\/live: external=true, clientName=github\/cli, scan=2, reason=directoryAdded, observedMsAgo=\d+$/.test(message)),
 					costLogged: logs.args.some(([message]) => /Scan 2 catalog: sdkSessions=251, candidates=1, listMs=\d+, classifyMs=\d+, published=1, external=1/.test(message)),
 				}, {
 					published: [{ id: 'live', external: true }], initialCandidates: 250, runtimeCandidates: [['live']],

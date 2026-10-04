@@ -37,7 +37,7 @@ import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -91,6 +91,7 @@ const syncTestConfigurationNode = {
 };
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
+import { AgentHostSessionUrisCapabilityMetaKey } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
 import type { IRemoteAgentHostReconnectPolicy } from '../../common/reconnectPolicy.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, type ResourceTrustRequestOptions } from '../../../workspace/common/workspaceTrust.js';
@@ -428,6 +429,58 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	test('creation addressing negotiates native host skew without requiring an extension on conforming hosts', async () => {
+		const results = [];
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			for (const meta of [
+				{ 'vscode.agentHost': true },
+				{ 'vscode.agentHost': true, [AgentHostSessionUrisCapabilityMetaKey]: 'true' },
+				{ [AgentHostSessionUrisCapabilityMetaKey]: true },
+				{},
+			]) {
+				const { client, transport } = createClient();
+				await connectClient(client, transport, meta);
+				const creating = client.createSession({ provider });
+				await flushMicrotasks();
+				const sent = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'createSession' && typeof message.id === 'number');
+				assert.ok(sent);
+				const params = sent.params as { channel: string; provider: string };
+				transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: null });
+				const session = await creating;
+				results.push([params.provider, URI.parse(params.channel).scheme, session.toString() === params.channel]);
+			}
+		}
+		assert.deepStrictEqual(results, ['copilotcli', 'codex', 'claude'].flatMap(provider => [
+			[provider, provider, true], [provider, provider, true], [provider, 'ahp-session', true], [provider, 'ahp-session', true],
+		]));
+	});
+
+	test('a historical native root snapshot selects legacy creation at the client boundary', async () => {
+		const results = [];
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			const { client, transport } = createClient();
+			const connecting = client.connect();
+			await flushMicrotasks();
+			const initialize = transport.sentMessages[0] as JsonRpcRequest;
+			transport.fireMessage({
+				jsonrpc: '2.0', id: initialize.id,
+				result: {
+					protocolVersion: '0.9.0', serverSeq: 0,
+					snapshots: [{ resource: ROOT_STATE_URI, fromSeq: 0, state: { agents: [], _meta: { hostBuild: { version: 'older-native-build' } } } }],
+				},
+			});
+			await connecting;
+			const creating = client.createSession({ provider });
+			await flushMicrotasks();
+			const sent = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'createSession' && typeof message.id === 'number');
+			assert.ok(sent);
+			const params = sent.params as { channel: string; provider: string };
+			transport.fireMessage({ jsonrpc: '2.0', id: sent.id, result: null });
+			const resource = await creating;
+			results.push([params.provider, resource.scheme, resource.toString() === params.channel]);
+		}
+		assert.deepStrictEqual(results, ['copilotcli', 'codex', 'claude'].map(provider => [provider, provider, true]));
+	});
 	test('relay keep-alive continues during sixteen minutes of uninterrupted inbound traffic', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
 		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
 		const { client } = createClient(transport, undefined, { hasHighLoad: () => false });
@@ -615,6 +668,7 @@ suite('AgentHostProtocolClient', () => {
 		const initialize = transport.sentMessages[0] as JsonRpcRequest;
 
 		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
+			[AgentHostSessionUrisCapabilityMetaKey]: true,
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
 			'vscode.telemetryLevel': 'all',
 			'vscode.clientMachineId': 'client-machine-id',
@@ -633,6 +687,7 @@ suite('AgentHostProtocolClient', () => {
 		const noTelemetryConnectPromise = noTelemetryClient.connect();
 		const noTelemetryInitialize = noTelemetryTransport.sentMessages[0] as JsonRpcRequest;
 		assert.deepStrictEqual((noTelemetryInitialize.params as { _meta?: Record<string, unknown> })._meta, {
+			[AgentHostSessionUrisCapabilityMetaKey]: true,
 			'vscode.telemetryLevel': 'off',
 		});
 		noTelemetryTransport.fireMessage({
@@ -759,6 +814,54 @@ suite('AgentHostProtocolClient', () => {
 				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
 			],
 		}]);
+	});
+
+	test('unmarked conforming hosts retain opaque session and chat resources through listing, subscription and dispatch', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport);
+		const session = 'session-store://tenant/sessions/one?generation%3D2';
+		const chat = 'conversation://tenant/history/one?revision%3D3#entry';
+		const listing = client.listSessions();
+		const listRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'listSessions');
+		assert.ok(listRequest);
+		transport.fireMessage({
+			jsonrpc: '2.0', id: listRequest.id,
+			result: {
+				items: [{
+					resource: session, provider: 'third-party', title: 'Conversation', status: SessionStatus.Idle,
+					createdAt: new Date(1000).toISOString(), modifiedAt: new Date(2000).toISOString(),
+					defaultChat: chat, chats: [{ resource: chat, title: 'Default' }],
+				}]
+			},
+		});
+		const [metadata] = await listing;
+		const subscription = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, URI.parse(chat), 'test'));
+		await flushMicrotasks();
+		const subscribeRequest = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+		assert.ok(subscribeRequest);
+		transport.fireMessage({
+			jsonrpc: '2.0', id: subscribeRequest.id,
+			result: { snapshot: { resource: chat, fromSeq: 0, state: createChatState({ resource: chat, title: 'Default', status: SessionStatus.Idle, modifiedAt: new Date(2000).toISOString() }) } },
+		});
+		await flushMicrotasks();
+		client.dispatch(chat, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+		const dispatch = transport.sentMessages.findLast((message): message is JsonRpcNotification => hasKey(message, { method: true }) && message.method === 'dispatchAction');
+		assert.ok(dispatch);
+		const state = subscription.object.value;
+		assert.ok(state && !(state instanceof Error));
+		assert.deepStrictEqual({
+			session: metadata.session.toString(), provider: metadata.provider, meta: metadata._meta,
+			chats: metadata.chats?.map(entry => [entry.chat.toString(), entry.kind]),
+			subscribe: subscribeRequest.params,
+			stateResource: state.resource,
+			dispatchChannel: (dispatch.params as { channel: string }).channel,
+		}, {
+			session, provider: 'third-party', meta: undefined,
+			chats: [[chat, 'default']],
+			subscribe: { channel: chat },
+			stateResource: chat,
+			dispatchChannel: chat,
+		});
 	});
 
 	test('chat read-state actions require AHP 0.10', () => {
@@ -1584,6 +1687,7 @@ suite('AgentHostProtocolClient', () => {
 			clientId: 'renderer-client-id',
 			clientInfo,
 			_meta: {
+				[AgentHostSessionUrisCapabilityMetaKey]: true,
 				'vscode.clientConnectionKind': 'dev_tunnel',
 				'vscode.telemetryLevel': 'all',
 				'vscode.clientMachineId': 'client-machine-id',
@@ -1651,6 +1755,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual((initialize.params as { _meta?: Record<string, unknown> })._meta, {
 			'vscode.clientConnectionKind': AgentHostClientConnectionKind.RemoteExtensionHost,
 			'vscode.telemetryLevel': 'off',
+			[AgentHostSessionUrisCapabilityMetaKey]: true,
 		});
 		transport.fireMessage({
 			jsonrpc: '2.0',
@@ -3382,6 +3487,65 @@ suite('AgentHostProtocolClient', () => {
 			return { transport, request };
 		}
 
+		for (const recovery of ['replay', 'snapshot', 'freshInitialize'] as const) {
+			for (const supported of [false, true]) {
+				test(`session addressing survives ${recovery} and only new allocations use renegotiated support (${supported})`, async () => {
+					const { client, transports } = createFactoryClient();
+					const meta = { 'vscode.agentHost': true, [AgentHostSessionUrisCapabilityMetaKey]: supported };
+					await completeHandshake(transports[0], client.connect(), meta);
+					const originalCreation = client.createSession({ provider: 'codex' });
+					const createRequest = await waitForRequestAtWithin(transports[0], 'createSession', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: createRequest.id, result: null });
+					const original = await originalCreation;
+					const originalDefaultChat = buildDefaultChatUri(original);
+					const state = { provider: 'codex', lifecycle: 'ready', defaultChat: originalDefaultChat };
+					const ref = disposables.add(client.getSubscription<{ defaultChat: string }>(StateComponents.Session, original, 'test'));
+					const subscribe = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { snapshot: { resource: original.toString(), fromSeq: 5, state } } });
+					await flushMicrotasks();
+
+					const { transport, request } = await beginRecovery(client, transports);
+					const snapshots = [{ resource: original.toString(), fromSeq: 5, state }];
+					let initializeSubscriptions: string[] | undefined;
+					const reconnected = Event.toPromise(Event.filter(client.onDidChangeConnectionState, value => value === AgentHostClientState.Connected));
+					if (recovery === 'freshInitialize') {
+						transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.NotFound, message: 'client not found' } });
+						const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+						initializeSubscriptions = (initialize.params as { initialSubscriptions: string[] }).initialSubscriptions;
+						transport.fireMessage({
+							jsonrpc: '2.0', id: initialize.id,
+							result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: snapshots.filter(snapshot => initializeSubscriptions?.includes(snapshot.resource)), _meta: { ...meta, [AgentHostSessionUrisCapabilityMetaKey]: !supported } },
+						});
+					} else {
+						transport.fireMessage({
+							jsonrpc: '2.0', id: request.id,
+							result: recovery === 'replay' ? { type: ReconnectResultType.Replay, actions: [], missing: [] } : { type: ReconnectResultType.Snapshot, snapshots },
+						});
+					}
+					await reconnected;
+					const nextCreation = client.createSession({ provider: 'codex' });
+					const nextRequest = await waitForRequestAtWithin(transport, 'createSession', 0);
+					transport.fireMessage({ jsonrpc: '2.0', id: nextRequest.id, result: null });
+					const next = await nextCreation;
+					const retained = ref.object.value;
+					assert.ok(retained && !(retained instanceof Error));
+					assert.deepStrictEqual({
+						originalScheme: original.scheme,
+						retainedDefaultChat: retained.defaultChat,
+						reconnectSubscriptions: (request.params as { subscriptions: string[] }).subscriptions,
+						initializeSubscriptions,
+						nextScheme: next.scheme,
+					}, {
+						originalScheme: supported ? 'ahp-session' : 'codex',
+						retainedDefaultChat: originalDefaultChat,
+						reconnectSubscriptions: [ROOT_STATE_URI, original.toString()],
+						initializeSubscriptions: recovery === 'freshInitialize' ? [ROOT_STATE_URI, original.toString()] : undefined,
+						nextScheme: (recovery === 'freshInitialize' ? !supported : supported) ? 'ahp-session' : 'codex',
+					});
+				});
+			}
+		}
+
 		test('observes only the first post-readiness session request per recovery without issuing extra requests', () => runWithFakedTimers({}, async () => {
 			const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false });
 			const diagnostics: IConnectionDiagnosticEvent[] = [];
@@ -4145,7 +4309,7 @@ suite('AgentHostProtocolClient', () => {
 					clientId: client.clientId,
 					lastSeenServerSeq: 5,
 					subscriptions: [ROOT_STATE_URI],
-					_meta: { 'vscode.telemetryLevel': 'off' },
+					_meta: { 'vscode.telemetryLevel': 'off', [AgentHostSessionUrisCapabilityMetaKey]: true },
 				});
 				transport.fireMessage({
 					jsonrpc: '2.0', id: request.id,
@@ -4235,6 +4399,7 @@ suite('AgentHostProtocolClient', () => {
 				reconnectTransport.connectDeferred.complete();
 				const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
 				assert.deepStrictEqual((reconnect.params as { _meta?: Record<string, unknown> })._meta, {
+					[AgentHostSessionUrisCapabilityMetaKey]: true,
 					'vscode.telemetryLevel': 'all',
 					'vscode.clientMachineId': 'client-machine-id',
 					'vscode.clientDevDeviceId': 'client-dev-device-id',
@@ -4252,6 +4417,7 @@ suite('AgentHostProtocolClient', () => {
 				}, {
 					clientInfo: agentsWindowAgentHostClientInfo,
 					meta: {
+						[AgentHostSessionUrisCapabilityMetaKey]: true,
 						'vscode.telemetryLevel': 'all',
 						'vscode.clientMachineId': 'client-machine-id',
 						'vscode.clientDevDeviceId': 'client-dev-device-id',

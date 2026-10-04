@@ -10,7 +10,7 @@ Other clients ----- MC / WPS --------+
 
 Enabling registration does not create a relay client in VS Code, change the local session provider, or send local customization synchronization through Azure. The local and relay handlers share the same `AgentService` and `AgentHostStateManager`. A local session is therefore available to remote AHP `listSessions` and subscriptions without recreating it remotely.
 
-**URI migration is deferred:** The shared `AgentSession` helpers currently create Copilot CLI session URIs as `ahp-session:/<id>` and route that scheme back to the `copilotcli` provider. This is a native scheme change, not a relay compatibility layer. Existing stored session identifiers and URI-keyed UI state are not migrated. The current development experiment does not establish release compatibility for this transition.
+**Session identity:** New native allocations use negotiated `ahp-session:/<id>` addressing with the provider carried separately. Existing legacy and standard resources remain immutable, and clients retain the host-advertised session and chat resources. Mission Control does not impose a provider-wide alias or reinterpret `ahp-session` as Copilot. See the [native session identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
 ## Real service experiment
 

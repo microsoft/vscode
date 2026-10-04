@@ -22,7 +22,8 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AgentHostClientType, getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { AgentHostNativeImplementationMetaKey, AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
@@ -233,6 +234,7 @@ type ChannelSubscription =
  * Represents a connected protocol client with its subscription state.
  */
 interface IConnectedClient {
+	readonly legacySessionUris: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
@@ -287,6 +289,7 @@ interface IActiveClientRecord {
 }
 
 interface IGraceClientRecord {
+	readonly legacySessionUris?: boolean;
 	readonly state: 'grace';
 	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
@@ -632,6 +635,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						this._clients.set(client.clientId, {
 							state: 'grace',
 							seenConnection: true,
+							legacySessionUris: client.legacySessionUris,
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
@@ -689,6 +693,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
+			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 			telemetryContext,
@@ -746,7 +751,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: this._config.relayRoots || this._config.relayRootMeta ? transport.relayHandshakeMeta : {
+				_meta: this._config.relayRoots || this._config.relayRootMeta ? {
+					[AgentHostNativeImplementationMetaKey]: true,
+					[AgentHostSessionUrisCapabilityMetaKey]: true,
+					...transport.relayHandshakeMeta,
+				} : {
 					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
 					...transport.relayHandshakeMeta,
 				},
@@ -791,6 +800,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * remain subscribed even when their snapshot has not materialized yet.
 	 */
 	private _addInitialSubscription(client: IConnectedClient, channel: string): IStateSnapshot | undefined | Promise<IStateSnapshot | undefined> {
+		if (!this._isChannelVisible(client, channel)) {
+			this._logService.info(`[ProtocolServer] Legacy VS Code client cannot subscribe to ${channel}`);
+			return undefined;
+		}
 		const sub = classifyChannel(channel);
 		if (!sub) {
 			return undefined;
@@ -858,7 +871,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		});
 	}
 
-	private async _subscribeStateChannel(channel: string, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot> {
+	private async _subscribeStateChannel(channel: string, client: IConnectedClient, isActive?: () => boolean): Promise<IStateSnapshot> {
+		const clientId = client.clientId;
+		if (!this._isChannelVisible(client, channel)) {
+			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Resource not available to this client: ${channel}`);
+		}
 		if (!isAhpAutomationCatalogChannel(channel)) {
 			return this._agentService.subscribe(URI.parse(channel), clientId, isActive);
 		}
@@ -933,6 +950,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const isReconnect = this._clientConnections.hasSeenClient(params.clientId);
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
+			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
@@ -1079,7 +1097,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			try {
 				const snapshot = await this._subscribeStateChannel(
 					key,
-					client.clientId,
+					client,
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
@@ -1444,6 +1462,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& record.connections.some(connection => connection.telemetryConnectionActive && this._isLocalClientConnection(connection));
 	}
 
+	usesLegacySessionUris(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			? this._getActiveClientFromRecord(record)?.legacySessionUris === true
+			: record?.legacySessionUris === true;
+	}
+
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
 		const result = new Map<string, number>();
 		for (const [clientId, record] of this._clients) {
@@ -1656,7 +1681,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			try {
 				const snapshot = await this._subscribeStateChannel(
 					params.channel,
-					client.clientId,
+					client,
 					() => client.subscriptions.get(classified.uri) === pendingSubscription,
 				);
 				if (client.subscriptions.get(classified.uri) !== pendingSubscription) {
@@ -1775,45 +1800,46 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		resourceWrite: async (_client, params) => {
 			return this._agentService.resourceWrite(params);
 		},
-		listSessions: async () => {
+		listSessions: async (client) => {
 			const sessions = await this._agentService.listSessions();
-			const items = sessions.filter(s => !this._config.relayRoots || (s.workingDirectories?.length && s.workingDirectories.every(directory => this._isGrantedRelayDirectory(directory.toString())))).map(s => {
-				const provider = AgentSession.provider(s.session);
-				if (!provider) {
-					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
-				}
-				return {
-					resource: s.session.toString(),
-					provider,
-					title: s.summary ?? 'Session',
-					status: s.status ?? SessionStatus.Idle,
-					activity: s.activity,
-					createdAt: new Date(s.startTime).toISOString(),
-					modifiedAt: new Date(s.modifiedTime).toISOString(),
-					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-					workingDirectories: s.workingDirectories?.map(d => d.toString()),
-					changes: s.changes,
-					chats: s.chats?.map(chat => ({
-						resource: chat.chat.toString(),
-						title: chat.summary ?? '',
-						origin: chat.origin,
-						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-						...(chat.isRead !== undefined ? {
-							status: withSessionStatusFlag(
-								withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
-								SessionStatus.IsRead,
-								chat.isRead,
-							),
-						} : {}),
-						...(chat.archived === true ? { archived: true } : {}),
-						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-					})),
-					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
-					// `_meta` carries durable host provenance, including session kind
-					// and provider-native discovery provenance.
-					...(s._meta !== undefined ? { _meta: s._meta } : {}),
-				} satisfies ListSessionsResult['items'][number];
-			});
+			const items = sessions.filter(s => this._isSessionVisible(client, s.session.toString())
+				&& (!this._config.relayRoots || (s.workingDirectories?.length && s.workingDirectories.every(directory => this._isGrantedRelayDirectory(directory.toString()))))).map(s => {
+					const provider = s.provider ?? AgentSession.provider(s.session);
+					if (!provider) {
+						throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+					}
+					return {
+						resource: s.session.toString(),
+						provider,
+						title: s.summary ?? 'Session',
+						status: s.status ?? SessionStatus.Idle,
+						activity: s.activity,
+						createdAt: new Date(s.startTime).toISOString(),
+						modifiedAt: new Date(s.modifiedTime).toISOString(),
+						...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+						workingDirectories: s.workingDirectories?.map(d => d.toString()),
+						changes: s.changes,
+						chats: s.chats?.map(chat => ({
+							resource: chat.chat.toString(),
+							title: chat.summary ?? '',
+							origin: chat.origin,
+							...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+							...(chat.isRead !== undefined ? {
+								status: withSessionStatusFlag(
+									withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+									SessionStatus.IsRead,
+									chat.isRead,
+								),
+							} : {}),
+							...(chat.archived === true ? { archived: true } : {}),
+							...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+						})),
+						defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
+						// `_meta` carries durable host provenance, including session kind
+						// and provider-native discovery provenance.
+						...(s._meta !== undefined ? { _meta: s._meta } : {}),
+					} satisfies ListSessionsResult['items'][number];
+				});
 			const prepared = this._stateManager.prepareSessionSummariesForListing(items);
 			return {
 				items: this._config.relayRoots
@@ -2378,7 +2404,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		} catch {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string');
 		}
-		if (!AgentSession.provider(session) || !session.path.startsWith('/') || session.path.length < 2
+		if (!session.scheme || !session.path.startsWith('/') || session.path.length < 2
 			|| session.authority || session.query || session.fragment || parseChatUri(session)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI');
 		}
@@ -2457,7 +2483,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				} catch {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
 				}
-				if (!AgentSession.provider(session)) {
+				if (!session.scheme) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 				}
 				const chatParam = params['chat'];
@@ -2499,7 +2525,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				} catch {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
 				}
-				if (!AgentSession.provider(session)) {
+				if (!session.scheme) {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid Agent Session URI'));
 				}
 				return this._agentService.createDetachedWorktree(session, prompt).then(result => ({
@@ -2583,7 +2609,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					} catch {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be a valid URI string'));
 					}
-					if (!AgentSession.provider(session)) {
+					if (!session.scheme) {
 						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'session must be an Agent Session URI'));
 					}
 				}
@@ -2690,10 +2716,20 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
 		for (const record of this._clients.values()) {
 			const client = this._getActiveClientFromRecord(record);
-			if (client && client.transport.relayAuthenticated !== false) {
+			const session = notification.type === 'root/sessionAdded' ? notification.summary.resource
+				: notification.type === 'root/sessionRemoved' || notification.type === 'root/sessionSummaryChanged' ? notification.session : undefined;
+			if (client && client.transport.relayAuthenticated !== false && (session === undefined || this._isSessionVisible(client, session))) {
 				client.transport.send(msg);
 			}
 		}
+	}
+
+	private _isSessionVisible(client: IConnectedClient, session: string): boolean {
+		return !client.legacySessionUris || URI.parse(session).scheme !== 'ahp-session';
+	}
+
+	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
+		return this._isSessionVisible(client, parseChatUri(channel)?.session ?? channel);
 	}
 
 	/**
@@ -2798,7 +2834,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
-		if (client.transport.relayAuthenticated === false) {
+		if (client.transport.relayAuthenticated === false || !this._isChannelVisible(client, envelope.channel)) {
 			return false;
 		}
 		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged

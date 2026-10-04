@@ -1366,7 +1366,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		try {
 			sessions.add(await launcher.launch(plan, testRuntime));
 			assert.deepStrictEqual(milestones, [
-				'start:ahp-session',
+				'start:copilotcli',
 				'complete:failure',
 				'complete:fallbackCreate',
 			]);

@@ -8,6 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../base/common/platform.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
@@ -119,8 +120,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
 			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
 			deleteSessionsOnDemand: {
-				ownsSession: rawId => this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), rawId),
-				deleteSessions: sessionIds => this._deleteSandboxSession(cloudSandboxAddress(env.environmentId), sessionIds, rawId => provider.removeDeletedSession(rawId)),
+				ownsSession: session => isEqual(session, AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, AgentSession.id(session))) && this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), AgentSession.id(session)),
+				deleteSessions: sessions => this._deleteSandboxSession(cloudSandboxAddress(env.environmentId), sessions.map(session => AgentSession.id(session)), rawId => provider.removeDeletedSession(rawId)),
 			},
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
@@ -169,7 +170,8 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 			}
 			const project = discoveredSessionProject(request.repoNwo);
 			provider.seedProvisionalSession({
-				session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, created.sessionId),
+				session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, created.sessionId),
+				provider: CLOUD_SANDBOX_AGENT_PROVIDER,
 				startTime: now,
 				modifiedTime: now,
 				summary: name,

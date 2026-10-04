@@ -1148,10 +1148,10 @@ export namespace AgentSession {
 
 	/**
 	 * Creates a session URI from a provider name and raw session ID.
-	 * Copilot CLI temporarily uses `ahp-session` for the MC desktop-client experiment.
+	 * The URI scheme is the provider name (e.g., `copilot:/<rawId>`).
 	 */
 	export function uri(provider: AgentProvider, rawSessionId: string): URI {
-		return URI.from({ scheme: provider === 'copilotcli' ? 'ahp-session' : provider, path: `/${rawSessionId}` });
+		return URI.from({ scheme: provider, path: `/${rawSessionId}` });
 	}
 
 	/**
@@ -1164,12 +1164,11 @@ export namespace AgentSession {
 	}
 
 	/**
-	 * Extracts the provider name from a session URI scheme.
-	 * Accepts both a URI object and a URI string.
+	 * Legacy provider-scheme fallback; standard sessions require explicit provider metadata.
 	 */
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
-		return parsed.scheme === 'ahp-session' ? 'copilotcli' : parsed.scheme || undefined;
+		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
 	}
 }
 

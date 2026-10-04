@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../base/common/async.js';
-import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
+import { type IAgentSessionMetadata } from '../common/agent.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
@@ -87,7 +87,7 @@ export class AgentHostCatalogListReader {
 		if (catalog.isChatBacking) {
 			return { eligible: false, chatBacking: true };
 		}
-		if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
+		if (catalog.provider !== registered.provider) {
 			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
 		}
 		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
@@ -118,6 +118,7 @@ export class AgentHostCatalogListReader {
 		const meta = withSessionExternal(withMigratedSessionGitHubState(data._meta, data.workingDirectories[0]?.toString()), registered.external);
 		return {
 			session: registered.session,
+			provider: registered.provider,
 			startTime: registered.startTime,
 			// The registry owns durable recency: a live advance can outrun the
 			// payload's own timestamp until the next reconciliation writes it back.

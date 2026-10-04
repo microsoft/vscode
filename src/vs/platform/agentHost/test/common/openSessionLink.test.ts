@@ -41,6 +41,14 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parsed?.toString(), URI.parse(backend).toString());
 	});
 
+	test('round-trips standard and opaque backend identities without deriving providers', () => {
+		const sessions = ['ahp-session:/new', 'conversation://tenant/opaque/session?revision=3#state'];
+		assert.deepStrictEqual(sessions.map(session => ({
+			internal: parseOpenSessionLinkUri(buildOpenSessionLinkUri(session))?.toString(),
+			external: parseOpenSessionLinkUri(parseExternalOpenSessionLinkUri(buildExternalOpenSessionLinkUri('vscode-insiders', session), 'vscode-insiders')!)?.toString(),
+		})), sessions.map(session => ({ internal: URI.parse(session).toString(), external: URI.parse(session).toString() })));
+	});
+
 	test('preserves advertised session schemes rather than applying native provider aliases', () => {
 		const sessions = ['copilotcli:/same-id', 'ahp-session:/same-id', 'custom-provider:/same-id'];
 		assert.deepStrictEqual(sessions.map(session => ({
