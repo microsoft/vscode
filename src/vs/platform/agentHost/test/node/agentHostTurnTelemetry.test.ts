@@ -1319,6 +1319,29 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('reports the root turn as the parent of a subagent launched inside a HydraFusion phase', () => {
+		setupSession();
+		startTurn('turn-parent');
+		const phaseToolCallId = 'fusion:fusion-1:phase-1';
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId));
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'));
+		const chat = URI.parse(defaultChatUri);
+		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: phaseToolCallId, agentName: 'hydrafusion-phase', agentDisplayName: 'Main pass', subagentKind: 'fusionPhase' });
+		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: 'call-task', agentName: 'explore', agentDisplayName: 'Explore', parentToolCallId: phaseToolCallId });
+		agent.fireProgress({ kind: 'subagent_completed', chat, toolCallId: 'call-task' });
+		agent.fireProgress({ kind: 'subagent_completed', chat, toolCallId: phaseToolCallId });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-parent', duration: 1000 });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return { parentToolCallId: data.parentToolCallId, subagentKind: data.subagentKind, parentTurnId: data.parentTurnId };
+		}), [
+			{ parentToolCallId: 'call-task', subagentKind: 'task', parentTurnId: 'turn-parent' },
+			{ parentToolCallId: phaseToolCallId, subagentKind: 'fusionPhase', parentTurnId: 'turn-parent' },
+			{ parentToolCallId: undefined, subagentKind: undefined, parentTurnId: undefined },
+		]);
+	});
+
 	test('attributes subagent model-call attempt durations only to the subagent turn', () => {
 		setupSession();
 		startTurn('turn-parent-finished');

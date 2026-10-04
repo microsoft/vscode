@@ -12446,6 +12446,22 @@ Use the attached image as context.
 			}]);
 		});
 
+		test('marks todo store telemetry from inside a Fusion phase as phase activity', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-sql', toolName: 'sql', arguments: { query: 'SELECT * FROM todos' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-sql', success: true, fusion });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete) && signal.parentToolCallId !== undefined);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind };
+			}), [{ isSubagentSession: true, subagentKind: 'fusionPhase' }]);
+		});
+
 		test('does not emit todo store telemetry for failed or contributed SQL', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { mockSession } = await createAgentSession(disposables, {

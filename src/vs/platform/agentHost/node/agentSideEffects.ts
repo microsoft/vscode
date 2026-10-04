@@ -1310,7 +1310,8 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _getSubagentParentTurnTelemetryContext(immediateParentChatUri: ProtocolURI | undefined, fallbackParentChatUri: ProtocolURI): ISubagentParentTurnTelemetryContext {
-		const parentChatUri = immediateParentChatUri ?? fallbackParentChatUri;
+		immediateParentChatUri = immediateParentChatUri && this._turnOwningChat(immediateParentChatUri);
+		const parentChatUri = immediateParentChatUri ?? this._turnOwningChat(fallbackParentChatUri);
 		const parentTurnId = this._stateManager.getActiveTurnId(parentChatUri);
 		const parentSessionUri = parseRequiredSessionUriFromChatUri(parentChatUri);
 		const parentMessageOriginKind = parentTurnId ? this._turnTracker.getMessageOriginKind(parentChatUri, parentTurnId) : undefined;
@@ -1323,6 +1324,19 @@ export class AgentSideEffects extends Disposable {
 			correlatedParentTurnId: immediateParentChatUri ? parentTurnId : undefined,
 			initiatorClientId: parentTurnId ? this._turnTracker.getInitiatorClientId(parentChatUri, parentTurnId) : undefined,
 		};
+	}
+
+	/** A Fusion phase chat only presents part of its parent's turn, so that parent owns the work done in it. */
+	private _turnOwningChat(chatUri: ProtocolURI): ProtocolURI {
+		if (!isSubagentChatUri(chatUri)) {
+			return chatUri;
+		}
+		for (const subagent of this._subagentChats.values()) {
+			if (subagent.chatUri === chatUri && subagent.subagentKind === 'fusionPhase') {
+				return this._turnOwningChat(subagent.immediateParentChatUri ?? subagent.parentChatUri);
+			}
+		}
+		return chatUri;
 	}
 
 	/**

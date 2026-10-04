@@ -1101,7 +1101,7 @@ export function toInitiatorTelemetry(clientContext: IAgentHostClientTelemetryCon
 
 export const IAgentHostTelemetryReporter = createDecorator<AgentHostTelemetryReporter>('agentHostTelemetryReporter');
 
-function toSubagentKindTelemetry(isSubagent: boolean, kind: AgentSubagentKind | undefined): { subagentKind?: AgentSubagentKind } {
+export function toSubagentKindTelemetry(isSubagent: boolean, kind: AgentSubagentKind | undefined): { subagentKind?: AgentSubagentKind } {
 	return isSubagent ? { subagentKind: kind ?? 'task' } : {};
 }
 
