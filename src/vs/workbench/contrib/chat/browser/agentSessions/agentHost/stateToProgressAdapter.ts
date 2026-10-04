@@ -297,13 +297,19 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 		});
 	}
 
+	const message = inputReq.message;
+	const carouselMessage = message
+		&& message.trim() !== questions[0].title.trim()
+		&& message.trim() !== inputReq.questions?.[0]?.message.trim()
+		? rawMarkdownToString(message, connectionAuthority)
+		: undefined;
 	const carousel = new ChatQuestionCarouselData(
 		questions,
 		true,
 		inputReq.id,
 		undefined,
 		undefined,
-		inputReq.message ? rawMarkdownToString(inputReq.message, connectionAuthority) : undefined,
+		carouselMessage,
 	);
 	carousel.answerPresentation = 'conversation';
 	return carousel;

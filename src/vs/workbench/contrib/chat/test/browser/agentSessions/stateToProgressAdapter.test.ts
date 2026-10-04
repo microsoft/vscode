@@ -1839,6 +1839,49 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
 		});
 
+		test('does not repeat the question as the carousel message', () => {
+			const question = {
+				id: 'q1',
+				kind: ChatInputQuestionKind.SingleSelect,
+				message: 'Which test option do you prefer?',
+				required: true,
+				options: [{ id: 'a', label: 'Option A' }],
+			};
+			const repeated = createInputRequestCarousel({
+				id: 'repeated',
+				message: question.message,
+				questions: [question],
+			}, 'local');
+			const titled = createInputRequestCarousel({
+				id: 'titled',
+				message: question.message,
+				questions: [{ ...question, title: 'Test options' }],
+			}, 'local');
+			const contextual = createInputRequestCarousel({
+				id: 'contextual',
+				message: 'Select the best option for the cloud sandbox.',
+				questions: [question],
+			}, 'local');
+			const messageOnly = createInputRequestCarousel({
+				id: 'message-only',
+				message: question.message,
+			}, 'local');
+
+			assert.deepStrictEqual({
+				repeated: repeated.message,
+				titled: titled.message,
+				contextual: typeof contextual.message === 'string' ? contextual.message : contextual.message?.value,
+				messageOnly: messageOnly.message,
+				messageOnlyTitle: messageOnly.questions[0].title,
+			}, {
+				repeated: undefined,
+				titled: undefined,
+				contextual: 'Select the best option for the cloud sandbox.',
+				messageOnly: undefined,
+				messageOnlyTitle: question.message,
+			});
+		});
+
 		test('attaches automation result data to live and restored configureAutomation calls', () => {
 			const content: ToolResultContent[] = [{
 				type: ToolResultContentType.Text,
