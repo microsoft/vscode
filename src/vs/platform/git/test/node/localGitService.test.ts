@@ -8,7 +8,7 @@ import * as cp from 'child_process';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -104,6 +104,59 @@ suite('LocalGitService', () => {
 			},
 		});
 
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('clone fetches and checks out a full commit SHA', async () => {
+		const commit = 'AABBCCDDEEFF00112233445566778899AABBCCDD';
+		const normalizedCommit = commit.toLowerCase();
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['clone', '--', 'https://github.com/test/repo.git', '/tmp/repo'] },
+			{ args: ['fetch', 'origin', normalizedCommit] },
+			{ args: ['rev-parse', `${normalizedCommit}^{commit}`], stdout: `${normalizedCommit}\n` },
+			{ args: ['checkout', '--detach', normalizedCommit] },
+			{ args: ['rev-parse', 'HEAD'], stdout: `${normalizedCommit}\n` },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await service.clone('test-op', 'https://github.com/test/repo.git', '/tmp/repo', commit);
+
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('clone removes a full-SHA repository when checkout fails', async () => {
+		const commit = 'aabbccddeeff00112233445566778899aabbccdd';
+		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-clone-'));
+		temporaryDirectories.push(parentPath);
+		const targetPath = join(parentPath, 'repo');
+		await fs.mkdir(targetPath);
+		const checkoutError = new Error('Commit is unavailable');
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['clone', '--', 'https://github.com/test/repo.git', targetPath] },
+			{ args: ['fetch', 'origin', commit] },
+			{ args: ['rev-parse', `${commit}^{commit}`], error: checkoutError },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await assert.rejects(service.clone('test-op', 'https://github.com/test/repo.git', targetPath, commit), checkoutError);
+		await assert.rejects(fs.stat(targetPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
+		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('clone removes a full-SHA repository when pinning is cancelled', async () => {
+		const commit = 'aabbccddeeff00112233445566778899aabbccdd';
+		const parentPath = await fs.mkdtemp(join(tmpdir(), 'vscode-plugin-git-clone-'));
+		temporaryDirectories.push(parentPath);
+		const targetPath = join(parentPath, 'repo');
+		await fs.mkdir(targetPath);
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['clone', '--', 'https://github.com/test/repo.git', targetPath] },
+			{ args: ['fetch', 'origin', commit], error: new CancellationError() },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		await assert.rejects(service.clone('test-op', 'https://github.com/test/repo.git', targetPath, commit), isCancellationError);
+		await assert.rejects(fs.stat(targetPath), error => (error as NodeJS.ErrnoException).code === 'ENOENT');
 		assert.strictEqual(expectations.length, 0);
 	});
 
@@ -278,6 +331,31 @@ suite('LocalGitService', () => {
 
 		assert.strictEqual(changed, true);
 		assert.strictEqual(expectations.length, 0);
+	});
+
+	test('pull skips an immutable detached checkout when requested', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', '--abbrev-ref', 'HEAD'], stdout: 'HEAD\n' },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		const changed = await service.pull('test-op', '/tmp/repo', { skipDetachedHead: true });
+
+		assert.deepStrictEqual({ changed, remaining: expectations.length }, { changed: false, remaining: 0 });
+	});
+
+	test('pull still updates tracked branches when detached checkouts are skipped', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', '--abbrev-ref', 'HEAD'], stdout: 'main\n' },
+			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },
+			{ args: ['pull', '--ff-only'] },
+			{ args: ['rev-parse', 'HEAD'], stdout: 'bbbb\n' },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		const changed = await service.pull('test-op', '/tmp/repo', { skipDetachedHead: true });
+
+		assert.deepStrictEqual({ changed, remaining: expectations.length }, { changed: true, remaining: 0 });
 	});
 
 	test('pull recovers from diverged history by resetting to upstream', async () => {

@@ -439,12 +439,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (toolData) {
 			if (pendingInvocation) {
 				pendingInvocation.presentation = ToolInvocationPresentation.Hidden;
-				pendingInvocation.cancelFromStreaming(ToolConfirmKind.Denied, reason);
+				pendingInvocation.cancelFromStreaming({ type: ToolConfirmKind.Denied, source: 'hook' }, reason);
 			} else if (request) {
 				const cancelledInvocation = ChatToolInvocation.createCancelled(
 					{ toolCallId: dto.callId, toolId: dto.toolId, toolData, subagentInvocationId: dto.subAgentInvocationId, chatRequestId: dto.chatRequestId },
 					dto.parameters,
-					ToolConfirmKind.Denied,
+					{ type: ToolConfirmKind.Denied, source: 'hook' },
 					reason
 				);
 				cancelledInvocation.presentation = ToolInvocationPresentation.Hidden;
@@ -661,7 +661,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				// suppresses its own confirmation under Autopilot and never reaches it. The tool
 				// is not run, and an info note explains why.
 				if (riskSkipExplanation) {
-					this._logToolApprovalTelemetry(tool, dto, { type: ToolConfirmKind.Skipped });
+					this._logToolApprovalTelemetry(tool, dto, { type: ToolConfirmKind.Skipped, source: 'riskAssessment' });
 					// Terminal and edit tools hide their invocation part once complete, so show the
 					// reason as a separate info note.
 					this._chatService.appendProgress(request, {
@@ -1028,7 +1028,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const fallbackExplanation = localize('autopilotRiskSkipFallback', "The action was assessed as potentially destructive or irreversible.");
 				const explanation = assessment.explanation.trim() || fallbackExplanation;
 				this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping high-risk tool ${tool.data.id}: ${explanation}`);
-				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+				return { autoConfirmed: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, skipExplanation: explanation };
 			}
 		} catch (err) {
 			this._logService.warn(`[LanguageModelToolsService#invokeTool] Autopilot risk assessment failed for tool ${tool.data.id}, allowing: ${toErrorMessage(err)}`);
@@ -1046,6 +1046,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				toolCallId: dto.callId,
 				chatRequestId: dto.chatRequestId,
 				chatSessionResource: dto.context?.sessionResource,
+				sandboxNetworkRestrictions: dto.context?.sandboxNetworkRestrictions,
 				chatInteractionId: dto.chatInteractionId,
 				invocationRequestId: dto.context?.requestId,
 				modelId: dto.modelId,

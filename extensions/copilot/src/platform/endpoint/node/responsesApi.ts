@@ -19,7 +19,8 @@ import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, gitHubCopilotRequestTeProperty, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
+import { TelemetryMessage } from '../../networking/common/messageTelemetry';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { APIErrorResponse, ChatCompletion, FilterReason, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -712,12 +713,50 @@ function extractCompactionData(content: Raw.ChatCompletionContentPart[]): OpenAI
  * This is an approximate responses input -> raw messages helper, should be used for logging only
  */
 export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.ResponseCreateParams): Raw.ChatMessage[] {
-	const messages: Raw.ChatMessage[] = [];
+	return convertResponseApiInputForLogging(body, (message, item) => isCompactionItem(item) || item?.type === 'image_generation_call' ? undefined : message);
+}
+
+/**
+ * Retains native reasoning fields for telemetry instead of the human-readable placeholder used
+ * by debug logging. The model request and the raw messages returned to callers remain unchanged.
+ */
+export function responseApiInputToTelemetryMessages(body: OpenAI.Responses.ResponseCreateParams): TelemetryMessage[] {
+	return convertResponseApiInputForLogging(body, (message, item) => {
+		if (item?.type === 'reasoning' || isCompactionItem(item)) {
+			return { ...item, role: 'assistant' };
+		}
+		if (item?.type === 'image_generation_call' && item.result) {
+			return { role: 'assistant', content: [{ type: 'image_url', image_url: { url: item.result } }] };
+		}
+		if (item && isResponseOutputMessage(item)) {
+			message = {
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Text,
+					text: item.content.map(part => part.type === 'output_text' ? part.text : part.refusal).join(''),
+				}],
+			};
+		}
+		return {
+			...rawMessageToCAPI(message),
+			...(item && 'phase' in item && typeof item.phase === 'string' ? { phase: item.phase } : {}),
+		};
+	});
+}
+
+function convertResponseApiInputForLogging<T>(body: OpenAI.Responses.ResponseCreateParams, convert: (message: Raw.ChatMessage, item?: OpenAI.Responses.ResponseInputItem) => T | undefined): T[] {
+	const messages: T[] = [];
+	const append = (message: Raw.ChatMessage, item?: OpenAI.Responses.ResponseInputItem) => {
+		const converted = convert(message, item);
+		if (converted !== undefined) {
+			messages.push(converted);
+		}
+	};
 	const pendingFunctionCalls: Raw.ChatMessageToolCall[] = [];
 
 	const flushPendingFunctionCalls = () => {
 		if (pendingFunctionCalls.length > 0) {
-			messages.push({
+			append({
 				role: Raw.ChatRole.Assistant,
 				content: [],
 				toolCalls: pendingFunctionCalls.splice(0)
@@ -727,7 +766,7 @@ export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.R
 
 	// Add system instructions if provided
 	if (body.instructions) {
-		messages.push({
+		append({
 			role: Raw.ChatRole.System,
 			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: body.instructions }]
 		});
@@ -742,31 +781,31 @@ export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.R
 			switch (item.role) {
 				case 'user':
 					flushPendingFunctionCalls();
-					messages.push({
+					append({
 						role: Raw.ChatRole.User,
 						content: ensureContentArray(item.content).map(responseContentToRawContent).filter(isDefined)
-					});
+					}, item);
 					break;
 				case 'system':
 				case 'developer':
 					flushPendingFunctionCalls();
-					messages.push({
+					append({
 						role: Raw.ChatRole.System,
 						content: ensureContentArray(item.content).map(responseContentToRawContent).filter(isDefined)
-					});
+					}, item);
 					break;
 				case 'assistant':
 					flushPendingFunctionCalls();
 					if (isResponseOutputMessage(item)) {
-						messages.push({
+						append({
 							role: Raw.ChatRole.Assistant,
 							content: item.content.map(responseOutputToRawContent).filter(isDefined)
-						});
+						}, item);
 					} else if (isResponseInputItemMessage(item)) {
-						messages.push({
+						append({
 							role: Raw.ChatRole.Assistant,
 							content: ensureContentArray(item.content).map(responseContentToRawContent).filter(isDefined)
-						});
+						}, item);
 					}
 					break;
 			}
@@ -787,26 +826,45 @@ export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.R
 				case 'function_call_output': {
 					flushPendingFunctionCalls();
 					const content = responseFunctionOutputToRawContents(item.output);
-					messages.push({
+					append({
 						role: Raw.ChatRole.Tool,
 						content,
 						toolCallId: item.call_id
-					});
+					}, item);
 					break;
 				}
 				case 'reasoning':
 					// We can't perfectly reconstruct the original thinking data
 					// but we can add a placeholder for logging
 					flushPendingFunctionCalls();
-					messages.push({
+					append({
 						role: Raw.ChatRole.Assistant,
 						content: [{
 							type: Raw.ChatCompletionContentPartKind.Text,
 							text: `Reasoning summary: ${item.summary.map(s => s.text).join('\n\n')}`
 						}]
-					});
+					}, item);
 					break;
 				default: {
+					if (item.type === 'image_generation_call' && item.result) {
+						const converted = convert({
+							role: Raw.ChatRole.Assistant,
+							content: [{ type: Raw.ChatCompletionContentPartKind.Image, imageUrl: { url: item.result } }],
+						}, item);
+						if (converted !== undefined) {
+							flushPendingFunctionCalls();
+							messages.push(converted);
+						}
+						break;
+					}
+					if (isCompactionItem(item)) {
+						const converted = convert({ role: Raw.ChatRole.Assistant, content: [] }, item);
+						if (converted !== undefined) {
+							flushPendingFunctionCalls();
+							messages.push(converted);
+						}
+						break;
+					}
 					// Client-executed tool search items (tool_search_call / tool_search_output)
 					const tsItem = item as unknown as ResponsesToolSearchCallInput | ResponsesToolSearchOutputInput;
 					if (tsItem.type === 'tool_search_call') {
@@ -821,7 +879,7 @@ export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.R
 					} else if (tsItem.type === 'tool_search_output') {
 						flushPendingFunctionCalls();
 						const toolNames = tsItem.tools.map(t => t.name);
-						messages.push({
+						append({
 							role: Raw.ChatRole.Tool,
 							content: [{
 								type: Raw.ChatCompletionContentPartKind.Text,
@@ -838,7 +896,7 @@ export function responseApiInputToRawMessagesForLogging(body: OpenAI.Responses.R
 
 	// Flush any remaining function calls at the end
 	if (pendingFunctionCalls.length > 0) {
-		messages.push({
+		append({
 			role: Raw.ChatRole.Assistant,
 			content: [],
 			toolCalls: pendingFunctionCalls.splice(0)
@@ -955,8 +1013,9 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const { serverExperiments, copilotServiceRequestId, gitHubCopilotRequestTe } = getRequestId(response.headers);
 		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, copilotServiceRequestId, serverExperiments, compactionThreshold);
+		processor.gitHubCopilotRequestTe = gitHubCopilotRequestTe;
 		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
@@ -988,10 +1047,10 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 }
 
 export function sendCompletionOutputTelemetry(telemetryService: ITelemetryService, logService: ILogService, completion: ChatCompletion, telemetryData: TelemetryData): void {
-	const telemetryMessage = rawMessageToCAPI(completion.message);
-	let telemetryDataWithUsage = telemetryData;
+	const telemetryMessages = completion.telemetryMessages ?? [rawMessageToCAPI(completion.message)];
+	let telemetryDataWithUsage = telemetryData.extendedBy(gitHubCopilotRequestTeProperty(completion.requestId.gitHubCopilotRequestTe));
 	if (completion.usage) {
-		telemetryDataWithUsage = telemetryData.extendedBy({}, {
+		telemetryDataWithUsage = telemetryDataWithUsage.extendedBy({}, {
 			promptTokens: completion.usage.prompt_tokens,
 			completionTokens: completion.usage.completion_tokens,
 			totalTokens: completion.usage.total_tokens,
@@ -1003,7 +1062,7 @@ export function sendCompletionOutputTelemetry(telemetryService: ITelemetryServic
 			}),
 		});
 	}
-	sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
+	sendEngineMessagesTelemetry(telemetryService, telemetryMessages, telemetryDataWithUsage, true, logService);
 }
 
 interface CapiResponsesTextDeltaEvent extends Omit<OpenAI.Responses.ResponseTextDeltaEvent, 'logprobs'> {
@@ -1170,6 +1229,11 @@ export class OpenAIResponsesProcessor {
 	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
+	/**
+	 * Raw `X-GitHub-Copilot-Request-Te` value for this model call. Settable after construction
+	 * because WebSocket turns receive it in a message envelope after the request has started.
+	 */
+	gitHubCopilotRequestTe: string | undefined;
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1393,6 +1457,7 @@ export class OpenAIResponsesProcessor {
 						headerRequestId: this.requestId,
 						gitHubRequestId: this.ghRequestId,
 						model: chunk.response.model,
+						...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe),
 					}, {
 						compactThreshold: this.compactionThreshold,
 						promptTokens,
@@ -1407,6 +1472,7 @@ export class OpenAIResponsesProcessor {
 						headerRequestId: this.requestId,
 						gitHubRequestId: this.ghRequestId,
 						model: chunk.response.model,
+						...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe),
 					}, {
 						compactThreshold: this.compactionThreshold,
 						promptTokens,
@@ -1425,7 +1491,7 @@ export class OpenAIResponsesProcessor {
 					model: chunk.response.model,
 					tokens: [],
 					telemetryData: this.telemetryData,
-					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, copilotServiceRequestId: this.copilotServiceRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
+					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, copilotServiceRequestId: this.copilotServiceRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments, ...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe) },
 					usage: {
 						prompt_tokens: chunk.response.usage?.input_tokens ?? 0,
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
@@ -1441,6 +1507,7 @@ export class OpenAIResponsesProcessor {
 						copilot_usage: capiChunk.copilot_usage?.total_nano_aiu !== undefined ? capiChunk.copilot_usage : undefined,
 					},
 					finishReason: FinishedCompletionReason.Stop,
+					telemetryMessages: responseApiInputToTelemetryMessages({ model: chunk.response.model, input: normalizedOutput }),
 					message: {
 						role: Raw.ChatRole.Assistant,
 						content: normalizedOutput.map((item): Raw.ChatCompletionContentPart | undefined => {
@@ -1508,6 +1575,7 @@ export class OpenAIResponsesProcessor {
 				created: response.created_at,
 				deploymentId: '',
 				serverExperiments: this.serverExperiments,
+				...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe),
 			},
 			usage: response.usage ? {
 				prompt_tokens: response.usage.input_tokens ?? 0,
@@ -1525,6 +1593,7 @@ export class OpenAIResponsesProcessor {
 			finishReason,
 			filterReason: opts.filterReason,
 			error: opts.error,
+			telemetryMessages: responseApiInputToTelemetryMessages({ model: response.model, input: output }),
 			message: {
 				role: Raw.ChatRole.Assistant,
 				content: output.map((item): Raw.ChatCompletionContentPart | undefined => {

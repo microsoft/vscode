@@ -122,6 +122,9 @@ function createBlockedSession(options: IBlockedSessionOptions, approvals?: Map<s
 	const sessionResource = URI.parse(`vscode-session://session/${Math.random().toString(36).slice(2)}`);
 	const mainChat = new class extends mock<IChat>() {
 		override readonly resource = sessionResource.with({ path: `${sessionResource.path}/chat/main` });
+		override readonly updatedAt: IObservable<Date> = constObservable(updatedAt);
+		override readonly status: IObservable<SessionStatus> = constObservable(options.status);
+		override readonly isRead: IObservable<boolean> = constObservable(true);
 		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable<readonly ISessionFileChange[]>([]);
 		override readonly changesets: IObservable<readonly ISessionChangeset[]> = constObservable([]);
 	}();

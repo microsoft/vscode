@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
+import type { CopilotSession, NamedProviderConfig, ProviderModelConfig, SessionEvent, SessionEventPayload, SessionEventType } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -29,6 +29,12 @@ export interface ICopilotModelCallFinishedEvent {
 		readonly containsBuiltInFileEditRequest?: boolean;
 		readonly editClassifierVersion: number;
 	};
+}
+
+/** BYOK provider connections and models registered on an SDK session. */
+export interface ICopilotByokSessionConfig {
+	providers?: NamedProviderConfig[];
+	models?: ProviderModelConfig[];
 }
 
 /**
@@ -59,6 +65,9 @@ export class CopilotSessionWrapper extends Disposable {
 
 	constructor(
 		readonly session: CopilotSession,
+		readonly canvasRuntimeEnabled: boolean,
+		/** BYOK providers and models the SDK session was launched with. */
+		readonly launchByokConfig: ICopilotByokSessionConfig,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -219,6 +228,11 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onSessionInfo: Event<SessionEventPayload<'session.info'>> | undefined;
 	get onSessionInfo(): Event<SessionEventPayload<'session.info'>> {
 		return this._onSessionInfo ??= this._sdkEvent('session.info');
+	}
+
+	private _onIndexedSearch: Event<SessionEventPayload<'session.indexed_search'>> | undefined;
+	get onIndexedSearch(): Event<SessionEventPayload<'session.indexed_search'>> {
+		return this._onIndexedSearch ??= this._sdkEvent('session.indexed_search');
 	}
 
 	private _onSessionWarning: Event<SessionEventPayload<'session.warning'>> | undefined;
@@ -424,6 +438,31 @@ export class CopilotSessionWrapper extends Disposable {
 	private _onBackgroundTasksChanged: Event<SessionEventPayload<'session.background_tasks_changed'>> | undefined;
 	get onBackgroundTasksChanged(): Event<SessionEventPayload<'session.background_tasks_changed'>> {
 		return this._onBackgroundTasksChanged ??= this._sdkEvent('session.background_tasks_changed');
+	}
+
+	private _onExtensionsLoaded: Event<SessionEventPayload<'session.extensions_loaded'>> | undefined;
+	get onExtensionsLoaded(): Event<SessionEventPayload<'session.extensions_loaded'>> {
+		return this._onExtensionsLoaded ??= this._sdkEvent('session.extensions_loaded');
+	}
+
+	private _onCanvasRegistryChanged: Event<SessionEventPayload<'session.canvas.registry_changed'>> | undefined;
+	get onCanvasRegistryChanged(): Event<SessionEventPayload<'session.canvas.registry_changed'>> {
+		return this._onCanvasRegistryChanged ??= this._sdkEvent('session.canvas.registry_changed');
+	}
+
+	private _onCanvasOpened: Event<SessionEventPayload<'session.canvas.opened'>> | undefined;
+	get onCanvasOpened(): Event<SessionEventPayload<'session.canvas.opened'>> {
+		return this._onCanvasOpened ??= this._sdkEvent('session.canvas.opened');
+	}
+
+	private _onCanvasClosed: Event<SessionEventPayload<'session.canvas.closed'>> | undefined;
+	get onCanvasClosed(): Event<SessionEventPayload<'session.canvas.closed'>> {
+		return this._onCanvasClosed ??= this._sdkEvent('session.canvas.closed');
+	}
+
+	private _onCanvasUnavailable: Event<SessionEventPayload<'session.canvas.unavailable'>> | undefined;
+	get onCanvasUnavailable(): Event<SessionEventPayload<'session.canvas.unavailable'>> {
+		return this._onCanvasUnavailable ??= this._sdkEvent('session.canvas.unavailable');
 	}
 
 	private _onCommandsChanged: Event<SessionEventPayload<'commands.changed'>> | undefined;

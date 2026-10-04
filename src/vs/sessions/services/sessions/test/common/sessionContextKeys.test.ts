@@ -13,7 +13,7 @@ import { ContextKeyValue, IContextKey } from '../../../../../platform/contextkey
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -59,6 +59,9 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId'>)
 		providerId: 'test',
 		resource: URI.parse(`test:///${overrides.sessionId}`),
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.vm,
 		createdAt: new Date(),
 		workspace: constObservable(undefined),
@@ -135,6 +138,34 @@ suite('Session Context Keys', () => {
 		});
 	});
 
+	test('publishes the main chat read state independently of the session aggregate', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const sessionIsRead = observableValue('sessionIsRead', false);
+		const mainChatIsRead = observableValue('mainChatIsRead', true);
+		const mainChat = { ...stubChat, isRead: mainChatIsRead };
+		const session = stubSession({
+			sessionId: 'a',
+			isRead: sessionIsRead,
+			mainChat: constObservable(mainChat),
+		});
+
+		store.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader)));
+		const initially = SessionIsReadContext.getValue(contextKeyService);
+		mainChatIsRead.set(false, undefined);
+		const afterMainChatUnread = SessionIsReadContext.getValue(contextKeyService);
+		sessionIsRead.set(true, undefined);
+
+		assert.deepStrictEqual({
+			initially,
+			afterMainChatUnread,
+			afterSessionRead: SessionIsReadContext.getValue(contextKeyService),
+		}, {
+			initially: true,
+			afterMainChatUnread: false,
+			afterSessionRead: false,
+		});
+	});
+
 	test('publishes workspace keys from the active chat', () => {
 		const contextKeyService = store.add(new MockContextKeyService());
 		const sessionWorkspace = {
@@ -196,6 +227,40 @@ suite('Session Context Keys', () => {
 			hasWorkspace: true,
 			isVirtualWorkspace: true,
 			hasGitRepository: true,
+		});
+
+		test('does not advertise archive for an archived active chat', () => {
+			const contextKeyService = store.add(new MockContextKeyService());
+			const isArchived = observableValue('chatArchived', true);
+			const activeChat: IChat = {
+				...stubChat,
+				isArchived,
+				capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
+			};
+			const session = upcastPartial<IActiveSession>({
+				...stubSession({
+					sessionId: 'archive',
+					chats: constObservable([activeChat]),
+					mainChat: constObservable(stubChat),
+				}),
+				isCreated: constObservable(true),
+				sticky: constObservable(false),
+				activeChat: constObservable(activeChat),
+				visibleChatTabs: constObservable([activeChat]),
+				shouldShowChatTabs: constObservable(false),
+			});
+
+			store.add(autorun(reader => setActiveSessionContextKeys(session, contextKeyService, reader)));
+			const archived = SessionActiveChatCanArchiveContext.getValue(contextKeyService);
+			isArchived.set(false, undefined);
+
+			assert.deepStrictEqual({
+				archived,
+				active: SessionActiveChatCanArchiveContext.getValue(contextKeyService),
+			}, {
+				archived: false,
+				active: true,
+			});
 		});
 	});
 });
@@ -317,6 +382,7 @@ suite('setSessionContextKeys - changes', () => {
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 			changesets: constObservable([]),
 			changes: chatChanges,
+			isRead: constObservable(true),
 		});
 		const session = upcastPartial<IActiveSession>({
 			...stubSession({

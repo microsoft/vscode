@@ -142,6 +142,9 @@ suite('CopilotShellTools', () => {
 			getEffectiveWorkingDirectories: () => undefined,
 			getSessionConfigValues: session => sessionValues.get(session),
 			getSessionSandboxPolicy: session => policies.get(session),
+			getSessionSandboxEnabled: () => undefined,
+			setSessionSandboxEnabled: () => { },
+			rejectSessionSandboxChange: () => { },
 			setSessionSandboxPolicy: (session, policy) => {
 				policies.set(session, policy);
 				sessionEmitter.fire({ session, config: {}, origin: undefined });
@@ -196,11 +199,6 @@ suite('CopilotShellTools', () => {
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
 			initialSandboxValues[AgentHostSandboxKey.Enabled] = AgentSandboxEnabledValue.On;
-			// Windows uses a separate enable key; the engine treats
-			// `Enabled=On` on non-Windows and `WindowsEnabled=On`
-			// on Windows as "sandbox active". Set both so tests exercise
-			// the sandbox path on every OS.
-			initialSandboxValues[AgentHostSandboxKey.WindowsEnabled] = AgentSandboxEnabledValue.On;
 		}
 		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();
@@ -841,12 +839,33 @@ suite('CopilotShellTools', () => {
 		agentConfigurationService.service.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 		const disabled = await engine.isEnabled();
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.Enabled, AgentSandboxEnabledValue.On);
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.WindowsEnabled, AgentSandboxEnabledValue.On);
 		const afterGlobalChange = await engine.isEnabled();
 		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
 		assert.deepStrictEqual({
 			before, disabled, afterGlobalChange, governed: await engine.isEnabled(), other: await other.isEnabled(),
 		}, { before: true, disabled: false, afterGlobalChange: false, governed: true, other: true });
+	});
+
+	test('custom terminal reads effective network and bypass settings across managed policy changes', async () => {
+		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
+		const owner = 'copilot:/session-1';
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowNetwork, true);
+		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, false);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(buildDefaultChatUri(owner)), undefined));
+		const engine = shellManager.getOrCreateSandboxEngine();
+		const read = async () => ({ network: await engine.isSandboxAllowNetworkEnabled(), bypass: engine.areUnsandboxedCommandsAllowed() });
+		const initial = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true, allowOutbound: false });
+		const denied = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: true, allowOutbound: true });
+		const allowed = await read();
+		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: false });
+		assert.deepStrictEqual({ initial, denied, allowed, removed: await read() }, {
+			initial: { network: true, bypass: false },
+			denied: { network: false, bypass: false },
+			allowed: { network: true, bypass: false },
+			removed: { network: true, bypass: false },
+		});
 	});
 
 	test('setWorkingDirectory invalidates the captured sandbox engine roots', async () => {

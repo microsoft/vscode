@@ -10,7 +10,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IConnectionDiagnosticEvent } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { IConnectionDiagnosticEvent, traceConnectionOperation } from '../../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../../../platform/agentHost/common/state/protocol/errors.js';
+import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { TelemetryService } from '../../../../../../platform/telemetry/common/telemetryService.js';
@@ -31,6 +33,8 @@ interface ICapturedEvent {
 const connectionDetails = {
 	surface: 'unknown', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
+	firstFailurePhase: undefined, firstFailureCode: undefined,
+	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
 };
 
 class TestTelemetryService implements ITelemetryService {
@@ -111,9 +115,11 @@ suite('cloudSandbox telemetry', () => {
 		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome'), [
 			{
 				eventName: 'cloudSandboxConnectionOutcome', data: {
+					...connectionDetails,
 					operation: 'connect', outcome: 'success', stage: 'restoration', durationMs: 255, surface: 'agentsWeb', source: 'created',
 					credentialRequests: 3, wakingResponses: 1, transportAttempts: 2,
 					credentialsMs: 70, relayMs: 25, protocolMs: 30, authenticationMs: 40, restorationMs: 50,
+					firstFailurePhase: 'transport.connect', relayFailures: 1,
 				},
 			},
 			{
@@ -123,6 +129,93 @@ suite('cloudSandbox telemetry', () => {
 				},
 			},
 		]);
+	}));
+
+	for (const outcome of ['success', 'failure', 'cancelled'] as const) {
+		test(`preserves the first protocol failure after credential cooldown and ${outcome}`, () => runWithFakedTimers({}, async () => {
+			const telemetry = new TestTelemetryService();
+			const service = store.add(new CloudSandboxTelemetryService(telemetry));
+			const connection = store.add(service.trackConnection('connection', 'agentsWeb'));
+			connection.onConnectionStateChange('connected');
+			connection.onConnectionStateChange('reconnecting');
+			const errors = [
+				['protocol.reconnect', new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'invalid params: missing field `channel`')],
+				['credentials', new Error('Sandbox credential refresh is stopped or waiting to retry.')],
+			] as const;
+			for (const [phase, error] of errors) {
+				await assert.rejects(traceConnectionOperation(event => connection.recordConnectionDiagnostic(event), phase, async () => {
+					await timeout(10);
+					throw error;
+				}), caught => caught === error);
+			}
+			connection.onConnectionStateChange(outcome === 'success' ? 'connected' : outcome === 'failure' ? 'failed' : 'disposed');
+			service.dispose();
+
+			assert.deepStrictEqual(telemetry.events.filter(event => event.data?.operation === 'recover'), [{
+				eventName: 'cloudSandboxConnectionOutcome',
+				data: {
+					...connectionDetails, operation: 'recover', outcome, stage: 'credentials', surface: 'agentsWeb', durationMs: 20,
+					credentialsMs: 10, protocolMs: 10,
+					firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams,
+					credentialFailures: 1, protocolFailures: 1,
+				},
+			}]);
+		}));
+	}
+
+	test('resets failure evidence for the next recovery and ignores duplicate completions', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		const connection = store.add(service.trackConnection('connection'));
+		connection.onConnectionStateChange('connected');
+		for (const [index, code] of [JsonRpcErrorCodes.InvalidParams, AhpErrorCodes.AuthRequired].entries()) {
+			connection.onConnectionStateChange('reconnecting');
+			const event = {
+				operationId: `attempt-${index}`, phase: 'protocol.reconnect', timestamp: Date.now(),
+				error: { name: 'Error', message: 'private response', code: String(code) },
+			};
+			connection.recordConnectionDiagnostic({ ...event, outcome: 'started' });
+			connection.recordConnectionDiagnostic({ ...event, outcome: 'failed' });
+			connection.recordConnectionDiagnostic({ ...event, outcome: 'failed' });
+			connection.onConnectionStateChange('connected');
+		}
+		service.dispose();
+
+		assert.deepStrictEqual(telemetry.events.filter(event => event.data?.operation === 'recover').map(event => event.data), [
+			{
+				...connectionDetails, operation: 'recover', outcome: 'success', stage: 'protocol', durationMs: 0,
+				firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
+			},
+			{
+				...connectionDetails, operation: 'recover', outcome: 'success', stage: 'protocol', durationMs: 0,
+				firstFailurePhase: 'protocol.reconnect', firstFailureCode: AhpErrorCodes.AuthRequired, protocolFailures: 1,
+			},
+		]);
+	}));
+
+	test('exports only allowlisted failure phases and protocol codes, never diagnostic content', () => runWithFakedTimers({}, async () => {
+		const telemetry = new TestTelemetryService();
+		const service = store.add(new CloudSandboxTelemetryService(telemetry));
+		for (const code of [String(JsonRpcErrorCodes.InvalidParams), String(AhpErrorCodes.AuthRequired), 'private-code', '-12345', undefined]) {
+			const connection = store.add(service.trackConnection('connection'));
+			for (const phase of ['private-phase', 'protocol.reconnect']) {
+				const event = {
+					operationId: 'private-id', phase, timestamp: Date.now(), detail: 'private-detail',
+					error: { name: 'private-name', message: 'private-message', code, requestId: 'private-request', cause: { name: 'Error', message: 'private-cause' } },
+				};
+				connection.recordConnectionDiagnostic({ ...event, outcome: 'started' });
+				connection.recordConnectionDiagnostic({ ...event, outcome: 'failed' });
+			}
+			connection.onConnectionStateChange('failed');
+		}
+		service.dispose();
+
+		assert.deepStrictEqual(telemetry.events.map(event => event.data), [
+			JsonRpcErrorCodes.InvalidParams, AhpErrorCodes.AuthRequired, undefined, undefined, undefined,
+		].map(firstFailureCode => ({
+			...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'protocol', durationMs: 0,
+			firstFailurePhase: 'protocol.reconnect', firstFailureCode, protocolFailures: 1,
+		})));
 	}));
 
 	for (const state of ['failed', 'disposed'] as const) {
@@ -531,12 +624,21 @@ suite('cloudSandbox telemetry', () => {
 
 	test('classification marks every numeric payload field, and no string field, as a measurement', () => runWithFakedTimers({}, async () => {
 		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };
-		const outcome: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 2000 };
+		const outcome: ClassifiedSample<CloudSandboxConnectionOutcomeClassification> = {
+			...connectionDetails, operation: 'connect', outcome: 'success', stage: 'protocol', durationMs: 2000,
+			firstFailurePhase: 'protocol.reconnect', firstFailureCode: JsonRpcErrorCodes.InvalidParams, protocolFailures: 1,
+		};
 		const firstRequest: ClassifiedSample<CloudSandboxFirstSessionRequestClassification> = { surface: 'unknown', source: 'existing', outcome: 'success', durationMs: 3000 };
 		const health: ClassifiedSample<CloudSandboxConnectionHealthClassification> = { connectedMs: 3000, unexpectedDisconnects: 0, receivedFrames: 1 };
 		const telemetry = new TestTelemetryService();
 		const service = store.add(new CloudSandboxTelemetryService(telemetry));
 		const connection = store.add(service.trackConnection('connection'));
+		const failedPhase = {
+			operationId: 'reconnect', phase: 'protocol.reconnect', timestamp: Date.now(),
+			error: { name: 'Error', message: 'private response', code: String(JsonRpcErrorCodes.InvalidParams) },
+		};
+		connection.recordConnectionDiagnostic({ ...failedPhase, outcome: 'started' });
+		connection.recordConnectionDiagnostic({ ...failedPhase, outcome: 'failed' });
 		await timeout(2000);
 		connection.onConnectionStateChange('connected');
 		connection.recordConnectionDiagnostic({ operationId: 'first', phase: 'protocol.firstSessionRequest', outcome: 'started', timestamp: Date.now() });
