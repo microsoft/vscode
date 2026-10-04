@@ -404,6 +404,7 @@ export class EditOperationResult {
 
 	readonly type: EditOperationType;
 	readonly commands: Array<ICommand | null>;
+	readonly commandsAfterUndoStop: Array<ICommand | null> | null;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
@@ -413,10 +414,12 @@ export class EditOperationResult {
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
+			commandsAfterUndoStop?: Array<ICommand | null>;
 		}
 	) {
 		this.type = type;
 		this.commands = commands;
+		this.commandsAfterUndoStop = opts.commandsAfterUndoStop || null;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
 	}

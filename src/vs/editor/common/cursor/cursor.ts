@@ -362,7 +362,23 @@ export class CursorsController extends Disposable {
 			this._model.pushStackElement();
 		}
 
-		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), opResult.commands, editReason);
+		const result = this._executeCommands(opResult.commands, opResult.type, editReason);
+
+		if (result && opResult.commandsAfterUndoStop) {
+			// Execute the remaining commands as a separate edit operation, with an
+			// undo stop between the two batches, so that the auto-closed characters
+			// can be undone on their own.
+			this._model.pushStackElement();
+			this._executeCommands(opResult.commandsAfterUndoStop, opResult.type, editReason);
+		}
+
+		if (opResult.shouldPushStackElementAfter) {
+			this._model.pushStackElement();
+		}
+	}
+
+	private _executeCommands(commands: Array<editorCommon.ICommand | null>, editOperationType: EditOperationType, editReason: TextModelEditSource): Selection[] | null {
+		const result = CommandExecutor.executeCommands(this._model, this._cursors.getSelections(), commands, editReason);
 		if (result) {
 			// The commands were applied correctly
 			this._interpretCommandResult(result);
@@ -371,8 +387,8 @@ export class CursorsController extends Disposable {
 			const autoClosedCharactersRanges: Range[] = [];
 			const autoClosedEnclosingRanges: Range[] = [];
 
-			for (let i = 0; i < opResult.commands.length; i++) {
-				const command = opResult.commands[i];
+			for (let i = 0; i < commands.length; i++) {
+				const command = commands[i];
 				if (command instanceof BaseTypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
 					autoClosedCharactersRanges.push(command.closeCharacterRange);
 					autoClosedEnclosingRanges.push(command.enclosingRange);
@@ -383,12 +399,9 @@ export class CursorsController extends Disposable {
 				this._pushAutoClosedAction(autoClosedCharactersRanges, autoClosedEnclosingRanges);
 			}
 
-			this._prevEditOperationType = opResult.type;
+			this._prevEditOperationType = editOperationType;
 		}
-
-		if (opResult.shouldPushStackElementAfter) {
-			this._model.pushStackElement();
-		}
+		return result;
 	}
 
 	private _interpretCommandResult(cursorState: Selection[] | null): void {

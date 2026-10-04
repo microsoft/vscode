@@ -5389,6 +5389,41 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338693: undo removes the auto-closed characters of a multi-character pair first', () => {
+		usingCursor({
+			text: [''],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			for (const ch of ['b', 'e', 'g', 'i', 'n']) {
+				viewModel.type(ch, 'keyboard');
+			}
+			assert.strictEqual(model.getValue(), 'beginend');
+			// the auto-closed `end` is undone on its own
+			model.undo();
+			assert.strictEqual(model.getValue(), 'begin');
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 6, 1, 6));
+			// then the last character of the open sequence
+			model.undo();
+			assert.strictEqual(model.getValue(), 'begi');
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 5, 1, 5));
+		});
+	});
+
+	test('issue #338693: undo removes open and close of a single-character pair together', () => {
+		usingCursor({
+			text: [''],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			viewModel.type('(', 'keyboard');
+			assert.strictEqual(model.getValue(), '()');
+			model.undo();
+			assert.strictEqual(model.getValue(), '');
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 1, 1, 1));
+		});
+	});
+
 	test('autoClosingPairs - doc comments can be turned off', () => {
 		usingCursor({
 			text: [

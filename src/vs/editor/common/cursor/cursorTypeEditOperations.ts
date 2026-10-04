@@ -153,22 +153,49 @@ export class AutoClosingOpenCharTypeOperation {
 		if (!isDoingComposition) {
 			const autoClosingPairClose = this.getAutoClosingPairClose(config, model, selections, ch, chIsAlreadyTyped);
 			if (autoClosingPairClose !== null) {
-				return this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPairClose);
+				return this._runAutoClosingOpenCharType(config, selections, ch, chIsAlreadyTyped, autoClosingPairClose);
 			}
 		}
 		return;
 	}
 
-	private static _runAutoClosingOpenCharType(selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(config: CursorConfiguration, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
 		const commands: ICommand[] = [];
+		// When the open sequence consists of multiple characters, the typed
+		// character and the auto-closed close characters are executed as two
+		// separate edit operations with an undo stop between them, so that the
+		// close characters can be undone on their own.
+		const commandsAfterUndoStop: ICommand[] | null = this._shouldPushUndoStopAfterOpenChar(config, ch, chIsAlreadyTyped, autoClosingPairClose) ? [] : null;
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
-			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
+			if (commandsAfterUndoStop) {
+				commands[i] = new ReplaceCommand(selection, ch);
+				commandsAfterUndoStop[i] = new AutoClosingCloseCharInsertCommand(selection, ch, autoClosingPairClose);
+			} else {
+				commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
+			}
 		}
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false
+			shouldPushStackElementAfter: false,
+			commandsAfterUndoStop: commandsAfterUndoStop || undefined
 		});
+	}
+
+	private static _shouldPushUndoStopAfterOpenChar(config: CursorConfiguration, ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): boolean {
+		if (chIsAlreadyTyped || autoClosingPairClose.length === 0) {
+			return false;
+		}
+		// Only multi-character open sequences need an undo stop after the typed character
+		const candidates = config.autoClosingPairs.autoClosingPairsCloseByEnd.get(autoClosingPairClose.charAt(autoClosingPairClose.length - 1));
+		if (candidates) {
+			for (const candidate of candidates) {
+				if (candidate.close === autoClosingPairClose && candidate.open.endsWith(ch) && candidate.open.length > 1) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	public static getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
@@ -932,6 +959,30 @@ class TypeWithAutoClosingCommand extends BaseTypeWithAutoClosingCommand {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		const range = inverseEditOperations[0].range;
 		return this._computeCursorStateWithRange(model, range, helper);
+	}
+}
+
+// Inserts the auto-closed close characters right after the typed open character.
+// It is executed in a separate edit operation from the open character, with an
+// undo stop in between, so that the close characters can be undone on their own.
+class AutoClosingCloseCharInsertCommand extends BaseTypeWithAutoClosingCommand {
+
+	private readonly _openCharacterLength: number;
+
+	constructor(selection: Selection, openCharacter: string, closeCharacter: string) {
+		// The close characters are inserted right after the open character,
+		// i.e. right after the (empty) selection.
+		const range = new Selection(selection.positionLineNumber, selection.positionColumn + openCharacter.length, selection.positionColumn + openCharacter.length);
+		super(range, closeCharacter, 0, 0, openCharacter, closeCharacter);
+		this._openCharacterLength = openCharacter.length;
+	}
+
+	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const range = helper.getInverseEditOperations()[0].range;
+		this.closeCharacterRange = range;
+		this.enclosingRange = new Range(range.startLineNumber, range.startColumn - this._openCharacterLength, range.endLineNumber, range.endColumn);
+		// The cursor is placed between the open and the close characters.
+		return Selection.fromPositions(range.getStartPosition());
 	}
 }
 
