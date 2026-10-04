@@ -246,7 +246,7 @@ async function getValidatedProfile(
 
 	// The login shell may be missing from the resolved PATH (stale $SHELL or failed shell env resolution)
 	const bareNames = paths.filter((e): e is string => isString(e) && basename(e) === e);
-	paths.push(...(loginShells ?? []).filter(e => bareNames.includes(basename(e))));
+	paths.push(...bareNames.flatMap(name => (loginShells ?? []).filter(e => basename(e) === name)));
 
 	let requiresUnsafePath: string | undefined;
 	if (profile.requiresPath) {

@@ -251,6 +251,26 @@ suite('Workbench - TerminalProfiles', () => {
 				];
 				profilesEqual(profiles, expected);
 			});
+			test('should try login shell paths in the configured path order', async () => {
+				const config = ({
+					profiles: {
+						windows: {},
+						osx: { 'shell': { path: ['fish', 'zsh'] } },
+						linux: { 'shell': { path: ['fish', 'zsh'] } }
+					},
+					useWslProfiles: false
+				} as ITestTerminalConfig) as ITerminalConfiguration;
+				const fsProvider = createFsProvider([
+					'/opt/homebrew/bin/fish',
+					'/opt/homebrew/bin/zsh'
+				]);
+				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, { PATH: '/usr/bin:/bin' }, fsProvider, undefined, undefined, undefined, ['/opt/homebrew/bin/zsh', '/opt/homebrew/bin/fish']);
+				const expected: ITerminalProfile[] = [
+					{ profileName: 'shell', path: '/opt/homebrew/bin/fish', isDefault: false }
+				];
+				profilesEqual(profiles, expected);
+			});
 		}
 	});
 
