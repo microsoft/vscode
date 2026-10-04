@@ -19,11 +19,16 @@ import { createTextModel } from '../../../../../editor/test/common/testTextModel
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID } from '../../../../../workbench/contrib/chat/browser/chatPetColors.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatSubmitRequestHandlerService } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -54,6 +59,7 @@ suite('SlashCommandHandler', () => {
 		};
 		const services = new ServiceCollection(
 			[ICommandService, commandService],
+			[IContextKeyService, store.add(new ContextKeyService(new TestConfigurationService()))],
 			[ISessionContext, { _serviceBrand: undefined, session }],
 			[ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
@@ -68,6 +74,8 @@ suite('SlashCommandHandler', () => {
 		const model = store.add(createTextModel('', null, undefined, URI.from({ scheme: Schemas.sessionsChatInput, path: '/input' })));
 
 		await withTestCodeEditor(model, { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {
+			const chatEnabled = ChatContextKeys.enabled.bindTo(instantiationService.get(IContextKeyService));
+			chatEnabled.set(true);
 			const handler = store.add(instantiationService.createInstance(SlashCommandHandler, editor));
 			const agentHostHandled = await handler.tryHandle({
 				sessionResource: session.get()!.resource,
@@ -75,6 +83,7 @@ suite('SlashCommandHandler', () => {
 				sessionId: 'session',
 				input: '/skills',
 			});
+			const agentHostBlobbyHandled = handler.tryExecuteSlashCommand('/blobby');
 
 			const localResource = URI.from({ scheme: Schemas.vscodeLocalChatSession, path: '/session' });
 			session.set(new class extends mock<IActiveSession>() {
@@ -86,6 +95,7 @@ suite('SlashCommandHandler', () => {
 				sessionId: 'session',
 				input: '/skills',
 			});
+			const localBlobbyHandled = handler.tryExecuteSlashCommand('/blobby');
 
 			model.setValue('/');
 			const foreignModel = store.add(createTextModel('/', null, undefined, URI.from({ scheme: Schemas.sessionsChatInput, path: '/foreign-input' })));
@@ -94,18 +104,28 @@ suite('SlashCommandHandler', () => {
 			const completionContext = { triggerKind: CompletionTriggerKind.Invoke } as const;
 			const ownCompletions = await staticProvider.provideCompletionItems(model, new Position(1, 2), completionContext, CancellationToken.None);
 			const foreignCompletions = await staticProvider.provideCompletionItems(foreignModel, new Position(1, 2), completionContext, CancellationToken.None);
+			chatEnabled.set(false);
+			const disabledCompletions = await staticProvider.provideCompletionItems(model, new Position(1, 2), completionContext, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				agentHostHandled,
 				localHandled,
+				agentHostBlobbyHandled,
+				localBlobbyHandled,
+				disabledBlobbyHandled: handler.tryExecuteSlashCommand('/blobby'),
+				disabledBlobbyOffered: disabledCompletions?.suggestions.some(item => item.insertText === '/blobby'),
 				commandCalls,
 				ownCommands: ownCompletions?.suggestions.map(item => typeof item.label === 'string' ? item.label : item.label.label),
 				foreignCommands: foreignCompletions?.suggestions,
 			}, {
 				agentHostHandled: false,
 				localHandled: true,
-				commandCalls: [AICustomizationManagementCommands.OpenEditor],
-				ownCommands: ['/vscode-pet', '/agents', '/skills', '/instructions', '/hooks', '/models'],
+				agentHostBlobbyHandled: true,
+				localBlobbyHandled: true,
+				disabledBlobbyHandled: false,
+				disabledBlobbyOffered: false,
+				commandCalls: [CHAT_PET_BLOBBY_COMMAND_ID, AICustomizationManagementCommands.OpenEditor, CHAT_PET_BLOBBY_COMMAND_ID],
+				ownCommands: ['/vscode-pet', '/blobby', '/agents', '/skills', '/instructions', '/hooks', '/models'],
 				foreignCommands: undefined,
 			});
 		});

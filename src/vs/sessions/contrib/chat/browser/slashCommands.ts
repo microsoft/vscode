@@ -17,6 +17,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { getWordAtText } from '../../../../editor/common/core/wordHelper.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
@@ -27,6 +28,8 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -49,6 +52,7 @@ interface ISessionsSlashCommandData {
 	readonly sortText?: string;
 	readonly executeImmediately?: boolean;
 	readonly supportsAgentHost?: boolean;
+	readonly when?: ContextKeyExpression;
 	readonly execute: (args: string) => void;
 }
 
@@ -79,6 +83,7 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 		@ISessionContext private readonly sessionContext: ISessionContext,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
@@ -166,6 +171,14 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 			sortText: 'z3_vscodePet',
 			executeImmediately: true,
 			execute: () => this.chatPetService.toggle(),
+		});
+		this._slashCommands.push({
+			command: 'blobby',
+			detail: localize('slashCommand.blobby', "Show Blobby or open its color customization"),
+			sortText: 'z3_blobby',
+			executeImmediately: true,
+			when: ChatContextKeys.enabled,
+			execute: () => this.commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID),
 		});
 		this._slashCommands.push({
 			command: 'agents',
@@ -360,6 +373,9 @@ export class SlashCommandHandler extends Disposable implements IChatSubmitReques
 	}
 
 	private _isSlashCommandAvailable(command: ISessionsSlashCommandData): boolean {
+		if (command.when && !this.contextKeyService.contextMatchesRules(command.when)) {
+			return false;
+		}
 		const activeSession = this.sessionContext.session.get();
 		return command.supportsAgentHost !== false
 			|| !activeSession

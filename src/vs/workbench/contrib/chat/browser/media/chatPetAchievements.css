@@ -4,10 +4,72 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-pet-achievements-editor,
-.chat-pet-achievements-widget {
+.chat-pet-achievements-widget,
+.chat-pet-colors-widget {
 	width: 100%;
 	height: 100%;
 	overflow: hidden;
+}
+
+.chat-pet-achievements-editor {
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .chat-pet-achievements-editor[tabindex='-1']:focus {
+	outline: none;
+}
+
+.chat-pet-customization-tabs {
+	display: flex;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size160) var(--vscode-spacing-size40);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+}
+
+.chat-pet-customization-tabs .monaco-button {
+	position: relative;
+	width: auto;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size80);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.chat-pet-customization-tabs .monaco-button[aria-selected='true'] {
+	color: var(--vscode-foreground);
+}
+
+.chat-pet-customization-tabs .monaco-button[aria-selected='true']::after {
+	content: '';
+	position: absolute;
+	inset-inline: var(--vscode-spacing-size80);
+	bottom: calc(-1 * var(--vscode-spacing-size40));
+	height: var(--vscode-strokeThickness);
+	background: var(--vscode-focusBorder);
+	pointer-events: none;
+}
+
+.chat-pet-customization-tabs .monaco-button:hover {
+	color: var(--vscode-foreground);
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-pet-customization-tabs .monaco-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+.chat-pet-customization-tabs .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-pet-customization-panel {
+	min-height: 0;
+	flex: 1;
 }
 
 .chat-pet-achievements-content {
@@ -70,6 +132,174 @@
 	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120);
 }
 
+.chat-pet-colors-widget.narrow .chat-pet-achievements-content {
+	padding: var(--vscode-spacing-size160) var(--vscode-spacing-size120);
+}
+
+.chat-pet-colors-widget .chat-pet-achievements-intro {
+	margin-bottom: var(--vscode-spacing-size200);
+}
+
+.chat-pet-colors-list {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size120);
+	list-style: none;
+	margin: 0 0 var(--vscode-spacing-size240);
+	padding: 0;
+}
+
+.chat-pet-colors-widget.narrow .chat-pet-colors-list {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.chat-pet-color-card.monaco-button {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	box-sizing: border-box;
+	width: 100%;
+	min-width: 0;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	text-align: center;
+}
+
+.chat-pet-color-card.monaco-button:not(.disabled),
+.chat-pet-achievement-card.monaco-button:not(.disabled) {
+	cursor: pointer;
+}
+
+.chat-pet-color-card.monaco-button.selected {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.chat-pet-color-card.monaco-button:not(.disabled):hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.chat-pet-color-card.monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.chat-pet-color-preview {
+	width: 64px;
+	height: 64px;
+	image-rendering: pixelated;
+	flex-shrink: 0;
+}
+
+.chat-pet-color-label {
+	overflow-wrap: anywhere;
+	white-space: normal;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.chat-pet-color-state {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.chat-pet-colors-unlock-hint,
+.chat-pet-custom-color p {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-body1);
+}
+
+.chat-pet-custom-color {
+	padding: var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-editorWidget-background);
+}
+
+.chat-pet-custom-color h2 {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.chat-pet-custom-color-body,
+.chat-pet-custom-color-inputs {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+}
+
+.chat-pet-custom-color-controls {
+	flex: 1;
+	min-width: 0;
+}
+
+.chat-pet-custom-color-inputs {
+	flex-wrap: wrap;
+}
+
+.chat-pet-custom-color-inputs .monaco-inputbox {
+	width: 120px;
+}
+
+.chat-pet-custom-color-inputs .monaco-inputbox input {
+	cursor: text;
+}
+
+.chat-pet-custom-color-inputs .monaco-inputbox input:disabled {
+	cursor: default;
+}
+
+.chat-pet-custom-color-inputs .monaco-button {
+	width: auto;
+}
+
+.chat-pet-color-picker {
+	box-sizing: border-box;
+	width: 32px;
+	height: 28px;
+	padding: var(--vscode-spacing-size20);
+	border: var(--vscode-strokeThickness) solid var(--vscode-input-border, var(--vscode-editorWidget-border));
+	border-radius: var(--vscode-cornerRadius-small);
+	background: var(--vscode-input-background);
+	cursor: pointer;
+}
+
+.chat-pet-color-picker:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.chat-pet-color-picker:disabled {
+	cursor: default;
+}
+
+.chat-pet-color-validation {
+	color: var(--vscode-errorForeground);
+	font-size: var(--vscode-fontSize-label1);
+	margin-top: var(--vscode-spacing-size80);
+}
+
+.chat-pet-color-validation:empty {
+	display: none;
+}
+
+.hc-black .chat-pet-color-card.monaco-button,
+.hc-light .chat-pet-color-card.monaco-button,
+.hc-black .chat-pet-custom-color,
+.hc-light .chat-pet-custom-color {
+	border-color: var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-pet-color-card.monaco-button.selected,
+.hc-light .chat-pet-color-card.monaco-button.selected {
+	border-color: var(--vscode-focusBorder);
+}
+
 .chat-pet-achievements-widget.narrow .chat-pet-achievements-list {
 	grid-template-columns: minmax(0, 1fr);
 }
@@ -101,6 +331,7 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
+	cursor: default;
 }
 
 .chat-pet-achievement-roadmap-preview {

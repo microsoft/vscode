@@ -25,6 +25,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { AICustomizationManagementSection } from '../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
@@ -32,14 +33,15 @@ import { IAICustomizationItemSource, IAICustomizationListItem } from './aiCustom
 import { IAICustomizationItemsModel } from './aiCustomization/aiCustomizationItemsModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAchievementIds, isUserAuthoredChatPetCustomization } from './chatPetAchievements.js';
 import { ChatPetAchievementsContextKeys, ChatPetAchievementsEditor } from './chatPetAchievementsEditor.js';
-import { ChatPetAchievementsEditorInput } from './chatPetAchievementsEditorInput.js';
+import { ChatPetAchievementsEditorInput, IChatPetCustomizationEditorOptions } from './chatPetAchievementsEditorInput.js';
 import { ChatPetContextKeys, IChatPetService } from './chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID, CHAT_PET_CHANGE_COLOR_COMMAND_ID } from './chatPetColors.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		ChatPetAchievementsEditor,
 		ChatPetAchievementsEditor.ID,
-		localize('chatPet.achievements.editor', "Achievements Editor"),
+		localize('chatPet.achievements.editor', "Blobby Customization Editor"),
 	),
 	[new SyncDescriptor(ChatPetAchievementsEditorInput)],
 );
@@ -91,10 +93,11 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		if (!accessor.get(IChatPetService).enabled.get()) {
+		if (!accessor.get(IChatPetService).enabled.get() || accessor.get(IChatEntitlementService).sentiment.hidden) {
 			return;
 		}
-		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), { pinned: true });
+		const options: IChatPetCustomizationEditorOptions = { pinned: true, tab: 'achievements' };
+		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), options);
 	}
 });
 
@@ -132,6 +135,51 @@ export class ChatPetContextContribution extends Disposable implements IWorkbench
 		}));
 	}
 }
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_PET_BLOBBY_COMMAND_ID,
+			title: localize2('chatPet.blobby', "Customize Blobby"),
+			precondition: ChatContextKeys.enabled,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		if (accessor.get(IChatEntitlementService).sentiment.hidden) {
+			return;
+		}
+		const chatPetService = accessor.get(IChatPetService);
+		const wasEnabled = chatPetService.enabled.get();
+		if (!wasEnabled) {
+			chatPetService.toggle();
+		}
+		chatPetService.unlockAchievement(ChatPetAchievementIds.Blobby);
+		if (wasEnabled) {
+			await accessor.get(ICommandService).executeCommand(CHAT_PET_CHANGE_COLOR_COMMAND_ID);
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_PET_CHANGE_COLOR_COMMAND_ID,
+			title: localize2('chatPet.changeColor', "Change Blobby's Color"),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatPetContextKeys.enabled),
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const chatPetService = accessor.get(IChatPetService);
+		if (!chatPetService.enabled.get() || accessor.get(IChatEntitlementService).sentiment.hidden) {
+			return;
+		}
+		const options: IChatPetCustomizationEditorOptions = { pinned: true, tab: 'color' };
+		await accessor.get(IEditorService).openEditor(ChatPetAchievementsEditorInput.getOrCreate(), options);
+	}
+});
 
 const CHAT_PET_KEEP_EDIT_COMMAND_IDS = new Set([
 	'chatEditing.acceptFile',
@@ -337,10 +385,11 @@ export class ChatPetAchievementsAccessibilityHelp implements IAccessibleViewImpl
 		const previouslyFocusedElement = DOM.getActiveElement();
 		const editorService = _accessor.get(IEditorService);
 		const content = [
-			localize('chatPet.achievements.accessibilityHelp.overview', "The Achievements modal lists agent-feature achievements and their pet hat rewards. Locked cards reveal a hint and reward while keeping the achievement name and exact unlock requirement hidden."),
+			localize('chatPet.achievements.accessibilityHelp.overview', "Customize Blobby has Achievements and Color tabs. When the page opens, press Tab to focus the selected tab. Use the Left and Right Arrow keys, Home, or End while a tab is focused to switch tabs. Press Tab again to reach the selected tab's content. The Achievements tab lists agent-feature achievements and their pet hat and color rewards. Locked cards reveal a hint and reward while keeping the achievement name and exact unlock requirement hidden."),
 			localize('chatPet.achievements.accessibilityHelp.cards', "Use Tab and Shift+Tab to move through No Hat and the achievement cards. Press Enter or Space on No Hat or an unlocked achievement to change what the pet wears. Newly unlocked cards are announced as New until you activate them. Locked achievements announce their hint and reward and cannot be selected."),
+			localize('chatPet.achievements.accessibilityHelp.colors', "Change Color in Blobby's context menu always opens the Color tab. Stable and Insiders are available without an achievement. Use /blobby in Chat to unlock True Name and its solid and custom colors. If the pet is off, the command turns it on; if it is already on, it opens the Color tab. Activating the True Name achievement also opens Color. Use Tab to reach a color card, then Enter or Space to apply it. For a custom color, use the color picker or enter an opaque hex value such as #ff8800, then activate Apply Color or press Enter in the hex input. The preview does not change the pet until you apply it."),
 			localize('chatPet.achievements.accessibilityHelp.roadmap', "The final TBD card is informational and lists upcoming pet ideas. The VS Code pet and achievements are experimental and may change."),
-			localize('chatPet.achievements.accessibilityHelp.close', "Press Escape to close the Achievements modal."),
+			localize('chatPet.achievements.accessibilityHelp.close', "Press Escape to close Customize Blobby. Unapplied custom color changes are discarded."),
 		].join('\n\n');
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.ChatPetAchievements,
