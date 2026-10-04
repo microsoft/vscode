@@ -209,6 +209,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"arguments": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Telemetry-safe tool arguments; unsafe values are hashed by the runtime." },
 		"result_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Coarse tool result outcome, either SUCCESS or FAILURE." },
 		"invoke_outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Fine-grained invocation outcome: success, error, cancelled, or disabledByUser." },
+		"search_engine": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Search implementation used by the grep tool, either ripgrep or tgrep." },
 		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model that requested the tool call." },
 		"tool_call_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for this tool call, stable across correlated events." },
 		"turn_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier for the agent loop turn the tool was invoked in." },
@@ -227,6 +228,49 @@ type ModelCallTurnCorrelatedClassification = {
 		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Token count of the model-facing tool result, measured with the model tokenizer. Present only for successful results.", "isMeasurement": true },
 		"binary_result_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of binary result parts returned by the tool.", "isMeasurement": true },
 		"binary_result_total_bytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total byte size of binary result parts returned by the tool.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/tgrep_startup": {
+		"owner": "bhavyaus",
+		"comment": "Reports the outcome and performance of an indexed-search startup attempt in the Copilot CLI runtime.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"outcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded outcome of the indexed-search startup attempt." },
+		"forced_by_env": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether indexed search was explicitly enabled through the environment." },
+		"warm_start": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the startup attempted to wait for index readiness." },
+		"disabled_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded configuration, policy, or workspace condition that disabled indexed search." },
+		"eligible": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the repository met the automatic indexing file-count threshold." },
+		"error_message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Indexed-search startup failure details, emitted only as restricted telemetry." },
+		"file_count": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of text files counted in the repository.", "isMeasurement": true },
+		"startup_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock duration of indexed-search startup in milliseconds.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/tgrep_server_error": {
+		"owner": "bhavyaus",
+		"comment": "Reports failures of the Copilot CLI indexed-search server.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"error_type": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Bounded category of the indexed-search server failure." },
+		"error_message": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Indexed-search server failure details, emitted only as restricted telemetry." },
+		"exit_code": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Indexed-search server process exit code when available.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/tgrep_incremental_indexing": {
+		"owner": "bhavyaus",
+		"comment": "Reports aggregate file counts and performance for incremental Copilot CLI indexed-search updates.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"phase": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether workspace changes were detected or the incremental index update completed." },
+		"changed_file_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of modified files detected during the incremental update.", "isMeasurement": true },
+		"added_file_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of added files detected during the incremental update.", "isMeasurement": true },
+		"deleted_file_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of deleted files detected during the incremental update.", "isMeasurement": true },
+		"total_change_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total number of changes detected during the incremental update.", "isMeasurement": true },
+		"walk_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Workspace scan duration in milliseconds.", "isMeasurement": true },
+		"update_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Index update duration in milliseconds.", "isMeasurement": true },
+		"total_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total incremental indexing duration in milliseconds.", "isMeasurement": true }
 	}
 */
 
