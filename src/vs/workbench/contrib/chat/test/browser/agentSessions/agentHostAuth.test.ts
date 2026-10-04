@@ -600,6 +600,27 @@ suite('AgentHostAuthenticationRecovery', () => {
 		});
 	});
 
+	test('failed sign-in after removing a rejected account offers an account-neutral retry', async () => {
+		const h = refusedTokenHarness();
+		const agents: AgentInfo[] = [{ provider: 'example', displayName: 'Example', description: '', models: [], protectedResources: [h.resource] }];
+		await h.recover();
+		h.setSessions([]);
+		await h.instantiation.invokeFunction(revokeAuthenticationForRemovedSessions, agents, 'test-provider', [h.oldSession], h.options);
+		h.setSignInSession({ ...h.freshSession, account: { id: 'account-b', label: 'Account B' }, scopes: [] });
+		await h.notifications[0].choices[0].run();
+		assert.deepStrictEqual({
+			accountHint: h.signIns[0].account,
+			updates: h.notifications[0].updates,
+			forwarded: h.forwarded,
+			closed: h.notifications[0].closed,
+		}, {
+			accountHint: undefined,
+			updates: [`Sign-in did not restore access to ${h.resource.resource}. Try signing in again.`],
+			forwarded: ['old-token', ''],
+			closed: false,
+		});
+	});
+
 	test('a refused initial forward joins recovery without blocking other protected resources', async () => {
 		const h = refusedTokenHarness();
 		h.setSessions([h.oldSession, { ...h.freshSession, scopes: ['profile:read'] }]);

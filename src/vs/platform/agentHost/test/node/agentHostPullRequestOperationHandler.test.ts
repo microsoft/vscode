@@ -408,6 +408,7 @@ suite('AgentHostPullRequestOperationHandler', () => {
 				? handler.invoke({ channel, operationId: 'create-pr' }, CancellationToken.None)
 				: handler.prepare({ channel, operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None), {
 				code: AHP_AUTH_REQUIRED,
+				message: 'GitHub rejected repository access. Sign in again, then retry the pull request operation.',
 				data: { resources: [GITHUB_REPO_PROTECTED_RESOURCE] },
 			});
 			assert.deepStrictEqual({ requests, git: git.calls, createdEvents }, { requests: ['/user'], git: [], createdEvents: [] });
@@ -425,6 +426,25 @@ suite('AgentHostPullRequestOperationHandler', () => {
 		});
 		assert.deepStrictEqual({ git: git.calls, generated: copilotApiService.calls.length }, { git: [], generated: 0 });
 	});
+
+	for (const phase of ['creation', 'preparation']) {
+		test(`PR ${phase} does not report a generation transition as a rejected credential`, async () => {
+			const client = new TestGitHubClient();
+			client.capabilitiesError = new GitHubRequestError('GitHub credential generation was invalidated', 'authentication');
+			const git = new TestGitService();
+			git.uncommitted = true;
+			const { handler, session, createdEvents, copilotApiService } = setup(disposables, git, client);
+			const channel = buildSessionChangesetUri(session.toString());
+			await assert.rejects(phase === 'creation'
+				? handler.invoke({ channel, operationId: 'create-pr', _meta: createPullRequestOperationMeta({ ...submittedOptions, autoMergeMethod: 'MERGE' }) }, CancellationToken.None)
+				: handler.prepare({ channel, operationId: PREPARE_PULL_REQUEST_OPERATION_ID }, CancellationToken.None), {
+				code: AHP_AUTH_REQUIRED,
+				message: 'GitHub authentication is unavailable or has changed. Retry the pull request operation.',
+				data: { resources: [GITHUB_REPO_PROTECTED_RESOURCE] },
+			});
+			assert.deepStrictEqual({ git: git.calls, generated: copilotApiService.calls.length, createdEvents }, { git: [], generated: 0, createdEvents: [] });
+		});
+	}
 
 	test('a rejected create is not replayed after authentication fails', async () => {
 		const client = new TestGitHubClient();

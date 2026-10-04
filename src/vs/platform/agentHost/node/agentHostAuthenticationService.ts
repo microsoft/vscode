@@ -53,7 +53,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	declare readonly _serviceBrand: undefined;
 	private readonly _tokens = new Map<string, IStoredAuthToken>();
-	private readonly _rejectedTokens = new Map<string, { readonly token: string; readonly scopes: readonly string[] }[]>();
+	private readonly _rejectedTokens = new Map<string, Set<string>>();
 	private readonly _authenticationRequests = new Map<string, IAuthenticationRequest>();
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
@@ -222,8 +222,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (this._store.isDisposed || !stored || stored.token !== token || authenticationAccountId(stored.account) !== accountId || this._isRejectedToken(stored, token)) {
 			return false;
 		}
-		const rejected = this._rejectedTokens.get(request.resource) ?? [];
-		rejected.push({ token, scopes: this._normalizeScopes(request.scopes) });
+		const rejected = this._rejectedTokens.get(request.resource) ?? new Set<string>();
+		rejected.add(token);
 		this._rejectedTokens.set(request.resource, rejected);
 		this._logService.debug(`[AgentHostAuthenticationService] Quarantined a refused credential for resource=${request.resource}`);
 		// Let the failing request's promise chain settle before retiring its client.
@@ -236,9 +236,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	private _isRejectedToken(request: IAgentHostAuthTokenRequest, token: string): boolean {
-		const scopes = this._normalizeScopes(request.scopes);
-		return !!token && (this._rejectedTokens.get(request.resource)?.some(rejected =>
-			rejected.token === token && (scopes.length === 0 || rejected.scopes.every(scope => scopes.includes(scope)))) ?? false);
+		return !!token && (this._rejectedTokens.get(request.resource)?.has(token) ?? false);
 	}
 
 	private _getAuthToken(request: IAgentHostAuthTokenRequest, includeExpired: boolean): IStoredAuthToken | undefined {

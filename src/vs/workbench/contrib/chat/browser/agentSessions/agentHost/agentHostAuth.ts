@@ -470,7 +470,7 @@ export class AgentHostAuthenticationRecovery extends Disposable {
 						} catch (error) {
 							if (!isCancellationError(error)) {
 								logService.error(`${options.logPrefix} Could not restore authentication for ${resource.resource}`, error);
-								notification.updateMessage(localize('agentHost.resourceSignInFailed', "Sign-in did not restore access to {0}. Try signing in again with the same account.", resource.resource_name ?? resource.resource));
+								notification.updateMessage(localize('agentHost.resourceSignInFailed', "Sign-in did not restore access to {0}. Try signing in again.", resource.resource_name ?? resource.resource));
 							}
 						} finally {
 							signingIn = false;

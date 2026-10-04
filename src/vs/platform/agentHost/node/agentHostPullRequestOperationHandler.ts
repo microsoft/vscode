@@ -191,7 +191,9 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 			this._throwIfCancelled(token);
 			if (error instanceof GitHubRequestError && error.kind === 'authentication') {
 				throw new ProtocolError(AHP_AUTH_REQUIRED,
-					localize('agentHost.changeset.pr.authRejected', "GitHub rejected repository access. Sign in again, then retry the pull request operation."),
+					error.statusCode === 401
+						? localize('agentHost.changeset.pr.authRejected', "GitHub rejected repository access. Sign in again, then retry the pull request operation.")
+						: localize('agentHost.changeset.pr.authUnavailable', "GitHub authentication is unavailable or has changed. Retry the pull request operation."),
 					{ resources: [resource] });
 			}
 			throw error;

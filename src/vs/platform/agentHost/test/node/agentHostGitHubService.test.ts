@@ -169,6 +169,36 @@ suite('Agent Host GitHub clients', () => {
 		});
 	});
 
+	test('a refused bearer stays quarantined across all scopes on its resource', async () => {
+		const endpoint = createTestGitHubEndpointService();
+		const resource = endpoint.getRepoResource().resource;
+		const otherResource = endpoint.getCopilotResource().resource;
+		const authentication = store.add(new AgentHostAuthenticationService(new NullLogService()));
+		const dispatched: string[] = [];
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [endpoint.getRepoResource(), endpoint.getCopilotResource()]; }
+			override async authenticate(resource: string, token: string) { dispatched.push(`${resource}:${token}`); return true; }
+		}();
+		await authentication.authenticate({ resource, scopes: ['repo', 'gist'], token: 'refused' }, [provider]);
+		await authentication.authenticate({ resource, scopes: ['workflow'], token: 'refused' }, [provider]);
+		await authentication.authenticate({ resource: otherResource, scopes: ['read:user'], token: 'refused' }, [provider]);
+		dispatched.length = 0;
+		const rejected = authentication.rejectToken({ resource, scopes: ['repo', 'gist'] }, 'refused', undefined);
+		const scopeSets: (readonly string[] | undefined)[] = [undefined, [], ['repo'], ['gist'], ['workflow'], ['repo', 'gist'], ['workflow', 'gist', 'repo']];
+		const attempts = [];
+		for (const scopes of scopeSets) {
+			const result = await authentication.authenticate({ resource, scopes, token: 'refused' }, [provider]);
+			attempts.push({ authenticated: result.authenticated, token: authentication.getAuthToken({ resource, scopes }) });
+		}
+		await authentication.replay(provider);
+		assert.deepStrictEqual({
+			rejected, attempts, dispatched, otherToken: authentication.getAuthToken({ resource: otherResource, scopes: ['read:user'] }),
+		}, {
+			rejected: true, attempts: scopeSets.map(() => ({ authenticated: false, token: undefined })),
+			dispatched: [`${otherResource}:refused`], otherToken: 'refused',
+		});
+	});
+
 	test('an aborted bootstrap and late 401 never quarantine a replacement token', async () => {
 		const endpoint = createTestGitHubEndpointService();
 		const resource = endpoint.getRepoResource();
