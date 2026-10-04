@@ -5,24 +5,18 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
-import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
+import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfigurationProperties } from '../../browser/chatNetworkConfiguration.js';
 
 suite('Chat network configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	suiteSetup(async () => {
-		await import('../../browser/chat.shared.contribution.js');
-	});
-
 	test('orders sandbox domain settings after user-configured paths and preserves policy names', () => {
 		const properties = {
 			...terminalContribConfiguration,
-			...Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties(),
+			...chatNetworkDomainConfigurationProperties,
 		};
 		assert.deepStrictEqual([
 			AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
@@ -44,8 +38,7 @@ suite('Chat network configuration', () => {
 		['chat.agent.deniedNetworkDomains', AgentNetworkDomainSettingId.DeniedNetworkDomains],
 	]) {
 		test(`migrates ${oldKey} including application settings without overwriting the new key`, async () => {
-			const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
-			const migration = migrations.find(migration => migration.key === oldKey);
+			const migration = chatNetworkDomainConfigurationMigrations.find(migration => migration.key === oldKey);
 			assert.deepStrictEqual({
 				includeApplication: migration?.includeApplication,
 				migrated: await migration?.migrateFn(['example.com'], () => undefined),
