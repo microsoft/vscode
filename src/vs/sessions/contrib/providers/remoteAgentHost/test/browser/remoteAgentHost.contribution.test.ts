@@ -522,16 +522,16 @@ suite('Remote Agent Host chat session contribution', () => {
 	test('provides its own welcome instead of the delegation fallback', () => {
 		const registeredContribution = registerAgent('test-host', {
 			provider: 'codex',
-			displayName: 'Codex',
+			displayName: '> Codex',
 			description: 'test',
 			models: [],
-		}, 'build_box');
+		}, '<b>build_box</b>');
 		assert.deepStrictEqual(registeredContribution && {
 			welcomeTitle: registeredContribution.welcomeTitle,
 			welcomeMessage: registeredContribution.welcomeMessage,
 		}, {
-			welcomeTitle: 'Codex [build_box]',
-			welcomeMessage: 'Codex runs on build\\_box.',
+			welcomeTitle: '> Codex [<b>build_box</b>]',
+			welcomeMessage: '\\> Codex runs on \\<b\\>build\\_box\\<\\/b\\>.',
 		});
 	});
 });

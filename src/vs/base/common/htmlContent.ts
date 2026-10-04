@@ -158,6 +158,14 @@ export function escapeMarkdownSyntaxTokens(text: string): string {
 }
 
 /**
+ * Backslash-escapes every ASCII punctuation character, which Markdown always renders literally, so plain
+ * `text` keeps no HTML, blockquote, list, emphasis, link or autolink meaning when interpolated into Markdown.
+ */
+export function escapeMarkdownText(text: string): string {
+	return text.replace(/[!-\/:-@\[-`{-~]/g, '\\$&'); // CodeQL [SM02383] Backslash is in the escaped range
+}
+
+/**
  * Escapes only the characters that would break out of markdown link text
  * (`[label](url)`) syntax: `\` and `]`. Use this when the escaped string is
  * displayed as the visible label of a link, since renderers that extract the

@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { escapeMarkdownSyntaxTokens } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownText } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
@@ -302,7 +302,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			displayName: agent.displayName,
 			description: agent.description,
 			welcomeTitle: agent.displayName,
-			welcomeMessage: localize('agentHost.welcomeMessage', "{0} runs on this machine.", escapeMarkdownSyntaxTokens(agent.displayName)),
+			welcomeMessage: localize('agentHost.welcomeMessage', "{0} runs on this machine.", escapeMarkdownText(agent.displayName)),
 			locations: agent.provider === 'copilotcli' ? [ChatAgentLocation.Chat, ChatAgentLocation.Terminal, ChatAgentLocation.EditorInline] : undefined,
 			customAgentTarget: this._isSessionsWindow ? undefined : Target.GitHubCopilot,
 			canDelegate: true,

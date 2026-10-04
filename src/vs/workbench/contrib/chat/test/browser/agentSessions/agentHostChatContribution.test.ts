@@ -12863,12 +12863,16 @@ suite('AgentHostChatContribution', () => {
 			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
 
 			services.agentHostService.setRootState({
-				agents: [{ provider: 'testagent', displayName: 'Test_Agent', description: 'test', models: [] }],
+				agents: [
+					{ provider: 'htmlagent', displayName: '<b>Test_Agent</b>', description: 'test', models: [] },
+					{ provider: 'quoteagent', displayName: '> Test Agent', description: 'test', models: [] },
+				],
 				activeSessions: 0,
 			});
 
 			assert.deepStrictEqual(services.chatSessionContributions.map(c => ({ welcomeTitle: c.welcomeTitle, welcomeMessage: c.welcomeMessage })), [
-				{ welcomeTitle: 'Test_Agent', welcomeMessage: 'Test\\_Agent runs on this machine.' },
+				{ welcomeTitle: '<b>Test_Agent</b>', welcomeMessage: '\\<b\\>Test\\_Agent\\<\\/b\\> runs on this machine.' },
+				{ welcomeTitle: '> Test Agent', welcomeMessage: '\\> Test Agent runs on this machine.' },
 			]);
 		});
 	});

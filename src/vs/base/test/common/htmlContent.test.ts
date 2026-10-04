@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens } from '../../common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, escapeMarkdownText } from '../../common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('htmlContent', () => {
@@ -74,6 +74,24 @@ suite('htmlContent', () => {
 			assert.strictEqual(escapeMarkdownSyntaxTokens('  - indented'), '  \\- indented');
 			assert.strictEqual(escapeMarkdownSyntaxTokens('---'), '\\---');
 			assert.strictEqual(escapeMarkdownSyntaxTokens('line one\n- item'), 'line one\n\\- item');
+		});
+	});
+
+	suite('escapeMarkdownText', () => {
+		test('escapes every ASCII punctuation character and nothing else', () => {
+			assert.deepStrictEqual([
+				'<b>Agent</b>',
+				'> Agent',
+				'1. user@host.example.com:4321',
+				'a & b &lt; c\\',
+				'Copilot CLI 2',
+			].map(escapeMarkdownText), [
+				'\\<b\\>Agent\\<\\/b\\>',
+				'\\> Agent',
+				'1\\. user\\@host\\.example\\.com\\:4321',
+				'a \\& b \\&lt\\; c\\\\',
+				'Copilot CLI 2',
+			]);
 		});
 	});
 });
