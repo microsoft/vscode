@@ -60,6 +60,16 @@ VS Code forwards optional account provenance through the standard authentication
 
 Private caches and request sharing remain token/base-specific. Host-supplied account provenance affects only quota accounting: known IDs share applicable GitHub account limits, while unknown identities use a conservative origin-wide bootstrap bucket. Known bootstrap clients also honor outstanding unresolved-origin waits. A bootstrap waiter fails promptly as rate-limited when the cooldown cannot fit its deadline; authenticated repository and anonymous reads keep their existing deadline behavior. Client release preserves live server cooldowns and cannot cancel another token's work. Migrating Copilot discovery to this capability is a separate, deferred change.
 
+### Repository queries
+
+Authorized clients expose one-shot `getRepository`, `listRepositories` and `searchRepositories` operations in addition to repository subscriptions. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them.
+
+Discovery takes an account handle, not a synthetic repository or Agent Host/session context. Each call fetches one page (1–100 items, default 100) and returns an optional `nextPage` from the server's pagination signal. Callers own iteration, selection, sorting, query qualifiers and operation budgets; the service does not fetch organizations, scope a search to the current user, or automatically drain every page. Empty queries and invalid pagination fail with a validation error before credential resolution or network dispatch.
+
+Search also returns `totalCount`, `incompleteResults` and `limitReached`. The last field identifies searches exceeding GitHub's 1,000 retrievable results; pagination never advertises a page beyond that ceiling. A missing `nextPage` does not imply a complete search when either flag is set. Malformed completeness fields are errors, not empty successful results.
+
+These contracts cover metadata/discovery requirements of core repository presentations, the legacy Sessions repository picker, and the built-in GitHub remote-source provider without taking over their UI, account selection or git workflows. Those legacy renderer/extension consumers remain unmigrated; shared-process authenticated-client IPC and repository creation/fork/branch APIs are separate work.
+
 ### Agent Host repository and PR operations
 
 The [association resolver](../agentHost/node/agentHostPullRequestAssociationResolver.ts), [creation handler](../agentHost/node/agentHostPullRequestOperationHandler.ts) and [title controller](../agentHost/node/agentHostSessionTitleController.ts) retain an authorized client for each operation. They reuse the binding's selected repository resource and existing silent missing-token checks; title context does not introduce another scope requirement or a sign-in prompt.
