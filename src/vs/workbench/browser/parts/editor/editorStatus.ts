@@ -1267,8 +1267,7 @@ export class ChangeLanguageAction extends Action2 {
 							if (languageId) {
 								languageSelection = languageService.createById(languageId);
 							} else {
-								// Detection came up empty. Say so, otherwise picking "Auto Detect"
-								// looks like it did nothing at all.
+								// Otherwise choosing "Auto Detect" looks like it did nothing.
 								notificationService.warn(localize('noDetection', "Unable to detect editor language"));
 							}
 						}

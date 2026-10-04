@@ -22,16 +22,7 @@ const expectedRelativeConfidence = 0.2;
 const positiveConfidenceCorrectionBucket1 = 0.05;
 const positiveConfidenceCorrectionBucket2 = 0.025;
 
-/**
- * Languages whose syntax is simple or ambiguous enough that a low confidence guess is usually
- * wrong (see #131912), so they are held to a much higher bar than everything else.
- *
- * This bar has to stay reachable: an earlier version subtracted 0.5 from the score instead, which
- * put these languages permanently below `expectedRelativeConfidence` and meant they were never
- * detected at all. Other candidates that aren't built in but are supported by the model include
- * Assembly and TeX (no clear language modes in the community) and Markdown and Dockerfile (simple
- * languages, but they embed other languages).
- */
+/** Languages whose simple or ambiguous syntax makes low-confidence guesses unreliable (#131912). */
 const strictConfidenceThreshold = 0.5;
 const strictConfidenceLanguages = new Set([
 	// languages that are provided by default in VS Code
@@ -44,9 +35,6 @@ export function create(workerServer: IWebWorkerServer): IWebWorkerServerRequestH
 	return new LanguageDetectionWorker(workerServer);
 }
 
-/**
- * The minimum confidence `languageId` has to reach before we are willing to report it.
- */
 export function minimumConfidenceFor(languageId: string): number {
 	return strictConfidenceLanguages.has(languageId) ? strictConfidenceThreshold : expectedRelativeConfidence;
 }
@@ -83,15 +71,7 @@ export function adjustLanguageConfidence(modelResult: ModelResult): ModelResult 
 	return { ...modelResult, confidence: modelResult.confidence + correction };
 }
 
-/**
- * Ranks the model's raw results, yielding the most likely language first followed by any runners up
- * that are close enough to still be plausible, and stopping at the first clear drop-off.
- *
- * Every result that clears its minimum confidence is yielded as soon as it is accepted. Do not go
- * back to accumulating candidates to yield later: the previous implementation collected them into
- * an array that two of its three exit paths dropped on the floor, so anything short of a runaway
- * winner was silently detected as nothing at all.
- */
+/** Yields the plausible languages, most likely first, stopping at the first clear drop-off in confidence. */
 export function* rankModelResults(modelResults: ModelResult[] | undefined): Generator<ModelResult, void, unknown> {
 	if (!modelResults?.length) {
 		return;

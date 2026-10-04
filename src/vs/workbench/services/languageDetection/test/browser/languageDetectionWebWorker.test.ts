@@ -27,9 +27,6 @@ suite('LanguageDetectionWorker - ranking model results', () => {
 		assert.deepStrictEqual(rank(['rs', 0.92], ['go', 0.04], ['c', 0.01]), ['rs']);
 	});
 
-	// The cases below all used to detect nothing at all, because the previous implementation
-	// accumulated candidates into an array that it then never yielded.
-
 	test('reports a moderate leader with a close runner up', () => {
 		assert.deepStrictEqual(rank(['rs', 0.35], ['go', 0.19], ['lua', 0.05]), ['rs']);
 	});
