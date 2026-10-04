@@ -107,11 +107,20 @@ This is not a proxy for `IGitHubClient`'s nested functions, resources or disposa
 
 This preparation uses the engine's existing default fetch. Host-specific fetch, proxy and certificate integration is deferred; it does not modify the Agent Host proxy resolver or any existing workbench networking. Resolve that transport integration before migrating production callers.
 
+### Public repository files
+
+[The repository-file reader](common/githubRepository.ts) resolves `GET /repos/{owner}/{repo}/commits/HEAD`, then reads the Contents API with the resolved commit as `ref`. Both JSON reads share an anonymous client lease, cancellation signal, and five-minute absolute deadline. The reader validates the file envelope and base64 payload, accepts files up to 1 MiB, and never follows `download_url` or substitutes a blob SHA for the repository commit.
+
+Dev Container sample preparation uses this reader through the owning host's local `IGitHubService`, without desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client.
+
+**Merge prerequisite:** the desktop migration must not ship until the shared-process engine preserves the proxy and certificate behavior of the existing Electron-backed `IRequestService`. That transport integration is not implemented or verified by this change. Standalone hosts retain their local `AgentHostProxyResolver.fetch` binding.
+
 Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
 
 ```powershell
 npm run transpile-client
 npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\node\githubService.test.ts
+npm run test-node -- --run src\vs\platform\github\test\common\githubRepository.test.ts --run src\vs\platform\agentHost\test\node\devContainerSamples.test.ts --run src\vs\platform\agentHost\test\node\devContainerAgentHostService.test.ts --run src\vs\platform\agentHost\test\node\agentHostServices.test.ts
 .\scripts\test.bat --run src\vs\platform\github\test\electron-utility\githubService.test.ts
 ```
 

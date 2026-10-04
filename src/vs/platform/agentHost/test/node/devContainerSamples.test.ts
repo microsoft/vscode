@@ -7,13 +7,20 @@ import assert from 'assert';
 import { createHash } from 'crypto';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { readPublicGitHubRepositoryFile } from '../../../github/common/githubRepository.js';
+import { GitHubService } from '../../../github/common/githubService.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../common/devContainerSamples.js';
 import { getDevContainerSampleLabels, getDevContainerSampleVolumeName, parseDevContainerSampleConfiguration, prepareDevContainerSample } from '../../node/devContainerSamples.js';
 
 suite('Dev Container samples', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const sample = devContainerSamples[2];
 	const repositoryPath = 'https://github.com/Microsoft/vscode-remote-try-node';
 	const folder = 'vscode-remote-try-node';
@@ -85,16 +92,25 @@ suite('Dev Container samples', () => {
 		const calls: string[] = [];
 		const fetchedUrls: string[] = [];
 		const cloneUsesLowercaseUrl: boolean[] = [];
+		const cloneUsesPinnedCommit: boolean[] = [];
 		const volumeName = getDevContainerSampleVolumeName(sample, []);
 		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
+		const service = store.add(new GitHubService({
+			credentialProvider: { onDidChange: Event.None, getToken: () => { throw new Error('Samples must remain anonymous'); } },
+			fetch: async input => {
+				const url = String(input);
+				fetchedUrls.push(url);
+				calls.push(url.includes('/commits/') ? 'commit' : 'config');
+				const content = VSBuffer.fromString(JSON.stringify(config));
+				return new Response(JSON.stringify(url.includes('/commits/') ? { sha: commit } : {
+					type: 'file', encoding: 'base64', size: content.byteLength, content: encodeBase64(content), sha: 'b'.repeat(40),
+				}));
+			},
+		}, new NullLogService(), NullTelemetryService));
 		let existing = false;
 		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
 			onContainerStarted: id => calls.push(`started ${id}`),
-			fetch: async url => {
-				fetchedUrls.push(url);
-				calls.push(url.includes('/commits/') ? 'commit' : 'config');
-				return url.includes('/commits/') ? JSON.stringify({ sha: commit }) : JSON.stringify(config);
-			},
+			readSource: () => readPublicGitHubRepositoryFile(service, 'microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None),
 			docker: async args => {
 				let stdout: string;
 				if (args[0] === 'volume') {
@@ -107,6 +123,7 @@ suite('Dev Container samples', () => {
 					calls.push(clone ? 'clone' : 'read config');
 					if (clone) {
 						cloneUsesLowercaseUrl.push(args.at(-1)!.includes('https://github.com/microsoft/vscode-remote-try-node'));
+						cloneUsesPinnedCommit.push(args.at(-1)!.includes(`checkout -B "$branch" '${commit}'`));
 					}
 					stdout = clone ? '' : JSON.stringify(config);
 				}
@@ -130,14 +147,18 @@ suite('Dev Container samples', () => {
 			calls,
 			fetchedUrls,
 			cloneUsesLowercaseUrl,
+			cloneUsesPinnedCommit,
 			sameIdentity: first.repository.volumeName === second.repository.volumeName,
+			source: JSON.parse(await readFile(join(cacheDirectory, 'source.json'), 'utf8')),
 			config: JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')),
 		}, {
 			calls: ['commit', 'config', 'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
 				'volume ls', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
-			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://raw.githubusercontent.com/microsoft/${folder}/${commit}/.devcontainer/devcontainer.json`],
+			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://api.github.com/repos/microsoft/${folder}/contents/.devcontainer/devcontainer.json?ref=${commit}`],
 			cloneUsesLowercaseUrl: [true, true],
+			cloneUsesPinnedCommit: [true, true],
 			sameIdentity: true,
+			source: { commit, content: JSON.stringify(config) },
 			config: {
 				...config,
 				workspaceFolder: `/workspaces/${folder}`,
@@ -150,7 +171,7 @@ suite('Dev Container samples', () => {
 	test('unsupported configuration fails before creating a volume or container', async () => {
 		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 			onContainerStarted: () => { throw new Error('No container should be registered'); },
-			fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"image","features":{"java":{}}}',
+			readSource: async () => ({ commitSha: commit, content: '{"image":"image","features":{"java":{}}}' }),
 			docker: async () => { throw new Error('Docker must not run'); },
 			devcontainer: async () => { throw new Error('Dev Container CLI must not run'); },
 		}), /requires an image build/);
@@ -161,7 +182,7 @@ suite('Dev Container samples', () => {
 			let lifecycleCalls = 0;
 			const preparation = prepareDevContainerSample(sample, cacheDirectory, {
 				onContainerStarted: () => { },
-				fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"old-image"}',
+				readSource: async () => ({ commitSha: commit, content: '{"image":"old-image"}' }),
 				docker: async args => ({
 					stdout: args[0] === 'inspect' ? JSON.stringify(rebuilt ? 'new-image' : 'old-image')
 						: args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath })
@@ -193,7 +214,7 @@ suite('Dev Container samples', () => {
 			const started: string[] = [];
 			await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 				onContainerStarted: id => started.push(id),
-				fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"sample-image"}',
+				readSource: async () => ({ commitSha: commit, content: '{"image":"sample-image"}' }),
 				docker: async args => {
 					const isClone = args.includes('/bin/sh');
 					return {
@@ -218,7 +239,7 @@ suite('Dev Container samples', () => {
 		const started: string[] = [];
 		await assert.rejects(prepareDevContainerSample(sample, cacheDirectory, {
 			onContainerStarted: id => started.push(id),
-			fetch: async url => url.includes('/commits/') ? JSON.stringify({ sha: commit }) : '{"image":"sample-image"}',
+			readSource: async () => ({ commitSha: commit, content: '{"image":"sample-image"}' }),
 			docker: async args => ({
 				stdout: args[1] === 'inspect' ? JSON.stringify({ 'vsch.local.repository': repositoryPath }) : '',
 				stderr: '', code: 0,

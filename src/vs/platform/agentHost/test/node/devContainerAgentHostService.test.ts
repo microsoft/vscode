@@ -25,6 +25,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { IRequestService } from '../../../request/common/request.js';
+import { IGitHubService } from '../../../github/common/githubService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
@@ -129,6 +130,7 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 					return [..._certificates];
 				}
 			}(),
+			new class extends mock<IGitHubService>() { }(),
 		);
 	}
 
