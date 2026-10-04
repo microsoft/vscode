@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { restore, spy } from 'sinon';
+import { restore, spy, useFakeTimers } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -40,7 +40,7 @@ suite('NativeIssueFormService', () => {
 
 	teardown(() => restore());
 
-	function createSearchService(fetch: RequestFetch, ready?: Promise<void>) {
+	function createSearchService(fetch: RequestFetch, ready?: Promise<void>, beforeResponse?: () => void) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IAuxiliaryWindowService, {});
 		instantiationService.stub(IMenuService, {});
@@ -85,9 +85,11 @@ suite('NativeIssueFormService', () => {
 		const client = new GitHubChannelClient(ready ? getDelayedChannel(ready.then(() => channel)) : channel);
 		const calls: { request: GitHubAnonymousRequest; token: CancellationToken }[] = [];
 		instantiationService.stub(ISharedProcessGitHubService, {
-			getAnonymous: <T>(request: GitHubAnonymousRequest, token: CancellationToken) => {
+			getAnonymous: async <T>(request: GitHubAnonymousRequest, token: CancellationToken) => {
 				calls.push({ request, token });
-				return client.getAnonymous<T>(request, token);
+				const response = await client.getAnonymous<T>(request, token);
+				beforeResponse?.();
+				return response;
 			},
 		});
 		return { service: store.add(instantiationService.createInstance(NativeIssueFormService)), calls, warnings, credentialRequests };
@@ -230,6 +232,29 @@ suite('NativeIssueFormService', () => {
 				warnings: action === 'deadline' ? ['[IssueFormService] GitHub issue search failed'] : [],
 			});
 		}));
+	}
+
+	for (const elapsed of [9_999, 10_000, 10_001]) {
+		test(`IPC completion at ${elapsed}ms observes the wall-clock deadline before the timer runs`, async () => {
+			const start = Date.now();
+			const clock = useFakeTimers({ now: start, toFake: ['Date'] });
+			try {
+				const { service, warnings } = createSearchService(
+					async () => new Response('{"items":[]}'),
+					undefined,
+					() => clock.setSystemTime(start + elapsed),
+				);
+				const pending = service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal);
+				if (elapsed < 10_000) {
+					assert.deepStrictEqual(await pending, []);
+				} else {
+					await assert.rejects(pending, { kind: 'timeout' });
+				}
+				assert.deepStrictEqual(warnings, elapsed < 10_000 ? [] : ['[IssueFormService] GitHub issue search failed']);
+			} finally {
+				clock.restore();
+			}
+		});
 	}
 
 	test('the ten-second deadline stops shared work and surfaces a timeout', () => runWithFakedTimers({}, async () => {

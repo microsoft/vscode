@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
@@ -71,23 +71,20 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		const lifetime = new DisposableStore();
 		const cancellation = lifetime.add(new CancellationTokenSource(this.gitHubSearchCancellation));
 		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel()));
-		let timedOut = false;
-		if (options.deadline !== undefined) {
-			lifetime.add(disposableTimeout(() => {
-				timedOut = true;
-				cancellation.cancel();
-			}, Math.max(0, options.deadline - Date.now())));
-		}
 		try {
 			signal.throwIfAborted();
-			const response = this.sharedProcessGitHubService.getAnonymous({ apiBaseUri: 'https://api.github.com', path, options }, cancellation.token);
-			return await raceCancellationError(response, cancellation.token);
-		} catch (error) {
-			if (timedOut) {
+			const request = raceCancellationError(
+				this.sharedProcessGitHubService.getAnonymous({ apiBaseUri: 'https://api.github.com', path, options }, cancellation.token),
+				cancellation.token,
+			);
+			const { deadline } = options;
+			const response = deadline === undefined ? await request
+				: await raceTimeout(request, Math.max(0, deadline - Date.now()), () => cancellation.cancel());
+			if (response === undefined || (deadline !== undefined && Date.now() >= deadline)) {
 				// IPC may still be connecting, so whether the request was dispatched is unknown.
 				throw new GitHubRequestError('GitHub issue search timed out', 'timeout');
 			}
-			throw error;
+			return response;
 		} finally {
 			lifetime.dispose();
 		}
