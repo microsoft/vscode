@@ -281,6 +281,32 @@ suite('AgentHostInputCompletions plain text', () => {
 		});
 	});
 
+	test('preserves slash command labels that differ only by an acceptance space', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const results = ['/review', '/review '].map(label => {
+			const built = completions.buildItem(new Position(1, 2), {
+				insertText: '/review ',
+				label,
+				attachment: { kind: 'text' },
+			}, upcastPartial<IChatWidget>({}));
+			return {
+				label: built?.label,
+				insertText: built?.insertText,
+				filterText: built?.filterText,
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ label: '/review', insertText: '/review ', filterText: '/review ' },
+			{ label: '/review ', insertText: '/review ', filterText: '/review ' },
+		]);
+	});
+
 	test('keeps plain-text slash commands visible when the host labels them with descriptions', () => {
 		const completions = store.add(new TestableAgentHostInputCompletions(
 			new LanguageFeaturesService(),
