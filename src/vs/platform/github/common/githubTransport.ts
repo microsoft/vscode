@@ -11,7 +11,7 @@ import { cancelResponseBody, parseResponseJson, readBoundedResponse } from './re
 import { IInFlightOperation, OperationWaiters } from './operationWaiters.js';
 import { GitHubGraphQLError, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError } from './githubTypes.js';
 import { AccountHandle, AnonymousAccount, BootstrapAccount, RequestFetch, RequestAccount, RequestContext, RequestErrorKind, RequestKind, RequestOptions, RequestPriority, RequestOutcome, requestOutcome, RequestError, RequestTimeoutError, RequestRateLimitError } from './types.js';
-import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
+import { classifyGitHubHttpRateLimit, GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { RequestQueue, RequestQueueOptions } from './requestQueue.js';
 import { IRequestScheduler, schedulerDelay, systemRequestScheduler } from './scheduler.js';
@@ -348,7 +348,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					} else if (response.body) {
 						cancelResponseBody(response.body, this._logService);
 					}
-					const kind = classifyHttpError(response.status, diagnosticBody);
+					const kind = !authenticated && response.status === 403 ? 'authorization' : classifyHttpError(response, diagnosticBody);
 					if (response.status === 403 && kind === 'rateLimit') {
 						this._telemetry?.record('rateLimitedResponses');
 					}
@@ -760,7 +760,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		const result = await readBoundedResponse(response, this._options.maximumResponseBytes, signal, this._logService);
 		signal.throwIfAborted();
 		const body = new TextDecoder().decode(result.bytes);
-		if (response.status === 403 && classifyHttpError(response.status, body) === 'rateLimit') {
+		if (response.status === 403 && classifyHttpError(response, body) === 'rateLimit') {
 			this._telemetry?.record('rateLimitedResponses');
 		}
 		this._rateLimits.updateFromResponse(account, response, body, resource);
@@ -820,7 +820,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	private _httpError(prefix: string, response: Response, body: string): GitHubRequestError {
 		const detail = formatErrorBody(body);
 		const message = `${prefix} - ${response.status} ${response.statusText}${detail ? ` - ${detail}` : ''}`;
-		return new GitHubRequestError(message, classifyHttpError(response.status, body), response.status, body, undefined, response.statusText);
+		return new GitHubRequestError(message, classifyHttpError(response, body), response.status, body, undefined, response.statusText);
 	}
 
 	private _parseJson<T>(body: string, message: string): T {
@@ -903,14 +903,16 @@ function restResource(url: string): string {
 	return /^(?:\/api\/v3)?\/search\//.test(new URL(url).pathname) ? 'search' : 'core';
 }
 
-function classifyHttpError(statusCode: number, body: string): RequestErrorKind {
-	switch (statusCode) {
+function classifyHttpError(response: Response, body: string): RequestErrorKind {
+	if (classifyGitHubHttpRateLimit(response, body)) {
+		return 'rateLimit';
+	}
+	switch (response.status) {
 		case 401: return 'authentication';
-		case 403: return body.toLowerCase().includes('rate limit') ? 'rateLimit' : 'authorization';
+		case 403: return 'authorization';
 		case 404: return 'notFound';
 		case 422: return 'validation';
-		case 429: return 'rateLimit';
-		default: return statusCode >= 500 ? 'server' : 'unknown';
+		default: return response.status >= 500 ? 'server' : 'unknown';
 	}
 }
 
