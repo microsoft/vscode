@@ -142,6 +142,80 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('CustomExecution', () => {
+			for (const disposeBeforeExecution of [true, false]) {
+				test(`provider disposal ${disposeBeforeExecution ? 'before execution preserves an extension-held task' : 'during execution preserves output and completion'}`, async () => {
+					window.terminals.forEach(terminal => terminal.dispose());
+					const name = `Disposed provider ${disposeBeforeExecution}`;
+					const writes = new EventEmitter<string>();
+					disposables.push(writes);
+					const closes = new EventEmitter<number>();
+					disposables.push(closes);
+					let callbackCount = 0;
+					let terminal: Terminal | undefined;
+					disposables.push(window.onDidOpenTerminal(value => {
+						terminal = value;
+						disposables.push(value);
+					}));
+					const output = new Promise<string>(resolve => {
+						disposables.push(window.onDidWriteTerminalData(event => {
+							if (event.terminal === terminal && event.data.includes(name)) {
+								resolve(event.data);
+							}
+						}));
+					});
+					const ended = new Promise<void>(resolve => {
+						disposables.push(tasks.onDidEndTask(event => {
+							if (event.execution.task.name === name) {
+								resolve();
+							}
+						}));
+					});
+					const task = new Task({ type: 'customTesting', customProp1: name }, TaskScope.Workspace, name, 'customTesting', new CustomExecution(async () => {
+						callbackCount++;
+						return {
+							onDidWrite: writes.event,
+							onDidClose: closes.event,
+							open: () => writes.fire(`${name}\r\n`),
+							close() { }
+						};
+					}));
+					const registration = tasks.registerTaskProvider('customTesting', {
+						provideTasks: () => [task],
+						resolveTask: value => value
+					});
+					disposables.push(registration);
+					assert.strictEqual((await tasks.fetchTasks({ type: 'customTesting' })).some(value => value.name === name), true);
+					if (disposeBeforeExecution) {
+						registration.dispose();
+						assert.deepStrictEqual(await tasks.fetchTasks({ type: 'customTesting' }), []);
+					}
+					const execution = await tasks.executeTask(task);
+					const data = await output;
+					if (!disposeBeforeExecution) {
+						registration.dispose();
+						assert.deepStrictEqual(await tasks.fetchTasks({ type: 'customTesting' }), []);
+						assert.ok(tasks.taskExecutions.includes(execution));
+					}
+					closes.fire(0);
+					await ended;
+					assert.ok(terminal);
+					const closed = new Promise<void>(resolve => {
+						disposables.push(window.onDidCloseTerminal(value => {
+							if (value === terminal) {
+								resolve();
+							}
+						}));
+					});
+					terminal.dispose();
+					await closed;
+					assert.deepStrictEqual({ data, callbackCount, active: tasks.taskExecutions.includes(execution) }, {
+						data: `${name}\r\n`,
+						callbackCount: 1,
+						active: false
+					});
+				});
+			}
+
 			test('task should start and shutdown successfully', async () => {
 				window.terminals.forEach(terminal => terminal.dispose());
 				interface ICustomTestingTaskDefinition extends TaskDefinition {
