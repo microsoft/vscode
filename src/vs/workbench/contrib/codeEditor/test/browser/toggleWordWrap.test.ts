@@ -12,7 +12,6 @@ import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorEx
 import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { RefCounted } from '../../../../../editor/browser/widget/diffEditor/utils.js';
-import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
@@ -25,7 +24,7 @@ suite('Toggle Word Wrap', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('toggling word wrap while a diff editor is rendered inline applies to its original editor once it is shown again', async () => {
+	function createDiffEditor(wordWrap: 'on' | 'off') {
 		const services = new ServiceCollection();
 		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
 		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
@@ -39,7 +38,7 @@ suite('Toggle Word Wrap', () => {
 		const contributions = EditorExtensionsRegistry.getSomeEditorContributions(['editor.contrib.toggleWordWrapController']);
 		const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
 			renderGutterMenu: false,
-			wordWrap: 'off',
+			wordWrap,
 			useInlineViewWhenSpaceIsLimited: true,
 			renderSideBySideInlineBreakpoint: 900,
 		}, {
@@ -51,19 +50,40 @@ suite('Toggle Word Wrap', () => {
 		lines[5] = 'const value5 = 5;';
 		const modified = disposables.add(instantiateTextModel(instantiationService, lines.join('\n')));
 		widget.setDiffModel(disposables.add(RefCounted.create(widget.createViewModel({ original, modified }))));
-		const toggleWordWrap = [...EditorExtensionsRegistry.getEditorActions()].find(a => a.id === 'editor.action.toggleWordWrap')!;
+		const toggleWordWrapAction = [...EditorExtensionsRegistry.getEditorActions()].find(a => a.id === 'editor.action.toggleWordWrap')!;
+		return {
+			widget,
+			toggleWordWrap: () => instantiationService.invokeFunction(accessor => toggleWordWrapAction.runEditorCommand(accessor, widget.getModifiedEditor(), undefined)),
+			isWrapping: () => ({
+				original: widget.getOriginalEditor().getLayoutInfo().isViewportWrapping,
+				modified: widget.getModifiedEditor().getLayoutInfo().isViewportWrapping,
+			}),
+		};
+	}
+
+	test('toggling word wrap while a diff editor is rendered inline applies to its original editor once it is shown again', async () => {
+		const { widget, toggleWordWrap, isWrapping } = createDiffEditor('off');
 		try {
 			widget.layout(new Dimension(800, 500));
-			await instantiationService.invokeFunction(accessor => toggleWordWrap.runEditorCommand(accessor, widget.getModifiedEditor(), undefined));
+			await toggleWordWrap();
 			widget.layout(new Dimension(1200, 500));
 
-			assert.deepStrictEqual({
-				original: widget.getOriginalEditor().getOption(EditorOption.wrappingInfo).isViewportWrapping,
-				modified: widget.getModifiedEditor().getOption(EditorOption.wrappingInfo).isViewportWrapping,
-			}, {
-				original: true,
-				modified: true,
-			});
+			assert.deepStrictEqual(isWrapping(), { original: true, modified: true });
+		} finally {
+			widget.setDiffModel(null);
+		}
+	});
+
+	test('toggling word wrap back while a diff editor is rendered inline applies to its original editor once it is shown again', async () => {
+		const { widget, toggleWordWrap, isWrapping } = createDiffEditor('on');
+		try {
+			widget.layout(new Dimension(1200, 500));
+			await toggleWordWrap();
+			widget.layout(new Dimension(800, 500));
+			await toggleWordWrap();
+			widget.layout(new Dimension(1200, 500));
+
+			assert.deepStrictEqual(isWrapping(), { original: true, modified: true });
 		} finally {
 			widget.setDiffModel(null);
 		}

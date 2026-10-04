@@ -126,10 +126,12 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		const isWordWrapMinified = this._contextKeyService.createKey(isWordWrapMinifiedKey, wrappingInfo.isWordWrapMinified);
 		const isDominatedByLongLines = this._contextKeyService.createKey(isDominatedByLongLinesKey, wrappingInfo.isDominatedByLongLines);
 		let currentlyApplyingEditorConfig = false;
+		let couldToggleWordWrap = false;
 
 		this._register(_editor.onDidChangeConfiguration((e) => {
-			// the diff editor also changes wordWrapOverride2 of its original editor
-			if (!e.hasChanged(EditorOption.wrappingInfo) && !e.hasChanged(EditorOption.wordWrapOverride2)) {
+			// e.g. the original editor of an inline diff editor that is shown again
+			const becameToggleable = !couldToggleWordWrap && canToggleWordWrap(this._codeEditorService, this._editor);
+			if (!e.hasChanged(EditorOption.wrappingInfo) && !becameToggleable) {
 				return;
 			}
 			const options = this._editor.getOptions();
@@ -152,8 +154,10 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 
 		const ensureWordWrapSettings = () => {
 			if (!canToggleWordWrap(this._codeEditorService, this._editor)) {
+				couldToggleWordWrap = false;
 				return;
 			}
+			couldToggleWordWrap = true;
 
 			const transientState = readTransientState(this._editor.getModel(), this._codeEditorService);
 
