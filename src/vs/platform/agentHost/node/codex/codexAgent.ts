@@ -29,6 +29,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
 import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
+import { createAgentModelDefaultMeta } from '../../common/meta/agentModelDefaultMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -2139,7 +2140,9 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (generation !== this._modelCatalogGeneration || this._isShuttingDown || this._store.isDisposed) {
 			return;
 		}
-		this._models.set([...this._copilotModels, ...this._codexModels], undefined);
+		// `_defaultModel` runs the first model when a session selects none, so declare that one.
+		const models = [...this._copilotModels, ...this._codexModels];
+		this._models.set(models.map((model, index) => index === 0 ? { ...model, _meta: { ...model._meta, ...createAgentModelDefaultMeta() } } : model), undefined);
 		// Last, never first: announcing `ready` before the catalog lands is how the
 		// window renders "no account found".
 		this._sdkSetupChannel.refresh();

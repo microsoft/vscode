@@ -12,6 +12,7 @@ import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelIsDefault } from '../../../../../../platform/agentHost/common/meta/agentModelDefaultMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -91,9 +92,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	}
 
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+		const defaultModel = this._models.find(m => m.policyState !== 'disabled' && readAgentModelIsDefault(m));
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
-			.map((m, index) => {
+			.map(m => {
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
@@ -130,9 +132,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
-						// Hosts list their default model first. Left undeclared, the chat input
-						// falls back to a pick of its own that the host may not be able to run.
-						isDefaultForLocation: index === 0 ? { [ChatAgentLocation.Chat]: true } : {},
+						// Only the model the host marks, as list order implies no default. Left undeclared,
+						// the chat input falls back to a pick of its own that the host may not be able to run.
+						isDefaultForLocation: m === defaultModel ? { [ChatAgentLocation.Chat]: true } : {},
 						isUserSelectable: true,
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
 						warningText: notices?.warningText,

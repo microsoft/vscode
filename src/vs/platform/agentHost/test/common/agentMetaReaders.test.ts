@@ -18,6 +18,7 @@ import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUs
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
+import { createAgentModelDefaultMeta, readAgentModelIsDefault } from '../../common/meta/agentModelDefaultMeta.js';
 import { URI } from '../../../../base/common/uri.js';
 import { hasClientPluginMcpDefaultCwd, hasClientPluginMcpDefaultCwds, readClientPluginMcpDefaultCwd, toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 
@@ -497,6 +498,20 @@ suite('Agent host _meta readers', () => {
 			assert.strictEqual(readAgentModelSourceId(model(undefined)), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: 42 })), undefined);
 			assert.strictEqual(readAgentModelSourceId(model({ modelSourceId: '' })), undefined);
+		});
+	});
+
+	suite('agent model default meta', () => {
+		function model(meta: Record<string, unknown> | undefined): SessionModelInfo {
+			return { id: 'm', provider: 'p', name: 'n', _meta: meta };
+		}
+
+		test('round-trips the default marker and ignores any value other than true', () => {
+			assert.deepStrictEqual(createAgentModelDefaultMeta(), { 'vscode.defaultModel': true });
+			assert.deepStrictEqual(
+				[createAgentModelDefaultMeta(), undefined, {}, { 'vscode.defaultModel': false }, { 'vscode.defaultModel': 'true' }, { 'vscode.defaultModel': 1 }].map(meta => readAgentModelIsDefault(model(meta))),
+				[true, false, false, false, false, false],
+			);
 		});
 	});
 

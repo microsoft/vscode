@@ -205,16 +205,24 @@ suite('AgentHostLanguageModelProvider', () => {
 		]);
 	});
 
-	test('declares the first model the host publishes as the default', async () => {
+	test('declares only the model the host marks as its default, wherever it is listed', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('gpt-5.5'), makeModel('auto'), makeModel('claude-sonnet-4.6')]);
+		const defaultsFor = async (models: SessionModelInfo[]) => {
+			provider.updateModels(models);
+			const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			return infos.map(info => [info.metadata.id, info.metadata.isDefaultForLocation]);
+		};
 
-		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
-		assert.deepStrictEqual(infos.map(info => [info.metadata.id, info.metadata.isDefaultForLocation]), [
-			['gpt-5.5', { [ChatAgentLocation.Chat]: true }],
-			['auto', {}],
-			['claude-sonnet-4.6', {}],
-		]);
+		assert.deepStrictEqual({
+			marked: await defaultsFor([makeModel('auto'), makeModel('gpt-5.5', { 'vscode.defaultModel': true }), makeModel('claude-sonnet-4.6')]),
+			// A host that does not mark one declares no default, rather than one inferred from list order.
+			unmarked: await defaultsFor([makeModel('gpt-5.5'), makeModel('auto')]),
+			invalid: await defaultsFor([makeModel('gpt-5.5', { 'vscode.defaultModel': 'true' }), makeModel('auto', { 'vscode.defaultModel': 1 })]),
+		}, {
+			marked: [['auto', {}], ['gpt-5.5', { [ChatAgentLocation.Chat]: true }], ['claude-sonnet-4.6', {}]],
+			unmarked: [['gpt-5.5', {}], ['auto', {}]],
+			invalid: [['gpt-5.5', {}], ['auto', {}]],
+		});
 	});
 
 	test('carries picker category, price category, and promo from model metadata', async () => {
