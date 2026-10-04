@@ -12,11 +12,9 @@ import { createDecorator } from '../../platform/instantiation/common/instantiati
 import { IDevContainerRepository } from '../../platform/agentHost/common/devContainerSamples.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../platform/agentHost/common/devContainerAgentHost.js';
 
-/** Experimental setting that enables Dev Container Agent Host sessions. */
-export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
-
-export const DevContainerSamplesEnabledSettingId = 'chat.agentHost.devContainer.samples.enabled';
+export { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId };
 
 export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idleTimeout';
 

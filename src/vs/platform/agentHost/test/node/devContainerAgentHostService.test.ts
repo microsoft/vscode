@@ -7,7 +7,7 @@ import assert from 'assert';
 import { EventEmitter as NodeEventEmitter } from 'events';
 import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -355,6 +355,109 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 suite('Dev Container Agent Host Main Service', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('Docker diagnostics', () => {
+		class TestDockerDiagnosticsService extends TestDevContainerAgentHostMainService {
+			executable: string | undefined = '/test/docker';
+			readonly refreshes: boolean[] = [];
+			probeResult = Promise.resolve({ stdout: '"28.0.0"\n', stderr: '', code: 0 });
+			probeToken: CancellationToken | undefined;
+
+			protected override async _resolveDockerExecutable(refresh = false): Promise<string | undefined> {
+				this.refreshes.push(refresh);
+				return this.executable;
+			}
+
+			protected override _runLocalCommand(command: string, args: readonly string[], _environment: NodeJS.ProcessEnv = {}, token: CancellationToken = CancellationToken.None) {
+				this.localCommands.push({ command, args });
+				this.probeToken = token;
+				return this.probeResult;
+			}
+		}
+
+		test('missing executable does not run a Docker command', async () => {
+			const service = store.add(new TestDockerDiagnosticsService());
+			service.executable = undefined;
+			assert.deepStrictEqual({
+				status: await service.getDockerStatus(), commands: service.localCommands, refreshes: service.refreshes,
+			}, {
+				status: 'notInstalled', commands: [], refreshes: [true],
+			});
+		});
+
+		test('checks the daemon with read-only Docker info, without provisioning', async () => {
+			const service = store.add(new TestDockerDiagnosticsService());
+			assert.deepStrictEqual({
+				status: await service.getDockerStatus(), commands: service.localCommands, devContainerArgs: service.devContainerArgs,
+			}, {
+				status: 'running',
+				commands: [{ command: '/test/docker', args: ['info', '--format', '{{json .ServerVersion}}'] }],
+				devContainerArgs: [],
+			});
+		});
+
+		test('checks daemon reachability again after a failure', async () => {
+			const service = store.add(new TestDockerDiagnosticsService());
+			service.probeResult = Promise.resolve({ stdout: '', stderr: 'Cannot connect to the Docker daemon', code: 1 });
+			const first = await service.getDockerStatus();
+			service.probeResult = Promise.resolve({ stdout: '"28.0.0"\n', stderr: '', code: 0 });
+			const second = await service.getDockerStatus();
+			assert.deepStrictEqual({ first, second, refreshes: service.refreshes, commands: service.localCommands.length }, {
+				first: 'notRunning', second: 'running', refreshes: [true, true], commands: 2,
+			});
+		});
+
+		test('surfaces unexpected process failures', async () => {
+			const service = store.add(new TestDockerDiagnosticsService());
+			const result = new DeferredPromise<{ stdout: string; stderr: string; code: number }>();
+			service.probeResult = result.p;
+			const rejected = assert.rejects(service.getDockerStatus(), /Cannot execute Docker/);
+			result.error(new Error('Cannot execute Docker'));
+			await rejected;
+		});
+
+		test('times out a hung daemon probe after ten seconds and cancels the process', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const service = store.add(new TestDockerDiagnosticsService());
+			service.probeResult = new DeferredPromise<{ stdout: string; stderr: string; code: number }>().p;
+			const start = Date.now();
+			const status = await service.getDockerStatus();
+			assert.deepStrictEqual({ status, elapsed: Date.now() - start, cancelled: service.probeToken?.isCancellationRequested }, {
+				status: 'notRunning', elapsed: 10_000, cancelled: true,
+			});
+		}));
+
+		test('refreshes executable discovery and normal availability after Docker is installed or removed', async () => {
+			const directory = await mkdtemp(join(tmpdir(), 'vscode-docker-diagnostics-'));
+			const executable = join(directory, 'docker');
+			try {
+				const service = store.add(new class extends TestDevContainerAgentHostMainService {
+					protected override async _doResolveShellEnvironment(): Promise<NodeJS.ProcessEnv> {
+						return { PATH: directory };
+					}
+					protected override async _runLocalCommand(command: string, args: readonly string[]) {
+						this.localCommands.push({ command, args });
+						return { stdout: '"28.0.0"\n', stderr: '', code: 0 };
+					}
+				}());
+				const before = await service.isDockerAvailable();
+				const missing = await service.getDockerStatus();
+				await writeFile(executable, '', { mode: 0o755 });
+				const installed = await service.getDockerStatus();
+				const available = await service.isDockerAvailable();
+				await rm(executable);
+				const removed = await service.getDockerStatus();
+				const unavailable = await service.isDockerAvailable();
+				assert.deepStrictEqual({
+					before, missing, installed, available, removed, unavailable, commands: service.localCommands,
+				}, {
+					before: false, missing: 'notInstalled', installed: 'running', available: true, removed: 'notInstalled', unavailable: false,
+					commands: [{ command: executable, args: ['info', '--format', '{{json .ServerVersion}}'] }],
+				});
+			} finally {
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+	});
 
 	test('parses the final Dev Container CLI result', () => {
 		assert.deepStrictEqual(parseDevContainerUpResult([

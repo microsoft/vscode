@@ -35,6 +35,7 @@ import { ISessionFolder, ISessionWorkspace } from '../../../../../services/sessi
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { DevContainerAgentHostConnector, ensureDevContainerAgentHostsEnabled, getDevContainerEnvironment, isDevContainerWorkspaceAvailable, RemoteDevContainerService, reportDevContainerEnvironment } from '../../electron-browser/devContainerAgentHostConnector.contribution.js';
+import '../../../../../../workbench/contrib/chat/electron-browser/devContainerConfiguration.contribution.js';
 
 suite('Dev Container Agent Host Connector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -94,6 +94,8 @@ this._register(registerOnboardingTryout<ICommandTryoutPayload>({
 
 Availability is checked before preparation and again before execution. Feature commands must still enforce their own runtime invariants because state can change during asynchronous work.
 
+For prerequisites that must be resolved before changing windows, register a lazy, feature-owned `checkPrerequisites` callback. It runs only after invocation, in the originating window, before presentation or routing. Return `false` after cancellation or an explanatory dialog to stop without opening the destination. The native receiver skips this completed check; the destination presentation must still validate the state needed to execute safely.
+
 Use `isAI: true` for AI examples. Use `targetWindow: 'agents'` when the implementation belongs in the Agents window. The native handoff is request-scoped, cancellable before destination acceptance, and never persisted or replayed after reload.
 
 ## Built-in presentations

@@ -157,7 +157,7 @@ suite('NativeOnboardingTryoutWindow', () => {
 			runs: destination.tryoutService.runs.map(({ id, options }) => ({ id, options })),
 		}, {
 			requests: [{ requestId: options.runId, tryoutId: tryout.id, source: 'releaseNotes' }],
-			runs: [{ id: tryout.id, options }],
+			runs: [{ id: tryout.id, options: { ...options, skipPrerequisites: true } }],
 		});
 	});
 

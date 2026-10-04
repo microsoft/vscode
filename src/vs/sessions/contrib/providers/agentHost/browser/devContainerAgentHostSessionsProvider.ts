@@ -15,6 +15,7 @@ import { IAgentConnection } from '../../../../../platform/agentHost/common/agent
 import { supportsAgentHostDetachedWorktrees } from '../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { withAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { isSessionConfigWritable } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { AgentCustomization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -267,7 +268,7 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 		const trusted = await support.trustRequestService.requestResourcesTrust({
 			uri: sourceWorkspace,
 			message: sample
-				? localize('devContainerSample.trust', "Starting this sample clones {0} into a Docker volume and runs its Dev Container lifecycle commands.", getDevContainerSampleUrl(sample))
+				? localize('devContainerSample.trust', "Starting this sample clones {0} into a Docker volume and runs its Dev Container lifecycle commands. Sandboxing is currently not supported with samples and will be disabled for this session only. Your sandboxing setting will remain unchanged.", getDevContainerSampleUrl(sample))
 				: localize('devContainerAgentHost.trustFolder', "Starting the Dev Container can run lifecycle commands from this workspace."),
 		});
 		if (!trusted) {
@@ -363,11 +364,29 @@ export abstract class DevContainerAgentHostSessionsProvider extends BaseAgentHos
 				if ((detachedWorktree || sample) && property === SessionConfigKey.Isolation) {
 					continue;
 				}
+				if (sample && property === SessionConfigKey.SandboxEnabled) {
+					continue;
+				}
 				const targetProperty = targetConfig.schema.properties[property];
 				if (!targetProperty || targetProperty.readOnly) {
 					continue;
 				}
 				await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, property, value), replacementToken);
+			}
+			if (sample) {
+				const sandboxConfig = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
+				if (targetProvider.getSessionSandboxPolicy?.(replacement.sessionId)?.enabled
+					|| !sandboxConfig.schema.properties[SessionConfigKey.SandboxEnabled]
+					|| (sandboxConfig.values[SessionConfigKey.SandboxEnabled] !== 'off' && !isSessionConfigWritable(sandboxConfig.schema.properties[SessionConfigKey.SandboxEnabled], true))) {
+					throw new Error(localize('devContainerSample.sandboxUnsupported', "Dev Container samples currently require sandboxing to be disabled for the session, but the selected agent or its organization policy does not allow this."));
+				}
+				if (sandboxConfig.values[SessionConfigKey.SandboxEnabled] !== 'off') {
+					await raceCancellationError(targetProvider.setSessionConfigValue(replacement.sessionId, SessionConfigKey.SandboxEnabled, 'off'), replacementToken);
+				}
+				const configured = await targetProvider.whenSessionConfigResolved(replacement.sessionId, token);
+				if (configured.values[SessionConfigKey.SandboxEnabled] !== 'off' || targetProvider.getSessionSandboxPolicy?.(replacement.sessionId)?.enabled) {
+					throw new Error(localize('devContainerSample.sandboxDisableFailed', "Sandboxing could not be disabled for the Dev Container sample session."));
+				}
 			}
 			const replacementChat = replacement.mainChat.get();
 			const resolvedTargetModel = targetModel ?? (sourceModel

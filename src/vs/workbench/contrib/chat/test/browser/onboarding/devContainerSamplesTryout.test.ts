@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { createDevContainerSamplesTryout } from '../../../browser/onboarding/devContainerSamplesTryout.contribution.js';
+import { createDevContainerSamplesTryout } from '../../../browser/onboarding/devContainerSamplesTryout.js';
 
 suite('Dev Container samples tryout registration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

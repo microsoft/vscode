@@ -7,18 +7,14 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { DEV_CONTAINER_SAMPLES_TRYOUT_PRESENTATION_KIND } from '../../../../workbench/contrib/chat/common/onboarding/devContainerSamplesTryout.js';
-import { IOnboardingTryoutPresentationDefinition, IOnboardingTryoutRunContext, IOnboardingTryoutService, OnboardingTryoutAvailability, OnboardingTryoutPreparation, OnboardingTryoutResult, registerOnboardingTryoutPresentation } from '../../../../workbench/contrib/onboarding/common/onboardingTryout.js';
-import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
+import { IOnboardingTryoutPresentationDefinition, IOnboardingTryoutRunContext, IOnboardingTryoutService, OnboardingTryoutAvailability, OnboardingTryoutPreparation, registerOnboardingTryoutPresentation } from '../../../../workbench/contrib/onboarding/common/onboardingTryout.js';
+import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { INewSessionComposerService } from '../browser/newSessionComposerService.js';
-
-const requiredSettings = [RemoteAgentHostsEnabledSettingId, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId] as const;
 
 export class DevContainerSamplesTryoutPresentation extends Disposable implements IOnboardingTryoutPresentationDefinition<undefined> {
 	readonly kind = DEV_CONTAINER_SAMPLES_TRYOUT_PRESENTATION_KIND;
@@ -26,7 +22,6 @@ export class DevContainerSamplesTryoutPresentation extends Disposable implements
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
 		@INewSessionComposerService private readonly composerService: INewSessionComposerService,
 		@IOnboardingTryoutService private readonly tryoutService: IOnboardingTryoutService,
@@ -35,98 +30,32 @@ export class DevContainerSamplesTryoutPresentation extends Disposable implements
 	}
 
 	getAvailability(): OnboardingTryoutAvailability {
-		if (this._store.isDisposed || this.configurationService.getValue<boolean>('chat.disableAIFeatures') === true) {
-			return { kind: 'hidden' };
-		}
-		if (requiredSettings.some(setting => this.configurationService.inspect<boolean>(setting).policyValue === false)) {
-			return { kind: 'unavailable', message: localize('devContainerSamplesTryout.policy', "Your organization has disabled a setting required by Dev Container samples.") };
-		}
-		return { kind: 'ready' };
+		return this._store.isDisposed ? { kind: 'hidden' } : { kind: 'ready' };
 	}
 
 	async prepare(_payload: undefined, context: IOnboardingTryoutRunContext): Promise<OnboardingTryoutPreparation> {
-		if (this.isCancelled(context)) {
-			return { kind: 'cancelled' };
-		}
-		let hasRun = false;
+		const isCancelled = () => this._store.isDisposed || context.token.isCancellationRequested || context.store.isDisposed;
+		const isAvailable = () => areDevContainerSamplesEnabled(this.configurationService) && this.tryoutService.getAvailability(context.id).kind === 'ready';
+		const unavailable = { kind: 'unavailable', message: localize('devContainerSamplesTryout.pickerUnavailable', "The Dev Container samples picker is not available in the current Agents composer. Set up a local Agent Host and try again.") } as const;
 		return {
 			kind: 'ready',
 			run: async () => {
-				if (hasRun || this.isCancelled(context)) {
+				if (isCancelled()) {
 					return { kind: 'cancelled' };
 				}
-				hasRun = true;
-				return this.openSamples(context);
-			},
-		};
-	}
-
-	private isCancelled(context: IOnboardingTryoutRunContext): boolean {
-		return this._store.isDisposed || context.token.isCancellationRequested || context.store.isDisposed;
-	}
-
-	private unavailable(): OnboardingTryoutResult {
-		return { kind: 'unavailable', message: localize('devContainerSamplesTryout.pickerUnavailable', "The Dev Container samples picker is not available in the current Agents composer. Set up a local Agent Host and try again.") };
-	}
-
-	private checkAvailability(context: IOnboardingTryoutRunContext): OnboardingTryoutResult | undefined {
-		if (this.isCancelled(context)) {
-			return { kind: 'cancelled' };
-		}
-		for (const availability of [this.getAvailability(), this.tryoutService.getAvailability(context.id)]) {
-			if (availability.kind !== 'ready') {
-				return availability.kind === 'hidden' ? this.unavailable() : availability;
-			}
-		}
-		return undefined;
-	}
-
-	private async openSamples(context: IOnboardingTryoutRunContext): Promise<OnboardingTryoutResult> {
-		let unavailable = this.checkAvailability(context);
-		if (unavailable) {
-			return unavailable;
-		}
-		const disabledSettings = requiredSettings.filter(setting => this.configurationService.getValue<boolean>(setting) !== true);
-		if (disabledSettings.length) {
-			const { confirmed } = await this.dialogService.confirm({
-				type: 'info',
-				message: localize('devContainerSamplesTryout.enable', "Enable the settings required for Dev Container samples?"),
-				detail: localize('devContainerSamplesTryout.enableDetail', "The following user settings will be enabled:\n{0}\n\nThis opens the samples picker without choosing a sample or starting Docker. Your existing draft is preserved.", disabledSettings.join('\n')),
-				primaryButton: localize('devContainerSamplesTryout.enableButton', "Enable and Continue"),
-			});
-			if (!confirmed || this.isCancelled(context)) {
-				return { kind: 'cancelled' };
-			}
-			for (const setting of disabledSettings) {
-				unavailable = this.checkAvailability(context);
-				if (unavailable) {
+				if (!isAvailable()) {
 					return unavailable;
 				}
-				if (this.configurationService.getValue<boolean>(setting) !== true) {
-					await this.configurationService.updateValue(setting, true, ConfigurationTarget.USER);
+				const result = await this.sessionsService.openNewSession(undefined, context.token);
+				if (isCancelled() || result.trustDeclined) {
+					return { kind: 'cancelled' };
 				}
-			}
-		}
-		unavailable = this.checkAvailability(context);
-		if (unavailable) {
-			return unavailable;
-		}
-		if (!areDevContainerSamplesEnabled(this.configurationService)) {
-			return this.unavailable();
-		}
-		const result = await this.sessionsService.openNewSession(undefined, context.token);
-		unavailable = this.checkAvailability(context);
-		if (unavailable) {
-			return unavailable;
-		}
-		if (result.trustDeclined) {
-			return { kind: 'cancelled' };
-		}
-		const composer = this.composerService.activeComposer.get();
-		if (!composer || !isEqual(composer.sessionResource?.get(), result.session?.resource)) {
-			return this.unavailable();
-		}
-		return composer.showDevContainerSamples?.() ? { kind: 'opened' } : this.unavailable();
+				const composer = this.composerService.activeComposer.get();
+				return isAvailable() && composer && isEqual(composer.sessionResource?.get(), result.session?.resource) && composer.showDevContainerSamples?.()
+					? { kind: 'opened' }
+					: unavailable;
+			},
+		};
 	}
 }
 
@@ -140,9 +69,7 @@ export class DevContainerSamplesTryoutContribution extends Disposable implements
 			kind: DEV_CONTAINER_SAMPLES_TRYOUT_PRESENTATION_KIND,
 			isPayload: (value): value is undefined => value === undefined,
 			getAvailability: () => this._store.isDisposed ? { kind: 'hidden' } : { kind: 'ready' },
-			prepare: (payload, context) => this._store.isDisposed || context.token.isCancellationRequested || context.store.isDisposed
-				? Promise.resolve({ kind: 'cancelled' })
-				: presentation.value.prepare(payload, context),
+			prepare: (payload, context) => presentation.value.prepare(payload, context),
 		}));
 	}
 }

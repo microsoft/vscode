@@ -17,7 +17,7 @@ import { IChatEntitlementService, chatRequiresSetup } from '../../../services/ch
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
 import { IOnboardingRunResult, IOnboardingScenario } from '../common/onboardingScenario.js';
-import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, IOnboardingTryoutRunContext, IOnboardingTryoutScenario, IOnboardingTryoutService, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutResult, parseOnboardingTryoutArguments, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
+import { AGENTS_WINDOW_TRYOUT_PRESENTATION_KIND, IOnboardingTryoutExecutionOptions, IOnboardingTryoutRunContext, IOnboardingTryoutScenario, IOnboardingTryoutService, IOnboardingTryoutUnavailable, onboardingTryoutPresentationRegistry, OnboardingTryoutAvailability, OnboardingTryoutResult, parseOnboardingTryoutArguments, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../common/onboardingTryout.js';
 
 type TryoutEvent = {
 	tryoutId: string;
@@ -191,7 +191,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 			: scenario.presentation.kind;
 	}
 
-	run(id: string, token = CancellationToken.None, options?: IOnboardingTryoutRunOptions): Promise<OnboardingTryoutResult> {
+	run(id: string, token = CancellationToken.None, options?: IOnboardingTryoutExecutionOptions): Promise<OnboardingTryoutResult> {
 		parseOnboardingTryoutArguments([id]);
 		if (options && (!isOnboardingTryoutSource(options.source) || options.runId !== undefined && !isUUID(options.runId))) {
 			throw new Error(localize('onboarding.tryout.invalidRunOptions', "The feature example run context is invalid."));
@@ -241,7 +241,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 							guidanceResult = guidance;
 						}
 					},
-				});
+				}, options?.skipPrerequisites === true && this.environmentService.isSessionsWindow);
 				if (result.kind === 'opened' || result.kind === 'executed' || result.kind === 'prepared') {
 					onDidLaunch(result.kind);
 				}
@@ -273,7 +273,7 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 		return activeRun.promise;
 	}
 
-	private async doRun(context: IOnboardingTryoutRunContext): Promise<OnboardingTryoutResult> {
+	private async doRun(context: IOnboardingTryoutRunContext, skipPrerequisites: boolean): Promise<OnboardingTryoutResult> {
 		const { id, token } = context;
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			return { kind: 'cancelled' };
@@ -291,6 +291,18 @@ export class OnboardingTryoutService extends Disposable implements IOnboardingTr
 		const presentation = onboardingTryoutPresentationRegistry.get(presentationKind);
 		if (!presentation) {
 			return this.unavailable();
+		}
+		if (!skipPrerequisites && scenario.tryout.checkPrerequisites) {
+			if (!await raceCancellationError(scenario.tryout.checkPrerequisites(context), token)) {
+				return { kind: 'cancelled' };
+			}
+			if (this.getTryout(id) !== scenario || onboardingTryoutPresentationRegistry.get(presentationKind) !== presentation) {
+				return this.unavailable();
+			}
+			const currentAvailability = this.getAvailability(id);
+			if (currentAvailability.kind !== 'ready') {
+				return this.asResult(currentAvailability);
+			}
 		}
 		const prepared = await raceCancellationError(presentation.prepare(scenario, context), token);
 		if (prepared.kind !== 'ready') {

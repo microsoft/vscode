@@ -207,6 +207,8 @@ import '../workbench/contrib/localHistory/electron-browser/localHistory.contribu
 
 // Onboarding
 import '../workbench/contrib/onboarding/electron-browser/onboardingTryout.contribution.js';
+import '../workbench/contrib/chat/electron-browser/devContainerConfiguration.contribution.js';
+import '../workbench/contrib/chat/electron-browser/devContainerSamplesTryout.contribution.js';
 
 // Merge Editor
 import '../workbench/contrib/mergeEditor/electron-browser/mergeEditor.contribution.js';

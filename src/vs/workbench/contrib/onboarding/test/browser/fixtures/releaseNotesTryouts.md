@@ -24,9 +24,11 @@ The action opens a new unsent composer in the Agents window, highlights the mode
 
 ## Help me get ready: Dev Container samples
 
-Open the Agents window's new-session page and samples picker without replacing an existing draft. If required settings are disabled, choose **Enable and Continue** to enable just those settings, or cancel to leave them unchanged. Docker is needed when you choose a sample and send your first prompt; this example does neither for you.
+Open the Agents window's new-session page and samples picker without replacing an existing draft. Before switching windows, the example checks that Docker is installed and its daemon is reachable. If either check fails, a modal dialog informs you and the example stops; it does not offer to install or start Docker. If required settings are disabled, a modal dialog in the same window lets you choose **Enable and Continue** or cancel without switching windows or changing settings. The container is only provisioned when you choose a sample and send your first prompt; this example does neither for you.
 
 `try(chat.devContainerSamples,Explore Dev Container Samples)`
+
+If sandboxing is enabled, the confirmation also explains that samples currently do not support sandboxing. Continuing disables sandboxing only for the sample session, without changing the user setting. If an organization requires sandboxing, the example stops instead.
 
 ## Compatibility: existing release-note behavior
 

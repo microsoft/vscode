@@ -107,6 +107,56 @@ suite('OnboardingTryoutService', () => {
 		}));
 	}
 
+	for (const agents of [false, true]) {
+		test(`prerequisites stop execution before ${agents ? 'local presentation' : 'Agents handoff'}`, async () => {
+			const { service } = createService(agents);
+			const calls: string[] = [];
+			registerTryout({ targetWindow: 'agents', checkPrerequisites: async () => { calls.push('check'); return false; } });
+			registerWindowOpener(async () => { calls.push('openWindow'); });
+			registerPresentation(async () => { calls.push('prepare'); return { kind: 'ready', run: async () => ({ kind: 'opened' }) }; });
+			service.getAvailability('test.tryout');
+			const before = [...calls];
+			const result = await service.run('test.tryout');
+			assert.deepStrictEqual({ before, result, calls }, { before: [], result: { kind: 'cancelled' }, calls: ['check'] });
+		});
+	}
+
+	test('checks prerequisites before routing, not again in the native receiver', async () => {
+		const source = createService(false);
+		const destination = createService();
+		const calls: string[] = [];
+		registerTryout({ targetWindow: 'agents', checkPrerequisites: async () => { calls.push('check'); return true; } });
+		registerPresentation(async () => ({ kind: 'ready', run: async () => { calls.push('present'); return { kind: 'opened' }; } }));
+		registerWindowOpener(async id => {
+			calls.push('openWindow');
+			await destination.service.run(id, CancellationToken.None, { source: 'releaseNotes', skipPrerequisites: true });
+		});
+		const result = await source.service.run('test.tryout');
+		assert.deepStrictEqual({ result, calls }, { result: { kind: 'routed' }, calls: ['check', 'openWindow', 'present'] });
+	});
+
+	for (const change of ['cancel', 'remove', 'hide'] as const) {
+		test(`${change} during prerequisites prevents late handoff`, async () => {
+			const { service, sentiment } = createService(false);
+			const started = new DeferredPromise<void>();
+			const ready = new DeferredPromise<boolean>();
+			const cancellation = store.add(new CancellationTokenSource());
+			let opened = false;
+			const registration = registerTryout({
+				isAI: true, targetWindow: 'agents',
+				checkPrerequisites: () => { started.complete(); return ready.p; },
+			});
+			registerWindowOpener(async () => { opened = true; });
+			const run = service.run('test.tryout', cancellation.token);
+			await started.p;
+			if (change === 'cancel') { cancellation.cancel(); }
+			else if (change === 'remove') { registration.dispose(); }
+			else { sentiment.hidden = true; }
+			ready.complete(true);
+			assert.deepStrictEqual({ kind: (await run).kind, opened }, { kind: change === 'cancel' ? 'cancelled' : 'unavailable', opened: false });
+		});
+	}
+
 	for (const kind of ['opened', 'executed', 'prepared'] as const) {
 		test(`reports a cohort marker and outcome for a ${kind} example`, async () => {
 			const { service, telemetry } = createService();

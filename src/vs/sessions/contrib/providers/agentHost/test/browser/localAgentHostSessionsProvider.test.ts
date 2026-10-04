@@ -49,6 +49,7 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
@@ -4327,6 +4328,88 @@ suite('LocalAgentHostSessionsProvider', () => {
 				isolation: available ? 'folder' : 'worktree',
 				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
 			});
+		});
+	}
+
+	for (const scenario of ['sample', 'folder', 'readOnly', 'alreadyOff', 'unsupported', 'policy', 'ignored'] as const) {
+		test(`Dev Container sandbox handoff: ${scenario}`, async () => {
+			const sandboxKey = SessionConfigKey.SandboxEnabled;
+			const schema: SessionConfigSchema = {
+				type: 'object',
+				properties: {
+					[sandboxKey]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+					[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Approvals', enum: ['default', 'autoApprove'] },
+				},
+			};
+			agentHost.resolveSessionConfigResult = { schema, values: { [sandboxKey]: 'on', [SessionConfigKey.AutoApprove]: 'default' } };
+			const targetHost = new MockAgentHostService();
+			disposables.add(toDisposable(() => targetHost.dispose()));
+			targetHost.resolveSessionConfigResult = {
+				schema: { type: 'object', properties: {
+					[SessionConfigKey.AutoApprove]: schema.properties[SessionConfigKey.AutoApprove],
+					...(scenario === 'unsupported' ? {} : { [sandboxKey]: { ...schema.properties[sandboxKey], readOnly: scenario === 'readOnly' || scenario === 'alreadyOff' } }),
+				} },
+				values: { [sandboxKey]: scenario === 'alreadyOff' ? 'off' : 'on', [SessionConfigKey.AutoApprove]: 'default' },
+			};
+			if (scenario === 'ignored') {
+				targetHost.onResolveSessionConfig = async request => ({
+					...targetHost.resolveSessionConfigResult,
+					values: { ...targetHost.resolveSessionConfigResult.values, ...request.config, [sandboxKey]: 'on' },
+				});
+			}
+			const configuration = new TestConfigurationService({
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+				[AgentSandboxSettingId.AgentSandboxEnabled]: 'on',
+			});
+			const target = createProvider(disposables, targetHost, undefined, { configurationService: configuration });
+			if (scenario === 'policy') {
+				const policy = stub(target, 'getSessionSandboxPolicy').returns({ enabled: true, allowBypass: false });
+				disposables.add(toDisposable(() => policy.restore()));
+			}
+			const registeredTarget: ISessionsProvider = target;
+			let releases = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: configuration,
+				sessionsProvidersService: new class extends mock<ISessionsProvidersService>() {
+					override getProvider<T extends ISessionsProvider>(id: string): T | undefined {
+						return id === target.id ? registeredTarget as T : undefined;
+					}
+				}(),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable() { return true; }
+					override async connect() {
+						return { providerId: target.id, workspaceUri: URI.file('/container/sample'), release: async () => { releases++; } };
+					}
+				}(),
+			});
+			const source = provider.createNewSession(scenario === 'folder' ? URI.file('/host/folder') : devContainerSampleUri(devContainerSamples[0]), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, source.sessionId, config => config?.values[sandboxKey] === 'on');
+			await timeout(0);
+			provider.setDevContainerEnabled(source.sessionId, true);
+			const preparation = provider.prepareNewSession(source.sessionId, CancellationToken.None, 'test prompt');
+			if (scenario === 'readOnly' || scenario === 'unsupported' || scenario === 'policy' || scenario === 'ignored') {
+				await assert.rejects(preparation, scenario === 'ignored' ? /Sandboxing could not be disabled/ : /selected agent or its organization policy/);
+				assert.deepStrictEqual({ releases, sandbox: configuration.getValue(AgentSandboxSettingId.AgentSandboxEnabled) }, { releases: 1, sandbox: 'on' });
+				return;
+			}
+			const prepared = await preparation;
+			const config = await target.whenSessionConfigResolved(prepared.session.sessionId, CancellationToken.None);
+			const future = target.createNewSession(URI.file('/future/folder'), target.sessionTypes[0].id);
+			const futureConfig = await target.whenSessionConfigResolved(future.sessionId, CancellationToken.None);
+			assert.deepStrictEqual({
+				sandbox: config.values[sandboxKey],
+				firstSendSandbox: target.getCreateSessionConfig(prepared.session.sessionId)?.[sandboxKey],
+				approvals: config.values[SessionConfigKey.AutoApprove],
+				sourceSandbox: provider.getSessionConfig(source.sessionId)?.values[sandboxKey],
+				futureSandbox: futureConfig.values[sandboxKey],
+				userSetting: configuration.getValue(AgentSandboxSettingId.AgentSandboxEnabled),
+			}, {
+				sandbox: scenario === 'folder' ? 'on' : 'off', firstSendSandbox: scenario === 'folder' ? 'on' : 'off', approvals: 'default', sourceSandbox: 'on',
+				futureSandbox: scenario === 'alreadyOff' ? 'off' : 'on', userSetting: 'on',
+			});
+			await prepared.discard?.();
 		});
 	}
 

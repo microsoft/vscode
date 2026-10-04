@@ -10,6 +10,8 @@ import { IDevContainerRepository, IDevContainerSampleSource } from './devContain
 
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
 export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
+export const DevContainerAgentHostEnabledSettingId = 'chat.agentHost.devContainer.enabled';
+export const DevContainerSamplesEnabledSettingId = 'chat.agentHost.devContainer.samples.enabled';
 
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
 export interface IDevContainerAgentHostWorkspaceConfig {
@@ -41,6 +43,13 @@ export interface IDevContainerAgentHostOutput {
 }
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
+
+export type DevContainerDockerStatus = 'notInstalled' | 'notRunning' | 'running';
+
+/** Read-only local diagnostics exposed on the shared-process channel, not the Agent Host Protocol. */
+export interface IDevContainerAgentHostDiagnostics {
+	getDockerStatus(): Promise<DevContainerDockerStatus>;
+}
 
 /** Host-side service that owns Dev Container CLI processes and protocol relays. */
 export interface IDevContainerAgentHostMainService extends IRelayChannel {

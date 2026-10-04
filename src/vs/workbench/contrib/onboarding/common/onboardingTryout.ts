@@ -40,6 +40,13 @@ export interface IOnboardingTryoutMetadata {
 	readonly allowExternalLaunch?: boolean;
 	readonly unavailableMessage?: string;
 	readonly setup?: IOnboardingTryoutSetupAction;
+	/** Runs after user invocation, before presentation or window routing. False stops the attempt. */
+	readonly checkPrerequisites?: (context: IOnboardingTryoutRunContext) => Promise<boolean>;
+}
+
+export interface IOnboardingTryoutExecutionOptions extends IOnboardingTryoutRunOptions {
+	/** Native receivers skip prerequisites already checked in the originating window. */
+	readonly skipPrerequisites?: boolean;
 }
 
 export interface IOnboardingTryoutUnavailable {
@@ -138,7 +145,7 @@ export interface IOnboardingTryoutService {
 	getTryout(id: string): IOnboardingTryoutScenario | undefined;
 	getTryouts(): readonly IOnboardingTryoutScenario[];
 	getAvailability(id: string): OnboardingTryoutAvailability;
-	run(id: string, token?: CancellationToken, options?: IOnboardingTryoutRunOptions): Promise<OnboardingTryoutResult>;
+	run(id: string, token?: CancellationToken, options?: IOnboardingTryoutExecutionOptions): Promise<OnboardingTryoutResult>;
 }
 
 export function isOnboardingTryoutId(value: unknown): value is string {

@@ -18,7 +18,7 @@ import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { hasKey } from '../../../base/common/types.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { SequencerByKey } from '../../../base/common/async.js';
+import { raceTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -29,7 +29,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { asTextOrError, IRequestService } from '../../request/common/request.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
+import { DevContainerDockerStatus, IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostDiagnostics, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -174,7 +174,7 @@ class DevContainerRelay extends Disposable implements IDevContainerRelay {
 }
 
 /** Launches Dev Containers and relays their Agent Host protocol on the owning host. */
-export abstract class DevContainerAgentHostService extends Disposable implements IDevContainerAgentHostMainService {
+export abstract class DevContainerAgentHostService extends Disposable implements IDevContainerAgentHostMainService, IDevContainerAgentHostDiagnostics {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
@@ -916,6 +916,29 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return this._dockerAvailable;
 	}
 
+	async getDockerStatus(): Promise<DevContainerDockerStatus> {
+		const executable = await this._resolveDockerExecutable(true);
+		if (!executable) {
+			return 'notInstalled';
+		}
+		const environment = await this._resolveShellEnvironment();
+		const tokenSource = new CancellationTokenSource();
+		try {
+			const result = await raceTimeout(
+				this._runLocalCommand(executable, ['info', '--format', '{{json .ServerVersion}}'], environment, tokenSource.token),
+				10_000,
+				() => tokenSource.cancel(),
+			);
+			if (!result || result.code !== 0) {
+				this._logService.warn(`${LOG_PREFIX} Docker daemon check failed: ${result ? result.stderr || result.stdout : 'Timed out after 10 seconds'}`);
+				return 'notRunning';
+			}
+			return 'running';
+		} finally {
+			tokenSource.dispose(true);
+		}
+	}
+
 	async stopContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
 		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
 	}
@@ -978,7 +1001,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return this._runLocalCommand(executable, args, environment, token);
 	}
 
-	private _resolveDockerExecutable(): Promise<string | undefined> {
+	protected _resolveDockerExecutable(refresh = false): Promise<string | undefined> {
+		if (refresh) {
+			this._dockerExecutable = undefined;
+			this._dockerAvailable = undefined;
+			this._shellEnvironment = undefined;
+			this._devContainerEnvironment = undefined;
+		}
 		this._dockerExecutable ??= this._resolveShellEnvironment()
 			.then(environment => findExecutable('docker', undefined, undefined, environment));
 		return this._dockerExecutable;

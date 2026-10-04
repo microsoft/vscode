@@ -160,7 +160,7 @@ export class NativeOnboardingTryoutWindow extends Disposable {
 				this.commandService,
 				this.notificationService,
 				this.logService,
-				{ source: active.request.source, runId: active.request.requestId },
+				{ source: active.request.source, runId: active.request.requestId, skipPrerequisites: true },
 			);
 		} finally {
 			if (this.activeRequest.value === active) {

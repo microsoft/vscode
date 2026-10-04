@@ -510,7 +510,6 @@ import './contrib/customViewTest/browser/customViewTest.contribution.js';
 // the Agents window scenario data.
 import '../workbench/contrib/onboarding/browser/onboarding.contribution.js';
 import '../workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
-import '../workbench/contrib/chat/browser/onboarding/devContainerSamplesTryout.contribution.js';
 import '../workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 import './contrib/onboardingTours/browser/onboardingTours.contribution.js';
 
