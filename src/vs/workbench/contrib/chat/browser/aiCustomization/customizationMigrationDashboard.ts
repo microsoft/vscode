@@ -307,13 +307,16 @@ export class CustomizationMigrationDashboard extends Disposable {
 		const migrationGroups = this.getMigrationGroups(overview);
 		this.allMigrationsComplete = migrationGroups.length === 0 && !overview.hasIgnoredGroups;
 		this.prepareRender();
+		const supportsAgentMigration = migrationGroups.length > 0 && overview.supportsAgentMigration !== false;
 		const page = this.renderHeader(
 			localize('migrationsTitle', "Migrations"),
 			this.allMigrationsComplete
 				? localize('migrationsCompletedDescription', "Your customizations use supported formats and locations.")
-				: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
+				: supportsAgentMigration
+					? localize('migrationsDescriptionWithAgent', "Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.")
+					: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 			overview.hasIgnoredGroups === true,
-			migrationGroups.length && overview.supportsAgentMigration !== false ? () => {
+			supportsAgentMigration ? () => {
 				this.callbacks.actionClicked('agentMigrationClicked');
 				this.callbacks.migrateWithAgent();
 			} : undefined,
@@ -438,7 +441,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				localize('migrateWithAgent', "Migrate with Agent"),
 				localize('migrateWithAgentAriaLabel', "Start an agent-guided customization migration"),
 				migrateWithAgent,
-				'primary',
+				'secondary',
 			);
 		}
 		DOM.append(header, $('p.migration-intro', {}, description));

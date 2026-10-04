@@ -60,7 +60,7 @@
 }
 
 .customization-migration-dashboard .migration-intro {
-	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size240);
+	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size80);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -146,7 +146,7 @@
 	flex: 1 1 auto;
 	min-height: 0;
 	width: 100%;
-	margin-top: var(--vscode-spacing-size160);
+	margin-top: var(--vscode-spacing-size80);
 	overflow: hidden;
 }
 

@@ -22,9 +22,10 @@ Read [migration techniques](./references/migration-techniques.md) before proposi
    - `restore.md`, containing exact steps for restoring the backups and reverting newly created files.
    - `migration-results.json`, containing only the privacy-safe aggregate schema described in Finish. VS Code watches this file for the final migration outcome.
 4. Append to the log after every attempted operation, including failures and rollbacks.
-5. Do not delete original files or clear location settings until the migrated customization has been validated and the user explicitly approves cleanup.
+5. Approval to migrate a group authorizes destination writes only; it does not authorize deleting source files, removing source MCP entries, or clearing location settings. Preserve sources by default. After the destination is validated, ask separately for explicit approval for each kind of cleanup. If runtime validation is not possible, explain what was and was not verified, keep the source, and ask whether to defer cleanup.
 6. Stop on an unexpected source change, destination conflict, invalid configuration, failed backup, or failed validation. Explain the problem instead of guessing.
 7. Never include customization names, paths, contents, MCP configuration, or other user data in telemetry.
+8. Classify each inventory item exactly once using its supplied category and scope. Do not offer the same item again in another group; if groups overlap, explain the overlap and use the item's inventory category to decide where it is handled.
 
 ## Workflow
 
@@ -42,41 +43,49 @@ If workspace customizations are selected, ask whether the user wants a pull requ
 
 ### 2. Review the Plan
 
-Group the supplied inventory into this order:
+Classify the supplied inventory by its reported category and scope, then handle applicable items in this order:
 
 1. prompt files that should become skills;
-2. user-data agents and instructions;
+2. VS Code profile user-data agents, instructions, and skills;
 3. MCP servers;
-4. customizations at custom locations defined by settings `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations`
+4. workspace or user customizations at locations defined by settings `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations`.
+
+The groups are mutually exclusive for an inventory item. In particular, a file reported under `configuredLocations` belongs in group 4, not group 2, even if its type is agent, instruction, or skill. If a previously skipped item would otherwise reappear in a later group, do not ask about it again unless the user requests reconsideration.
 
 Before each group:
 
 - explain why the migration is useful;
 - list the source and harness-reported destination locations;
 - describe changes that cannot be preserved;
+- state explicitly that approval covers destination writes only and that source cleanup will require a separate approval;
 - ask for confirmation to proceed with that group.
 
 Work one group at a time. Do not request approval for all writes at once.
 
 ### 3. Migrate Prompt Files to Skills
 
-Explain that Agent Host harnesses do not load prompt files and that skills preserve reusable workflows across compatible agents. Convert each selected prompt into a skill directory with a `SKILL.md`, preserving supported name, description, argument guidance, and body content. Record unsupported frontmatter in the log for review.
+Explain the compatibility reason for converting each prompt to a skill. Convert each selected prompt into a skill directory with a `SKILL.md`, preserving supported name, description, argument guidance, invocation semantics, and body content. Add `disable-model-invocation: true` when needed to preserve an explicit-invocation-only prompt. Record unsupported frontmatter in the log for review; do not silently drop behavior.
 
-Validate that each skill has valid frontmatter, a meaningful description, and a folder name that matches the skill name. Test representative invocation behavior before offering to remove the original prompt.
+Validate that each skill has valid frontmatter, a meaningful description, and a folder name that matches the skill name. Distinguish structural validation from runtime validation: test discovery and representative invocation in the selected destination harness when possible. A file inspection or a test against a different harness is not proof that the destination harness loads the skill. If runtime validation requires a new session or is otherwise unavailable, say so, leave the source in place, and defer cleanup unless the user explicitly chooses otherwise after hearing the limitation.
 
 ### 4. Migrate User Data
 
 Explain that Agent Host doesn't read the VS Code profile user data folder. It only reads the harness's user folders. Copy selected agents, instructions, and skills to a compatible listed destination without silently changing their contents.
+Keep user-scope items in user scope. Explain that approval to copy does not authorize deleting the VS Code source or changing sync/location settings; ask for those separately after validation.
 
 ### 5. Migrate MCP Servers
 
 Explain that moving MCP configuration lets the selected Agent Host load the server directly. Review every server separately, including destination conflicts and properties the destination format cannot preserve. Call out that a disabled user server might become enabled after migration.
 
-Write and validate the destination before removing the source entry. Leave unselected or unsupported servers unchanged. Test that migrated servers are discovered and can start before offering source cleanup.
+Write and statically validate the destination before considering source cleanup. Leave unselected, unsupported, and conflicting servers unchanged. Test that migrated servers are discovered and can start in the selected destination harness; spawning a command directly can verify process behavior, but does not by itself prove that the harness discovers or loads the configuration. If destination-harness testing is unavailable, report that limitation and keep source entries.
+
+Approval for this group authorizes destination writes only. After successful destination validation, ask separately whether to remove each migrated or already-equivalent source entry. Do not remove a source entry merely because its destination entry was written or because the user approved the group.
 
 ### 6. Customizations at Custom Locations
 
-Agents, skill, and instruction files located in custom locations defined by settings `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations` still work when a harness is connected to VS Code. It is better to move these files to standard locations to ensure consistent behavior and easier management.
+Files in custom locations defined by `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations` can continue to work when the selected harness is connected to VS Code. Moving them to a harness-reported standard location may improve portability or consistency, but is not automatically required for compatibility. Explain this trade-off before asking whether to migrate.
+
+Handle only items reported as `configuredLocations` and not already handled in another group. Do not re-offer files the user explicitly skipped. Treat moving a file, deleting its old copy, and clearing or changing the location setting as separate actions; obtain explicit approval for each cleanup action after validating the destination.
 
 ### 7. Finish
 
@@ -122,3 +131,5 @@ Summarize:
 - pull request URL when one was requested.
 
 Keep the recovery bundle until the user confirms the migrated customizations work.
+
+For a requested pull request, verify the final diff contains only approved workspace changes, exclude the recovery bundle, and include the migration rationale and actual validation performed. Do not claim runtime validation when only static checks or direct process tests were possible.
