@@ -185,6 +185,11 @@ function isTurnExchange(exchange: IFixtureExchange): exchange is ITurnExchange {
 	return (exchange as ITurnExchange).request !== undefined;
 }
 
+export interface IReplayVerificationOptions {
+	/** Only after a recognized expected failure prevented the remaining model turns from running. */
+	readonly allowUnconsumedResponses?: boolean;
+}
+
 export interface ICapiReplayProxyOptions {
 	/** Absolute path to the JSON fixture for this test. */
 	readonly fixturePath: string;
@@ -339,7 +344,7 @@ export class CapiReplayProxy {
 	 * Stop the proxy. When recording, flushes captured exchanges to the fixture.
 	 * When replaying in strict mode, throws if any request missed the cache.
 	 */
-	async stop(): Promise<void> {
+	async stop(verification?: IReplayVerificationOptions): Promise<void> {
 		if (this._stopped) {
 			return;
 		}
@@ -347,7 +352,7 @@ export class CapiReplayProxy {
 		await this._closeSocket();
 
 		if (this._isReplaying) {
-			this.assertNoReplayMismatches();
+			this.assertNoReplayMismatches(verification);
 			return;
 		}
 
@@ -419,8 +424,8 @@ export class CapiReplayProxy {
 	 * replay server verify each test's traffic in `teardown` while keeping the
 	 * server (and the agent host's cached SDK client) alive for the next test.
 	 */
-	assertNoReplayMismatches(): void {
-		const error = this._createReplayError();
+	assertNoReplayMismatches(verification?: IReplayVerificationOptions): void {
+		const error = this._createReplayError(verification);
 		if (error) {
 			throw error;
 		}
@@ -434,7 +439,7 @@ export class CapiReplayProxy {
 		return error;
 	}
 
-	private _createReplayError(): Error | undefined {
+	private _createReplayError(verification?: IReplayVerificationOptions): Error | undefined {
 		if (!this._isReplaying || !this._strict) {
 			return undefined;
 		}
@@ -447,7 +452,7 @@ export class CapiReplayProxy {
 		}
 		const unconsumed = Array.from(this._replayBuckets.entries())
 			.flatMap(([key, bucket]) => bucket.index < bucket.items.length ? [`${key}: ${bucket.items.length - bucket.index} response(s)`] : []);
-		if (unconsumed.length > 0) {
+		if (unconsumed.length > 0 && !verification?.allowUnconsumedResponses) {
 			sections.push(`[capi-replay] unconsumed recorded responses:\n${unconsumed.join('\n')}`);
 		}
 		return sections.length > 0 ? new Error(sections.join('\n\n')) : undefined;

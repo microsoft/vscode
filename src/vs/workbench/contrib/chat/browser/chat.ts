@@ -266,6 +266,8 @@ export interface IChatListItemRendererOptions {
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAction?: IObservable<{ readonly label: string; readonly run: () => void } | undefined>;
 	readonly contentHorizontalPadding?: number;
+	/** Collapses the first request under this label without changing its message or attachments. */
+	readonly firstRequestSummary?: string;
 	/**
 	 * Render options applied to code blocks in response markdown (e.g. force word-wrap
 	 * so command/tool output pasted by the model wraps instead of overflowing).
@@ -274,6 +276,7 @@ export interface IChatListItemRendererOptions {
 }
 
 export interface IChatWidgetViewOptions {
+	readonly firstRequestSummary?: IObservable<string | undefined>;
 	autoScroll?: boolean | ((mode: ChatModeKind) => boolean);
 	renderInputOnTop?: boolean;
 	/** Show the read-only status banner above the transcript instead of beside the composer. */

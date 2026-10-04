@@ -5,8 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../../platform/product/common/product.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -22,6 +21,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
+const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.UnifiedWorkspacePicker];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -35,6 +35,20 @@ suite('Chat configuration', () => {
 
 	test('registers Agents Window settings in the shared workbench contribution', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
+	});
+
+	test('enables the unified workspace picker by default while allowing experiment overrides', () => {
+		assert.deepStrictEqual({
+			type: unifiedWorkspacePickerSetting.type,
+			default: unifiedWorkspacePickerSetting.default,
+			scope: unifiedWorkspacePickerSetting.scope,
+			experiment: unifiedWorkspacePickerSetting.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+		});
 	});
 
 	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
@@ -83,7 +97,7 @@ suite('Chat configuration', () => {
 		]);
 	});
 
-	test('defaults persistent progress to Draw in Insiders and Off otherwise while allowing experiment overrides', () => {
+	test('defaults persistent progress to Draw regardless of product quality while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -91,7 +105,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -109,7 +123,7 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
 			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
 			descriptions: 4,

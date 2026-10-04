@@ -123,6 +123,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly updatedAt?: string;
 	/** Last reported activity; this does not establish environment availability or session flags. */
 	readonly status?: SessionStatus;
+	/** Mission Control's archive state, independent of the sandbox's AHP session flags. */
+	readonly isArchived?: boolean;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */
@@ -277,6 +279,12 @@ export interface ICloudSandboxApiService {
 
 	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
 	deleteTask(taskId: string, token: CancellationToken): Promise<void>;
+
+	/** Rename the Mission Control task without waking the sandbox. */
+	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
+
+	/** Archive or unarchive the Mission Control task without waking the sandbox. */
+	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by

@@ -19,7 +19,7 @@ export function getGitHubRequestFeature(caller: string | undefined): GitHubReque
 	}
 }
 
-export function createGitHubClientMetadata(product: IProductService, component: 'workbench' | 'agent-host', egress: GitHubClientMetadata['egress']): GitHubClientMetadata {
+export function createGitHubClientMetadata(product: IProductService, component: 'workbench' | 'agent-host' | 'shared-process', egress: GitHubClientMetadata['egress']): GitHubClientMetadata {
 	let application = product.applicationName;
 	switch (application) {
 		case 'code': application = 'vscode'; break;

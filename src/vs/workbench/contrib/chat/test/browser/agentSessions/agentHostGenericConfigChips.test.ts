@@ -375,7 +375,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		}, {
 			writes: [{ channel: backendSession.toString(), config: { customChoice: 'second' } }],
 			otherWrites: [],
-			refreshes: [[firstResource.toString(), 'test-agent', workingDirectory.toString(), { customChoice: 'second', toggle: false }]],
+			refreshes: [[firstResource.toString(), 'test-agent', workingDirectory.toString(), { customChoice: 'second', toggle: false, locked: 'first' }]],
 			label: 'Custom Choice: Second Option',
 		});
 	});
@@ -561,7 +561,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		assert.deepStrictEqual({
 			requests: host.connection.completionRequests.map(request => ({ ...request, workingDirectory: request.workingDirectory?.toString() })), labels: actionWidget.labels,
 		}, {
-			requests: [{ provider: 'test-agent', property: 'customChoice', query: undefined, workingDirectory: workingDirectory.toString(), config: { customChoice: 'first', toggle: false } }],
+			requests: [{ provider: 'test-agent', property: 'customChoice', query: undefined, workingDirectory: workingDirectory.toString(), config: { customChoice: 'first', toggle: false, locked: 'first' } }],
 			labels: ['Dynamic Option'],
 		});
 	});

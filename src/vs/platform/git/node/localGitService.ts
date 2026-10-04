@@ -149,6 +149,9 @@ export class LocalGitService implements ILocalGitService {
 	}
 
 	async pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean> {
+		if (options?.skipDetachedHead && (await this._exec(operationId, ['rev-parse', '--abbrev-ref', 'HEAD'], repoPath)).trim() === 'HEAD') {
+			return false;
+		}
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 
 		try {

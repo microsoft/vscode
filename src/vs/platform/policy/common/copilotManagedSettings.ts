@@ -69,11 +69,23 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
  */
 export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 
+/** Managed-settings key that requires MCP servers to remain sandboxed. */
+export const COPILOT_SANDBOX_MCP_SERVERS_KEY = 'sandbox.sandboxMcpServers';
+
+/** Managed-settings key that requires LSP servers to remain sandboxed. */
+export const COPILOT_SANDBOX_LSP_SERVERS_KEY = 'sandbox.sandboxLspServers';
+
 /** Managed-settings key that permits explicitly bypassing the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
 
 /** Managed-settings key that restricts outbound sandbox network access. */
 export const COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY = 'sandbox.userPolicy.network.allowOutbound';
+
+/** Managed-settings key that restricts local-network access from the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY = 'sandbox.userPolicy.network.allowLocalNetwork';
+
+/** Managed-settings key that restricts developer tool access from the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAccess';
 
 /** Auto startup default, read as one atomic value across managed delivery channels. */
 export const COPILOT_AUTO_TIER_KEY = 'autoTier';
@@ -85,8 +97,12 @@ export const COPILOT_AUTO_TIER_KEY = 'autoTier';
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_LSP_SERVERS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
 	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
 	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
 	'telemetry.capture.prompts': { type: 'boolean' },
@@ -482,8 +498,8 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			}
 			if (existing) {
 				existing.contributions.push({ channel, value });
-				if ((key === COPILOT_SANDBOX_ENABLED_KEY && value === true && existing.value !== true)
-					|| ((key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY || key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) && value === false && existing.value !== false)) {
+				if (((key === COPILOT_SANDBOX_ENABLED_KEY || key === COPILOT_SANDBOX_MCP_SERVERS_KEY || key === COPILOT_SANDBOX_LSP_SERVERS_KEY) && value === true && existing.value !== true)
+					|| ((key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY || key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY || key === COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY || key === COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) && value === false && existing.value !== false)) {
 					existing.value = value;
 					existing.source = channel;
 				}

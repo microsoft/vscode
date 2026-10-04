@@ -1391,6 +1391,8 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 			}
 
 			if (
+				template.context.settingsTarget !== ConfigurationTarget.WORKSPACE &&
+				!URI.isUri(template.context.settingsTarget) &&
 				template.context.defaultValue &&
 				Array.isArray(template.context.defaultValue) &&
 				template.context.defaultValue.length === newValue.length &&

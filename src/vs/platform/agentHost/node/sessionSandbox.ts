@@ -38,7 +38,7 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 }
 
 /** Resolves the owning session's toggle overrides without changing global settings. */
-export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.WindowsEnabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork> {
+export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers> {
 	session = resolveAgentHostSession(URI.parse(session)).toString();
 	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
 	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
@@ -49,13 +49,20 @@ export function getSessionSandboxOverrides(configuration: IAgentConfigurationSer
 			: policy?.enabled ? AgentSandboxEnabledValue.On : undefined;
 	const enabled = SandboxSettingsResolutionHelper.resolveEnabled(localEnabled, policy?.enabled && !authorizedDisable);
 	const allowUnsandboxedCommands = SandboxSettingsResolutionHelper.resolveAllowBypass(undefined, policy?.allowBypass, policy?.enabled);
-	const allowNetwork = SandboxSettingsResolutionHelper.resolveAllowOutbound(undefined, policy?.allowOutbound);
+	const allowNetwork = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.allowOutbound);
+	const allowLocalNetwork = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.allowLocalNetwork);
+	const allowDevToolAccess = SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, policy?.allowDevToolAccess);
+	const sandboxMcpServers = SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, policy?.sandboxMcpServers);
+	const sandboxLspServers = SandboxSettingsResolutionHelper.resolveSandboxServers(undefined, policy?.sandboxLspServers);
 	return {
 		...(enabled !== undefined ? {
 			[AgentHostSandboxKey.Enabled]: enabled,
-			[AgentHostSandboxKey.WindowsEnabled]: enabled,
 		} : {}),
 		...(allowUnsandboxedCommands !== undefined ? { [AgentHostSandboxKey.AllowUnsandboxedCommands]: allowUnsandboxedCommands } : {}),
 		...(allowNetwork !== undefined ? { [AgentHostSandboxKey.AllowNetwork]: allowNetwork } : {}),
+		...(allowLocalNetwork !== undefined ? { [AgentHostSandboxKey.AllowLocalNetwork]: allowLocalNetwork } : {}),
+		...(allowDevToolAccess !== undefined ? { [AgentHostSandboxKey.AllowDevToolAccess]: allowDevToolAccess } : {}),
+		...(sandboxMcpServers !== undefined ? { [AgentHostSandboxKey.SandboxMcpServers]: sandboxMcpServers } : {}),
+		...(sandboxLspServers !== undefined ? { [AgentHostSandboxKey.SandboxLspServers]: sandboxLspServers } : {}),
 	};
 }

@@ -11,12 +11,11 @@ import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHU
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
-import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -177,6 +176,68 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}, { interactivity: [ChatInteractivity.Full, ChatInteractivity.ReadOnly], archived: [true, undefined], input: undefined });
 	});
 
+	test('uses persisted default chat read state only during persistence-first reconciliation', async () => {
+		const state: ICatalogSourceState = {
+			...sourceState(),
+			chats: [
+				{ ...sourceState().chats[0], isRead: true },
+				{ uri: `${chat}/peer`, kind: 'peer', isRead: false },
+			],
+		};
+		const resolver = createResolver({
+			[AH_META_IS_READ_DB_KEY]: 'true',
+			[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: '',
+		});
+
+		const persisted = await resolver.buildCatalogSyncRequest(session, state, {}, true);
+		const live = await resolver.buildCatalogSyncRequest(session, state, {}, false);
+
+		assert.deepStrictEqual({
+			persistedSession: persisted.data.isRead,
+			liveSession: live.data.isRead,
+			persisted: persisted.data.chats.map(entry => entry.isRead),
+			live: live.data.chats.map(entry => entry.isRead),
+		}, {
+			persistedSession: false,
+			liveSession: false,
+			persisted: [false, false],
+			live: [true, false],
+		});
+	});
+
+	test('excludes unread tool chats from session read reconciliation', async () => {
+		const state: ICatalogSourceState = {
+			...sourceState(),
+			status: SessionStatus.IsRead,
+			chats: [
+				{ ...sourceState().chats[0], isRead: true },
+				{
+					uri: `${chat}/tool`,
+					kind: 'peer',
+					isRead: false,
+					origin: { kind: ChatOriginKind.Tool, chat, toolCallId: 'tool-call' },
+				},
+			],
+		};
+		const resolver = createResolver({
+			[AH_META_IS_READ_DB_KEY]: 'true',
+			[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: 'true',
+		});
+
+		const persisted = await resolver.buildCatalogSyncRequest(session, state, {}, true);
+		const live = await resolver.buildCatalogSyncRequest(session, state, {}, false);
+
+		assert.deepStrictEqual({
+			persistedSession: persisted.data.isRead,
+			liveSession: live.data.isRead,
+			chats: live.data.chats.map(entry => entry.isRead),
+		}, {
+			persistedSession: true,
+			liveSession: true,
+			chats: [true, false],
+		});
+	});
+
 	test('projects remote origins from live and persisted state without losing exact chat or depth', async () => {
 		const live = { session: 'remote-host-copilotcli:/parent', chat: 'remote-host-copilotcli:/parent#peer', depth: 2 };
 		const persisted = { session: 'agent-host-copilotcli:/origin', chat: 'agent-host-copilotcli:/origin#original', depth: 3 };
@@ -206,23 +267,6 @@ suite('AgentHostCatalogSourceResolver', () => {
 		}, {
 			catalog: { [scopeId]: gitState },
 			legacy: JSON.stringify({ [scopeId]: gitState }),
-			encoded: true,
-		});
-	});
-
-	test('projects the provider-qualified Codex model into the cached catalog metadata', async () => {
-		const state = sourceState();
-		const result = await createResolver({}).buildCatalogSyncRequest(session, {
-			...state,
-			meta: withCodexSessionModel(state.meta, { id: '@provider=openai:gpt-5.6-sol' }),
-		}, {}, false);
-		const encoded = encodeAgentHostCatalogPayload(result.data);
-
-		assert.deepStrictEqual({
-			model: readCodexSessionModel(result.data),
-			encoded: encoded.ok,
-		}, {
-			model: { id: '@provider=openai:gpt-5.6-sol' },
 			encoded: true,
 		});
 	});

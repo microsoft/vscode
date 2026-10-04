@@ -85,6 +85,8 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Starts resolving metadata for this entry without opening it. */
+	readonly prefetch?: () => void;
 	open(): void;
 }
 
@@ -197,7 +199,7 @@ export interface IChatPillSection {
 export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel = localize('chatPills.open', "Open {0}", label)): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	const value = uri.toString(true);
 	return {
-		ariaDescription: value,
+		ariaDescription: value === label ? undefined : value,
 		ariaLabel,
 		hover: getChatPillLocationHover(value),
 		tooltip: value,
