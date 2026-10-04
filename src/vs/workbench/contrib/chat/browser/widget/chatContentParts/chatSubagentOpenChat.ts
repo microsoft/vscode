@@ -466,10 +466,10 @@ export class OpenSubagentChatActionViewItem extends BaseActionViewItem {
 		this._updateConfirmationCount(context);
 		this._updateStatus();
 		this._updateDuration(context);
-		const showActivity = this.isActive && (context?.confirmationCount ?? 0) === 0;
+		const showActivity = this.isActive;
 		const activeToolLabel = showActivity ? context?.activeToolLabel : undefined;
 		this._setActiveTool(
-			showActivity ? activeToolLabel ?? this.activityLabel : undefined,
+			showActivity ? activeToolLabel ?? ((context?.confirmationCount ?? 0) > 0 ? localize('chat.subagent.waitingForInput', "Waiting for input") : this.activityLabel) : undefined,
 			showActivity ? context?.activeToolIcon ?? (activeToolLabel ? undefined : Codicon.comment) : undefined,
 			showActivity ? context?.activeToolCallId : undefined,
 			!!activeToolLabel,

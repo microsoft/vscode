@@ -2935,14 +2935,14 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
 				listedMeta: { providerOnly: true, live: 'current' },
 				summaryChanges: [{
+					modifiedAt: startedAt,
+					status: SessionStatus.InProgress,
 					chats: [{
-						resource: defaultChatUri,
+						resource: buildDefaultChatUri(sessionUri),
 						title: '',
 						origin: { kind: MessageKind.User },
 						status: SessionStatus.InProgress,
 					}],
-					modifiedAt: startedAt,
-					status: SessionStatus.InProgress,
 				}],
 			});
 		});
@@ -3142,14 +3142,16 @@ suite('ProtocolServerHandler', () => {
 	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
+		const unknownStatusChat = URI.parse(`${sessionUri}/chat/unknown`);
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Session Summary',
 			chats: [
-				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ chat: defaultChat, kind: 'default', summary: 'Default Chat', isRead: true },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
+				{ chat: unknownStatusChat, kind: 'peer', summary: 'Unknown Status Chat' },
 			],
 		});
 
@@ -3165,8 +3167,9 @@ suite('ProtocolServerHandler', () => {
 			defaultChat: result.items[0].defaultChat,
 		}, {
 			chats: [
-				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined, status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: peerChat.toString(), title: 'Peer Chat', status: SessionStatus.Idle | SessionStatus.IsArchived, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ resource: unknownStatusChat.toString(), title: 'Unknown Status Chat', origin: undefined },
 			],
 			defaultChat: defaultChat.toString(),
 		});

@@ -14,7 +14,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatOrigin } from '../common/state/protocol/state.js';
-import { buildChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, buildChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase } from './agentHostDatabase.js';
@@ -32,11 +32,13 @@ export const IAgentHostPeerChatPersistenceService = createDecorator<IAgentHostPe
 
 export interface IAgentHostPeerChatPersistenceService {
 	readonly _serviceBrand: undefined;
+	setRead(session: URI, chat: URI, isRead: boolean): Promise<void>;
 	setArchived(session: URI, chat: URI, archived: boolean): Promise<void>;
 }
 
 export interface IPersistedPeerChat {
 	readonly uri: string;
+	readonly isRead?: boolean;
 	readonly archived?: boolean;
 	readonly providerData?: string;
 	readonly origin?: ChatOrigin;
@@ -390,6 +392,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
+				...(existing?.isRead !== undefined ? { isRead: existing.isRead } : {}),
 				...(existing?.archived ? { archived: true } : {}),
 				...(providerData !== undefined ? { providerData } : {}),
 				...(effectiveOrigin !== undefined ? { origin: effectiveOrigin } : {}),
@@ -407,6 +410,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			const next = entries.filter(entry => entry.uri !== chatUri);
 			next.push({
 				uri: chatUri,
+				...(existing?.isRead !== undefined ? { isRead: existing.isRead } : {}),
 				...(existing?.archived ? { archived: true } : {}),
 				...(existing?.providerData !== undefined ? { providerData: existing.providerData } : {}),
 				...(existing?.origin !== undefined ? { origin: existing.origin } : {}),
@@ -422,6 +426,14 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return this._enqueueWrite(session, entries => entries.map(entry =>
 			entry.uri === chatUri
 				? { ...entry, archived: archived || undefined }
+				: entry));
+	}
+
+	setRead(session: URI, chat: URI, isRead: boolean): Promise<void> {
+		const chatUri = chat.toString();
+		return this._enqueueWrite(session, entries => entries.map(entry =>
+			entry.uri === chatUri
+				? { ...entry, isRead }
 				: entry));
 	}
 
@@ -558,6 +570,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	private _catalogRows(entries: readonly IPersistedPeerChat[]): Array<{
 		readonly chat: string;
 		readonly order: number;
+		readonly isRead?: boolean;
 		readonly archived?: boolean;
 		readonly providerData?: string;
 		readonly origin?: string;
@@ -566,6 +579,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return entries.map((entry, order) => ({
 			chat: entry.uri,
 			order,
+			...(entry.isRead !== undefined ? { isRead: entry.isRead } : {}),
 			...(entry.archived === true ? { archived: true } : {}),
 			...(entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
 			...(entry.origin !== undefined ? { origin: this._stringifyOrigin(entry.origin) } : {}),
@@ -736,11 +750,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		try {
 			const metadata = await ref.object.getMetadataObject({
+				[AH_META_IS_READ_DB_KEY]: true,
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: true,
 				[CHAT_ORIGIN_METADATA_KEY]: true,
 				[CHAT_INHERITED_TURN_METADATA_KEY]: true,
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: true,
 			});
+			const isRead = metadata[AH_META_IS_READ_DB_KEY] !== undefined
+				? metadata[AH_META_IS_READ_DB_KEY] === 'true'
+				: entry.isRead;
 			const origin = metadata[CHAT_ORIGIN_METADATA_KEY]
 				? this._parseOrigin(metadata[CHAT_ORIGIN_METADATA_KEY])
 				: metadata[CHAT_ORIGIN_METADATA_KEY] === '' ? undefined : entry.origin;
@@ -749,6 +767,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
 			return {
 				uri: entry.uri,
+				...(isRead !== undefined ? { isRead } : {}),
 				...(metadata[CHAT_PROVIDER_DATA_METADATA_KEY] !== undefined
 					? metadata[CHAT_PROVIDER_DATA_METADATA_KEY] ? { providerData: metadata[CHAT_PROVIDER_DATA_METADATA_KEY] } : {}
 					: entry.providerData !== undefined ? { providerData: entry.providerData } : {}),
@@ -794,6 +813,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		const ref = this._sessionDataService.openDatabase(URI.parse(entry.uri));
 		try {
 			await ref.object.setMetadataValues({
+				...(entry.isRead !== undefined ? { [AH_META_IS_READ_DB_KEY]: entry.isRead ? 'true' : '' } : {}),
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: entry.providerData ?? '',
 				[CHAT_ORIGIN_METADATA_KEY]: entry.origin === undefined ? '' : this._stringifyOrigin(entry.origin),
 				[CHAT_INHERITED_TURN_METADATA_KEY]: entry.inheritedTurnId ?? '',
@@ -827,6 +847,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	private _entriesFromCatalog(chats: readonly {
 		readonly chat: string;
+		readonly isRead?: boolean;
 		readonly providerData?: string;
 		readonly origin?: string;
 		readonly inheritedTurnId?: string;
@@ -834,6 +855,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}[]): IPersistedPeerChat[] {
 		return chats.map(chat => ({
 			uri: chat.chat,
+			...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			...(chat.archived ? { archived: true } : {}),
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 			...(chat.origin !== undefined ? { origin: this._parseOrigin(chat.origin) } : {}),
@@ -890,6 +912,10 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid archived state`);
 				continue;
 			}
+			if (value.isRead !== undefined && typeof value.isRead !== 'boolean') {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid read state`);
+				continue;
+			}
 			const originValue = toSerializableJsonValue(value.origin);
 			const origin = fromCatalogChatOrigin(originValue);
 			if (value.origin !== undefined && !origin) {
@@ -898,6 +924,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			seen.add(value.uri);
 			result.push({
 				uri: value.uri,
+				...(typeof value.isRead === 'boolean' ? { isRead: value.isRead } : {}),
 				...(value.archived === true ? { archived: true } : {}),
 				...(typeof value.providerData === 'string' ? { providerData: value.providerData } : {}),
 				...(origin ? { origin } : {}),

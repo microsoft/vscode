@@ -108,7 +108,8 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
-	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), changes: constObservable([]), changesets: constObservable([]) });
+	const isRead = observableValue(`isRead-${id}`, opts.isRead ?? true);
+	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), isRead, changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -137,7 +138,7 @@ function createSession(id: string, opts: {
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
 		isArchived,
-		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
+		isRead,
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
@@ -1159,6 +1160,31 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(header, `Expected section ${label}`);
 			return header;
 		}
+
+		test('derives collapsed section unread state from its chats', () => {
+			const built = buildTestSession({
+				id: 'section-chat-read-state',
+				title: 'Main chat',
+				workspace: 'Workspace',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { list, container } = renderList([built.session]);
+			list.collapseAllSections();
+
+			const peerUnread = unreadSections(container);
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const chatsRead = unreadSections(container);
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = unreadSections(container);
+
+			assert.deepStrictEqual({ peerUnread, chatsRead, mainUnread }, {
+				peerUnread: ['Workspace'],
+				chatsRead: [],
+				mainUnread: ['Workspace'],
+			});
+		});
 
 		test('reports the experiment trigger where a header could show a status, whether or not the setting shows it', () => {
 			const trigger = [`config.${SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING}`];
@@ -2413,7 +2439,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), changes: constObservable([]), changesets: constObservable([]) })),
+			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), isRead: constObservable(true), changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -4148,6 +4174,7 @@ suite('Sessions - SessionsList', () => {
 				status: constObservable(status),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -4195,9 +4222,7 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen,
 			}));
 			list.layout(300, 400);
-			if (expandChats) {
-				setSessionChatsExpanded(container, true);
-			}
+			setSessionChatsExpanded(container, expandChats);
 			return { container, list, managementService: harness.managementService };
 		}
 
@@ -4208,6 +4233,83 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('renders the exact main chat read state whether collapsed or expanded', () => {
+			const built = buildTestSession({
+				id: 'chat-read-state',
+				title: 'Main chat',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { container } = renderSessionChatsList(built.session, undefined, false, false);
+			const mainItem = container.querySelector<HTMLElement>('.session-item');
+			const snapshot = () => ({
+				mainUnread: mainItem?.classList.contains('unread'),
+				mainAriaLabel: mainItem?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				peerUnread: container.querySelector<HTMLElement>('.session-chat-item')?.classList.contains('unread'),
+				peerAriaLabel: container.querySelector<HTMLElement>('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			});
+
+			const collapsed = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expanded = snapshot();
+			setSessionChatsExpanded(container, false);
+			const recollapsed = snapshot();
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = snapshot();
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const peerRead = snapshot();
+			built.isRead.set(true, undefined);
+			const sessionRead = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expandedMainUnread = snapshot();
+
+			assert.deepStrictEqual({ collapsed, expanded, recollapsed, mainUnread, peerRead, sessionRead, expandedMainUnread }, {
+				collapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expanded: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: true,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed, unread',
+				},
+				recollapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				mainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				peerRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				sessionRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expandedMainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: false,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+				},
+			});
+		});
 
 		test('matches the main chat row vertical layout in compact and regular views', () => {
 			const main = createChat('Main chat');
@@ -4366,6 +4468,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5425,6 +5528,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5499,6 +5603,7 @@ suite('Sessions - SessionsList', () => {
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
@@ -5757,6 +5862,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -6993,7 +7099,7 @@ suite('Sessions - SessionsList', () => {
 					badge: undefined,
 					time: undefined,
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, updated now',
+					ariaLabel: 'Investigate failure, updated now, unread',
 				},
 				regular: {
 					usesStandardRowHeight: true,
@@ -7005,7 +7111,7 @@ suite('Sessions - SessionsList', () => {
 					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, chat, updated now',
+					ariaLabel: 'Investigate failure, chat, updated now, unread',
 				},
 			});
 		});
@@ -7018,6 +7124,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -7471,6 +7578,56 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
 				opened: [session.resource.toString()],
 				markedRead: 1,
+			});
+		});
+
+		test('opening an expanded main chat does not mark the parent session read', async () => {
+			const base = createTestSession('Unread multi-chat', { isRead: false }).session;
+			const main = base.mainChat.get();
+			const peer: IChat = {
+				...main,
+				resource: URI.parse('test-chat://peer'),
+				workspace: constObservable(undefined),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				isArchived: constObservable(false),
+				isRead: constObservable(true),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			};
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const opened: string[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: resource => {
+					opened.push(resource.toString());
+				},
+			}));
+			list.layout(300, 400);
+			const row = findSessionRow(container, 'Unread multi-chat');
+			const twistie = row.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			if (row.getAttribute('aria-expanded') !== 'true') {
+				twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			}
+
+			clickRow(row);
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 0,
 			});
 		});
 
