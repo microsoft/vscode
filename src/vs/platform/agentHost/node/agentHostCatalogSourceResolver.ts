@@ -6,14 +6,13 @@
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
-import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
 import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, isChatInSessionReadAggregate, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitDataValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
@@ -36,6 +35,7 @@ export interface ICatalogSourceState {
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ChatInteractivity;
 		readonly archived?: boolean;
+		readonly isRead?: boolean;
 		readonly inheritedTurnId?: string;
 		readonly workingDirectories?: readonly string[];
 		readonly changes?: ChangesSummary;
@@ -86,6 +86,7 @@ const sessionMetadata = {
 	title: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_KEY),
 	titleSource: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_SOURCE_KEY),
 	isRead: parsedSessionMetadataKey(AH_META_IS_READ_DB_KEY, value => value === 'true'),
+	defaultChatIsRead: parsedSessionMetadataKey(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, value => value === 'true'),
 	isArchived: parsedSessionMetadataKey(AH_META_IS_ARCHIVED_DB_KEY, value => value === 'true'),
 	isDone: parsedSessionMetadataKey(AH_META_IS_DONE_DB_KEY, value => value === 'true'),
 	creationReference: parsedSessionMetadataKey(AH_META_CREATED_BY_SESSION_DB_KEY, parseSessionCreationReference),
@@ -201,9 +202,18 @@ export class AgentHostCatalogSourceResolver {
 			? persistedWorkspaceless
 			: readSessionWorkspaceless(state.meta) || persistedWorkspaceless;
 		const stateIsRead = (state.status & SessionStatus.IsRead) !== 0;
-		const isRead = preferPersistedMetadata && metadata[AH_META_IS_READ_DB_KEY] !== undefined
+		const persistedSessionIsRead = preferPersistedMetadata && metadata[AH_META_IS_READ_DB_KEY] !== undefined
 			? sessionMetadata.isRead.read(metadata) ?? false
 			: stateIsRead;
+		const chatIsRead = (chat: ICatalogSourceState['chats'][number]): boolean | undefined => preferPersistedMetadata
+			&& chat.kind === 'default'
+			&& sessionMetadata.defaultChatIsRead.has(metadata)
+			? sessionMetadata.defaultChatIsRead.read(metadata)
+			: chat.isRead;
+		const aggregateChats = state.chats.filter(chat => isChatInSessionReadAggregate(chat.uri, chat.origin, chat.interactivity));
+		const isRead = aggregateChats.length === 1 && aggregateChats[0].isRead !== undefined
+			? chatIsRead(aggregateChats[0]) ?? persistedSessionIsRead
+			: persistedSessionIsRead && !aggregateChats.some(chat => chatIsRead(chat) === false);
 		const persistedArchived = sessionMetadata.isArchived.read(metadata) ?? sessionMetadata.isDone.read(metadata);
 		const isArchived = preferPersistedMetadata && persistedArchived !== undefined
 			? persistedArchived
@@ -217,7 +227,6 @@ export class AgentHostCatalogSourceResolver {
 		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
 			? persistedDevContainerWorktree
 			: readAgentDevContainerWorktreeMetadata(state.meta) ?? persistedDevContainerWorktree;
-		const codexModel = readCodexSessionModel({ _meta: state.meta });
 		const meta: AgentHostCatalogMetadata = {
 			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
 			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
@@ -233,7 +242,6 @@ export class AgentHostCatalogSourceResolver {
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
 			...(devContainerWorktree ? { [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: devContainerWorktree } : undefined),
-			...(codexModel ? { [CODEX_SESSION_MODEL_META_KEY]: { id: codexModel.id } } : undefined),
 		};
 		const data: AgentHostCatalogData = {
 			modifiedTime: state.modifiedTime,
@@ -264,6 +272,7 @@ export class AgentHostCatalogSourceResolver {
 				// temporary restriction must not become permanent after a restart.
 				const interactivity = chat.interactivity === ChatInteractivity.ReadOnly && readChatInputState({ _meta: state.meta }, chat.uri)
 					? ChatInteractivity.Full : chat.interactivity;
+				const isRead = chatIsRead(chat);
 				const persistedChatChanges = readPersistedChanges(metadata[getChatChangesSummaryMetadataKey(chat.uri)]);
 				const chatChanges = preferPersistedMetadata
 					? persistedChatChanges ?? chat.changes
@@ -277,6 +286,7 @@ export class AgentHostCatalogSourceResolver {
 					origin: toCatalogChatOrigin(chat.origin),
 					...(interactivity !== undefined ? { interactivity } : {}),
 					...(chat.archived === true ? { archived: true } : {}),
+					...(isRead !== undefined ? { isRead } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 					...(chatChanges !== undefined ? { changes: chatChanges } : {}),

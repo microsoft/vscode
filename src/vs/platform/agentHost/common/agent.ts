@@ -14,7 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
@@ -193,6 +193,8 @@ export interface IAgentSessionChatMetadata {
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
 	readonly archived?: boolean;
+	/** Exact chat read state when known; absence means the provider did not supply it. */
+	readonly isRead?: boolean;
 	readonly changes?: ChangesSummary;
 }
 
@@ -505,9 +507,6 @@ export interface IAgentChatContext {
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
-	readonly turnTelemetryCorrelation?: IAgentTurnTelemetryCorrelation;
-	/** Records provider-owned dispatch facts on the addressed turn, before progress can complete it. */
-	readonly reportCodexModelProvider?: (provider: CodexModelProvider) => void;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -1021,11 +1020,14 @@ export interface IAgentToolPendingConfirmationSignal {
 	 */
 	readonly managedApprovalRequired?: boolean;
 	/**
-	 * Host-only flag (not part of the dispatched action): the model requested
-	 * this shell command run OUTSIDE the sandbox (and the host opted in via
-	 * `sandbox.allowBypass`).
+	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only flag indicating that the sandbox escalation keeps the sandbox attached
+	 * while file and process restrictions record instead of block.
+	 */
+	readonly requestSandboxPermissive?: boolean;
 	/**
 	 * Host-only shell language for terminal auto-approval.
 	 * Only `bash` and `powershell` are eligible for terminal-rule analysis;

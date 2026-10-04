@@ -273,13 +273,12 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	line-height: normal;
 	padding: 4px 12px 0;
 }
-/* Keep the inline full-output link underlined so it reads as a link without relying on color alone. */
 .chat-terminal-output-truncation .monaco-link {
-	color: var(--vscode-textLink-foreground);
-	text-decoration: underline;
+	text-decoration: var(--text-link-decoration);
 }
-.chat-terminal-output-truncation .monaco-link:hover {
-	color: var(--vscode-textLink-activeForeground);
+.monaco-workbench.hc-black .chat-terminal-output-truncation .monaco-link,
+.monaco-workbench.hc-light .chat-terminal-output-truncation .monaco-link {
+	text-decoration: underline;
 }
 .chat-terminal-output-empty {
 	display: none;

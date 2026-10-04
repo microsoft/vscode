@@ -55,7 +55,6 @@ export const enum TerminalContribSettingId {
 	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
 	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
-	AgentSandboxAllowAutoApprove = AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
 	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem,
 	AgentSandboxWindowsFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem,

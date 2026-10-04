@@ -104,7 +104,7 @@ It already composes:
 - [Repository/issue/commit and PR queries](common/githubQueryService.ts#L221).
 - [PR mutations and workflow operations](common/githubPullRequestMutationService.ts#L166).
 - [Shared PR subscriptions and polling](common/pullRequestResourceService.ts#L38).
-- Opt-in [shared-process anonymous reads](common/githubIpc.ts). Workbench engines remain per window; fetch integration and authenticated-client migration are separate work.
+- Service-owned [fetch helpers and host networking](README.md#host-networking), plus opt-in [shared-process anonymous reads](common/githubIpc.ts). Workbench engines remain per window; neither fetch forwarding nor authenticated-client migration is enabled by this hosting preparation.
 
 ### What it replaces and what remains with callers
 

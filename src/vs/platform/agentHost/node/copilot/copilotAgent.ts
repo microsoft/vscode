@@ -322,6 +322,8 @@ interface IWorkingDirectoryChangeTransactionOptions {
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
 
+class IncompleteCopilotSessionMarkerError extends Error { }
+
 class CopilotSessionConfigurationBusyError extends Error {
 	constructor(readonly session: CopilotAgentSession) {
 		super('Cannot refresh Copilot session configuration while the session has an active turn.');
@@ -3142,7 +3144,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					const clientName = s.isRemote ? undefined : s.clientName;
 					if (clientName === undefined || !COPILOT_EXTERNAL_SESSION_CLIENT_NAMES.has(clientName)) {
 						if (clientName === undefined && !s.isRemote) {
+							// The SDK reads client_name from workspace.yaml, which readiness watching observes.
 							completed.delete(s.sessionId);
+							scan.waitForChange(s.sessionId);
 						}
 						unsupportedClientName++;
 						return undefined;
@@ -3155,6 +3159,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: adoptable ? await this._extensionHostCliWorkingDirectory(s.sessionId) : undefined;
 				if (!workingDirectory) {
 					completed.delete(s.sessionId);
+					if (!adoptable) {
+						// The SDK reads cwd from workspace.yaml, which readiness watching observes. A missing legacy
+						// directory (typically a deleted worktree) is not observable, so it keeps the retry backoff.
+						scan.waitForChange(s.sessionId);
+					}
 					withoutWorkingDirectory++;
 					return undefined;
 				}
@@ -3186,7 +3195,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			} catch (err) {
 				completed.delete(s.sessionId);
 				failed++;
-				this._logService.warn(`[CopilotDiscovery] Scan ${scan.id}: failed to classify ${session.toString()}; retaining candidate`, err);
+				if (err instanceof IncompleteCopilotSessionMarkerError) {
+					scan.waitForChange(s.sessionId);
+					this._logService.debug(`[CopilotDiscovery] Scan ${scan.id}: incomplete marker for ${session.toString()}; waiting for metadata changes`);
+				} else {
+					this._logService.warn(`[CopilotDiscovery] Scan ${scan.id}: failed to classify ${session.toString()}; retaining candidate`, err);
+				}
 				return undefined;
 			}
 		});
@@ -3234,7 +3248,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const marker = parseExtensionHostCliMarker(raw);
 		if (!marker || (!isExtensionHostCliMarker(marker) && typeof marker.origin !== 'string')) {
-			throw new Error(`Incomplete Copilot session marker for ${sessionId}`);
+			throw new IncompleteCopilotSessionMarkerError(`Incomplete Copilot session marker for ${sessionId}`);
 		}
 		this._extensionHostCliMarkerCache.set(sessionId, Promise.resolve(marker));
 		return marker;

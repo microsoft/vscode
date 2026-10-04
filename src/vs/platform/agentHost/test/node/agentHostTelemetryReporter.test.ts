@@ -113,10 +113,6 @@ suite('AgentHostTelemetryReporter', () => {
 			assert.deepStrictEqual(service.standardEvents.splice(0), baseline.map(event => ({
 				...event, data: { ...event.data, ...(provider === 'codex' ? snapshot : {}) },
 			})));
-			// A legacy/selected model ID cannot determine the dispatch route. The
-			// provider-owned snapshot wins, and only Codex reports this field.
-			reporter.turnCompleted({ ...completion, model: 'legacy-model', codexModelProvider: 'openai' });
-			assert.strictEqual(service.standardEvents.splice(0)[0].data?.codexModelProvider, provider === 'codex' ? 'openai' : undefined);
 		}
 	});
 
@@ -407,6 +403,7 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorClientType: 'editor_window',
 				turnIndex: '3',
 				messageText: 'hello agent',
+				messageTextChunk: zlib.gzipSync(Buffer.from('hello agent', 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
@@ -430,6 +427,7 @@ suite('AgentHostTelemetryReporter', () => {
 				turnIndex: '3',
 				headerRequestId: 'client-1',
 				messageText: 'sure, here you go',
+				messageTextChunk: zlib.gzipSync(Buffer.from('sure, here you go', 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);

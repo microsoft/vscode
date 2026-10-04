@@ -23,7 +23,7 @@ import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 
@@ -247,7 +247,6 @@ interface IAgentHostTurnAttributedReport {
 }
 
 export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext> {
-	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
@@ -303,7 +302,6 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 }
 
 export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & {
-	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
 	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, or deferred.' };
@@ -406,7 +404,6 @@ export interface IAgentHostTurnFailure {
 
 export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport {
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
-	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
@@ -1216,8 +1213,8 @@ export class AgentHostTelemetryReporter {
 	 * for every user and model message, carrying the raw message text to the enhanced GH
 	 * (`copilot_v0_restricted_copilot_event`) and internal MSFT pipelines; the agent host observes
 	 * the same boundary at the SDK `user.message` event. The text is multiplexed across ~8192-char
-	 * chunks (`messageText`, `messageText_02`, …) so long prompts land untruncated, matching the
-	 * extension's `multiplexProperties`.
+	 * compressed chunks (`messageTextChunk`, `messageTextChunk_2`, …), including short text,
+	 * matching the extension's `multiplexProperties`. `messageText` retains the raw prefix.
 	 *
 	 * @param session Session URI string; its id becomes `conversationId`.
 	 * @param content The user's prompt text. No-ops when empty.
@@ -1542,7 +1539,6 @@ export class AgentHostTelemetryReporter {
 			...toInitiatorTelemetry(report.clientContext),
 			...report.telemetryContext,
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
-			...(report.provider === 'codex' ? { codexModelProvider: report.codexModelProvider ?? 'unknown' } : {}),
 			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
 			...(report.hostProcessAgeMs !== undefined ? { hostProcessAgeMs: report.hostProcessAgeMs } : {}),
 			...(report.titleGenerationStrategy !== undefined ? { titleGenerationStrategy: report.titleGenerationStrategy } : {}),

@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { IAction } from '../../../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -31,6 +31,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../s
 import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from '../../../../../../../test/common/workbenchTestServices.js';
 import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../../browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ModelPickerWidget, TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
+import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../../common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 import '../../../../../browser/widget/media/chat.css';
@@ -65,7 +66,7 @@ suite('ModelPickerActionItem', () => {
 	 * name followed by its thinking effort / context size readout. The name has
 	 * no icon, so it keeps its label even when the picker is compact.
 	 */
-	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly tabbed?: boolean } = {}) {
+	function renderPicker(model: ILanguageModelChatMetadataAndIdentifier, options: { readonly compact?: boolean; readonly itemWidth?: number; readonly tabbed?: boolean; readonly workflow?: IModelPickerWorkflow } = {}) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IActionWidgetService, {});
 		instantiationService.stub(ICommandService, {});
@@ -88,6 +89,7 @@ suite('ModelPickerActionItem', () => {
 
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const delegate: IModelPickerDelegate = {
+			workflow: options.workflow,
 			currentModel: constObservable(model),
 			setModel: () => { },
 			setModelProgrammatically: () => { },
@@ -139,6 +141,28 @@ suite('ModelPickerActionItem', () => {
 			})),
 		};
 	}
+
+	test('composer label follows committed workflow summary, not working selections', () => {
+		const summary = observableValue<string | undefined>('summary', undefined);
+		const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
+		const { domNode } = renderPicker(createModel('First'), {
+			tabbed: true,
+			workflow: upcastPartial<IModelPickerWorkflow>({ available: constObservable(true), summary, state }),
+		});
+		const label = () => domNode.querySelector('.chat-input-picker-label')?.textContent;
+		const initial = label();
+		state.set({
+			title: 'Attempts', description: 'Select models.', summary: '10 Attempts', selectedModelIds: ['model'],
+			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: true, canFinish: false,
+		}, undefined);
+		const duringSetup = label();
+		summary.set('3 Attempts', undefined);
+		const committed = label();
+		state.set(undefined, undefined);
+		assert.deepStrictEqual({ initial, duringSetup, committed, dismissed: label() }, {
+			initial: 'First', duringSetup: 'First', committed: '3 Attempts', dismissed: '3 Attempts',
+		});
+	});
 
 	test('includes the gap in the minimum width only when the configuration section is visible', () => {
 		const model = createModel('A model name long enough to reach its minimum width');
@@ -212,20 +236,13 @@ suite('ModelPickerActionItem', () => {
 		const widgetElement = $('button');
 		const anchors: (HTMLElement | undefined)[] = [];
 		const contextViewLayers: (number | undefined)[] = [];
-		const selections: string[] = [];
-		const models: ILanguageModelChatMetadataAndIdentifier[] = [
-			{ identifier: 'copilot:gpt', metadata: upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt', isUserSelectable: true }) },
-			{ identifier: 'openai:gpt', metadata: upcastPartial<ILanguageModelChatMetadata>({ id: 'gpt', isUserSelectable: false }) },
-		];
-		let enabled = true;
 		let disposed = 0;
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stubInstance(ModelPickerWidget, {
 			onDidChangeSelection: Event.None,
 			onDidChangeMinimumWidth: Event.None,
 			domNode: widgetElement,
-			nameButton: widgetElement,
-			canOpenWithFilter: () => enabled,
+			nameButton: undefined,
 			minimumWidth: 60,
 			setSelectedModel: () => { },
 			setCompact: () => { },
@@ -238,9 +255,9 @@ suite('ModelPickerActionItem', () => {
 		const action: IAction = { id: 'test.modelPicker', label: '', tooltip: '', class: undefined, enabled: true, run: async () => { } };
 		const delegate: IModelPickerDelegate = {
 			currentModel: constObservable(undefined),
-			setModel: model => selections.push(model.identifier),
+			setModel: () => { },
 			setModelProgrammatically: () => { },
-			getModels: () => models,
+			getModels: () => [],
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true,
 				showManageModelsAction: false,
@@ -265,14 +282,6 @@ suite('ModelPickerActionItem', () => {
 		item.render(second);
 		item.openModelPicker();
 		item.show(second);
-		assert.deepStrictEqual(selections, [], 'opening the picker does not select a model');
-		const control = item.getModelPickerControl()!;
-		const accepted = [control.select('copilot:gpt'), control.select('gpt'), control.select('openai:gpt')];
-		enabled = false;
-		accepted.push(control.select('copilot:gpt'));
-		assert.deepStrictEqual({ accepted, selections, disabledControl: item.getModelPickerControl() }, {
-			accepted: [true, false, false, false], selections: ['copilot:gpt'], disabledControl: undefined,
-		});
 		const rendered = { first: first.childElementCount, second: second.contains(widgetElement) };
 		item.dispose();
 

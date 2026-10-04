@@ -1385,19 +1385,7 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 		];
 		override readonly supportsLocalWorkspaces = true;
 		override readonly supportsModelConfigurationForCreation = true;
-		override getPermissionOptionsForCreation() {
-			return [{
-				id: 'default',
-				label: 'Manual permissions',
-				description: 'Ask before tool calls.',
-				isDefault: true,
-			}, {
-				id: 'autoApprove',
-				label: 'Allow all',
-				description: 'Run tool calls without asking.',
-				isAllowAll: true,
-			}];
-		}
+		override readonly supportsPermissionsForCreation = true;
 
 		override getSessions(): ISession[] {
 			return [];

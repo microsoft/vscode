@@ -575,6 +575,8 @@
 }
 
 .interactive-item-container .completed-response-summary {
+	display: flex;
+	align-items: center;
 	width: fit-content;
 	max-width: 100%;
 	padding: 0;
@@ -583,6 +585,17 @@
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum";
 	list-style: none;
+
+	> .monaco-button.monaco-icon-button {
+		margin-left: 0;
+		padding-left: 0;
+	}
+
+	> .monaco-button .monaco-button-mdlabel {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 
 .interactive-item-container .completed-response-summary * {
@@ -3350,6 +3363,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	max-width: 100%;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.interactive-session .chat-used-context-label .monaco-button-mdlabel {
+	min-width: 0;
+	white-space: normal;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button {
@@ -3486,6 +3507,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.rendered-markdown.progress-step {
+		min-width: 0;
 		white-space: normal;
 
 		&.chat-progress-with-origin {
@@ -4029,6 +4051,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		margin-bottom: var(--vscode-spacing-size60);
 		position: relative;
+	}
+
+	.chat-request-disclosure {
+		width: 100%;
+	}
+
+	.chat-request-disclosure > summary {
+		width: fit-content;
+		max-width: 100%;
+		margin-left: auto;
+		margin-bottom: var(--vscode-spacing-size60);
+		padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+		border-radius: var(--vscode-cornerRadius-small);
+		border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+		color: var(--vscode-descriptionForeground);
+		cursor: pointer;
+	}
+
+	.chat-request-disclosure > summary:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chat-request-disclosure > summary:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: -1px;
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,

@@ -36,7 +36,7 @@ export interface ISessionPermissionOption {
 	readonly description: string;
 	readonly isDefault?: boolean;
 	readonly isAllowAll?: boolean;
-	/** Optional session mode applied only when a comparison bulk permission toggle selects this option. */
+	/** Selected provider execution mode to preserve when launching comparison participants. */
 	readonly comparisonModeId?: string;
 	readonly locked?: boolean;
 	readonly lockedReason?: string;
@@ -283,8 +283,10 @@ export interface ISessionsProvider {
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
 	/** Whether model-specific configuration can be scoped to a newly created draft. */
 	readonly supportsModelConfigurationForCreation?: boolean;
-	/** Exact permission choices available while creating the given session type. */
-	getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
+	/** Whether the provider validates and applies explicit permission choices before creating the backend session. */
+	readonly supportsPermissionsForCreation?: boolean;
+	/** Current draft's provider-owned permission choice, including its policy availability. */
+	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -517,6 +519,13 @@ export interface ISessionsProvider {
 	 * @param isRead `true` to mark the session read, `false` to mark it unread.
 	 */
 	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
+
+	/**
+	 * Set the read/unread state of a chat independently of its owning session.
+	 * Providers without independently readable chats leave this capability undefined.
+	 * Returns `false` when the transition was not accepted and may be retried.
+	 */
+	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
 
 	/**
 	 * Delete a session.

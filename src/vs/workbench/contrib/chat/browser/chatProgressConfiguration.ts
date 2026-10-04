@@ -5,7 +5,6 @@
 
 import { localize } from '../../../../nls.js';
 import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from '../common/constants.js';
@@ -13,7 +12,7 @@ import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from 
 export const chatProgressConfigurationProperties = {
 	[ChatConfiguration.PersistentProgress]: {
 		type: 'string',
-		default: product.quality === 'insider' ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off,
+		default: ChatProgressAnimation.Draw,
 		enum: Object.values(ChatProgressAnimation),
 		enumItemLabels: [
 			localize('chat.progressAnimation.off.label', "Off"),
@@ -27,7 +26,7 @@ export const chatProgressConfigurationProperties = {
 			localize('chat.progressAnimation.drawMonochrome', "Use the Draw animation with the same grayscale treatment as the VS Code icon in the Agents window. High contrast themes retain their contrast color."),
 			localize('chat.progressAnimation.drawMonochromeNoIcon', "Keep the same persistent progress text and tool rendering as Draw (Monochrome), but hide the VS Code icon."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator at the bottom until the response finishes, with a colored or monochrome Draw animation, or without an icon. The indicator reports running subagents and background commands from the current or earlier requests, even while the main response progresses. The default is Draw in VS Code Insiders and Off in Stable. Experiments can override either default; an explicit setting takes precedence. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator at the bottom until the response finishes, with a colored or monochrome Draw animation, or without an icon. The indicator reports running subagents and background commands from the current or earlier requests, even while the main response progresses. The default is Draw in all versions of VS Code. Experiments can override the default; an explicit setting takes precedence. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},

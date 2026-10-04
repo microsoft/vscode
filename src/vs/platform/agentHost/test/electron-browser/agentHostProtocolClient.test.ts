@@ -26,11 +26,10 @@ import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
-import { ChatInteractivity, ResourceChangeType } from '../../common/state/protocol/state.js';
+import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
 import { isActionKnownToVersion, PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
@@ -714,7 +713,7 @@ suite('AgentHostProtocolClient', () => {
 					workingDirectories: [URI.file('/home/user/.copilot/chats/quick-1').toString()],
 					chats: [
 						{ resource: 'agent-chat://copilotcli/quick-1/default', title: 'Quick Chat' },
-						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', archived: true, interactivity: ChatInteractivity.Hidden },
+						{ resource: 'agent-chat://copilotcli/quick-1/peer', title: 'Peer Chat', status: SessionStatus.Idle | SessionStatus.IsArchived, interactivity: ChatInteractivity.Hidden },
 					],
 					defaultChat: 'agent-chat://copilotcli/quick-1/default',
 					_meta: withSessionWorkspaceless(undefined, true),
@@ -734,7 +733,7 @@ suite('AgentHostProtocolClient', () => {
 			workingDirectories: [toAgentHostUri(URI.file('/home/user/.copilot/chats/quick-1'), agentHostAuthority('test.example:1234'))],
 			chats: [
 				{ chat: 'agent-chat://copilotcli/quick-1/default', summary: 'Quick Chat', kind: 'default', origin: undefined },
-				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
 			],
 		}]);
 	});
@@ -807,38 +806,6 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
-	});
-
-	test('listSessions reads only valid provider-qualified Codex models from namespaced metadata', async () => {
-		const { client, transport } = createClient();
-		const resultPromise = client.listSessions();
-		const sent = transport.sentMessages[0] as JsonRpcRequest;
-		const summary = (id: string, _meta?: Record<string, unknown>) => ({
-			resource: `agent-session://codex/${id}`,
-			provider: 'codex',
-			title: id,
-			status: SessionStatus.Idle,
-			createdAt: new Date(1000).toISOString(),
-			modifiedAt: new Date(2000).toISOString(),
-			...(_meta ? { _meta } : {}),
-		});
-		transport.fireMessage({
-			jsonrpc: '2.0',
-			id: sent.id,
-			result: {
-				items: [
-					summary('valid', withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
-					summary('malformed', { [CODEX_SESSION_MODEL_META_KEY]: { id: 'gpt-5.6-sol' } }),
-					summary('absent'),
-				],
-			},
-		});
-
-		assert.deepStrictEqual((await resultPromise).map(({ provider, model }) => ({ provider, model })), [
-			{ provider: 'codex', model: { id: '@provider=openai:gpt-5.6-sol' } },
-			{ provider: 'codex', model: undefined },
-			{ provider: 'codex', model: undefined },
-		]);
 	});
 
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
@@ -4124,6 +4091,181 @@ suite('AgentHostProtocolClient', () => {
 				client.dispose();
 			}
 		});
+
+		for (const resultType of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
+			for (const credentials of ['cached', 'resolved'] as const) {
+				test(`restores ${credentials} authentication and protected subscriptions after ${resultType} reconnect`, async () => {
+					let resolutions = 0;
+					const resource = 'https://auth.example.com';
+					const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, undefined, undefined,
+						credentials === 'resolved' ? {
+							resolveInitialAuthentication: async () => ({ resource, token: `credential-${++resolutions}` }),
+						} : undefined);
+					await runWithFakedTimers({}, async () => {
+						const initialTransport = transports[0];
+						const connecting = completeHandshake(initialTransport, client.connect());
+						if (credentials === 'resolved') {
+							const authenticate = await waitForRequestAtWithin(initialTransport, 'authenticate', 0);
+							initialTransport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+						}
+						await connecting;
+						if (credentials === 'cached') {
+							const authenticating = client.authenticate({ resource, token: 'credential-1' });
+							const authenticate = await waitForRequestAtWithin(initialTransport, 'authenticate', 0);
+							initialTransport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+							await authenticating;
+						}
+
+						const sessionUri = URI.parse('ahp-session:/host-session');
+						const chatUri = URI.parse('ahp-chat:/host-chat');
+						const sessionState: SessionState = {
+							...createSessionState({
+								resource: sessionUri.toString(), provider: 'remote-agent', title: 'Session', status: SessionStatus.Idle,
+								createdAt: '2026-10-02T00:00:00.000Z', modifiedAt: '2026-10-02T00:00:00.000Z',
+							}),
+							lifecycle: SessionLifecycle.Ready,
+							defaultChat: chatUri.toString(),
+						};
+						const chatState = createChatState({
+							resource: chatUri.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z',
+						});
+						const session = disposables.add(client.getSubscription<SessionState>(StateComponents.Session, sessionUri, 'test'));
+						const chat = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, chatUri, 'test'));
+						const subscriptionErrors: Error[] = [];
+						disposables.add(session.object.onDidError!(error => subscriptionErrors.push(error)));
+						disposables.add(chat.object.onDidError!(error => subscriptionErrors.push(error)));
+						for (const [index, snapshot] of [
+							{ resource: sessionUri.toString(), state: sessionState, fromSeq: 5 },
+							{ resource: chatUri.toString(), state: chatState, fromSeq: 5 },
+						].entries()) {
+							const subscribe = await waitForRequestAtWithin(initialTransport, 'subscribe', index);
+							initialTransport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: { snapshot } });
+						}
+						await flushMicrotasks();
+
+						const { transport, request } = await beginRecovery(client, transports);
+						client.dispatch(sessionUri.toString(), { type: ActionType.SessionTitleChanged, title: 'Queued title' });
+						transport.fireMessage({
+							jsonrpc: '2.0', id: request.id,
+							result: resultType === ReconnectResultType.Replay
+								? { type: resultType, actions: [], missing: [sessionUri.toString(), chatUri.toString()] }
+								: { type: resultType, snapshots: [{ resource: ROOT_STATE_URI, state: { agents: [], activeSessions: 1 }, fromSeq: 6 }] },
+						});
+						await flushMicrotasks();
+						assert.deepStrictEqual({
+							state: client.connectionState,
+							subscriptionErrors,
+							subscribe: findRequest(transport, 'subscribe'),
+							dispatch: findDispatchAction(transport, ActionType.SessionTitleChanged),
+						}, {
+							state: AgentHostClientState.Reconnecting, subscriptionErrors: [], subscribe: undefined, dispatch: undefined,
+						});
+
+						const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+						assert.deepStrictEqual(authenticate.params, {
+							channel: ROOT_STATE_URI, resource, token: credentials === 'resolved' ? 'credential-2' : 'credential-1', scopes: undefined,
+						});
+						transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+						const sessionSubscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+						assert.deepStrictEqual(sessionSubscribe.params, { channel: sessionUri.toString() });
+						transport.fireMessage({
+							jsonrpc: '2.0', id: sessionSubscribe.id,
+							result: { snapshot: { resource: sessionUri.toString(), state: sessionState, fromSeq: 7 } },
+						});
+						const chatSubscribe = await waitForRequestAtWithin(transport, 'subscribe', 1);
+						assert.deepStrictEqual({
+							params: chatSubscribe.params,
+							state: client.connectionState,
+							dispatch: findDispatchAction(transport, ActionType.SessionTitleChanged),
+						}, { params: { channel: chatUri.toString() }, state: AgentHostClientState.Reconnecting, dispatch: undefined });
+						const restoredChat: ChatState = {
+							...chatState,
+							activeTurn: {
+								id: 'resumed-turn', startedAt: '2026-10-02T00:01:00.000Z',
+								message: { text: 'Are you still there?', origin: { kind: MessageKind.User } },
+								responseParts: [{ kind: ResponsePartKind.Markdown, id: 'reply', content: 'Still' }],
+								usage: undefined,
+							},
+						};
+						transport.fireMessage({
+							jsonrpc: '2.0', id: chatSubscribe.id,
+							result: { snapshot: { resource: chatUri.toString(), state: restoredChat, fromSeq: 8 } },
+						});
+						await waitForConnectedWithin(client);
+						transport.fireMessage({
+							jsonrpc: '2.0', method: 'action',
+							params: { channel: chatUri.toString(), serverSeq: 9, origin: undefined, action: { type: ActionType.ChatDelta, turnId: 'resumed-turn', partId: 'reply', content: ' here.' } },
+						});
+						transport.fireMessage({
+							jsonrpc: '2.0', method: 'action',
+							params: { channel: chatUri.toString(), serverSeq: 10, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId: 'resumed-turn', duration: 1000 } },
+						});
+						const state = chat.object.value;
+						assert.ok(state && !(state instanceof Error));
+						assert.deepStrictEqual({
+							state: client.connectionState, subscriptionErrors, resolutions,
+							dispatch: findDispatchAction(transport, ActionType.SessionTitleChanged)?.method,
+							response: state.turns.at(-1)?.responseParts, activeTurn: state.activeTurn,
+						}, {
+							state: AgentHostClientState.Connected, subscriptionErrors: [], resolutions: credentials === 'resolved' ? 2 : 0,
+							dispatch: 'dispatchAction',
+							response: [{ kind: ResponsePartKind.Markdown, id: 'reply', content: 'Still here.' }], activeTurn: undefined,
+						});
+						client.dispose();
+					});
+				});
+			}
+		}
+
+		for (const code of [AhpErrorCodes.NotFound, AhpErrorCodes.PermissionDenied]) {
+			test(`keeps a subscription unavailable when post-authentication restore fails with ${code}`, async () => {
+				const { client, transports } = createFactoryClient();
+				await runWithFakedTimers({}, async () => {
+					await completeHandshake(transports[0], client.connect());
+					const authenticating = client.authenticate({ resource: 'https://auth.example.com', token: 'credential' });
+					const initialAuthenticate = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+					transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
+					await authenticating;
+
+					const chatUri = URI.parse('ahp-chat:/unavailable-chat');
+					const chat = disposables.add(client.getSubscription<ChatState>(StateComponents.Chat, chatUri, 'test'));
+					const subscribe = await waitForRequestAtWithin(transports[0], 'subscribe', 0);
+					transports[0].fireMessage({
+						jsonrpc: '2.0', id: subscribe.id,
+						result: {
+							snapshot: {
+								resource: chatUri.toString(), fromSeq: 5,
+								state: createChatState({ resource: chatUri.toString(), title: 'Chat', status: SessionStatus.Idle, modifiedAt: '2026-10-02T00:00:00.000Z' }),
+							},
+						},
+					});
+					await flushMicrotasks();
+					client.dispatch(chatUri.toString(), {
+						type: ActionType.ChatTurnStarted, turnId: 'pending-turn', startedAt: '2026-10-02T00:01:00.000Z',
+						message: { text: 'Continue', origin: { kind: MessageKind.User } },
+					});
+					const { transport, request } = await beginRecovery(client, transports);
+					transport.fireMessage({
+						jsonrpc: '2.0', id: request.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [chatUri.toString()] },
+					});
+					const authenticate = await waitForRequestAtWithin(transport, 'authenticate', 0);
+					transport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+					const restoredSubscribe = await waitForRequestAtWithin(transport, 'subscribe', 0);
+					transport.fireMessage({ jsonrpc: '2.0', id: restoredSubscribe.id, error: { code, message: 'Resource unavailable' } });
+					await waitForConnectedWithin(client);
+
+					assert.deepStrictEqual({
+						state: client.connectionState,
+						unavailable: chat.object.value instanceof Error,
+						replayedTurn: findDispatchAction(transport, ActionType.ChatTurnStarted),
+					}, {
+						state: AgentHostClientState.Connected, unavailable: true, replayedTurn: undefined,
+					});
+					client.dispose();
+				});
+			});
+		}
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
 			this.timeout(10_000);
