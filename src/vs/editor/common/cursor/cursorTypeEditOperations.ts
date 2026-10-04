@@ -816,6 +816,15 @@ export class TabOperation {
 						continue;
 					}
 				}
+				// When the tab key inserts a literal tab character, typing it may
+				// complete an auto-closing pair whose open ends with a tab.
+				const autoClosingPairClose = !config.insertSpaces
+					? AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], '\t', false)
+					: null;
+				if (autoClosingPairClose !== null) {
+					commands[i] = new TypeWithAutoClosingCommand(selection, '\t', true, autoClosingPairClose);
+					continue;
+				}
 				commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
 			} else {
 				if (selection.startLineNumber === selection.endLineNumber) {

@@ -1443,6 +1443,24 @@ suite('Editor Controller', () => {
 		return languageId;
 	}
 
+	function registerPlainTokenization(disposables: DisposableStore, languageService: ILanguageService, languageId: string): void {
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+		disposables.add(TokenizationRegistry.register(languageId, {
+			getInitialState: () => NullState,
+			tokenize: undefined!,
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				if (line.length === 0) {
+					return new EncodedTokenizationResult(new Uint32Array(0), [], state);
+				}
+				const result = new Uint32Array(2);
+				result[0] = 0;
+				result[1] = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+					| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET);
+				return new EncodedTokenizationResult(result, [], state);
+			}
+		}));
+	}
+
 	function setupAutoClosingLanguage() {
 		disposables.add(languageService.registerLanguage({ id: autoClosingLanguageId }));
 		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
@@ -5078,6 +5096,53 @@ suite('Editor Controller', () => {
 					}
 				}
 			}
+		});
+	});
+
+	test('issue #338697: Tab completes an auto-closing pair whose open ends with a tab', () => {
+		const languageId = 'tabAutoClosingLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin\t', close: 'end' }]
+		}));
+		registerPlainTokenization(disposables, languageService, languageId);
+		usingCursor({
+			text: [''],
+			languageId: languageId,
+			modelOpts: { insertSpaces: false }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			for (const ch of ['b', 'e', 'g', 'i', 'n']) {
+				viewModel.type(ch, 'keyboard');
+			}
+			model.tokenization.forceTokenization(1);
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.deepStrictEqual(model.getLineContent(1), 'begin\tend');
+			// the cursor is placed between the open and the auto-closed pair
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 7, 1, 7));
+		});
+	});
+
+	test('issue #338697: Tab does not complete an auto-closing pair when it inserts spaces', () => {
+		const languageId = 'tabAutoClosingLanguage2';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin\t', close: 'end' }]
+		}));
+		registerPlainTokenization(disposables, languageService, languageId);
+		usingCursor({
+			text: [''],
+			languageId: languageId,
+			modelOpts: { insertSpaces: true }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			for (const ch of ['b', 'e', 'g', 'i', 'n']) {
+				viewModel.type(ch, 'keyboard');
+			}
+			model.tokenization.forceTokenization(1);
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			// Tab inserted spaces to reach the next tab stop, without completing the pair
+			assert.ok(/^begin +$/.test(model.getLineContent(1)), `unexpected line content: ${model.getLineContent(1)}`);
 		});
 	});
 
