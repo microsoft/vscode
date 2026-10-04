@@ -144,20 +144,8 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	}
 
 	/**
-	 * The model bundle lazily loads its TensorFlow CPU backend as a separate CommonJS chunk using
-	 * webpack's `require`-based chunk loading (`require("./<id>.js")`). A web worker has no
-	 * `require`, so `runModel` used to fail with `ReferenceError: require is not defined` before it
-	 * ever looked at the model -- and the error was swallowed, so detection just reported nothing.
-	 *
-	 * The chunk also cannot simply be evaluated: VS Code runs under Trusted Types, which forbids the
-	 * `Function` constructor outright. Unlike `script.src`, it cannot be unblocked by a policy (the
-	 * constructor does not accept `TrustedScript`), so `'unsafe-eval'` in the CSP makes no difference.
-	 *
-	 * Load the chunks as ES modules ahead of time instead, then give webpack a synchronous `require`
-	 * that only serves what is already loaded. The chunks are CommonJS and assign to a bare
-	 * `exports`, so `module` and `exports` are briefly defined on the global scope around each
-	 * import. That is safe for the bundle's own UMD header -- which prefers CommonJS over AMD when it
-	 * sees them -- because the bundle has already been imported by this point and `import()` caches.
+	 * The model bundle loads its TensorFlow backend as webpack chunks via `require`, which a module worker
+	 * lacks and Trusted Types forbids evaluating, so import the chunks as ES modules up front instead.
 	 */
 	private async preloadModelChunks(bundleUri: string): Promise<void> {
 		const globalScope = globalThis as unknown as {
@@ -167,15 +155,14 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		};
 
 		if (this._modelChunks.size === 0) {
-			// The chunk ids are baked into the bundle and change between versions of
-			// @vscode/vscode-languagedetection, so read them back out of it rather than hard coding
-			// one. A false positive is harmless: that chunk simply fails to load and is skipped.
+			// Chunk ids change between package versions, so read them from the bundle.
 			const source = await (await fetch(bundleUri)).text();
 			const chunkIds = new Set(Array.from(source.matchAll(/\.e\((?<chunkId>\d+)\)/g), match => match.groups!.chunkId));
 
 			for (const chunkId of chunkIds) {
 				const id = `./${chunkId}.js`;
 				const holder: { exports: unknown } = { exports: Object.create(null) };
+				// The chunks are CommonJS and assign to a bare `exports`.
 				globalScope.module = holder;
 				globalScope.exports = holder.exports;
 				try {
@@ -199,12 +186,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		};
 	}
 
-	/**
-	 * Caches the promise rather than the model operations themselves. `preloadModelChunks` briefly
-	 * defines `module` and `exports` on the global scope, and overlapping detection requests -- which
-	 * are routine, since each notebook cell status bar asks independently -- must not both enter that
-	 * window and overwrite one another's holder.
-	 */
+	/** Caches the promise so concurrent requests share one load, since preloading briefly mutates globals. */
 	private getModelOperations(): Promise<ModelOperations> {
 		this._modelOperations ??= this.createModelOperations();
 		return this._modelOperations;
@@ -213,6 +195,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 	private async createModelOperations(): Promise<ModelOperations> {
 		const uri: string = await this._host.$getIndexJsUri();
 		const { ModelOperations } = await importAMDNodeModule(uri, '') as typeof import('@vscode/vscode-languagedetection');
+		// Must follow the bundle import: its UMD header would otherwise see the temporary `module`/`exports`.
 		await this.preloadModelChunks(uri);
 		return new ModelOperations({
 			modelJsonLoaderFunc: async () => {
@@ -286,10 +269,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		return modelResult;
 	}
 
-	/**
-	 * Reports a failure to the window log. Every failure in here is silent from the outside -- the
-	 * editor simply keeps its language -- so the log is the only place the reason can surface.
-	 */
+	/** Reports a failure to the window log, once per distinct message. */
 	private logFailure(level: 'warn' | 'error', what: string, error: unknown): void {
 		const detail = error instanceof Error ? error.stack ?? error.message : String(error);
 		const message = `Language detection ${what}: ${detail}`;
@@ -308,9 +288,7 @@ export class LanguageDetectionWorker implements ILanguageDetectionWorker {
 		try {
 			modelOperations = await this.getModelOperations();
 		} catch (e) {
-			// This latches for the rest of the session so that a failure is not re-attempted on every
-			// throttled keystroke, which makes it the one and only chance to say why detection has
-			// gone quiet. It used to latch silently.
+			// Latch, so a broken model is not reloaded on every throttled edit.
 			this._loadFailed = true;
 			this.logFailure('error', 'failed to load the language detection model', e);
 			return;
