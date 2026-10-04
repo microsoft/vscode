@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GitHubCloudApi, GitHubCloudList, GitHubCloudListOptions, cloudNullableString, cloudObject, cloudOptionalString, cloudPagination, cloudPathSegment, cloudQuery, cloudStatus, cloudTimestamp, collectCloudPages } from './githubCloudApi.js';
-import { arrayProperty, nextLink, optionalObjectProperty, requiredNumber, requiredString } from './githubResponse.js';
-import { GitHubRequestError } from './githubTypes.js';
+import { arrayProperty, nextLink, optionalObjectProperty, requiredNumber, requiredString } from '../githubResponse.js';
+import { GitHubRequestError } from '../githubTypes.js';
+import { GitHubCloudApi, GitHubCloudList, GitHubCloudListOptions, cloudNullableString, cloudObject, cloudOptionalString, cloudPagination, cloudPathSegment, cloudQuery, cloudStatus, cloudTimestamp, collectCloudPages } from './cloudApi.js';
 
 /** Control-plane session metadata associated with a cloud task. */
 export interface GitHubCloudTaskSession {

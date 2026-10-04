@@ -355,7 +355,7 @@ function credentialErrorKind(error: unknown): string {
 	return error instanceof Error ? error.name : typeof error;
 }
 
-function sameAccount(left: AccountHandle, right: AccountHandle): boolean {
+export function sameAccount(left: AccountHandle, right: AccountHandle): boolean {
 	return left.host.toLowerCase() === right.host.toLowerCase() && left.accountId === right.accountId;
 }
 

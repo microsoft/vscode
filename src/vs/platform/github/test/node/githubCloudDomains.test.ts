@@ -9,11 +9,12 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { GitHubAutomations } from '../../common/githubAutomations.js';
-import { GitHubCloudApi, GitHubCloudMutationUncertainError } from '../../common/githubCloudApi.js';
-import { GitHubCloudTasks } from '../../common/githubCloudTasks.js';
+import { GitHubAutomations } from '../../common/cloud/automation.js';
+import { GitHubCloudApi, GitHubCloudMutationUncertainError } from '../../common/cloud/cloudApi.js';
+import { GitHubCloudTasks } from '../../common/cloud/cloudTasks.js';
+import { GitHubEnvironments } from '../../common/cloud/environments.js';
 import { GitHubCredential, IGitHubCredentials } from '../../common/githubCredentialService.js';
-import { GitHubEnvironments } from '../../common/githubEnvironments.js';
+import { GitHubRepositoryRef } from '../../common/githubQueryService.js';
 import { GitHubService, IGitHubClient } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubRestResponse, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions } from '../../common/githubTypes.js';
@@ -27,7 +28,7 @@ const options: GitHubClientOptions = {
 	authorization: { providerId: 'github', sessionId: 'selected-session', scopes: ['repo', 'read:user'], authorizationServer: 'https://github.com/login/oauth' },
 	cloud,
 };
-const repository = { owner: 'owner', name: 'repo' };
+const repository: GitHubRepositoryRef = { host: 'api.github.com', accountId: '101', owner: 'owner', repo: 'repo' };
 const timestamp = '2026-10-01T12:00:00Z';
 
 function signal(): AbortSignal {
@@ -39,7 +40,7 @@ function json(value: object, status = 200, headers?: HeadersInit): Response {
 }
 
 function automation(id = 'auto-1') {
-	return { id, name: 'Automation', prompt: 'Inspect the repository', repository, created_at: timestamp, updated_at: timestamp };
+	return { id, name: 'Automation', prompt: 'Inspect the repository', repository: { owner: repository.owner, name: repository.repo }, created_at: timestamp, updated_at: timestamp };
 }
 
 function task(id = 'task-1') {
@@ -237,12 +238,55 @@ suite('GitHub cloud domains', () => {
 	suite('automations', () => {
 		test('reads repository privacy without enforcing feature eligibility', async () => {
 			const fixture = setup(() => json({ private: false }));
-			const isPrivate = await fixture.client.automations.isPrivateRepository(repository, signal());
+			const isPrivate = await fixture.client.automations.isPrivateRepository({ ...repository, host: 'API.GITHUB.COM' }, signal());
 			const request = fixture.calls()[0];
 			assert.deepStrictEqual({
 				isPrivate, url: request.url.href, integration: request.headers.get('copilot-integration-id'),
 				version: request.headers.get('x-github-api-version'),
 			}, { isPrivate: false, url: 'https://api.github.com/repos/owner/repo', integration: null, version: '2022-11-28' });
+		});
+
+		for (const ref of [
+			{ ...repository, host: 'api.other.example.test' },
+			{ ...repository, accountId: '202' },
+		]) {
+			test(`rejects mismatched repository identity ${ref.host}/${ref.accountId} before reads or writes`, async () => {
+				const fixture = setup(() => json(automation()));
+				const operations = [
+					() => fixture.client.automations.isPrivateRepository(ref, signal()),
+					() => fixture.client.automations.list(ref, signal()),
+					() => fixture.client.automations.get(ref, 'auto-1', signal()),
+					() => fixture.client.automations.create(ref, { name: 'New', prompt: 'Work' }, signal()),
+					() => fixture.client.automations.update(ref, 'auto-1', { disabled: true }, signal()),
+					() => fixture.client.automations.delete(ref, 'auto-1', signal()),
+					() => fixture.client.automations.dispatch(ref, 'auto-1', 'manual', signal()),
+				];
+				for (const operation of operations) {
+					await assert.rejects(operation, { kind: 'authentication' });
+				}
+				const callsBeforeValidRequest = fixture.calls().length;
+				const result = await fixture.client.automations.get(repository, 'auto-1', signal());
+				assert.deepStrictEqual({
+					callsBeforeValidRequest, result, calls: fixture.calls().length,
+					identityLookups: fixture.requests.filter(request => request.url.pathname.endsWith('/user')).length,
+				}, { callsBeforeValidRequest: 0, result: automation(), calls: 1, identityLookups: 1 });
+			});
+		}
+
+		test('matches repository references to the enterprise GitHub host rather than the agents endpoint', async () => {
+			const fixture = setup(() => json(automation()), {
+				...options,
+				apiBaseUri: 'https://api.enterprise.example.test/api/v3',
+				graphQlUri: 'https://api.enterprise.example.test/api/graphql',
+				cloud: { ...cloud, apiBaseUri: 'https://copilot.enterprise.example.test/agents' },
+			});
+			await assert.rejects(fixture.client.automations.get(repository, 'auto-1', signal()), { kind: 'authentication' });
+			await assert.rejects(fixture.client.automations.get({ ...repository, host: 'copilot.enterprise.example.test' }, 'auto-1', signal()), { kind: 'authentication' });
+			const result = await fixture.client.automations.get({ ...repository, host: 'API.ENTERPRISE.EXAMPLE.TEST', owner: 'OWNER', repo: 'REPO' }, 'auto-1', signal());
+			assert.deepStrictEqual({ result, urls: fixture.requests.map(request => request.url.href) }, {
+				result: automation(),
+				urls: ['https://api.enterprise.example.test/api/v3/user', 'https://copilot.enterprise.example.test/agents/automations/auto-1'],
+			});
 		});
 
 		test('paginates and hydrates missing definitions in list order without following server-provided hosts', async () => {
@@ -356,6 +400,7 @@ suite('GitHub cloud domains', () => {
 		for (const invalid of [
 			{ ...automation(), id: 'wrong' },
 			{ ...automation(), repository: { owner: 'wrong', name: 'repo' } },
+			{ ...automation(), repository: { owner: 'owner', name: 'wrong' } },
 			{ ...automation(), disabled: 'true' },
 			{ ...automation(), created_at: 'yesterday' },
 			{ ...automation(), tools: [42] },
@@ -404,11 +449,12 @@ suite('GitHub cloud domains', () => {
 				sessions: [{ id: 'session-1', environment_id: 'env-1', state: 'idle', created_at: timestamp, ahp_resource_uri: 'ahp-session:/session-1' }],
 			};
 			const fixture = setup(request => json(detailed, request.method === 'POST' ? 201 : 200));
-			const created = await fixture.client.cloudTasks.create({ prompt: 'First turn', environment_id: 'github-sandbox', repositories: [repository] }, signal());
+			const repositories = [{ owner: repository.owner, name: repository.repo }];
+			const created = await fixture.client.cloudTasks.create({ prompt: 'First turn', environment_id: 'github-sandbox', repositories }, signal());
 			const read = await fixture.client.cloudTasks.get('task-1', signal());
 			assert.deepStrictEqual({ created, read, calls: fixture.calls().map(request => [request.method, request.url.pathname, request.body]) }, {
 				created: detailed, read: detailed,
-				calls: [['POST', '/agents/tasks', { prompt: 'First turn', environment_id: 'github-sandbox', repositories: [repository] }], ['GET', '/agents/tasks/task-1', undefined]],
+				calls: [['POST', '/agents/tasks', { prompt: 'First turn', environment_id: 'github-sandbox', repositories }], ['GET', '/agents/tasks/task-1', undefined]],
 			});
 		});
 
@@ -723,6 +769,33 @@ suite('GitHub cloud domains', () => {
 			await assert.rejects(fixture.client.cloudTasks.get('task-1', signal()), /disposed/);
 			assert.deepStrictEqual({ peerTask, aborted: fixture.calls()[0].signal.aborted }, { peerTask: task(), aborted: true });
 		});
+
+		for (const entry of [
+			{ name: 'generic 403 denials', message: 'Rate Limit Exceeded', kind: 'authorization', delay: 0 },
+			{ name: 'explicit secondary limits', message: 'You have exceeded a secondary rate limit.', kind: 'rateLimit', delay: 60_000 },
+		]) {
+			for (const method of ['GET', 'POST']) {
+				test(`classifies ${entry.name} for cloud ${method} without crossing quota boundaries`, async () => {
+					let calls = 0;
+					const fixture = direct(async () => {
+						calls++;
+						return json({ message: entry.message }, 403, { 'x-ratelimit-remaining': '4999', 'x-ratelimit-reset': '4600' });
+					});
+					const operation = method === 'GET'
+						? fixture.cloudTasks.get('task-1', signal())
+						: fixture.cloudTasks.create({ prompt: 'Work' }, signal());
+					await assert.rejects(operation, { kind: entry.kind, statusCode: 403 });
+					const cloudAccount = { host: 'api.githubcopilot.com', accountId: JSON.stringify(['api.github.com', '101']) };
+					assert.deepStrictEqual({
+						calls,
+						cloud: fixture.transport.rateLimits.getDelay(cloudAccount, 'agents'),
+						core: fixture.transport.rateLimits.getDelay(cloudAccount, 'core'),
+						github: fixture.transport.rateLimits.getDelay(repository, 'core'),
+						timers: fixture.clock.pendingCount,
+					}, { calls: 1, cloud: entry.delay, core: 0, github: 0, timers: 0 });
+				});
+			}
+		}
 
 		test('shares cloud cooldowns across leases without assuming REST quota parity', async () => {
 			const fixture = setup(() => json({ message: 'rate limit' }, 429, { 'retry-after': '120', 'x-ratelimit-resource': 'core' }));

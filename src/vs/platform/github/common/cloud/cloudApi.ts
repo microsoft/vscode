@@ -3,18 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../base/common/lifecycle.js';
-import { GitHubCredential, IGitHubCredentials } from './githubCredentialService.js';
-import { arrayProperty, asObject, nextLink } from './githubResponse.js';
-import { GitHubRestRequest, GitHubRestResponse, IGitHubTransport } from './githubTransport.js';
-import { GitHubCloudEndpoint, GitHubRequestError, IGitHubEndpointProvider } from './githubTypes.js';
-import { AccountHandle } from './types.js';
-
-/** Repository identity used to scope cloud API operations. */
-export interface GitHubCloudRepository {
-	readonly owner: string;
-	readonly name: string;
-}
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { GitHubCredential, IGitHubCredentials, sameAccount } from '../githubCredentialService.js';
+import { GitHubRepositoryRef } from '../githubQueryService.js';
+import { arrayProperty, asObject, nextLink } from '../githubResponse.js';
+import { GitHubRestRequest, GitHubRestResponse, IGitHubTransport } from '../githubTransport.js';
+import { GitHubCloudEndpoint, GitHubRequestError, IGitHubEndpointProvider } from '../githubTypes.js';
+import { AccountHandle } from '../types.js';
 
 /** Starting page, page size, and page limit for bounded cloud API list requests. */
 export interface GitHubCloudListOptions {
@@ -68,13 +63,16 @@ export class GitHubCloudApi extends Disposable {
 		}));
 	}
 
-	async run<T>(caller: string, signal: AbortSignal, task: (request: GitHubCloudRequest) => Promise<T>): Promise<T> {
+	async run<T>(caller: string, signal: AbortSignal, task: (request: GitHubCloudRequest) => Promise<T>, account?: AccountHandle): Promise<T> {
 		signal.throwIfAborted();
 		if (!this._cloud) {
 			throw new GitHubRequestError('This GitHub client has no approved cloud endpoint', 'validation');
 		}
 		const cloud = this._cloud;
 		const credential = await this._credentials.getCredential(signal);
+		if (account && !sameAccount(account, credential.account)) {
+			throw new GitHubRequestError('GitHub cloud repository account does not match the current credential', 'authentication');
+		}
 		const controller = new AbortController();
 		const combinedSignal = AbortSignal.any([signal, credential.signal, controller.signal]);
 		const request: GitHubCloudRequest = async (options, parse) => {
@@ -150,8 +148,8 @@ export function cloudPathSegment(value: string): string {
 	return encodeURIComponent(value);
 }
 
-export function cloudRepositoryPath(repository: GitHubCloudRepository): string {
-	return `${cloudPathSegment(repository.owner)}/${cloudPathSegment(repository.name)}`;
+export function cloudRepositoryPath(repository: GitHubRepositoryRef): string {
+	return `${cloudPathSegment(repository.owner)}/${cloudPathSegment(repository.repo)}`;
 }
 
 export function cloudQuery(path: string, parameters: Readonly<Record<string, string | number | boolean | undefined>>): string {

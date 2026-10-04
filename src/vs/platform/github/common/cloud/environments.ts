@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GitHubCloudApi, cloudObject, cloudOptionalString, cloudPathSegment, cloudQuery, cloudStatus, cloudTimestamp } from './githubCloudApi.js';
-import { objectProperty, requiredString } from './githubResponse.js';
-import { GitHubRequestError } from './githubTypes.js';
-import { parseRetryAfter } from './httpHeaders.js';
+import { objectProperty, requiredString } from '../githubResponse.js';
+import { GitHubRequestError } from '../githubTypes.js';
+import { parseRetryAfter } from '../httpHeaders.js';
+import { GitHubCloudApi, cloudObject, cloudOptionalString, cloudPathSegment, cloudQuery, cloudStatus, cloudTimestamp } from './cloudApi.js';
 
 /** Reported availability and lifecycle states of a cloud environment. */
 export type GitHubEnvironmentStatus = 'online' | 'offline' | 'degraded' | 'waking' | 'draining';

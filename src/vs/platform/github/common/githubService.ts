@@ -23,10 +23,10 @@ import { AnonymousAccount, BootstrapAccount } from './types.js';
 import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
-import { GitHubCloudApi, normalizeGitHubCloudEndpoint } from './githubCloudApi.js';
-import { GitHubAutomations, IGitHubAutomations } from './githubAutomations.js';
-import { GitHubCloudTasks, IGitHubCloudTasks } from './githubCloudTasks.js';
-import { GitHubEnvironments, IGitHubEnvironments } from './githubEnvironments.js';
+import { GitHubCloudApi, normalizeGitHubCloudEndpoint } from './cloud/cloudApi.js';
+import { GitHubAutomations, IGitHubAutomations } from './cloud/automation.js';
+import { GitHubCloudTasks, IGitHubCloudTasks } from './cloud/cloudTasks.js';
+import { GitHubEnvironments, IGitHubEnvironments } from './cloud/environments.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 

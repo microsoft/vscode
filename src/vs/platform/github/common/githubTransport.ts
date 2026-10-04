@@ -646,7 +646,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			if (!response.ok) {
 				if (request.agents) {
-					throw new GitHubRequestError(`GitHub cloud API request failed (HTTP ${response.status})`, classifyHttpError(response.status, body), response.status);
+					throw new GitHubRequestError(`GitHub cloud API request failed (HTTP ${response.status})`, classifyHttpError(response, body), response.status);
 				}
 				const requestUrl = new URL(request.url);
 				const route = `${requestUrl.pathname.replace(/^\//, '')}${requestUrl.search}`;

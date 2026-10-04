@@ -16,7 +16,7 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 
 	/** Agents quotas are independent of REST/GraphQL; successful Retry-After responses can mean waking. */
 	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
-		if (!isRateLimited(response.status, responseBody)) {
+		if (!classifyGitHubHttpRateLimit(response, responseBody)) {
 			return;
 		}
 		const now = this._scheduler.now();
