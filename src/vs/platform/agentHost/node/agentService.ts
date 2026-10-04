@@ -613,6 +613,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private readonly _resourceWriteQueue = this._register(new ResourceQueue());
 	private readonly _chatCatalogMutationSequencer = new SequencerByKey<string>();
+	private readonly _sessionCreationSequencer = new SequencerByKey<string>();
 	private readonly _additionalWorktreeSequencer = new SequencerByKey<string>();
 
 	/** Protocol: fires when state is mutated by an action. */
@@ -4606,13 +4607,23 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		const provider = this._providerService.resolveProvider(config?.provider);
+		if (provider && config?.session && this._providerService.getProviderForSession(config.session) === provider) {
+			this._cancelPendingSessionGc(config.session);
+		}
+		return config?.session
+			? this._sessionCreationSequencer.queue(AgentSession.id(config.session), () => this._createSession(config))
+			: this._createSession(config);
+	}
+
+	private async _createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		const provider = this._providerService.resolveProvider(config?.provider);
 		const isEphemeral = config ? readEphemeralSessionMeta(config).isEphemeral === true : false;
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${config?.provider ?? '(none)'}`);
 		}
 		if (config?.session?.scheme === 'ahp-session') {
 			const requested = config.session;
-			const registered = await this._sessionRegistry.get(requested);
+			const registered = await this._orchestratorDatabase.getSessionV2Registration(requested.toString());
 			if (registered && registered.provider !== provider.id) {
 				throw new Error(`Session ${requested.toString()} is already owned by ${registered.provider}`);
 			}
@@ -4623,6 +4634,12 @@ export class AgentService extends Disposable implements IAgentService {
 					|| await this._sessionRegistry.isTombstoned(requested)) {
 					throw new Error(`Session storage identity is already in use: ${requested.toString()}`);
 				}
+			}
+		} else if (config?.session && !await this._orchestratorDatabase.getSessionV2Registration(config.session.toString())) {
+			const requestedId = AgentSession.id(config.session);
+			const keys = await this._sessionRegistry.listRuntimeCompatibleSessionKeys();
+			if ([...keys].some(key => URI.parse(key).scheme === 'ahp-session' && AgentSession.id(key) === requestedId)) {
+				throw new Error(`Session storage identity is already in use: ${config.session.toString()}`);
 			}
 		}
 		if (config?.session) {
@@ -5441,18 +5458,6 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._orderSessionChatsForTeardown(session, state?.chats.map(chat => chat.resource) ?? []);
 	}
 
-	private async _getSessionChatsForDisposal(provider: IAgent, session: URI): Promise<URI[]> {
-		const state = this._stateManager.getSessionState(session.toString());
-		if (state) {
-			return this._getSessionChatsInTeardownOrder(session);
-		}
-		const persisted = await this._peerChatStore.tryRead(session);
-		const peerChats = persisted?.map(chat => chat.uri)
-			?? (await provider.listLegacyChatBackings?.(session))?.map(chat => chat.uri.toString())
-			?? [];
-		return this._orderSessionChatsForTeardown(session, peerChats);
-	}
-
 	private _orderSessionChatsForTeardown(session: URI, chats: readonly string[]): URI[] {
 		const defaultChat = buildDefaultChatUri(session.toString());
 		const result: URI[] = [];
@@ -5473,10 +5478,22 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Destructively tears a session down: dispose peer chats first and the
 	 * default chat last, and still visit every chat if one rejects.
 	 */
-	private async _disposeSession(provider: IAgent, session: URI): Promise<readonly URI[]> {
+	private async _disposeSession(provider: IAgent, session: URI, persistedPeers: readonly IPersistedPeerChat[] | undefined): Promise<readonly URI[]> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
+		const state = this._stateManager.getSessionState(session.toString());
+		const catalog = persistedPeers ?? (!state ? await provider.listLegacyChatBackings?.(session) : undefined);
+		const chats = this._orderSessionChatsForTeardown(session, [
+			...(state?.chats.map(chat => chat.resource) ?? []),
+			...(catalog?.map(chat => chat.uri.toString()) ?? []),
+		]);
+		for (const chat of chats) {
+			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat));
+			if (!this._stateManager.getChatState(chat.toString()) && (isDefaultChatUri(chat) || persisted)) {
+				const providerData = isDefaultChatUri(chat) ? await this._readDefaultChatProviderData(session) : persisted?.providerData;
+				await provider.materializeChat(chat, this._chatContext(session, chat), providerData);
+			}
+		}
 		let firstError: unknown;
-		const chats = await this._getSessionChatsForDisposal(provider, session);
 		for (const chat of chats) {
 			try {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
@@ -6235,13 +6252,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _doDisposeSession(session: URI): Promise<void> {
 		const sessionKey = session.toString();
+		this._cancelPendingSessionGc(session);
+		this._stateManager.invalidateSessionChatResolutions(sessionKey);
+		const registered = await this._orchestratorDatabase.getSessionV2Registration(sessionKey);
+		const provider = registered ? this._providerService.getProvider(registered.provider) : this._providerService.getProviderForSession(session);
+		if (registered && !provider) {
+			throw new Error(`No agent provider registered for: ${registered.provider}`);
+		}
+		if (registered && provider) {
+			this._providerService.associateSession(session, registered.provider);
+		}
 		const catalogDeletionFence = this._catalogSyncService.beginSessionDeletion(session);
 		let peerChatDeletionBegun = false;
 		try {
-			this._cancelPendingSessionGc(session);
 			const isEphemeral = this._stateManager.isEphemeralSession(sessionKey);
 			const isIdleProvisional = this._stateManager.isIdleProvisionalSession(sessionKey);
-			this._stateManager.invalidateSessionChatResolutions(session.toString());
 			const sessionChats = this._stateManager.getSessionState(session.toString())?.chats ?? [];
 			for (const chat of sessionChats) {
 				this._sideEffects.clearChannelTelemetry(chat.resource);
@@ -6292,7 +6317,6 @@ export class AgentService extends Disposable implements IAgentService {
 				: undefined;
 			await this._peerChatStore.beginSessionDeletion(session);
 			peerChatDeletionBegun = true;
-			const provider = this._providerService.getProviderForSession(session);
 			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
 				...sessionChats.map(chat => chat.resource),
 				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
@@ -6301,7 +6325,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
 			await catalogDeletionFence.whenDrained;
 			if (provider) {
-				chatsToDelete = [...await this._disposeSession(provider, session)];
+				chatsToDelete = [...await this._disposeSession(provider, session, persistedPeerChats)];
 			}
 			if (!isEphemeral) {
 				await this._retryRegistryMutation(
