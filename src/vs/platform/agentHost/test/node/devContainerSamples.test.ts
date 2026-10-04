@@ -110,9 +110,9 @@ suite('Dev Container samples', () => {
 		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
 			onContainerStarted: id => calls.push(`started ${id}`),
 			readSource: async () => {
-				const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' }));
+				const client = store.add(service.acquireAnonymousClient());
 				try {
-					return await client.object.repositories.readFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None);
+					return await client.object.readFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None);
 				} finally {
 					client.dispose();
 				}

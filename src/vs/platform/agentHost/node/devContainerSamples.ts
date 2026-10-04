@@ -8,7 +8,7 @@ import { readFile, rename, rm, writeFile } from 'fs/promises';
 import { ParseError, parse } from '../../../base/common/json.js';
 import { join } from '../../../base/common/path.js';
 import { localize } from '../../../nls.js';
-import { IGitHubRepositoryFile } from '../../github/common/githubRepository.js';
+import { IGitHubRepositoryFile } from '../../github/common/anonymousClient.js';
 import { DevContainerSample, getDevContainerSampleFolder, getDevContainerSampleUrl, IDevContainerRepository } from '../common/devContainerSamples.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';

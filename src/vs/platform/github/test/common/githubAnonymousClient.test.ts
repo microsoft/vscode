@@ -32,6 +32,17 @@ suite('GitHub anonymous clients', () => {
 		assert.throws(action, isExpectedError);
 	}
 
+	test('defaults to the shared GitHub.com client when options are omitted', async () => {
+		const urls: string[] = [];
+		const service = create({ fetch: async input => { urls.push(String(input)); return new Response('{}'); } });
+		const client = store.add(service.acquireAnonymousClient()).object;
+		const explicit = store.add(service.acquireAnonymousClient({ apiBaseUri })).object;
+		await client.get('/repos/owner/repo', signal());
+		assert.deepStrictEqual({
+			apiBaseUri: client.apiBaseUri, shared: client === explicit, urls,
+		}, { apiBaseUri, shared: true, urls: [`${apiBaseUri}/repos/owner/repo`] });
+	});
+
 	test('public reads require no credential provider, identity lookup or ambient credentials', async () => {
 		const seen: { url: string; authorization: string | null; credentials: RequestCredentials | undefined; referrerPolicy: ReferrerPolicy | undefined; method: string | undefined; body: RequestInit['body'] }[] = [];
 		const service = create({

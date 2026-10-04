@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 export type GitHubCancellation = AbortSignal | CancellationToken;
 
 /** Passes signals through and scopes any token adapter to the operation's lifetime. */
-export function toGitHubAbortSignal(cancellation: GitHubCancellation, lifetime: DisposableStore): AbortSignal {
+export function toAbortSignal(cancellation: GitHubCancellation, lifetime: DisposableStore): AbortSignal {
 	if (!CancellationToken.isCancellationToken(cancellation)) {
 		return cancellation;
 	}

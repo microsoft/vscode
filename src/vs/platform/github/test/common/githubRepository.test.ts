@@ -30,9 +30,9 @@ class RecordingGitHubService extends GitHubService {
 		return [...this._getSpies.values()].flatMap(spy => spy.getCalls().map(call => ({ path: call.args[0], signal: call.args[1], options: call.args[2] })));
 	}
 
-	override acquireAnonymousClient(options: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient> {
+	override acquireAnonymousClient(options?: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient> {
 		const reference = super.acquireAnonymousClient(options);
-		this.apiBases.push(options.apiBaseUri);
+		this.apiBases.push(reference.object.apiBaseUri);
 		if (!this._getSpies.has(reference.object)) {
 			this._getSpies.set(reference.object, spy(reference.object, 'get'));
 		}
@@ -76,30 +76,30 @@ suite('GitHub public repository files', () => {
 	}
 
 	async function read(service: IGitHubService, cancellation: GitHubCancellation = new AbortController().signal) {
-		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
+		const client = store.add(service.acquireAnonymousClient());
 		try {
-			return await client.object.repositories.readFile('microsoft', 'sample', path, cancellation);
+			return await client.object.readFile('microsoft', 'sample', path, cancellation);
 		} finally {
 			client.dispose();
 		}
 	}
 
-	test('equivalent anonymous clients share a repository domain without fetching at construction', () => {
+	test('equivalent anonymous leases share a client without fetching at construction', () => {
 		const service = create(async () => { throw new Error('No fetch expected'); });
 		const first = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		const second = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		const other = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://github.example.test/api/v3' }));
 		assert.deepStrictEqual({
-			sameDomain: first.object.repositories === second.object.repositories,
-			differentEndpoint: first.object.repositories !== other.object.repositories, reads: service.reads,
-		}, { sameDomain: true, differentEndpoint: true, reads: [] });
+			sameClient: first.object === second.object,
+			differentEndpoint: first.object !== other.object, reads: service.reads,
+		}, { sameClient: true, differentEndpoint: true, reads: [] });
 	});
 
-	test('rejects domain reads after the owning anonymous client is disposed', async () => {
+	test('rejects file reads after the anonymous client is disposed', async () => {
 		const service = create(async () => { throw new Error('No fetch expected'); });
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		client.dispose();
-		await assert.rejects(client.object.repositories.readFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'unknown', message: 'GitHub client was disposed' });
+		await assert.rejects(client.object.readFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'unknown', message: 'GitHub client was disposed' });
 		assert.strictEqual(service.releasedClients, 1);
 	});
 
@@ -111,8 +111,8 @@ suite('GitHub public repository files', () => {
 			return new Response(JSON.stringify(String(input).endsWith('/commits/HEAD') ? { sha: commitSha } : file(content)));
 		});
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: endpoint }));
-		const first = await client.object.repositories.readFile('microsoft', 'sample', path, CancellationToken.None);
-		const second = await client.object.repositories.readFile('microsoft', 'sample', path, new AbortController().signal);
+		const first = await client.object.readFile('microsoft', 'sample', path, CancellationToken.None);
+		const second = await client.object.readFile('microsoft', 'sample', path, new AbortController().signal);
 		assert.deepStrictEqual({
 			first, second, apiBases: service.apiBases, releasedClients: service.releasedClients,
 			requests: requests.map(request => ({ url: request.url, authorization: request.headers.get('authorization') })),
@@ -285,7 +285,7 @@ suite('GitHub public repository files', () => {
 		const service = create(async () => assert.fail('No fetch expected'));
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		client.dispose();
-		await assert.rejects(client.object.repositories.readFile('microsoft', 'sample', path, {
+		await assert.rejects(client.object.readFile('microsoft', 'sample', path, {
 			isCancellationRequested: false, onCancellationRequested: cancelled.event,
 		}), { kind: 'unknown', message: 'GitHub client was disposed' });
 		assert.strictEqual(cancelled.hasListeners(), false);
@@ -308,8 +308,8 @@ suite('GitHub public repository files', () => {
 		const second = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		const controller = new AbortController();
 		const reason = new Error('Caller cancelled');
-		const rejected = assert.rejects(first.object.repositories.readFile('microsoft', 'sample', path, controller.signal), error => error === reason);
-		const peer = second.object.repositories.readFile('microsoft', 'sample', path, CancellationToken.None);
+		const rejected = assert.rejects(first.object.readFile('microsoft', 'sample', path, controller.signal), error => error === reason);
+		const peer = second.object.readFile('microsoft', 'sample', path, CancellationToken.None);
 		const signal = await started.p;
 		controller.abort(reason);
 		first.dispose();
@@ -321,7 +321,7 @@ suite('GitHub public repository files', () => {
 		}, { result: { commitSha, content }, attempts: 2, aborted: false, releasedClients: 1 });
 	});
 
-	test('disposing the owning service aborts domain reads and releases the lease', async () => {
+	test('disposing the owning service aborts file reads and releases the lease', async () => {
 		const controller = new AbortController();
 		const started = new DeferredPromise<AbortSignal>();
 		const service = create(async (_input, init) => {

@@ -4,6 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { GitHubRequestError } from './githubTypes.js';
+
+export function resolveReadApiUrl(apiBaseUri: string, path: string): { url: URL; apiBasePath: string } {
+	if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
+		throw new GitHubRequestError('GitHub reads require an API-relative path', 'validation');
+	}
+	const url = new URL(`${apiBaseUri}${path}`);
+	const endpoint = new URL(apiBaseUri);
+	const apiBasePath = `${endpoint.pathname.replace(/\/+$/, '')}/`;
+	if (url.origin !== endpoint.origin || !url.pathname.startsWith(apiBasePath) || url.username || url.password || url.hash) {
+		throw new GitHubRequestError('GitHub read escaped its API endpoint', 'validation');
+	}
+	return { url, apiBasePath };
+}
 
 /** GitHub endpoints derived from an optional Enterprise base URI, with no trailing slashes. */
 export interface IGitHubEndpoints {

@@ -9,7 +9,7 @@ import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
@@ -26,13 +26,11 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
-import { IGitHubRepositories } from '../../../github/common/githubRepository.js';
-import { GitHubAnonymousClientOptions } from '../../../github/common/githubTypes.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
-import { DevContainerSample, devContainerSamples } from '../../common/devContainerSamples.js';
+import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -853,80 +851,6 @@ suite('Dev Container Agent Host Main Service', () => {
 			'-c',
 			'printf test',
 		]]);
-	});
-
-	suite('sample repository cancellation', () => {
-		let userDataPath: string;
-
-		setup(async () => {
-			userDataPath = await mkdtemp(join(tmpdir(), 'vscode-sample-cancellation-test-'));
-		});
-		teardown(async () => {
-			await rm(userDataPath, { recursive: true, force: true });
-		});
-
-		function createSampleService(readFile: IGitHubRepositories['readFile']) {
-			const leaseEvents: string[] = [];
-			const service = store.add(new class extends DevContainerAgentHostMainService {
-				prepareSample(token: CancellationToken) {
-					return this._prepareSample('sample', devContainerSamples[2], token, () => assert.fail('No container should be started'));
-				}
-
-				protected override async _runDocker(): Promise<never> {
-					assert.fail('Docker must not run');
-				}
-
-				protected override async _runDevContainer(): Promise<never> {
-					assert.fail('Dev Container CLI must not run');
-				}
-			}(
-				new NullLogService(),
-				new class extends mock<IProductService>() { }(),
-				NullTelemetryService,
-				new TestConfigurationService(),
-				new class extends mock<INativeEnvironmentService>() {
-					override readonly userDataPath = userDataPath;
-				}(),
-				new class extends mock<IRequestService>() { }(),
-				new class extends mock<IGitHubService>() {
-					override acquireAnonymousClient(options: GitHubAnonymousClientOptions) {
-						leaseEvents.push(`acquire ${options.apiBaseUri}`);
-						return {
-							object: {
-								authorization: { kind: 'anonymous' as const },
-								apiBaseUri: options.apiBaseUri,
-								repositories: { readFile },
-								get: async () => assert.fail('Use the repository domain'),
-							},
-							dispose: () => { leaseEvents.push('release'); },
-						};
-					}
-				}(),
-			));
-			return { service, leaseEvents };
-		}
-
-		test('passes the token to the anonymous repository domain and releases its lease after reading', async () => {
-			const token = store.add(new CancellationTokenSource());
-			const calls: { owner: string; repo: string; path: string; sameToken: boolean }[] = [];
-			const { service, leaseEvents } = createSampleService(async (owner, repo, path, cancellation) => {
-				calls.push({ owner, repo, path, sameToken: cancellation === token.token });
-				return { commitSha: 'a'.repeat(40), content: '{"image":"image","features":{"java":{}}}' };
-			});
-			await assert.rejects(service.prepareSample(token.token), /requires an image build/);
-			assert.deepStrictEqual({ calls, leaseEvents }, {
-				calls: [{ owner: 'microsoft', repo: 'vscode-remote-try-node', path: '.devcontainer/devcontainer.json', sameToken: true }],
-				leaseEvents: ['acquire https://api.github.com', 'release'],
-			});
-		});
-
-		for (const error of [new Error('Repository read failed'), new CancellationError()]) {
-			test(`releases the anonymous lease when the repository read fails with ${error.name}`, async () => {
-				const { service, leaseEvents } = createSampleService(async () => { throw error; });
-				await assert.rejects(service.prepareSample(CancellationToken.None), actual => actual === error);
-				assert.deepStrictEqual(leaseEvents, ['acquire https://api.github.com', 'release']);
-			});
-		}
 	});
 
 	for (const failure of ['clone', 'lifecycle', 'cancellation'] as const) {

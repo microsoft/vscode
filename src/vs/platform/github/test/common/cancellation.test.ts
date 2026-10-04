@@ -9,7 +9,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { toGitHubAbortSignal } from '../../common/cancellation.js';
+import { toAbortSignal } from '../../common/cancellation.js';
 
 suite('GitHub cancellation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -17,7 +17,7 @@ suite('GitHub cancellation', () => {
 	test('preserves an AbortSignal and its abort reason without taking ownership', () => {
 		const lifetime = store.add(new DisposableStore());
 		const controller = new AbortController();
-		const signal = toGitHubAbortSignal(controller.signal, lifetime);
+		const signal = toAbortSignal(controller.signal, lifetime);
 		lifetime.dispose();
 		const abortedByDisposal = signal.aborted;
 		const reason = { cancelled: true };
@@ -32,7 +32,7 @@ suite('GitHub cancellation', () => {
 		const controller = new AbortController();
 		const reason = new Error('Caller cancelled');
 		controller.abort(reason);
-		const signal = toGitHubAbortSignal(controller.signal, lifetime);
+		const signal = toAbortSignal(controller.signal, lifetime);
 		function isExpectedError(error: unknown): boolean {
 			return error === reason;
 		}
@@ -43,7 +43,7 @@ suite('GitHub cancellation', () => {
 	test('converts token cancellation to a CancellationError', () => {
 		const lifetime = store.add(new DisposableStore());
 		const token = store.add(new CancellationTokenSource());
-		const signal = toGitHubAbortSignal(token.token, lifetime);
+		const signal = toAbortSignal(token.token, lifetime);
 		const initiallyAborted = signal.aborted;
 		token.cancel();
 		assert.deepStrictEqual({
@@ -53,7 +53,7 @@ suite('GitHub cancellation', () => {
 
 	test('an already cancelled token does not register a listener', () => {
 		const lifetime = store.add(new DisposableStore());
-		const signal = toGitHubAbortSignal({
+		const signal = toAbortSignal({
 			isCancellationRequested: true,
 			onCancellationRequested: () => assert.fail('No listener expected for a cancelled token'),
 		}, lifetime);
@@ -62,14 +62,14 @@ suite('GitHub cancellation', () => {
 
 	test('accepts CancellationToken.None', () => {
 		const lifetime = store.add(new DisposableStore());
-		const signal = toGitHubAbortSignal(CancellationToken.None, lifetime);
+		const signal = toAbortSignal(CancellationToken.None, lifetime);
 		assert.strictEqual(signal.aborted, false);
 	});
 
 	test('detaches the token listener when the operation lifetime ends', () => {
 		const lifetime = store.add(new DisposableStore());
 		const cancelled = store.add(new Emitter<void>());
-		const signal = toGitHubAbortSignal({ isCancellationRequested: false, onCancellationRequested: cancelled.event }, lifetime);
+		const signal = toAbortSignal({ isCancellationRequested: false, onCancellationRequested: cancelled.event }, lifetime);
 		const listening = cancelled.hasListeners();
 		lifetime.dispose();
 		cancelled.fire();
