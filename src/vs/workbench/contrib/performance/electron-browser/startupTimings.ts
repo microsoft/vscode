@@ -21,6 +21,7 @@ import { IWorkspaceTrustManagementService } from '../../../../platform/workspace
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { StartupTimings } from '../browser/startupTimings.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { IStorageService, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 
 interface ITracingData {
 	readonly args?: {
@@ -53,7 +54,8 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		@IUpdateService updateService: IUpdateService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
-		@IWorkspaceTrustManagementService workspaceTrustService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService workspaceTrustService: IWorkspaceTrustManagementService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(editorService, paneCompositeService, lifecycleService, updateService, workspaceTrustService);
 
@@ -128,7 +130,18 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		} catch (err) {
 			console.error(err);
 		} finally {
-			this._nativeHostService.exit(0);
+			let exitCode = 0;
+			try {
+				await Promise.race([
+					this._storageService.flush(WillSaveStateReason.SHUTDOWN),
+					timeout(5000).then(() => { throw new Error('Timed out flushing profiled startup state.'); }),
+				]);
+			} catch (error) {
+				exitCode = 1;
+				console.error(error);
+			} finally {
+				this._nativeHostService.exit(exitCode);
+			}
 		}
 	}
 

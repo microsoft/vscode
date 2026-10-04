@@ -12,7 +12,7 @@ import * as nls from '../../../nls.js';
 import { getLanguageTagSettingPlainKey } from './configuration.js';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../registry/common/platform.js';
-import { IPolicy, IPolicyReference, PolicyName } from '../../../base/common/policy.js';
+import { IPolicy, IPolicyReference, ManagedSettingValue, PolicyName } from '../../../base/common/policy.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import product from '../../product/common/product.js';
 
@@ -30,6 +30,48 @@ export interface IConfigurationDelta {
 	removedConfigurations?: IConfigurationNode[];
 	addedDefaults?: IConfigurationDefaults[];
 	addedConfigurations?: IConfigurationNode[];
+}
+
+/**
+ * Declares that a setting's value should be mirrored into the agent host's root
+ * configuration, removing the need to hand-write a forwarder per setting.
+ *
+ * Only the setting's *globally-scoped* value is mirrored — the resolution order
+ * is policy, then user, then application, then default. Workspace and folder
+ * values are deliberately ignored: the agent host root config is shared by every
+ * window connected to a host, so a workspace-specific value would leak across
+ * unrelated windows on a last-writer-wins basis.
+ *
+ * A setting that genuinely needs per-workspace behavior should not use this;
+ * push it through session config instead, where the session → parent → host
+ * chain resolves precedence correctly.
+ */
+export interface IAgentHostConfigurationSync {
+
+	/** The agent host root configuration key to write the value to. */
+	readonly key: string;
+
+	/**
+	 * Maps the globally-scoped setting value to the value written to {@link key}.
+	 * Defaults to the identity, which is what most settings want: the resolver
+	 * already skips layers whose value does not conform to the declared `type`
+	 * and falls back to the registered default, so a transform is only needed to
+	 * change the *shape* of the value (for example mapping an enum to a
+	 * different representation the agent host expects).
+	 */
+	readonly transform?: (value: unknown) => unknown;
+
+	/** Which Agent Host targets receive this setting. Defaults to {@link AgentHostConfigurationSyncScope.All}. */
+	readonly scope?: AgentHostConfigurationSyncScope;
+}
+
+export const enum AgentHostConfigurationSyncScope {
+	/** Mirror to every Agent Host connection. */
+	All = 'all',
+	/** Mirror only to the local utility-process Agent Host. */
+	Local = 'local',
+	/** Mirror to the ambient Agent Host, whether local or colocated with a remote extension host. */
+	Ambient = 'ambient',
 }
 
 export interface IConfigurationRegistry {
@@ -121,6 +163,14 @@ export interface IConfigurationRegistry {
 	getPolicyReferenceConfigurations(): Map<PolicyName, Set<string>>;
 
 	/**
+	 * Returns the {@link IAgentHostConfigurationSync} descriptor per setting key
+	 * for every setting that declares one. Includes settings hidden from the
+	 * Settings UI via `included: false`, which are absent from
+	 * {@link getConfigurationProperties}.
+	 */
+	getAgentHostSyncConfigurations(): Map<string, IAgentHostConfigurationSync>;
+
+	/**
 	 * Returns all excluded configurations settings of all configuration nodes contributed to this registry.
 	 */
 	getExcludedConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema>;
@@ -179,6 +229,12 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	included?: boolean;
 
 	/**
+	 * Keep this setting visible in the Settings editor even when it has a deprecation message and is not configured.
+	 * Defaults to false; use for advance deprecation warnings.
+	 */
+	deprecationMessageShowInSettings?: boolean;
+
+	/**
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
 	 *  - Use `experimental` tag for marking the setting as experimental.
@@ -231,9 +287,22 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	/**
 	 * When specified, this setting is governed by a policy owned by another setting.
 	 * A setting must not declare both `policy` and `policyReference`.
-	 * The type must match the owning setting (enforced when exporting the policy catalog).
+	 * The non-null types must match the owning setting (enforced when exporting the policy catalog).
 	 */
 	policyReference?: IPolicyReference;
+
+	/**
+	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
+	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
+	 */
+	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingValue | undefined;
+
+	/**
+	 * When specified, this setting's globally-scoped value is mirrored into the
+	 * agent host's root configuration automatically, without any per-setting
+	 * plumbing. See {@link IAgentHostConfigurationSync}.
+	 */
+	agentHost?: IAgentHostConfigurationSync;
 
 	/**
 	 * When specified, this setting's default value can always be overwritten by
@@ -289,6 +358,14 @@ export interface IConfigurationNode {
 }
 
 export type ConfigurationDefaultSource = IExtensionInfo | string;
+
+/**
+ * The treatment through which an experiment assigns the default value of an
+ * experiment-controlled setting, see {@link IConfigurationPropertySchema.experiment}.
+ */
+export function getConfigurationExperimentName(key: string, experiment: { readonly name?: string } | undefined): string {
+	return experiment?.name ?? `config.${key}`;
+}
 
 export function isConfigurationDefaultSourceEquals(a: ConfigurationDefaultSource | undefined, b: ConfigurationDefaultSource | undefined): boolean {
 	if (a === b) {
@@ -356,6 +433,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	private readonly configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>;
 	private readonly policyConfigurations: Map<PolicyName, string>;
 	private readonly policyReferenceConfigurations: Map<PolicyName, Set<string>>;
+	private readonly agentHostSyncConfigurations: Map<string, IAgentHostConfigurationSync>;
+	/**
+	 * Agent-host-mirrored or experimental setting keys per node hidden with
+	 * `included: false`. Registration deletes those keys from the node's
+	 * `properties`, so deregistration has no other way to find them.
+	 */
+	private readonly excludedConfigurationKeys = new Map<IConfigurationNode, Set<string>>();
 	private readonly excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>;
 	private readonly resourceLanguageSettingsSchema: IJSONSchema;
 	private readonly overrideIdentifiers = new Set<string>();
@@ -385,6 +469,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		this.configurationProperties = {};
 		this.policyConfigurations = new Map<PolicyName, string>();
 		this.policyReferenceConfigurations = new Map<PolicyName, Set<string>>();
+		this.agentHostSyncConfigurations = new Map<string, IAgentHostConfigurationSync>();
 		this.excludedConfigurationProperties = {};
 
 		contributionRegistry.registerSchema(resourceLanguageSettingsSchemaId, this.resourceLanguageSettingsSchema);
@@ -467,10 +552,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					}
 
 					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = newDefaultOverride;
-					const property = this.configurationProperties[key];
+					const excludedProperty = this.excludedConfigurationProperties[key];
+					const property = this.configurationProperties[key] ?? (excludedProperty?.experiment ? excludedProperty : undefined);
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
-						this.updateSchema(key, property);
+						if (property.included !== false) {
+							this.updateSchema(key, property);
+						}
 					}
 				}
 
@@ -532,10 +620,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						configurationDefaultOverrideValue = this.mergeDefaultConfigurationsForConfigurationProperty(key, configurationDefaultOverride.value, configurationDefaultOverride.source, configurationDefaultOverrideValue);
 					}
 					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = configurationDefaultOverrideValue;
-					const property = this.configurationProperties[key];
+					const excludedProperty = this.excludedConfigurationProperties[key];
+					const property = this.configurationProperties[key] ?? (excludedProperty?.experiment ? excludedProperty : undefined);
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
-						this.updateSchema(key, property);
+						if (property.included !== false) {
+							this.updateSchema(key, property);
+						}
 					}
 				}
 				bucket.add(key);
@@ -606,7 +697,8 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	}
 
 	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: ConfigurationDefaultSource | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
-		const property = this.configurationProperties[propertyKey];
+		const excludedProperty = this.excludedConfigurationProperties[propertyKey];
+		const property = this.configurationProperties[propertyKey] ?? (excludedProperty?.experiment ? excludedProperty : undefined);
 		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 		let source: ConfigurationDefaultValueSource | undefined = valuesSource;
 
@@ -692,6 +784,21 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	private doDeregisterConfigurations(configurations: IConfigurationNode[], bucket: Set<string>): void {
 
 		const deregisterConfiguration = (configuration: IConfigurationNode) => {
+			// Properties hidden with `included: false` are stripped from
+			// `configuration.properties` at registration time, so the loop below
+			// cannot see them. Clean their mirroring entries and experimental metadata
+			// using the side table recorded when they were excluded.
+			const excludedKeys = this.excludedConfigurationKeys.get(configuration);
+			if (excludedKeys) {
+				for (const key of excludedKeys) {
+					bucket.add(key);
+					this.agentHostSyncConfigurations.delete(key);
+					if (this.excludedConfigurationProperties[key]?.experiment) {
+						delete this.excludedConfigurationProperties[key];
+					}
+				}
+				this.excludedConfigurationKeys.delete(configuration);
+			}
 			if (configuration.properties) {
 				for (const key in configuration.properties) {
 					bucket.add(key);
@@ -699,6 +806,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					if (property?.policy?.name) {
 						this.policyConfigurations.delete(property.policy.name);
 					}
+					this.agentHostSyncConfigurations.delete(key);
 					if (property?.policyReference?.name) {
 						const refs = this.policyReferenceConfigurations.get(property.policyReference.name);
 						if (refs) {
@@ -767,6 +875,11 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
 				const policyName = properties[key].policy?.name;
 				const policyReferenceName = properties[key].policyReference?.name;
+				const agentHostSync = properties[key].agentHost;
+
+				if (agentHostSync) {
+					this.agentHostSyncConfigurations.set(key, agentHostSync);
+				}
 
 				if (excluded) {
 					this.excludedConfigurationProperties[key] = properties[key];
@@ -777,6 +890,17 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					if (policyReferenceName) {
 						this.addPolicyReferenceConfiguration(policyReferenceName, key);
 						bucket.add(key);
+					}
+					if (agentHostSync || property.experiment) {
+						// Hidden settings can participate in experiments and host
+						// mirroring without entering the Settings UI schemas.
+						bucket.add(key);
+						let excludedKeys = this.excludedConfigurationKeys.get(configuration);
+						if (!excludedKeys) {
+							excludedKeys = new Set<string>();
+							this.excludedConfigurationKeys.set(configuration, excludedKeys);
+						}
+						excludedKeys.add(key);
 					}
 					delete properties[key];
 				} else {
@@ -829,6 +953,10 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 	getPolicyReferenceConfigurations(): Map<PolicyName, Set<string>> {
 		return this.policyReferenceConfigurations;
+	}
+
+	getAgentHostSyncConfigurations(): Map<string, IAgentHostConfigurationSync> {
+		return this.agentHostSyncConfigurations;
 	}
 
 	getExcludedConfigurationProperties(): IStringDictionary<IRegisteredConfigurationPropertySchema> {
@@ -1037,6 +1165,13 @@ export function validateProperty(property: string, schema: IRegisteredConfigurat
 	}
 	if (schema.policy?.name && configurationRegistry.getPolicyConfigurations().get(schema.policy?.name) !== undefined) {
 		return nls.localize('config.policy.duplicate', "Cannot register '{0}'. The associated policy {1} is already registered with {2}. To attach another setting to the same policy, use 'policyReference'.", property, schema.policy?.name, configurationRegistry.getPolicyConfigurations().get(schema.policy?.name));
+	}
+	if (schema.agentHost) {
+		for (const [owner, sync] of configurationRegistry.getAgentHostSyncConfigurations()) {
+			if (sync.key === schema.agentHost.key && owner !== property) {
+				return nls.localize('config.agentHost.duplicate', "Cannot register '{0}'. The agent host configuration key '{1}' is already mirrored from '{2}'.", property, schema.agentHost.key, owner);
+			}
+		}
 	}
 	return null;
 }

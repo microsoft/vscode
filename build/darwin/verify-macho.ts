@@ -31,6 +31,10 @@ const FILES_TO_SKIP = [
 	'**/node_modules/@github/copilot-darwin-arm64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-x64/**',
 	'**/node_modules.asar.unpacked/@github/copilot-darwin-arm64/**',
+	'**/node_modules/@github/copilot-sdk-darwin-x64/**',
+	'**/node_modules/@github/copilot-sdk-darwin-arm64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-x64/**',
+	'**/node_modules.asar.unpacked/@github/copilot-sdk-darwin-arm64/**',
 	// Copilot prebuilds: single-arch binaries in per-platform directories
 	'**/node_modules/@github/copilot/prebuilds/darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/prebuilds/darwin-*/**',
@@ -52,9 +56,6 @@ const FILES_TO_SKIP = [
 	'**/node_modules.asar.unpacked/@github/copilot/tgrep/bin/darwin-*/**',
 	'**/node_modules/@github/copilot/sdk/tgrep/bin/darwin-*/**',
 	'**/node_modules.asar.unpacked/@github/copilot/sdk/tgrep/bin/darwin-*/**',
-	// onnxruntime-node (on-device transcription) ships only a darwin/arm64 binary,
-	// not darwin/x64; the universal app carries the arm64 binary as-is.
-	'**/node_modules.asar.unpacked/onnxruntime-node/bin/**',
 ];
 
 

@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { NotebookDocumentSnapshot } from '../../../platform/editing/common/notebookDocumentSnapshot';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { ThinkingData } from '../../../platform/thinking/common/thinking';
+import { ThinkingData, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -53,6 +53,11 @@ export interface IToolCallRound {
 	phase?: string;
 	/** The model ID. */
 	modelId?: string;
+	/**
+	 * The API protocol that produced this round's `thinking`. Identifies the origin of any
+	 * encrypted reasoning, which may only be replayed to the API that issued it.
+	 */
+	originApi?: ThinkingOriginApi;
 }
 
 export interface InternalToolReference extends vscode.ChatLanguageModelToolReference {
@@ -137,6 +142,11 @@ export interface IBuildPromptContext {
 	 * Used by subagent tools to link their telemetry back to the parent's specific model call.
 	 */
 	readonly parentModelCallId?: string;
+}
+
+/** Returns the subagent invocation that owns tools emitted from this prompt context. */
+export function getSubAgentInvocationId(context: IBuildPromptContext): string | undefined {
+	return context.tools?.subAgentInvocationId ?? context.request?.subAgentInvocationId;
 }
 
 export const IBuildPromptContext = createServiceIdentifier<IBuildPromptContext>('IBuildPromptContext');

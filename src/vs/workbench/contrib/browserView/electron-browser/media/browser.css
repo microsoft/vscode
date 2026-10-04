@@ -664,61 +664,6 @@
 		}
 	}
 
-	.browser-welcome-container {
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		background-color: var(--vscode-editor-background);
-
-		.browser-welcome-content {
-			display: flex;
-			flex-direction: column;
-			align-items: center;
-			padding: 12px;
-		}
-
-		.browser-welcome-icon {
-			min-height: 40px;
-
-			.codicon {
-				font-size: 40px;
-				margin-bottom: 24px;
-				color: var(--vscode-descriptionForeground);
-			}
-		}
-
-		.browser-welcome-title {
-			font-size: 13px;
-			font-weight: 600;
-			color: var(--vscode-foreground);
-			margin-top: 5px;
-			text-align: center;
-			line-height: normal;
-			padding: 0 8px;
-		}
-
-		.browser-welcome-subtitle {
-			font-size: 12px;
-			position: relative;
-			text-align: center;
-			max-width: 280px;
-			padding: 0 20px;
-			margin: 8px auto 0;
-			color: var(--vscode-descriptionForeground);
-
-			p {
-				margin-top: 8px;
-				margin-bottom: 8px;
-			}
-		}
-
-	}
-
 	/* Site info indicator in URL bar */
 	.browser-site-info-container {
 		display: flex;
@@ -768,6 +713,11 @@
 
 		&:focus-within {
 			text-overflow: clip;
+		}
+
+		&[aria-readonly="true"] {
+			color: var(--vscode-descriptionForeground);
+			cursor: default;
 		}
 
 		&:empty::before {

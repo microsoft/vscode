@@ -6,14 +6,15 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
@@ -90,12 +91,13 @@ export interface IChatViewModel {
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
+	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
-	setEditing(editing: IChatRequestViewModel): void;
+	setEditing(editing: IChatRequestViewModel | undefined): void;
 }
 
 export interface IChatRequestViewModel {
@@ -113,6 +115,8 @@ export interface IChatRequestViewModel {
 	readonly contentReferences?: ReadonlyArray<IChatContentReference>;
 	readonly confirmation?: string;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
+	readonly isRequestHiddenFromTranscript: boolean;
 	readonly isComplete: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
@@ -121,50 +125,16 @@ export interface IChatRequestViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
+	readonly modelConfiguration?: IChatRequestModel['modelConfiguration'];
 	readonly resolvedModelId?: string;
 	readonly timestamp: number;
 	readonly requestTimestamp: number | undefined;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
 	readonly isSystemInitiated?: boolean;
+	readonly requestSource?: IChatRequestModel['requestSource'];
 	readonly systemInitiatedLabel?: string;
-}
-
-export interface IChatResponseMarkdownRenderData {
-	renderedWordCount: number;
-	lastRenderTime: number;
-	isFullyRendered: boolean;
-	originalMarkdown: IMarkdownString;
-}
-
-export interface IChatResponseMarkdownRenderData2 {
-	renderedWordCount: number;
-	lastRenderTime: number;
-	isFullyRendered: boolean;
-	originalMarkdown: IMarkdownString;
-}
-
-export interface IChatProgressMessageRenderData {
-	progressMessage: IChatProgressMessage;
-
-	/**
-	 * Indicates whether this is part of a group of progress messages that are at the end of the response.
-	 * (Not whether this particular item is the very last one in the response).
-	 * Need to re-render and add to partsToRender when this changes.
-	 */
-	isAtEndOfResponse: boolean;
-
-	/**
-	 * Whether this progress message the very last item in the response.
-	 * Need to re-render to update spinner vs check when this changes.
-	 */
-	isLast: boolean;
-}
-
-export interface IChatTaskRenderData {
-	task: IChatTask;
-	isSettled: boolean;
-	progressLength: number;
+	readonly origin?: IChatRequestModel['origin'];
 }
 
 export interface IChatResponseRenderData {
@@ -188,23 +158,13 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
-	/**
-	 * When present, the working progress will show elapsed time and token usage.
-	 */
-	state?: IChatWorkingProgressState;
-}
-
-export interface IChatWorkingProgressState {
-	/** The confirmation-adjusted timestamp observable for computing elapsed time */
-	readonly confirmationAdjustedTimestamp: IObservable<number>;
-	/** Observable for tracking completion token count as it arrives */
-	readonly completionTokenCountObs: IObservable<number | undefined>;
-	/** Whether the response is complete (for past-tense display) */
-	readonly isComplete: boolean;
-	/** The completedAt timestamp for completed responses */
-	readonly completedAt?: number;
-	/** Pre-computed elapsed generation time in ms (reliable for restored sessions) */
-	readonly elapsedMs?: number;
+	isActive?: boolean;
+	/** Announces changed content immediately for blocking states, or politely for background activity. */
+	announce?: boolean | 'polite';
+	/** Changes when new response activity should be reflected in the generic working phrase. */
+	progressStep?: number;
+	/** Whether prolonged response inactivity should replace the current phrase with the delayed-progress message. */
+	showDelayedProgressMessage?: boolean;
 }
 
 
@@ -232,6 +192,7 @@ export interface IChatTurnPillsPart {
 	readonly kind: 'turnPills';
 	readonly requestId: string;
 	readonly sessionResource: URI;
+	readonly isLastTurn: boolean;
 }
 
 /**
@@ -260,6 +221,8 @@ export interface IChatResponseViewModel {
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
+	/** Whether this is the last row in the transcript. */
+	readonly isLast: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
@@ -269,6 +232,7 @@ export interface IChatResponseViewModel {
 	readonly usageObs: IObservable<IChatUsage | undefined>;
 	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
+	readonly isHiddenFromTranscript: boolean;
 	readonly isCompleteAddedRequest: boolean;
 	readonly isTerminalCommand: boolean;
 	renderData?: IChatResponseRenderData;
@@ -306,7 +270,11 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _onDidChange = this._register(new Emitter<IChatViewModelChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly _onDidChangeEditing = this._register(new Emitter<void>());
+	readonly onDidChangeEditing = this._onDidChangeEditing.event;
+
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
+	private readonly _responseDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
@@ -351,28 +319,24 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
+				if (e.replacedRequest) {
+					this.removeRequest(e.replacedRequest.id, e.replacedRequest.response?.id);
+				}
+				const nextRequest = e.index === undefined ? undefined : _model.getRequests()[e.index + 1];
+				const index = nextRequest ? this._items.findIndex(item => isRequestVM(item) && item.id === nextRequest.id) : this._items.length;
+				if (index < 0) {
+					throw new BugIndicatingError('Chat request insertion anchor is missing from the view');
+				}
 				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
-				this._items.push(requestModel);
+				this._items.splice(index, 0, requestModel);
 
 				if (e.request.response) {
-					this.onAddResponse(e.request.response);
+					this.onAddResponse(e.request.response, index + 1);
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
 			} else if (e.kind === 'removeRequest') {
-				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.id === e.requestId);
-				if (requestIdx >= 0) {
-					this._items.splice(requestIdx, 1);
-				}
-
-				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.id === e.responseId);
-				if (typeof responseIdx === 'number' && responseIdx >= 0) {
-					const items = this._items.splice(responseIdx, 1);
-					const item = items[0];
-					if (item instanceof ChatResponseViewModel) {
-						item.dispose();
-					}
-				}
+				this.removeRequest(e.requestId, e.responseId);
 			}
 
 			const modelEventToVmEvent: IChatViewModelChangeEvent =
@@ -384,17 +348,33 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}));
 	}
 
-	private onAddResponse(responseModel: IChatResponseModel) {
-		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this);
-		this._register(response.onDidChange(() => {
+	private removeRequest(requestId: string, responseId: string | undefined): void {
+		const requestIndex = this._items.findIndex(item => isRequestVM(item) && item.id === requestId);
+		if (requestIndex >= 0) {
+			this._items.splice(requestIndex, 1);
+		}
+		if (responseId !== undefined) {
+			const responseIndex = this._items.findIndex(item => isResponseVM(item) && item.id === responseId);
+			if (responseIndex >= 0) {
+				this._items.splice(responseIndex, 1);
+				this._responseDisposables.deleteAndDispose(responseId);
+			}
+		}
+	}
+
+	private onAddResponse(responseModel: IChatResponseModel, index = this._items.length) {
+		const store = new DisposableStore();
+		this._responseDisposables.set(responseModel.id, store);
+		const response = store.add(this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this));
+		store.add(response.onDidChange(() => {
 			return this._onDidChange.fire(null);
 		}));
-		this._items.push(response);
+		this._items.splice(index, 0, response);
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
 		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
-			if (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop) {
+			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
 			}
 			return true;
@@ -403,7 +383,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
 
-		const pendingRequests = this._model.getPendingRequests();
+		const pendingRequests = this._model.getPendingRequests().filter(pending => !pending.request.isRequestHiddenFromTranscript);
 		if (pendingRequests.length > 0) {
 			// Separate steering and queued requests
 			const steeringRequests = pendingRequests.filter(p => p.kind === ChatRequestQueueKind.Steering);
@@ -439,21 +419,21 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	setEditing(editing: IChatRequestViewModel | undefined): void {
-		if (this.editing && editing && this.editing.id === editing.id) {
-			return; // already editing this request
+		if (this._editing?.id === editing?.id) {
+			return;
 		}
 
 		this._editing = editing;
+		this._onDidChangeEditing.fire();
 	}
 
 	override dispose() {
 		super.dispose();
-		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
 		this._items.length = 0;
 	}
 }
 
-export class ChatRequestViewModel implements IChatRequestViewModel {
+class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
 	}
@@ -462,7 +442,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	 * An ID that changes when the request should be re-rendered.
 	 */
 	get dataId() {
-		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
+		return `${this.id}_${this._model.response?.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
 	}
 
 	get sessionResource() {
@@ -517,6 +497,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.shouldBeRemovedOnSend;
 	}
 
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
+	}
+
+	get isRequestHiddenFromTranscript() {
+		return this._model.isRequestHiddenFromTranscript;
+	}
+
 	get shouldBeBlocked() {
 		return this._model.shouldBeBlocked;
 	}
@@ -539,6 +527,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.modelId;
 	}
 
+	get modelConfiguration() {
+		return this._model.modelConfiguration;
+	}
+
 	get resolvedModelId() {
 		const resolvedModel = this._model.response?.result?.metadata?.resolvedModel;
 		return typeof resolvedModel === 'string' ? resolvedModel : undefined;
@@ -552,12 +544,20 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this._model.requestTimestamp;
 	}
 
+	get origin() {
+		return this._model.origin;
+	}
+
 	get pendingKind() {
 		return this._pendingKind;
 	}
 
 	get isSystemInitiated() {
 		return this._model.isSystemInitiated;
+	}
+
+	get requestSource() {
+		return this._model.requestSource;
 	}
 
 	get systemInitiatedLabel() {
@@ -653,6 +653,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get shouldBeRemovedOnSend() {
 		return this._model.shouldBeRemovedOnSend;
+	}
+
+	get isHiddenFromTranscript() {
+		return this._model.isHiddenFromTranscript;
 	}
 
 	get isCompleteAddedRequest() {

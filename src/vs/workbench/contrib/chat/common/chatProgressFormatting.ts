@@ -43,6 +43,12 @@ export function formatElapsedTime(ms: number): string {
 	return localize('minutesSeconds', "{0}m {1}s", minutes, seconds);
 }
 
+export function formatChatResponseElapsedTime(elapsedMs: number | undefined): string | undefined {
+	return typeof elapsedMs === 'number' && elapsedMs >= 1000
+		? formatElapsedTime(elapsedMs)
+		: undefined;
+}
+
 export function formatChatRequestTimestamp(timestamp: number | undefined): IFormattedChatRequestTimestamp | undefined {
 	if (timestamp === undefined || !Number.isFinite(timestamp) || timestamp <= 0) {
 		return undefined;
@@ -67,4 +73,14 @@ export function formatChatResponseDetails(details: string | undefined, timing: s
 		parts.push(details);
 	}
 	return parts.join(' \u2022 ');
+}
+
+export function formatChatToolError(error: string | boolean | undefined, exitCode?: number): string | undefined {
+	if (typeof error === 'string' && error) {
+		return localize('toolExecutionFailedWithMessage', "Tool execution failed: {0}", error);
+	}
+	if (exitCode !== undefined && exitCode !== 0) {
+		return localize('toolExecutionFailedWithExitCode', "Tool execution failed with exit code {0}", exitCode);
+	}
+	return error ? localize('toolExecutionFailed', "Tool execution failed") : undefined;
 }

@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../../../base/common/actions.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { isResourceDiffEditorInput, isResourceMultiDiffEditorInput } from '../../../../../../common/editor.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
 import { IChatResponseFileChangesService } from '../../../../browser/chatResponseFileChangesService.js';
-import { ChatCheckpointFileChangesSummaryContentPart } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
+import { ChatCheckpointFileChangesSummaryContentPart, renderChangesSummaryFileList } from '../../../../browser/widget/chatContentParts/chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { emptySessionEntryDiff, IEditSessionEntryDiff } from '../../../../common/editing/chatEditingService.js';
@@ -113,5 +118,112 @@ suite('ChatCheckpointFileChangesSummaryContentPart', () => {
 			expandedChevron: true,
 			toggleCount: 1,
 		});
+	});
+
+	test('renders row actions before aligned change count columns', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const container = document.createElement('div');
+		// Different digit lengths expose per-row sizing regressions.
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [
+			{ ...emptySessionEntryDiff(URI.file('/file.md'), URI.file('/file.md')), added: 5, removed: 2 },
+			{ ...emptySessionEntryDiff(URI.file('/other.md'), URI.file('/other.md')), added: 123, removed: 45 },
+		]);
+		const [editorService, configurationService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IEditorService),
+			accessor.get(IConfigurationService),
+		] as const);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService, {
+			getRowActions: () => [toAction({ id: 'preview', label: 'Preview', run: () => undefined })],
+		}));
+
+		const rows = Array.from(container.querySelectorAll('.chat-summary-list-row-with-actions'));
+		assert.deepStrictEqual({
+			rowOrder: rows.map(row => Array.from(row.children).map(element => element.classList.item(0))),
+			counts: rows.map(row => Array.from(row.querySelectorAll('.insertions, .deletions')).map(element => element.textContent)),
+			columnWidths: rows.map(row => Array.from(row.querySelectorAll<HTMLElement>('.insertions, .deletions')).map(element => element.style.width)),
+		}, {
+			rowOrder: [
+				['monaco-icon-label', 'chat-summary-list-actions', 'insertions-and-deletions'],
+				['monaco-icon-label', 'chat-summary-list-actions', 'insertions-and-deletions'],
+			],
+			counts: [
+				['+5', '-2'],
+				['+123', '-45'],
+			],
+			columnWidths: [
+				['4ch', '3ch'],
+				['4ch', '3ch'],
+			],
+		});
+	});
+
+	test('opens row diffs using snapshots and missing create or delete sides', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const opened: unknown[] = [];
+		const editorService = new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				opened.push(args[0]);
+				return undefined;
+			}
+		}();
+		const configurationService = new class extends mock<IConfigurationService>() {
+			override getValue<T>(): T {
+				return true as T;
+			}
+		}();
+		const container = document.createElement('div');
+		const diffs = observableValue<readonly IEditSessionEntryDiff[]>('testFileChanges', [{
+			...emptySessionEntryDiff(URI.file('/edited-before.ts'), URI.file('/edited.ts')),
+			modifiedSnapshotURI: URI.file('/edited-snapshot.ts'),
+		}, {
+			...emptySessionEntryDiff(URI.file('/created.ts'), URI.file('/created.ts')),
+			modifiedSnapshotURI: URI.file('/created-snapshot.ts'),
+			isCreated: true,
+		}, {
+			...emptySessionEntryDiff(URI.file('/deleted-before.ts'), URI.file('/deleted.ts')),
+			isDeleted: true,
+		}]);
+		store.add(renderChangesSummaryFileList(container, diffs, instantiationService, editorService, configurationService));
+
+		for (const row of container.querySelectorAll<HTMLElement>('.monaco-list-row')) {
+			row.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+		}
+
+		assert.deepStrictEqual(opened.map(input => {
+			if (isResourceDiffEditorInput(input)) {
+				return {
+					kind: 'diff',
+					original: input.original.resource?.toString(),
+					modified: input.modified.resource?.toString(),
+				};
+			}
+			assert.ok(isResourceMultiDiffEditorInput(input));
+			return {
+				kind: 'multiDiff',
+				resources: input.resources?.map(resource => ({
+					original: resource.original.resource?.toString(),
+					modified: resource.modified.resource?.toString(),
+					goToFile: resource.goToFileResource?.toString(),
+				})),
+			};
+		}), [{
+			kind: 'diff',
+			original: 'file:///edited-before.ts',
+			modified: 'file:///edited-snapshot.ts',
+		}, {
+			kind: 'multiDiff',
+			resources: [{
+				original: undefined,
+				modified: 'file:///created-snapshot.ts',
+				goToFile: 'file:///created.ts',
+			}],
+		}, {
+			kind: 'multiDiff',
+			resources: [{
+				original: 'file:///deleted-before.ts',
+				modified: undefined,
+				goToFile: 'file:///deleted.ts',
+			}],
+		}]);
 	});
 });

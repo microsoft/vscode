@@ -7,6 +7,9 @@ import { IPromptsService } from '../service/promptsService.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { isPromptFileTildePath } from '../promptFileParser.js';
 
 /**
  * Provides link references for prompt files.
@@ -14,6 +17,7 @@ import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common
 export class PromptLinkProvider implements LinkProvider {
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 	}
 
@@ -26,12 +30,18 @@ export class PromptLinkProvider implements LinkProvider {
 			return;
 		}
 		const links: ILink[] = [];
+		let userHome: URI | undefined;
 		for (const ref of promptAST.body.fileReferences) {
-			if (!ref.isMarkdownLink) {
-				const url = promptAST.body.resolveFilePath(ref.content);
-				if (url) {
-					links.push({ range: ref.range, url });
-				}
+			const isTildePath = isPromptFileTildePath(ref.content);
+			if (ref.isMarkdownLink && !isTildePath) {
+				continue;
+			}
+			if (isTildePath) {
+				userHome ??= await this.pathService.userHome();
+			}
+			const url = promptAST.body.resolveFilePath(ref.content, userHome);
+			if (url) {
+				links.push({ range: ref.range, url });
 			}
 		}
 		return { links };

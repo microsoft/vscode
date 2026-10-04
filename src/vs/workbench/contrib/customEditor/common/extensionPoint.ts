@@ -25,7 +25,6 @@ const Fields = Object.freeze({
 const PriorityFields = Object.freeze({
 	textEditor: 'textEditor',
 	diffEditor: 'diffEditor',
-	mergeEditor: 'mergeEditor',
 });
 
 const customEditorPrioritySchema = {
@@ -33,12 +32,12 @@ const customEditorPrioritySchema = {
 	enum: [
 		CustomEditorPriority.default,
 		CustomEditorPriority.option,
-		CustomEditorPriority.never,
+		CustomEditorPriority.explicit,
 	],
 	markdownEnumDescriptions: [
 		nls.localize('contributes.priority.default', 'The editor is automatically used when the user opens a resource, provided that no other default custom editors are registered for that resource.'),
 		nls.localize('contributes.priority.option', 'The editor is not automatically used when the user opens a resource, but a user can switch to the editor using the `Reopen With` command.'),
-		nls.localize('contributes.priority.never', 'The editor is never automatically used, and it is also skipped when the user points a `workbench.editorAssociations` entry at it. It can still be opened via the `Reopen With` command or the specialized `workbench.diffEditorAssociations` setting.'),
+		nls.localize('contributes.priority.explicit', 'The editor is not automatically used or opted into by an association from another editor mode. It can still be opened using the `Reopen With` command or an association configured specifically for this editor mode.'),
 	],
 } as const satisfies IJSONSchema;
 
@@ -79,7 +78,7 @@ const customEditorsContributionSchema = {
 			}
 		},
 		[Fields.priority]: {
-			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file, diff, or merge editor. This may be overridden by users using the `workbench.editorAssociations` or `workbench.diffEditorAssociations` setting. When omitted, the custom editor defaults to `default` for the normal editor and `never` for diff and merge editors, so it is not used for diffs or merges unless it opts in.'),
+			markdownDescription: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file or diff editor. This may be overridden by users using the `workbench.editorAssociations` or `workbench.diffEditorAssociations` setting. When omitted, the custom editor defaults to `default` for the normal editor and `explicit` for diff editors, so it is not used for diffs unless it opts in.'),
 			anyOf: [
 				customEditorPrioritySchema,
 				{
@@ -89,15 +88,11 @@ const customEditorsContributionSchema = {
 					properties: {
 						[PriorityFields.textEditor]: {
 							...customEditorPrioritySchema,
-							markdownDescription: nls.localize('contributes.priority.textEditor', 'Controls if the custom editor is enabled automatically when the user opens a file. `diffEditor` and `mergeEditor` do not inherit this value; when they are not specified they default to `never`.'),
+							markdownDescription: nls.localize('contributes.priority.textEditor', 'Controls if the custom editor is enabled automatically when the user opens a file. `diffEditor` does not inherit this value; when it is not specified it defaults to `explicit`.'),
 						},
 						[PriorityFields.diffEditor]: {
 							...customEditorPrioritySchema,
-							markdownDescription: nls.localize('contributes.priority.diffEditor', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified this defaults to `never`, so the custom editor is not used for diffs unless it opts in.'),
-						},
-						[PriorityFields.mergeEditor]: {
-							...customEditorPrioritySchema,
-							markdownDescription: nls.localize('contributes.priority.mergeEditor', 'Controls if the custom editor is enabled automatically when the user opens a merge editor. When not specified this defaults to `never`, so the custom editor is not used for merges unless it opts in.'),
+							markdownDescription: nls.localize('contributes.priority.diffEditor', 'Controls if the custom editor is enabled automatically when the user opens a diff. When not specified this defaults to `explicit`, so the custom editor is not used for diffs unless it opts in.'),
 						},
 					}
 				}
@@ -185,7 +180,6 @@ function renderPriority(priority: ICustomEditorsExtensionPoint['priority'] | str
 	return coalesce([
 		priority.textEditor ? `textEditor: ${priority.textEditor}` : undefined,
 		priority.diffEditor ? `diffEditor: ${priority.diffEditor}` : undefined,
-		priority.mergeEditor ? `mergeEditor: ${priority.mergeEditor}` : undefined,
 	]).join(', ');
 }
 

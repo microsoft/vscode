@@ -48,7 +48,7 @@ export interface RenderResult {
 	readonly targetDir: string;
 }
 
-/** Options accepted by a `reverseStylesheets` input value. */
+/** Options accepted by the `reverseStylesheetsRange` input value. */
 export interface ReverseWindow {
 	readonly fromIndex: number;
 	readonly toIndex: number;
@@ -118,7 +118,7 @@ export class Renderer {
 
 	/** Renders a single fixture with the given reversal window and returns its image hash. */
 	async hash(fixtureRegex: string, window: ReverseWindow): Promise<string> {
-		const { entries } = await this.render(fixtureRegex, { reverseStylesheets: window });
+		const { entries } = await this.render(fixtureRegex, { reverseStylesheetsRange: window });
 		const hash = entries[0]?.imageHash;
 		if (!hash) {
 			throw new Error(`Render produced no image hash for ${fixtureRegex}`);

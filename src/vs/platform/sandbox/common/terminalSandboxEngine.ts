@@ -15,10 +15,10 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { matchesDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
+import { extractDomainFromUri, matchesDomainPattern, normalizeDomain, normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { ISandboxDependencyStatus, type IWindowsMxcConfig, IWindowsMxcFilesystemPolicy, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from './sandboxHelperService.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue, normalizeAgentSandboxEnabledValue, type AgentSandboxEnabledSettingValue } from './settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, isAgentSandboxEnabledValue } from './settings.js';
 import { IWindowsMxcTerminalSandboxRuntime } from './terminalSandboxMxcRuntime.js';
 import { getTerminalSandboxReadAllowListForCommands } from './terminalSandboxReadAllowList.js';
 import { getTerminalSandboxRuntimeConfigurationForCommands } from './terminalSandboxRuntimeConfigurationPerOperation.js';
@@ -87,9 +87,11 @@ export interface ITerminalSandboxEngineHost {
 	getSandboxTempDir(): Promise<URI | undefined>;
 	/** Path added to `allowRead` and `allowWrite` for the engine's workspace/session storage area. */
 	getWorkspaceStorageReadRoot(): Promise<URI | undefined>;
+	/** Additional paths that hosts require sandboxed commands to read. */
+	getReadRoots?(): readonly URI[];
 	/** Roots that must be writable inside the sandbox (workspace folders / session cwds). */
 	getWriteRoots(): readonly URI[];
-	/** Fires when {@link getWriteRoots} or {@link getWorkspaceStorageReadRoot} change. */
+	/** Fires when host read roots, write roots, or workspace storage roots change. */
 	readonly onDidChangeRoots: Event<void>;
 	/** Resolves the installed sandbox-dependency status (bubblewrap, socat). */
 	checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined>;
@@ -101,11 +103,9 @@ export interface ITerminalSandboxEngineHost {
 	buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment): Promise<IWindowsMxcConfig | undefined>;
 	/**
 	 * Returns the effective value of a sandbox-related configuration setting,
-	 * or `undefined` when the setting is not configured. Implementations are
-	 * responsible for mapping deprecated keys to modern ones (the engine
-	 * only ever asks for the modern setting IDs).
+	 * or `undefined` when the setting is not configured.
 	 */
-	getSandboxSetting<T>(settingId: string): T | undefined;
+	getSandboxSetting<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId): T | undefined;
 	/**
 	 * Fires when any value returned by {@link getSandboxSetting} may have
 	 * changed. The engine invalidates its sandbox-config file on each event.
@@ -142,6 +142,8 @@ export class TerminalSandboxEngine extends Disposable {
 	private _windowsMxcEnvironment: string[] | undefined;
 	private _sandboxConfigPath: string | undefined;
 	private _sandboxDependencyStatus: ISandboxDependencyStatus | undefined;
+	private _enableWeakerNestedSandbox = false;
+	private _apparmorRemediationRequested = false;
 	private _needsForceUpdateConfigFile = true;
 	private _tempDir: URI | undefined;
 	private _commandAllowListKeywords: readonly string[] = [];
@@ -200,8 +202,11 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains {
-		const allowedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
-		const deniedDomains = this._getSettingValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
+		const allowedDomains = this._getNormalizedNetworkDomains(AgentNetworkDomainSettingId.AllowedNetworkDomains);
+		const deniedDomains = this._getNormalizedNetworkDomains(AgentNetworkDomainSettingId.DeniedNetworkDomains);
+		if (!allowedDomains || !deniedDomains) {
+			return { allowedDomains: [], deniedDomains: [] };
+		}
 		return { allowedDomains, deniedDomains };
 	}
 
@@ -244,7 +249,7 @@ export class TerminalSandboxEngine extends Disposable {
 		// unsandbox fallback for commands with statically-detected blocked domains.
 		if (!requestUnsandboxedExecution && !retryWithAllowNetworkRequests && allowUnsandboxedCommands && blockedDomainResult.blockedDomains.length > 0) {
 			return {
-				command: this._wrapUnsandboxedCommand(command, shell),
+				command: this._wrapUnsandboxedCommand(command, shell, cwd),
 				isSandboxWrapped: false,
 				blockedDomains: blockedDomainResult.blockedDomains,
 				deniedDomains: blockedDomainResult.deniedDomains,
@@ -255,7 +260,7 @@ export class TerminalSandboxEngine extends Disposable {
 		// If requestUnsandboxedExecution is true, need to ensure env variables set during sandbox still apply.
 		if (requestUnsandboxedExecution && allowUnsandboxedCommands) {
 			return {
-				command: this._wrapUnsandboxedCommand(command, shell),
+				command: this._wrapUnsandboxedCommand(command, shell, cwd),
 				isSandboxWrapped: false,
 			};
 		}
@@ -331,7 +336,19 @@ export class TerminalSandboxEngine extends Disposable {
 
 		if (!(await this._checkSandboxDependencies(forceRefresh))) {
 			const missingDependencies = await this.getMissingSandboxDependencies();
-			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapInstalled && !this._sandboxDependencyStatus.bubblewrapUsable) {
+			if (missingDependencies.length === 0 && this._sandboxDependencyStatus?.bubblewrapUsable === false) {
+				if (this._sandboxDependencyStatus.apparmorRestrictsUnprivilegedUserNamespaces !== true || (forceRefresh && this._apparmorRemediationRequested)) {
+					if (!this._enableWeakerNestedSandbox) {
+						this._enableWeakerNestedSandbox = true;
+						await this.getSandboxConfigPath(true, precheckInputs);
+					}
+					return {
+						enabled: true,
+						sandboxConfigPath: this._sandboxConfigPath,
+						failedCheck: undefined,
+					};
+				}
+				this._apparmorRemediationRequested = true;
 				return {
 					enabled: true,
 					sandboxConfigPath,
@@ -476,17 +493,32 @@ export class TerminalSandboxEngine extends Disposable {
 			: sandboxRuntimeCommand;
 	}
 
-	private _wrapUnsandboxedCommand(command: string, shell?: string): string {
+	private _wrapUnsandboxedCommand(command: string, shell?: string, cwd?: URI): string {
 		if (this._os === OperatingSystem.Windows) {
 			return this._windowsMxcRuntime.wrapUnsandboxedCommand(command);
 		}
 		if (!this._tempDir?.path) {
 			return command;
 		}
+		const commandWithPreservedCwd = this._getSandboxCommandWithPreservedCwd(command, cwd);
 		if (!shell) {
-			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${command})`;
+			return `(TMPDIR="${this._tempDir.path}"; export TMPDIR; ${commandWithPreservedCwd})`;
 		}
-		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(command)}`;
+		return `env TMPDIR="${this._tempDir.path}" ${this._quoteShellArgument(shell)} -c ${this._quoteShellArgument(commandWithPreservedCwd)}`;
+	}
+
+	private _getNormalizedNetworkDomains(settingId: AgentNetworkDomainSettingId.AllowedNetworkDomains | AgentNetworkDomainSettingId.DeniedNetworkDomains): string[] | undefined {
+		const patterns = this._host.getSandboxSetting<string[]>(settingId) ?? [];
+		const normalizedPatterns: string[] = [];
+		for (const pattern of patterns) {
+			const normalized = normalizeDomainPattern(pattern);
+			if (!normalized) {
+				this._logService.warn(`TerminalSandboxEngine: Cannot normalize a domain pattern in ${settingId}; blocking all network access.`);
+				return undefined;
+			}
+			normalizedPatterns.push(normalized);
+		}
+		return normalizedPatterns;
 	}
 
 	private _getBlockedDomains(command: string): { blockedDomains: string[]; deniedDomains: string[] } {
@@ -551,8 +583,7 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _extractDomainFromUrl(value: string): string | undefined {
 		try {
-			const authority = URI.parse(value).authority;
-			return normalizeDomain(authority, true);
+			return extractDomainFromUri(URI.parse(value));
 		} catch {
 			return undefined;
 		}
@@ -593,10 +624,6 @@ export class TerminalSandboxEngine extends Disposable {
 			return false;
 		}
 		await this.getOS();
-		if (this._os === OperatingSystem.Windows) {
-			const value = this._getSandboxConfiguredWindowsEnabledValue();
-			return isAgentSandboxEnabledValue(value);
-		}
 		const value = this._getSandboxConfiguredEnabledValue();
 		return isAgentSandboxEnabledValue(value);
 	}
@@ -629,18 +656,21 @@ export class TerminalSandboxEngine extends Disposable {
 
 		const allowNetwork = this._commandAllowNetwork || await this.isSandboxAllowNetworkEnabled();
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
 			: {};
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
 			: {};
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
 		const windowsSchemaVersion = this._os === OperatingSystem.Windows
-			? this._getSettingValue<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
+			? this._host.getSandboxSetting<string>(AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion)
 			: undefined;
-		const runtimeSetting = this._getSettingValue<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime) ?? {};
+		const runtimeSetting = {
+			...this._host.getSandboxSetting<Record<string, unknown>>(AgentSandboxSettingId.AgentSandboxAdvancedRuntime),
+			...(this._enableWeakerNestedSandbox ? { enableWeakerNestedSandbox: true } : undefined),
+		};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
 		const commandRuntimeAllowWritePaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowWrite');
@@ -657,7 +687,7 @@ export class TerminalSandboxEngine extends Disposable {
 				...await this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
 				...filesystemPolicy.readwritePaths
 			]);
-			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
+			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths, ...this._getHostReadPaths()]);
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
@@ -706,13 +736,13 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private async _getFileSystemAccessPaths(configFilePath: string | undefined): Promise<ITerminalSandboxFileSystemAccessPaths> {
 		const linuxFileSystemSetting = this._os === OperatingSystem.Linux
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxLinuxFileSystem) ?? {}
 			: {};
 		const macFileSystemSetting = this._os === OperatingSystem.Macintosh
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxMacFileSystem) ?? {}
 			: {};
 		const windowsFileSystemSetting = this._os === OperatingSystem.Windows
-			? this._getSettingValue<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
+			? this._host.getSandboxSetting<ITerminalSandboxFileSystemSetting>(AgentSandboxSettingId.AgentSandboxWindowsFileSystem) ?? {}
 			: {};
 		const commandRuntimeSetting = getTerminalSandboxRuntimeConfigurationForCommands(this._os, this._commandAllowListCommandDetails);
 		const commandRuntimeAllowReadPaths = this._getCommandRuntimeFileSystemPaths(commandRuntimeSetting, 'allowRead');
@@ -727,7 +757,7 @@ export class TerminalSandboxEngine extends Disposable {
 				...await this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
 				...filesystemPolicy.readwritePaths
 			]);
-			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
+			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths, ...this._getHostReadPaths()]);
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 		} else if (this._os === OperatingSystem.Macintosh) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
@@ -928,8 +958,12 @@ export class TerminalSandboxEngine extends Disposable {
 		return [...new Set([...(configuredDenyRead ?? []), ...(userHome ? [userHome] : [])])];
 	}
 
+	private _getHostReadPaths(): string[] {
+		return this._host.getReadRoots?.().map(root => this._getUriPath(root)) ?? [];
+	}
+
 	private async _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...allowWrite])];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...this._getHostReadPaths(), ...allowWrite])];
 	}
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
@@ -1048,36 +1082,18 @@ export class TerminalSandboxEngine extends Disposable {
 	}
 
 	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {
-		return this._normalizeSandboxEnabledValue(this._getSettingValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled));
-	}
-
-	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
-		return this._normalizeSandboxEnabledValue(this._getSettingValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled));
-	}
-
-	private _normalizeSandboxEnabledValue(value: AgentSandboxEnabledSettingValue | undefined): AgentSandboxEnabledValue {
-		return value === undefined ? AgentSandboxEnabledValue.Off : normalizeAgentSandboxEnabledValue(value);
+		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
 	private _isSandboxAllowNetworkConfigured(): boolean {
-		if (this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowNetwork) === true) {
-			return true;
-		}
-		if (this._os === OperatingSystem.Windows) {
-			return this._getSandboxConfiguredWindowsEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
-		}
-		return this._getSandboxConfiguredEnabledValue() === AgentSandboxEnabledValue.AllowNetwork;
+		return this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxAllowNetwork) === true;
 	}
 
 	private _areUnsandboxedCommandsAllowed(): boolean {
-		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
+		return this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) === true;
 	}
 
 	private _areRetryWithAllowNetworkRequestsAllowed(): boolean {
-		return this._getSettingValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
-	}
-
-	private _getSettingValue<T>(settingId: AgentSandboxSettingId | AgentNetworkDomainSettingId): T | undefined {
-		return this._host.getSandboxSetting<T>(settingId);
+		return this._host.getSandboxSetting<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
 	}
 }

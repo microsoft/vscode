@@ -28,7 +28,7 @@ export const enum CodexSessionConfigKey {
 }
 
 /** Subset of the generated `AskForApproval` union that VS Code exposes. */
-export type CodexApprovalPolicy = 'never' | 'on-request' | 'on-failure' | 'untrusted';
+export type CodexApprovalPolicy = 'never' | 'on-request' | 'untrusted';
 
 /** Mirrors the generated `SandboxMode` union. */
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
@@ -50,6 +50,11 @@ export const CODEX_PERMISSIONS_PRESETS: readonly CodexPermissionsPreset[] = ['de
 
 /** Default preset applied to new Codex sessions. */
 export const CODEX_DEFAULT_PERMISSIONS_PRESET: CodexPermissionsPreset = 'default';
+
+/** Returns Codex's provider-native configuration for unattended Agent Merge turns. */
+export function getCodexAutonomousSessionConfig(policyRestricted: boolean): Record<string, unknown> | undefined {
+	return policyRestricted ? undefined : { [CodexSessionConfigKey.PermissionsPreset]: 'auto-review' satisfies CodexPermissionsPreset };
+}
 
 /**
  * Single source of truth for narrowing an arbitrary runtime value to the

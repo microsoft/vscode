@@ -9,7 +9,7 @@ import type { AddressInfo } from 'net';
 import type { IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../../../common/agentService.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI } from '../../../common/state/sessionState.js';
-import { IServerHandle, startServer, TestProtocolClient } from './testHelpers.js';
+import { getAgentHostE2ETestTimeout, IServerHandle, startServer, stopServer, TestProtocolClient } from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket - quiet network diagnostics', function () {
 
@@ -19,7 +19,7 @@ suite('Protocol WebSocket - quiet network diagnostics', function () {
 	let targetUrl: string;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
 		server = await startServer({ quiet: true });
 		const httpModule = await import('http');
 		target = httpModule.createServer((_request, response) => {
@@ -34,8 +34,9 @@ suite('Protocol WebSocket - quiet network diagnostics', function () {
 	});
 
 	suiteTeardown(async function () {
-		server.process.kill();
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
 		await new Promise<void>(resolve => target.close(() => resolve()));
+		await stopServer(server);
 	});
 
 	setup(async function () {

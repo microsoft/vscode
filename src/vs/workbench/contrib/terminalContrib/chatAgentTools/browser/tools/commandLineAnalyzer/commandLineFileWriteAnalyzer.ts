@@ -10,6 +10,7 @@ import { extUri, normalizePath } from '../../../../../../../base/common/resource
 import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { containsCmdDelayedExpansion } from '../../../../../../../platform/terminal/common/autoApprove/cmdDelayedExpansion.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
@@ -148,12 +149,13 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							const fileUri = normalizePath(URI.isUri(fileWrite) ? fileWrite : URI.file(fileWrite));
 							// TODO: Handle command substitutions/complex destinations properly https://github.com/microsoft/vscode/issues/274167
 							// TODO: Handle environment variables properly https://github.com/microsoft/vscode/issues/274166
-							// `~` catches POSIX tilde expansion (e.g. `~/foo`) and `%` catches Windows
-							// environment variable expansions (e.g. `%APPDATA%\foo`). Neither is
-							// recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
+							// `~` catches POSIX tilde expansion (e.g. `~/foo`), `%` catches Windows
+							// environment variable expansion (e.g. `%APPDATA%\foo`), and the shared
+							// predicate catches CMD delayed expansion (e.g. `!APPDATA!\foo`). These are
+							// not recognized as absolute by `posix.isAbsolute` / `win32.isAbsolute`, so
 							// without this guard they would be joined onto cwd and incorrectly classified
 							// as inside the workspace while expanding at runtime to a location outside it.
-							if (fileUri.fsPath.match(/[$\(\){}`~%]/)) {
+							if (fileUri.fsPath.match(/[$\(\){}`~%]/) || containsCmdDelayedExpansion(fileUri.fsPath)) {
 								isAutoApproveAllowed = false;
 								this._log('File write blocked due to likely containing a variable, sub-command, or tilde/environment-variable expansion', fileUri.toString());
 								break;

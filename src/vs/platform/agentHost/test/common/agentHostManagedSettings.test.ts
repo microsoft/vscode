@@ -1,0 +1,402 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
+import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
+
+function createConfigurationService(values: Record<string, IConfigurationValue<unknown>>): IConfigurationService {
+	return {
+		inspect: <T>(key: string) => (values[key] ?? {}) as IConfigurationValue<T>,
+	} as IConfigurationService;
+}
+
+suite('AgentHostManagedSettings', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('combines restrictive contributions from enterprise approval policies', () => {
+		const configurationService = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
+			ask: ['Shell'],
+		});
+	});
+
+	test('respects global precedence and ignores defaults and workspace values', () => {
+		const configurationService = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, userValue: false, policyValue: true },
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: false, workspaceValue: false, workspaceFolderValue: false },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('does not promote user or application preferences to managed bypass restrictions', () => {
+		const userConfigurationService = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, userValue: false },
+		});
+		const applicationConfigurationService = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, applicationValue: false },
+		});
+
+		assert.deepStrictEqual([
+			resolveManagedSettingsPermissions(userConfigurationService),
+			resolveManagedSettingsPermissions(applicationConfigurationService),
+		], [{}, {}]);
+	});
+
+	for (const source of ['defaultValue', 'applicationValue', 'userValue', 'workspaceValue', 'workspaceFolderValue'] as const) {
+		test(`does not promote ${source} terminal approval preferences into managed rules`, () => {
+			const configurationService = createConfigurationService({
+				[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, [source]: false },
+				[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, [source]: { ls: false, rm: false } },
+			});
+
+			assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+		});
+	}
+
+	test('maps synthetic per-command policy values without including personal preferences', () => {
+		const configurationService = createConfigurationService({
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: true, userValue: false },
+			// autoApprove has no registered VS Code policy; this value exercises the resolver only.
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: { 'git push': false },
+				userValue: { ls: false, rm: false },
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { ask: ['Shell(git push)'] });
+	});
+
+	test('clears managed terminal restrictions when only personal preferences remain', () => {
+		const values: Record<string, IConfigurationValue<unknown>> = {
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false, userValue: false },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, userValue: { ls: false, rm: false } },
+		};
+		const configurationService = createConfigurationService(values);
+		const before = resolveManagedSettingsPermissions(configurationService);
+
+		values[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID] = { defaultValue: true, userValue: false };
+		assert.deepStrictEqual({ before, after: resolveManagedSettingsPermissions(configurationService) }, {
+			before: { ask: ['Shell'] },
+			after: {},
+		});
+	});
+
+	test('maps legacy approval policies without any opt-in present', () => {
+		const configurationService = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, userValue: false },
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell'],
+		});
+	});
+
+	test('ignores a stale entry for the removed opt-in, whatever its value', () => {
+		// The gating setting was removed; a leftover settings.json entry must not
+		// switch off a restriction an administrator configured.
+		const removedOptIn = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
+		const restricted = {
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['evil.example'] },
+		};
+
+		assert.deepStrictEqual([
+			resolveManagedSettingsPermissions(createConfigurationService({
+				...restricted,
+				[removedOptIn]: { userValue: false },
+			})),
+			resolveManagedSettingsPermissions(createConfigurationService({
+				...restricted,
+				[removedOptIn]: { userValue: true },
+			})),
+		], [
+			{ deny: ['Domain(evil.example)'] },
+			{ deny: ['Domain(evil.example)'] },
+		]);
+	});
+
+	test('returns an empty contribution when no legacy setting is restricted', () => {
+		const configurationService = createConfigurationService({});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('deduplicates a rule that more than one entry produces', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			// Three spellings of the same host, which all normalize to one rule.
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['evil.example', 'https://evil.example/path', 'evil.example:8443'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(evil.example)'],
+		});
+	});
+
+	test('reduces denied domains to the host the network filter matches on', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['https://blocked.example/some/path', 'ported.example:8443', '*.wild.example'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(blocked.example)', 'Domain(ported.example)', 'Domain(*.wild.example)'],
+		});
+	});
+
+	test('canonicalizes IPv6 denied domains the same way as the network filter', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['[::1]', '::ffff:127.0.0.1', 'https://[2001:0db8:0:0:0:0:0:1]:8443/path'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain([::1])', 'Domain([::ffff:7f00:1])', 'Domain([2001:db8::1])'],
+		});
+	});
+
+	test('canonicalizes alternative IPv4 denied domains the same way as the network filter', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+				defaultValue: [],
+				policyValue: ['127.1', '0300.0250.01.01', '0xa9fea9fe'],
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(127.0.0.1)', 'Domain(192.168.1.1)', 'Domain(169.254.169.254)'],
+		});
+	});
+
+	test('denies configured domains while the network filter is on', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['evil.com', '*.tracker.example'] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [], policyValue: ['github.com'] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(evil.com)', 'Domain(*.tracker.example)'],
+		});
+	});
+
+	test('denies every domain when the filter is on and neither list is configured', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { deny: ['Domain'] });
+	});
+
+	test('contributes nothing from domain lists while the network filter is off', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['evil.com'] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('skips denied domain patterns the SDK cannot express', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['$(evil)', 'ok.example'] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			deny: ['Domain(ok.example)'],
+		});
+	});
+
+	test('maps a bare wildcard denial onto the all-domains family rule', () => {
+		const configurationService = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { defaultValue: false, policyValue: true },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { defaultValue: [], policyValue: ['*'] },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { defaultValue: [] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { deny: ['Domain'] });
+	});
+
+	test('requires approval for explicitly denied terminal commands', () => {
+		const configurationService = createConfigurationService({
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: { rm: false, 'git push': false, npm: true },
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(rm)', 'Shell(git push)'],
+		});
+	});
+
+	test('skips terminal denials the SDK shell grammar cannot express', () => {
+		const configurationService = createConfigurationService({
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: {
+					'/^rm\\s/i': false,
+					'curl': { approve: false, matchCommandLine: true },
+					'wget': false,
+				},
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(wget)'],
+		});
+	});
+
+	test('keeps an absolute command path that VS Code treats as a literal', () => {
+		const configurationService = createConfigurationService({
+			// Starts and ends with `/` but the trailing segment is not a flag list,
+			// so the auto-approver reads it as a path rather than a regular expression.
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, policyValue: { '/usr/bin/rm': false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(/usr/bin/rm)'],
+		});
+	});
+
+	test('skips a wildcard command key rather than broadening it', () => {
+		const configurationService = createConfigurationService({
+			// `*` is a literal in VS Code but a command-boundary wildcard in the SDK,
+			// so bridging this would require approval for every git command.
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, policyValue: { 'git *': false, 'rm': false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(rm)'],
+		});
+	});
+
+	test('treats a long-form sub-command denial like a bare false', () => {
+		const configurationService = createConfigurationService({
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: { rm: { approve: false }, ls: { approve: true } },
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			ask: ['Shell(rm)'],
+		});
+	});
+
+	test('locks the bypass mode when a tool is marked ineligible for auto-approval', () => {
+		const configurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
+		});
+	});
+
+	test('contributes nothing when every tool is left eligible for auto-approval', () => {
+		const configurationService = createConfigurationService({
+			// Only `true` entries: the policy re-affirms the default and removes nothing.
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: true, runTask: true } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('contributes nothing from the default empty per-tool auto-approval map', () => {
+		const configurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: {} },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('does not promote user, application, or workspace per-tool auto-approval values', () => {
+		const userConfigurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, userValue: { fetch: false } },
+		});
+		const applicationConfigurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, applicationValue: { fetch: false } },
+		});
+		const workspaceConfigurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, workspaceValue: { fetch: false } },
+		});
+
+		assert.deepStrictEqual([
+			resolveManagedSettingsPermissions(userConfigurationService),
+			resolveManagedSettingsPermissions(applicationConfigurationService),
+			resolveManagedSettingsPermissions(workspaceConfigurationService),
+		], [{}, {}, {}]);
+	});
+
+	test('clears the bypass lock after the per-tool auto-approval policy is removed', () => {
+		const configurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {} },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('ignores a malformed per-tool auto-approval value without throwing', () => {
+		const configurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: ['fetch'] },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+	});
+
+	test('fails closed and locks the bypass mode for a non-boolean per-tool auto-approval entry', () => {
+		const configurationService = createConfigurationService({
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: 'no' } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
+		});
+	});
+
+	test('does not duplicate the bypass lock across the global and per-tool auto-approval policies', () => {
+		const configurationService = createConfigurationService({
+			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
+			[ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID]: { defaultValue: {}, policyValue: { fetch: false } },
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
+			disableBypassPermissionsMode: 'disable',
+		});
+	});
+});

@@ -7,6 +7,17 @@
  * popup. Styles are intentionally minimal so consumers can override via
  * the `tabBarClassName` option. */
 
+.action-widget .tabbed-action-list-body.collapsed {
+	height: 0;
+	overflow: clip;
+	visibility: hidden;
+}
+
+.action-widget .tabbed-action-list-body.animating {
+	overflow: clip;
+	visibility: visible;
+}
+
 .action-widget .tabbed-action-list-tabbar {
 	display: flex;
 	align-items: center;
@@ -18,11 +29,114 @@
 	gap: 4px;
 }
 
-.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button {
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button {
 	border: none;
 	border-radius: 4px;
 }
 
-.action-widget .tabbed-action-list-tabbar .monaco-custom-radio > .monaco-button:not(.active) {
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button:not(.active) {
 	color: var(--vscode-descriptionForeground);
+}
+
+/* A closing tab holds its old label while it shrinks, so it has to clip it. */
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.label-collapsing {
+	overflow: hidden;
+}
+
+.action-widget .tabbed-action-list-tabbar .monaco-custom-radio .monaco-button.label-collapsing > span:not(.codicon) {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.action-widget .tabbed-action-list-tab {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.action-widget .tabbed-action-list-tab-toggle:not([hidden]) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: 0 var(--vscode-spacing-size60);
+	font-size: var(--vscode-fontSize-label2);
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	padding: 0;
+	margin: 0;
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.align-end {
+	margin-left: auto;
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:hover,
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action.checked {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.action-widget .tabbed-action-list-tabbar .tabbed-action-list-tabbar-action:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.action-widget .tabbed-action-list-footer,
+.action-widget .tabbed-action-list-empty {
+	flex: 0 0 auto;
+}
+
+.action-widget.showing-details {
+	position: relative;
+}
+
+.action-widget.showing-details > .tabbed-action-list-main {
+	position: absolute;
+	opacity: 0;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.tabbed-action-list-details-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40);
+}
+
+.tabbed-action-list-details-header .monaco-button {
+	width: auto;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: none;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.tabbed-action-list-details-header > .monaco-action-bar {
+	flex: 0 0 auto;
+}
+
+.tabbed-action-list-details-viewport {
+	overflow: hidden;
+}
+
+.action-widget.showing-details .tabbed-action-list-details:focus {
+	outline: none;
+}
+
+.action-widget.showing-details.keyboard-navigation .tabbed-action-list-details:focus {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }

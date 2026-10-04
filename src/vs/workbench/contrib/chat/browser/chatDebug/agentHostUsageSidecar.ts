@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readUsageInfoMeta } from '../../../../../platform/agentHost/common/meta/agentUsageMeta.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { LRUCache } from '../../../../../base/common/map.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -13,9 +15,10 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ActionType, type ActionEnvelope, type ChatUsageAction, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { isDefaultChatUri, parseChatUri, readUsageInfoMeta, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType, NotificationType, type ActionEnvelope, type ChatUsageAction, type INotification, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { isDefaultChatUri, parseChatUri, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
+import { agentModelCallMetaKey, readAgentModelCallDetail, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
 
 /**
  * Directory (under the client's user data home) that holds the per-session
@@ -23,6 +26,7 @@ import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
  * folders and never written into the CLI's `~/.copilot` tree.
  */
 const USAGE_DIR = 'agentHostUsage';
+const MAX_USAGE_BYTES = 2 * 1024 * 1024;
 
 /**
  * One captured Copilot `ChatUsage` action, i.e. the usage report for a single
@@ -31,9 +35,12 @@ const USAGE_DIR = 'agentHostUsage';
  * last request's input/cache per turn, and `events.jsonl` only records
  * `outputTokens` until `session.shutdown`).
  */
-export interface IAgentHostUsageRecord {
+export interface IAgentHostUsageRecord extends Partial<Omit<IAgentModelCallDiagnostics, 'schemaVersion'>> {
+	readonly schemaVersion?: 2;
+	readonly kind?: 'modelCall';
+	readonly correlation?: 'exact' | 'unresolved';
 	/** Turn the model call belongs to. */
-	readonly turnId: string;
+	readonly turnId?: string;
 	/** Model that served the call, if reported. */
 	readonly model?: string;
 	/** Input tokens for this single call. */
@@ -66,20 +73,30 @@ function sanitizeSessionId(rawSessionId: string): string {
 export async function readAgentHostUsageRecords(fileService: IFileService, uri: URI): Promise<IAgentHostUsageRecord[]> {
 	let text: string;
 	try {
-		const content = await fileService.readFile(uri);
+		const content = await fileService.readFile(uri, { limits: { size: MAX_USAGE_BYTES } });
 		text = content.value.toString();
 	} catch {
 		return [];
 	}
 	const records: IAgentHostUsageRecord[] = [];
-	for (const line of text.split('\n')) {
+	for (const line of text.split('\n').slice(-2049)) {
 		const trimmed = line.trim();
 		if (!trimmed) {
 			continue;
 		}
 		try {
 			const parsed = JSON.parse(trimmed);
-			if (parsed && typeof parsed.turnId === 'string' && typeof parsed.ts === 'string') {
+			if (parsed?.schemaVersion === 2) {
+				const modelCall = readAgentModelCallDiagnostics({ _meta: { [agentModelCallMetaKey]: { ...parsed, schemaVersion: 1 } } });
+				if (modelCall && typeof parsed.ts === 'string' && parsed.ts.length <= 64) {
+					records.push({
+						...modelCall, schemaVersion: 2, kind: 'modelCall', correlation: modelCall.turnId ? 'exact' : 'unresolved', ts: parsed.ts,
+						totalNanoAiu: typeof parsed.totalNanoAiu === 'number' && Number.isFinite(parsed.totalNanoAiu) && parsed.totalNanoAiu >= 0 ? parsed.totalNanoAiu : undefined,
+					});
+				}
+				continue;
+			}
+			if (parsed && parsed.schemaVersion === undefined && typeof parsed.turnId === 'string' && typeof parsed.ts === 'string') {
 				records.push(parsed as IAgentHostUsageRecord);
 			}
 		} catch {
@@ -91,26 +108,56 @@ export async function readAgentHostUsageRecords(fileService: IFileService, uri: 
 
 /**
  * The minimal agent-host surface the recorders observe: a stream of protocol
- * actions. Satisfied by {@link IAgentHostService} in production and by a bare
- * emitter in tests, so the recorders don't depend on the full service.
+ * actions plus the notifications that drive sidecar lifetime. Satisfied by
+ * {@link IAgentHostService} in production and by bare emitters in tests, so the
+ * recorders don't depend on the full service.
  */
-type IAgentHostActionSource = Pick<IAgentHostService, 'onDidAction'>;
+type IAgentHostActionSource = Pick<IAgentHostService, 'onDidAction' | 'onDidNotification'>;
 
 /**
  * Shared client-side plumbing for recorders that observe agent-host protocol
  * actions across the ambient (local) connection and every live remote
  * connection, and persist derived data to a client-local sidecar. Enable
- * gating and local/remote fan-out live here; subclasses implement
- * {@link _onAction} for the action(s) they care about.
+ * gating, local/remote fan-out, and sidecar lifetime live here; subclasses
+ * implement {@link _onAction} for the action(s) they care about and
+ * {@link _sidecarUri} for the file to delete when a session goes away.
  *
  * Running on the client (where wire logs are captured) means every session's
  * actions arrive through the same subscription reducers regardless of
  * transport, so subclasses work uniformly for local and remote hosts.
+ *
+ * ## Why these sidecars are client-side
+ *
+ * The data they capture (`ChatUsage` / `SessionCustomizationsChanged`) is
+ * produced by the agent host, and the host persists its own copy of the parts
+ * it needs for correctness (see `turns.usage` in the session database, which
+ * restores the context-usage gauge and session cost). These sidecars are NOT
+ * that store and should not be confused with it — they exist because the
+ * renderer has no way to read host-side session storage: the AHP protocol is
+ * generated outside this repo, so no "read session data" RPC can be added here,
+ * and the session data directory's path is never published to clients. Until
+ * such a contract exists, a client-side capture is the only mechanism that
+ * works uniformly for local *and* remote hosts.
+ *
+ * The two stores therefore differ deliberately:
+ * - host store: per turn, always on, all providers, correctness-critical;
+ * - these sidecars: per model call, debug-gated, best-effort diagnostics.
+ *
+ * What IS unified: lifetime (both are deleted with their session — see
+ * {@link _sidecarUri}) and collection (both are included in the exported debug
+ * log bundle, so an export can explain a usage discrepancy).
  */
 abstract class AgentHostActionRecorder extends Disposable {
 
-	/** Live per-remote-connection action listeners, keyed by agent-host authority. */
+	/** Live per-remote-connection listeners (actions + notifications), keyed by agent-host authority. */
 	private readonly _remoteListeners = this._register(new DisposableMap<string>());
+
+	/**
+	 * Per-session serialized file-operation queue shared by writes and cleanup,
+	 * so a delete can never be overtaken by an in-flight write for the same
+	 * session. Owned by the base class because deletion is driven from here.
+	 */
+	private readonly _queues = new Map<string, Promise<void>>();
 
 	/**
 	 * The connection object currently subscribed for each authority. Tracked so
@@ -120,7 +167,10 @@ abstract class AgentHostActionRecorder extends Disposable {
 	private readonly _remoteConnections = new Map<string, IAgentConnection>();
 
 	constructor(
+		protected readonly _baseDir: URI,
 		protected readonly _isEnabled: () => boolean,
+		protected readonly _fileService: IFileService,
+		protected readonly _logService: ILogService,
 		agentHostService: IAgentHostActionSource,
 		private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
@@ -128,6 +178,7 @@ abstract class AgentHostActionRecorder extends Disposable {
 
 		// Local agent-host sessions.
 		this._register(agentHostService.onDidAction(envelope => this._dispatch(envelope)));
+		this._register(agentHostService.onDidNotification(notification => this._onNotification(notification)));
 
 		// Remote agent-host connections (rebuilt as connections come and go).
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._syncRemoteListeners()));
@@ -142,10 +193,65 @@ abstract class AgentHostActionRecorder extends Disposable {
 		this._onAction(envelope);
 	}
 
+	/**
+	 * Deletes a session's sidecar when the host reports the session removed, so
+	 * these files don't accumulate indefinitely for sessions the user deleted
+	 * (the host's own per-session storage cascades away with the session
+	 * directory; without this the client-side copies would outlive it).
+	 *
+	 * Deliberately NOT gated on {@link _isEnabled}: toggling debug logging off
+	 * must not strand the files already written while it was on.
+	 */
+	private _onNotification(notification: INotification): void {
+		if (notification.type !== NotificationType.SessionRemoved) {
+			return;
+		}
+		// Protocol URIs are plain strings on the wire.
+		const rawId = getCopilotCliSessionRawId(URI.parse(notification.session));
+		if (!rawId) {
+			return; // not a Copilot CLI session
+		}
+		const uri = this._sidecarUri(rawId);
+		// Chained onto the same queue as writes: an append still in flight would
+		// otherwise land after the delete and recreate an orphan sidecar for a
+		// session that no longer exists.
+		const pending = this.queued(rawId, () => this._fileService.del(uri));
+		void pending.finally(() => {
+			// Only drop the entry if nothing was queued behind us; otherwise the
+			// later operation still owns it and removing it here would let the
+			// operation after that run concurrently with it.
+			if (this._queues.get(rawId) === pending) {
+				this._queues.delete(rawId);
+			}
+		});
+	}
+
+	/**
+	 * Runs `operation` after any previously queued work for `rawSessionId`,
+	 * keeping per-session file operations in submission order. Failures are
+	 * swallowed (and traced) so one failed operation cannot break the chain.
+	 */
+	protected queued(rawSessionId: string, operation: () => Promise<unknown>): Promise<void> {
+		const previous = this._queues.get(rawSessionId) ?? Promise.resolve();
+		const next = previous
+			.then(operation)
+			.then(() => undefined)
+			.catch(err => {
+				// A session with no sidecar (never recorded, or debug logging
+				// was off) is the common case, so this is trace-level noise.
+				this._logService.trace(`[${this.constructor.name}] sidecar operation failed for ${rawSessionId}: ${toErrorMessage(err)}`);
+			});
+		this._queues.set(rawSessionId, next);
+		return next;
+	}
+
 	/** Handle a single action from any (local or remote) connection. */
 	protected abstract _onAction(envelope: ActionEnvelope): void;
 
-	/** Subscribes to `onDidAction` on each current remote connection; drops stale ones. */
+	/** The sidecar file owned by this recorder for the given raw session id. */
+	protected abstract _sidecarUri(rawSessionId: string): URI;
+
+	/** Subscribes to each current remote connection's streams; drops stale ones. */
 	private _syncRemoteListeners(): void {
 		const seen = new Set<string>();
 		for (const info of this._remoteAgentHostService.connections) {
@@ -163,7 +269,10 @@ abstract class AgentHostActionRecorder extends Disposable {
 				continue;
 			}
 			this._remoteConnections.set(authority, connection);
-			this._remoteListeners.set(authority, connection.onDidAction(envelope => this._dispatch(envelope)));
+			const store = new DisposableStore();
+			store.add(connection.onDidAction(envelope => this._dispatch(envelope)));
+			store.add(connection.onDidNotification(notification => this._onNotification(notification)));
+			this._remoteListeners.set(authority, store);
 		}
 		for (const authority of [...this._remoteListeners.keys()]) {
 			if (!seen.has(authority)) {
@@ -190,18 +299,11 @@ abstract class AgentHostActionRecorder extends Disposable {
  */
 export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 
-	/** Per-session serialized append queue (keeps records ordered; no in-memory copy of the file). */
-	private readonly _queues = new Map<string, Promise<void>>();
+	private readonly _seenCalls = new LRUCache<string, true>(4096);
+	private readonly _retention = new LRUCache<string, { count: number; size: number }>(128);
 
-	constructor(
-		private readonly _baseDir: URI,
-		isEnabled: () => boolean,
-		private readonly _fileService: IFileService,
-		private readonly _logService: ILogService,
-		agentHostService: IAgentHostActionSource,
-		remoteAgentHostService: IRemoteAgentHostService,
-	) {
-		super(isEnabled, agentHostService, remoteAgentHostService);
+	protected _sidecarUri(rawSessionId: string): URI {
+		return buildAgentHostUsageUri(this._baseDir, rawSessionId);
 	}
 
 	protected _onAction(envelope: ActionEnvelope): void {
@@ -216,6 +318,8 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		}
 		const usage = (action as ChatUsageAction).usage;
 		const meta = readUsageInfoMeta(usage);
+		const modelCall = readAgentModelCallDiagnostics(usage);
+		const callDetail = readAgentModelCallDetail(usage);
 		// Skip the async re-emit (same tokens, enriched with context attribution).
 		if (meta.contextAttribution) {
 			return;
@@ -231,13 +335,22 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 		if (!rawId) {
 			return;
 		}
+		if (modelCall) {
+			const key = `${modelCall.sdkSessionId}\0${modelCall.apiCallId ?? modelCall.eventId}`;
+			if (this._seenCalls.has(key)) {
+				return;
+			}
+			this._seenCalls.set(key, true);
+		}
 		const record: IAgentHostUsageRecord = {
-			turnId: (action as ChatUsageAction).turnId,
+			...callDetail,
+			turnId: modelCall ? modelCall.turnId : (action as ChatUsageAction).turnId,
 			model: usage.model,
 			inputTokens: usage.inputTokens,
 			outputTokens: usage.outputTokens,
 			cacheReadTokens: usage.cacheReadTokens,
 			totalNanoAiu: meta.copilotUsage?.totalNanoAiu,
+			...(modelCall ? { ...modelCall, schemaVersion: 2, kind: 'modelCall', correlation: modelCall.turnId ? 'exact' : 'unresolved' } as const : {}),
 			ts: new Date().toISOString(),
 		};
 		this._append(rawId, record);
@@ -251,16 +364,31 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 	 * before a restart are preserved because we append to the existing file.
 	 */
 	private _append(rawId: string, record: IAgentHostUsageRecord): void {
-		const uri = buildAgentHostUsageUri(this._baseDir, rawId);
+		const uri = this._sidecarUri(rawId);
 		const line = JSON.stringify(record) + '\n';
-		const previous = this._queues.get(rawId) ?? Promise.resolve();
-		const next = previous
-			.then(() => this._fileService.writeFile(uri, VSBuffer.fromString(line), { append: true }))
-			.then(() => undefined)
-			.catch(err => {
-				this._logService.trace(`[AgentHostUsageRecorder] append failed for ${rawId}: ${toErrorMessage(err)}`);
-			});
-		this._queues.set(rawId, next);
+		void this.queued(rawId, async () => {
+			const retained = this._retention.get(rawId);
+			const buffer = VSBuffer.fromString(line);
+			if (!retained || retained.count >= 2048 || retained.size + buffer.byteLength > MAX_USAGE_BYTES) {
+				let lines: string[] = [];
+				try {
+					const existing = await this._fileService.readFile(uri, { limits: { size: MAX_USAGE_BYTES } });
+					lines = existing.value.toString().split('\n').filter(Boolean).slice(-1023);
+				} catch {
+					// Missing or oversized legacy files start a new bounded diagnostic window.
+				}
+				let compacted = VSBuffer.fromString([...lines, line.trimEnd()].join('\n') + '\n');
+				while (compacted.byteLength > MAX_USAGE_BYTES && lines.length > 0) {
+					lines = lines.slice(Math.ceil(lines.length / 2));
+					compacted = VSBuffer.fromString([...lines, line.trimEnd()].join('\n') + '\n');
+				}
+				await this._fileService.writeFile(uri, compacted);
+				this._retention.set(rawId, { count: lines.length + 1, size: compacted.byteLength });
+			} else {
+				await this._fileService.writeFile(uri, buffer, { append: true });
+				this._retention.set(rawId, { count: retained.count + 1, size: retained.size + buffer.byteLength });
+			}
+		});
 	}
 }
 
@@ -319,18 +447,8 @@ export async function readAgentHostCustomizationsSnapshot(fileService: IFileServ
  */
 export class AgentHostCustomizationRecorder extends AgentHostActionRecorder {
 
-	/** Per-session serialized write queue (last snapshot wins). */
-	private readonly _queues = new Map<string, Promise<void>>();
-
-	constructor(
-		private readonly _baseDir: URI,
-		isEnabled: () => boolean,
-		private readonly _fileService: IFileService,
-		private readonly _logService: ILogService,
-		agentHostService: IAgentHostActionSource,
-		remoteAgentHostService: IRemoteAgentHostService,
-	) {
-		super(isEnabled, agentHostService, remoteAgentHostService);
+	protected _sidecarUri(rawSessionId: string): URI {
+		return buildAgentHostCustomizationsUri(this._baseDir, rawSessionId);
 	}
 
 	protected _onAction(envelope: ActionEnvelope): void {
@@ -346,15 +464,8 @@ export class AgentHostCustomizationRecorder extends AgentHostActionRecorder {
 
 	/** Overwrites the session's snapshot, serializing writes per session. */
 	private _write(rawId: string, customizations: readonly Customization[]): void {
-		const uri = buildAgentHostCustomizationsUri(this._baseDir, rawId);
+		const uri = this._sidecarUri(rawId);
 		const content = JSON.stringify(customizations);
-		const previous = this._queues.get(rawId) ?? Promise.resolve();
-		const next = previous
-			.then(() => this._fileService.writeFile(uri, VSBuffer.fromString(content)))
-			.then(() => undefined)
-			.catch(err => {
-				this._logService.trace(`[AgentHostCustomizationRecorder] write failed for ${rawId}: ${toErrorMessage(err)}`);
-			});
-		this._queues.set(rawId, next);
+		void this.queued(rawId, () => this._fileService.writeFile(uri, VSBuffer.fromString(content)));
 	}
 }

@@ -9,6 +9,7 @@ import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
@@ -18,6 +19,7 @@ import { TextModel } from '../../../../common/model/textModel.js';
 import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { CodeActionModel, CodeActionsState } from '../../browser/codeActionModel.js';
+import { CodeActionTriggerSource } from '../../common/types.js';
 
 const testProvider = {
 	provideCodeActions(): languages.CodeActionList {
@@ -159,5 +161,109 @@ suite('CodeActionModel', () => {
 
 			return donePromise;
 		});
+	});
+
+	test('disposes manually triggered code actions when the editor model is cleared', async () => {
+		let disposeCount = 0;
+		store.add(registry.register(languageId, {
+			provideCodeActions(_model, _range, context): languages.CodeActionList | undefined {
+				if (context.trigger !== languages.CodeActionTriggerType.Invoke) {
+					return undefined;
+				}
+				return {
+					actions: [
+						{ title: 'test', command: { id: 'test-command', title: 'test', arguments: [] } }
+					],
+					dispose() {
+						disposeCount++;
+					}
+				};
+			}
+		}));
+
+		const contextKeys = new MockContextKeyService();
+		const codeActionModel = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined));
+		const { promise, resolve } = promiseWithResolvers<CodeActionsState.Triggered>();
+		store.add(codeActionModel.onDidChangeState(state => {
+			if (state.type !== CodeActionsState.Type.Triggered || state.trigger.type !== languages.CodeActionTriggerType.Invoke) {
+				return;
+			}
+			resolve(state);
+		}));
+
+		codeActionModel.trigger({
+			type: languages.CodeActionTriggerType.Invoke,
+			triggerAction: CodeActionTriggerSource.Default,
+		});
+		const state = await promise;
+		await state.actions;
+		editor.setModel(null);
+		assert.strictEqual(disposeCount, 1);
+	});
+
+	async function assertManualActionsSurviveCanceledAutomaticRequest(claimBeforeAutomaticResultCompletes: boolean): Promise<void> {
+		const { promise: automaticResult, resolve: resolveAutomaticResult } = promiseWithResolvers<languages.CodeActionList>();
+		let provideCount = 0;
+		let manualDisposeCount = 0;
+		store.add(registry.register(languageId, {
+			provideCodeActions(_model, _range, context): languages.ProviderResult<languages.CodeActionList> {
+				if (provideCount++ === 0) {
+					return automaticResult;
+				}
+				assert.strictEqual(context.trigger, languages.CodeActionTriggerType.Invoke);
+				return {
+					actions: [{
+						title: 'test',
+						kind: 'quickfix',
+						command: { id: 'test-command', title: 'test', arguments: [{ value: true }] }
+					}],
+					dispose() {
+						manualDisposeCount++;
+					}
+				};
+			}
+		}));
+
+		const contextKeys = new MockContextKeyService();
+		const configurationService = new TestConfigurationService({ 'editor.codeActionWidget.includeNearbyQuickFixes': true });
+		const codeActionModel = store.add(new CodeActionModel(editor, registry, markerService, contextKeys, undefined, configurationService));
+		const { promise, resolve } = promiseWithResolvers<CodeActionsState.Triggered>();
+		store.add(codeActionModel.onDidChangeState(state => {
+			if (state.type === CodeActionsState.Type.Triggered && state.trigger.type === languages.CodeActionTriggerType.Invoke) {
+				resolve(state);
+			}
+		}));
+
+		codeActionModel.trigger({
+			type: languages.CodeActionTriggerType.Invoke,
+			triggerAction: CodeActionTriggerSource.QuickFix,
+		});
+		const manualActionSet = await (await promise).actions;
+		let manualActions = claimBeforeAutomaticResultCompletes ? codeActionModel.takeCodeActions(manualActionSet) : undefined;
+
+		resolveAutomaticResult({ actions: [], dispose() { } });
+		await new Promise(resolve => setTimeout(resolve, 0));
+		manualActions ??= codeActionModel.takeCodeActions(manualActionSet);
+		const wasClaimed = !!manualActions;
+		const disposeCountBeforeRelease = manualDisposeCount;
+		manualActions?.dispose();
+
+		assert.deepStrictEqual({
+			wasClaimed,
+			disposeCountBeforeRelease,
+			disposeCountAfterRelease: manualDisposeCount,
+		}, {
+			wasClaimed: true,
+			disposeCountBeforeRelease: 0,
+			disposeCountAfterRelease: 1,
+		});
+	}
+
+	test('does not dispose claimed manual code actions when a canceled automatic request completes', async () => {
+		await assertManualActionsSurviveCanceledAutomaticRequest(true);
+	});
+
+	test('does not replace manual code actions when a canceled automatic request completes before claim', async () => {
+		await assertManualActionsSurviveCanceledAutomaticRequest(false);
 	});
 });

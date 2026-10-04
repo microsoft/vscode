@@ -35,6 +35,54 @@ suite('PendingRequestRegistry', () => {
 		assert.strictEqual(registry.respond('k', 'world'), false);
 	});
 
+	test('stores metadata registered with a request and exposes it by key', async () => {
+		const registry = new PendingRequestRegistry<string, { questionId: string }>();
+		const promise = registry.register('k', { questionId: 'question-1' });
+
+		assert.deepStrictEqual([registry.has('k'), registry.getMetadata('k')], [true, { questionId: 'question-1' }]);
+		registry.respond('k', 'answer');
+		assert.strictEqual(await promise, 'answer');
+		assert.strictEqual(registry.has('k'), false);
+	});
+
+	test('iterates registered keys and metadata', async () => {
+		const registry = new PendingRequestRegistry<string, { serverName: string }>();
+		const a = registry.register('a', { serverName: 'first' });
+		const b = registry.registerAndFire('b', () => { }, { serverName: 'second' });
+
+		assert.deepStrictEqual(Array.from(registry.entries()), [
+			['a', { serverName: 'first' }],
+			['b', { serverName: 'second' }],
+		]);
+		registry.denyAll('cancelled');
+		assert.deepStrictEqual(await Promise.all([a, b]), ['cancelled', 'cancelled']);
+	});
+
+	test('respondWhere resolves every request whose metadata matches the predicate', async () => {
+		const registry = new PendingRequestRegistry<string, { serverName: string }>();
+		const a = registry.register('a', { serverName: 'first' });
+		const b = registry.register('b', { serverName: 'second' });
+		const c = registry.register('c', { serverName: 'first' });
+
+		assert.strictEqual(registry.respondWhere(metadata => metadata.serverName === 'first', 'resolved'), 2);
+		assert.deepStrictEqual(await Promise.all([a, c]), ['resolved', 'resolved']);
+		registry.respond('b', 'remaining');
+		assert.strictEqual(await b, 'remaining');
+	});
+
+	test('denyAll and rejectAll clear registered metadata', async () => {
+		const registry = new PendingRequestRegistry<boolean, { serverName: string }>();
+		const denied = registry.register('denied', { serverName: 'first' });
+		registry.denyAll(false);
+		assert.deepStrictEqual([await denied, registry.getMetadata('denied'), Array.from(registry.entries())], [false, undefined, []]);
+
+		const rejected = registry.register('rejected', { serverName: 'second' });
+		const error = new Error('cancelled');
+		registry.rejectAll(error);
+		await assert.rejects(rejected, error);
+		assert.deepStrictEqual([registry.getMetadata('rejected'), Array.from(registry.entries())], [undefined, []]);
+	});
+
 	test('denyAll resolves every pending entry with the supplied value and clears the registry', async () => {
 		const registry = new PendingRequestRegistry<boolean>();
 		const a = registry.registerAndFire('a', () => { });

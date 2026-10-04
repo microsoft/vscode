@@ -1,0 +1,38 @@
+parameters:
+  - name: testId
+    type: string
+    values:
+      - unit-electron
+      - unit-node
+      - unit-browser-chromium
+      - unit-browser-webkit
+      - integration-electron
+      - integration-browser-chromium
+      - integration-browser-firefox
+      - integration-browser-webkit
+      - integration-remote
+      - smoke-electron
+      - smoke-agents-pac-proxy
+      - smoke-agents-kerberos-pac-proxy
+      - smoke-browser-chromium
+      - smoke-remote
+      - copilot-extension
+      - copilot-completions-core
+      - copilot-sanity
+  - name: condition
+    type: string
+
+steps:
+  - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/testCheckpoint.ts" record ${{ parameters.testId }}
+    condition: ${{ parameters.condition }}
+    displayName: Record ${{ parameters.testId }} checkpoint
+
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_FILE)
+      artifactName: $(TEST_CHECKPOINT_${{ upper(replace(parameters.testId, '-', '_')) }}_ARTIFACT)
+      sbomEnabled: false
+      isProduction: false
+    condition: ${{ parameters.condition }}
+    displayName: Publish ${{ parameters.testId }} checkpoint
+    timeoutInMinutes: 2

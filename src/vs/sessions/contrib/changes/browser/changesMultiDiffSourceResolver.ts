@@ -14,6 +14,7 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { ISessionChangesService } from './sessionChangesService.js';
+import { getChangesEditorFileResource } from './changesEditorLabels.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 /**
@@ -59,10 +60,6 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			if (this.changesViewService.activeSessionLoadingObs.read(reader)) {
-				return lastValue ?? [];
-			}
-
 			const activeSessionResource = this.changesViewService.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource || !isEqual(activeSessionResource, sessionResource)) {
 				return lastValue ?? [];
@@ -78,10 +75,12 @@ export class ChangesMultiDiffSourceResolver extends Disposable implements IMulti
 				isEqual(x.modifiedUri, y.modifiedUri)),
 		}, reader => {
 			const changes = changesObs.read(reader);
-			return [...changes].sort(compareChanges).map(change =>
-				new MultiDiffEditorItem(change.originalUri, change.modifiedUri, change.modifiedUri, undefined, {
-					[SessionChangesFileResourceContext.key]: change.modifiedUri?.toString() ?? change.originalUri?.toString() ?? '',
-				}));
+			return [...changes].sort(compareChanges).map(change => {
+				const resource = getChangesEditorFileResource(change);
+				return new MultiDiffEditorItem(change.originalUri, change.modifiedUri, resource, undefined, {
+					[SessionChangesFileResourceContext.key]: resource.toString(),
+				});
+			});
 		});
 
 		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };

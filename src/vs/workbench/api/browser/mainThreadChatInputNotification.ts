@@ -27,6 +27,7 @@ export class MainThreadChatInputNotification extends Disposable implements MainT
 			actions: notification.actions.map<IChatInputNotificationCommandAction>(action => ({ ...action, kind: ChatInputNotificationActionKind.Command })),
 			dismissible: notification.dismissible,
 			autoDismissOnMessage: notification.autoDismissOnMessage,
+			sessionTypes: notification.sessionTypes,
 		});
 	}
 

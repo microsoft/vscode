@@ -14,6 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { ExtensionType, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { StorageManager } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
@@ -170,10 +171,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				// User has used chat features before
 				if (this._isDisabledGlobally({ id: this._chatExtensionId })) {
 					// User had specifically disabled the chat extension to disable AI features
-					if (this.configurationService.getValue('chat.disableAIFeatures') !== true) {
+					if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true) {
 						// Honor that choice by disabling AI features
 						this.logService.debug('Disabling AI features because builtin chat extension is disabled');
-						this.configurationService.updateValue('chat.disableAIFeatures', true)
+						this.configurationService.updateValue(ChatAIDisabledSettingId, true)
 							.catch(err => this.logService.error('Failed to update chat.disableAIFeatures setting during builtin chat extension enablement migration', err));
 					}
 				}

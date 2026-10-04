@@ -10,6 +10,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IChangesViewService } from '../common/changesViewService.js';
+import { findChangesEditorFileChange, getChangesEditorFileResource } from './changesEditorLabels.js';
 import { SessionChangesFileResourceContext } from './changesMultiDiffSourceResolver.js';
 import { ChangesetReviewedFilesContext, ChangesetReviewSupportContext } from './changesViewService.js';
 import { CHANGESET_REVIEW_ACTION_ID, SessionChangesEditor } from './sessionChangesEditor.js';
@@ -44,14 +45,19 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		const changesViewService = accessor.get(IChangesViewService);
+		if (changesViewService.activeSessionChangesetObs.get()?.capabilities?.review !== true) {
+			return;
+		}
+
+		// Guard against a resource forwarded by a stale editor row (e.g. mid session switch).
+		const change = findChangesEditorFileChange(resource, changesViewService.activeSessionChangesObs.get());
+		if (!change) {
+			return;
+		}
+
 		const activeEditorPane = accessor.get(IEditorService).activeEditorPane;
-
-		const reviewedFiles = changesViewService.activeSessionChangesObs.get()
-			.filter(change => change.reviewed)
-			.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
-			.filter((uri: string | undefined) => uri !== undefined);
-
-		const review = !reviewedFiles.includes(resource.toString());
+		const fileResource = getChangesEditorFileResource(change);
+		const review = !change.reviewed;
 
 		// Toggle multi-file diff editor item
 		if (activeEditorPane instanceof SessionChangesEditor) {
@@ -63,7 +69,7 @@ export class ChangesetReviewAction extends Action2 {
 		}
 
 		// Set the review state
-		changesViewService.setChangesetFilesReviewState([resource], review);
+		changesViewService.setChangesetFilesReviewState([fileResource], review);
 	}
 }
 

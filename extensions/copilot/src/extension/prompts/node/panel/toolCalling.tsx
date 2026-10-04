@@ -15,7 +15,7 @@ import { CompactionDataContainer } from '../../../../platform/endpoint/common/co
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { CacheType } from '../../../../platform/endpoint/common/endpointTypes';
 import { PhaseDataContainer } from '../../../../platform/endpoint/common/phaseDataContainer';
-import { StatefulMarkerContainer } from '../../../../platform/endpoint/common/statefulMarkerContainer';
+import { MISSING_STATEFUL_TOOL_RESULT, StatefulMarkerContainer } from '../../../../platform/endpoint/common/statefulMarkerContainer';
 import { ThinkingDataContainer } from '../../../../platform/endpoint/common/thinkingDataContainer';
 import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
@@ -25,6 +25,7 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { IOTelService } from '../../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { thinkingOriginFromMetadata } from '../../../../platform/thinking/common/thinking';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
@@ -35,7 +36,7 @@ import { ServiceCollection } from '../../../../util/vs/platform/instantiation/co
 import { LanguageModelDataPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelTextPart2, LanguageModelToolMCPSource, LanguageModelToolResult } from '../../../../vscodeTypes';
 import { isImageDataPart } from '../../../conversation/common/languageModelChatMessageHelpers';
 import { IResultMetadata } from '../../../prompt/common/conversation';
-import { IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
+import { getSubAgentInvocationId, IBuildPromptContext, IToolCall, IToolCallRound } from '../../../prompt/common/intents';
 import { toJsonSchema } from '../../../tools/common/toJsonSchema';
 import { ToolName } from '../../../tools/common/toolNames';
 import { CopilotToolMode } from '../../../tools/common/toolsRegistry';
@@ -49,6 +50,8 @@ export interface ChatToolCallsProps extends BasePromptElementProps {
 	readonly toolCallRounds: readonly IToolCallRound[] | undefined;
 	readonly toolCallResults: Record<string, LanguageModelToolResult2> | undefined;
 	readonly isHistorical?: boolean;
+	/** Whether completed rounds belong to the user task continued by a system notification. */
+	readonly isCurrentTask?: boolean;
 	readonly toolCallMode?: CopilotToolMode;
 	readonly enableCacheBreakpoints?: boolean;
 	readonly truncateAt?: number;
@@ -104,8 +107,13 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 	 */
 	private renderOneToolCallRound(round: IToolCallRound, index: number, total: number, hydratedInstantiationService: IInstantiationService, sharedImageBudget: SharedImageBudget, token?: CancellationToken): PromptElement[] {
 		let fixedNameToolCalls = round.toolCalls.map(tc => ({ ...tc, name: this.toolsService.validateToolName(tc.name) ?? tc.name }));
+		// A Responses marker retains every function call server-side. Close calls whose local
+		// results were lost so the next request can safely reuse previous_response_id.
+		const shouldSynthesizeMissingToolResults = this.props.isHistorical
+			&& this.promptEndpoint.apiType === 'responses'
+			&& !!round.statefulMarker;
 		if (this.props.isHistorical) {
-			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && this.props.toolCallResults?.[tc.id]);
+			fixedNameToolCalls = fixedNameToolCalls.filter(tc => tc.id && (this.props.toolCallResults?.[tc.id] || shouldSynthesizeMissingToolResults));
 		}
 
 		if (round.toolCalls.length && !fixedNameToolCalls.length) {
@@ -134,9 +142,14 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 		// budget-mode models (e.g. Haiku 4.5) 400 on them (#318076).
 		const modelSupportsHistoricalThinking = !!this.promptEndpoint.supportsAdaptiveThinking;
 		const apiSupportsHistoricalThinking = this.promptEndpoint.apiType === 'responses'
-			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking);
-		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || apiSupportsHistoricalThinking);
-		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} />;
+			|| (this.promptEndpoint.apiType === 'messages' && modelSupportsHistoricalThinking)
+			|| (this.promptEndpoint.apiType === 'chatCompletions' && this.promptEndpoint.supportsThinkingContentInHistory);
+		const thinkingApi = this.promptEndpoint.apiType ?? round.originApi ?? thinkingOriginFromMetadata(round.thinking?.metadata);
+		const continuesCurrentTask = this.props.isCurrentTask && thinkingApi === 'chatCompletions';
+		const includeThinking = sameModelAsEndpoint && (!this.props.isHistorical || continuesCurrentTask || apiSupportsHistoricalThinking);
+		// Record which API produced this round so the request builders can tell replayable
+		// reasoning from foreign state without guessing from the payload's id.
+		const thinking = includeThinking && round.thinking && <ThinkingDataContainer thinking={round.thinking} originApi={round.originApi} />;
 		const phase = (round.phase && roundModelId === this.promptEndpoint.model) ? <PhaseDataContainer phase={round.phase} /> : undefined;
 		const compaction = round.compaction && <CompactionDataContainer compaction={round.compaction} />;
 		children.push(
@@ -160,7 +173,8 @@ export class ChatToolCalls extends PromptElement<ChatToolCallsProps, void> {
 					{hydratedInstantiationService.invokeFunction(buildToolResultElement, {
 						toolCall: toolCall,
 						toolInvocationToken: this.props.promptContext.tools!.toolInvocationToken,
-						toolCallResult: this.props.toolCallResults?.[toolCall.id!],
+						toolCallResult: this.props.toolCallResults?.[toolCall.id!]
+							?? (shouldSynthesizeMissingToolResults ? textToolResult(MISSING_STATEFUL_TOOL_RESULT) : undefined),
 						allowInvokingTool: !this.props.isHistorical,
 						validateInput: round.toolInputRetry < MAX_INPUT_VALIDATION_RETRIES,
 						requestId: this.props.promptContext.requestId,
@@ -295,7 +309,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						inputObj = hookResult.updatedInput;
 					}
 
-					const subAgentInvocationId = promptContext.request?.subAgentInvocationId;
+					const subAgentInvocationId = getSubAgentInvocationId(promptContext);
 					// Capture the active trace context (from the invoke_agent span) so that
 					// the execute_tool span is properly parented even when async context
 					// propagation doesn't carry the active span.
@@ -305,6 +319,7 @@ function buildToolResultElement(accessor: ServicesAccessor, props: ToolResultOpt
 						toolInvocationToken: props.toolInvocationToken,
 						tokenizationOptions,
 						chatRequestId: props.requestId,
+						chatSessionResource: promptContext.request?.sessionResource,
 						subAgentInvocationId,
 						// Split on `__vscode` so it's the chat stream id
 						// TODO @lramos15 - This is a gross hack

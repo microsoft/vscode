@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from '../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -27,6 +28,8 @@ export interface IServerLifetimeOptions {
  */
 export interface IServerLifetimeService {
 	readonly _serviceBrand: undefined;
+	readonly onWillShutdown: Event<IServerWillShutdownEvent>;
+	readonly onDidAbortShutdown: Event<void>;
 
 	/**
 	 * Marks a consumer as active. The server will not auto-shutdown until the
@@ -44,15 +47,26 @@ export interface IServerLifetimeService {
 	readonly hasActiveConsumers: boolean;
 }
 
+export interface IServerWillShutdownEvent {
+	join(promise: Promise<void>): void;
+}
+
 export class ServerLifetimeService extends Disposable implements IServerLifetimeService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onWillShutdown = this._register(new Emitter<IServerWillShutdownEvent>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+	private readonly _onDidAbortShutdown = this._register(new Emitter<void>());
+	readonly onDidAbortShutdown = this._onDidAbortShutdown.event;
 	private readonly _consumers = new Map<string, number>();
 	private _totalCount = 0;
 	private _shutdownTimer: ReturnType<typeof setTimeout> | undefined;
+	private _shutdownPromise: Promise<void> | undefined;
+	private _shutdownGeneration = 0;
 
 	constructor(
 		private readonly _options: IServerLifetimeOptions,
+		private readonly _exit: (code?: number) => never = process.exit,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
@@ -68,6 +82,7 @@ export class ServerLifetimeService extends Disposable implements IServerLifetime
 	}
 
 	active(consumer: string): IDisposable {
+		this._shutdownGeneration++;
 		const wasEmpty = this._totalCount === 0;
 		const current = this._consumers.get(consumer) ?? 0;
 		this._consumers.set(consumer, current + 1);
@@ -105,10 +120,13 @@ export class ServerLifetimeService extends Disposable implements IServerLifetime
 	}
 
 	delay(): void {
+		this._shutdownGeneration++;
 		if (this._shutdownTimer) {
 			this._logService.debug('ServerLifetime: delay requested, resetting shutdown timer');
 			this._cancelShutdown();
 			this._scheduleShutdown(false);
+		} else if (this._shutdownPromise) {
+			this._logService.debug('ServerLifetime: delay requested during shutdown, aborting pending exit');
 		}
 	}
 
@@ -129,10 +147,28 @@ export class ServerLifetimeService extends Disposable implements IServerLifetime
 			this._logService.debug('ServerLifetime: consumer became active, aborting shutdown');
 			return;
 		}
-		console.log('All consumers inactive, shutting down');
+		if (this._shutdownPromise) {
+			return;
+		}
 		this._logService.info('ServerLifetime: all consumers inactive, shutting down');
-		this.dispose();
-		process.exit(0);
+		const generation = this._shutdownGeneration;
+		const joins: Promise<void>[] = [];
+		this._onWillShutdown.fire({ join: promise => joins.push(promise) });
+		this._shutdownPromise = Promise.all(joins.map(promise => promise.catch(error => {
+			this._logService.error('ServerLifetime: shutdown participant failed', error);
+		}))).then(() => {
+			this._shutdownPromise = undefined;
+			if (this._totalCount > 0 || generation !== this._shutdownGeneration) {
+				this._logService.info('ServerLifetime: consumer became active during shutdown, aborting exit');
+				this._onDidAbortShutdown.fire();
+				if (this._totalCount === 0 && this._options.enableAutoShutdown) {
+					this._scheduleShutdown(false);
+				}
+				return;
+			}
+			this.dispose();
+			this._exit(0);
+		});
 	}
 
 	private _cancelShutdown(): void {

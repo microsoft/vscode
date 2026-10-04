@@ -1,0 +1,55 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use the secondary-root-marker skill. Read its SKILL.md by running exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''../b/.agents/skills/secondary-root-marker/SKILL.md'', ''utf8''))"`. Then reply with exactly done.'
+    response:
+      content:
+        - type: text
+          text: Running the exact command now to read the `SKILL.md`, then I’ll reply exactly as requested.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: node -e "process.stdout.write(require('fs').readFileSync('../b/.agents/skills/secondary-root-marker/SKILL.md', 'utf8'))"
+            workdir: ${workdir}/a
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use the secondary-root-marker skill. Read its SKILL.md by running exactly this shell command, with no modifications: `node -e "process.stdout.write(require(''fs'').readFileSync(''../b/.agents/skills/secondary-root-marker/SKILL.md'', ''utf8''))"`. Then reply with exactly done.'
+        - role: assistant
+          content: Running the exact command now to read the `SKILL.md`, then I’ll reply exactly as requested.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: node -e "process.stdout.write(require('fs').readFileSync('../b/.agents/skills/secondary-root-marker/SKILL.md', 'utf8'))"
+                workdir: ${workdir}/a
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Chunk ID: b9fd6d
+                Wall time: 0.0138 seconds
+                Process exited with code 0
+                Original token count: 79
+                Output:
+                [0803/134948.906274:ERROR:electron/shell/common/mac/codesign_util.cc:79] task_name_for_pid: (os/kern) failure (5)
+                ---
+                name: secondary-root-marker
+                description: Confirms that Codex loaded a skill from a secondary workspace root.
+                ---
+
+                When invoked, follow this marker instruction: CODEX_SECONDARY_ROOT_SKILL_MARKER_73
+    response:
+      content: done
+      stopReason: end_turn

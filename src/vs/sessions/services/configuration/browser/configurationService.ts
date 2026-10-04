@@ -17,7 +17,7 @@ import { deepClone, equals } from '../../../../base/common/objects.js';
 import { distinct, equals as arrayEquals } from '../../../../base/common/arrays.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
 import { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationUpdateOptions, IConfigurationUpdateOverrides, IConfigurationValue, ConfigurationTarget, isConfigurationOverrides, isConfigurationUpdateOverrides } from '../../../../platform/configuration/common/configuration.js';
-import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationChangeEvent, ConfigurationModel } from '../../../../platform/configuration/common/configurationModels.js';
 import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, keyFromOverrideIdentifiers } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -115,20 +115,28 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	async initialize(): Promise<void> {
 		const workspace = this.workspaceService.getWorkspace() as Workspace;
 		const workspaceIdentifier = { id: workspace.id, configPath: workspace.configuration! };
-		const [defaultModel, policyModel, userModel] = await Promise.all([
-			this.defaultConfiguration.initialize(),
+		// Policy definitions depend on the initialized default configuration.
+		await this.defaultConfiguration.initialize();
+		const [, userModel] = await Promise.all([
 			this.policyConfiguration.initialize(),
 			this.userConfiguration.initialize(),
 			this.workspaceConfiguration.initialize(workspaceIdentifier, true),
 		]);
 		this.workspaceConfiguration.reparseWorkspaceSettings({ exclude: [...this.agentsWindowReadOnlyKeys] });
+
+		// Capture models after file loading so policy updates during initialization are preserved.
+		const [defaultModel, policyModel, workspaceModel] = [
+			this.defaultConfiguration.configurationModel,
+			this.policyConfiguration.configurationModel,
+			this.workspaceConfiguration.getConfiguration(),
+		];
 		this._configuration = new Configuration(
 			defaultModel,
 			policyModel,
 			ConfigurationModel.createEmptyModel(this.logService),
 			userModel,
 			ConfigurationModel.createEmptyModel(this.logService),
-			this.workspaceConfiguration.getConfiguration(),
+			workspaceModel,
 			new ResourceMap(),
 			ConfigurationModel.createEmptyModel(this.logService),
 			new ResourceMap<ConfigurationModel>(),
@@ -164,7 +172,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		let target: ConfigurationTarget | undefined = (overrides ? arg4 : arg3) as ConfigurationTarget | undefined;
 
 		// Always update chat.disableAIFeatures at workspace scope in the agents window
-		if (key === ChatConfiguration.AIDisabled) {
+		if (key === ChatAIDisabledSettingId) {
 			target = ConfigurationTarget.WORKSPACE;
 		}
 

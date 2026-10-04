@@ -1,328 +1,175 @@
-# AI Customizations – Design Document
+# AI customizations architecture
 
-This document describes the AI customization experience: a management editor and tree view that surface customization items (agents, skills, instructions, prompts, hooks, MCP servers) across workspace, user, and extension storage.
+> **Specification change gate:** Do not update this document for UI changes, migrations, discovery fixes, or race handling. Update it only when shared ownership, an interface, the item pipeline, or harness semantics changes.
 
-## Architecture
+## Scope
 
-### File Structure
+The AI customizations experience discovers and manages agents, skills, instructions, prompts, hooks, MCP servers, tools, and plugins across workspace, user, extension, built-in, and external sources.
 
-The management editor lives in `vs/workbench` (shared between core VS Code and sessions):
+This specification defines stable ownership and extension contracts shared by the editor workbench and Agents Window. Individual controls, migration flows, copy, styling, and bug behavior belong in code, component fixtures, and focused tests.
 
-```
-src/vs/workbench/contrib/chat/browser/aiCustomization/
-├── aiCustomizationManagement.contribution.ts   # Commands + context menus
-├── aiCustomizationManagement.ts                # IDs + context keys
-├── aiCustomizationManagementEditor.ts          # SplitView list/editor
-├── aiCustomizationManagementEditorInput.ts     # Singleton input
-├── aiCustomizationListWidget.ts                # Search + grouped list
-├── aiCustomizationItemsModel.ts                # IAICustomizationItemsModel: aggregated item model + section counts
-├── aiCustomizationItemSource.ts                # Item pipeline: ICustomizationItem → IAICustomizationListItem view model
-├── aiCustomizationWelcomePage.ts               # Welcome page host (AICustomizationWelcomePage + implementation interface)
-├── aiCustomizationWelcomePagePromptLaunchers.ts # Welcome page implementation: prompt launchers
-├── embeddedMcpServerDetail.ts                  # Inline MCP server detail panel
-├── embeddedAgentPluginDetail.ts                # Inline agent plugin detail panel
-├── promptsServiceCustomizationItemProvider.ts  # Adapts IPromptsService → ICustomizationItemProvider
-├── aiCustomizationListWidgetUtils.ts           # List item helpers (truncation, etc.)
-├── aiCustomizationDebugPanel.ts                # Debug diagnostics panel
-├── aiCustomizationWorkspaceService.ts          # Core VS Code workspace service impl
-├── customizationHarnessService.ts              # Core harness service impl (agent-gated)
-├── customizationCreatorService.ts              # AI-guided creation flow
-├── customizationGroupHeaderRenderer.ts         # Collapsible group header renderer
-├── mcpListWidget.ts                            # MCP servers section (Extensions + Built-in groups)
-├── pluginListWidget.ts                         # Agent plugins section
-├── aiCustomizationIcons.ts                     # Icons
-└── media/
-    └── aiCustomizationManagement.css             # Management editor styling, including Sessions empty-state layout
+## Ownership
 
-src/vs/workbench/contrib/chat/common/
-├── aiCustomizationWorkspaceService.ts          # IAICustomizationWorkspaceService + IStorageSourceFilter + BUILTIN_STORAGE
-└── customizationHarnessService.ts              # ICustomizationHarnessService + ICustomizationItem + ICustomizationItemProvider + helpers
-```
+The shared management editor and contracts live under:
 
-The tree view and overview live in `vs/sessions` (agent sessions window only):
+- `vs/workbench/contrib/chat/browser/aiCustomization/`;
+- `vs/workbench/contrib/chat/common/`.
 
-```
-src/vs/sessions/contrib/aiCustomizationTreeView/browser/
-├── aiCustomizationTreeView.contribution.ts     # View + actions
-├── aiCustomizationTreeView.ts                  # IDs + menu IDs
-├── aiCustomizationTreeViewViews.ts             # Tree data source + view
-├── aiCustomizationOverviewView.ts              # Overview view (counts + deep links)
-└── media/
-    └── aiCustomizationTreeView.css
-```
+The Agents Window contributes:
 
-Sessions-specific overrides:
+- the customizations tree and overview under `vs/sessions/contrib/aiCustomizationTreeView/`;
+- Sessions-specific workspace and harness adapters under `vs/sessions/contrib/chat/`;
+- Sessions sidebar entry points under `vs/sessions/contrib/sessions/`.
 
-```
-src/vs/sessions/contrib/chat/browser/
-├── aiCustomizationWorkspaceService.ts          # Sessions workspace service override
-├── customizationHarnessService.ts              # Sessions harness service (accepts any content-provider-backed session type)
-└── promptsService.ts                           # AgenticPromptsService (CLI user roots)
-src/vs/sessions/contrib/sessions/browser/
-├── aiCustomizationShortcutsWidget.ts           # Resizable sidebar shortcuts widget with overview + section links
-└── customizationsToolbar.contribution.ts       # Sidebar customization links
-```
+Shared workbench code owns reusable discovery and management behavior. Sessions code adapts active-session context and provider-backed harnesses without adding Sessions dependencies to `vs/workbench`.
 
-### Management Editor Shell
+## Service boundary
 
-The management editor opens as a compact modal editor. The modal title and welcome page heading use `Agent Customizations for {harness label}` so the active harness is visible throughout the overview experience. If no harness descriptor is available yet, the UI falls back to `Local`.
+### `IAICustomizationWorkspaceService`
 
-The first sidebar entry is a static `Overview` navigation item. It is styled like the other sidebar labels and does not mirror the active harness label; harness identity is represented by the modal title and welcome heading instead.
+This service supplies per-window policy to the shared editor:
 
-The Tools section can browse the Marketplace in the core workbench, where extension gallery browsing and installation are available. The Sessions window hides Tools Marketplace browsing and only shows the tool enablement list.
+- available management sections;
+- whether the surface is in the Agents Window;
+- the active project root;
+- the active project display label;
+- welcome-page capabilities.
 
-When the active harness is an agent host (`agent-host-*` / `remote-*`), the overview can render a **Migrate** card. The card appears only when the core `IPromptsService` still discovers local/user `*.prompt.md` files, because those files are ignored by agent-host harnesses, and only when the experimental `chat.customizations.promptMigration.enabled` setting is enabled. The left sidebar also renders a bottom **Migrate Prompt Files** shortcut in that state so the flow is discoverable even when the overview is not visible. Choosing either entry opens a dedicated migration page where users can review all migratable prompt files, select the ones to migrate, and open individual files before running migration. The migrate action converts selected prompt files into skills under the harness-appropriate skill roots (for example `.github/skills` / `~/.copilot/skills` for Copilot, `.claude/skills` / `~/.claude/skills` for Claude), preserves manual invocation by setting `disable-model-invocation: true`, and removes the original prompt files. If multiple workspace skill roots are available, migration prompts once to choose the workspace target and reuses that target for all migrated workspace prompts.
+The editor workbench resolves project context from its workspace. The Agents Window resolves it from the scoped active session.
 
-Automation run history stores the created session as a serialized URI. Its Open Session action uses the shared resource-first session opener, allowing the Agents window to route the URI through `ISessionsService` before the core workbench falls back to resolving an `IAgentSession`.
+### `ICustomizationHarnessService`
 
-Manual automation runs announce that they started once session dispatch commits, while lifecycle tracking continues until completion, failure, cancellation, or timeout.
+A harness represents the execution environment that consumes customizations. Storage answers where an item came from; a harness answers which runtime can use it.
 
-Automations use a discriminated target that is either workspace-backed or a workspace-less quick chat. The workspace dropdown owns both choices: selecting **No workspace** switches to the existing quick-chat provider/session-type catalog, while selecting a folder restores repository configuration. Workspace-less targets display and announce as `without a workspace` in the list and cannot carry folder, isolation, or branch configuration; workspace-backed targets require a folder, with Worktree isolation requiring its base branch. Ledger schema v3 persists this target union and migrates schema-v1/v2 flat records while preserving valid workspace-backed targets.
+The service owns:
 
-### IAICustomizationWorkspaceService
+- registered harness descriptors;
+- the active harness;
+- dynamic external harness registration;
+- harness-specific item and enablement providers.
 
-The `IAICustomizationWorkspaceService` interface controls per-window behavior:
+Core workbench registrations may expose Local, Copilot CLI, and Claude harnesses when their backing agents are available. The Agents Window exposes harnesses backed by registered session content providers and does not assume a Local fallback.
 
-| Property / Method | Core VS Code | Agent Sessions Window |
-|----------|-------------|----------|
-| `managementSections` | All sections except Models | All sections except Models |
-| `isSessionsWindow` | `false` | `true` |
-| `activeProjectRoot` | First workspace folder | Active session worktree |
-| `welcomePageFeatures` | Shows getting-started banner + per-card AI actions | Shows getting-started banner, hides per-card AI actions |
+### `ICustomizationMigrationService`
 
-### ICustomizationHarnessService
+This shared workbench service computes customization migrations for an explicit chat session. File migrations include source URIs and migratable-configuration metadata for flows that need source type and storage. MCP migrations report known servers' binary harness compatibility, discovery and policy-coverage state, eligible source-to-target candidates, and excluded servers with localized details explaining why they cannot be migrated. MCP candidates and failures identify user or workspace storage so consumers can scope hints, checklist entries, and activity consistently. MCP execution revalidates candidates and ordered session working-directory roots before guarded writes and returns structured per-server results. The service also produces a localized, harness-specific hint with navigation metadata so UI consumers can open the relevant file migration or MCP server surface.
+The service exposes migration-relevant customization changes so consumers can recompute without depending directly on the underlying prompt, Agent Host, or MCP services.
+Harness-specific MCP migration planning and execution are supplied by the active harness descriptor so the shared service does not depend on a provider implementation.
+MCP candidates may carry raw snapshots of properties that migration removes. Consumers must explain those removals before confirmation; providers and execution revalidate the snapshots so the approved changes cannot silently expand.
 
-A harness represents the AI execution environment that consumes customizations.
-Storage answers "where did this come from?"; harness answers "who consumes it?".
+### `IHarnessDescriptor`
 
-The service is defined in `common/customizationHarnessService.ts` which also provides:
-- **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list
-- **`ISectionOverride`** — per-section UI customization: `commandId` (command invocation), `rootFile` + `label` (root-file creation), `typeLabel` (custom type name), `fileExtension` (override default), `rootFileShortcuts` (dropdown shortcuts).
-- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[AICustomizationSources.extension, AICustomizationSources.builtin]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[AICustomizationSources.builtin]`.
-- **Well-known root helpers** — `getCliUserRoots(userHome)` and `getClaudeUserRoots(userHome)` centralize the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge.
-- **Filter helpers** — `matchesWorkspaceSubpath()` for segment-safe subpath matching; `matchesInstructionFileFilter()` for filename/path-prefix pattern matching.
+Descriptors declare presentation and discovery policy. Widgets consume the descriptor rather than branching on a harness identifier.
 
-Available harnesses:
+A descriptor may define:
 
-| Harness | Label | Description |
-|---------|-------|-------------|
-| `vscode` | Local | Shows all storage sources (default in core) |
-| `cli` | Copilot CLI | Restricts user roots to `~/.copilot`, `~/.claude`, `~/.agents` |
-| `claude` | Claude | Restricts user roots to `~/.claude`; hides Prompts + Plugins sections |
+- visible management sections;
+- per-section creation behavior;
+- hidden or renamed item types;
+- MCP collection exclusions that do not hide host-published servers;
+- an optional, session-scoped MCP compatibility provider;
+- an optional MCP migration provider;
+- required agent availability;
+- external items, enablement, and plugin actions.
 
-In core VS Code, all three harnesses are registered but CLI and Claude only appear when their respective agents are registered (`requiredAgentId` checked via `IChatAgentService`). VS Code is the default.
-In sessions, harnesses are accepted for any session type that has a registered content provider (checked via `IChatSessionsService.getContentProviderSchemes()`). AHP remote servers register directly via `registerExternalHarness`.
+Harness compatibility is distinct from MCP runtime and enablement state. Providers acquire a ref-counted scope for the active session and publish resolved state plus generic per-server compatibility and localized details, allowing shared widgets to present support without importing provider-specific assessment logic.
 
-Remote agent hosts can also register **external harnesses** dynamically. Each remote agent harness may contribute:
-- an `itemProvider` that surfaces plugins already configured on the remote host (or synced into the active remote session),
-- a `disableProvider` that lets users opt out individual files/plugins from auto-sync, and
-- `pluginActions` that add environment-specific commands such as "Add Remote Plugin" to the Plugins section add menu alongside the default install-from-source action. The create action remains a separate toolbar button.
+When a new descriptor field is added, update every descriptor factory and both workbench registrations.
 
-The Plugins section renders remote harness `itemProvider` entries with `type: 'plugin'` directly. This is separate from the prompt-file pipeline used for Agents, Skills, Instructions, Prompts, and Hooks.
+### Customization sources
 
-Local plugin discovery is aggregated by `IAgentPluginService` from priority-ordered discovery providers: configured paths, VS Code marketplace installs, extension-contributed plugins, and Copilot CLI installs. Each provider reports `undefined` until its initial scan completes; the service waits for every provider to complete before exposing plugins. Once ready, plugins are canonicalized into collision groups so the same plugin discovered from multiple install roots (for example a VS Code marketplace install and a Copilot CLI direct install) remains visible but only the highest-priority copy is enabled by default. Enabling one copy disables the other copies in the same collision group.
+`IMcpWorkspaceInstallTargetService` supplies supported workspace MCP install destinations to both the shared pickers and installation validation. The editor implementation offers project folders and the workspace configuration when present; the Sessions implementation offers only project folders, excluding its synthetic window-settings workspace. Configuration-format feature gates remain separate from destination eligibility.
 
-### IHarnessDescriptor
+Customization source-folder providers may assign an opaque workspace group identity to creation folders and discovered migration candidates. Migration uses that identity to keep each workspace customization in its originating root without inferring provenance from URI path similarity.
 
-Key properties on the harness descriptor:
+`AICustomizationSource` distinguishes local, user, extension, plugin, and built-in items. Source providers and workspace services apply their applicable discovery policy before view-model grouping. Filtering changes presentation only; it does not mutate the underlying customization.
 
-| Property | Purpose |
-|----------|--------|
-| `itemProvider` | `ICustomizationItemProvider` supplying items; when absent, falls back to `PromptsServiceCustomizationItemProvider` |
-| `disableProvider` | `ICustomizationDisableProvider` enabling opt-out of individual items from auto-sync |
-| `hiddenSections` | Sidebar sections to hide (e.g. Claude: `[Prompts, Plugins]`) |
-| `workspaceSubpaths` | Restrict file creation/display to directories (e.g. Claude: `['.claude']`) |
-| `hideGenerateButton` | Replace "Generate X" sparkle button with "New X" |
-| `sectionOverrides` | Per-section `ISectionOverride` map for button behavior |
-| `requiredAgentId` | Agent ID that must be registered for harness to appear |
-| `instructionFileFilter` | Filename/path patterns to filter instruction items |
+## Item pipeline
 
-### IStorageSourceFilter
+Customization sources adapt their data into the shared item contract. The management model aggregates those items, applies harness and storage filters, and projects list items for the active section.
 
-A per-type filter controlling which storage sources are visible.
-
-```typescript
-interface IStorageSourceFilter {
-  sources: readonly PromptsStorage[];  // Which storage groups to display
-}
+```text
+source providers
+    -> customization item contract
+    -> harness and storage filtering
+    -> management model and section counts
+    -> list/tree presentation
 ```
 
-The shared `applyStorageSourceFilter()` helper applies this filter to any `{uri, storage}` array.
+Section counts and rendered rows consume the same filtered model so hidden or disabled sources cannot appear in one surface but not the other.
 
-**Sessions filter behavior (CLI harness):**
+Prompt-based items use the prompts service adapter. MCP servers, tools, plugins, and external harness items use their owning providers directly when their data does not fit the prompt-file contract.
 
-| Type | sources |
-|------|---------|
-| Hooks | `[local, plugin]` |
-| Prompts | `[local, user, plugin, builtin]` |
-| Agents, Skills, Instructions | `[local, user, plugin, builtin]` |
+Host-published MCP items retain the runtime-reported configuration source through typed metadata and the shared item contract, independently of lifecycle state or the availability of a local configuration definition.
 
-**Core VS Code filter behavior:**
+The home page shows the original Overview until the default-off marketplace visibility flag and at least one marketplace source are enabled; it then shows unified Discover. With Marketplace visibility off, the legacy MCP and Plugin Available sections remain available. Switching surfaces disposes the previous surface and restores the current visible sections and harness context. Discover normalizes installed item-bearing sections from their existing owners and uses the platform `ICustomizationMarketplaceService` as its available catalog source. Catalog results are not installed customizations, do not contribute to customization counts, and do not imply compatibility with the active harness or permission to install. The UI and installation consumers depend on source-neutral contracts, not individual catalog backends. Marketplace-backed installation state and reversible install, repair, or uninstall operations remain owned by `ICustomizationMarketplaceInstallService`.
 
-Local harness: all types use `[local, user, extension, plugin, builtin]`. Items from the default chat extension (`productService.defaultChatAgent.chatExtensionId`) are grouped under "Built-in" via `groupKey` override in the list widget.
+Marketplace composition supplies `ICustomizationMarketplaceProvider`s with unique provider IDs and user-visible source IDs. Multiple internal providers can belong to one contributed source; selecting that source queries all of its applicable providers while results and errors retain the contributed source ID. Per-source enablement and the query service remain independent for legacy management lists; only Discover presentation and Marketplace installation apply the separate visibility setting on top of enabled sources. The requesting window selects enabled source IDs and forwards them with each query; native desktop routes only the GitHub Feed through shared-process IPC and queries the MCP gallery in the renderer. Only selected providers are instantiated and queried. Each provider owns transport, response validation, metadata normalization, and validation of any installation provenance. Resource identity includes the source ID, opaque identifier, and version, including for deduplication and pending installation state. Optional resource icons accept either one theme-independent URI or a `{ light, dark }` URI bundle; consumers resolve bundles against the active VS Code theme. Installation records preserve the v1 scalar `icon` field as the light/default value and add an optional `iconDark` field, so existing scalar records and older readers remain compatible. Invalid persisted icon fields are sanitized and logged independently; presentation metadata never invalidates an otherwise valid installation record.
 
-CLI harness (core):
+A successful managed install creates an independently persisted, machine-local profile installation record containing the resource identity, its validated installation descriptor, and its exact local target or account-scoped connector identity. Independent storage keys prevent concurrent workbench windows from overwriting unrelated records. The install service exposes one observable immutable snapshot indexed by catalog identity and exact target; Skills, MCP, Discover, and management actions use its lookup helpers instead of rebuilding record indexes. Skill records also retain their harness/destination identity and relative package files; skill and repository-backed Plugin records retain the immutable Git revision that supplied their content. Configured Plugin records retain their opaque marketplace identity and exact installed URI. Connector records preserve that an account previously connected the resource when the current catalog no longer returns it, while the remote connection remains authoritative for current state. Local discovery never creates this association: same-name or same-repository local items remain independent until an explicit marketplace install succeeds.
 
-| Type | sources |
-|------|---------|
-| Hooks | `[local, plugin]` |
-| Prompts | `[local, user, plugin]` |
-| Agents, Skills, Instructions | `[local, user, plugin]` |
+Marketplace page size bounds the combined result list, not each source's contribution. Search sources return a descending sequence of optional 0–100 relevance scores across their native pages; a score is an adapter-assigned ranking signal, not a trust or quality rating. The service merges those sequences by score, treating absent scores as zero. Adapter-assigned entry priority breaks equal relevance scores and orders queryless browsing into tiers: custom entries precede defaults, and entries at the same tier interleave round-robin. Neither priority nor relevance is displayed as a quality or trust rating. The service preserves each source's native order and browse rotation across page boundaries. It queries sources concurrently, backfills short pages, preserves stable native fetch sizes, and buffers undisplayed entries without re-querying exhausted sources.
 
-Claude harness (core):
+Native fetch failures suspend only the affected sources. Pages retain validated results, report per-source errors, and leave the combined total unknown; those errors persist through healthy-source pagination and IPC. A native page can report a terminal failure after a valid prefix, or a non-terminal warning when one underlying marketplace failed but its other pages remain available. Consumers show source-specific warnings and retry actions, including when every source fails, rather than presenting failures as successful empty results. A workbench source can provide a user-initiated recovery action, such as authorization, before restarting the query; recovery callbacks are renderer-owned and never cross catalog IPC. Sources can classify recovery as sign-in-required rather than a transport failure; consumers preserve that distinction in source status and empty states. Caller/source cancellation and invalid query, page, or continuation contracts still reject the request.
 
-| Type | sources |
-|------|---------|
-| Hooks | `[local, plugin]` |
-| Prompts | `[local, user, plugin]` |
-| Agents, Skills, Instructions | `[local, user, plugin]` |
+Marketplace continuations are opaque, short-lived references scoped to the issuing service, query, type, page size, and selected sources. Buffered entries, suspended-source errors, and native cursors remain in a bounded service-owned cache rather than travelling through caller-controlled continuations as installation provenance. Partial failures and cancellation do not consume the prior continuation's buffered state or browse rotation. Source retry restarts the combined query, replacing rather than appending recovered results so ranking stays valid. Expired or evicted continuations require starting a new search.
 
-Claude additionally applies:
-- `hiddenSections: [Prompts, Plugins]`
-- `instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md']`
-- `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
-- `sectionOverrides`: Hooks → `copilot.claude.hooks` command; Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
+Context-bound sources can supply an in-process `cacheToken` whose lifetime is independent of request cancellation. The aggregator validates it before using buffered entries and after native fetches; invalidating a source's context requires a new query even when the next page would not otherwise fetch that source. Validity tokens never cross marketplace IPC.
 
-### Built-in Extension Grouping (Core VS Code)
+The GitHub Feed's `chat.customizations.marketplace.sources.publicFeed.enabled` setting defaults on, but the feed is usable only while both it and Marketplace visibility are enabled. A disabled feed is not initialized or queried, including over catalog IPC; changing either setting cancels its pending queries and imports. Sources with legacy management surfaces may remain enabled while Marketplace is hidden. Desktop windows query the GitHub Feed's bounded, cancellable REST provider in the shared process; web windows use the workbench request service and its remote fallback. The provider handles both browsing and text search, preserves validated search relevance scores, and owns REST metadata-to-installation provenance validation. Cursor-format plugins are omitted before results reach Discover; native browse offsets and search tokens still advance over omitted records, and unfiltered totals are unknown because the API count includes them.
 
-In core VS Code, customization items contributed by the default chat extension (`productService.defaultChatAgent.chatExtensionId`, typically `GitHub.copilot-chat`) are grouped under the "Built-in" header in the management editor list widget, separate from third-party "Extensions".
+The existing MCP Gallery feed participates whenever Marketplace is visible; it has no separate marketplace feature flag. Its renderer-local adapter reads the configured MCP registry, maps display metadata without executable configuration, and carries the registry's opaque cursor without assigning a relevance or quality score. A custom source is advertised only when its configured URL differs from the product registry. When the product does not declare a default gallery, the default provider reuses the active manifest that powers the legacy MCP feed. Its installation descriptor preserves the validated registry URL; installation and uninstall reject stale or same-name entries from another registry before applying the existing MCP eligibility and installation policy. Registry changes cancel and reset discovery. When Marketplace is visible, MCP management keeps installed-server controls but routes gallery discovery to Discover; otherwise its original Available section and gallery search remain.
 
-`PromptsServiceCustomizationItemProvider` handles this via `applyBuiltinGroupKeys()`: it builds a URI→extension-ID lookup from prompt file metadata, then sets `groupKey: BUILTIN_STORAGE` on items whose extension matches the chat extension ID (checked via the shared `isChatExtensionItem()` utility). The underlying `storage` remains `PromptsStorage.extension` — the grouping is a `groupKey` override that keeps `applyStorageSourceFilter` working while visually distinguishing chat-extension items from third-party extension items.
+Configured Plugin marketplaces are also an existing feature with no additional marketplace flag. The Plugin source composes custom and default native providers behind one logical source ID, matching MCP Gallery composition. `IPluginMarketplaceService` owns effective references, policy filtering, opaque pagination, and partial native-marketplace errors; thin adapters select custom or default references and map display metadata. Plugin providers remain in the renderer, so credentials never cross public-feed IPC. When the public GitHub Feed is off, Awesome Copilot remains after custom and workspace marketplaces; when it is on, the default Plugin provider returns no content to avoid duplication. Custom Plugin entries precede public results at equal relevance, while higher-scored public search results still rank first. Configured Plugin marketplaces filter unsupported formats before paging so totals count only supported plugins.
 
-`BUILTIN_STORAGE` is defined in `aiCustomizationWorkspaceService.ts` (common layer) and re-exported by both `aiCustomizationManagement.ts` (browser) and `builtinPromptsStorage.ts` (sessions) for backward compatibility.
+The default-off `chat.customizations.marketplace.enabled` experiment controls marketplace visibility. When it is off, Overview and the legacy Plugin Available marketplace (default, custom, and workspace marketplaces) remain visible; Discover performs no catalog or installation work. When it is on, configured Plugin marketplaces move from Plugin Available to Discover even if the public GitHub Feed is off. Changing Marketplace visibility or the independently enabled public source cancels and resets discovery. Source availability also gates installation and repair of its resources; disabling a source cancels its pending work without deleting or invalidating durable installation records and without cancelling another source's installs. Marketplace visibility does not bypass AI-disable, MCP installation policy, or plugin trust and managed-marketplace restrictions, and disabling it does not remove previously installed resources.
 
-### Management Editor Item Pipeline
+The independent `chat.customizations.copilotConnectors.enabled` experiment adds an authenticated Copilot connectors source. The workbench composes it with the public-feed and MCP-gallery sources while connector account selection and catalog state remain in the renderer. On desktop, a separate scoped shared-process transport owns bounded HTTP requests to the product-defined connector endpoint; it accepts only catalog, connect, and disconnect operations with a per-request credential. Web uses the workbench request service. Neither connector credentials nor recovery actions cross the other catalog channels.
 
-All customization sources — `IPromptsService`, extension-contributed providers, and AHP remote servers — produce items conforming to the same `ICustomizationItem` contract (defined in `customizationHarnessService.ts`). This contract carries `uri`, `type`, `name`, `description`, optional `storage`, `groupKey`, `badge`, plugin provenance (`pluginUri`/`pluginLabel`), and status fields.
+The connector experiment never changes the scopes requested by normal default-account sign-in. Existing sessions are checked silently; browsing cannot prompt for consent. An ordinary GitHub OAuth session may browse the eligible `/plugins` catalog without connector scope, but client-visible connection status and connection metadata remain unknown until an explicitly requested connector authorization. An HTTP 403 on a narrow-scope catalog request is reported as a possible rollout/access limitation, not treated as permission to initiate consent automatically. Connector-specific sign-in explicitly requests any missing connector permission while preserving the active account; already-authorized sessions for that account are reused. A signed-out user first completes ordinary default-account sign-in without additional scopes, then grants connector permission separately. Connector installation in Discover can initiate this upgrade. Authorization uses the authentication provider's normal consent flow rather than storing or manufacturing credentials, and is unavailable for GitHub Enterprise. While the experiment is enabled, the agent-host authentication bridge also prefers an already-authorized connector session for the same Copilot account; lacking that optional permission must not prevent ordinary Copilot authentication. Connectors validate catalog metadata and HTTPS MCP endpoints and route installation through the connector consent flow. The MCP page includes only connected connector MCP servers in its Installed tree and routes their rows to connector-managed details and lifecycle controls; available connectors remain in Discover. Before a Copilot agent session becomes available, Agent Host enables the Copilot runtime's Connector and managed-MCP feature flags, resolves the runtime's opaque account selection for the session credential, and invokes the runtime Connector reconciliation API. After an authoritative scoped catalog refresh establishes or changes connected membership, the local Agent Host marks every live Copilot backing stale behind its active turn. The next turn transparently resumes the same chat and history through the normal launch path, which reconciles the runtime-owned Connector projection before sending; a session initializing across the change is marked stale before registration, and unscoped catalog results never change live tool availability. The runtime owns connector service requests, catalog validation, collision-safe managed MCP projection, credential refresh, and endpoint-bound credential delivery; Agent Host does not fetch or parse connector MCP definitions itself.
 
-```
-promptsService ──→ PromptsServiceCustomizationItemProvider ──→ ICustomizationItem[]
-                                                                       │
-Extension Provider ───────────────────────────────────────→ ICustomizationItem[]
-                                                                       │
-AHP Remote Server ────────────────────────────────────────→ ICustomizationItem[]
-                                                                       │
-                                                                       ▼
-                                              CustomizationItemSource (aiCustomizationItemSource.ts)
-                                              ├── normalizes → IAICustomizationListItem[]
-                                              ├── expands hooks from file content
-                                              └── normalizes items from provider
-                                                                       │
-                                                                       ▼
-                                                              List Widget renders
-```
+Connector search ranks the cached catalog locally using VS Code fuzzy matching, without additional search API or model requests. Its field-weighted relevance is heuristic, not calibrated to AgentFinder semantic scores despite sharing the 0–100 interval. Queryless connector browsing remains unscored and retains native catalog order. Connector continuations pin a bounded source-owned snapshot, so ordinary catalog refreshes affect new searches rather than reorder existing pages. The catalog service supplies snapshots bound to its source/default-account/authentication-session lifetime and invalidates them when that context changes.
 
-**Key files:**
+The shared workbench `ICustomizationMarketplaceInstallService` routes explicit install actions using the source-validated installation descriptor, never by interpreting an identifier or a pagination token. It reconciles relevant durable records with the owning plugin, MCP, file, or connector implementation to derive checking, installed, missing, and verification-error states; local targets can follow an exact owner-reported URI or server-ID move, but an unrecorded local item never implies marketplace installation. Copilot connector records are scoped to the active account and retain the Marketplace resource after it disappears from the current catalog. They remain checking until account-scoped connection state is known; afterward the remote connection is authoritative. Repair reconnects an available connector, pending Connector connection and repair operations are cancellable, an unavailable connector retains a disabled repair explanation, and explicit disconnect removes the record. A connector already known absent from the catalog, or a disconnect confirmed absent by HTTP 404, removes the stale record locally. Connector records never supply MCP definitions or credentials to an agent session. Recorded resources remain searchable and uninstallable when their source is disabled or no longer returns the catalog entry; Connector records are retained but hidden while the independent Connector experiment is disabled. Uninstall actions for exact recorded Skill, Plugin, and MCP targets in Customizations route through the marketplace install service so the owning implementation and durable record are removed together; unrecorded targets retain their native owner actions. GitHub Feed MCP servers resolve their validated, version-pinned record directly from the feed's MCP registry, independently of the configured VS Code gallery; the existing MCP installer still applies policy to the resolved configuration. Records with only unsupported packages or local prerequisites remain discoverable and offer the publisher's setup instructions when a link is available, instead of a retrying install action. Plugins retain the existing trust and managed-marketplace gates. Skills are imported as complete packages into a selected harness-provided workspace or user location. Repair materializes the recorded immutable revision for skills and repository-backed GitHub Feed plugins; configured Plugin repair revalidates its opaque identity against the still-enabled marketplace. Skill repair restores only recorded files that are missing, preserving modified and additional files. Skill uninstall reuses the normal confirmed deletion and Trash path; uninstalling a target that is already absent removes its record. Other resources without validated installation provenance remain available for discovery without an install action.
 
-- **`aiCustomizationItemSource.ts`** — The browser-side pipeline: `IAICustomizationListItem` (view model), `IAICustomizationItemSource` (data contract for both customization rows and harness-provided source folders), `AICustomizationItemNormalizer` (maps `ICustomizationItem` → view model, inferring storage/grouping from URIs when the provider doesn't supply them), `ProviderCustomizationItemSource` (orchestrates provider + sync + normalizer), and shared utilities (`expandHookFileItems`, `getFriendlyName`, `isChatExtensionItem`).
+Contributed management sections can declare `enablementSettings` to gate visibility and instantiation on any listed setting being enabled, and implement `setVisible` to scope work to the selected section in a visible editor. Without that property the section is ungated; an empty list never enables it. Disabling the last setting disposes its widget and returns to the active home surface. Sections that perform remote discovery must cancel discovery requests when hidden or disposed and must not start discovery while AI features are disabled. Confirmed installs belong to their services rather than the section widget; skill imports revalidate their initiating context and source-enablement lifetime before and after the final move, removing their new target if cancellation occurs during it.
 
-- **`promptsServiceCustomizationItemProvider.ts`** — Adapts `IPromptsService` to `ICustomizationItemProvider`. Reads agents, skills, instructions, hooks, and prompts from the core service, expands instruction categories and hook entries, applies harness-specific filters (storage sources, workspace subpaths, instruction file patterns), and returns `ICustomizationItem[]` with `storage` set from the authoritative promptsService metadata. Used as the default item provider for harnesses that don't supply their own.
+## Active-session context
 
-- **`customizationHarnessService.ts`** (common layer) — Defines `ICustomizationItem`, `ICustomizationItemProvider`, `ICustomizationDisableProvider`, and `IHarnessDescriptor`. A harness descriptor optionally carries an `itemProvider`; when absent, the widget falls back to `PromptsServiceCustomizationItemProvider`.
+In the Agents Window, the customization harness and project root track `ISessionsService.activeSession`. Opening the editor synchronizes it with the currently active session, and switching the active session can update the editor's harness and project context. A transient project-root override takes precedence while it is set.
 
-- **`promptMigration.ts`** — Shared prompt-file migration utilities used by the management editor: prompt-to-skill content conversion, source-folder selection, collision-safe skill naming, and the per-file migrate/write/delete workflow with partial-failure reporting.
+The management-editor command may select a section, target a session type, reveal a URI-addressable customization, and open migration mode for a targeted migration category. Operations that migrate files bind destination resolution and confirmation to their initiating session and stop if the active session changes.
 
-### MCP server list active-session controls
+Provider-backed items retain provider identity through the shared contract. Shared widgets must not import or branch on provider implementations.
 
-The MCP Servers tab merges local/workspace MCP configuration with MCP servers reported by the active agent-host session. When a listed server also exists in the active session, row status follows the session-backed server and lifecycle controls (start/stop) target the agent host. Model-access and sampling-log actions are hidden for session-backed rows because those are not inline session controls. Runtime states render as semantic colored icons rather than text badges: running uses a green check, while stopped has no visual icon. Authentication-required rows expose an inline **Sign In** button, and an actionable error icon opens that server's local or agent-host output.
+## External customization providers
 
-Enablement has three explicit scopes. `Enable` / `Disable` persists at profile scope, `Enable (Workspace)` / `Disable (Workspace)` persists for the active project, and `Enable (Session)` / `Disable (Session)` dispatches only to the active agent-host session. Servers with an exact, unambiguous identifier or name match to an `IMcpService` entry, including extension-provided servers, use the existing local enablement model for profile/workspace state. Ambiguous matches remain agent-host-only so an action cannot target the wrong local server. Agent-host-only profile state is keyed by agent-host resource scheme (which includes local/remote host and provider identity) plus exact server name; workspace state additionally includes the session working directory so repositories inside the shared Agents window storage workspace remain independent. Workspace actions are hidden when the Sessions-aware active project root is absent, including workspace-less quick chats.
+Extensions may contribute customization items through the proposed `chatSessionCustomizationProvider` API. Its internal contract is `ICustomizationItemProvider` and `ICustomizationItem`.
 
-A durable agent-host policy is persisted without immediately changing live sessions. Immediately before `ChatTurnStarted`, `AgentHostSessionHandler` asks `IAgentHostCustomizationService` to prepare that session's MCP servers. Preparation dispatches only preferences that are explicit on first use or changed since the session's previous preparation; unchanged policy is not reapplied, so a later session-scoped action may intentionally diverge. `EnabledProfile` on first preparation records the default without overwriting the server's current state, while resetting an explicit durable policy back to `EnabledProfile` enables the server before the next turn. `getMcpServers()` remains a pure query. Session customization enablement remains desired runtime state: providers with live MCP lifecycle support (currently Copilot and Claude) reconcile their observed SDK runtime before each turn and after runtime rebinds. Codex does not yet expose a live per-thread MCP enable/disable API, so its runtime cannot reconcile this state without recreating the thread.
+Changes to that item shape must remain aligned across:
 
-### Structured Detail Preview
+1. the proposed extension API;
+2. extension-host protocol DTOs;
+3. extension-host mapping;
+4. main-thread mapping;
+5. the internal customization item.
 
-For markdown-backed customizations (`.agent.md`, `SKILL.md`, `.instructions.md`, `.prompt.md`), the management editor opens a **structured preview** by default instead of showing the raw file immediately.
+New fields should be optional unless the proposal explicitly introduces a breaking version.
 
-- The preview parses the file with `PromptFileParser`
-- Header metadata is rendered as labeled rows
-- Each row includes an inline help affordance whose hover text comes from `getAttributeDefinition(...)`
-- The markdown body is rendered via `IMarkdownRendererService`
-- A header button switches between the structured preview and the raw editor/viewer
+## Feature gating
 
-Hooks and other non-markdown detail views continue to open directly in their existing raw/detail experiences.
+Customization surfaces are hidden when AI features are disabled. Contributions use `ChatContextKeys.enabled` for declarative visibility and the applicable entitlement state for programmatic hiding.
 
-### AgenticPromptsService (Sessions)
+Optional sections and migrations remain behind their owning configuration or capability. A disabled feature must not perform background discovery solely to populate hidden UI.
 
-Sessions overrides `PromptsService` via `AgenticPromptsService` (in `promptsService.ts`):
+## Testing
 
-- **Discovery**: `AgenticPromptFilesLocator` scopes workspace folders to the active session's worktree
-- **Built-in skills**: Discovers bundled `SKILL.md` files from `vs/sessions/skills/{name}/` and surfaces them with `PromptsStorage.builtin` storage type
-- **User override**: Built-in skills are omitted when a user or workspace skill with the same name exists
-- **Creation targets**: `getSourceFolders()` override replaces VS Code profile user roots with `~/.copilot/{subfolder}` for CLI compatibility
-- **Hook folders**: Falls back to `.github/hooks` in the active worktree
+Use focused unit tests for filtering, grouping, counts, and service contracts. Use component fixtures for layout, section presentation, narrow viewports, and theme coverage. Cross-window descriptor changes must validate both the editor workbench and Agents Window registrations.
 
-### Built-in Skills
+The executable customization test plan lives in [test/ai-customizations.test.md](test/ai-customizations.test.md).
 
-All built-in customizations bundled with the Sessions app are skills, living in `src/vs/sessions/skills/{name}/SKILL.md`. They are:
+## Change policy
 
-- Discovered at runtime via `FileAccess.asFileUri('vs/sessions/skills')`
-- Tagged with `PromptsStorage.builtin` storage type
-- Shown in a "Built-in" group in the AI Customization tree view and management editor
-- Filtered out when a user/workspace skill shares the same name (override behavior)
-- Skills with UI integrations (e.g. `act-on-feedback`, `generate-run-commands`) display a "UI Integration" badge in the management editor
+Update this specification only when ownership, a shared service/interface, the item pipeline, or harness semantics change. Do not append UI walkthroughs, migration algorithms, race analyses, file inventories, or regression narratives. Keep those in tests, short code comments, issues, and pull requests.
 
-### UI Integration Badges
-
-Skills that are directly invoked by UI elements (toolbar buttons, menu items) are annotated with a "UI Integration" badge in the management editor. The mapping is provided by `IAICustomizationWorkspaceService.getSkillUIIntegrations()`, which the Sessions implementation populates with the relevant skill names and tooltip descriptions. The badge appears on both the built-in skill and any user/workspace override, ensuring users understand that overriding the skill affects a UI surface.
-
-### Count Consistency
-
-Counts shown in the sidebar (per-link badges and the header total in `AICustomizationShortcutsWidget`) are driven by the same `IAICustomizationItemsModel` singleton (`workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.ts`) that feeds the customizations editor's list widget. The model owns the per-active-harness `ProviderCustomizationItemSource` cache and exposes per-section `IObservable<readonly IAICustomizationListItem[]>`; sidebar consumers `read` `.length` from those observables. There is exactly one discovery path, so editor and sidebar counts cannot diverge. McpServers use `IMcpService.servers` directly. Plugins use `IAICustomizationItemsModel.getPluginCount()`, which combines locally installed plugins from `IAgentPluginService.plugins` with plugin rows supplied by the active remote customization provider.
-
-Provider-supplied customization rows that include an explicit storage origin are treated as authoritative even when no local URI inference is available. In particular, `storage: PromptsStorage.plugin` keeps AHP remote host plugin customizations out of the User group when no local `pluginUri` exists, and `storage: BUILTIN_STORAGE` keeps provider-supplied built-ins in the Built-in group.
-
-### MCP Active Session Status
-
-The MCP Servers section combines locally known MCP servers with MCP servers reported by the active agent-host session (`IAgentHostCustomizationService.getMcpServers(activeSessionResource)`). Active-session servers are matched to known workspace, user, extension, plugin, or built-in rows by stable identifiers and display names so the row can show the active session's status, matching `MCP: List Servers`. Active-session servers that do not match any known local/runtime server are appended to the **Workspace** group and counted with the rest of the section.
-
-The MCP list uses `WorkbenchList` as its sole scroll owner. Layout uses the widget's rendered content-box dimensions rather than the padded panel's outer dimensions, and the virtual delegate height matches each rendered row variant, including the taller two-line description row. These invariants keep the final row fully reachable at the bottom of the list.
-
-### Sidebar Customizations Section
-
-The Agents sidebar `AICustomizationShortcutsWidget` appears as a collapsible, vertically resizable section below the sessions list. Its resize sash is the horizontal separator above the section and uses the same `SplitView` styling as the Checks section in the changes view, with a 4px separator and sash inset on each side. The section's expanded minimum height is 129px, while its initial and maximum height are capped to the rendered content height so the pane does not open with empty space. When collapsed, the section shrinks to its header height and shows the total customization count to the left of the hover-revealed chevron. The collapsed/expanded state is persisted per profile (`StorageScope.PROFILE`) and restored on reload.
-
-The first sidebar entry is `Overview`, which opens the AI Customization management editor welcome page. The remaining per-category rows deep-link directly to their corresponding management editor section. All entries keep the active customization harness in sync with the active session before opening the editor.
-
-### Item Badges
-
-`IAICustomizationListItem.badge` is an optional string that renders as a small inline tag next to the item name. For context instructions, this badge shows the raw `applyTo` pattern (e.g. a glob like `**/*.ts`), while the tooltip (`badgeTooltip`) explains the behavior. For skills with UI integrations, the badge reads "UI Integration" with a tooltip describing which UI surface invokes the skill. The badge text is also included in search filtering.
-
-### Embedded Detail Editors
-
-The management editor opens inline detail panes for prompt files, MCP servers, and plugins. Prompt-file details use the standard text editor pane. MCP and plugin details render dedicated compact widgets — `EmbeddedMcpServerDetail` and `EmbeddedAgentPluginDetail` — purpose-built for the narrow split-pane host. They show the icon, name, scope/source, and description. Do **not** embed the full extension-editor panes inside the split-pane host: they assume a wide page-level layout and don't shrink cleanly.
-
-The MCP detail fixture in `src/vs/workbench/test/browser/componentFixtures/sessions/aiCustomizationManagementEditor.fixture.ts` must open a real server row (not a group header) and use a local server with concrete config so the compact widget's scope/description rendering is covered by screenshots.
-
-### Debug Panel
-
-Toggle via Command Palette: "Toggle Customizations Debug Panel". Shows a diagnostic view of the item pipeline:
-
-1. **Provider data** — items returned by the active `ICustomizationItemProvider`
-2. **After filtering** — what was removed by storage source and workspace subpath filters
-3. **Widget state** — allItems vs displayEntries with group counts
-4. **Source/resolved folders** — creation targets and discovery order
-
-## Key Services
-
-- **Prompt discovery**: `IPromptsService` — parsing, lifecycle, storage enumeration
-- **MCP servers**: `IMcpService` — server list, tool access
-- **Active worktree**: `IActiveSessionService` — source of truth for workspace scoping (sessions only)
-- **File operations**: `IFileService`, `ITextModelService` — file and model plumbing
-
-Browser compatibility is required — no Node.js APIs.
-
-## Feature Gating
-
-All commands and UI respect `ChatContextKeys.enabled`.
-
-### Commands
-
-| Command ID | Purpose |
-|-----------|---------|
-| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link |
-| `aiCustomization.openMarketplace` | Opens the management editor with marketplace browse mode active. Accepts an optional section (`mcpServers` or `plugins`); defaults to `mcpServers` |
-
-## Settings
-
-User-facing settings use the `chat.customizations.` namespace. Currently, no settings are exposed for the management editor.
+The external Copilot runtime discovery snapshot is maintained separately in [copilot-customizations-spec.md](copilot-customizations-spec.md).

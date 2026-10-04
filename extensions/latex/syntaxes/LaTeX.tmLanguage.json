@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/3eb98ef3aeceedbe3366d6a5192ad6d2948721e8",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/843cd14021feb45069fac66c6e1f98e02a196dea",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -779,7 +779,7 @@
 							]
 						},
 						{
-							"begin": "(?:\\G|(?<=\\]))(\\{)([a-zA-Z]*)(\\})",
+							"begin": "(?:\\G|(?<=\\]))(?:(\\{)([a-zA-Z]*)(\\}))?",
 							"beginCaptures": {
 								"1": {
 									"name": "punctuation.definition.arguments.begin.latex"
@@ -3304,6 +3304,27 @@
 							]
 						}
 					]
+				},
+				{
+					"begin": "((\\\\)(?:sys_get_shell:nnN(?:TF)?)\\s?)(\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "support.function.verb.latex"
+						},
+						"2": {
+							"name": "punctuation.definition.function.latex"
+						},
+						"3": {
+							"name": "punctuation.definition.arguments.begin.latex"
+						}
+					},
+					"end": "\\}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.arguments.end.latex"
+						}
+					},
+					"contentName": "markup.raw.verb.latex"
 				}
 			]
 		},
@@ -3854,7 +3875,7 @@
 			]
 		},
 		"newcommand-macro": {
-			"begin": "((\\\\)(?:newcommand|renewcommand|(?:re)?newrobustcmd|DeclareRobustCommand)\\*?)(\\{)((\\\\)\\p{Alphabetic}+\\*?)(\\})(?:(\\[)[^\\]]*(\\])){0,2}(\\{)",
+			"begin": "((\\\\)(?:newcommand|renewcommand|(?:re)?newrobustcmd|DeclareRobustCommand)\\*?)(\\{)?((\\\\)[\\p{Alphabetic}@]+\\*?)(\\})?(?:(\\[)[^\\]]*(\\])){0,2}(\\{)",
 			"beginCaptures": {
 				"1": {
 					"name": "storage.type.function.latex"

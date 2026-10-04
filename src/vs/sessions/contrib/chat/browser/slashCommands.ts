@@ -8,7 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { CodeEditorWidget } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { CompletionContext, CompletionItem, CompletionItemKind } from '../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, InjectedTextCursorStops, ITextModel } from '../../../../editor/common/model.js';
 import { IEditorDecorationsCollection } from '../../../../editor/common/editorCommon.js';
@@ -19,12 +19,14 @@ import { ILanguageFeaturesService } from '../../../../editor/common/services/lan
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { localize } from '../../../../nls.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { IChatSubmitRequestHandlerService, type IChatSubmitRequest, type IChatSubmitRequestHandler } from '../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { IChatPromptSlashCommand } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
  * mirroring the pattern of core's `ChatSubmitAction` for `executeImmediately` commands.
@@ -46,6 +48,7 @@ interface ISessionsSlashCommandData {
 	readonly detail: string;
 	readonly sortText?: string;
 	readonly executeImmediately?: boolean;
+	readonly supportsAgentHost?: boolean;
 	readonly execute: (args: string) => void;
 }
 
@@ -54,10 +57,11 @@ interface ISessionsSlashCommandData {
  * Manages slash commands for the sessions new-chat input widget — registration,
  * autocompletion, decorations (syntax highlighting + placeholder text), and execution.
  */
-export class SlashCommandHandler extends Disposable {
+export class SlashCommandHandler extends Disposable implements IChatSubmitRequestHandler {
 
 	private static readonly _commandClassName = 'sessions-slash-command';
 	private static readonly _placeholderClassName = 'sessions-slash-placeholder';
+	readonly id = 'sessions.slashCommands';
 
 	private readonly _slashCommands: ISessionsSlashCommandData[] = [];
 	private _cachedPromptCommands: readonly IChatPromptSlashCommand[] = [];
@@ -67,17 +71,20 @@ export class SlashCommandHandler extends Disposable {
 	private readonly _placeholderDecorations: IEditorDecorationsCollection;
 
 	constructor(
-		private readonly _editor: CodeEditorWidget,
+		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly commandService: ICommandService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@INewChatModelPickerService private readonly newChatModelPickerService: INewChatModelPickerService,
 		@ISessionContext private readonly sessionContext: ISessionContext,
+		@IChatPetService private readonly chatPetService: IChatPetService,
+		@IChatSubmitRequestHandlerService submitRequestHandlerService: IChatSubmitRequestHandlerService,
 	) {
 		super();
 		this._commandDecorations = this._editor.createDecorationsCollection();
 		this._placeholderDecorations = this._editor.createDecorationsCollection();
 		this._registerSlashCommands();
+		this._register(submitRequestHandlerService.register(this));
 		this._registerCompletions();
 		this._registerDecorations();
 
@@ -95,6 +102,14 @@ export class SlashCommandHandler extends Disposable {
 
 	clearInput(): void {
 		this._editor.getModel()?.setValue('');
+	}
+
+	async tryHandle(request: IChatSubmitRequest): Promise<boolean> {
+		const currentSessionResource = this.sessionContext.session.get()?.resource;
+		if (!currentSessionResource || !request.providerId || !request.sessionId || !isEqual(currentSessionResource, request.sessionResource)) {
+			return false;
+		}
+		return this.tryExecuteSlashCommand(request.input);
 	}
 
 	private _refreshPromptCommands(sessionResource: URI | undefined): void {
@@ -133,7 +148,7 @@ export class SlashCommandHandler extends Disposable {
 
 		const commandName = match[1];
 		const slashCommand = this._slashCommands.find(c => c.command === commandName);
-		if (!slashCommand) {
+		if (!slashCommand || !this._isSlashCommandAvailable(slashCommand)) {
 			return false;
 		}
 
@@ -146,10 +161,18 @@ export class SlashCommandHandler extends Disposable {
 			() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, section);
 
 		this._slashCommands.push({
+			command: 'vscode-pet',
+			detail: localize('slashCommand.vscodePet', "Toggle an interactive VS Code pet (Experimental)"),
+			sortText: 'z3_vscodePet',
+			executeImmediately: true,
+			execute: () => this.chatPetService.toggle(),
+		});
+		this._slashCommands.push({
 			command: 'agents',
 			detail: localize('slashCommand.agents', "View and manage custom agents"),
 			sortText: 'z3_agents',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Agents),
 		});
 		this._slashCommands.push({
@@ -157,6 +180,7 @@ export class SlashCommandHandler extends Disposable {
 			detail: localize('slashCommand.skills', "View and manage skills"),
 			sortText: 'z3_skills',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Skills),
 		});
 		this._slashCommands.push({
@@ -164,6 +188,7 @@ export class SlashCommandHandler extends Disposable {
 			detail: localize('slashCommand.instructions', "View and manage instructions"),
 			sortText: 'z3_instructions',
 			executeImmediately: true,
+			supportsAgentHost: false,
 			execute: openSection(AICustomizationManagementSection.Instructions),
 		});
 		this._slashCommands.push({
@@ -250,6 +275,9 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+				if (!isEqual(model.uri, uri)) {
+					return null;
+				}
 				const range = this._computeCompletionRanges(model, position, /\/\w*/g);
 				if (!range) {
 					return null;
@@ -262,7 +290,7 @@ export class SlashCommandHandler extends Disposable {
 				}
 
 				return {
-					suggestions: this._slashCommands.map((c, i): CompletionItem => {
+					suggestions: this._slashCommands.filter(c => this._isSlashCommandAvailable(c)).map((c, i): CompletionItem => {
 						const withSlash = `/${c.command}`;
 						return {
 							label: withSlash,
@@ -284,6 +312,9 @@ export class SlashCommandHandler extends Disposable {
 			_debugDisplayName: 'sessionsPromptSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
+				if (!isEqual(model.uri, uri)) {
+					return null;
+				}
 				const activeSession = this.sessionContext.session.get();
 				if (!activeSession) {
 					return null;
@@ -326,6 +357,13 @@ export class SlashCommandHandler extends Disposable {
 				};
 			}
 		}));
+	}
+
+	private _isSlashCommandAvailable(command: ISessionsSlashCommandData): boolean {
+		const activeSession = this.sessionContext.session.get();
+		return command.supportsAgentHost !== false
+			|| !activeSession
+			|| !isAgentHostTarget(getChatSessionType(activeSession.resource));
 	}
 
 	private _computeCompletionRanges(model: ITextModel, position: Position, reg: RegExp): { insert: Range; replace: Range } | undefined {

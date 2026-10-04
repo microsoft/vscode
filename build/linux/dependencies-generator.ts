@@ -22,7 +22,7 @@ import product from '../../product.json' with { type: 'json' };
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/148.0.7778.280:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/150.0.7871.250:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [
@@ -31,7 +31,6 @@ const bundledDeps = [
 	'libvulkan.so.1',
 	'libvk_swiftshader.so',
 	'libffmpeg.so',
-	'libonnxruntime.so.1'
 ];
 
 export async function getDependencies(packageType: 'deb' | 'rpm', buildDir: string, applicationName: string, arch: string): Promise<string[]> {

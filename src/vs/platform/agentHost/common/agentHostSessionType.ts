@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { type AgentProvider } from './agentService.js';
+import { type AgentProvider } from './agent.js';
 
+const LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX = 'agent-host-';
 const REMOTE_AGENT_HOST_SESSION_TYPE_PREFIX = 'remote-';
 
 /**
@@ -71,6 +72,16 @@ export function parseRemoteAgentHostHarness(sessionType: string): string | undef
 	const lastDash = sessionType.lastIndexOf('-');
 	const harness = sessionType.slice(lastDash + 1);
 	return harness || undefined;
+}
+
+/**
+ * Extracts the logical harness/provider from a local or remote agent-host session type.
+ */
+export function parseAgentHostHarness(sessionType: string): string | undefined {
+	if (sessionType.startsWith(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX)) {
+		return sessionType.slice(LOCAL_AGENT_HOST_SESSION_TYPE_PREFIX.length) || undefined;
+	}
+	return parseRemoteAgentHostHarness(sessionType);
 }
 
 /**

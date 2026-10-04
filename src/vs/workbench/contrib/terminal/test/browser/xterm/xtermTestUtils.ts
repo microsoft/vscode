@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { WebglAddon } from '@xterm/addon-webgl';
+import type { IWebglAddonOptions, WebglAddon } from '@xterm/addon-webgl';
 import type { IEvent } from '@xterm/xterm';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { XtermAddonImporter, type IXtermAddonNameToCtor } from '../../../browser/xterm/xtermAddonImporter.js';
@@ -11,6 +11,7 @@ import { XtermAddonImporter, type IXtermAddonNameToCtor } from '../../../browser
 export class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
 	static isEnabled = false;
+	static readonly customGlyphOptions: (boolean | undefined)[] = [];
 	private readonly _onChangeTextureAtlas = new Emitter<HTMLCanvasElement>();
 	private readonly _onAddTextureAtlasCanvas = new Emitter<HTMLCanvasElement>();
 	private readonly _onRemoveTextureAtlasCanvas = new Emitter<HTMLCanvasElement>();
@@ -19,7 +20,8 @@ export class TestWebglAddon implements WebglAddon {
 	readonly onAddTextureAtlasCanvas = this._onAddTextureAtlasCanvas.event as IEvent<HTMLCanvasElement>;
 	readonly onRemoveTextureAtlasCanvas = this._onRemoveTextureAtlasCanvas.event as IEvent<HTMLCanvasElement, void>;
 	readonly onContextLoss = this._onContextLoss.event as IEvent<void>;
-	constructor(preserveDrawingBuffer?: boolean) {
+	constructor(options?: IWebglAddonOptions) {
+		TestWebglAddon.customGlyphOptions.push(options?.customGlyphs);
 	}
 	activate(): void {
 		TestWebglAddon.isEnabled = !TestWebglAddon.shouldThrow;
@@ -45,4 +47,3 @@ export class TestXtermAddonImporter extends XtermAddonImporter {
 		return super.importAddon(name);
 	}
 }
-

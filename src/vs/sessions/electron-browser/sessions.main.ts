@@ -50,7 +50,7 @@ import { IUserDataProfilesService, reviveProfile } from '../../platform/userData
 import { UserDataProfilesService } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { PolicyChannelClient } from '../../platform/policy/common/policyIpc.js';
 import { NativeManagedSettingsChannelClient } from '../../platform/policy/common/nativeManagedSettingsIpc.js';
-import { INativeManagedSettingsService, IFileManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
+import { INativeManagedSettingsService, IFileManagedSettingsService, IManagedSettingsService } from '../../platform/policy/common/copilotManagedSettings.js';
 import { FileManagedSettingsChannelClient } from '../../platform/policy/common/fileManagedSettingsIpc.js';
 import { IPolicyService } from '../../platform/policy/common/policy.js';
 import { UserDataProfileService } from '../../workbench/services/userDataProfile/common/userDataProfileService.js';
@@ -65,7 +65,7 @@ import { IDefaultAccountService } from '../../platform/defaultAccount/common/def
 import { DefaultAccountService } from '../../workbench/services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService, IAccountPolicyGateService } from '../../workbench/services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../../platform/policy/common/multiplexPolicyService.js';
-import { Workbench as AgenticWorkbench } from '../browser/workbench.js';
+import type { Workbench as AgenticWorkbench } from '../browser/workbench.js';
 import { createSessionsWorkbench } from '../browser/workbenchFactory.js';
 import { NativeMenubarControl } from '../../workbench/electron-browser/parts/titlebar/menubarControl.js';
 import { IWorkspaceEditingService } from '../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -222,11 +222,12 @@ export class SessionsMain extends Disposable {
 		// Policies
 		let policyService: IPolicyService;
 		const policyChannel = this.configuration.policiesData ? this._register(new PolicyChannelClient(this.configuration.policiesData, mainProcessService.getChannel('policy'))) : undefined;
-		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings')));
+		const nativeManagedSettings = this._register(new NativeManagedSettingsChannelClient(mainProcessService.getChannel('nativeManagedSettings'), logService));
 		serviceCollection.set(INativeManagedSettingsService, nativeManagedSettings);
 		const fileManagedSettings = this._register(new FileManagedSettingsChannelClient(mainProcessService.getChannel('fileManagedSettings')));
 		serviceCollection.set(IFileManagedSettingsService, fileManagedSettings);
 		const accountPolicy = this._register(new AccountPolicyService(logService, defaultAccountService, policyChannel, nativeManagedSettings, fileManagedSettings));
+		serviceCollection.set(IManagedSettingsService, accountPolicy);
 		if (policyChannel) {
 			policyService = this._register(new MultiplexPolicyService([policyChannel, accountPolicy], logService));
 		} else {

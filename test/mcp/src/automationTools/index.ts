@@ -26,7 +26,7 @@ import { applyTaskTools } from './task.js';
 import { applyProfilerTools } from './profiler.js';
 import { applyChatTools } from './chat.js';
 import { applyWindowTools } from './windows.js';
-import { ApplicationService } from '../application';
+import { ApplicationService } from '../../../scenario';
 
 /**
  * Apply all VS Code automation tools to the MCP server

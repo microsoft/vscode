@@ -131,6 +131,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 
 		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmation.set(true);
+		this.primaryAction = () => confirmWidget.runPrimaryAction();
 
 		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
@@ -163,6 +164,7 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 		if (message) {
 			const renderedMessage = this._register(this.markdownRendererService.render(typeof message === 'string' ? new MarkdownString(message) : message));
 			renderFileWidgets(renderedMessage.element, this.instantiationService, this.chatMarkdownAnchorService, this._store, {
+				...this.openedEditors.fileWidgetOptions,
 				openResource: (resource, editorOptions) => this.openModifiedFilePreview(data, resource, editorOptions),
 			});
 			container.append(renderedMessage.element);

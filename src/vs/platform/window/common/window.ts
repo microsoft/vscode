@@ -5,8 +5,9 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
+import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -92,6 +93,7 @@ interface IOpenedWindow {
 export interface IOpenedMainWindow extends IOpenedWindow {
 	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
+	readonly iconPath?: URI;
 }
 
 export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
@@ -103,6 +105,80 @@ export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAu
 }
 
 export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
+
+export interface IAgentsWindowDraft {
+	readonly inputText: string;
+	/** URI-aware serialized chat attachments, including exported image data. */
+	readonly attachments: string;
+}
+
+export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft {
+	const draft = value as Partial<IAgentsWindowDraft> | undefined;
+	return !!draft && typeof draft.inputText === 'string' && typeof draft.attachments === 'string';
+}
+
+export interface IAgentsWindowNewSessionLink {
+	readonly workspaceUri?: URI;
+	readonly draft: IAgentsWindowDraft;
+}
+
+export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, productUrlProtocol: string): IAgentsWindowNewSessionLink | undefined {
+	const parsed = typeof uri === 'string' ? URI.parse(uri) : uri;
+	if (parsed.scheme !== productUrlProtocol || parsed.authority !== AGENTS_AUTHORITY || parsed.path !== '/new') {
+		return undefined;
+	}
+
+	const params = new URLSearchParams(parsed.query);
+	const workspace = params.get('workspace');
+	const prompt = params.get('prompt');
+	if (!prompt || workspace === '') {
+		return undefined;
+	}
+
+	try {
+		return {
+			workspaceUri: workspace === null ? undefined : URI.parse(workspace, true),
+			draft: { inputText: prompt, attachments: '[]' },
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+export const enum AgentsWindowOpenSource {
+	CommandPalette = 'commandPalette',
+	KeyboardShortcut = 'keyboardShortcut',
+	TitleBar = 'titleBar',
+	ChatTitleBar = 'chatTitleBar',
+	CurrentChatHandoff = 'currentChatHandoff',
+	EmptyWorkspaceCurrentChatHandoff = 'emptyWorkspaceCurrentChatHandoff',
+	ParallelWorkEmptyChatHandoff = 'parallelWorkEmptyChatHandoff',
+	WelcomeTryOut = 'welcomeTryOut',
+	WelcomeViewAll = 'welcomeViewAll',
+	CommandLine = 'commandLine',
+	Link = 'link',
+	Unknown = 'unknown',
+}
+
+export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
+	switch (value) {
+		case AgentsWindowOpenSource.CommandPalette:
+		case AgentsWindowOpenSource.KeyboardShortcut:
+		case AgentsWindowOpenSource.TitleBar:
+		case AgentsWindowOpenSource.ChatTitleBar:
+		case AgentsWindowOpenSource.CurrentChatHandoff:
+		case AgentsWindowOpenSource.EmptyWorkspaceCurrentChatHandoff:
+		case AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff:
+		case AgentsWindowOpenSource.WelcomeTryOut:
+		case AgentsWindowOpenSource.WelcomeViewAll:
+		case AgentsWindowOpenSource.CommandLine:
+		case AgentsWindowOpenSource.Link:
+		case AgentsWindowOpenSource.Unknown:
+			return true;
+		default:
+			return false;
+	}
+}
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 
@@ -222,6 +298,7 @@ export interface IWindowSettings {
 
 export interface IDensitySettings {
 	readonly editorTabHeight: 'default' | 'compact';
+	readonly layout: 'default' | 'compact';
 }
 
 export const enum TitleBarSetting {
@@ -301,6 +378,13 @@ export function getWindowControlsStyle(configurationService: IConfigurationServi
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
+/** Centers macOS traffic lights vertically, optionally keeping their horizontal inset independent of height. */
+export function getMacOSWindowControlsPosition(height: number, osVersion: string, horizontalInset?: number): IPoint | null {
+	const buttonHeight = isTahoeOrNewer(osVersion) ? 14 : 16;
+	const offset = Math.floor((height - buttonHeight) / 2);
+	return !offset && horizontalInset === undefined ? null : { x: horizontalInset ?? offset + 1, y: offset };
+}
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isWeb) {

@@ -3,15 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogLevel as ProxyLogLevel, ProxyAgentParams, ProxySupportSetting, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
-import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../request/common/request.js';
+import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
 import { IAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
+import { AgentHostProxyConfigKey, agentHostProxyConfigSchema } from '../common/agentHostSchema.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>('agentHostProxyResolver');
+
+type AgentHostProxyConfigurationKey = keyof typeof agentHostProxyConfigSchema.definition & string;
 
 /**
  * Node-side registry of renderer {@link IAgentHostClientProxyConnection}s keyed
@@ -26,8 +32,13 @@ export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>(
 export interface IAgentHostProxyResolver {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidRegisterConnection: Event<void>;
+	readonly onDidChangeConfiguration: Event<void>;
+
 	/** Register a renderer connection. Disposing the result removes it. */
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable;
+
+	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined;
 
 	/**
 	 * Resolve the proxy URL for `url` (e.g. `http://host:port`), or `undefined`
@@ -42,22 +53,51 @@ export interface IAgentHostProxyResolver {
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
 }
 
-export class AgentHostProxyResolver implements IAgentHostProxyResolver {
+export class AgentHostProxyResolver extends Disposable implements IAgentHostProxyResolver {
 
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidRegisterConnection = this._register(new Emitter<void>());
+	readonly onDidRegisterConnection = this._onDidRegisterConnection.event;
+	private readonly _onDidChangeConfiguration = this._register(new Emitter<void>());
+	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
+	private readonly _configurationListener = this._register(new MutableDisposable());
+
 	private readonly _connections = new Map<string, IAgentHostClientProxyConnection>();
+	private _configurationValues: Record<string, unknown> = {};
 	private _proxyResolver: ReturnType<typeof createProxyResolver> | undefined;
 	private _proxyAgentParams: ProxyAgentParams | undefined;
 	private _fetch: typeof globalThis.fetch | undefined;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+		this._configurationValues = this._readConfigurationValues();
+		this._configurationListener.value = this._configurationService.onDidRootConfigChange(() => {
+			const values = this._readConfigurationValues();
+			if (!equals(this._configurationValues, values)) {
+				this._configurationValues = values;
+				this._onDidChangeConfiguration.fire();
+			}
+		});
+	}
+
+	getConfigurationValue<T>(key: AgentHostProxyConfigurationKey): T | undefined {
+		return this._configurationService.getRootValue(agentHostProxyConfigSchema, key) as T | undefined;
+	}
+
+	private _readConfigurationValues(): Record<string, unknown> {
+		return Object.fromEntries(Object.values(AgentHostProxyConfigKey).map(key => [key, this.getConfigurationValue(key)]));
+	}
 
 	register(clientId: string, connection: IAgentHostClientProxyConnection): IDisposable {
+		const hadConnections = this._connections.size > 0;
 		this._connections.set(clientId, connection);
+		if (!hadConnections) {
+			this._onDidRegisterConnection.fire();
+		}
 		return toDisposable(() => {
 			if (this._connections.get(clientId) === connection) {
 				this._connections.delete(clientId);
@@ -80,9 +120,6 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {
 		if (!this._proxyResolver) {
 			// Mirror `workbench/api/node/proxyResolver.ts`.
-			const config = <T>(key: string): T | undefined => this._configurationService.getValue<T>(key);
-			const systemCertificatesV2 = () => config<boolean>('http.experimental.systemCertificatesV2') ?? false;
-			const systemCertificates = () => !!config<boolean>('http.systemCertificates');
 			const params: ProxyAgentParams = {
 				// The host proxy resolution runs in VS Code: reverse-call a connected
 				// renderer, whose IRequestService.resolveProxy hits the Electron
@@ -93,16 +130,16 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 					lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
 					lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(url),
 				}),
-				getProxyURL: () => config<string>('http.proxy'),
-				getProxySupport: () => config<ProxySupportSetting>('http.proxySupport') || 'off',
-				getNoProxyConfig: () => config<string[]>('http.noProxy') || [],
-				isAdditionalFetchSupportEnabled: () => config<boolean>('http.fetchAdditionalSupport') ?? true,
-				isWebSocketPatchEnabled: () => config<boolean>('http.webSocketAdditionalSupport') ?? true,
-				addCertificatesV1: () => !systemCertificatesV2() && systemCertificates(),
-				addCertificatesV2: () => systemCertificatesV2() && systemCertificates(),
-				loadSystemCertificatesFromNode: () => config<boolean>('http.systemCertificatesNode') ?? systemCertificatesNodeDefault,
+				getProxyURL: () => this.getConfigurationValue<string>(AgentHostProxyConfigKey.Proxy),
+				getProxySupport: () => 'override',
+				getNoProxyConfig: () => this.getConfigurationValue<string[]>(AgentHostProxyConfigKey.NoProxy) || [],
+				isAdditionalFetchSupportEnabled: () => true,
+				isWebSocketPatchEnabled: () => true,
+				addCertificatesV1: () => true,
+				addCertificatesV2: () => false,
+				loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
 				loadAdditionalCertificates: async () => loadSystemCertificates({
-					loadSystemCertificatesFromNode: () => config<boolean>('http.systemCertificatesNode') ?? systemCertificatesNodeDefault,
+					loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
 					log: this._logService,
 				}),
 				log: this._logService,
@@ -123,7 +160,7 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 				// when the agent host is local (i.e., on the same machine as
 				// the client).
 				isUseHostProxyEnabled: () => this._connections.size > 0,
-				getNetworkInterfaceCheckInterval: () => (config<number>('http.experimental.networkInterfaceCheckInterval') ?? 300) * 1000,
+				getNetworkInterfaceCheckInterval: () => 300 * 1000,
 				env: process.env,
 			};
 			this._proxyAgentParams = params;
@@ -162,6 +199,16 @@ export class AgentHostProxyResolver implements IAgentHostProxyResolver {
 				// This renderer could not serve the lookup; try the next one.
 			}
 		}
-		return undefined;
+		try {
+			const spn = this.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+			return `Negotiate ${await this._lookupKerberosAuthorization(url, spn)}`;
+		} catch (error) {
+			this._logService.debug('AgentHostProxyResolver#lookupKerberosAuthorization Kerberos authentication failed', error);
+			return undefined;
+		}
+	}
+
+	protected _lookupKerberosAuthorization(url: string, spn: string | undefined): Promise<string> {
+		return lookupKerberosAuthorization(url, spn, this._logService, 'AgentHostProxyResolver#lookupKerberosAuthorization');
 	}
 }

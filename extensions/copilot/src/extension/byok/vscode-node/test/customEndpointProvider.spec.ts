@@ -3,27 +3,111 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Raw } from '@vscode/prompt-tsx';
+import { OpenAI, Raw } from '@vscode/prompt-tsx';
+import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
-import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
+import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
+import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
+import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
+import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
+import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
+import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
+import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
+import type { IBYOKStorageService } from '../byokStorageService';
+import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
+
+const customResponsesModelId = 'custom-responses-model';
+const customResponsesMarker = 'resp_custom_previous';
+
+class TestCustomEndpointBYOKModelProvider extends CustomEndpointBYOKModelProvider {
+	public createEndpoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<IChatEndpoint> {
+		return this.createOpenAIEndPoint(model);
+	}
+}
+
+class CapturingChatMLFetcher implements IChatMLFetcher {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidMakeChatMLRequest = Event.None;
+	readonly requests: IFetchMLOptions[] = [];
+
+	private readonly delegate = new MockChatMLFetcher();
+
+	fetchOne(options: IFetchMLOptions): Promise<ChatResponse> {
+		this.requests.push(options);
+		return this.delegate.fetchOne();
+	}
+
+	fetchMany(): Promise<ChatResponses> {
+		return this.delegate.fetchMany();
+	}
+}
+
+function createStorageService(): IBYOKStorageService {
+	return {
+		getAPIKey: async () => undefined,
+		storeAPIKey: async () => undefined,
+		deleteAPIKey: async () => undefined,
+		getStoredModelConfigs: async () => ({}),
+		saveModelConfig: async () => undefined,
+		removeModelConfig: async () => undefined,
+	};
+}
+
+function createResponsesBody(endpoint: IChatEndpoint): IEndpointBody {
+	return endpoint.createRequestBody({
+		debugName: 'test',
+		messages: [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'before marker' }]
+			},
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [{
+					type: Raw.ChatCompletionContentPartKind.Opaque,
+					value: {
+						type: CustomDataPartMimeTypes.StatefulMarker,
+						value: {
+							modelId: customResponsesModelId,
+							marker: customResponsesMarker,
+						}
+					}
+				}]
+			},
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }]
+			}
+		],
+		requestId: 'test-custom-responses-store',
+		postOptions: {},
+		ignoreStatefulMarker: false,
+		finishedCb: undefined,
+		location: ChatLocation.Other,
+	});
+}
 
 describe('CustomEndpointBYOKModelProvider', () => {
 	const disposables = new DisposableStore();
 	let accessor: ITestingServicesAccessor;
 	let instaService: IInstantiationService;
+	let chatMLFetcher: CapturingChatMLFetcher;
 
 	beforeEach(() => {
 		const testingServiceCollection = createExtensionUnitTestingServices();
 		testingServiceCollection.define(IBlockedExtensionService, new SyncDescriptor(BlockedExtensionService));
+		chatMLFetcher = new CapturingChatMLFetcher();
+		testingServiceCollection.set(IChatMLFetcher, chatMLFetcher);
 		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
 		instaService = accessor.get(IInstantiationService);
 	});
@@ -92,6 +176,32 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
+		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean): Promise<IChatEndpoint> {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const modelConfiguration: CustomEndpointModelConfig = {
+				id: customResponsesModelId,
+				name: 'Custom Responses Model',
+				url: 'https://api.example.com',
+				apiType: 'responses',
+				maxInputTokens: 128000,
+				maxOutputTokens: 16000,
+				toolCalling: true,
+				vision: false,
+			};
+			if (zeroDataRetentionEnabled !== undefined) {
+				modelConfiguration.zeroDataRetentionEnabled = zeroDataRetentionEnabled;
+			}
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [modelConfiguration],
+				}
+			}, tokenSource.token);
+			return provider.createEndpoint(model);
+		}
+
 		function makeMetadata(supportedEndpoints: ModelSupportedEndpoint[] | undefined): IChatModelInformation {
 			return {
 				id: 'custom-model',
@@ -123,6 +233,51 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			};
 		}
 
+		it('omits store after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
+			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: false,
+				store: undefined,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('enables store and previous_response_id for Custom Endpoint Responses requests when zeroDataRetentionEnabled is false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: customResponsesMarker,
+			});
+		});
+
+		it('disables store and previous_response_id for Custom Endpoint ZDR Responses requests', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(true);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: false,
+				previousResponseId: undefined,
+			});
+		});
+
 		it('uses Messages API and sends x-api-key + anthropic-version when supported_endpoints includes Messages', () => {
 			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
 				makeMetadata([ModelSupportedEndpoint.Messages]),
@@ -142,6 +297,276 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				xApiKey: 'test-api-key',
 				anthropicVersion: '2023-06-01',
 				authorization: undefined,
+			});
+		});
+
+		it('issue #330712: forwards configured Messages API thinking mode to the request body', async () => {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const baseModel = {
+				name: 'Custom Claude',
+				url: 'https://api.example.com',
+				apiType: 'messages' as const,
+				maxInputTokens: 128000,
+				maxOutputTokens: 64000,
+				toolCalling: true,
+				vision: false,
+				thinking: true,
+			};
+			const variants = [
+				{
+					id: 'adaptive',
+					adaptiveThinking: true,
+				},
+				{
+					id: 'budget',
+					minThinkingBudget: 1024,
+					maxThinkingBudget: 32000,
+				},
+				{
+					id: 'unspecified-mode',
+				},
+			].map(model => ({ ...baseModel, ...model }));
+
+			const results = await Promise.all(variants.map(async configuredModel => {
+				const [model] = await provider.provideLanguageModelChatInformation({
+					silent: true,
+					configuration: {
+						apiKey: 'test-api-key',
+						models: [configuredModel],
+					}
+				}, tokenSource.token);
+				const endpoint = await provider.createEndpoint(model);
+				const body = endpoint.createRequestBody({
+					debugName: 'test',
+					messages: [],
+					requestId: `test-${configuredModel.id}`,
+					postOptions: { max_tokens: 64000 },
+					modelCapabilities: { enableThinking: true },
+					finishedCb: undefined,
+					location: ChatLocation.Other,
+				});
+				return {
+					id: configuredModel.id,
+					apiType: endpoint.apiType,
+					supportsAdaptiveThinking: endpoint.supportsAdaptiveThinking,
+					minThinkingBudget: endpoint.minThinkingBudget,
+					maxThinkingBudget: endpoint.maxThinkingBudget,
+					thinking: body.thinking,
+				};
+			}));
+
+			expect(results).toEqual([
+				{
+					id: 'adaptive',
+					apiType: 'messages',
+					supportsAdaptiveThinking: true,
+					minThinkingBudget: undefined,
+					maxThinkingBudget: undefined,
+					thinking: { type: 'adaptive', display: 'summarized' },
+				},
+				{
+					id: 'budget',
+					apiType: 'messages',
+					supportsAdaptiveThinking: false,
+					minThinkingBudget: 1024,
+					maxThinkingBudget: 32000,
+					thinking: { type: 'enabled', budget_tokens: 16000 },
+				},
+				{
+					id: 'unspecified-mode',
+					apiType: 'messages',
+					supportsAdaptiveThinking: false,
+					minThinkingBudget: undefined,
+					maxThinkingBudget: undefined,
+					thinking: undefined,
+				},
+			]);
+		});
+
+		it('issue #330712: exposes thinking mode metadata for every custom endpoint API type', async () => {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const results = [];
+
+			for (const apiType of ['chat-completions', 'responses'] as const) {
+				const [model] = await provider.provideLanguageModelChatInformation({
+					silent: true,
+					configuration: {
+						apiKey: 'test-api-key',
+						models: [{
+							id: apiType,
+							name: 'Custom Model',
+							url: 'https://api.example.com',
+							apiType,
+							maxInputTokens: 128000,
+							maxOutputTokens: 64000,
+							toolCalling: true,
+							vision: false,
+							adaptiveThinking: true,
+							minThinkingBudget: 1024,
+							maxThinkingBudget: 32000,
+						}],
+					}
+				}, tokenSource.token);
+
+				const endpoint = await provider.createEndpoint(model);
+				results.push({
+					apiType: endpoint.apiType,
+					supportsAdaptiveThinking: endpoint.supportsAdaptiveThinking,
+					minThinkingBudget: endpoint.minThinkingBudget,
+					maxThinkingBudget: endpoint.maxThinkingBudget,
+				});
+			}
+
+			expect(results).toEqual([
+				{
+					apiType: 'chatCompletions',
+					supportsAdaptiveThinking: true,
+					minThinkingBudget: 1024,
+					maxThinkingBudget: 32000,
+				},
+				{
+					apiType: 'responses',
+					supportsAdaptiveThinking: true,
+					minThinkingBudget: 1024,
+					maxThinkingBudget: 32000,
+				},
+			]);
+		});
+
+		it('issue #330712: reconstructs the request thinking capability after language model IPC', async () => {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [{
+						id: 'adaptive',
+						name: 'Custom Claude',
+						url: 'https://api.example.com',
+						apiType: 'messages',
+						maxInputTokens: 128000,
+						maxOutputTokens: 64000,
+						toolCalling: true,
+						vision: false,
+						thinking: true,
+						adaptiveThinking: true,
+					}],
+				}
+			}, tokenSource.token);
+
+			for (const enableThinking of [true, false]) {
+				await provider.provideLanguageModelChatResponse(
+					model,
+					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					{
+						requestInitiator: 'core',
+						tools: [],
+						toolMode: vscode.LanguageModelChatToolMode.Auto,
+						modelOptions: { _enableThinking: enableThinking },
+					},
+					{ report: () => undefined },
+					tokenSource.token,
+				);
+			}
+
+			expect(chatMLFetcher.requests.map(request => request.modelCapabilities?.enableThinking)).toEqual([true, false]);
+		});
+
+		it('issue #332031: preserves the conversation ID through a BYOK Responses request', async () => {
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [{
+						id: customResponsesModelId,
+						name: 'Custom Responses Model',
+						url: 'https://api.example.com',
+						apiType: 'responses',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+					}],
+				}
+			}, tokenSource.token);
+			const languageModel = {
+				...model,
+				sendRequest: async (
+					messages: readonly (vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2)[],
+					options: vscode.LanguageModelChatRequestOptions,
+					token: vscode.CancellationToken,
+				) => {
+					const responseParts: vscode.LanguageModelResponsePart2[] = [];
+					await provider.provideLanguageModelChatResponse(model, [...messages], {
+						requestInitiator: 'core',
+						tools: options.tools ?? [],
+						toolMode: options.toolMode ?? vscode.LanguageModelChatToolMode.Auto,
+						modelOptions: options.modelOptions,
+					}, { report: part => responseParts.push(part) }, token);
+					return {
+						stream: (async function* () {
+							yield* responseParts;
+						})()
+					};
+				}
+			} as unknown as vscode.LanguageModelChat;
+			const extensionEndpoint = instaService.createInstance(ExtensionContributedChatEndpoint, languageModel);
+			const configurationService = accessor.get(IConfigurationService);
+			const conversationId = 'conversation-332031';
+			const messages: Raw.ChatMessage[] = [{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }]
+			}];
+
+			await configurationService.setConfig(ConfigKey.ResponsesApiPromptCacheKeyEnabled, true);
+			const directEndpoint = await provider.createEndpoint(model);
+			const directPromptCacheKey = directEndpoint.createRequestBody({
+				debugName: 'test-direct',
+				messages,
+				conversationId,
+				requestId: 'test-request-direct',
+				postOptions: {},
+				finishedCb: undefined,
+				location: ChatLocation.Agent,
+			}).prompt_cache_key;
+
+			const capturePromptCacheKey = async (enabled: boolean, requestConversationId: string | undefined) => {
+				await configurationService.setConfig(ConfigKey.ResponsesApiPromptCacheKeyEnabled, enabled);
+				const requestIndex = chatMLFetcher.requests.length;
+				await extensionEndpoint.makeChatRequest2({
+					debugName: 'test',
+					messages,
+					conversationId: requestConversationId,
+					finishedCb: undefined,
+					location: ChatLocation.Agent,
+					requestOptions: {},
+				}, tokenSource.token);
+				const request = chatMLFetcher.requests[requestIndex];
+				if (!request) {
+					throw new Error('Expected the BYOK endpoint to receive a request');
+				}
+				return request.endpoint.createRequestBody({
+					...request,
+					requestId: `test-request-${requestIndex}`,
+					postOptions: request.requestOptions,
+				}).prompt_cache_key;
+			};
+
+			expect({
+				direct: directPromptCacheKey,
+				bridgedEnabled: await capturePromptCacheKey(true, conversationId),
+				disabled: await capturePromptCacheKey(false, conversationId),
+				missingConversationId: await capturePromptCacheKey(true, undefined),
+			}).toEqual({
+				direct: `${conversationId}:${model.family}`,
+				bridgedEnabled: `${conversationId}:${model.family}`,
+				disabled: undefined,
+				missingConversationId: undefined,
 			});
 		});
 
@@ -529,6 +954,56 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				apikey: 'supabase-style-key',
 				authorization: undefined,
 				dashedApiKey: undefined,
+			});
+		});
+
+		it('issue #327794: normalizes switched-model tool call IDs for Kimi custom Chat Completions endpoints', () => {
+			const metadata = makeMetadata(undefined);
+			metadata.id = 'kimi-k2.7-code';
+			metadata.capabilities.family = 'kimi-k2.7-code';
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				metadata,
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const originalToolCallId = 'chatcmpl-tool-948068bb6570be33';
+
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [],
+						toolCalls: [{
+							id: originalToolCallId,
+							type: 'function',
+							function: { name: 'read_file', arguments: '{}' }
+						}]
+					},
+					{
+						role: Raw.ChatRole.Tool,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'result' }],
+						toolCallId: originalToolCallId
+					}
+				],
+				requestId: 'test-req-kimi-model-switch',
+				postOptions: { temperature: 0, top_p: 1 },
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect(body).toMatchObject({
+				messages: [
+					{
+						role: OpenAI.ChatRole.Assistant,
+						tool_calls: [{ id: 'functions.read_file:0' }]
+					},
+					{
+						role: OpenAI.ChatRole.Tool,
+						tool_call_id: 'functions.read_file:0'
+					}
+				],
+				temperature: 0,
+				top_p: 1
 			});
 		});
 

@@ -25,6 +25,7 @@ export interface ILabelRenderer {
 export interface IBaseDropdownOptions {
 	label?: string;
 	labelRenderer?: ILabelRenderer;
+	isEnabled?: () => boolean;
 }
 
 export class BaseDropdown extends ActionRunner {
@@ -39,17 +40,17 @@ export class BaseDropdown extends ActionRunner {
 
 	private hover: IManagedHover | undefined;
 
-	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
+	constructor(container: HTMLElement, private readonly baseOptions: IBaseDropdownOptions) {
 		super();
 
 		this._element = append(container, $('.monaco-dropdown'));
 
 		this._label = append(this._element, $('.dropdown-label'));
 
-		let labelRenderer = options.labelRenderer;
+		let labelRenderer = baseOptions.labelRenderer;
 		if (!labelRenderer) {
 			labelRenderer = (container: HTMLElement): IDisposable | null => {
-				container.textContent = options.label || '';
+				container.textContent = baseOptions.label || '';
 
 				return null;
 			};
@@ -61,6 +62,10 @@ export class BaseDropdown extends ActionRunner {
 
 		for (const event of [EventType.MOUSE_DOWN, GestureEventType.Tap]) {
 			this._register(addDisposableListener(this._label, event, e => {
+				if (baseOptions.isEnabled?.() === false) {
+					return;
+				}
+
 				if (isMouseEvent(e) && e.button !== 0) {
 					// prevent right click trigger to allow separate context menu (https://github.com/microsoft/vscode/issues/151064)
 					return;
@@ -78,6 +83,10 @@ export class BaseDropdown extends ActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				EventHelper.stop(e, true); // https://github.com/microsoft/vscode/issues/57997
+
+				if (baseOptions.isEnabled?.() === false) {
+					return;
+				}
 
 				if (this.visible) {
 					this.hide();
@@ -114,7 +123,7 @@ export class BaseDropdown extends ActionRunner {
 	}
 
 	show(): void {
-		if (!this.visible) {
+		if (!this.visible && this.baseOptions.isEnabled?.() !== false) {
 			this.visible = true;
 			this._onDidChangeVisibility.fire(true);
 		}
@@ -208,6 +217,10 @@ export class DropdownMenu extends BaseDropdown {
 	}
 
 	override show(): void {
+		if (this._options.isEnabled?.() === false) {
+			return;
+		}
+
 		super.show();
 
 		this.element.classList.add('active');

@@ -45,18 +45,12 @@ jobs:
           node << 'EOF'
           const pkg = require("./package.json");
           const EVENT_PREFIX = pkg.publisher + "." + pkg.name;
+          const { version } = require("../../package-lock.json").packages["node_modules/@vscode/telemetry-extractor"];
           const cp = require("child_process");
-          const output = cp.spawnSync("npx", ["@vscode/telemetry-extractor", "--eventPrefix", EVENT_PREFIX, "-s", ".", "-o", ".", "-f", "telemetry"], { env: process.env, cwd: process.cwd(), shell: true });
-          if (output.error) {
-            console.log("stderr", (output.stderr || "").toString());
-            console.log("stdout", (output.stdout || "").toString());
-            throw output.error;
-          }
+          cp.execFileSync("npx", [`--package=@vscode/telemetry-extractor@${version}`, "--yes", "vscode-telemetry-extractor", "--eventPrefix", EVENT_PREFIX, "-s", ".", "-o", ".", "-f", "telemetry"], { stdio: "inherit", shell: true });
           EOF
         workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
         displayName: Extract telemetry
-        env:
-          npm_config_yes: "true"
 
       - script: |
           set -e

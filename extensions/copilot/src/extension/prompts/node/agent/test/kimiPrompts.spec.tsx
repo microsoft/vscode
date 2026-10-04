@@ -54,6 +54,7 @@ suite('KimiPrompts', () => {
 		const renderedPrompts = await Promise.all([
 			renderSystemPrompt('kimi-k2.6'),
 			renderSystemPrompt('kimi-k2.7-code'),
+			renderSystemPrompt('kimi-k3'),
 		]);
 
 		for (const renderedPrompt of renderedPrompts) {
@@ -70,7 +71,8 @@ suite('KimiPrompts', () => {
 		const renderedPrompt = await renderSystemPrompt('kimi-k2.7-code', availableTools);
 
 		expect(renderedPrompt).toContain(`Use ${ToolName.ReplaceString} for single string replacements`);
-		expect(renderedPrompt).toContain(`Prefer ${ToolName.MultiReplaceString} for multiple independent replacements`);
+		expect(renderedPrompt).toContain(`batch them into a single ${ToolName.MultiReplaceString} call`);
+		expect(renderedPrompt).toContain(`A single ${ToolName.MultiReplaceString} call is much faster and cheaper`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.EditFile}`);
 		expect(renderedPrompt).not.toContain(`Use ${ToolName.ApplyPatch}`);
 	});

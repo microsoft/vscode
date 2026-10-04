@@ -13,10 +13,14 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
+	/**
+	 * Prevents another live toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
 
 	readonly title: string;
 	readonly body?: string;
@@ -28,9 +32,33 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+	/**
+	 * True when a live toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
+}
+
+/**
+ * A count badge to render on the application icon in the dock (macOS), the
+ * launcher (Linux) or over the taskbar icon of a window (Windows).
+ */
+export interface IApplicationBadge {
+
+	/** The number to show. A count of `0` clears the badge. */
+	readonly count: number;
+
+	/** Accessible description of the badge, used for the Windows taskbar overlay. */
+	readonly description: string;
+
+	/**
+	 * PNG image data as a `data:` URL for the Windows taskbar overlay icon,
+	 * which has no built-in count rendering. Ignored on other platforms,
+	 * where the OS renders {@link count} itself.
+	 */
+	readonly iconDataURL?: string;
 }
 
 /**
@@ -38,7 +66,30 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number };
+	| {
+		readonly path: string;
+		readonly source: URI;
+		readonly size: number;
+		/** Skip this entry when its source cannot be opened or inspected. */
+		readonly skipSourceErrors?: boolean;
+	}
+	| { readonly sourceArchive: URI };
+
+export interface INativeZipOptions {
+	readonly maxSize?: number;
+	readonly maxEntries: number;
+}
+
+export interface IOpenAgentsWindowOptions {
+	readonly folderUri?: UriComponents;
+	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
+	readonly folderUriIsDefault?: boolean;
+	readonly sessionResource?: UriComponents;
+	/** Session to reveal in onboarding without replacing the new-session composer. */
+	readonly onboardingSessionResource?: UriComponents;
+	readonly source?: AgentsWindowOpenSource;
+	readonly draft?: IAgentsWindowDraft;
+}
 
 export interface ICPUProperties {
 	model: string;
@@ -197,6 +248,7 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
 
 	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
@@ -225,7 +277,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openAgentsWindow(options?: { folderUri?: UriComponents; sessionResource?: UriComponents }): Promise<void>;
+	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
 	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
@@ -250,7 +302,7 @@ export interface ICommonNativeHostService {
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -281,6 +333,11 @@ export interface ICommonNativeHostService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
+	/**
+	 * Renders a count badge on the application icon. Passing `undefined` or a
+	 * badge with a count of `0` clears it again.
+	 */
+	setApplicationBadge(badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void>;
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
@@ -293,6 +350,8 @@ export interface ICommonNativeHostService {
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	isGPUCompositingEnabled(): Promise<boolean>;
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
@@ -380,7 +439,7 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

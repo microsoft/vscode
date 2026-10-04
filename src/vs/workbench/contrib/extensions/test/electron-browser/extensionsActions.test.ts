@@ -18,6 +18,7 @@ import { getGalleryExtensionId } from '../../../../../platform/extensionManageme
 import { TestExtensionEnablementService } from '../../../../services/extensionManagement/test/browser/extensionEnablementService.test.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IURLService } from '../../../../../platform/url/common/url.js';
+import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IPager } from '../../../../../base/common/paging.js';
@@ -2558,7 +2559,7 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 
 	test('test enable AI in workspace updates workspace setting when AI is disabled globally', async () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
-		configurationService.setUserConfiguration('chat.disableAIFeatures', true);
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, true);
 
 		let updatedValue: { key: string; value: unknown; target: unknown } | undefined;
 		const originalUpdateValue = configurationService.updateValue.bind(configurationService);
@@ -2585,7 +2586,7 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 		await testObject.run();
 
 		assert.ok(updatedValue, 'updateValue should have been called');
-		assert.strictEqual(updatedValue.key, 'chat.disableAIFeatures');
+		assert.strictEqual(updatedValue.key, ChatAIDisabledSettingId);
 		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
 	});
 

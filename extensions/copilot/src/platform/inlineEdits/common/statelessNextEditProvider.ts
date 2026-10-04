@@ -25,7 +25,7 @@ import { PromptSectionTokenCounts } from './dataTypes/promptSectionTokens';
 import { DebugRecorderBookmark } from './debugRecorderBookmark';
 import { InlineEditRequestLogContext } from './inlineEditLogContext';
 import { stringifyChatMessages } from './utils/stringifyChatMessages';
-import { IXtabHistoryEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEntry, IXtabHistoryRejectedEditEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
 
 export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>;
 
@@ -121,6 +121,7 @@ export class StatelessNextEditRequest<TFirstEdit = any> {
 		public readonly recordingBookmark: DebugRecorderBookmark | undefined,
 		public readonly recording: LogEntry[] | undefined,
 		public readonly providerRequestStartDateTime: number | undefined,
+		public readonly xtabRejectedEditHistory: readonly IXtabHistoryRejectedEditEntry[],
 	) {
 		assert(documents.length > 0);
 		assert(activeDocumentIdx >= 0 && activeDocumentIdx < documents.length);

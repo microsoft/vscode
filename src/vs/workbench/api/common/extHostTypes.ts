@@ -3193,6 +3193,7 @@ export class ChatSubagentToolInvocationData {
 	agentName?: string;
 	prompt?: string;
 	result?: string;
+	modelName?: string;
 	constructor(description?: string, agentName?: string, prompt?: string, result?: string) {
 		this.description = description;
 		this.agentName = agentName;
@@ -3270,16 +3271,21 @@ export class ChatResponseHookPart {
 	}
 }
 
+export type ChatResponseVoiceProgressStage = 'investigating' | 'planning' | 'editing' | 'validating' | 'recovering';
+
+export class ChatResponseVoiceProgressPart {
+	readonly id: ChatResponseVoiceProgressStage;
+	readonly value: string;
+	constructor(id: ChatResponseVoiceProgressStage, value: string) {
+		this.id = id;
+		this.value = value;
+	}
+}
+
 export class ChatResponseAutoModeResolutionPart {
-	resolvedModel: string;
-	resolvedModelName: string;
-	predictedLabel: string;
-	confidence: number;
-	constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number) {
+	resolvedModel: { id: string; name: string } | undefined;
+	constructor(resolvedModel?: { id: string; name: string }) {
 		this.resolvedModel = resolvedModel;
-		this.resolvedModelName = resolvedModelName;
-		this.predictedLabel = predictedLabel;
-		this.confidence = confidence;
 	}
 }
 
@@ -3474,6 +3480,7 @@ export class ChatResponseTextEditPart implements vscode.ChatResponseTextEditPart
 	uri: vscode.Uri;
 	edits: vscode.TextEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.TextEdit | vscode.TextEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -3489,6 +3496,7 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	uri: vscode.Uri;
 	edits: vscode.NotebookEdit[];
 	isDone?: boolean;
+	autoTier?: vscode.ChatAutoModeTier;
 	constructor(uri: vscode.Uri, editsOrDone: vscode.NotebookEdit | vscode.NotebookEdit[] | true) {
 		this.uri = uri;
 		if (editsOrDone === true) {
@@ -3563,6 +3571,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly id?: string,
 		readonly modelId?: string,
 		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
+		readonly isSystemInitiated?: boolean,
 	) { }
 }
 
@@ -3875,6 +3884,12 @@ export class ChatReferenceBinaryData implements vscode.ChatReferenceBinaryData {
 
 export class ChatReferenceDiagnostic implements vscode.ChatReferenceDiagnostic {
 	constructor(public readonly diagnostics: [vscode.Uri, vscode.Diagnostic[]][]) { }
+}
+
+export enum LanguageModelChatApiType {
+	ChatCompletions = 1,
+	Responses = 2,
+	Messages = 3
 }
 
 export enum LanguageModelChatMessageRole {

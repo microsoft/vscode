@@ -13,23 +13,26 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewContainerModel, IViewDescriptorService, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { IEditorGroup, IEditorGroupsService, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupContextKeyProvider, IEditorGroupsService, IEditorReplacement, IEditorWorkingSet } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorsChangeEvent, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IPaneComposite } from '../../../../../workbench/common/panecomposite.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
-import { IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
+import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ChatInteractivity, IChat, ISession, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
@@ -38,8 +41,17 @@ import { TestStorageService } from '../../../../../workbench/test/common/workben
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 
+type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
+
 export function makeChange(filePath: string): ISessionFileChange {
 	return { uri: URI.file(filePath), insertions: 1, deletions: 0 };
+}
+
+/** A minimal pane composite identified only by its id, for the panel-view capture. */
+export function makePaneComposite(id: string): IPaneComposite {
+	return new class extends mock<IPaneComposite>() {
+		override getId() { return id; }
+	};
 }
 
 /** A minimal editor input for tests, identified only by its resource. */
@@ -56,18 +68,36 @@ export function makeSession(resource: URI, opts?: {
 	isCreated?: boolean;
 	changes?: readonly ISessionFileChange[];
 	workspace?: ISessionWorkspace;
+	chatWorkspace?: ISessionWorkspace;
 	isQuickChat?: boolean;
 }): IActiveSession {
 	const status = observableValue('status', opts?.status ?? SessionStatus.Completed);
+	const workspace = opts?.workspace ?? {
+		uri: URI.file('/repo'),
+		label: 'test',
+		icon: Codicon.repo,
+		folders: [{
+			root: URI.file('/repo'),
+			workingDirectory: URI.file('/repo'),
+			name: 'repo',
+			description: undefined,
+			gitRepository: undefined,
+		}],
+		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
+	};
 	const chat: IChat = {
 		resource,
 		createdAt: new Date(),
+		workspace: constObservable(opts?.chatWorkspace ?? workspace),
 		title: observableValue('title', 'Test'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status,
 		checkpoints: observableValue('checkpoints', undefined),
 		changes: observableValue('changes', opts?.changes ?? []),
+		changesets: constObservable([]),
 		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
 		isArchived: observableValue('isArchived', false),
 		isRead: observableValue('isRead', true),
@@ -81,27 +111,15 @@ export function makeSession(resource: URI, opts?: {
 		resource,
 		providerId: 'test',
 		sessionType: 'local',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
-		workspace: observableValue('workspace', opts?.workspace ?? {
-			uri: URI.file('/repo'),
-			label: 'test',
-			icon: Codicon.repo,
-			folders: [{
-				root: URI.file('/repo'),
-				workingDirectory: URI.file('/repo'),
-				name: 'repo',
-				description: undefined,
-				gitRepository: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-			isVirtualWorkspace: false,
-		}),
+		workspace: observableValue('workspace', workspace),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('loading', false),
@@ -130,22 +148,25 @@ export interface ICreateOptions {
 	readonly useModal?: 'off' | 'some' | 'all';
 	readonly workspaceFolders?: readonly { readonly uri: URI }[];
 	readonly layoutState?: readonly object[];
-	readonly newSessionViewState?: { readonly auxiliaryBarVisible: boolean };
-	readonly newSessionViewStateRaw?: string;
-	/** [D7] Value for `sessions.layout.autoCollapseSessionsSidebar` (defaults to enabled). */
-	readonly responsiveSidebar?: boolean;
-	/** [D7] When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
+	readonly sidePaneVisibilityState?: {
+		readonly editorVisible: boolean;
+		readonly auxiliaryBarVisible: boolean;
+	} | {
+		readonly newSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
+		readonly existingSession: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean };
+	};
+	/** When set, `openView`/`openViewContainer` reveal the auxiliary bar (mirroring production) so navigation reveals can be exercised. */
 	readonly revealAuxiliaryBarOnOpen?: boolean;
-	/** Initial main container width (defaults to 2000). Set below `SMALL_WINDOW_MAX_WIDTH` to start space-constrained. */
+	/** Initial main container width (defaults to 2000). */
 	readonly mainContainerWidth?: number;
 	/** Initial part visibility overrides applied before the controller is constructed (mirrors restored layout after a reload). */
 	readonly initialPartVisibility?: ReadonlyMap<Parts, boolean>;
 	/** IDs of aux-bar view containers active at construction (defaults to Changes + Files). Empty ⇒ no active aux containers (e.g. a quick chat). */
 	readonly activeAuxViewContainerIds?: readonly string[];
-	/** When set, resolves the lifecycle `Restored` phase so a single-pane controller's managed-tab / detail-panel behaviour activates. */
+	/** When set, resolves the lifecycle `Restored` phase so a desktop controller's managed-tab / detail-panel behaviour activates. */
 	readonly activateAux?: boolean;
-	/** When true, the layout service reports single-pane layout enabled (drives base single-pane branches). */
-	readonly singlePaneLayoutEnabled?: boolean;
+	/** When true, the layout service reports desktop layout (drives base desktop branches). */
+	readonly desktopLayout?: boolean;
 }
 
 /**
@@ -155,26 +176,38 @@ export interface ICreateOptions {
  */
 export interface ITestLayoutHarness {
 	readonly instaService: TestInstantiationService;
+	readonly layoutService: IAgentWorkbenchLayoutService;
 	storageService: TestStorageService;
 	activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
+	onWillToggleSidePane: Emitter<void>;
+	onDidToggleSidePane: Emitter<ISidePaneToggleEvent>;
 	onDidRevealSidePane: Emitter<void>;
 	onDidChangeEditorMaximized: Emitter<void>;
 	onDidActiveEditorChange: Emitter<void>;
 	onWillOpenEditor: Emitter<IEditorWillOpenEvent>;
-	onDidCloseEditor: Emitter<{ editor: EditorInput }>;
-	onDidEditorsChange: Emitter<void>;
+	onWillCloseEditor: Emitter<{ editor: EditorInput }>;
+	onDidCloseEditor: Emitter<{ editor: EditorInput; groupId?: number }>;
+	onDidEditorsChange: Emitter<IEditorsChangeEvent | void>;
 	onDidLayoutMainContainer: Emitter<IDimension>;
 	onDidChangeViewContainerVisibility: Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>;
 	onDidChangeActiveViewDescriptors: Emitter<void>;
+	/** Fires a pane composite (view) opening in a part, driving the per-session panel-view capture. */
+	onDidPaneCompositeOpen: Emitter<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>;
+	/** Records every `openPaneComposite` call the controller makes to restore a session's panel view. */
+	openPaneCompositeCalls: { id: string | undefined; location: ViewContainerLocation }[];
 	/** IDs of aux-bar view containers that are currently active (shown as a tab). */
 	activeAuxViewContainerIds: string[];
 	mainContainerWidth: number;
 	editorMaximized: boolean;
+	setEditorMaximizedCalls: boolean[];
+	toggleSidePaneCalls: number;
+	sidePaneStateBeforeHide: SidePaneComposition | undefined;
 	partVisibility: Map<Parts, boolean>;
+	partSizes: Map<Parts, IDimension>;
 	openedViewContainers: string[];
 	openedViews: string[];
 	setPartHiddenCalls: { hidden: boolean; part: Parts }[];
@@ -182,16 +215,20 @@ export interface ITestLayoutHarness {
 	editorRevealedExplicitly: boolean;
 	/** Current suppression depth for `suppressEditorPartAutoVisibility()`. */
 	editorPartAutoVisibilitySuppressionDepth: number;
-	/** Whether the lifecycle `Restored` phase has resolved (activates single-pane managed-tab / detail-panel behaviour). */
+	/** Whether the lifecycle `Restored` phase has resolved (activates desktop managed-tab / detail-panel behaviour). */
 	activateAux: boolean;
-	/** Editors in the main part's active group (drives the single-pane managed-tab logic). */
+	/** Editors in the main part's active group (drives the desktop managed-tab logic). */
 	activeGroupEditors: EditorInput[];
+	/** Fires when the active editor group begins disposal. */
+	onWillDisposeActiveGroup: Emitter<void>;
 	/** Records editors closed via `IEditorService.closeEditors`. */
 	closedEditors: EditorInput[];
 	/** Records untyped editors reopened via `IEditorService.openEditors`. */
 	openedEditors: IUntypedEditorInput[];
 	/** Records the depth-at-close for each `closeEditors` call, to assert layout-driven closes happen while suppressed. */
 	closeSuppressionFlags: boolean[];
+	/** Records whether each `closeEditors` call forces lifecycle cleanup. */
+	closeForceFlags: boolean[];
 	activePaneCompositeId: string | undefined;
 	pinnedAuxiliaryBarContainerIds: string[];
 	visibleEditorsList: readonly unknown[];
@@ -204,16 +241,20 @@ export interface ITestLayoutHarness {
 	saveWorkingSetCalls: string[];
 	/**
 	 * Optional callback invoked synchronously during `applyWorkingSet`, allowing
-	 * tests to simulate external visibility changes (e.g. the single-pane detail
+	 * tests to simulate external visibility changes (e.g. the desktop detail
 	 * panel) while `_isRestoringSessionLayout` is true.
 	 */
-	onApplyWorkingSet?: () => void;
+	onApplyWorkingSet?: (workingSet: IEditorWorkingSet | 'empty') => void;
 	/**
 	 * Optional async hook awaited at the start of `openChangesEditor`, letting a
 	 * test pause a managed-tab reconcile mid-open (e.g. to switch sessions and
 	 * assert the superseded reconcile's intents do not leak).
 	 */
 	onOpenChangesEditor?: () => Promise<void> | void;
+	/** Optional async hook awaited before `closeEditors` mutates the group. */
+	onCloseEditors?: () => Promise<void> | void;
+	/** Optional async hook awaited before `replaceEditors` mutates the group. */
+	onReplaceEditors?: (replacements: IEditorReplacement[]) => Promise<void> | void;
 	/** Records every `openChangesEditor` call for assertions (session + whether active). */
 	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
@@ -227,54 +268,63 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	const storageService = store.add(new TestStorageService());
 	if (options.layoutState) {
 		const raw = JSON.stringify(options.layoutState);
-		// Seed both the classic desktop key and the fresh single-pane key so the
-		// same harness serves both the LayoutController and SinglePaneLayoutController tests.
+		// The same harness serves base/mobile and desktop controller tests.
 		storageService.store('sessions.layoutState', raw, StorageScope.WORKSPACE, 0);
 		storageService.store('sessions.singlePane.layoutState', raw, StorageScope.WORKSPACE, 0);
 	}
-	if (options.newSessionViewState) {
-		const raw = JSON.stringify(options.newSessionViewState);
-		storageService.store('sessions.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
-		storageService.store('sessions.singlePane.newSessionViewState', raw, StorageScope.WORKSPACE, 0);
-	}
-	if (options.newSessionViewStateRaw !== undefined) {
-		storageService.store('sessions.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
-		storageService.store('sessions.singlePane.newSessionViewState', options.newSessionViewStateRaw, StorageScope.WORKSPACE, 0);
+	if (options.sidePaneVisibilityState) {
+		storageService.store('sessions.singlePane.sidePaneVisibility', JSON.stringify(options.sidePaneVisibilityState), StorageScope.WORKSPACE, 0);
 	}
 	instaService.stub(IStorageService, storageService);
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
-	configService.setUserConfiguration('sessions.layout.autoCollapseSessionsSidebar', options.responsiveSidebar ?? true);
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
+	instaService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+		override publicLog2(): void { }
+	});
+	instaService.stub(ILogService, store.add(new NullLogService()));
 
 	const harness: ITestLayoutHarness = {
 		instaService,
+		get layoutService() { return layoutService; },
 		storageService,
 		activeSessionObs: observableValue<IActiveSession | undefined>('activeSession', undefined),
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
+		onWillToggleSidePane: store.add(new Emitter<void>()),
+		onDidToggleSidePane: store.add(new Emitter<ISidePaneToggleEvent>()),
 		onDidRevealSidePane: store.add(new Emitter<void>()),
 		onDidChangeEditorMaximized: store.add(new Emitter<void>()),
 		onDidActiveEditorChange: store.add(new Emitter<void>()),
 		onWillOpenEditor: store.add(new Emitter<IEditorWillOpenEvent>()),
-		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
-		onDidEditorsChange: store.add(new Emitter<void>()),
+		onWillCloseEditor: store.add(new Emitter<{ editor: EditorInput }>()),
+		onDidCloseEditor: store.add(new Emitter<{ editor: EditorInput; groupId?: number }>()),
+		onDidEditorsChange: store.add(new Emitter<IEditorsChangeEvent | void>()),
 		onDidLayoutMainContainer: store.add(new Emitter<IDimension>()),
 		onDidChangeViewContainerVisibility: store.add(new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>()),
 		onDidChangeActiveViewDescriptors: store.add(new Emitter<void>()),
+		onDidPaneCompositeOpen: store.add(new Emitter<{ composite: IPaneComposite; viewContainerLocation: ViewContainerLocation }>()),
+		openPaneCompositeCalls: [],
 		activeAuxViewContainerIds: options.activeAuxViewContainerIds ? [...options.activeAuxViewContainerIds] : [CHANGES_VIEW_CONTAINER_ID, SESSIONS_FILES_CONTAINER_ID],
 		mainContainerWidth: options.mainContainerWidth ?? 2000,
 		editorMaximized: false,
+		setEditorMaximizedCalls: [],
+		toggleSidePaneCalls: 0,
+		sidePaneStateBeforeHide: undefined,
 		partVisibility: new Map<Parts, boolean>([
 			[Parts.AUXILIARYBAR_PART, true],
 			[Parts.PANEL_PART, false],
 			[Parts.EDITOR_PART, true],
+			[Parts.CUSTOM_VIEW_GRID_PART, false],
 			...(options.initialPartVisibility ?? []),
+		]),
+		partSizes: new Map<Parts, IDimension>([
+			[Parts.EDITOR_PART, { width: 300, height: 800 }],
 		]),
 		openedViewContainers: [],
 		openedViews: [],
@@ -283,9 +333,11 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorPartAutoVisibilitySuppressionDepth: 0,
 		activateAux: options.activateAux ?? false,
 		activeGroupEditors: [],
+		onWillDisposeActiveGroup: store.add(new Emitter<void>()),
 		closedEditors: [],
 		openedEditors: [],
 		closeSuppressionFlags: [],
+		closeForceFlags: [],
 		activePaneCompositeId: undefined,
 		pinnedAuxiliaryBarContainerIds: [SESSIONS_FILES_CONTAINER_ID, CHANGES_VIEW_CONTAINER_ID],
 		visibleEditorsList: [],
@@ -295,21 +347,47 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
 		openChangesEditorCalls: [],
-		sessionChangesService: new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
-		}),
+		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
+			override get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
+		}, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionResourceObs = constObservable<URI | undefined>(undefined);
+			override readonly activeSessionChangesetObs = constObservable<ISessionChangeset | undefined>(undefined);
+			override readonly activeSessionChangesObs = constObservable<readonly ISessionFileChange[]>([]);
+		}, new class extends mock<IDecorationsService>() {
+			override registerDecorationsProvider() { return toDisposable(() => { }); }
+		})),
 		contextKeyService,
 	};
 
 	const testActiveGroup: IEditorGroup = new class extends mock<IEditorGroup>() {
 		override readonly id = 1;
 		override get editors() { return harness.activeGroupEditors as IEditorGroup['editors']; }
+		override readonly onWillDispose = harness.onWillDisposeActiveGroup.event;
+		override readonly onWillCloseEditor = harness.onWillCloseEditor.event as IEditorGroup['onWillCloseEditor'];
 		override get count() { return harness.activeGroupEditors.length; }
 		override get isEmpty() { return harness.activeGroupEditors.length === 0; }
+		override get activeEditor() { return harness.activeEditorInput ?? null; }
 		override contains(editor: EditorInput) { return harness.activeGroupEditors.includes(editor as EditorInput); }
 		override isPinned() { return true; }
 		override pinEditor() { }
 		override getIndexOfEditor(editor: EditorInput) { return harness.activeGroupEditors.indexOf(editor); }
+		override async replaceEditors(replacements: IEditorReplacement[]) {
+			for (const replacement of replacements) {
+				store.add(replacement.replacement);
+			}
+			await harness.onReplaceEditors?.(replacements);
+			for (const replacement of replacements) {
+				const index = harness.activeGroupEditors.indexOf(replacement.editor);
+				if (index === -1) {
+					continue;
+				}
+				harness.activeGroupEditors.splice(index, 1, replacement.replacement);
+				if (harness.activeEditorInput === replacement.editor) {
+					harness.activeEditorInput = replacement.replacement;
+				}
+			}
+			harness.onDidEditorsChange.fire();
+		}
 		override moveEditor(editor: EditorInput, _target: IEditorGroup, options?: { index?: number }) {
 			const currentIndex = harness.activeGroupEditors.indexOf(editor);
 			if (currentIndex === -1) {
@@ -333,6 +411,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {
+		override readonly activeSessionUncommittedChangesCountObs = harness.sessionChangesService.activeSessionUncommittedChangesCountObs;
 		override getChangesEditorResource(sessionResource: URI): URI { return harness.sessionChangesService.getChangesEditorResource(sessionResource); }
 		override getSessionResource(editorResource: URI): URI | undefined { return harness.sessionChangesService.getSessionResource(editorResource); }
 		override async openChangesEditor(sessionResource: URI, options?: { index?: number; inactive?: boolean }): Promise<IEditorGroup> {
@@ -363,16 +442,16 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override setChangesetId(): void { }
 	});
 	instaService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
-		// Resolves only when a test opts in via `activateAux`, so the single-pane
+		// Resolves only when a test opts in via `activateAux`, so the desktop
 		// managed-tab / detail-panel behaviour is not spun up otherwise.
 		override when(): Promise<void> { return harness.activateAux ? Promise.resolve() : new Promise<void>(() => { }); }
 	});
 
-	instaService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+	const layoutService = new class extends mock<IWorkbenchLayoutService>() {
 		override isVisible(part: Parts): boolean {
 			return harness.partVisibility.get(part) ?? true;
 		}
-		override setPartHidden(hidden: boolean, part: Parts): void {
+		override setPartHidden(hidden: boolean, part: Parts, skipSidePaneReveal: boolean = false): void {
 			harness.setPartHiddenCalls.push({ hidden, part });
 			const wasVisible = harness.partVisibility.get(part) ?? true;
 			const sidePaneWasClosed = !(harness.partVisibility.get(Parts.EDITOR_PART) ?? true) && !(harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
@@ -380,15 +459,29 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			// Mirror production: fire the visibility change synchronously when it actually changes
 			if (wasVisible === hidden) {
 				harness.onDidChangePartVisibility.fire({ partId: part, visible: !hidden });
-				if (!hidden && sidePaneWasClosed && (part === Parts.EDITOR_PART || part === Parts.AUXILIARYBAR_PART)) {
+				if (!skipSidePaneReveal && !hidden && sidePaneWasClosed && (part === Parts.EDITOR_PART || part === Parts.AUXILIARYBAR_PART)) {
 					harness.onDidRevealSidePane.fire();
 				}
 			}
 		}
 		override hasFocus(_part: Parts): boolean { return false; }
+		override getSize(part: Parts): IDimension {
+			return harness.partSizes.get(part) ?? { width: 0, height: 0 };
+		}
 		suppressEditorPartAutoVisibility(): IDisposable {
 			harness.editorPartAutoVisibilitySuppressionDepth++;
 			return toDisposable(() => harness.editorPartAutoVisibilitySuppressionDepth--);
+		}
+		isEditorPartAutoVisibilitySuppressed(): boolean {
+			return harness.editorPartAutoVisibilitySuppressionDepth > 0;
+		}
+		setAuxiliaryBarHiddenForResize(hidden: boolean): void {
+			const wasVisible = harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true;
+			harness.setPartHiddenCalls.push({ hidden, part: Parts.AUXILIARYBAR_PART });
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, !hidden);
+			if (wasVisible === hidden) {
+				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: !hidden, source: 'resize' });
+			}
 		}
 		isEditorRevealedExplicitly(): boolean { return harness.editorRevealedExplicitly; }
 		revealEditorPartExplicitly(): void {
@@ -396,13 +489,69 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			this.setPartHidden(false, Parts.EDITOR_PART);
 		}
 		override readonly onDidChangePartVisibility = harness.onDidChangePartVisibility.event;
+		readonly onWillToggleSidePane = harness.onWillToggleSidePane.event;
+		readonly onDidToggleSidePane = harness.onDidToggleSidePane.event;
 		readonly onDidRevealSidePane = harness.onDidRevealSidePane.event;
 		isEditorMaximized(): boolean { return harness.editorMaximized; }
-		get isSinglePaneLayoutEnabled(): boolean { return options.singlePaneLayoutEnabled ?? false; }
+		setEditorMaximized(maximized: boolean): void {
+			harness.setEditorMaximizedCalls.push(maximized);
+			harness.editorMaximized = maximized;
+		}
+		isSidePaneVisible(): boolean {
+			return (harness.partVisibility.get(Parts.EDITOR_PART) ?? true) || (harness.partVisibility.get(Parts.AUXILIARYBAR_PART) ?? true);
+		}
+		hideSidePane(): void {
+			if (this.isSidePaneVisible()) {
+				this.toggleSidePane();
+			}
+		}
+		toggleSidePane(): boolean {
+			harness.toggleSidePaneCalls++;
+			const getState = () => {
+				const editor = this.isVisible(Parts.EDITOR_PART);
+				const auxiliaryBar = this.isVisible(Parts.AUXILIARYBAR_PART);
+				return { editor, auxiliaryBar };
+			};
+			const before = getState();
+			const sidePaneWasVisible = before.editor || before.auxiliaryBar;
+			harness.onWillToggleSidePane.fire();
+			try {
+				const desktop = options.desktopLayout ?? false;
+				// Mirror DesktopWorkbench: un-maximize before toggling both parts.
+				if (desktop && harness.editorMaximized) {
+					this.setEditorMaximized(false);
+				}
+				const visible = !this.isSidePaneVisible();
+				const suppression = this.suppressEditorPartAutoVisibility();
+				try {
+					if (visible) {
+						const restore = harness.sidePaneStateBeforeHide ?? (desktop
+							? { editor: true, auxiliaryBar: false }
+							: { editor: true, auxiliaryBar: true });
+						this.setPartHidden(!restore.editor, Parts.EDITOR_PART, true);
+						this.setPartHidden(!restore.auxiliaryBar, Parts.AUXILIARYBAR_PART, true);
+					} else {
+						harness.sidePaneStateBeforeHide = getState();
+						this.setPartHidden(true, Parts.EDITOR_PART);
+						this.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+					}
+				} finally {
+					suppression.dispose();
+				}
+				if (!sidePaneWasVisible && this.isSidePaneVisible()) {
+					harness.onDidRevealSidePane.fire();
+				}
+			} finally {
+				harness.onDidToggleSidePane.fire({ before, after: getState() });
+			}
+			return this.isSidePaneVisible();
+		}
+		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }
-	} as Partial<IWorkbenchLayoutService> as IWorkbenchLayoutService);
+	} as unknown as IAgentWorkbenchLayoutService;
+	instaService.stub(IWorkbenchLayoutService, layoutService);
 
 	instaService.stub(IViewsService, new class extends mock<IViewsService>() {
 		override readonly onDidChangeViewContainerVisibility = harness.onDidChangeViewContainerVisibility.event;
@@ -453,12 +602,18 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	}
 
 	instaService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() {
+		override readonly onDidPaneCompositeOpen = harness.onDidPaneCompositeOpen.event;
 		override getActivePaneComposite(_location: ViewContainerLocation): IPaneComposite | undefined {
 			if (harness.activePaneCompositeId) {
 				return new class extends mock<IPaneComposite>() {
 					override getId() { return harness.activePaneCompositeId!; }
 				};
 			}
+			return undefined;
+		}
+		override async openPaneComposite(id: string | undefined, location: ViewContainerLocation): Promise<IPaneComposite | undefined> {
+			harness.openPaneCompositeCalls.push({ id, location });
+			harness.activePaneCompositeId = id;
 			return undefined;
 		}
 		override getPinnedPaneCompositeIds(_location: ViewContainerLocation): string[] {
@@ -471,7 +626,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override readonly onDidActiveEditorChange = harness.onDidActiveEditorChange.event;
 		override readonly onWillOpenEditor = harness.onWillOpenEditor.event;
 		override readonly onDidCloseEditor = harness.onDidCloseEditor.event as unknown as IEditorService['onDidCloseEditor'];
-		override readonly onDidEditorsChange = harness.onDidEditorsChange.event as unknown as IEditorService['onDidEditorsChange'];
+		override readonly onDidEditorsChange = Event.map(harness.onDidEditorsChange.event, event => event ?? { groupId: 1, event: { kind: GroupModelChangeKind.EDITOR_ACTIVE } });
 		override get activeEditor() {
 			if (harness.activeEditorInput) {
 				return harness.activeEditorInput as IEditorService['activeEditor'];
@@ -492,6 +647,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				} else {
 					harness.activeGroupEditors.push(store.add(editor));
 				}
+				harness.onDidEditorsChange.fire();
 			}
 			return undefined;
 		}
@@ -511,14 +667,23 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			}
 			return [];
 		}
-		override async closeEditors(editors: readonly { editor: EditorInput }[]): Promise<void> {
+		override async closeEditors(editors: readonly { editor: EditorInput }[], options?: ICloseEditorOptions): Promise<void> {
+			await harness.onCloseEditors?.();
+			let didClose = false;
 			for (const { editor } of editors) {
 				const index = harness.activeGroupEditors.indexOf(editor);
 				if (index !== -1) {
+					didClose = true;
+					harness.onWillCloseEditor.fire({ editor });
 					harness.closeSuppressionFlags.push(harness.editorPartAutoVisibilitySuppressionDepth > 0);
+					harness.closeForceFlags.push(options?.force === true);
 					harness.activeGroupEditors.splice(index, 1);
 					harness.closedEditors.push(editor);
+					harness.onDidCloseEditor.fire({ editor, groupId: 1 });
 				}
+			}
+			if (didClose) {
+				harness.onDidEditorsChange.fire();
 			}
 		}
 	});
@@ -530,14 +695,34 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				override get groups() { return groups; }
 				override get activeGroup() { return testActiveGroup; }
 				override getGroup(id: number) { return id === testActiveGroup.id ? testActiveGroup : undefined; }
+				override readonly onDidAddGroup = Event.None;
 			};
 		}
-		override get groups() { return [{ isEmpty: !harness.editorGroupsHaveContent }] as unknown as IEditorGroupsService['groups']; }
+		override get groups() {
+			return [{
+				id: 1,
+				isEmpty: !harness.editorGroupsHaveContent,
+				editors: harness.activeGroupEditors,
+				onWillCloseEditor: harness.onWillCloseEditor.event,
+			}] as unknown as IEditorGroupsService['groups'];
+		}
 		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
-			harness.onApplyWorkingSet?.();
+			harness.onApplyWorkingSet?.(workingSet);
 			return true;
+		}
+		override registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable {
+			const key = provider.contextKey.bindTo(contextKeyService);
+			const registrations = new DisposableStore();
+			const update = () => key.set(provider.getGroupContextKeyValue(testActiveGroup));
+			if (provider.onDidChange) {
+				registrations.add(provider.onDidChange(update));
+			}
+			registrations.add(harness.onDidActiveEditorChange.event(update));
+			registrations.add(toDisposable(() => key.reset()));
+			update();
+			return registrations;
 		}
 		override deleteWorkingSet() { }
 	});

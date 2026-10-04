@@ -9,6 +9,7 @@ import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
+import { escape as escapeXml } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +23,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../tools/languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
-import { ParsedPromptFile } from './promptFileParser.js';
+import { isPromptFileTildePath, ParsedPromptFile } from './promptFileParser.js';
 import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, matchesSessionType, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo, type InstructionsCollectionEvent, type InstructionsCollectionDebugInfo } from './service/promptsService.js';
 export type { InstructionsCollectionEvent, InstructionsCollectionDebugInfo } from './service/promptsService.js';
 export { newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from './service/promptsService.js';
@@ -32,6 +33,8 @@ import { ChatModeKind } from '../constants.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { hash } from '../../../../../base/common/hash.js';
 import { IAgentPlugin, IAgentPluginService } from '../plugins/agentPluginService.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../chatSessionsService.js';
 
 export interface InstructionsCollectionResult {
 	readonly telemetryEvent: InstructionsCollectionEvent;
@@ -45,6 +48,7 @@ export interface InstructionsCollectionResult {
 export let lastInstructionsCollectionResult: InstructionsCollectionResult | undefined;
 
 type InstructionsCollectionClassification = {
+	provider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
 	referencedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via references from other instruction files.' };
 	agentInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of agent instructions added (copilot-instructions.md and agents.md).' };
@@ -76,6 +80,8 @@ export class ComputeAutomaticInstructions {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IPathService private readonly _pathService: IPathService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 	}
 
@@ -128,7 +134,10 @@ export class ComputeAutomaticInstructions {
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
-		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
+		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', {
+			...telemetryEvent,
+			provider: getAgentHostProviderForTelemetry(this._currentSessionType, this._chatSessionsService),
+		});
 	}
 
 	private async _logSkillLoadedTelemetry(skills: readonly IAgentSkill[]): Promise<void> {
@@ -373,10 +382,10 @@ export class ComputeAutomaticInstructions {
 				entries.push('<instruction>');
 				entries.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.description) {
-					entries.push(`<description>${instruction.description}</description>`);
+					entries.push(`<description>${escapeXml(instruction.description)}</description>`);
 				}
 				if (instruction.pattern) {
-					entries.push(`<applyTo>${instruction.pattern}</applyTo>`);
+					entries.push(`<applyTo>${escapeXml(instruction.pattern)}</applyTo>`);
 				}
 				entries.push('</instruction>');
 				hasContent = true;
@@ -388,7 +397,7 @@ export class ComputeAutomaticInstructions {
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push('<instruction>');
 				entries.push(`<file>${filePath(uri)}</file>`);
-				entries.push(`<description>${description}</description>`);
+				entries.push(`<description>${escapeXml(description)}</description>`);
 				entries.push('</instruction>');
 				hasContent = true;
 
@@ -471,9 +480,9 @@ export class ComputeAutomaticInstructions {
 				let truncatedAtIndex = modelInvocableSkills.length;
 				for (let i = 0; i < modelInvocableSkills.length; i++) {
 					const skill = modelInvocableSkills[i];
-					const skillEntry = [`<skill>`, `<name>${skill.name}</name>`];
+					const skillEntry = [`<skill>`, `<name>${escapeXml(skill.name)}</name>`];
 					if (skill.description) {
-						skillEntry.push(`<description>${skill.description}</description>`);
+						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
 					}
 					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push(`</skill>`);
@@ -492,12 +501,13 @@ export class ComputeAutomaticInstructions {
 					const names: string[] = [];
 					let nameListLength = 0;
 					for (const skill of truncatedSkills) {
-						const addition = (names.length > 0 ? 2 : 0) + skill.name.length;
+						const escapedName = escapeXml(skill.name);
+						const addition = (names.length > 0 ? 2 : 0) + escapedName.length;
 						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
 							break;
 						}
 						nameListLength += addition;
-						names.push(skill.name);
+						names.push(escapedName);
 					}
 					const remaining = truncatedSkills.length - names.length;
 					const nameList = names.join(', ');
@@ -523,17 +533,17 @@ export class ComputeAutomaticInstructions {
 				entries.push('<agents>');
 				entries.push('Here is a list of agents that can be used when running a subagent.');
 				entries.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				entries.push(`Use the ${runSubagentTool.variable} tool with an agent name from this list to run that agent, or omit agentName to use the current agent.`);
+				entries.push(`Use the ${runSubagentTool.variable} tool with the agent name to run the subagent.`);
 
 				for (const agent of agents) {
 					if (canUseAgent(agent)) {
 						entries.push('<agent>');
-						entries.push(`<name>${agent.name}</name>`);
+						entries.push(`<name>${escapeXml(agent.name)}</name>`);
 						if (agent.description) {
-							entries.push(`<description>${agent.description}</description>`);
+							entries.push(`<description>${escapeXml(agent.description)}</description>`);
 						}
 						if (agent.argumentHint) {
-							entries.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+							entries.push(`<argumentHint>${escapeXml(agent.argumentHint)}</argumentHint>`);
 						}
 						entries.push('</agent>');
 						debugInfo.debugDetails.push({ category: 'custom-agent', name: agent.name, uri: agent.uri });
@@ -590,8 +600,12 @@ export class ComputeAutomaticInstructions {
 			const result = await this._parseInstructionsFile(next, token);
 			if (result && result.body) {
 				const refsToCheck: { resource: URI }[] = [];
+				let userHome: URI | undefined;
 				for (const ref of result.body.fileReferences) {
-					const url = result.body.resolveFilePath(ref.content);
+					if (isPromptFileTildePath(ref.content)) {
+						userHome ??= await this._pathService.userHome();
+					}
+					const url = result.body.resolveFilePath(ref.content, userHome);
 					if (url && !seen.has(url) && (isPromptOrInstructionsFile(url) || this._workspaceService.getWorkspaceFolder(url) !== undefined)) {
 						// only add references that are either prompt or instruction files or are part of the workspace
 						refsToCheck.push({ resource: url });

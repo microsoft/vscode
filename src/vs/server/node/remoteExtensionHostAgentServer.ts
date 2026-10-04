@@ -8,7 +8,6 @@ import type * as http from 'http';
 import * as net from 'net';
 import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';
-import * as url from 'url';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
@@ -38,9 +37,20 @@ import { ManagementConnection } from './remoteExtensionManagement.js';
 import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from './serverConnectionToken.js';
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { IServerLifetimeService } from './serverLifetimeService.js';
+import { getRemoteResourceResponseHeaders } from './remoteResourceResponse.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
 const require = createRequire(import.meta.url);
+
+function parseRequestUrl(requestUrl: string): URL | undefined {
+	try {
+		return requestUrl.startsWith('/')
+			? new URL(`http://localhost${requestUrl}`)
+			: new URL(requestUrl);
+	} catch {
+		return undefined;
+	}
+}
 
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
@@ -112,7 +122,10 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return serveError(req, res, 400, `Bad request.`);
 		}
 
-		const parsedUrl = url.parse(req.url, true);
+		const parsedUrl = parseRequestUrl(req.url);
+		if (!parsedUrl) {
+			return serveError(req, res, 400, `Bad request.`);
+		}
 		let pathname = parsedUrl.pathname;
 
 		if (!pathname) {
@@ -141,7 +154,7 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			return void res.end('OK');
 		}
 
-		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl)) {
+		if (!httpRequestHasValidConnectionToken(this._connectionToken, req, parsedUrl.searchParams)) {
 			// invalid connection token
 			return serveError(req, res, 403, `Forbidden.`);
 		}
@@ -149,10 +162,11 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		if (pathname === '/vscode-remote-resource') {
 			// Handle HTTP requests for resources rendered in the rich client (images, fonts, etc.)
 			// These resources could be files shipped with extensions or even workspace files.
-			const desiredPath = parsedUrl.query['path'];
-			if (typeof desiredPath !== 'string') {
+			const desiredPaths = parsedUrl.searchParams.getAll('path');
+			if (desiredPaths.length !== 1) {
 				return serveError(req, res, 400, `Bad request.`);
 			}
+			const desiredPath = desiredPaths[0];
 
 			let filePath: string;
 			try {
@@ -161,7 +175,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				return serveError(req, res, 400, `Bad request.`);
 			}
 
-			const responseHeaders: Record<string, string> = Object.create(null);
+			const requestOrigin = req.headers['origin'];
+			const responseHeaders = getRemoteResourceResponseHeaders(requestOrigin, origin => this._webEndpointOriginChecker.matches(origin));
 			if (this._environmentService.isBuilt) {
 				if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !platform.isLinux)
 					|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !platform.isLinux)
@@ -170,12 +185,6 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				}
 			}
 
-			// Allow cross origin requests from the web worker extension host
-			responseHeaders['Vary'] = 'Origin';
-			const requestOrigin = req.headers['origin'];
-			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
-				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
-			}
 			return serveFile(filePath, CacheControl.ETAG, this._logService, req, res, responseHeaders);
 		}
 
@@ -195,14 +204,21 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 		let skipWebSocketFrames = false;
 
 		if (req.url) {
-			const query = url.parse(req.url, true).query;
-			if (typeof query.reconnectionToken === 'string') {
-				reconnectionToken = query.reconnectionToken;
+			const parsedUrl = parseRequestUrl(req.url);
+			if (!parsedUrl) {
+				this._logService.warn('WebSocket connection rejected: invalid request URL');
+				socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+				return;
 			}
-			if (query.reconnection === 'true') {
+			const query = parsedUrl.searchParams;
+			const reconnectionTokens = query.getAll('reconnectionToken');
+			if (reconnectionTokens.length === 1) {
+				reconnectionToken = reconnectionTokens[0];
+			}
+			if (query.getAll('reconnection').length === 1 && query.get('reconnection') === 'true') {
 				isReconnection = true;
 			}
-			if (query.skipWebSocketFrames === 'true') {
+			if (query.getAll('skipWebSocketFrames').length === 1 && query.get('skipWebSocketFrames') === 'true') {
 				skipWebSocketFrames = true;
 			}
 		}
@@ -593,7 +609,7 @@ export interface IServerAPI {
 	dispose(): void;
 }
 
-export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<IServerAPI> {
+export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, agentHostBridgeConnectionToken: string | undefined): Promise<IServerAPI> {
 
 	const connectionToken = await determineServerConnectionToken(args);
 	if (connectionToken instanceof ServerConnectionTokenParseError) {
@@ -634,7 +650,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	});
 
 	const disposables = new DisposableStore();
-	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
+	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, agentHostBridgeConnectionToken, disposables);
 
 	// Set the unexpected error handler after the services have been initialized, to avoid having
 	// the telemetry service overwrite our handler

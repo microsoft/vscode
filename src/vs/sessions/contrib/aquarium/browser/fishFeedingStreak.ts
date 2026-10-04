@@ -6,6 +6,7 @@
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+const HOURS_PER_HUNGER_STATE = 6;
 
 const STREAK_COUNT_KEY = 'sessions.aquarium.streak.count';
 const STREAK_LAST_FED_KEY = 'sessions.aquarium.streak.lastFedAt';
@@ -16,6 +17,8 @@ function getLocalCalendarDay(timestamp: number): number {
 	const date = new Date(timestamp);
 	return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / MILLISECONDS_PER_DAY;
 }
+
+export type FishHungerState = 'happy' | 'neutral' | 'sad' | 'verySad';
 
 /** Result of recording a feed, describing how the streak changed. */
 export interface IFeedResult {
@@ -75,6 +78,61 @@ export class FishFeedingStreak {
 	/** The current live streak count, or 0 when no streak is alive. */
 	get count(): number {
 		return this.isAlive ? this.rawCount : 0;
+	}
+
+	/** The fish mood for the current streak and local time of day. */
+	get hungerState(): FishHungerState {
+		const count = this.rawCount;
+		if (count <= 0) {
+			return this.revivableCount > 0 ? 'verySad' : 'happy';
+		}
+
+		const now = this.now();
+		const lastFedDay = this.lastFedDay;
+		if (lastFedDay === undefined) {
+			return 'happy';
+		}
+
+		const daysSinceFed = this.getCalendarDay(now) - lastFedDay;
+		if (daysSinceFed <= 0) {
+			return 'happy';
+		}
+		if (daysSinceFed > 1) {
+			return 'verySad';
+		}
+
+		const hour = new Date(now).getHours();
+		if (hour < HOURS_PER_HUNGER_STATE) {
+			return 'happy';
+		}
+		if (hour < HOURS_PER_HUNGER_STATE * 2) {
+			return 'neutral';
+		}
+		if (hour < HOURS_PER_HUNGER_STATE * 3) {
+			return 'sad';
+		}
+		return 'verySad';
+	}
+
+	/** Delay until the next local time boundary that can change {@link hungerState}. */
+	get millisecondsUntilHungerStateChange(): number | undefined {
+		const lastFedDay = this.lastFedDay;
+		if (this.rawCount <= 0 || lastFedDay === undefined) {
+			return undefined;
+		}
+
+		const now = this.now();
+		const daysSinceFed = this.getCalendarDay(now) - lastFedDay;
+		if (daysSinceFed < 0 || daysSinceFed > 1) {
+			return undefined;
+		}
+
+		const nextBoundary = new Date(now);
+		const nextHour = daysSinceFed === 0
+			? 24
+			: (Math.floor(nextBoundary.getHours() / HOURS_PER_HUNGER_STATE) + 1) * HOURS_PER_HUNGER_STATE;
+		nextBoundary.setHours(nextHour, 0, 0, 0);
+		return Math.max(1, nextBoundary.getTime() - now);
 	}
 
 	/**
