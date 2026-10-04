@@ -57,7 +57,7 @@ import {
 	type SubscribeResult,
 	type ListSessionsResult,
 } from '../common/state/sessionProtocol.js';
-import { isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpResourceWatchChannel, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseRequiredSessionUriFromChatUri, withSessionStatusFlag, type ISessionWithDefaultChat, type SessionState } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
 import { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
@@ -1734,6 +1734,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						title: chat.summary ?? '',
 						origin: chat.origin,
 						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+						...(chat.isRead !== undefined ? {
+							status: withSessionStatusFlag(
+								withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, chat.archived === true),
+								SessionStatus.IsRead,
+								chat.isRead,
+							),
+						} : {}),
 						...(chat.archived === true ? { archived: true } : {}),
 						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 					})),

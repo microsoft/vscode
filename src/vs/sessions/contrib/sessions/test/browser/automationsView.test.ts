@@ -447,6 +447,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		mainChat: constObservable(upcastPartial<IChat>({
 			updatedAt: constObservable(new Date()),
 			status: this.sessionStatus,
+			isRead: this.isRead,
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		})),
@@ -482,6 +483,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 		mainChat: constObservable(upcastPartial<IChat>({
 			updatedAt: constObservable(new Date()),
 			status: this.sessionStatus,
+			isRead: this.secondIsRead,
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		})),

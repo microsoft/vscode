@@ -261,7 +261,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-otel-turn', createdSessions, URI.file(workspace));
 
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-export', 'Reply exactly "traced".', 1);
-		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10);
+		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10, { expectUnread: false });
 		const exported = await retry(async () => {
 			const contents = await readFile(exportFile, 'utf8').catch(() => '');
 			if (!contents.includes('"traceId"')
