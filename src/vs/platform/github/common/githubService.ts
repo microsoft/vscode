@@ -12,6 +12,7 @@ import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialS
 import { BackoffGate } from './backoff.js';
 import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
+import { GitHubRepositoryService, IGitHubRepositories } from './githubRepository.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
 import { RequestQueue } from './requestQueue.js';
@@ -29,6 +30,7 @@ export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 /** Runtime-owned GitHub engine providing isolated clients with shared admission and quota state. */
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
+	readonly repositories: IGitHubRepositories;
 	acquireClient(options: GitHubClientOptions): IReference<IGitHubClient>;
 	acquireAnonymousClient(options: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient>;
 	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient>;
@@ -74,6 +76,7 @@ interface IClientEntry {
 export class GitHubService extends Disposable implements IGitHubService {
 
 	declare readonly _serviceBrand: undefined;
+	readonly repositories: IGitHubRepositories;
 
 	private readonly _clients = new Map<string, IClientEntry>();
 	private readonly _anonymousClients = this._register(new DisposableMap<string, GitHubAnonymousClient>());
@@ -93,6 +96,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemRequestScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
 		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemRequestScheduler));
 		this._queue = this._register(new RequestQueue(systemRequestScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
+		this.repositories = new GitHubRepositoryService(() => this.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' }));
 		if (_options.credentialProvider) {
 			this._register(_options.credentialProvider.onDidChange(change => this._invalidateClients(change)));
 		}

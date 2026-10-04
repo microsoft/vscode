@@ -131,9 +131,9 @@ This is not a proxy for `IGitHubClient`'s nested functions, resources or disposa
 
 ### Public repository files
 
-[The repository-file reader](common/githubRepository.ts) resolves `GET /repos/{owner}/{repo}/commits/HEAD`, then reads the Contents API with the resolved commit as `ref`. Both JSON reads share an anonymous client lease, cancellation signal, and five-minute absolute deadline. The reader validates the file envelope and base64 payload, accepts files up to 1 MiB, and never follows `download_url` or substitutes a blob SHA for the repository commit.
+[The service-owned repository domain](common/githubRepository.ts), `IGitHubService.repositories.readPublicFile`, resolves `GET /repos/{owner}/{repo}/commits/HEAD`, then reads the Contents API with the resolved commit as `ref`. Both JSON reads share an anonymous client lease, cancellation signal, and five-minute absolute deadline. The domain validates the file envelope and base64 payload, accepts files up to 1 MiB, and never follows `download_url` or substitutes a blob SHA for the repository commit.
 
-Dev Container sample preparation uses this reader through the owning host's local `IGitHubService`, without desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client.
+Dev Container sample preparation calls this domain on the owning host's local `IGitHubService`, without passing the service into a helper or using desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client.
 
 Desktop sample reads inherit the shared-process proxy and certificate behavior and its documented Chromium-compatibility limits above. Standalone hosts retain their local `AgentHostProxyResolver.fetch` binding.
 

@@ -28,7 +28,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IRequestService } from '../../request/common/request.js';
-import { readPublicGitHubRepositoryFile } from '../../github/common/githubRepository.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
@@ -422,7 +421,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				return result;
 			},
 			devcontainer: args => this._runDevContainer(connectionId, args, token),
-			readSource: () => readPublicGitHubRepositoryFile(this._gitHubService, 'microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token),
+			readSource: () => this._gitHubService.repositories.readPublicFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token),
 		});
 	}
 

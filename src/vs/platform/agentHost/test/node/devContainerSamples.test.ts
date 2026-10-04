@@ -12,7 +12,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { readPublicGitHubRepositoryFile } from '../../../github/common/githubRepository.js';
 import { GitHubService } from '../../../github/common/githubService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -110,7 +109,7 @@ suite('Dev Container samples', () => {
 		let existing = false;
 		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
 			onContainerStarted: id => calls.push(`started ${id}`),
-			readSource: () => readPublicGitHubRepositoryFile(service, 'microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None),
+			readSource: () => service.repositories.readPublicFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None),
 			docker: async args => {
 				let stdout: string;
 				if (args[0] === 'volume') {
