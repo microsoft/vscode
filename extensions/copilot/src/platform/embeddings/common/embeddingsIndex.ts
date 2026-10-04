@@ -150,7 +150,7 @@ class EmbeddingsCache {
 			await this.fileSystemService.stat(this.cacheStorageUri);
 			await this.fileSystemService.delete(cacheFile, { useTrash: false });
 		} catch (e) {
-			if (e.code !== 'ENOENT') {
+			if (e.code !== 'ENOENT' && e.code !== 'FileNotFound') {
 				throw e;
 			}
 		}
