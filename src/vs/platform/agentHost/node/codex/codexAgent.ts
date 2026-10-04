@@ -4647,7 +4647,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (!session.firstTurnSent) {
 			await this._restartThreadWithCurrentTools(session);
-			this._persistMaterializedSession(session);
 		} else {
 			this._markSessionForReload(session);
 		}
@@ -5700,6 +5699,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * Restarts of one session run one at a time, and none once a turn is claimed: overlapping restarts each start a thread, and the
 	 * turn could run on one while another is persisted as the session's thread. A restart is recorded in `threadRestart` as soon as it
 	 * is requested but checks for a claimed turn only after an await, so a turn that found no restart recorded is claimed first.
+	 * The restart persists its replacement thread itself, as a send waiting on it runs its turn on that thread.
 	 */
 	private _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
 		const previous = session.threadRestart;
@@ -5710,6 +5710,7 @@ export class CodexAgent extends Disposable implements IAgent {
 				return;
 			}
 			await this._restartThreadNow(session, configResource);
+			this._persistMaterializedSession(session);
 		})();
 		session.threadRestart = restart;
 		const settle = () => {
@@ -6028,7 +6029,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (!session.firstTurnSent && !session.needsResume && (toolsChanged || mcpChanged || customizationsChanged || sessionHookTrustChanged)) {
 			try {
 				await this._restartThreadWithCurrentTools(session, configResource);
-				this._persistMaterializedSession(session);
 			} catch (err) {
 				session.agentMergeTurn = false;
 				const message = err instanceof Error ? err.message : String(err);
@@ -6213,7 +6213,6 @@ export class CodexAgent extends Disposable implements IAgent {
 				await this._resumeSession(session, conn);
 			} else {
 				await this._restartThreadWithCurrentTools(session, configResource);
-				this._persistMaterializedSession(session);
 			}
 			if (session.disposed) {
 				throw new CancellationError();
@@ -7805,7 +7804,6 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (!session.firstTurnSent) {
 			await this._restartThreadWithCurrentTools(session);
-			this._persistMaterializedSession(session);
 		} else {
 			this._markSessionForReload(session);
 		}

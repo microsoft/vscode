@@ -60,7 +60,7 @@ import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/work
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
 import { CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT } from '../../../node/codex/codexTerminalOutput.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
-import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { AgentHostCodexMultiRootEnabledConfigKey, AgentHostMcpServersConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { ConfigEdit } from '../../../node/codex/protocol/generated/v2/ConfigEdit.js';
@@ -408,8 +408,9 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
  * Prewarms a session on `thread-1` and answers its Codex requests in the background, holding back the first
  * `thread/unsubscribe` and every `turn/start` until released so tests can line thread restarts up against a turn.
  */
-async function createThreadRestartRace(disposables: Pick<DisposableStore, 'add'>) {
+async function createThreadRestartRace(disposables: Pick<DisposableStore, 'add'>, rootConfig: Record<string, unknown> = {}) {
 	const agent = await createAgent(disposables);
+	agent['_configurationService'].updateRootConfig(rootConfig);
 	agent['_refreshSkillHookCustomizations'] = async () => { };
 	const peer = disposables.add(createTestPeer());
 	agent['_connection'] = {
@@ -646,6 +647,47 @@ suite('CodexAgent prewarm eviction', () => {
 			],
 			threadId: 'thread-3',
 			persistedThreadId: 'thread-3',
+		});
+		race.peer.exit();
+	});
+
+	test('an MCP auth restart under a claimed prewarm persists the replacement thread its turn runs on', async () => {
+		const mcpUrl = 'https://mcp.example.com/mcp';
+		const race = await createThreadRestartRace(disposables, { [AgentHostMcpServersConfigKey]: { remote: { type: McpServerType.REMOTE, url: mcpUrl } } });
+		const { agent, session, chat, entry } = race;
+		race.releaseFirstUnsubscribe.complete();
+		race.releaseTurn.complete();
+		const launchCheckReached = new DeferredPromise<void>();
+		const releaseLaunchCheck = new DeferredPromise<void>();
+		const originalEnsureCurrentLaunch = agent['_ensureCurrentLaunchBeforeTurn'].bind(agent);
+		agent['_ensureCurrentLaunchBeforeTurn'] = async (...args: Parameters<typeof originalEnsureCurrentLaunch>) => {
+			launchCheckReached.complete();
+			await releaseLaunchCheck.p;
+			return originalEnsureCurrentLaunch(...args);
+		};
+
+		// The send has claimed and persisted the prewarmed thread but not yet its turn when the MCP token arrives.
+		const sending = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
+		await launchCheckReached.p;
+		const persistedBeforeAuth = (await agent['_metadataStore'].read(session)).threadId;
+		await agent.handleAuthenticationToken({ resource: mcpUrl, token: 'mcp-token' });
+		releaseLaunchCheck.complete();
+		await sending;
+
+		assert.deepStrictEqual({
+			requests: race.requests,
+			persistedBeforeAuth,
+			threadId: entry.threadId,
+			persistedThreadId: (await agent['_metadataStore'].read(session)).threadId,
+		}, {
+			requests: [
+				'thread/unsubscribe thread-1',
+				'thread/start',
+				'turn/start thread-2',
+			],
+			persistedBeforeAuth: 'thread-1',
+			threadId: 'thread-2',
+			persistedThreadId: 'thread-2',
 		});
 		race.peer.exit();
 	});
