@@ -19,6 +19,16 @@ interface IExportedPolicy {
 suite('agentHostPolicySupport', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('retired legacy sandbox policies are not applicable to the Agent Host policy contract', () => {
+		for (const name of [
+			'ChatAgentSandboxEnabled',
+			'ChatAgentSandboxAllowNetwork',
+			'ChatAgentSandboxAllowUnsandboxedCommands',
+		]) {
+			assert.strictEqual(agentHostPolicySupport[name].status, 'notApplicable', name);
+		}
+	});
+
 	test('matches the exported policy catalog', async () => {
 		const policyDataPath = URI.joinPath(FileAccess.asFileUri(''), '../build/lib/policies/policyData.jsonc').fsPath;
 		const policyData = parse(await fs.readFile(policyDataPath, 'utf8')) as { policies: IExportedPolicy[] };

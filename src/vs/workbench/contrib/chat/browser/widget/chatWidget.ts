@@ -1252,6 +1252,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.delegateScrollFromMouseWheelEvent(e);
 		}));
 
+		if (this.viewOptions.firstRequestSummary) {
+			this._register(autorun(reader => {
+				this.listWidget.updateRendererOptions({ firstRequestSummary: this.viewOptions.firstRequestSummary?.read(reader) });
+			}));
+		}
+
 		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);

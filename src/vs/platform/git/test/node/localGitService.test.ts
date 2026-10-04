@@ -333,6 +333,31 @@ suite('LocalGitService', () => {
 		assert.strictEqual(expectations.length, 0);
 	});
 
+	test('pull skips an immutable detached checkout when requested', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', '--abbrev-ref', 'HEAD'], stdout: 'HEAD\n' },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		const changed = await service.pull('test-op', '/tmp/repo', { skipDetachedHead: true });
+
+		assert.deepStrictEqual({ changed, remaining: expectations.length }, { changed: false, remaining: 0 });
+	});
+
+	test('pull still updates tracked branches when detached checkouts are skipped', async () => {
+		const expectations: IExecFileExpectation[] = [
+			{ args: ['rev-parse', '--abbrev-ref', 'HEAD'], stdout: 'main\n' },
+			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },
+			{ args: ['pull', '--ff-only'] },
+			{ args: ['rev-parse', 'HEAD'], stdout: 'bbbb\n' },
+		];
+		const service = new LocalGitService(new NullLogService(), createExecFile(expectations));
+
+		const changed = await service.pull('test-op', '/tmp/repo', { skipDetachedHead: true });
+
+		assert.deepStrictEqual({ changed, remaining: expectations.length }, { changed: true, remaining: 0 });
+	});
+
 	test('pull recovers from diverged history by resetting to upstream', async () => {
 		const expectations: IExecFileExpectation[] = [
 			{ args: ['rev-parse', 'HEAD'], stdout: 'aaaa\n' },

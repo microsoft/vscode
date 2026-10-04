@@ -312,7 +312,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 		assert.deepStrictEqual({ turns: state.turns, activeTurn: state.activeTurn, status: state.status }, {
 			turns: [],
 			activeTurn: undefined,
-			status: SessionStatus.Idle,
+			status: SessionStatus.Idle | SessionStatus.IsRead,
 		});
 	}, config.supportsMultipleChats);
 

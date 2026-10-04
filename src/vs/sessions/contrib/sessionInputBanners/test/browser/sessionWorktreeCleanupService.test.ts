@@ -12,6 +12,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
@@ -368,6 +369,39 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	test('reports the number of scanned worktrees during measurement', async () => {
+		const firstDiskUsage = new DeferredPromise<number | undefined>();
+		const secondDiskUsage = new DeferredPromise<number | undefined>();
+		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
+		const second = createSession('second', oldDate());
+		const progressService = new TestProgressService();
+		const service = disposables.add(createService(
+			[first, second],
+			true,
+			session => session === first ? firstDiskUsage.p : secondDiskUsage.p,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{ progressService },
+		));
+
+		const measurement = service.getWorktrees(14);
+		firstDiskUsage.complete(ByteSize.GB);
+		await Promise.resolve();
+		secondDiskUsage.complete(ByteSize.GB);
+		await measurement;
+
+		assert.deepStrictEqual(progressService.reports.map(report => report.message), [
+			'Scanned 0 of 3 worktrees',
+			'Scanned 2 of 3 worktrees',
+			'Scanned 3 of 3 worktrees',
+		]);
+	});
+
 	test('reports cleanup scheduling progress after each archived session', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
@@ -469,6 +503,29 @@ suite('SessionWorktreeCleanupService', () => {
 
 		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => worktree.session.sessionId), ['eligible']);
 	});
+
+	test('times out a stalled disk measurement without blocking other sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const stalledMeasurement = new DeferredPromise<number | undefined>();
+		const stalled = createSession('stalled', oldDate());
+		const measured = createSession('measured', oldDate());
+		const service = disposables.add(createService(
+			[stalled, measured],
+			true,
+			session => session === stalled ? stalledMeasurement.p : ByteSize.GB,
+		));
+
+		const startedAt = Date.now();
+		const worktrees = await service.getWorktrees(14);
+		stalledMeasurement.complete(ByteSize.GB);
+
+		assert.deepStrictEqual({
+			elapsed: Date.now() - startedAt,
+			sessionIds: worktrees.map(worktree => worktree.session.sessionId),
+		}, {
+			elapsed: 10_000,
+			sessionIds: ['measured'],
+		});
+	}));
 
 	test('retries when the worktree session set changes during measurement', async () => {
 		const firstMeasurement = new DeferredPromise<number | undefined>();

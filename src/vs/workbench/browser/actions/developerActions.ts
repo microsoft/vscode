@@ -1142,6 +1142,7 @@ class PolicyDiagnosticsAction extends Action2 {
 
 			content += '### Agent Runtime Resolution\n\n';
 			content += '*Resolved independently by each provider through its own SDK/runtime. This may include runtime-owned keys that VS Code does not declare as configuration policies.*\n\n';
+			content += '*Copilot resolves device and account policy without creating a session. This does not include session-specific client contributions or execute policy helpers. Inspect the snapshot diagnostics for source failures or cached-policy warnings; a returned snapshot is not proof of a successful live fetch.*\n\n';
 			if (!agentHostEnablementService.enabled.get()) {
 				summary.agentRuntime = 'Agent Host disabled';
 				content += '*Agent Host is disabled; runtime managed-settings diagnostics were not queried.*\n\n';

@@ -20,6 +20,7 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
+import { SESSIONS_FILES_VIEW_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
@@ -30,7 +31,7 @@ import { IEditorGroupsService } from '../../../../workbench/services/editor/comm
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../browser/menus.js';
 import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
-import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
+import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 

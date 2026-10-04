@@ -8,6 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
@@ -38,6 +39,44 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
+		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
+		const key = 'vscode.copilotSandboxNetworkRestrictions';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: restrictions })))[key],
+			readToolCallMeta(toolCall(undefined))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, sandboxEnabled: 'true' } }))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, deniedDomains: [5] } }))[key],
+		], [restrictions, undefined, undefined, undefined]);
+	});
+
+	suite('session sandbox policy', () => {
+		const policies = [
+			undefined,
+			{ enabled: false },
+			{ enabled: true, allowBypass: false, allowOutbound: true, allowLocalNetwork: false, allowDevToolAccess: false, sandboxMcpServers: true, sandboxLspServers: true, failClosed: true },
+		];
+
+		test('removes legacy metadata when replacing or clearing the resolved policy', () => {
+			const meta = Object.freeze({
+				unrelated: true,
+				'vscode.sandboxPolicy': { enabled: true, allowOutbound: false },
+				'vscode.resolvedSandboxPolicy': { enabled: true, allowBypass: true },
+			});
+			assert.deepStrictEqual(
+				policies.map(policy => withSessionSandboxPolicy(meta, policy)),
+				policies.map(policy => ({ unrelated: true, 'vscode.resolvedSandboxPolicy': policy })),
+			);
+		});
+
+		test('round trips policies without existing metadata', () => {
+			assert.deepStrictEqual(
+				policies.map(policy => readSessionSandboxPolicy({ _meta: withSessionSandboxPolicy(undefined, policy) })),
+				policies,
+			);
+		});
+	});
 
 	suite('chat input state', () => {
 		test('validates restrictions and optional error fields', () => {

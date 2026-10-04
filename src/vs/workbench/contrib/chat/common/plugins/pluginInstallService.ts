@@ -97,14 +97,15 @@ export interface IPluginInstallService {
 	validatePluginSource(source: string): string | undefined;
 
 	/**
-	 * Pulls the latest changes for an already-cloned marketplace repository.
+	 * Updates an installed plugin and replaces its installed URI when the source location changes.
 	 */
-	updatePlugin(plugin: IMarketplacePlugin): Promise<boolean>;
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token?: CancellationToken): Promise<boolean>;
 
 	/**
 	 * Updates all installed plugins. First pulls each unique marketplace
 	 * repository, then updates non-relative-path plugins individually
-	 * (git pull, npm install, pip install, etc.).
+	 * (git pull, npm install, pip install, etc.). Git sources are refreshed
+	 * even when their source descriptors have not changed.
 	 */
 	updateAllPlugins(options: IUpdateAllPluginsOptions, token: CancellationToken): Promise<IUpdateAllPluginsResult>;
 

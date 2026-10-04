@@ -531,8 +531,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxToggleAvailable(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true
-			&& this._delegate.isSandboxToggleApplicable?.() === true
+		return this._delegate.isSandboxToggleApplicable?.() === true
 			&& this._delegate.setSandboxEnabled !== undefined
 			&& this._delegate.getSandboxToggleSettingId?.() !== undefined;
 	}
@@ -555,8 +554,7 @@ export class PermissionPicker extends Disposable {
 
 	private _affectsSandboxToggle(event: IConfigurationChangeEvent): boolean {
 		const settingId = this._delegate.getSandboxToggleSettingId?.();
-		return event.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-			|| (settingId !== undefined && event.affectsConfiguration(settingId))
+		return (settingId !== undefined && event.affectsConfiguration(settingId))
 			|| this._delegate.sandboxToggleConfigurationKeys?.some(key => event.affectsConfiguration(key)) === true;
 	}
 

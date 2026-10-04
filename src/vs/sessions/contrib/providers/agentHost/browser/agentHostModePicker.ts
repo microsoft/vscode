@@ -389,8 +389,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
+			if (this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
 				this._updateTrigger();
 			}
 		}));

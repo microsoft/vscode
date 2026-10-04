@@ -13,7 +13,7 @@ import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/as
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
@@ -248,12 +248,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
-	private readonly renderedElements = new Map<string, HTMLElement>();
-
-	/** Returns only a currently rendered row owned by this list renderer. */
-	getSessionElement(resource: URI): HTMLElement | undefined {
-		return this.renderedElements.get(resource.toString());
-	}
 
 	private readonly _onDidChangeItemHeight = this._register(new Emitter<IAgentSession>());
 	readonly onDidChangeItemHeight: Event<IAgentSession> = this._onDidChangeItemHeight.event;
@@ -352,13 +346,6 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Clear old state
 		template.elementDisposable.clear();
-		const resource = session.element.resource.toString();
-		this.renderedElements.set(resource, template.element);
-		template.elementDisposable.add(toDisposable(() => {
-			if (this.renderedElements.get(resource) === template.element) {
-				this.renderedElements.delete(resource);
-			}
-		}));
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
 		template.badge.textContent = '';
@@ -1245,12 +1232,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	readonly onDidExpandRepositoryGroup: Event<void> = this._onDidExpandRepositoryGroup.event;
 
 	private readonly expandedRepositoryGroups = new Set<string>();
-	private revealedSession: URI | undefined;
-
-	/** Temporarily includes an explicitly revealed session without changing saved filters or caps. */
-	setRevealedSession(resource: URI | undefined): void {
-		this.revealedSession = resource;
-	}
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
@@ -1303,8 +1284,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		if (isAgentSessionsModel(element)) {
 
 			// Apply filter if configured
-			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
-			let filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
+			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
 
 			// Apply sorter unless we group into sections or we are to limit results
 			const limitResultsCount = this.filter?.limitResults?.();
@@ -1315,9 +1295,6 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// Apply limiter if configured (requires sorting)
 			if (typeof limitResultsCount === 'number') {
 				filteredSessions = filteredSessions.slice(0, limitResultsCount);
-				if (revealed && !filteredSessions.includes(revealed)) {
-					filteredSessions.push(revealed);
-				}
 			}
 
 			// Callback results count
@@ -1337,7 +1314,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		else if (isAgentSessionSection(element)) {
 			const isCappingEnabled = this.repositoryGroupLimit && this.filter?.getExcludes().repositoryGroupCapped;
 			if (isCappingEnabled && element.section === AgentSessionSection.Repository && element.sessions.length > this.repositoryGroupLimit) {
-				if (!this.expandedRepositoryGroups.has(element.label) && !element.sessions.some(session => session.resource.toString() === this.revealedSession?.toString())) {
+				if (!this.expandedRepositoryGroups.has(element.label)) {
 					// Collapsed: show limited sessions + "show more"
 					const visible = element.sessions.slice(0, this.repositoryGroupLimit);
 					const remainingCount = element.sessions.length - this.repositoryGroupLimit;
