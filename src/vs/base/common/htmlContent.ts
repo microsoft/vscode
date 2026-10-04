@@ -158,11 +158,14 @@ export function escapeMarkdownSyntaxTokens(text: string): string {
 }
 
 /**
- * Backslash-escapes every ASCII punctuation character, which Markdown always renders literally, so plain
- * `text` keeps no HTML, blockquote, list, emphasis, link or autolink meaning when interpolated into Markdown.
+ * Encodes plain `text` for interpolation into Markdown so it keeps no HTML, blockquote, list, code block,
+ * emphasis, link or autolink meaning: every ASCII punctuation character is backslash-escaped, which Markdown
+ * always renders literally, and line-leading whitespace becomes character references, which are never indentation.
  */
 export function escapeMarkdownText(text: string): string {
-	return text.replace(/[!-\/:-@\[-`{-~]/g, '\\$&'); // CodeQL [SM02383] Backslash is in the escaped range
+	return text
+		.replace(/[!-\/:-@\[-`{-~]/g, '\\$&') // CodeQL [SM02383] Backslash is in the escaped range
+		.replace(/^[ \t]+/gm, indentation => indentation.replace(/ /g, '&#32;').replace(/\t/g, '&#9;'));
 }
 
 /**

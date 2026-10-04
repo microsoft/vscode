@@ -78,19 +78,23 @@ suite('htmlContent', () => {
 	});
 
 	suite('escapeMarkdownText', () => {
-		test('escapes every ASCII punctuation character and nothing else', () => {
+		test('escapes every ASCII punctuation character and line-leading whitespace', () => {
 			assert.deepStrictEqual([
 				'<b>Agent</b>',
 				'> Agent',
 				'1. user@host.example.com:4321',
 				'a & b &lt; c\\',
 				'Copilot CLI 2',
+				'    Agent',
+				'Agent\n\t  indented',
 			].map(escapeMarkdownText), [
 				'\\<b\\>Agent\\<\\/b\\>',
 				'\\> Agent',
 				'1\\. user\\@host\\.example\\.com\\:4321',
 				'a \\& b \\&lt\\; c\\\\',
 				'Copilot CLI 2',
+				'&#32;&#32;&#32;&#32;Agent',
+				'Agent\n&#9;&#32;&#32;indented',
 			]);
 		});
 	});
