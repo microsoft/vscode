@@ -3,7 +3,7 @@ set -eu
 
 is_valid_email() {
 	case "${1:-}" in
-		""|*"(none)"*|*".none"*|*" "*|@*|*@|*@*@*) return 1 ;;
+		""|*"(none)"*|*" "*|@*|*@|*@*@*) return 1 ;;
 		*@*) return 0 ;;
 		*) return 1 ;;
 	esac
