@@ -541,9 +541,20 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (!connState) {
 			return;
 		}
+		const renewAuthentication = reason === AuthRequiredReason.Expired
+			? this._connectionCustomizations.get(address)?.renewAuthentication
+			: undefined;
 		this._instantiationService.invokeFunction(accessor => connState.authRecovery.recover(accessor, protectedResource, {
 			authTokenCache: connState.authTokenCache,
 			logPrefix: '[RemoteAgentHost]',
+			isCurrent: () => this._connections.get(address) === connState,
+			renewAuthentication: renewAuthentication ? async resource => {
+				const request = await renewAuthentication(resource);
+				if (this._connections.get(address) !== connState) {
+					throw new CancellationError();
+				}
+				await connection.authenticate(request);
+			} : undefined,
 			authenticate: this._authenticateCallback(address, connection, reason),
 		}))
 			.catch(err => {

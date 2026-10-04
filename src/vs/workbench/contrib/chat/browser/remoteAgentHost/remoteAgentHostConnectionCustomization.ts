@@ -8,6 +8,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
 
@@ -27,6 +28,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.
 	 */
 	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
+
+	/** Resolves a fresh connection-owned credential for an expired challenge without requiring a new user sign-in. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest>;
 
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.
