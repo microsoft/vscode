@@ -72,28 +72,6 @@ A user can request diagnostics to see which enterprise-managed settings apply to
     --grep "managed settings diagnostics expose the provider snapshot"
   ```
 
-### Copilot managed telemetry changes require a host restart
-
-An administrator can change telemetry policy while a user has an Agent Host running.
-After the runtime has exported a turn under the original policy, creating another
-session with a changed telemetry service name fails instead of starting the chat.
-Restarting the host lets the same new policy work, including message-content capture.
-
-- Test: `new sessions honor changed managed telemetry without restarting` in `providers/copilotOtelAgentHostE2E.integrationTest.ts`.
-- Scope: Copilot, record and replay. Reproduced locally on macOS with SDK `1.0.16` / runtime `1.0.90`; other platforms remain unvalidated.
-- Expected: the second session completes without a manual restart, and its decoded inference span contains its actual user message under service B, correlated using the provider session ID reported over AHP.
-- Observed: the second turn fails with `Managed telemetry conflicts with the already selected OTel configuration`. The runtime deliberately permits only one effective telemetry configuration per process; suppressing the error or retaining policy A is not a fix.
-- Controls: unchanged-policy sessions and an explicit host restart both pass with capture enabled. Runtime `1.0.89-3` from SDK `1.0.15-preview.3`, tested through the current host's runtime-path override, completes the first turn but exports no inference spans. It is not a green baseline for the full telemetry contract.
-- Gate: `AGENT_HOST_RUN_KNOWN_ISSUES=1`. The desired-behavior assertion remains intact.
-- Fixture provenance: the two trivial model responses were generated with an explicit restart between turns, then the restart was removed and the warm failure was confirmed in strict replay. The permanent warm scenario must never restart the host.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
-    --grep "new sessions honor changed managed telemetry without restarting"
-  ```
-
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.

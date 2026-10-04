@@ -174,8 +174,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		await completeCapturedTurn('otel-policy-a', 'otel-capture-second', await setPolicy('otel-policy-a'));
 	});
 
-	// The runtime currently rejects a changed process-wide OTel configuration (see KNOWN_ISSUES.md).
-	(process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1' ? test : test.skip)('new sessions honor changed managed telemetry without restarting', async function () {
+	test('new sessions honor changed managed telemetry without restarting', async function () {
 		this.timeout(180_000);
 		await completeCapturedTurn('otel-policy-a', 'otel-policy-first', await setPolicy('otel-policy-a'));
 		await completeCapturedTurn('otel-policy-b', 'otel-policy-second', await setPolicy('otel-policy-b'));

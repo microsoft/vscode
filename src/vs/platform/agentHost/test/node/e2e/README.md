@@ -116,7 +116,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots (`*.traffic.ahp.yaml`) and assembled-prompt snapshots (`*.prompt.md`), resolved relative to the entry point that registered the test. |
 | `providers/copilotPromptsE2E.integrationTest.ts` | The provider request-body boundary: the complete model request body the bundled Copilot CLI sends, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
-| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes after a host restart. The warm policy-change gap is tracked in `KNOWN_ISSUES.md`. |
+| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes with and without a host restart. |
 | `coverage/summary.json` | Checked-in line coverage of the host implementation. |
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
@@ -209,6 +209,8 @@ Both sides go through the same projection, so captures keep their existing shape
 Each elision has a reason, and dropping any of them would make the assertion either platform-coupled or permanently red. Reasoning blocks are the least obvious: aggregating a recorded reply drops them, so the assistant turn replayed back to the agent never carries one even though the live recording did.
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
+
+Runtime-authored change notices are elided from user text. A standalone user message containing only those recognized notices is omitted as well; user questions, empty authored messages, assistant messages, and tool-result wiring remain asserted.
 
 A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and prints both projections. It usually means the capture is stale — the prompt or the host's prompt assembly changed without a re-record — so **re-record it** (see [Updating snapshots and fixtures](#updating-snapshots-and-fixtures)). Never hand-edit the request block to match. If a capture genuinely cannot be refreshed, add its test title to `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts` with a `KNOWN_ISSUES.md` entry.
 
