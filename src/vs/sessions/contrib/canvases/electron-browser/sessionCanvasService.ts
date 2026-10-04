@@ -15,7 +15,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
+import { getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 export class SessionCanvasService extends Disposable implements ISessionCanvasService {
 
@@ -84,14 +84,13 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 						canvas: canvas.resource,
 					};
 					const input = this._getOrCreateInput(reference, canvas);
-					const key = canvasKey(reference);
+					const key = getSessionCanvasReferenceKey(reference);
 					activeKeys.add(key);
 					input.setCanvas(canvas);
 					if (canvas.source === undefined || this._dismissed.has(key) || this._presented.has(key)) {
 						continue;
 					}
-					this._presented.add(key);
-					void this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false })
+					void this._openInput(key, input)
 						.catch(error => this.logService.error('[SessionCanvasService] Failed to reveal canvas', error));
 				}
 			}
@@ -132,8 +131,8 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	}
 
 	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
-		const key = canvasKey(reference);
-		const reopenable = this.reopenableCanvases.get().find(candidate => canvasKey(candidate.reference) === key);
+		const key = getSessionCanvasReferenceKey(reference);
+		const reopenable = this.reopenableCanvases.get().find(candidate => getSessionCanvasReferenceKey(candidate.reference) === key);
 		if (!reopenable) {
 			return;
 		}
@@ -141,21 +140,24 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		const input = this._getOrCreateInput(reference, reopenable.canvas);
 		input.setCanvas(reopenable.canvas);
 		this._deleteDismissed(key);
+		await this._openInput(key, input);
+	}
+
+	private async _openInput(key: string, input: SessionCanvasInput): Promise<void> {
 		this._presented.add(key);
 		try {
 			await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
 		} catch (error) {
 			this._presented.delete(key);
-			const target = this.getTarget(reference);
-			if (this.enabled.get() && target?.canvas.source !== undefined) {
-				this._rememberDismissed(key, reference);
+			if (this.enabled.get() && this._inputs.get(key) === input && !input.isDisposed()) {
+				this._rememberDismissed(key, input.reference);
 			}
 			throw error;
 		}
 	}
 
 	private _getOrCreateInput(reference: ISessionCanvasReference, canvas: ISessionCanvas): SessionCanvasInput {
-		const key = canvasKey(reference);
+		const key = getSessionCanvasReferenceKey(reference);
 		let input = this._inputs.get(key);
 		if (input && !input.isDisposed()) {
 			return input;
@@ -226,10 +228,6 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			this._dismissedChanged.trigger(undefined);
 		}
 	}
-}
-
-function canvasKey(reference: ISessionCanvasReference): string {
-	return `${reference.providerId}\u0000${reference.session.toString()}\u0000${reference.chat.toString()}\u0000${reference.canvas.toString()}`;
 }
 
 function ownsSession(reference: ISessionCanvasReference, session: ISession): boolean {

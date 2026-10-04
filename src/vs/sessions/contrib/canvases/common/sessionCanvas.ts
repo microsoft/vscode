@@ -21,6 +21,10 @@ export interface ISessionCanvasReference {
 	readonly canvas: URI;
 }
 
+export function getSessionCanvasReferenceKey(reference: ISessionCanvasReference): string {
+	return `${reference.providerId}\u0000${reference.session.toString()}\u0000${reference.chat.toString()}\u0000${reference.canvas.toString()}`;
+}
+
 export interface ISessionCanvasTarget {
 	readonly session: ISession;
 	readonly chat: IChat;

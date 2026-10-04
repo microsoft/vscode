@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -56,12 +57,16 @@ suite('SessionCanvasService', () => {
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: sessionChanges.event });
 		const opened: SessionCanvasInput[] = [];
 		const openOptions: unknown[] = [];
+		const openSettled: Promise<void>[] = [];
+		let openEditorHandler = () => Promise.resolve<undefined>(undefined);
 		let closeCount = 0;
 		const editorService = new class extends mock<IEditorService>() {
-			override async openEditor(...args: unknown[]): Promise<undefined> {
+			override openEditor(...args: unknown[]): Promise<undefined> {
 				opened.push(args[0] as SessionCanvasInput);
 				openOptions.push(args[1]);
-				return undefined;
+				const result = openEditorHandler();
+				openSettled.push(result.then(() => undefined, () => undefined));
+				return result;
 			}
 			override findEditors(): never[] {
 				return [];
@@ -89,7 +94,8 @@ suite('SessionCanvasService', () => {
 				affectsConfiguration: key => key === CanvasesEnabledSettingId,
 			}));
 		};
-		return { activeSession, canvas, canvasService, canvases, opened, openOptions, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled };
+		const setOpenEditorHandler = (handler: () => Promise<undefined>) => openEditorHandler = handler;
+		return { activeChat, activeSession, canvas, canvasService, canvases, chat, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setOpenEditorHandler };
 	}
 
 	test('automatically reveals a newly opened canvas', () => {
@@ -143,23 +149,103 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
+	test('restores dismissal when reopening fails after switching chats', async () => {
+		const { activeChat, canvasService, chat, opened, setOpenEditorHandler } = createHarness();
+		opened[0].dispose();
+		const reopenable = canvasService.reopenableCanvases.get()[0];
+		const failedOpen = new DeferredPromise<undefined>();
+		setOpenEditorHandler(() => failedOpen.p);
+
+		const reopenRejected = assert.rejects(canvasService.reopenCanvas(reopenable.reference), /open failed/);
+		activeChat.set(upcastPartial<IChat>({
+			resource: URI.parse('agent-host-chat:/session/other'),
+			canvases: observableValue<readonly ISessionCanvas[] | undefined>('otherCanvases', []),
+		}), undefined);
+		await failedOpen.error(new Error('open failed'));
+		await reopenRejected;
+		activeChat.set(chat, undefined);
+
+		assert.deepStrictEqual({
+			openCount: opened.length,
+			reopenable: canvasService.reopenableCanvases.get().map(target => target.canvas.resource.toString()),
+		}, {
+			openCount: 2,
+			reopenable: ['agent-host-canvas:/preview'],
+		});
+	});
+
+	test('does not restore dismissal when the canvas disappears during a failed reopen', async () => {
+		const { canvas, canvasService, canvases, opened, setOpenEditorHandler } = createHarness();
+		opened[0].dispose();
+		const reopenable = canvasService.reopenableCanvases.get()[0];
+		const failedOpen = new DeferredPromise<undefined>();
+		setOpenEditorHandler(() => failedOpen.p);
+
+		const reopenRejected = assert.rejects(canvasService.reopenCanvas(reopenable.reference), /open failed/);
+		canvases.set([], undefined);
+		await failedOpen.error(new Error('open failed'));
+		await reopenRejected;
+		setOpenEditorHandler(() => Promise.resolve(undefined));
+		canvases.set([canvas], undefined);
+
+		assert.deepStrictEqual({
+			openCount: opened.length,
+			reopenable: canvasService.reopenableCanvases.get().length,
+		}, {
+			openCount: 3,
+			reopenable: 0,
+		});
+	});
+
+	test('offers an automatically failed canvas reveal for manual reopening', async () => {
+		const { canvas, canvasService, canvases, opened, openSettled, setOpenEditorHandler } = createHarness();
+		const failedCanvas: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/failed'),
+			instanceId: 'failed',
+			title: 'Failed Preview',
+			source: URI.parse('https://example.test/failed'),
+		};
+		const failedOpen = new DeferredPromise<undefined>();
+		setOpenEditorHandler(() => failedOpen.p);
+
+		canvases.set([canvas, failedCanvas], undefined);
+		await failedOpen.error(new Error('automatic open failed'));
+		await openSettled.at(-1);
+		await Promise.resolve();
+		canvases.set([canvas, { ...failedCanvas, status: 'retry' }], undefined);
+
+		assert.deepStrictEqual({
+			openCount: opened.length,
+			reopenable: canvasService.reopenableCanvases.get().map(target => target.canvas.resource.toString()),
+		}, {
+			openCount: 2,
+			reopenable: ['agent-host-canvas:/failed'],
+		});
+	});
+
 	test('contributes titled canvas instances to the right pane Add Tab menu', async () => {
 		const canvases: ISessionCanvas[] = [
 			{ resource: URI.parse('agent-host-canvas:/preview-editor'), instanceId: 'editor', title: 'Preview', source: URI.parse('https://example.test/editor') },
 			{ resource: URI.parse('agent-host-canvas:/preview-sidebar'), instanceId: 'sidebar', title: 'Preview', source: URI.parse('https://example.test/sidebar') },
+			{ resource: URI.parse('agent-host-canvas:/preview-editor-title'), instanceId: 'dashboard', title: 'Preview (editor)', source: URI.parse('https://example.test/editor-title') },
 			{ resource: URI.parse('agent-host-canvas:/dashboard'), instanceId: 'dashboard', title: 'Dashboard', source: URI.parse('https://example.test/dashboard') },
+			{ resource: URI.parse('agent-host-canvas:/logs-numbered'), instanceId: undefined, title: 'Logs', source: URI.parse('https://example.test/logs-numbered') },
+			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
-		const { canvasService, opened } = createHarness(true, canvases);
+		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
 		const registration = store.add(registerSessionCanvasAddTabActions(canvasService));
 		for (const input of [...opened]) {
 			input.dispose();
 		}
 		const getItems = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
 			.filter(isIMenuItem)
-			.filter(item => item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`));
+			.filter(item => item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
+			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
 		const items = getItems();
 		const initialCommandIds = items.map(item => item.command.id);
 		const when = items[0].when?.serialize() ?? '';
+		canvasStates.set(canvases.map((canvas, index) => index === 1 ? { ...canvas, title: 'Preview Updated' } : canvas), undefined);
+		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
 		const remainingItems = getItems();
 		const remainingTitles = remainingItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
@@ -175,22 +261,26 @@ suite('SessionCanvasService', () => {
 			excludesAuxiliaryWindow: when.includes(`!${IsAuxiliaryWindowContext.key}`),
 			requiresRightPane: when.includes(IsTopRightEditorGroupContext.key),
 			reopenedResource: opened.at(-1)?.reference.canvas.toString(),
+			refreshedCommandIds: refreshedItems.map(item => item.command.id),
+			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			remainingTitles,
-			staleCommandsRegistered,
+			initialCommandsRegisteredAfterReopen: staleCommandsRegistered,
 			itemsAfterDispose: getItems().length,
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
-			titles: ['Preview (editor)', 'Preview (sidebar)', 'Dashboard'],
-			groups: ['navigation', 'navigation', 'navigation'],
+			titles: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
+			groups: ['navigation', 'navigation', 'navigation', 'navigation', 'navigation', 'navigation'],
 			requiresChat: true,
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,
 			requiresRightPane: true,
 			reopenedResource: 'agent-host-canvas:/preview-sidebar',
-			remainingTitles: ['Preview', 'Dashboard'],
-			staleCommandsRegistered: [false, false, false],
+			refreshedCommandIds: initialCommandIds,
+			refreshedTitles: ['Preview', 'Preview Updated', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
+			remainingTitles: ['Preview', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
+			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
 			itemsAfterDispose: 0,
-			remainingCommandsAfterDispose: [false, false],
+			remainingCommandsAfterDispose: [false, false, false, false, false],
 		});
 	});
 
