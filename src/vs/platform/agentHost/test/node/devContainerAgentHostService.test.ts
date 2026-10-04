@@ -9,7 +9,7 @@ import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
 import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
 import { tmpdir } from 'os';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { join } from '../../../../base/common/path.js';
@@ -26,11 +26,12 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../../common/devContainerAgentHost.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { IGitHubService } from '../../../github/common/githubService.js';
+import { IGitHubRepositories } from '../../../github/common/githubRepository.js';
 import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
-import { DevContainerSample } from '../../common/devContainerSamples.js';
+import { DevContainerSample, devContainerSamples } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
 
 class TestRelay implements IDevContainerRelay {
@@ -851,6 +852,83 @@ suite('Dev Container Agent Host Main Service', () => {
 			'-c',
 			'printf test',
 		]]);
+	});
+
+	suite('sample repository cancellation', () => {
+		let userDataPath: string;
+
+		setup(async () => {
+			userDataPath = await mkdtemp(join(tmpdir(), 'vscode-sample-cancellation-test-'));
+		});
+		teardown(async () => {
+			await rm(userDataPath, { recursive: true, force: true });
+		});
+
+		function createSampleService(readPublicFile: IGitHubRepositories['readPublicFile']) {
+			return store.add(new class extends DevContainerAgentHostMainService {
+				prepareSample(token: CancellationToken) {
+					return this._prepareSample('sample', devContainerSamples[2], token, () => assert.fail('No container should be started'));
+				}
+
+				protected override async _runDocker(): Promise<never> {
+					assert.fail('Docker must not run');
+				}
+
+				protected override async _runDevContainer(): Promise<never> {
+					assert.fail('Dev Container CLI must not run');
+				}
+			}(
+				new NullLogService(),
+				new class extends mock<IProductService>() { }(),
+				NullTelemetryService,
+				new TestConfigurationService(),
+				new class extends mock<INativeEnvironmentService>() {
+					override readonly userDataPath = userDataPath;
+				}(),
+				new class extends mock<IRequestService>() { }(),
+				new class extends mock<IGitHubService>() {
+					override readonly repositories = { readPublicFile };
+				}(),
+			));
+		}
+
+		test('does not call the repository domain when the token is already cancelled', async () => {
+			const service = createSampleService(async () => assert.fail('Repository reads must not run'));
+			await assert.rejects(service.prepareSample(CancellationToken.Cancelled), CancellationError);
+		});
+
+		test('bridges token cancellation to the repository AbortSignal', async () => {
+			const token = store.add(new CancellationTokenSource());
+			const started = new DeferredPromise<AbortSignal>();
+			const service = createSampleService(async (_owner, _repo, _path, signal) => {
+				return new Promise((_resolve, reject) => {
+					signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+					started.complete(signal);
+				});
+			});
+			const rejected = assert.rejects(service.prepareSample(token.token), CancellationError);
+			const signal = await started.p;
+			token.cancel();
+			await rejected;
+			assert.deepStrictEqual({ aborted: signal.aborted, cancellationError: signal.reason instanceof CancellationError }, { aborted: true, cancellationError: true });
+		});
+
+		for (const fails of [false, true]) {
+			test(`releases the token listener after the repository read (fails: ${fails})`, async () => {
+				const token = store.add(new CancellationTokenSource());
+				const signals: AbortSignal[] = [];
+				const service = createSampleService(async (_owner, _repo, _path, signal) => {
+					signals.push(signal);
+					if (fails) {
+						throw new Error('Repository read failed');
+					}
+					return { commitSha: 'a'.repeat(40), content: '{"image":"image","features":{"java":{}}}' };
+				});
+				await assert.rejects(service.prepareSample(token.token), fails ? /Repository read failed/ : /requires an image build/);
+				token.cancel();
+				assert.deepStrictEqual(signals.map(signal => signal.aborted), [false]);
+			});
+		}
 	});
 
 	for (const failure of ['clone', 'lifecycle', 'cancellation'] as const) {

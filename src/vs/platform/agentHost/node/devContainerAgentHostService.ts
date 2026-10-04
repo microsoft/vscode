@@ -421,7 +421,19 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				return result;
 			},
 			devcontainer: args => this._runDevContainer(connectionId, args, token),
-			readSource: () => this._gitHubService.repositories.readPublicFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token),
+			readSource: async () => {
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				const lifetime = new DisposableStore();
+				const controller = new AbortController();
+				try {
+					lifetime.add(token.onCancellationRequested(() => controller.abort(new CancellationError())));
+					return await this._gitHubService.repositories.readPublicFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', controller.signal);
+				} finally {
+					lifetime.dispose();
+				}
+			},
 		});
 	}
 

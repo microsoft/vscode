@@ -8,7 +8,6 @@ import { createHash } from 'crypto';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -109,7 +108,7 @@ suite('Dev Container samples', () => {
 		let existing = false;
 		const commands: Parameters<typeof prepareDevContainerSample>[2] = {
 			onContainerStarted: id => calls.push(`started ${id}`),
-			readSource: () => service.repositories.readPublicFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None),
+			readSource: () => service.repositories.readPublicFile('microsoft', folder, '.devcontainer/devcontainer.json', new AbortController().signal),
 			docker: async args => {
 				let stdout: string;
 				if (args[0] === 'volume') {

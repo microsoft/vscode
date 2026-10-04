@@ -6,9 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { CancellationError } from '../../../../base/common/errors.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -72,8 +70,8 @@ suite('GitHub public repository files', () => {
 		}, new NullLogService(), NullTelemetryService));
 	}
 
-	const read = (service: IGitHubService, token: CancellationToken = CancellationToken.None) =>
-		service.repositories.readPublicFile('microsoft', 'sample', path, token);
+	const read = (service: IGitHubService, signal: AbortSignal = new AbortController().signal) =>
+		service.repositories.readPublicFile('microsoft', 'sample', path, signal);
 
 	test('owns a stable repository domain without acquiring a client at construction', () => {
 		const service = create(async () => { throw new Error('No fetch expected'); });
@@ -90,9 +88,9 @@ suite('GitHub public repository files', () => {
 		assert.deepStrictEqual({ apiBases: service.apiBases, reads: service.reads }, { apiBases: [], reads: [] });
 	});
 
-	test('pins Contents to HEAD, decodes wrapped base64, and releases its anonymous lease and cancellation listener', () => runWithFakedTimers({}, async () => {
+	test('pins Contents to HEAD, decodes wrapped base64, and shares the caller signal while releasing its anonymous lease', () => runWithFakedTimers({}, async () => {
 		const requests: Request[] = [];
-		const token = store.add(new CancellationTokenSource());
+		const controller = new AbortController();
 		const startedAt = Date.now();
 		const service = create(async (input, init) => {
 			requests.push(new Request(input, init));
@@ -105,19 +103,18 @@ suite('GitHub public repository files', () => {
 			return new Response(JSON.stringify(response));
 		});
 		try {
-			const result = await read(service, token.token);
-			token.cancel();
+			const result = await read(service, controller.signal);
 			assert.deepStrictEqual({
 				result,
 				apiBases: service.apiBases,
 				releasedClients: service.releasedClients,
-				reads: service.reads.map(read => ({ path: read.path, options: read.options, aborted: read.signal.aborted })),
+				reads: service.reads.map(read => ({ path: read.path, options: read.options, sameSignal: read.signal === controller.signal, aborted: read.signal.aborted })),
 				requests: requests.map(request => ({ url: request.url, method: request.method, credentials: request.credentials, authorization: request.headers.get('authorization') })),
 			}, {
 				result: { commitSha, content },
 				apiBases: [apiBaseUri],
 				releasedClients: 1,
-				reads: paths.map(path => ({ path, options: { caller: 'github.query', priority: 'interactive', deadline: startedAt + 5 * 60_000 }, aborted: false })),
+				reads: paths.map(path => ({ path, options: { caller: 'github.query', priority: 'interactive', deadline: startedAt + 5 * 60_000 }, sameSignal: true, aborted: false })),
 				requests: paths.map(path => ({ url: `${apiBaseUri}${path}`, method: 'GET', credentials: 'omit', authorization: null })),
 			});
 		} finally {
@@ -157,10 +154,8 @@ suite('GitHub public repository files', () => {
 		['decoded size mismatch', { ...validFile, size: 2, content: 'YQ==' }],
 	] as const) {
 		test(`rejects ${name} file responses without following download_url`, async () => {
-			const token = store.add(new CancellationTokenSource());
 			const service = create(async input => new Response(JSON.stringify(String(input).endsWith('/commits/HEAD') ? { sha: commitSha } : response)));
-			await assert.rejects(read(service, token.token), { kind: 'malformedResponse' });
-			token.cancel();
+			await assert.rejects(read(service), { kind: 'malformedResponse' });
 			assert.deepStrictEqual({
 				paths: service.reads.map(read => read.path), released: service.releasedClients, aborted: service.reads.map(read => read.signal.aborted),
 			}, { paths, released: 1, aborted: [false, false] });
@@ -183,15 +178,20 @@ suite('GitHub public repository files', () => {
 		assert.deepStrictEqual({ paths: service.reads.map(read => read.path), released: service.releasedClients }, { paths, released: 1 });
 	});
 
-	test('cancellation before acquisition performs no reads', async () => {
-		const service = create(async () => { throw new Error('No fetch expected'); });
-		await assert.rejects(read(service, CancellationToken.Cancelled), CancellationError);
-		assert.deepStrictEqual({ apiBases: service.apiBases, reads: service.reads, released: service.releasedClients }, { apiBases: [], reads: [], released: 0 });
-	});
+	for (const [name, reason] of [['default', undefined], ['custom', new Error('Caller cancelled')], ['non-error', { cancelled: true }]] as const) {
+		test(`cancellation before acquisition preserves the ${name} abort reason without reads`, async () => {
+			const service = create(async () => { throw new Error('No fetch expected'); });
+			const controller = new AbortController();
+			controller.abort(reason);
+			await assert.rejects(read(service, controller.signal), error => error === controller.signal.reason);
+			assert.deepStrictEqual({ apiBases: service.apiBases, reads: service.reads, released: service.releasedClients }, { apiBases: [], reads: [], released: 0 });
+		});
+	}
 
 	for (const cancelledRead of [1, 2]) {
-		test(`cancels read ${cancelledRead} and releases the lease`, async () => {
-			const token = store.add(new CancellationTokenSource());
+		test(`cancels read ${cancelledRead}, preserves the abort reason and releases the lease`, async () => {
+			const controller = new AbortController();
+			const reason = new Error('Caller cancelled');
 			const started = new DeferredPromise<AbortSignal>();
 			let calls = 0;
 			const service = create(async (_input, init) => {
@@ -203,25 +203,26 @@ suite('GitHub public repository files', () => {
 				await started.complete(signal);
 				return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
 			});
-			const rejected = assert.rejects(read(service, token.token), CancellationError);
+			const rejected = assert.rejects(read(service, controller.signal), error => error === reason);
 			const signal = await started.p;
-			token.cancel();
+			controller.abort(reason);
 			await rejected;
 			assert.deepStrictEqual({ calls, aborted: signal.aborted, released: service.releasedClients }, { calls: cancelledRead, aborted: true, released: 1 });
 		});
 	}
 
-	test('removes the cancellation listener when client acquisition fails', async () => {
-		const cancelled = store.add(new Emitter<void>());
+	test('propagates client acquisition failures without aborting the caller signal', async () => {
+		const signal = new AbortController().signal;
 		const error = new GitHubRequestError('Client capacity exceeded', 'overloaded');
 		const service = store.add(new class extends GitHubService {
 			override acquireAnonymousClient(): IReference<IGitHubAnonymousClient> { throw error; }
 		}({ fetch: async () => { throw new Error('No fetch expected'); } }, new NullLogService(), NullTelemetryService));
-		await assert.rejects(read(service, { isCancellationRequested: false, onCancellationRequested: cancelled.event }), error);
-		assert.strictEqual(cancelled.hasListeners(), false);
+		await assert.rejects(read(service, signal), error);
+		assert.strictEqual(signal.aborted, false);
 	});
 
 	test('disposing the owning service aborts domain reads and releases the lease', async () => {
+		const controller = new AbortController();
 		const started = new DeferredPromise<AbortSignal>();
 		const service = create(async (_input, init) => {
 			assert.ok(init?.signal);
@@ -229,11 +230,11 @@ suite('GitHub public repository files', () => {
 			await started.complete(signal);
 			return new Promise<Response>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
 		});
-		const rejected = assert.rejects(read(service));
+		const rejected = assert.rejects(read(service, controller.signal));
 		const signal = await started.p;
 		service.dispose();
 		await rejected;
-		assert.deepStrictEqual({ aborted: signal.aborted, released: service.releasedClients }, { aborted: true, released: 1 });
+		assert.deepStrictEqual({ aborted: signal.aborted, callerAborted: controller.signal.aborted, released: service.releasedClients }, { aborted: true, callerAborted: false, released: 1 });
 	});
 
 	test('the second read expires at the original operation deadline', () => runWithFakedTimers({}, async () => {
