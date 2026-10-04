@@ -153,22 +153,80 @@ export class AutoClosingOpenCharTypeOperation {
 		if (!isDoingComposition) {
 			const autoClosingPairClose = this.getAutoClosingPairClose(config, model, selections, ch, chIsAlreadyTyped);
 			if (autoClosingPairClose !== null) {
-				return this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPairClose);
+				return this._runAutoClosingOpenCharType(config, model, selections, ch, chIsAlreadyTyped, autoClosingPairClose);
 			}
 		}
 		return;
 	}
 
-	private static _runAutoClosingOpenCharType(selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
-			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
+			// Apply the enter action to close characters that start a new line, so that the new line is indented like after typing Enter.
+			const closeCharacter = this._getCloseCharacterWithEnterAction(config, model, selection, ch, chIsAlreadyTyped, autoClosingPairClose);
+			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, closeCharacter);
 		}
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: false
 		});
+	}
+
+	private static _getCloseCharacterWithEnterAction(config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string, chIsAlreadyTyped: boolean, closeCharacter: string): string {
+		if (config.autoIndent === EditorAutoIndentStrategy.None) {
+			return closeCharacter;
+		}
+		// Only close characters that start a new line are transformed
+		let lineBreakLength = 0;
+		if (closeCharacter.charCodeAt(0) === CharCode.LineFeed) {
+			lineBreakLength = 1;
+		} else if (closeCharacter.charCodeAt(0) === CharCode.CarriageReturn) {
+			lineBreakLength = closeCharacter.charCodeAt(1) === CharCode.LineFeed ? 2 : 1;
+		}
+		if (lineBreakLength === 0) {
+			return closeCharacter;
+		}
+		const closeRest = closeCharacter.substring(lineBreakLength);
+		const position = selection.getPosition();
+		// The position of the typed open character, which is still part of this edit
+		const enterColumn = position.column + (chIsAlreadyTyped ? 0 : ch.length);
+		const lineText = model.getLineContent(position.lineNumber);
+		if (config.autoIndent === EditorAutoIndentStrategy.Keep || !model.tokenization.isCheapToTokenize(position.lineNumber)) {
+			const indentation = strings.getLeadingWhitespace(lineText).substring(0, Math.min(enterColumn - 1, lineText.length));
+			return '\n' + config.normalizeIndentation(indentation) + closeRest;
+		}
+		const languageConfiguration = config.languageConfigurationService.getLanguageConfiguration(model.getLanguageIdAtPosition(position.lineNumber, position.column));
+		if (!languageConfiguration) {
+			return closeCharacter;
+		}
+		// The open character is part of this edit, so include it in the text before the enter position
+		const beforeEnterText = lineText.substring(0, position.column - 1) + (chIsAlreadyTyped ? '' : ch);
+		const previousLineText = position.lineNumber > 1 ? model.getLineContent(position.lineNumber - 1) : '';
+		const afterEnterText = lineText.substring(position.column - 1);
+		const enterAction = languageConfiguration.onEnter(config.autoIndent, previousLineText, beforeEnterText, afterEnterText);
+		if (!enterAction) {
+			const indentation = getIndentationAtPosition(model, position.lineNumber, enterColumn);
+			return '\n' + config.normalizeIndentation(indentation) + closeRest;
+		}
+		if (enterAction.indentAction === IndentAction.IndentOutdent) {
+			// The extra line inserted by IndentOutdent does not apply to auto-closed characters
+			return closeCharacter;
+		}
+		let appendText = enterAction.appendText;
+		if (!appendText) {
+			appendText = enterAction.indentAction === IndentAction.Indent ? '\t' : '';
+		} else if (enterAction.indentAction === IndentAction.Indent) {
+			appendText = '\t' + appendText;
+		}
+		let indentation = getIndentationAtPosition(model, position.lineNumber, enterColumn);
+		if (enterAction.removeText) {
+			indentation = indentation.substring(0, indentation.length - enterAction.removeText);
+		}
+		if (enterAction.indentAction === IndentAction.Outdent) {
+			return '\n' + config.normalizeIndentation(unshiftIndent(config, indentation) + appendText) + closeRest;
+		}
+		return '\n' + config.normalizeIndentation(indentation + appendText) + closeRest;
 	}
 
 	public static getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
@@ -922,14 +980,28 @@ export class BaseTypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCurs
 		// ranges are computed by walking character offsets, not column offsets.
 		const endPosition = range.getEndPosition();
 		this.closeCharacterRange = Range.fromPositions(
-			getPositionWithCharacterOffset(model, endPosition, -this._closeCharacter.length),
+			getPositionWithCharacterOffset(model, endPosition, -getCharacterCount(this._closeCharacter)),
 			endPosition
 		);
 		this.enclosingRange = Range.fromPositions(
-			getPositionWithCharacterOffset(model, endPosition, -this._openCharacter.length - this._closeCharacter.length),
+			getPositionWithCharacterOffset(model, endPosition, -getCharacterCount(this._openCharacter) - getCharacterCount(this._closeCharacter)),
 			endPosition
 		);
 	}
+}
+
+/**
+ * The number of characters in the text, where a CRLF line break counts as a
+ * single character, matching how the model stores inserted line breaks.
+ */
+function getCharacterCount(text: string): number {
+	let count = text.length;
+	for (let i = 0; i + 1 < text.length; i++) {
+		if (text.charCodeAt(i) === CharCode.CarriageReturn && text.charCodeAt(i + 1) === CharCode.LineFeed) {
+			count--;
+		}
+	}
+	return count;
 }
 
 /**

@@ -5120,6 +5120,51 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338692: enter rules are applied to the line of an auto-closed close character', () => {
+		const languageId = 'multiLineAutoClosingLanguage2';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin', close: '\nend' }],
+			onEnterRules: [
+				{
+					beforeText: /^begin$/,
+					action: { indentAction: IndentAction.Indent }
+				}
+			]
+		}));
+		const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+		disposables.add(TokenizationRegistry.register(languageId, {
+			getInitialState: () => NullState,
+			tokenize: undefined!,
+			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+				if (line.length === 0) {
+					return new EncodedTokenizationResult(new Uint32Array(0), [], state);
+				}
+				const result = new Uint32Array(2);
+				result[0] = 0;
+				result[1] = (encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+					| (StandardTokenType.Other << MetadataConsts.TOKEN_TYPE_OFFSET);
+				return new EncodedTokenizationResult(result, [], state);
+			}
+		}));
+		usingCursor({
+			text: [''],
+			languageId: languageId,
+			modelOpts: { tabSize: 4, insertSpaces: true }
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(1);
+			for (const ch of ['b', 'e', 'g', 'i', 'n']) {
+				viewModel.type(ch, 'keyboard');
+			}
+			model.tokenization.forceTokenization(1);
+			model.tokenization.forceTokenization(2);
+			assert.strictEqual(model.getLineContent(1), 'begin');
+			// the enter rule indents the line of the auto-closed close character
+			assert.strictEqual(model.getLineContent(2), '    end');
+			assert.deepStrictEqual(viewModel.getSelection(), new Selection(1, 6, 1, 6));
+		});
+	});
+
 	test('autoClosingPairs - open parens disabled/enabled open quotes enabled/disabled', () => {
 		usingCursor({
 			text: [
