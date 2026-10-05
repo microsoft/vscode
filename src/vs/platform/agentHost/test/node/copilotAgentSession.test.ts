@@ -39,7 +39,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -20315,6 +20315,36 @@ Use the attached image as context.
 			session.markConnectorConfigurationChanged();
 
 			assert.strictEqual(session.requiresMcpLaunchConfigurationRefresh, true);
+		});
+
+		test('republishes pending connector authentication when display names become available', async () => {
+			const runtimeServerId = 'github-copilot-connector-94d26095770df60673dd';
+			const resource = 'https://api.github.com';
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-connector',
+				serverName: runtimeServerId,
+				serverUrl: resource,
+				reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			const beforeDisplayName = readMcpServerDisplayName(session.topLevelMcpCustomizations()[0]);
+			runtime.setMcpServerDisplayNames(new Map([[runtimeServerId, 'GitHub']]));
+			const [server] = session.topLevelMcpCustomizations();
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
+
+			assert.deepStrictEqual({
+				beforeDisplayName,
+				name: server.name,
+				displayName: readMcpServerDisplayName(server),
+				result: await authPromise,
+			}, {
+				beforeDisplayName: undefined,
+				name: runtimeServerId,
+				displayName: 'GitHub',
+				result: { kind: 'token', accessToken: 'connector-token' },
+			});
 		});
 
 		test('MCP authentication only clears auth-required after all matching server challenges resolve', async () => {
