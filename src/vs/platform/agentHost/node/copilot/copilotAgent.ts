@@ -5816,17 +5816,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Whether switching a live session between these models changes its system
-	 * prompt. The prompt is resolved once at launch, and the opt-in Claude Opus
-	 * prompt experiments apply to Opus sessions only, so a switch into or out
-	 * of Opus with one of them on leaves a prompt written for the other model:
+	 * prompt. The prompt is resolved once at launch, and the opt-in subagent
+	 * model guidance applies to Claude Opus sessions only, so a switch into or
+	 * out of Opus with it on leaves a prompt written for the other model:
 	 * guidance to delegate to "lighter" models that are heavier than a Haiku
-	 * session's own, or no experiment at all for a session that became Opus.
+	 * session's own, or no guidance at all for a session that became Opus.
 	 */
 	private _modelChangeAltersSystemPrompt(previousModelId: string | undefined, nextModelId: string): boolean {
 		const subagentModelGuidance = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentModelGuidance);
-		const experimentOn = (subagentModelGuidance !== undefined && subagentModelGuidance !== 'off')
-			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.OmitVerificationInstructions) === true;
-		if (!experimentOn) {
+		if (subagentModelGuidance === undefined || subagentModelGuidance === 'off') {
 			return false;
 		}
 		// Same resolution the launcher uses to pick the prompt contributor: a

@@ -16541,7 +16541,7 @@ suite('CopilotAgent', () => {
 					return chatSession.rec.modelRestartRequests;
 				};
 
-				// Experiments off: the prompt does not depend on the model family.
+				// Guidance off: the prompt does not depend on the model family.
 				const offOpusToHaiku = await change('claude-haiku-4.5');
 				const offHaikuToOpus = await change('claude-opus-5.5');
 

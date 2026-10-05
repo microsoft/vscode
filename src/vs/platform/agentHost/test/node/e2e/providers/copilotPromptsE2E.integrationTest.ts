@@ -31,7 +31,7 @@ import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { CopilotCliConfigKey, type SubagentModelGuidanceSetting } from '../../../../common/copilotCliConfig.js';
-import { narrowSubagentHarnessDefaultsRule, omitCodeChangeVerification, omitLastInstructionsVerification, subagentModelGuidanceLines } from '../../../../node/copilot/prompts/promptExperiments.js';
+import { narrowSubagentHarnessDefaultsRule, subagentModelGuidanceLines } from '../../../../node/copilot/prompts/promptExperiments.js';
 import { COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../../../node/copilot/prompts/toolInstructions.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
@@ -225,11 +225,11 @@ suite('Agent Host E2E — Copilot prompts', function () {
 		});
 	});
 
-	// The prompt experiments edit sentences the SDK owns, through section
-	// transforms the SDK applies. This is the only place that sees the result:
+	// Subagent model guidance edits a sentence the SDK owns, through a section
+	// transform the SDK applies. This is the only place that sees the result:
 	// it fails if an edit lands in the wrong section, changes more than its own
 	// sentence, or stops matching because the foundation prompt was reworded.
-	(process.platform === 'win32' ? test.skip : test)('prompt experiments change only their own sentences in the Claude Opus prompt', async function () {
+	(process.platform === 'win32' ? test.skip : test)('subagent model guidance changes only its own sentences in the Claude Opus prompt', async function () {
 		this.timeout(180_000);
 
 		const model = 'claude-opus-5.5';
@@ -255,13 +255,13 @@ suite('Agent Host E2E — Copilot prompts', function () {
 				createdSessions,
 				URI.file(workspaceDir),
 				undefined,
-				async () => setPromptExperiments(peer, 'sameProvider', true, 10_100),
+				async () => setSubagentModelGuidance(peer, 'sameProvider', 10_100),
 			);
 			await driveTurnWithModel(peer, experimentSessionUri, model);
 			experimentPrompt = lastSystemPrompt();
 		} finally {
 			// The host is shared with the other tests in this file.
-			setPromptExperiments(client, 'off', false, 10_101);
+			setSubagentModelGuidance(client, 'off', 10_101);
 			peer.close();
 		}
 
@@ -269,15 +269,13 @@ suite('Agent Host E2E — Copilot prompts', function () {
 		assert.ok(guidance);
 		const toolsIntro = 'You have access to several tools. Below are additional guidelines on how to use some of them effectively:';
 		const edits: readonly [name: string, edit: (prompt: string) => string][] = [
-			// Not an edit the experiments ask for: when the `tool_instructions`
+			// Not an edit the experiment asks for: when the `tool_instructions`
 			// group is transformed, the runtime renders the group's intro sentence
 			// inside `<tools>` instead of before it. A transform cannot avoid
 			// that, so it is pinned here as the one known side effect.
 			['runtime moves the tools intro inside the tag', prompt => prompt.replace(`${toolsIntro}\n<tools>\n`, `<tools>${toolsIntro}\n\n`)],
 			['narrows the harness-defaults rule', narrowSubagentHarnessDefaultsRule],
 			['replaces the host model lines', prompt => prompt.replace(COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, guidance)],
-			['drops the code-change verification bullet', omitCodeChangeVerification],
-			['drops the closing verification mandates', omitLastInstructionsVerification],
 		];
 		let expected = defaultPrompt;
 		const found: Record<string, boolean> = {};
@@ -295,17 +293,11 @@ suite('Agent Host E2E — Copilot prompts', function () {
 	});
 });
 
-function setPromptExperiments(c: TestProtocolClient, subagentModelGuidance: SubagentModelGuidanceSetting, omitVerificationInstructions: boolean, clientSeq: number): void {
+function setSubagentModelGuidance(c: TestProtocolClient, subagentModelGuidance: SubagentModelGuidanceSetting, clientSeq: number): void {
 	c.dispatch({
 		channel: ROOT_STATE_URI,
 		clientSeq,
-		action: {
-			type: ActionType.RootConfigChanged,
-			config: {
-				[CopilotCliConfigKey.SubagentModelGuidance]: subagentModelGuidance,
-				[CopilotCliConfigKey.OmitVerificationInstructions]: omitVerificationInstructions,
-			},
-		},
+		action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.SubagentModelGuidance]: subagentModelGuidance } },
 	});
 }
 

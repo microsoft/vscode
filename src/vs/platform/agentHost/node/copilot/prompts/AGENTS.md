@@ -7,8 +7,8 @@ This directory customizes the system prompt for Copilot CLI **agent host** (ahp+
 - `promptRegistry.ts` — `AgentHostPromptRegistry`: resolves the final `SystemMessageConfig` for a session's model. Defines the `IAgentHostPrompt` contributor interface and the `IAgentHostPromptContext` read-time context.
 - `systemMessage.ts` — the default message (`COPILOT_AGENT_HOST_SYSTEM_MESSAGE`), shared identity text, the `fullSystemPrompt` / `sectionOverrides` builders, and `describeSystemMessageConfig` (the one-line log summary).
 - `toolInstructions.ts` — the model-agnostic `tool_instructions` layer: gated or unconditional nudges (`TOOL_INSTRUCTION_LINES`) composed into the SDK's `tool_instructions` section, including the default-model guidance for subagents.
-- `anthropicPrompt.ts` — the Claude Opus contributor: applies the opt-in prompt experiments as section transforms.
-- `promptExperiments.ts` — the text edits behind those experiments (see [Prompt experiments](#prompt-experiments)).
+- `anthropicPrompt.ts` — the Claude Opus contributor: applies the opt-in subagent model guidance experiment as a section transform.
+- `promptExperiments.ts` — the text edits behind that experiment (see [Prompt experiments](#prompt-experiments)).
 - `openaiPrompt.ts` — OpenAI targeted post-edit inspection guidance, appended to `code_change_rules` without replacing the SDK foundation prompt.
 - `allPrompts.ts` — side-effect import hub; importing it registers every contributor into the shared `agentHostPromptRegistry`.
 
@@ -85,18 +85,17 @@ This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/
 
 ## Prompt experiments
 
-`promptExperiments.ts` holds opt-in changes to the Claude Opus prompt, applied by the contributor in `anthropicPrompt.ts`. Each changes one thing and has its own setting, off by default and registered for experiment rollout, so an effect can be attributed to it.
+`promptExperiments.ts` holds the one opt-in change to the Claude Opus prompt, applied by the contributor in `anthropicPrompt.ts`. It changes one thing and has its own setting, off by default and registered for experiment rollout, so an effect can be attributed to it.
 
 | Setting | Config key | What it does |
 | --- | --- | --- |
 | `chat.agentHost.subagentModelGuidance` (`off` / `sameProvider` / `crossProvider`) | `SubagentModelGuidance` | Replaces the host's "leave the `task` tool's `model` unset" lines with guidance naming a lightweight and a mid-sized model, and narrows the foundation's "Trust the harness defaults for subagents" rule to `reasoning_effort` and `context_tier`. The two mixes are alternatives, hence one setting. |
-| `chat.agentHost.omitVerificationInstructions.enabled` | `OmitVerificationInstructions` | Removes three general "verify before you finish" sentences from `code_change_rules` and `last_instructions`. Instructions about which checks to run stay. |
 
-Rules these follow, and that a new experiment should too:
+Rules it follows, and that a new experiment should too:
 
 - **Transforms, never `replace`.** The foundation prompt, its guardrails and its per-session content stay; only the named sentences change.
 - **Each edit matches a whole sentence or bullet.** If the foundation rewords it, the edit leaves the text alone instead of mangling its neighbours. That also means it silently stops applying, so `promptExperiments.test.ts` pins every pattern against the foundation text it targets. Refresh those fixtures from a real request when the runtime is updated.
-- **Checked against the real runtime.** `copilotPromptsE2E.integrationTest.ts` runs a replayed Opus turn with the experiments off and on, and asserts the two prompts differ by exactly these edits. It found two things unit tests could not: the runtime wraps a transformed XML section without the newlines inside its tags (the contributor pads the output to restore them), and it renders the `tool_instructions` group's intro sentence inside `<tools>` when the group is transformed. The second cannot be avoided from here and is pinned in that test as a known side effect of subagent model guidance.
+- **Checked against the real runtime.** `copilotPromptsE2E.integrationTest.ts` runs a replayed Opus turn with the experiment off and on, and asserts the two prompts differ by exactly these edits. It found something unit tests could not: the runtime renders the `tool_instructions` group's intro sentence inside `<tools>` when the group is transformed. That cannot be avoided from here and is pinned in that test as a known side effect of subagent model guidance.
 - **No contradictions left behind.** Guidance that reverses an existing instruction removes or narrows that instruction in the same change. One contradiction cannot be removed from here: the `task` tool's `model` parameter has its own "leave unset" description, owned by the runtime, so the guidance says it takes precedence.
 - **Model names go stale.** The mixes name specific models. The durable form is for the runtime to list the models that cost less than the session's.
 

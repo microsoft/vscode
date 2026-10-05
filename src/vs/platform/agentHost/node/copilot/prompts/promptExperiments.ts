@@ -6,15 +6,11 @@
 import type { SubagentModelGuidanceSetting } from '../../../common/copilotCliConfig.js';
 
 /**
- * Opt-in system-prompt experiments for Claude Opus sessions. Each one changes a
- * single thing and has its own setting, so an effect can be attributed to it:
- *
- *  - subagent model guidance ({@link CopilotCliConfigKey.SubagentModelGuidance}):
- *    tells the agent which lighter model to run a subagent on, in place of the
- *    instructions to leave the `task` tool's `model` parameter unset;
- *  - omitting verification instructions
- *    ({@link CopilotCliConfigKey.OmitVerificationInstructions}): removes the
- *    three general "verify before you finish" sentences.
+ * The opt-in system-prompt experiment for Claude Opus sessions: subagent model
+ * guidance ({@link CopilotCliConfigKey.SubagentModelGuidance}). It tells the
+ * agent which lighter model to run a subagent on, in place of the instructions
+ * to leave the `task` tool's `model` parameter unset. It changes that one thing
+ * and has its own setting, so an effect can be attributed to it.
  *
  * Every edit here matches a whole sentence or bullet of the SDK foundation
  * prompt. If the foundation rewords one, the edit leaves the text in place
@@ -88,36 +84,6 @@ const HARNESS_DEFAULTS_RULE_WITHOUT_MODEL = '* For a subagent\'s `reasoning_effo
  */
 export function narrowSubagentHarnessDefaultsRule(content: string): string {
 	return content.replace(HARNESS_DEFAULTS_RULE, HARNESS_DEFAULTS_RULE_WITHOUT_MODEL);
-}
-
-// #endregion
-
-// #region Omitting verification instructions
-
-/**
- * Drops "Validate that your changes preserve existing behavior" from
- * `code_change_rules`. The bullet shares its line with the closing tag in the
- * foundation prompt; either form is handled and the tag is kept.
- */
-export function omitCodeChangeVerification(content: string): string {
-	return content
-		.replace(/\r?\n\* Validate that your changes preserve existing behavior(?=<\/rules_for_code_changes>)/, '')
-		.replace(/^\* Validate that your changes preserve existing behavior\r?\n/m, '');
-}
-
-/**
- * Drops the two general verification mandates from `last_instructions`: the
- * closing sentence of the "deliver complete, working solutions" paragraph and
- * the first `<task_completion>` bullet.
- *
- * Kept on purpose: "After starting a background process, verify it is running
- * and responsive", which covers a different situation, and everything about
- * which checks to run.
- */
-export function omitLastInstructionsVerification(content: string): string {
-	return content
-		.replace(/(Don't settle for partial fixes\.) Verify your changes actually work before considering the task done\./, '$1')
-		.replace(/^\* A task is not complete until the expected outcome is verified and persistent\r?\n/m, '');
 }
 
 // #endregion

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isClaudeOpusModelId, narrowSubagentHarnessDefaultsRule, omitCodeChangeVerification, omitLastInstructionsVerification, subagentModelGuidanceLines } from '../../node/copilot/prompts/promptExperiments.js';
+import { isClaudeOpusModelId, narrowSubagentHarnessDefaultsRule, subagentModelGuidanceLines } from '../../node/copilot/prompts/promptExperiments.js';
 
 /**
  * The edits in `promptExperiments.ts` match sentences of the SDK foundation
@@ -23,29 +23,6 @@ suite('promptExperiments', () => {
 		'* Prefer custom agents over built-ins.',
 		'* Trust the harness defaults for subagents. Specify a value only when the user\'s current request or applicable persistent custom instructions (including global instructions) explicitly require that value for the subagent. Do not reuse values from earlier requests or infer unspecified values from the parent configuration. The runtime resolves `/subagents` preferences when these fields are omitted; do not copy them merely because they appear in `<subagent_model_preferences>`.',
 		'* Give a bounded objective/stop; request execution, not advice.',
-	].join('\n');
-
-	const FOUNDATION_CODE_CHANGE_RULES = [
-		'<rules_for_code_changes>',
-		'* Make precise, complete, surgical changes that fully address the request; prefer completeness over a minimal but incomplete fix, and avoid unrelated changes.',
-		'* Don\'t fix unrelated pre-existing issues, but do fix bugs caused by or tightly coupled to your changes.',
-		'* Update directly related documentation.',
-		'* Validate that your changes preserve existing behavior</rules_for_code_changes>',
-		'<linting_building_testing>',
-		'* Use existing linters, builds, and tests; add tooling only when the task requires it.',
-		'</linting_building_testing>',
-	].join('\n');
-
-	const FOUNDATION_LAST_INSTRUCTIONS = [
-		'Your goal is to deliver complete, working solutions. If your first approach doesn\'t fully solve the problem, iterate with alternative approaches. Don\'t settle for partial fixes. Verify your changes actually work before considering the task done.',
-		'',
-		'<task_completion>',
-		'* A task is not complete until the expected outcome is verified and persistent',
-		'* Install or restore dependencies only after changing dependency manifests or when the chosen validation command fails because packages/tools are missing.',
-		'* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)',
-		'* If an initial approach fails, try alternative tools or methods before concluding the task is impossible',
-		'</task_completion>',
-		'Respond concisely to the user, but be thorough in your work.',
 	].join('\n');
 
 	test('isClaudeOpusModelId matches dashed and dotted Opus ids only', () => {
@@ -86,43 +63,8 @@ suite('promptExperiments', () => {
 		].join('\n'));
 	});
 
-	test('omitCodeChangeVerification drops the bullet and keeps the closing tag', () => {
-		assert.strictEqual(omitCodeChangeVerification(FOUNDATION_CODE_CHANGE_RULES), [
-			'<rules_for_code_changes>',
-			'* Make precise, complete, surgical changes that fully address the request; prefer completeness over a minimal but incomplete fix, and avoid unrelated changes.',
-			'* Don\'t fix unrelated pre-existing issues, but do fix bugs caused by or tightly coupled to your changes.',
-			'* Update directly related documentation.</rules_for_code_changes>',
-			'<linting_building_testing>',
-			'* Use existing linters, builds, and tests; add tooling only when the task requires it.',
-			'</linting_building_testing>',
-		].join('\n'));
-	});
-
-	test('omitCodeChangeVerification also handles the bullet on a line of its own', () => {
-		assert.strictEqual(
-			omitCodeChangeVerification('<rules_for_code_changes>\n* Validate that your changes preserve existing behavior\n* Update directly related documentation.\n</rules_for_code_changes>'),
-			'<rules_for_code_changes>\n* Update directly related documentation.\n</rules_for_code_changes>'
-		);
-	});
-
-	test('omitLastInstructionsVerification drops the two mandates and keeps the rest', () => {
-		assert.strictEqual(omitLastInstructionsVerification(FOUNDATION_LAST_INSTRUCTIONS), [
-			'Your goal is to deliver complete, working solutions. If your first approach doesn\'t fully solve the problem, iterate with alternative approaches. Don\'t settle for partial fixes.',
-			'',
-			'<task_completion>',
-			'* Install or restore dependencies only after changing dependency manifests or when the chosen validation command fails because packages/tools are missing.',
-			'* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)',
-			'* If an initial approach fails, try alternative tools or methods before concluding the task is impossible',
-			'</task_completion>',
-			'Respond concisely to the user, but be thorough in your work.',
-		].join('\n'));
-	});
-
-	test('each edit leaves text it does not recognize alone', () => {
-		const reworded = '* Check that behavior is preserved.\n* Rely on harness defaults for subagents.\nMake sure it works before you stop.';
-		assert.deepStrictEqual(
-			[narrowSubagentHarnessDefaultsRule(reworded), omitCodeChangeVerification(reworded), omitLastInstructionsVerification(reworded)],
-			[reworded, reworded, reworded]
-		);
+	test('the edit leaves text it does not recognize alone', () => {
+		const reworded = '* Prefer custom agents over built-ins.\n* Rely on harness defaults for subagents.';
+		assert.strictEqual(narrowSubagentHarnessDefaultsRule(reworded), reworded);
 	});
 });

@@ -35,8 +35,6 @@ export const enum CopilotCliConfigKey {
 	LocalIndexEnabled = 'localIndexEnabled',
 	/** On Claude Opus models, tell the agent which lighter model to run a subagent on. Off by default. */
 	SubagentModelGuidance = 'subagentModelGuidance',
-	/** On Claude Opus models, drop the system prompt's general instructions to verify work before finishing. Off by default. */
-	OmitVerificationInstructions = 'omitVerificationInstructions',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -73,8 +71,6 @@ export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
 export const AgentHostSubagentModelGuidanceSettingId = 'chat.agentHost.subagentModelGuidance';
-
-export const AgentHostOmitVerificationInstructionsEnabledSettingId = 'chat.agentHost.omitVerificationInstructions.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -239,12 +235,6 @@ export const copilotCliConfigSchema = createSchema({
 			localize('agentHost.config.subagentModelGuidance.crossProvider', "Cross Provider"),
 		],
 		default: 'off',
-	}),
-	[CopilotCliConfigKey.OmitVerificationInstructions]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.omitVerificationInstructions.title', "Omit Verification Instructions"),
-		description: localize('agentHost.config.omitVerificationInstructions.description', "When enabled, Copilot SDK sessions running a Claude Opus model drop the system prompt's general instructions to verify work before finishing. Instructions about which checks to run are kept."),
-		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
 		type: 'boolean',

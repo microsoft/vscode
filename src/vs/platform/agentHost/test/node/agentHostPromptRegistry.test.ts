@@ -168,11 +168,11 @@ suite('AgentHostPromptRegistry', () => {
 		registry.registerPrompt(class {
 			static readonly familyPrefixes = ['claude'];
 			resolveSectionOverrides(_model: ModelSelection, ctx: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-				return ctx.getSetting(CopilotCliConfigKey.OmitVerificationInstructions) === true ? { tone: { action: 'append', content: 'GATED' } } : undefined;
+				return ctx.getSetting(CopilotCliConfigKey.SubagentModelGuidance) === 'sameProvider' ? { tone: { action: 'append', content: 'GATED' } } : undefined;
 			}
 		});
 		assert.deepStrictEqual(
-			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.OmitVerificationInstructions]: true })),
+			registry.resolveSystemMessageConfig({ id: 'claude-x' }, context({ [CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider' })),
 			withUniversalAgentHostInstructions({
 				mode: 'customize',
 				sections: {
@@ -190,19 +190,15 @@ suite('AgentHostPromptRegistry', () => {
 	suite('Claude Opus contributor (registered via allPrompts)', () => {
 		const opusModel: ModelSelection = { id: 'claude-opus-5.5' };
 		const DEFAULT = withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE);
-		const DEFAULT_TOOL_INSTRUCTIONS: SectionOverride = { action: 'append', content: `\n${UNCONDITIONAL_TOOL_INSTRUCTIONS}` };
 
 		async function applyTransform(override: SectionOverride | undefined, content: string): Promise<string> {
 			assert.ok(override && typeof override.action === 'function');
 			return override.action(content);
 		}
 
-		test('contributes nothing when both experiments are off', () => {
+		test('contributes nothing when subagent model guidance is off', () => {
 			assert.deepStrictEqual(agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context()), DEFAULT);
-			assert.deepStrictEqual(agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context({
-				[CopilotCliConfigKey.SubagentModelGuidance]: 'off',
-				[CopilotCliConfigKey.OmitVerificationInstructions]: false,
-			})), DEFAULT);
+			assert.deepStrictEqual(agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context({ [CopilotCliConfigKey.SubagentModelGuidance]: 'off' })), DEFAULT);
 		});
 
 		test('subagent model guidance swaps the "leave model unset" lines for the guidance and narrows the foundation rule', async () => {
@@ -225,35 +221,19 @@ suite('AgentHostPromptRegistry', () => {
 			);
 		});
 
-		test('omitting verification instructions edits only the two sections that carry them', async () => {
-			const config = agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context({ [CopilotCliConfigKey.OmitVerificationInstructions]: true }));
+		test('the cross-provider mix overrides the same sections and names its own models', async () => {
+			const config = agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context({ [CopilotCliConfigKey.SubagentModelGuidance]: 'crossProvider' }));
 			assert.ok(config.mode === 'customize');
-			// `tool_instructions` is the universal layer every model gets, unchanged.
+			const guidance = subagentModelGuidanceLines('crossProvider', opusModel.id);
+			assert.ok(guidance);
 			assert.deepStrictEqual(
-				{ sections: Object.keys(config.sections ?? {}).sort(), toolInstructions: config.sections?.tool_instructions },
-				{ sections: ['code_change_rules', 'identity', 'last_instructions', 'tool_instructions'], toolInstructions: DEFAULT_TOOL_INSTRUCTIONS }
+				{ sections: Object.keys(config.sections ?? {}).sort(), toolInstructions: await applyTransform(config.sections?.tool_instructions, '<task>\n</task>') },
+				{ sections: ['identity', 'tool_instructions'], toolInstructions: `<task>\n</task>\n\n${COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION}\n${guidance}` }
 			);
-			assert.deepStrictEqual({
-				codeChangeRules: await applyTransform(config.sections?.code_change_rules, '<rules_for_code_changes>\n* Update directly related documentation.\n* Validate that your changes preserve existing behavior</rules_for_code_changes>'),
-				lastInstructions: await applyTransform(config.sections?.last_instructions, 'Don\'t settle for partial fixes. Verify your changes actually work before considering the task done.\n\n<task_completion>\n* A task is not complete until the expected outcome is verified and persistent\n* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)\n</task_completion>'),
-			}, {
-				// Padded so the runtime's XML wrapper keeps a newline inside each tag.
-				codeChangeRules: '\n<rules_for_code_changes>\n* Update directly related documentation.</rules_for_code_changes>\n',
-				lastInstructions: 'Don\'t settle for partial fixes.\n\n<task_completion>\n* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)\n</task_completion>',
-			});
-		});
-
-		test('both experiments compose, each on its own sections', () => {
-			const config = agentHostPromptRegistry.resolveSystemMessageConfig(opusModel, context({
-				[CopilotCliConfigKey.SubagentModelGuidance]: 'crossProvider',
-				[CopilotCliConfigKey.OmitVerificationInstructions]: true,
-			}));
-			assert.ok(config.mode === 'customize');
-			assert.deepStrictEqual(Object.keys(config.sections ?? {}).sort(), ['code_change_rules', 'identity', 'last_instructions', 'tool_instructions']);
 		});
 
 		test('does not apply to other Claude models', () => {
-			const settings = { [CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider' as const, [CopilotCliConfigKey.OmitVerificationInstructions]: true };
+			const settings = { [CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider' as const };
 			for (const id of ['claude-sonnet-5.5', 'claude-haiku-4.5']) {
 				assert.deepStrictEqual(agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context(settings)), DEFAULT, id);
 			}
@@ -332,10 +312,11 @@ suite('AgentHostPromptRegistry', () => {
 			const family = resolveModelCapabilityOverrideField(overrides, 'preview-model-x', 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined);
 			const result = agentHostPromptRegistry.resolveSystemMessageConfig(
 				{ id: 'preview-model-x', ...(family ? { id: family } : {}) },
-				context({ [CopilotCliConfigKey.OmitVerificationInstructions]: true })
+				context({ [CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider' })
 			);
 			assert.ok(result.mode === 'customize');
-			assert.ok(result.sections?.last_instructions);
+			// Only the Claude Opus contributor transforms this section; every other model gets an append.
+			assert.strictEqual(typeof result.sections?.tool_instructions?.action, 'function');
 		});
 	});
 
