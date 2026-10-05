@@ -151,7 +151,9 @@ export class SessionBackgroundShellsControl extends Disposable {
 				disposable: output ? content.releaseOutput : undefined,
 				expandable: true,
 				alignToParentBottom: true,
-				panelClassName: 'chat-pill-location-hover-panel',
+				// Dropdown pills cache hovers that use the location panel class and release them
+				// when the row's description changes, which the elapsed time does every second.
+				panelClassName: 'chat-pill-background-shell-hover-panel',
 			},
 			open: () => { },
 		};

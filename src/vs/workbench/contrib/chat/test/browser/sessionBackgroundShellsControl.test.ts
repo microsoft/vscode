@@ -6,19 +6,27 @@
 import assert from 'assert';
 import { isHTMLElement } from '../../../../../base/browser/dom.js';
 import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import type { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { ActionListItemKind, type IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ChatDropdownPillActionViewItem } from '../../../../browser/chatDropdownPill.js';
+import type { IChatPillEntry } from '../../../../browser/chatPills.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IDetachedTerminalInstance, IDetachedXtermTerminal, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
+import { sessionBackgroundShellsPillOptions } from '../../browser/sessionChatPillOptions.js';
 import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../../common/sessionChatPills.js';
 
 suite('SessionBackgroundShellsControl', () => {
@@ -211,6 +219,69 @@ suite('SessionBackgroundShellsControl', () => {
 			sizes: ['80x10'],
 			reused: true,
 			released: true,
+		});
+	});
+
+	test('keeps the open output while the picker refreshes the elapsed time', async () => {
+		const services = workbenchInstantiationService(undefined, store);
+		const terminals = { created: 0, disposed: 0 };
+		services.stub(ITerminalService, new class extends mock<ITerminalService>() {
+			override async createDetachedTerminal(): Promise<IDetachedTerminalInstance> {
+				terminals.created++;
+				return new class extends mock<IDetachedTerminalInstance>() {
+					override readonly xterm = new class extends mock<IDetachedXtermTerminal>() {
+						override write(): void { }
+						override resize(): void { }
+					}();
+					override attachToElement(): void { }
+					override dispose(): void { terminals.disposed++; }
+				}();
+			}
+		}());
+		services.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+			override getOpenAriaHint(): string | null { return null; }
+		}());
+		let items: readonly IActionListItem<IChatPillEntry>[] = [];
+		services.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() {
+			override get isVisible(): boolean { return false; }
+			override show<T>(_user: string, _supportsPreview: boolean, shownItems: readonly IActionListItem<T>[]): void { items = shownItems as readonly IActionListItem<IChatPillEntry>[]; }
+			override updateItems<T>(updated: readonly IActionListItem<T>[]): void { items = updated as readonly IActionListItem<IChatPillEntry>[]; }
+			override hide(): void { }
+		}());
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		await runWithFakedTimers({}, async () => {
+			const disposables = new DisposableStore();
+			const shells = constObservable<readonly IChatBackgroundShell[]>([{
+				id: 'hello', description: 'Print hello', command: 'while true; do echo hello; sleep 1; done',
+				startedAt: new Date(0).toISOString(), output: observableValue<ChatBackgroundShellOutput>('output', { status: 'running', text: 'hello\n' }),
+			}]);
+			const control = disposables.add(services.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+			const pill = disposables.add(services.createInstance(ChatDropdownPillActionViewItem, disposables.add(new Action('shells', 'Background Shells')), {}, control.sections, sessionBackgroundShellsPillOptions));
+			pill.render(container);
+			container.querySelector<HTMLElement>('.chat-pill-button')!.click();
+			// The picker builds the details when they open, then reads them again to keep the panel open when its items refresh.
+			const getShell = () => items.find(item => item.kind === ActionListItemKind.Action);
+			const showDetails = () => {
+				const content = getShell()?.hover?.content;
+				return typeof content === 'function' ? content().querySelector('.chat-background-shell-output') : undefined;
+			};
+			const shown = showDetails();
+			await timeout(1100);
+			const badge = getShell()?.badge;
+			const refreshed = showDetails();
+			const terminalsAfterRefresh = { ...terminals };
+			getShell()?.hover?.disposable?.dispose();
+			disposables.dispose();
+
+			assert.deepStrictEqual({ badge, opened: !!shown, sameOutput: refreshed === shown, terminals: terminalsAfterRefresh }, {
+				badge: '1s',
+				opened: true,
+				sameOutput: true,
+				terminals: { created: 1, disposed: 0 },
+			});
 		});
 	});
 });

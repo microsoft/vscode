@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Shared workbench chat-pill presentation. */
-.chat-pill-location-hover-panel .action-list-submenu-hover-header {
+.chat-pill-location-hover-panel .action-list-submenu-hover-header,
+.chat-pill-background-shell-hover-panel .action-list-submenu-hover-header {
 	width: min(420px, 70vw);
 	max-width: 100%;
 }
