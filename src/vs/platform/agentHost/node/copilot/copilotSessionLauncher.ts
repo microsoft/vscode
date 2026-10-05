@@ -616,6 +616,9 @@ export async function synthesizeByokSessionConfig(
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
 		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
 		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
+		// Without this the runtime treats the model as text-only and replaces
+		// tool-result images (e.g. from the `view` tool) with a text receipt.
+		...(m.supportsVision !== undefined ? { capabilities: { supports: { vision: m.supportsVision } } } : {}),
 	}));
 	return { providers, models };
 }
