@@ -3378,7 +3378,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					: undefined,
 				onTurnEnded: async (lastTurn) => {
 					try {
-						await Promise.all(resourceOpens);
+						await raceCancellation(Promise.all(resourceOpens), cancellationToken);
 						if (resourceOpenError) {
 							throw resourceOpenError;
 						}
