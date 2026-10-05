@@ -2502,7 +2502,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	applySessionStateMetadata(metadata: AgentHostSessionStateMetadata, previous: SessionState | undefined): boolean {
 		let didChange = false;
 		transaction(tx => {
-			if (metadata.project !== undefined || previous?.project !== undefined) {
+			if (Object.prototype.hasOwnProperty.call(metadata, 'project')) {
 				this._project = metadata.project;
 			}
 			if (metadata.workingDirectories !== undefined || previous?.workingDirectories !== undefined) {
@@ -7551,10 +7551,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const metadata: AgentHostSessionStateMetadata = {
-			project: state.project ? {
-				displayName: state.project.displayName,
-				uri: this.mapProjectUri(URI.parse(state.project.uri)),
-			} : undefined,
+			// Unchanged snapshot fields must not overwrite newer catalogue deltas.
+			...(!equals(state.project, previous?.project) ? {
+				project: state.project ? {
+					displayName: state.project.displayName,
+					uri: this.mapProjectUri(URI.parse(state.project.uri)),
+				} : undefined,
+			} : {}),
 			workingDirectories: state.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
 			_meta: state._meta,
 		};
@@ -7618,12 +7621,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _applyWorktreeIsolation(sessionId: string, values: Record<string, unknown> | undefined): void {
 		const config = this._runningSessionConfigs.get(sessionId);
 		const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
-		if (!(isolation ? readSessionIsolation(isolation, values?.[isolation.key]) === 'worktree' : isWorktreeIsolation(values))) {
-			return;
-		}
+		const isolated = isolation ? readSessionIsolation(isolation, values?.[isolation.key]) === 'worktree' : isWorktreeIsolation(values);
 		const rawId = this._rawIdFromChatId(sessionId);
 		const adapter = rawId ? this._sessionCache.get(rawId) : undefined;
-		adapter?.setWorktreeIsolation(true);
+		adapter?.setWorktreeIsolation(isolated);
 	}
 
 	// -- Session cache management --------------------------------------------

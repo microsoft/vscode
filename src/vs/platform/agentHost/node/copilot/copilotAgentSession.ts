@@ -2980,8 +2980,13 @@ export class CopilotAgentSession extends Disposable {
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 			defer: def.deferLoading && this._isToolSearchActive() ? 'auto' as const : 'never' as const,
-			handler: async (args: Record<string, unknown>): Promise<ToolResultObject> => {
+			handler: async (args: Record<string, unknown>, invocation: ToolInvocation): Promise<ToolResultObject> => {
 				try {
+					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
+					const toolCall = this._activeToolCalls.get(invocation.toolCallId);
+					if (def.topLevelChatOnly && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
+						throw new Error('This tool can only be called from a top-level chat with a known root tool-call origin.');
+					}
 					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
