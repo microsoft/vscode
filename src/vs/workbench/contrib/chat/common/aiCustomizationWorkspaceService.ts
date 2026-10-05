@@ -129,7 +129,8 @@ export interface IAICustomizationWorkspaceService {
 	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
 	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
