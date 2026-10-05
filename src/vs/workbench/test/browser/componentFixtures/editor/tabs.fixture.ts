@@ -725,10 +725,12 @@ function createDensityFixtures() {
 		PinnedSeparateRow: defineThemedFixtureGroup({
 			Default: defineComponentFixture({
 				render: renderDensityLayout('pinnedSeparateRow', 'default'),
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Default-density pinned and ordinary rows keep equal action targets and balanced edge clearance.'],
 			}),
 			Compact: defineComponentFixture({
 				render: renderDensityLayout('pinnedSeparateRow', 'compact'),
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Compact-density pinned and ordinary rows stay aligned with centered actions.'],
 			}),
 		}),
@@ -750,6 +752,7 @@ function createDensityFixtures() {
 			}),
 			Compact: defineComponentFixture({
 				render: renderDensityLayout('wrapped', 'compact'),
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Compact-density tabs wrap into equal-height rows while labels and actions remain vertically centered.'],
 			}),
 		}),
@@ -792,19 +795,21 @@ function createLayoutFixtures() {
 		}),
 		ModifiedAndMultiSelected: defineComponentFixture({
 			render: render(true, { editors: multiSelectEditorSpecs() }),
+			additionalThemes: highContrastTabThemes,
 			expectedVisualDescriptions: ['Modified and multi-selected tabs retain their indicators, selected boundaries, and active document connection.'],
 		}),
 		PinnedIconOnly: defineComponentFixture({
 			render: render(true, { partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }),
+			additionalThemes: highContrastTabThemes,
 			expectedVisualDescriptions: ['Compact pinned tabs remain distinct from the normal active tab and preserve their icon-only hit targets.'],
 		}),
 		SingleEditor: defineComponentFixture({
 			render: render(true, {
 				editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
-				partOptions: { editorActionsLocation: 'hidden' },
+				partOptions: { editorActionsLocation: 'hidden', tabActionReserveSpace: false },
 			}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-			expectedVisualDescriptions: ['A single editor retains balanced label and Close action spacing without crowding either connected shoulder.'],
+			additionalThemes: highContrastTabThemes,
+			expectedVisualDescriptions: ['A single editor keeps its Close action visible without reserved action space or crowding either connected shoulder.'],
 		}),
 	};
 }
@@ -829,17 +834,20 @@ function renderPinnedSeparateRow(tabHeight: IEditorPartOptions['tabHeight']): (c
 	});
 }
 
-const extendedTabThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
+const highContrastTabThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkHighContrast', 'lightHighContrast'];
+const extendedTabThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', ...highContrastTabThemes, 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Colors: defineThemedFixtureGroup({
 		ConnectedLegacyBorders: defineThemedFixtureGroup({
 			ActiveGroup: defineComponentFixture({
 				render: renderConnectedLegacyBorders(true),
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['The active connected tab shows customized focused top and bottom borders; selected tabs retain their selected accent.'],
 			}),
 			InactiveGroup: defineComponentFixture({
 				render: renderConnectedLegacyBorders(false),
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['The active connected tab shows customized unfocused top and bottom borders; selected tabs retain their selected accent.'],
 			}),
 		}),
@@ -847,72 +855,80 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 			Legacy: defineComponentFixture({
 				render: renderBorderOwnership(false),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Legacy tabs retain standard indicators and use tab.border as the only shared-edge separator.'],
 			}),
 			Pill: defineComponentFixture({
 				render: renderBorderOwnership(true, ModernUIEditorTabStyle.Pill),
 				themes: ['dark'],
-				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Pill tabs use rounded tab boundaries and dedicated dividers in standard themes, without redundant HC dividers.'],
 			}),
 			Connected: defineComponentFixture({
 				render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),
 				themes: ['dark'],
-				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Connected tabs give the active cap boundary ownership and show dividers only between inactive tabs in standard themes.'],
 			}),
 			ConnectedDefault: defineComponentFixture({
 				render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected, false),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Default Connected tabs use the same cap, shoulder, mask, and separator geometry as customized Connected tabs.'],
 			}),
 			ConnectedWrapped: defineComponentFixture({
 				render: renderWrappedConnectedBorderOwnership(),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Upper wrapped tabs retain pill geometry with inset customized accents.'],
 			}),
 			ConnectedModernEditorTokens: defineComponentFixture({
 				render: renderConnectedModernEditorTabCustomizations(),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Connected tabs honor every explicitly customized modernEditorTab fill, label, and action color.'],
 			}),
 			WrappedModernEditorTokens: defineComponentFixture({
 				render: renderConnectedModernEditorTabCustomizations('wrapped'),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Upper wrapped tabs retain the explicitly customized hover action background independently of the tab hover background.'],
 			}),
 			PinnedModernEditorTokens: defineComponentFixture({
 				render: renderConnectedModernEditorTabCustomizations('pinned'),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['Separate pinned-row tabs retain the same hover action color customization as ordinary connected tabs.'],
 			}),
 		}),
 		SelectedBorderFallback: defineThemedFixtureGroup({
 			ActiveGroup: defineComponentFixture({
 				render: render(true, { editors: multiSelectEditorSpecs(), colorCustomizations: { [TAB_SELECTED_BORDER_TOP]: '#a3e635' } }),
-				additionalThemes: ['darkPlus'],
+				additionalThemes: ['darkPlus', ...highContrastTabThemes],
 				expectedVisualDescriptions: ['An explicitly customized selected top border appears on the active tab when the theme has no active top border, but does not override an existing active top border.'],
 			}),
 			InactiveGroup: defineComponentFixture({
 				render: render(true, { active: false, editors: multiSelectEditorSpecs(), colorCustomizations: { [TAB_SELECTED_BORDER_TOP]: '#a3e635' } }),
-				additionalThemes: ['darkPlus'],
+				additionalThemes: ['darkPlus', ...highContrastTabThemes],
 				expectedVisualDescriptions: ['The unfocused active tab uses the explicit selected-border fallback only when its active top border is absent.'],
 			}),
 		}),
 		DerivedColors: defineComponentFixture({
 			render: render(true, { active: false, colorCustomizations: { [TAB_BORDER]: '#22d3ee', [TAB_HOVER_BACKGROUND]: '#7c2d12' } }),
-			additionalThemes: ['darkPlus'],
+			additionalThemes: ['darkPlus', ...highContrastTabThemes],
 			expectedVisualDescriptions: ['Dividers inherit the customized tab border. Unfocused hover preserves an explicitly defined theme color or derives the translucent hover color when the theme leaves it unset.'],
 		}),
 		Continuity: defineThemedFixtureGroup({
 			FirstActive: defineComponentFixture({
 				render: renderConnectedBorderContinuity(0),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['The first active connected tab joins the customized outer editor frame without a duplicate left edge.'],
 			}),
 			MiddleActive: defineComponentFixture({
 				render: renderConnectedBorderContinuity(1),
 				themes: ['dark'],
+				additionalThemes: highContrastTabThemes,
 				expectedVisualDescriptions: ['The middle active connected tab has one continuous customized cap and document boundary.'],
 			}),
 		}),
@@ -935,10 +951,12 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 				editors: manyEditorSpecs(5),
 				width: 360,
 			}),
+			additionalThemes: highContrastTabThemes,
 			expectedVisualDescriptions: ['The horizontal tab scrollbar, connected strip separator, and breadcrumb border remain distinct and aligned while the active tab is revealed within an overflowing strip.'],
 		}),
 		ClippedActiveTab: defineComponentFixture({
 			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
+			additionalThemes: highContrastTabThemes,
 			expectedVisualDescriptions: ['A partially scrolled selected tab closes its stationary outside stroke with a rounded cap and continuous separator.'],
 		}),
 		StickyPinnedTabs: defineComponentFixture({
@@ -948,6 +966,7 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 				width: 250,
 				activeTabClipping: 'left',
 			}),
+			additionalThemes: highContrastTabThemes,
 			expectedVisualDescriptions: ['Compact pinned tabs fully occlude scrolled content. The adjacent selected cap remains rounded with no seam or content leakage.'],
 		}),
 	}),

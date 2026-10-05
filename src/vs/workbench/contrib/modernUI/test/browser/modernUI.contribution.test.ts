@@ -40,6 +40,7 @@ import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
+import '../../../../browser/parts/editor/media/multieditortabscontrol.css';
 import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
@@ -3692,7 +3693,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('persists reserved tab actions and hides unreserved actions in contrast themes', () => {
+	test('preserves contrast tab action visibility across reservation and connected states', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
 		theme.setCustomColors({ [activeContrastBorder]: '#FFFFFF' });
 
@@ -3718,13 +3719,21 @@ suite('ModernUIContribution', () => {
 		const reservedInactiveGroup = createTab(content, 'editor-group-container', 'title tab-actions-reserve-space');
 		const transientActive = createTab(content, 'editor-group-container active', 'title', 'tab active');
 
+		const highContrastConnectedRoot = document.createElement('div');
+		highContrastConnectedRoot.className = 'active-contrast-theme hc-black monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs';
+		document.body.appendChild(highContrastConnectedRoot);
+		store.add(toDisposable(() => highContrastConnectedRoot.remove()));
+		const highContrastConnectedContent = appendElement(appendElement(highContrastConnectedRoot, 'part editor'), 'content');
+		const highContrastReservedActive = createTab(highContrastConnectedContent, 'editor-group-container active', 'title tabs tab-actions-reserve-space', 'tab active');
+		const highContrastConnectedActive = createTab(highContrastConnectedContent, 'editor-group-container active', 'title tabs', 'tab active');
+		const highContrastConnectedInactiveGroup = createTab(highContrastConnectedContent, 'editor-group-container', 'title tabs', 'tab active');
+
 		const highContrastRoot = document.createElement('div');
 		highContrastRoot.className = 'active-contrast-theme hc-black monaco-workbench modern-ui-tabs';
 		document.body.appendChild(highContrastRoot);
 		store.add(toDisposable(() => highContrastRoot.remove()));
 		const highContrastContent = appendElement(appendElement(highContrastRoot, 'part editor'), 'content');
-		const highContrastReservedActive = createTab(highContrastContent, 'editor-group-container active', 'title tab-actions-reserve-space', 'tab active');
-		const highContrastTransientActive = createTab(highContrastContent, 'editor-group-container active', 'title', 'tab active');
+		const highContrastTransientActive = createTab(highContrastContent, 'editor-group-container active', 'title tabs', 'tab active');
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
@@ -3732,12 +3741,16 @@ suite('ModernUIContribution', () => {
 			reservedInactiveGroup: { opacity: targetWindow.getComputedStyle(reservedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(reservedInactiveGroup.parentElement!).pointerEvents },
 			transientActive: { opacity: targetWindow.getComputedStyle(transientActive).opacity, pointerEvents: targetWindow.getComputedStyle(transientActive.parentElement!).pointerEvents },
 			highContrastReservedActive: { opacity: targetWindow.getComputedStyle(highContrastReservedActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastReservedActive.parentElement!).pointerEvents },
+			highContrastConnectedActive: { opacity: targetWindow.getComputedStyle(highContrastConnectedActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastConnectedActive.parentElement!).pointerEvents },
+			highContrastConnectedInactiveGroup: { opacity: targetWindow.getComputedStyle(highContrastConnectedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastConnectedInactiveGroup.parentElement!).pointerEvents },
 			highContrastTransientActive: { opacity: targetWindow.getComputedStyle(highContrastTransientActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastTransientActive.parentElement!).pointerEvents },
 		}, {
 			reservedActive: { opacity: '1', pointerEvents: 'auto' },
 			reservedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
 			transientActive: { opacity: '0', pointerEvents: 'none' },
 			highContrastReservedActive: { opacity: '1', pointerEvents: 'auto' },
+			highContrastConnectedActive: { opacity: '1', pointerEvents: 'auto' },
+			highContrastConnectedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
 			highContrastTransientActive: { opacity: '0', pointerEvents: 'none' },
 		});
 	});
