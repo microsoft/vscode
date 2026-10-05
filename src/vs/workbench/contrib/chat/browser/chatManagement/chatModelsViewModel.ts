@@ -48,6 +48,13 @@ export function getManageModelsProviderLabel(model: ILanguageModel): string {
 	return model.provider.group.name;
 }
 
+/** Provider groups that are labelled "Copilot" in the list, whichever harness publishes them. */
+const COPILOT_PROVIDER_GROUPS = new Set(['copilot', 'copilotcli']);
+
+function isCopilotModel(model: ILanguageModel): boolean {
+	return !!model.provider.vendor.isDefault || COPILOT_PROVIDER_GROUPS.has(model.provider.group.vendor);
+}
+
 export interface ILanguageModelEntry {
 	type: 'model';
 	id: string;
@@ -130,6 +137,22 @@ export class ChatModelsViewModel extends Disposable {
 	private readonly collapsedGroups = new Set<string>();
 	private searchValue: string = '';
 	private modelsSorted: boolean = false;
+
+	private _sessionType: string | undefined;
+
+	/**
+	 * Scopes the "Copilot" lists to the given chat session type (harness): only
+	 * the harness's own Copilot models are listed, or the regular Copilot models
+	 * if it has none. Models from other providers are unaffected. `undefined`
+	 * lists every model.
+	 */
+	setSessionType(sessionType: string | undefined): void {
+		if (this._sessionType !== sessionType) {
+			this._sessionType = sessionType;
+			this.languageModelGroups = this.groupModels(this.languageModels);
+			this.doFilter();
+		}
+	}
 
 	private _groupBy: ChatModelGroup = ChatModelGroup.Vendor;
 	get groupBy(): ChatModelGroup { return this._groupBy; }
@@ -350,7 +373,7 @@ export class ChatModelsViewModel extends Disposable {
 	private groupModels(languageModels: ILanguageModel[]): ILanguageModelEntriesGroup[] {
 		const result: ILanguageModelEntriesGroup[] = [];
 		if (this.groupBy === ChatModelGroup.Vendor) {
-			for (const model of languageModels) {
+			for (const model of this.getModelsInSessionScope(languageModels)) {
 				const groupId = this.getProviderGroupId(model.provider);
 				let group = result.find(group => group.group.id === groupId);
 				if (!group) {
@@ -402,6 +425,23 @@ export class ChatModelsViewModel extends Disposable {
 		}
 		this.modelsSorted = true;
 		return result;
+	}
+
+	private getModelsInSessionScope(languageModels: ILanguageModel[]): ILanguageModel[] {
+		const sessionType = this._sessionType;
+		if (!sessionType) {
+			return languageModels;
+		}
+		const harnessHasOwnCopilotModels = languageModels.some(model => isCopilotModel(model) && model.metadata.targetChatSessionType === sessionType);
+		return languageModels.filter(model => {
+			if (!isCopilotModel(model)) {
+				return true;
+			}
+			// Show only the selected harness's Copilot list, or the regular one if it has none.
+			return harnessHasOwnCopilotModels
+				? model.metadata.targetChatSessionType === sessionType
+				: !model.metadata.targetChatSessionType;
+		});
 	}
 
 	private createLanguageModelProviderEntry(provider: ILanguageModelProvider): ILanguageModelProviderEntry {

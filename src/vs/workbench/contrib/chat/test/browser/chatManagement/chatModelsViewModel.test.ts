@@ -1078,4 +1078,49 @@ suite('ChatModelsViewModel', () => {
 		assert.deepStrictEqual(models.map(m => m.model.metadata.id), ['claude-haiku-4.5']);
 	});
 
+	test('shows only the selected harness\'s Copilot list', async () => {
+		const addHarnessModel = (vendor: string, id: string, targetChatSessionType: string, modelGroup?: string) => {
+			languageModelsService.addModel(vendor, `${vendor}:${id}`, {
+				extension: new ExtensionIdentifier('vscode.chat'),
+				id,
+				name: id,
+				family: id,
+				version: '1.0',
+				vendor,
+				maxInputTokens: 128000,
+				maxOutputTokens: 4096,
+				isUserSelectable: true,
+				targetChatSessionType,
+				...(modelGroup ? { modelGroup: { id: modelGroup } } : {}),
+				capabilities: { toolCalling: true, vision: false, agentMode: true },
+				isDefaultForLocation: {},
+			});
+		};
+		for (const vendor of ['copilotcli', 'agent-host-copilotcli', 'agent-host-codex', 'agent-host-claude']) {
+			languageModelsService.addVendor({ vendor, displayName: vendor, managementCommand: undefined, when: undefined, configuration: undefined });
+		}
+		addHarnessModel('copilotcli', 'cli', 'copilotcli');
+		addHarnessModel('agent-host-copilotcli', 'ah-cli', 'agent-host-copilotcli', 'copilotcli');
+		addHarnessModel('agent-host-codex', 'codex-copilot', 'agent-host-codex', 'copilot');
+		addHarnessModel('agent-host-claude', 'claude-anthropic', 'agent-host-claude', 'anthropic');
+		await viewModel.refresh();
+
+		const listed: Record<string, string[]> = {};
+		for (const sessionType of [undefined, 'local', 'copilotcli', 'agent-host-copilotcli', 'agent-host-codex', 'agent-host-claude']) {
+			viewModel.setSessionType(sessionType);
+			listed[sessionType ?? 'all'] = viewModel.filter('').filter((r): r is ILanguageModelEntry => r.type === 'model').map(m => m.model.metadata.id).sort();
+		}
+
+		const others = ['claude-anthropic', 'gpt-3.5-turbo', 'gpt-4-vision'];
+		const regularCopilot = ['gpt-4', 'gpt-4o'];
+		assert.deepStrictEqual(listed, {
+			all: ['ah-cli', 'claude-anthropic', 'cli', 'codex-copilot', 'gpt-3.5-turbo', 'gpt-4', 'gpt-4-vision', 'gpt-4o'],
+			local: [...others, ...regularCopilot].sort(),
+			copilotcli: [...others, 'cli'].sort(),
+			'agent-host-copilotcli': [...others, 'ah-cli'].sort(),
+			'agent-host-codex': [...others, 'codex-copilot'].sort(),
+			'agent-host-claude': [...others, ...regularCopilot].sort(),
+		});
+	});
+
 });
