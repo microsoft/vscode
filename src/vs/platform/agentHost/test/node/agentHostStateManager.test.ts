@@ -281,6 +281,82 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('marking the sole unread chat read also marks its session read', () => {
+		manager.createSession(makeSessionSummary());
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			sessionIsRead: true,
+			chatIsRead: true,
+			actions: [
+				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('only the last unread aggregate chat promotes its session to read', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		manager.addChat(sessionUri, peer);
+		manager.addChat(sessionUri, hidden, { interactivity: ChatInteractivity.Hidden });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+		const afterLastUnreadChat = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peer: isSessionStatusRead(manager.getChatState(peer)!.status),
+			hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			afterLastUnreadChat,
+			afterRedundantRead: {
+				session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+				defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+				peer: isSessionStatusRead(manager.getChatState(peer)!.status),
+				hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+			},
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			afterLastUnreadChat: { session: true, defaultChat: true, peer: true, hidden: false },
+			afterRedundantRead: { session: false, defaultChat: true, peer: true, hidden: false },
+			actions: [
+				{ channel: peer, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: false },
+				{ channel: peer, type: ActionType.ChatIsReadChanged, isRead: true },
+			],
+		});
+	});
+
 	test('tool chats retain exact read state without affecting the session aggregate', () => {
 		manager.createSession(makeSessionSummary());
 		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
