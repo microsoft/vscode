@@ -3903,6 +3903,11 @@ per-word capitalization does not survive translation. */
 	transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
+.ai-customization-management-editor .migration-detail-action.monaco-button {
+	width: auto;
+	flex-shrink: 0;
+}
+
 .ai-customization-management-editor .editor-mode-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }
