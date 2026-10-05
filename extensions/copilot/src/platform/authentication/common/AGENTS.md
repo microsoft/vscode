@@ -122,6 +122,9 @@ Static sessions without an authorization server also snapshot the session ID
 to distinguish placeholder accounts, with the token username covering clients
 without a GitHub session. Never use the telemetry `tid` as account identity:
 it can rotate when a token is refreshed without changing the account.
+Environment-backed static sessions are absent when neither `GITHUB_PAT` nor
+`GITHUB_OAUTH_TOKEN` is set; an injected Copilot token manager can still be used.
+Do not advertise a GitHub session whose metadata getters require missing credentials.
 Legacy quota fields do not cover every NES or paid-plan quota, so neither a token
 rotation nor elapsed time alone clears the latch. Successful inference must not
 reset the token based on an unrelated legacy quota field. Normal token expiry
