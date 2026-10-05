@@ -15912,61 +15912,79 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}));
 
-		test('drains published passive metadata updates before closing the central catalog', async () => {
-			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
-			const svc = disposables.add(createTestAgentService(
-				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
-			));
-			registerTestAgentProvider(svc, copilotAgent);
-			const session = await svc.createSession({ provider: 'copilot' });
-			await svc.whenCatalogReconciliationIdle();
-			const sessionKey = session.toString();
-			const stateManager = getStateManager(svc);
-			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
-			stateManager.removeSession(sessionKey);
-			const internals = svc as unknown as {
-				_catalogSyncService: {
-					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+		for (const storageFails of [false, true]) {
+			test(`drains published passive metadata updates before closing the central catalog${storageFails ? ' when global storage fails' : ''}`, async () => {
+				const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				registerTestAgentProvider(svc, copilotAgent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				await svc.whenCatalogReconciliationIdle();
+				const sessionKey = session.toString();
+				const stateManager = getStateManager(svc);
+				stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+				stateManager.removeSession(sessionKey);
+				const internals = svc as unknown as {
+					_storageService: IAgentHostStorageService;
+					_catalogSyncService: {
+						runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+					};
 				};
-			};
-			const blockerStarted = new DeferredPromise<void>();
-			const releaseBlocker = new DeferredPromise<void>();
-			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
-				blockerStarted.complete();
-				await releaseBlocker.p;
-			});
-			await blockerStarted.p;
-			const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
-			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await changed;
-			const isRead = (stateManager.getSurfacedSessionSummary(sessionKey)!.status & SessionStatus.IsRead) === 0;
-			const readChanged = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
-			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead }, 'test-client', 2, AgentHostClientType.EditorWindow);
-			await readChanged;
+				const blockerStarted = new DeferredPromise<void>();
+				const releaseBlocker = new DeferredPromise<void>();
+				const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+					blockerStarted.complete();
+					await releaseBlocker.p;
+				});
+				await blockerStarted.p;
+				const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
+				svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+				await changed;
+				const isRead = (stateManager.getSurfacedSessionSummary(sessionKey)!.status & SessionStatus.IsRead) === 0;
+				const readChanged = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
+				svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead }, 'test-client', 2, AgentHostClientType.EditorWindow);
+				await readChanged;
 
-			let closed: AgentHostCatalogData | undefined;
-			catalogDatabase.close = async () => {
-				closed = catalogDataOf(await catalogDatabase.getSessionV2(sessionKey));
-			};
-			let shutdownComplete = false;
-			const shutdown = svc.shutdown().then(() => { shutdownComplete = true; });
-			await timeout(0);
-			const shutdownBeforeRelease = shutdownComplete;
-			releaseBlocker.complete();
-			await Promise.all([blocker, shutdown]);
-			await svc.whenCatalogReconciliationIdle();
+				let closed: AgentHostCatalogData | undefined;
+				catalogDatabase.close = async () => {
+					closed = catalogDataOf(await catalogDatabase.getSessionV2(sessionKey));
+				};
+				let shutdownComplete = false;
+				if (storageFails) {
+					internals._storageService.whenIdle = async () => { throw new Error('global storage unavailable'); };
+				}
+				const shutdown = svc.shutdown().then(
+					() => { shutdownComplete = true; },
+					error => {
+						shutdownComplete = true;
+						return error instanceof Error ? error.message : String(error);
+					},
+				);
+				await timeout(0);
+				const shutdownBeforeRelease = shutdownComplete;
+				releaseBlocker.complete();
+				const [, shutdownError] = await Promise.all([blocker, shutdown]);
+				if (storageFails) {
+					await assert.rejects(svc.whenCatalogReconciliationIdle(), /global storage unavailable/);
+				} else {
+					await svc.whenCatalogReconciliationIdle();
+				}
 
-			assert.deepStrictEqual({
-				shutdownBeforeRelease,
-				archivedAtClose: closed?.isArchived,
-				readAtClose: closed?.isRead,
-			}, {
-				shutdownBeforeRelease: false,
-				archivedAtClose: true,
-				readAtClose: isRead,
+				assert.deepStrictEqual({
+					shutdownBeforeRelease,
+					archivedAtClose: closed?.isArchived,
+					readAtClose: closed?.isRead,
+					shutdownError,
+				}, {
+					shutdownBeforeRelease: false,
+					archivedAtClose: true,
+					readAtClose: isRead,
+					shutdownError: storageFails ? 'global storage unavailable' : undefined,
+				});
 			});
-		});
+		}
 
 		test('shuts down all providers', async () => {
 			let copilotShutdown = false;
