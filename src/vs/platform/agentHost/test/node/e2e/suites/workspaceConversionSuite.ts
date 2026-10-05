@@ -116,14 +116,14 @@ export function defineWorkspaceConversionTests(context: IAgentHostE2ETestContext
 			setWorkspaceCalled,
 			workspaceless: readSessionWorkspaceless(state._meta),
 			workingDirectories: state.workingDirectories,
-			canAttachWorkspace: state.serverTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace),
+			canChangeWorkspace: state.serverTools?.some(tool => tool.name === SessionServerToolName.SetWorkspace),
 			mentionsConversion: getMarkdownResponseText(context.client).toLowerCase().includes('converted'),
 		}, {
 			sawWorkspaceQuestion: true,
 			setWorkspaceCalled: true,
 			workspaceless: false,
 			workingDirectories: [workspaceUri],
-			canAttachWorkspace: false,
+			canChangeWorkspace: true,
 			mentionsConversion: true,
 		});
 		context.client.clearReceived();
