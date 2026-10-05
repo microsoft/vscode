@@ -179,7 +179,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
 		this._refreshSummarySource(session, previous);
-		const sessionFolder = this._stateManager.getSessionState(session)?.workingDirectories?.[0];
+		const sessionFolder = this._stateManager.getSessionSummary(session)?.workingDirectories?.[0];
 		const sessionFolderKey = sessionFolder ? getWorkingDirectoryKey(sessionFolder) : undefined;
 		const wasEnabled = isAnyAgentMergeEnabled(previous?.values, sessionFolderKey);
 		const isEnabled = isAnyAgentMergeEnabled(current?.values, sessionFolderKey);

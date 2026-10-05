@@ -265,8 +265,8 @@ suite('getPermissionDisplay — server tool confirmation', () => {
 				isolation: false,
 			})),
 			{
-				confirmationTitle: 'Continue in app?',
-				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				confirmationTitle: 'Change Workspace to app?',
+				invocationMessage: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
 				toolInput: undefined,
 				permissionKind: 'custom-tool',
 				permissionPath: undefined,

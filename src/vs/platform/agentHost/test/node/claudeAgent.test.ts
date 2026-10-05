@@ -7214,10 +7214,10 @@ suite('ClaudeAgent (Phase 7 §3.4 — _handleCanUseTool)', () => {
 		}, {
 			result: { behavior: 'allow', updatedInput: input },
 			confirmation: {
-				displayName: 'Set Workspace',
-				invocationMessage: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				displayName: 'Change Workspace',
+				invocationMessage: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				toolInput: undefined,
-				confirmationTitle: 'Continue in app?',
+				confirmationTitle: 'Change Workspace to app?',
 				permissionKind: 'mcp',
 			},
 		});

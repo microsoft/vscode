@@ -1141,7 +1141,7 @@ class AdditionalChat extends Disposable {
 		}, () => observable.get());
 	}
 
-	update(summary: ChatSummary): void {
+	update(summary: ChatSummary, supportsChatReadState: boolean = true): void {
 		const modifiedAt = new Date(summary.modifiedAt);
 		transaction(tx => {
 			this._title.set(summary.title || localize('newChatTab', "New Chat"), tx);
@@ -1152,7 +1152,9 @@ class AdditionalChat extends Disposable {
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 			this._isArchived.set(isSessionStatusArchived(summary.status), tx);
-			this._isRead.set(isSessionStatusRead(summary.status), tx);
+			if (supportsChatReadState) {
+				this._isRead.set(isSessionStatusRead(summary.status), tx);
+			}
 			this._setChangesSummary(summary.changes, tx);
 		});
 	}
@@ -1199,8 +1201,8 @@ class AdditionalChat extends Disposable {
 		this._title.set(title || localize('newChatTab', "New Chat"), undefined);
 	}
 
-	setRead(isRead: boolean): void {
-		this._isRead.set(isRead, undefined);
+	setRead(isRead: boolean, tx?: ITransaction): void {
+		this._isRead.set(isRead, tx);
 	}
 
 	/** Present as `Untitled` until the first request is sent so the view shows the composer. */
@@ -1328,7 +1330,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 */
 	private readonly _defaultChatStatusOverride = observableValue<SessionStatus | undefined>('defaultChatStatusOverride', undefined);
 	private readonly _defaultChatIsReadOverride = observableValue<boolean | undefined>('defaultChatIsReadOverride', undefined);
-	private _defaultChatBackendUri: URI | undefined;
+	private readonly _defaultChatBackendUri = observableValue<URI | undefined>(this, undefined);
 	private readonly _defaultChatUpdatedAt: ISettableObservable<Date | undefined>;
 	private readonly _hasMultipleChats: ISettableObservable<boolean>;
 	private readonly _aggregateChatResources = new ResourceSet();
@@ -1366,6 +1368,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _lastCatalogState: SessionState | undefined;
 	private readonly _chatCatalogCapabilitiesObserver = this._register(new MutableDisposable());
 	private readonly _supportsChatArchive: IObservable<boolean>;
+	private readonly _supportsChatReadState: IObservable<boolean>;
 	private readonly _rawId: string;
 	private readonly _resourceScheme: string;
 
@@ -1522,7 +1525,18 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 		this.artifacts = derivedOpts<readonly ISessionArtifact[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const meta = this._metaObs.read(reader);
-			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(entry => entry.artifact);
+			const defaultChatBackendUri = this._defaultChatBackendUri.read(reader);
+			const chats = this._chatsObs.read(reader);
+			// Artifact owners use host chat URIs; shared consumers compare UI chat resources.
+			return partitionSessionArtifacts(meta, this._options.mapDiffUri).entries.map(({ artifact }) => {
+				if (!artifact.chat) {
+					return artifact;
+				}
+				const chat = isEqual(artifact.chat, defaultChatBackendUri)
+					? this.resource
+					: chats.find(chat => isEqual(this.getBackendChatResource(chat.resource), artifact.chat))?.resource;
+				return chat ? { ...artifact, chat } : artifact;
+			});
 		});
 
 		this.gitHubInfo = this._presentGitHubInfo(derivedOpts<IGitHubInfo | undefined>({
@@ -1673,6 +1687,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			const initializeResult = connection?.initializeResult.read(reader);
 			return !!initializeResult && isActionKnownToVersion({ type: ActionType.ChatIsArchivedChanged, isArchived: false }, initializeResult.protocolVersion);
 		});
+		this._supportsChatReadState = derived(this, reader => {
+			this._options.connectionStatus?.read(reader);
+			const connection = this._options.getConnection();
+			const initializeResult = connection?.initializeResult.read(reader);
+			return !!initializeResult && isActionKnownToVersion({ type: ActionType.ChatIsReadChanged, isRead: true }, initializeResult.protocolVersion);
+		});
 		this.capabilities = derivedOpts<ISessionCapabilities>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const agentCapabilities = this._options.agentCapabilities.read(reader)?.get(this.agentProvider);
 			this._options.connectionStatus?.read(reader);
@@ -1754,7 +1774,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 
 		const defaultChat = chats.find(chat => chat.kind === 'default');
 		if (defaultChat) {
-			this._defaultChatBackendUri = defaultChat.chat;
+			this._defaultChatBackendUri.set(defaultChat.chat, tx);
 		}
 		this._defaultChatTitleOverride.set(defaultChat?.summary || undefined, tx);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultChat?.interactivity), tx);
@@ -1767,11 +1787,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			.map(chat => parseChatUri(chat.chat)?.chatId)
 			.filter(chatId => chatId !== undefined);
 		const hasMultipleChats = peerIds.length > 0;
+		const supportsChatReadState = this._supportsChatReadState.get();
 		this._hasMultipleChats.set(hasMultipleChats, tx);
 		if (!hasMultipleChats) {
 			this._defaultChatIsReadOverride.set(undefined, tx);
 		} else if (defaultChat?.isRead !== undefined) {
 			this._defaultChatIsReadOverride.set(defaultChat.isRead, tx);
+		} else if (!supportsChatReadState && this._defaultChatIsReadOverride.get() === undefined) {
+			this._defaultChatIsReadOverride.set(false, tx);
 		}
 		const survivingPeers = new Set(peerIds);
 		const chatOutputResources = new ResourceSet(chats.map(chat => chat.chat));
@@ -1802,7 +1825,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					status: withSessionStatusFlag(
 						withSessionStatusFlag(ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
 						ProtocolSessionStatus.IsRead,
-						chat.isRead ?? true,
+						chat.isRead ?? supportsChatReadState,
 					),
 					origin: chat.origin,
 					interactivity: chat.interactivity,
@@ -1832,6 +1855,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._mainChatObs.set(this._defaultChat, tx);
 		const sessionReadChanged = this._markSessionUnreadForUnreadChat(tx);
 		return !arrayEquals(previousChats, nextChats) || sessionReadChanged;
+	}
+
+	supportsChatReadState(): boolean {
+		return this._supportsChatReadState.get();
 	}
 
 	hasUnreadChat(): boolean {
@@ -1915,7 +1942,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 		const defaultSummary = state.chats.find(isDefault);
 		if (defaultSummary) {
-			this._defaultChatBackendUri = URI.parse(defaultSummary.resource.toString());
+			this._defaultChatBackendUri.set(URI.parse(defaultSummary.resource.toString()), undefined);
 		}
 		this._defaultChatTitleOverride.set(defaultSummary?.title || undefined, undefined);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
@@ -1976,7 +2003,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		// Multiple chats: the default chat must show its own status, not the
 		// session aggregate which may have been promoted by a running peer chat.
 		this._defaultChatStatusOverride.set(defaultSummary ? mapProtocolStatus(defaultSummary.status) : undefined, undefined);
-		this._defaultChatIsReadOverride.set(defaultSummary ? isSessionStatusRead(defaultSummary.status) : undefined, undefined);
+		const supportsChatReadState = this._supportsChatReadState.get();
+		if (supportsChatReadState) {
+			this._defaultChatIsReadOverride.set(defaultSummary ? isSessionStatusRead(defaultSummary.status) : undefined, undefined);
+		} else if (this._defaultChatIsReadOverride.get() === undefined) {
+			this._defaultChatIsReadOverride.set(false, undefined);
+		}
 
 		const ordered: IChat[] = [];
 		for (const summary of state.chats) {
@@ -1993,7 +2025,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				entry = this._createAdditionalChat(chatId, summary);
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.update(summary);
+				entry.update(summary, supportsChatReadState);
 			}
 			ordered.push(entry.chat);
 		}
@@ -2012,11 +2044,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._markSessionUnreadForUnreadChat();
 	}
 
-	setDefaultChatRead(isRead: boolean): boolean {
+	setDefaultChatRead(isRead: boolean, tx?: ITransaction): boolean {
 		if (!this._hasMultipleChats.get() || this._defaultChatIsReadOverride.get() === isRead) {
 			return false;
 		}
-		this._defaultChatIsReadOverride.set(isRead, undefined);
+		this._defaultChatIsReadOverride.set(isRead, tx);
 		return true;
 	}
 
@@ -2079,28 +2111,43 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: this.resource;
 	}
 
-	setChatRead(chatResource: URI, isRead: boolean): boolean {
+	setChatRead(chatResource: URI, isRead: boolean, tx?: ITransaction): boolean {
 		if (isEqual(chatResource, this._defaultChat.resource)) {
 			if (this._hasMultipleChats.get()) {
-				this.setDefaultChatRead(isRead);
+				this.setDefaultChatRead(isRead, tx);
 			} else {
-				this.isRead.set(isRead, undefined);
+				this.isRead.set(isRead, tx);
 			}
-			this._markSessionUnreadForUnreadChat();
+			this._markSessionUnreadForUnreadChat(tx);
 			return true;
 		}
 		const chat = chatResource.fragment ? this._additionalChats.get(chatResource.fragment) : undefined;
 		if (!chat) {
 			return false;
 		}
-		chat.setRead(isRead);
-		this._markSessionUnreadForUnreadChat();
+		chat.setRead(isRead, tx);
+		this._markSessionUnreadForUnreadChat(tx);
 		return true;
+	}
+
+	setLegacySessionReadState(isRead: boolean, tx?: ITransaction): boolean {
+		let didChange = this.isRead.get() !== isRead;
+		for (const chat of this._chatsObs.get()) {
+			if (this._aggregateChatResources.size > 0 && !this._aggregateChatResources.has(chat.resource)) {
+				continue;
+			}
+			if (chat.isRead.get() !== isRead) {
+				this.setChatRead(chat.resource, isRead, tx);
+				didChange = true;
+			}
+		}
+		this.isRead.set(isRead, tx);
+		return didChange;
 	}
 
 	getBackendChatResource(chatResource: URI): URI | undefined {
 		if (isEqual(chatResource, this._defaultChat.resource)) {
-			return this._defaultChatBackendUri;
+			return this._defaultChatBackendUri.get();
 		}
 		return chatResource.fragment ? this._additionalChats.get(chatResource.fragment)?.backendUri : undefined;
 	}
@@ -2455,7 +2502,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	applySessionStateMetadata(metadata: AgentHostSessionStateMetadata, previous: SessionState | undefined): boolean {
 		let didChange = false;
 		transaction(tx => {
-			if (metadata.project !== undefined || previous?.project !== undefined) {
+			if (Object.prototype.hasOwnProperty.call(metadata, 'project')) {
 				this._project = metadata.project;
 			}
 			if (metadata.workingDirectories !== undefined || previous?.workingDirectories !== undefined) {
@@ -5343,8 +5390,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// Mirror the host default so the chip does not flash while the config resolves.
 				const repository = newSession.session.workspace.get()?.folders[0]?.gitRepository;
 				const defaultBranchName = normalizedValue === 'worktree'
-					? repository?.upstreamBranchName ?? repository?.defaultBranchName
-					: undefined;
+					? repository?.defaultRemoteBranchName ?? repository?.defaultBranchName
+					: repository?.branchName;
 				if (workspace.baseBranch && isSessionConfigWritable(workspace.baseBranch.schema, true)) {
 					newSession.setConfigValue(workspace.baseBranch.key, defaultBranchName);
 				}
@@ -6278,6 +6325,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
+			if (!cached.supportsChatReadState()) {
+				this._setLegacySessionReadState(cached, isRead);
+				return;
+			}
 			if (isRead) {
 				for (const chat of cached.getUnreadAggregateChats()) {
 					await this.setChatReadState(sessionId, chat.resource, true);
@@ -6305,17 +6356,43 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		const initializeResult = connection?.initializeResult.get();
 		const action = { type: ActionType.ChatIsReadChanged as const, isRead };
-		if (!cached || !connection || !initializeResult || !isActionKnownToVersion(action, initializeResult.protocolVersion)) {
+		if (!cached || !connection || !initializeResult) {
 			return false;
 		}
 		const backendChatResource = this.getBackendChatResource(chatResource);
-		if (!backendChatResource || !cached.setChatRead(chatResource, isRead)) {
+		if (!backendChatResource) {
+			throw new Error(localize('chatNotFound', "The chat could not be found."));
+		}
+		if (!isActionKnownToVersion(action, initializeResult.protocolVersion)) {
+			const chatChanged = cached.chats.get().some(chat => isEqual(chat.resource, chatResource) && chat.isRead.get() !== isRead);
+			if (!cached.setChatRead(chatResource, isRead)) {
+				throw new Error(localize('chatNotFound', "The chat could not be found."));
+			}
+			if (chatChanged) {
+				this._cacheDirty = true;
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			}
+			this._setLegacySessionReadState(cached, isRead);
+			return true;
+		}
+		if (!cached.setChatRead(chatResource, isRead)) {
 			throw new Error(localize('chatNotFound', "The chat could not be found."));
 		}
 		this._cacheDirty = true;
 		this._keepSessionStateAlive(cached.sessionId);
 		connection.dispatch(backendChatResource.toString(), action);
 		return true;
+	}
+
+	private _setLegacySessionReadState(cached: AgentHostSessionAdapter, isRead: boolean): void {
+		if (cached.setLegacySessionReadState(isRead)) {
+			this._cacheDirty = true;
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+		const connection = this.connection;
+		if (connection) {
+			connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsReadChanged as const, isRead });
+		}
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
@@ -7474,10 +7551,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const metadata: AgentHostSessionStateMetadata = {
-			project: state.project ? {
-				displayName: state.project.displayName,
-				uri: this.mapProjectUri(URI.parse(state.project.uri)),
-			} : undefined,
+			// Unchanged snapshot fields must not overwrite newer catalogue deltas.
+			...(!equals(state.project, previous?.project) ? {
+				project: state.project ? {
+					displayName: state.project.displayName,
+					uri: this.mapProjectUri(URI.parse(state.project.uri)),
+				} : undefined,
+			} : {}),
 			workingDirectories: state.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
 			_meta: state._meta,
 		};
@@ -7541,12 +7621,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _applyWorktreeIsolation(sessionId: string, values: Record<string, unknown> | undefined): void {
 		const config = this._runningSessionConfigs.get(sessionId);
 		const isolation = config && getSessionWorkspaceProperties(config.schema).isolation;
-		if (!(isolation ? readSessionIsolation(isolation, values?.[isolation.key]) === 'worktree' : isWorktreeIsolation(values))) {
-			return;
-		}
+		const isolated = isolation ? readSessionIsolation(isolation, values?.[isolation.key]) === 'worktree' : isWorktreeIsolation(values);
 		const rawId = this._rawIdFromChatId(sessionId);
 		const adapter = rawId ? this._sessionCache.get(rawId) : undefined;
-		adapter?.setWorktreeIsolation(true);
+		adapter?.setWorktreeIsolation(isolated);
 	}
 
 	// -- Session cache management --------------------------------------------
@@ -8004,6 +8082,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
+			if (!cached.supportsChatReadState()) {
+				if (cached.setLegacySessionReadState(isRead)) {
+					this._cacheDirty = true;
+					this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+				}
+				return;
+			}
 			const effectiveIsRead = isRead && !cached.hasUnreadChat();
 			const sessionChanged = cached.isRead.get() !== effectiveIsRead;
 			if (!sessionChanged) {
@@ -8041,10 +8126,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					didChange = true;
 				}
 
-				const isRead = !!(changes.status & ProtocolSessionStatus.IsRead) && !cached.hasUnreadChat();
-				if (isRead !== cached.isRead.get()) {
-					cached.isRead.set(isRead, tx);
-					didChange = true;
+				const isRead = !!(changes.status & ProtocolSessionStatus.IsRead);
+				if (!cached.supportsChatReadState()) {
+					if (cached.setLegacySessionReadState(isRead, tx)) {
+						this._cacheDirty = true;
+						didChange = true;
+					}
+				} else {
+					const effectiveIsRead = isRead && !cached.hasUnreadChat();
+					if (effectiveIsRead !== cached.isRead.get()) {
+						cached.isRead.set(effectiveIsRead, tx);
+						didChange = true;
+					}
 				}
 			}
 
