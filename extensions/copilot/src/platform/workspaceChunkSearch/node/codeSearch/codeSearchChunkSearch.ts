@@ -196,11 +196,14 @@ export class CodeSearchChunkSearch extends Disposable {
 			let lastAnyAdoSession = this._authenticationService.anyAdoSession;
 			this._register(this._authenticationService.onDidAdoAuthenticationChange(() => {
 				const anySession = this._authenticationService.anyAdoSession;
-				if (anySession?.id === lastAnyAdoSession?.id
-					&& authenticationSessionIdentityEquals(anySession, lastAnyAdoSession)) {
+				const identityChanged = anySession?.id !== lastAnyAdoSession?.id
+					|| !authenticationSessionIdentityEquals(anySession, lastAnyAdoSession);
+				lastAnyAdoSession = anySession;
+
+				// Still force a refresh if any ado repo is unauthorized: a same-identity token swap can restore access.
+				if (!identityChanged && !this.hasNotAuthorizedRepoOfType('ado')) {
 					return;
 				}
-				lastAnyAdoSession = anySession;
 				this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoAuthenticationChange'));
 			}));
 		}
@@ -1011,6 +1014,11 @@ export class CodeSearchChunkSearch extends Disposable {
 
 		const error = responses.find(r => r?.isError());
 		return error ?? Result.ok(true);
+	}
+
+	private hasNotAuthorizedRepoOfType(type: 'github' | 'ado'): boolean {
+		return Array.from(this._codeSearchRepos.values()).some(entry =>
+			entry.repo.remoteInfo?.repoId.type === type && entry.repo.status === CodeSearchRepoStatus.NotAuthorized);
 	}
 
 	private async updateRepoStatuses(onlyReposOfType: 'github' | 'ado' | undefined, telemetryInfo: TelemetryCorrelationId): Promise<void> {

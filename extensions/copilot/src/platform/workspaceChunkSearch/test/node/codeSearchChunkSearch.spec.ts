@@ -235,9 +235,9 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 				authentication.anyAdoSession = undefined;
 				break;
 		}
-		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
+		ado.getRemoteIndexState.mockResolvedValue(Result.ok({ status: RemoteCodeSearchIndexStatus.NotYetIndexed }));
 		authentication.adoChanges.fire();
-		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.NotAuthorized]));
+		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.NotYetIndexed]));
 		// A second no-op event (nothing changed since the previous one) must not trigger another refetch.
 		authentication.adoChanges.fire();
 		expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(2);
@@ -255,6 +255,24 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 			requests: ado.getRemoteIndexState.mock.calls.length,
 			statuses: search.getRemoteIndexState(false).repos.map(repo => repo.status),
 		}).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] });
+	});
+
+	test('a same-identity token renewal recovers an unauthorized ado repo', async () => {
+		const { authentication, ado, search } = await create();
+		const previous = authentication.anyAdoSession!;
+
+		// First, make the repo unauthorized via a real identity change (401 from a stale account).
+		authentication.anyAdoSession = { ...previous, account: { ...previous.account, id: 'other-account' } };
+		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.NotAuthorized]));
+
+		// A same-identity token swap (e.g. a fresh token for the same account after re-auth) must still retry.
+		const unauthorizedSession = authentication.anyAdoSession;
+		ado.getRemoteIndexState.mockResolvedValue(Result.ok({ status: RemoteCodeSearchIndexStatus.Ready, indexedCommit: 'test-commit' }));
+		authentication.anyAdoSession = { ...unauthorizedSession!, accessToken: 'renewed-token' };
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]));
 	});
 
 	test('a real index state change always rechecks repository authorization, even without a session change', async () => {
