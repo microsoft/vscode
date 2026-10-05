@@ -27,7 +27,7 @@ suite('WebPubSub - framing', () => {
 	test('builds a single sendToGroup command for a small payload', () => {
 		let ack = 0;
 		const commands = buildPublish({ group: GROUP, nextAckId: () => ++ack, payload: { hi: true } });
-		assert.deepStrictEqual(commands, [{
+		assert.deepStrictEqual(commands.map(command => JSON.parse(command.serialized)), [{
 			type: 'sendToGroup',
 			group: GROUP,
 			ackId: 1,
@@ -47,6 +47,65 @@ suite('WebPubSub - framing', () => {
 		});
 		assert.ok(commands.length > 1);
 		assert.deepStrictEqual(commands.map(c => c.ackId), commands.map((_, i) => i + 1));
+	});
+
+	test('sends the checked serialization without evaluating the payload again', () => {
+		const keys: string[] = [];
+		const commands = buildPublish({
+			group: GROUP,
+			nextAckId: () => 1,
+			payload: {
+				toJSON: (key: string) => {
+					keys.push(key);
+					return keys.length === 1 ? 'small' : 'L'.repeat(4096);
+				},
+			},
+			chunkOptions: { maxChunkBytes: 1024 },
+		});
+		const frame = JSON.parse(commands[0].serialized);
+		const result = parseInbound(
+			{ type: 'message', from: 'group', group: GROUP, dataType: 'json', data: frame.data },
+			{ reassembler: new Reassembler() },
+		);
+		assert.deepStrictEqual({ keys, commands, result }, {
+			keys: ['data'],
+			commands: [{
+				ackId: 1,
+				serialized: JSON.stringify({
+					type: 'sendToGroup', group: GROUP, ackId: 1, dataType: 'json', noEcho: true,
+					data: { kind: 'message', data: 'small' },
+				}),
+			}],
+			result: {
+				kind: 'payload',
+				group: { scope: 'client', lane: 'to-client', uid: 'u1', eid: 'e1', cid: 'c1' },
+				payload: 'small',
+			},
+		});
+	});
+
+	test('preserves raw JSON numbers without parsing and serializing them again', function () {
+		const json: typeof JSON & { rawJSON?: (text: string) => unknown } = JSON;
+		if (typeof json.rawJSON !== 'function') {
+			this.skip();
+		}
+		const actual = [];
+		const expected = [];
+		for (const number of ['1e20', '1e400', '12345678901234567890']) {
+			const envelope = `{"kind":"message","data":${number}}`;
+			const commands = buildPublish({
+				group: GROUP,
+				nextAckId: () => 1,
+				payload: json.rawJSON(number),
+				chunkOptions: { maxChunkBytes: new TextEncoder().encode(envelope).byteLength },
+			});
+			actual.push(commands);
+			expected.push([{
+				ackId: 1,
+				serialized: `{"type":"sendToGroup","group":"${GROUP}","ackId":1,"dataType":"json","noEcho":true,"data":${envelope}}`,
+			}]);
+		}
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('parses an inbound group payload frame', () => {

@@ -332,7 +332,7 @@ suite('WebPubSubRelayTransport', () => {
 		fake.emitGroupMessage(1, { kind: 'message', data: early });
 		fake.emitGroupMessage(1, { kind: 'message', data: early });
 		const message = { jsonrpc: '2.0', id: 2, result: 'x'.repeat(2048) };
-		const chunks = chunk(message, { maxChunkBytes: 512, newGroupId: () => 'handshake-chunks' });
+		const chunks = chunk(message, { maxChunkBytes: 512, newGroupId: () => 'handshake-chunks' }).map<ChunkEnvelope>(envelope => JSON.parse(envelope));
 		assert.ok(chunks.length > 1);
 		fake.emitGroupMessage(2, chunks[0]);
 		fake.emitGroupMessage(2, chunks[0]);
@@ -526,6 +526,30 @@ suite('WebPubSubRelayTransport', () => {
 			{ group: publishes[0]['group'], dataType: publishes[0]['dataType'], noEcho: publishes[0]['noEcho'], data: publishes[0]['data'] },
 			{ group: TO_HOST, dataType: 'json', noEcho: true, data: { kind: 'message', data: outbound } },
 		);
+	});
+
+	test('does not reevaluate payload getters when publishing the checked frame', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+
+		let reads = 0;
+		const outbound: JsonRpcRequest = {
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'ping',
+			get params() {
+				reads++;
+				return { blob: reads === 1 ? 'small' : 'L'.repeat(4 * DEFAULT_MAX_CHUNK_BYTES) };
+			},
+		};
+		transport.send(outbound);
+
+		assert.strictEqual(reads, 1);
+		assert.deepStrictEqual(fake.sentOfType('sendToGroup').map(frame => frame['data']), [{
+			kind: 'message',
+			data: { jsonrpc: '2.0', id: 1, method: 'ping', params: { blob: 'small' } },
+		}]);
 	});
 
 	test('settles delayed successful and Duplicate publish acknowledgements independently of their arrival order', () => runWithFakedTimers({}, async () => {
