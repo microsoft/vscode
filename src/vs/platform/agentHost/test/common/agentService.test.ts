@@ -6,9 +6,10 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../configuration/common/configuration.js';
+import { thirdPartyAgentEnabledValue } from '../../../policy/common/copilotManagedSettings.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { affectsAgentHostProviderPreference, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -110,7 +111,7 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 		});
 	});
 
-	test('hides disabled providers in their governed windows', () => {
+	test('hides disabled providers in both windows even when the editor prefers Codex', () => {
 		const configurationService = new TestConfigurationService({
 			[AgentHostClaudeAgentEnabledSettingId]: false,
 			[AgentHostCodexAgentEnabledSettingId]: false,
@@ -126,8 +127,55 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 			agentsClaude: false,
 			editorClaude: false,
 			agentsCodex: false,
-			editorCodex: true,
+			editorCodex: false,
 		});
+	});
+
+	test('reacts to Codex enablement changes in both windows', () => {
+		const event: IConfigurationChangeEvent = {
+			source: ConfigurationTarget.DEFAULT,
+			affectedKeys: new Set([AgentHostCodexAgentEnabledSettingId]),
+			change: { keys: [AgentHostCodexAgentEnabledSettingId], overrides: [] },
+			affectsConfiguration: key => key === AgentHostCodexAgentEnabledSettingId,
+		};
+		assert.deepStrictEqual({
+			agentsWindow: affectsAgentHostProviderPreference(event, true),
+			editorWindow: affectsAgentHostProviderPreference(event, false),
+		}, { agentsWindow: true, editorWindow: true });
+	});
+
+	test('preserves editor preference and restores availability when policy is removed', async () => {
+		const configurationService = new TestConfigurationService({
+			[AgentHostCodexAgentEnabledSettingId]: true,
+			[CodexPreferAgentHostEditorSettingId]: false,
+		});
+		const before = [true, false].map(window => shouldSurfaceLocalAgentHostProvider('codex', configurationService, window));
+		await configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, false);
+		const governed = [true, false].map(window => shouldSurfaceLocalAgentHostProvider('codex', configurationService, window));
+		await configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const restored = [true, false].map(window => shouldSurfaceLocalAgentHostProvider('codex', configurationService, window));
+		assert.deepStrictEqual({ before, governed, restored }, {
+			before: [true, false],
+			governed: [false, false],
+			restored: [true, false],
+		});
+	});
+
+	test('managed-settings and preview-feature denials suppress both harnesses on every surface', () => {
+		for (const policyData of [
+			{ managedSettingsActive: true },
+			{ chat_preview_features_enabled: false },
+		]) {
+			const configurationService = new TestConfigurationService({
+				[AgentHostClaudeAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
+				[AgentHostCodexAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
+				[CodexPreferAgentHostEditorSettingId]: true,
+			});
+			assert.deepStrictEqual({
+				editor: ['claude', 'codex', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, false)),
+				agents: ['claude', 'codex', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, true)),
+			}, { editor: [false, false, true], agents: [false, false, true] });
+		}
 	});
 });
 
