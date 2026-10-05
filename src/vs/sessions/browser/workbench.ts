@@ -9,13 +9,13 @@ import './media/workbench.css';
 import './media/phoneLayout.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveDocument, getActiveElement, getClientArea, getWindow, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
-import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
+import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString, LayoutSettings, ModernUIDensity } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
@@ -84,6 +84,7 @@ import { AGENTS_FLOATING_PANEL_GAP } from '../common/layoutConstants.js';
 import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js';
 
 const PHONE_NOTIFICATION_ROW_HEIGHT = 44;
+const SESSIONS_SIDE_PANE_DIVIDER_CLASS = 'sessions-side-pane-divider';
 
 type SessionsWindowLayoutEvent = {
 	layout: string;
@@ -109,6 +110,7 @@ export interface IWorkbenchOptions {
 //#region Layout Classes
 
 enum LayoutClasses {
+	MODERN_UI_COMPACT = 'modern-ui-compact',
 	MODERN_UI_TABS = 'modern-ui-tabs',
 	MODERN_UI_NOTIFICATIONS_DIALOGS = 'modern-ui-notifications-dialogs',
 	SIDEBAR_HIDDEN = 'nosidebar',
@@ -405,6 +407,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	//#region State
 
 	private readonly parts = new Map<string, Part>();
+	private layoutDensity = ModernUIDensity.Default;
 	protected workbenchGrid!: SerializableGrid<ISerializableView>;
 
 	private titleBarPartView!: ISerializableView;
@@ -415,6 +418,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	protected sessionsPartView!: ISerializableView;
 	protected customViewGridPartView!: ISerializableView;
+	private _sessionsSidePaneDivider: HTMLElement | undefined;
 
 	/** The editor part container; the auxiliary bar is docked inside it. */
 	protected _editorPartContainer: HTMLElement | undefined;
@@ -690,7 +694,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}));
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
+		this.updateLayoutDensity(configurationService);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this.updateFontAliasing(e, configurationService);
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+				this.updateLayoutDensity(configurationService);
+			}
+		}));
 
 		// Font Info
 		if (isNative) {
@@ -728,6 +738,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	//#region Font Aliasing and Caching
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
+
 	private updateFontAliasing(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService) {
 		if (!isMacintosh) {
 			return; // macOS only
@@ -1577,7 +1588,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.mainContainer.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 		this.workbenchGrid.edgeSnapping = this.mainWindowFullscreen;
+		this._updateSessionsSidePaneDivider();
 		this._register(this.workbenchGrid.onDidChange(() => {
+			this._updateSessionsSidePaneDivider();
 			this._onGridDidChange();
 		}));
 
@@ -1642,6 +1655,36 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					break;
 			}
 		}));
+	}
+
+	private _updateSessionsSidePaneDivider(): void {
+		this._sessionsSidePaneDivider?.classList.remove(SESSIONS_SIDE_PANE_DIVIDER_CLASS);
+		this._sessionsSidePaneDivider = undefined;
+
+		const sessionsElement = this.sessionsPartView.element;
+		const editorElement = this.editorPartView.element;
+		let splitView = sessionsElement.closest<HTMLElement>('.monaco-split-view2.horizontal');
+
+		while (splitView && this.workbenchGrid.element.contains(splitView)) {
+			const scrollableElement = Array.from(splitView.children).find(element => element.classList.contains('monaco-scrollable-element'));
+			const viewContainer = scrollableElement
+				? Array.from(scrollableElement.children).find(element => element.classList.contains('split-view-container'))
+				: undefined;
+			const sashContainer = Array.from(splitView.children).find(element => element.classList.contains('sash-container'));
+			if (viewContainer && sashContainer) {
+				const views = Array.from(viewContainer.children).filter(isHTMLElement);
+				const sessionsIndex = views.findIndex(view => view.contains(sessionsElement));
+				const editorIndex = views.findIndex(view => view.contains(editorElement));
+				if (sessionsIndex >= 0 && editorIndex === sessionsIndex + 1) {
+					const sashes = Array.from(sashContainer.children).filter(isHTMLElement);
+					this._sessionsSidePaneDivider = sashes[sessionsIndex];
+					this._sessionsSidePaneDivider?.classList.add(SESSIONS_SIDE_PANE_DIVIDER_CLASS);
+					return;
+				}
+			}
+
+			splitView = splitView.parentElement?.closest<HTMLElement>('.monaco-split-view2.horizontal') ?? null;
+		}
 	}
 
 	createWorkbenchManagement(instantiationService: IInstantiationService): void {
@@ -1857,6 +1900,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			? getMobileViewportDimension(layoutViewportDimension, getWindow(this.parent).visualViewport)
 			: layoutViewportDimension;
 		this.mainContainer.classList.toggle(LayoutClasses.PHONE_LAYOUT, currentClass === 'phone');
+		this.mainContainer.classList.toggle(LayoutClasses.MODERN_UI_COMPACT, this.isModernUICompact());
 
 		// When viewport class changes at runtime (e.g., device emulation toggle),
 		// update part visibility and create/destroy mobile components
@@ -1931,8 +1975,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
 		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
-		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		const gridGutterW = isPhone || this.isModernUICompact() ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		const gridGutterH = gridGutterW;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH
@@ -2010,8 +2054,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return false; // the agents window has its own floating card design
 	}
 
+	private updateLayoutDensity(configurationService: IConfigurationService): void {
+		const density = configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY);
+		if (this.layoutDensity !== density) {
+			this.layoutDensity = density;
+			if (this.workbenchGrid) {
+				this.layout();
+			}
+		}
+	}
+
 	isModernUICompact(): boolean {
-		return false;
+		return this.layoutDensity === ModernUIDensity.Compact && this.layoutPolicy.viewportClass.get() !== 'phone';
 	}
 
 	getLayoutClasses(): string[] {
@@ -2027,6 +2081,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.layoutPolicy.viewportClass.get() === 'phone' ? LayoutClasses.PHONE_LAYOUT : undefined,
 			`panel-alignment-${this.getPanelAlignment()}`,
+			this.isModernUICompact() ? LayoutClasses.MODERN_UI_COMPACT : undefined,
 		]);
 	}
 
@@ -2718,7 +2773,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		const exitMaximizedPanel = alignment === 'justify' && this.isPanelMaximized();
-		const focusedPart = [Parts.PANEL_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
+		const activeElement = getActiveElement();
+		const focusedGridElement = isHTMLElement(activeElement) && this.workbenchGrid.element?.contains(activeElement) ? activeElement : undefined;
+		const focusedPart = [Parts.PANEL_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART, Parts.SESSIONS_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
 		const previousAlignment = this._panelAlignment;
 		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
 		const maximizedEditorWidth = exitMaximizedPanel ? this._panelMaximizedEditorState?.width : undefined;
@@ -2771,7 +2828,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.storageService.store(Workbench._PANEL_ALIGNMENT_KEY, alignment, StorageScope.PROFILE, StorageTarget.USER);
 		this._onDidChangePanelAlignment.fire(alignment);
 
-		if (focusedPart) {
+		if (focusedGridElement?.isConnected) {
+			focusedGridElement.focus();
+		} else if (focusedPart) {
 			this.focusPart(focusedPart);
 		}
 	}

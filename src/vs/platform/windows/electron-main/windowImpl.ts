@@ -33,7 +33,7 @@ import { IApplicationStorageMainService, IStorageMainService } from '../../stora
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings } from '../../window/common/window.js';
+import { getMenuBarVisibility, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, hasNativeTitlebar, useNativeFullScreen, DEFAULT_CUSTOM_TITLEBAR_HEIGHT, TitlebarStyle, MenuSettings, getMacOSWindowControlsPosition } from '../../window/common/window.js';
 import { defaultBrowserWindowOptions, getAllWindowsExcludingOffscreen, IWindowsMainService, OpenContext, WindowStateValidator } from './windows.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
@@ -483,7 +483,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 	private windowControlsDimmed = false;
 	private lastWindowControlColors: { backgroundColor?: string; foregroundColor?: string } | undefined;
 
-	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
+	updateWindowControls(options: { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): void {
 		const win = this.win;
 		if (!win) {
 			return;
@@ -521,16 +521,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// macOS: update window controls via setWindowButtonPosition()
 		else if (isMacintosh && options.height !== undefined) {
-			// When the position is set, the horizontal margin is offset to ensure
-			// the distance between the traffic lights and the window frame is equal
-			// in both directions.
-			const buttonHeight = isTahoeOrNewer(release()) ? 14 : 16;
-			const offset = Math.floor((options.height - buttonHeight) / 2);
-			if (!offset) {
-				win.setWindowButtonPosition(null);
-			} else {
-				win.setWindowButtonPosition({ x: offset + 1, y: offset });
-			}
+			win.setWindowButtonPosition(getMacOSWindowControlsPosition(options.height, release(), options.horizontalInset));
 		}
 	}
 

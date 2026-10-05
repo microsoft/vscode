@@ -1688,7 +1688,6 @@ export class GridView implements IDisposable {
 	setViewVisible(location: GridLocation, visible: boolean): void {
 		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
-			return;
 		}
 
 		const [rest, index] = tail(location);

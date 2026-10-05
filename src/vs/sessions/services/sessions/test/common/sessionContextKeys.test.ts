@@ -13,7 +13,7 @@ import { ContextKeyValue, IContextKey } from '../../../../../platform/contextkey
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionHasCachedChangesContext, SessionHasChangesContext, SessionHasGitRepositoryContext, SessionHasMultipleCommittedChatsContext, SessionHasWorkspaceContext, SessionIsActiveContext, SessionIsCreatedContext, SessionIsReadContext, SessionProviderIdContext, SessionSupportsSideChatContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionChangeset, ISessionWorkspace, SessionStatus } from '../../common/session.js';
 import { IActiveSession } from '../../common/sessionsManagement.js';
 import { setActiveSessionContextKeys, setSessionContextKeys } from '../../common/sessionContextKeys.js';
@@ -135,6 +135,34 @@ suite('Session Context Keys', () => {
 			inProgress: true,
 			needsInput: true,
 			error: false,
+		});
+	});
+
+	test('publishes the main chat read state independently of the session aggregate', () => {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const sessionIsRead = observableValue('sessionIsRead', false);
+		const mainChatIsRead = observableValue('mainChatIsRead', true);
+		const mainChat = { ...stubChat, isRead: mainChatIsRead };
+		const session = stubSession({
+			sessionId: 'a',
+			isRead: sessionIsRead,
+			mainChat: constObservable(mainChat),
+		});
+
+		store.add(autorun(reader => setSessionContextKeys(session, contextKeyService, reader)));
+		const initially = SessionIsReadContext.getValue(contextKeyService);
+		mainChatIsRead.set(false, undefined);
+		const afterMainChatUnread = SessionIsReadContext.getValue(contextKeyService);
+		sessionIsRead.set(true, undefined);
+
+		assert.deepStrictEqual({
+			initially,
+			afterMainChatUnread,
+			afterSessionRead: SessionIsReadContext.getValue(contextKeyService),
+		}, {
+			initially: true,
+			afterMainChatUnread: false,
+			afterSessionRead: false,
 		});
 	});
 
@@ -354,6 +382,7 @@ suite('setSessionContextKeys - changes', () => {
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
 			changesets: constObservable([]),
 			changes: chatChanges,
+			isRead: constObservable(true),
 		});
 		const session = upcastPartial<IActiveSession>({
 			...stubSession({

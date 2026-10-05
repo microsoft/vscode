@@ -691,7 +691,9 @@ suite('Grid', function () {
 		assert.deepStrictEqual(grid.isViewVisible(view2), true);
 		assert.deepStrictEqual(grid.isViewVisible(view3), true);
 
-		// Changing the visibility of any view while a view is maximized, unmaximizes the view
+		// Revealing a hidden view while a view is maximized both restores the grid
+		// and applies the requested visibility.
+		grid.setViewVisible(view3, false);
 		grid.maximizeView(view1);
 		assert.deepStrictEqual(grid.hasMaximizedView(), true);
 		grid.setViewVisible(view3, true);

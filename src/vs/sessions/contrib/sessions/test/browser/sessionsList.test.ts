@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -108,7 +108,8 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
-	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), changes: constObservable([]), changesets: constObservable([]) });
+	const isRead = observableValue(`isRead-${id}`, opts.isRead ?? true);
+	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), isRead, changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -137,7 +138,7 @@ function createSession(id: string, opts: {
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
 		isArchived,
-		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
+		isRead,
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
@@ -1159,6 +1160,31 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(header, `Expected section ${label}`);
 			return header;
 		}
+
+		test('derives collapsed section unread state from its chats', () => {
+			const built = buildTestSession({
+				id: 'section-chat-read-state',
+				title: 'Main chat',
+				workspace: 'Workspace',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { list, container } = renderList([built.session]);
+			list.collapseAllSections();
+
+			const peerUnread = unreadSections(container);
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const chatsRead = unreadSections(container);
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = unreadSections(container);
+
+			assert.deepStrictEqual({ peerUnread, chatsRead, mainUnread }, {
+				peerUnread: ['Workspace'],
+				chatsRead: [],
+				mainUnread: ['Workspace'],
+			});
+		});
 
 		test('reports the experiment trigger where a header could show a status, whether or not the setting shows it', () => {
 			const trigger = [`config.${SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING}`];
@@ -2413,7 +2439,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), changes: constObservable([]), changesets: constObservable([]) })),
+			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), isRead: constObservable(true), changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -2867,12 +2893,12 @@ suite('Sessions - SessionsList', () => {
 					.map(row => row.classList.contains('session-comparison-attempt')),
 				statusIconDisplays: [...container.querySelectorAll<HTMLElement>('.session-item .session-icon > .codicon')]
 					.map(icon => mainWindow.getComputedStyle(icon).display),
-				comparisonControlDisplay: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.session-comparison-archive')!).display,
+				comparisonControls: container.querySelectorAll('.session-comparison-archive').length,
 			}, {
 				connectors: [undefined, undefined, undefined],
 				comparisonAttempts: [false, false, false],
 				statusIconDisplays: ['flex', 'flex', 'flex'],
-				comparisonControlDisplay: 'none',
+				comparisonControls: 0,
 			});
 		});
 
@@ -3281,13 +3307,13 @@ suite('Sessions - SessionsList', () => {
 				summary: comparison?.querySelector('.session-group-description')?.textContent,
 				comparisonGroups: container.querySelectorAll('.session-comparison-group').length,
 				sessionRows: container.querySelectorAll('.session-item').length,
-				archiveDisplay: archive ? mainWindow.getComputedStyle(archive).display : undefined,
+				customArchiveButton: !!archive,
 			}, {
 				title: 'Improve the picker',
 				summary: 'Comparison · Starting attempts · 1 of 2 ready',
 				comparisonGroups: 1,
 				sessionRows: 0,
-				archiveDisplay: 'none',
+				customArchiveButton: false,
 			});
 		});
 
@@ -3308,57 +3334,25 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('archives complete comparison membership including pinned and filtered input waits', async () => {
-			const { attempt1, attempt2, judge, synthesis, container, harness, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
+		test('uses the group toolbar instead of a custom comparison archive button', () => {
+			const { attempt1, attempt2, judge, synthesis, container, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
 			attempt1.status.set(SessionStatus.Completed, undefined);
 			attempt2.status.set(SessionStatus.NeedsInput, undefined);
 			judge.status.set(SessionStatus.NeedsInput, undefined);
 			synthesis.status.set(SessionStatus.Completed, undefined);
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, true);
-			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
 			assert.deepStrictEqual({
-				hidden: archive?.hidden,
-				display: archive ? mainWindow.getComputedStyle(archive).display : undefined,
-				ariaLabel: archive?.getAttribute('aria-label'),
-				checkIcon: archive?.querySelector('.codicon-check') !== null,
+				customArchiveButtons: container.querySelectorAll('.session-comparison-archive').length,
+				toolbars: container.querySelectorAll('.session-comparison-group .session-section-toolbar .monaco-toolbar').length,
 				stopButtons: container.querySelectorAll('.session-comparison-stop-all, .session-comparison-participant-stop').length,
 				sessionRows: [...container.querySelectorAll('.session-item')].map(row => row.querySelector('.session-title')?.textContent),
 			}, {
-				hidden: false,
-				display: 'flex',
-				ariaLabel: 'Archive Comparison',
-				checkIcon: true,
+				customArchiveButtons: 0,
+				toolbars: 1,
 				stopButtons: 0,
 				sessionRows: ['Synthesis', 'Copilot · Claude Opus 5'],
 			});
 
-			archive?.click();
-			await timeout(0);
-			assert.deepStrictEqual({
-				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
-				archivedComparisonIds: harness.archivedComparisonIds,
-				deletedGroupIds: harness.deletedGroupIds,
-			}, {
-				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
-				archivedComparisonIds: ['comparison-1'],
-				deletedGroupIds: [group.id],
-			});
-		});
-
-		test('keeps the comparison when a participant session could not be archived', async () => {
-			const { container, harness } = renderComparison(undefined, 'attempt1');
-			container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive')?.click();
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
-				archivedComparisonIds: harness.archivedComparisonIds,
-				deletedGroupIds: harness.deletedGroupIds,
-			}, {
-				archived: ['attempt-1', 'judge', 'synthesis'],
-				archivedComparisonIds: [],
-				deletedGroupIds: [],
-			});
 		});
 
 		test('allows regrouping sessions from archived comparisons while retaining history lookup', () => {
@@ -4180,6 +4174,7 @@ suite('Sessions - SessionsList', () => {
 				status: constObservable(status),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -4227,9 +4222,7 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen,
 			}));
 			list.layout(300, 400);
-			if (expandChats) {
-				setSessionChatsExpanded(container, true);
-			}
+			setSessionChatsExpanded(container, expandChats);
 			return { container, list, managementService: harness.managementService };
 		}
 
@@ -4240,6 +4233,83 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('renders the exact main chat read state whether collapsed or expanded', () => {
+			const built = buildTestSession({
+				id: 'chat-read-state',
+				title: 'Main chat',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { container } = renderSessionChatsList(built.session, undefined, false, false);
+			const mainItem = container.querySelector<HTMLElement>('.session-item');
+			const snapshot = () => ({
+				mainUnread: mainItem?.classList.contains('unread'),
+				mainAriaLabel: mainItem?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				peerUnread: container.querySelector<HTMLElement>('.session-chat-item')?.classList.contains('unread'),
+				peerAriaLabel: container.querySelector<HTMLElement>('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			});
+
+			const collapsed = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expanded = snapshot();
+			setSessionChatsExpanded(container, false);
+			const recollapsed = snapshot();
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = snapshot();
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const peerRead = snapshot();
+			built.isRead.set(true, undefined);
+			const sessionRead = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expandedMainUnread = snapshot();
+
+			assert.deepStrictEqual({ collapsed, expanded, recollapsed, mainUnread, peerRead, sessionRead, expandedMainUnread }, {
+				collapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expanded: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: true,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed, unread',
+				},
+				recollapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				mainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				peerRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				sessionRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expandedMainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: false,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+				},
+			});
+		});
 
 		test('matches the main chat row vertical layout in compact and regular views', () => {
 			const main = createChat('Main chat');
@@ -4398,6 +4468,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5457,6 +5528,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5531,6 +5603,7 @@ suite('Sessions - SessionsList', () => {
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
@@ -5789,6 +5862,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -7025,7 +7099,7 @@ suite('Sessions - SessionsList', () => {
 					badge: undefined,
 					time: undefined,
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, updated now',
+					ariaLabel: 'Investigate failure, updated now, unread',
 				},
 				regular: {
 					usesStandardRowHeight: true,
@@ -7037,7 +7111,7 @@ suite('Sessions - SessionsList', () => {
 					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, chat, updated now',
+					ariaLabel: 'Investigate failure, chat, updated now, unread',
 				},
 			});
 		});
@@ -7050,6 +7124,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -7475,31 +7550,6 @@ suite('Sessions - SessionsList', () => {
 			}
 		}
 
-		for (const isExternal of [false, true]) {
-			test(`reports the exact session only after a revealed row finishes opening (external: ${isExternal})`, async () => {
-				const session = createTestSession('Guided session', { isExternal }).session;
-				const harness = createListHarness(disposables, [session]);
-				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
-				const completion = new DeferredPromise<void>();
-				const container = harness.createContainer();
-				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-					grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
-					onSessionOpen: () => completion.p,
-				}));
-				const opened: string[] = [];
-				harness.store.add(list.onDidOpenSession(resource => opened.push(resource.toString())));
-				list.layout(300, 400);
-				list.collapseAllSections();
-				harness.store.add(list.revealSessionForOnboarding(session));
-				clickRow(findSessionRow(container, 'Guided session'));
-				await settle();
-				assert.deepStrictEqual(opened, []);
-				await completion.complete();
-				await settle();
-				assert.deepStrictEqual(opened, [session.resource.toString()]);
-			});
-		}
-
 		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {
 			const { session } = createTestSession(title);
 			const harness = createListHarness(disposables, [session]);
@@ -7528,6 +7578,56 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
 				opened: [session.resource.toString()],
 				markedRead: 1,
+			});
+		});
+
+		test('opening an expanded main chat does not mark the parent session read', async () => {
+			const base = createTestSession('Unread multi-chat', { isRead: false }).session;
+			const main = base.mainChat.get();
+			const peer: IChat = {
+				...main,
+				resource: URI.parse('test-chat://peer'),
+				workspace: constObservable(undefined),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				isArchived: constObservable(false),
+				isRead: constObservable(true),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			};
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const opened: string[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: resource => {
+					opened.push(resource.toString());
+				},
+			}));
+			list.layout(300, 400);
+			const row = findSessionRow(container, 'Unread multi-chat');
+			const twistie = row.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			if (row.getAttribute('aria-expanded') !== 'true') {
+				twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			}
+
+			clickRow(row);
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 0,
 			});
 		});
 

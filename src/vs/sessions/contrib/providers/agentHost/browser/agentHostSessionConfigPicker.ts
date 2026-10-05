@@ -49,6 +49,7 @@ import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devCont
 import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -1002,7 +1003,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _renderIsolationCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
-		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
+		const label = NEW_WORKTREE_LABEL;
 		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
 		const checked = value === 'worktree';
 		const combinationDisabled = !this._isDevContainerWorktreeEnabled()
@@ -1267,7 +1268,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[], branchResultLimit?: number): Promise<readonly IConfigPickerItem[]> {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			const worktreeDisabled = !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true;
-			return ['worktree', schema.enum?.includes('workspace') ? 'workspace' : 'folder'].filter(value => schema.enum?.includes(value)).map(value => ({
+			return [schema.enum?.includes('workspace') ? 'workspace' : 'folder', 'worktree'].filter(value => schema.enum?.includes(value)).map(value => ({
 				value,
 				label: this._getLabel(sessionId, property, schema, value),
 				description: value === 'worktree'
@@ -1351,7 +1352,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private _getLabel(sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			return value === 'worktree'
-				? localize('agentHostSessionConfig.isolation.worktree', "New Worktree")
+				? NEW_WORKTREE_LABEL
 				: value === 'folder' || value === 'workspace'
 					? localize('agentHostSessionConfig.isolation.branch', "Branch")
 					: schema.title;

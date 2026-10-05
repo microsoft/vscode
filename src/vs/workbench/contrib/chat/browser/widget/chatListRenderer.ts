@@ -47,7 +47,7 @@ import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/mark
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { parseRemoteAgentHostSessionTypeAuthority } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCreateChatTool, isCreateSessionTool, isSendMessageTool } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CodiconActionViewItem } from '../../../notebook/browser/view/cellParts/cellActionView.js';
@@ -61,7 +61,7 @@ import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatExternalEdit, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsageModelTotal, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
-import { localChatSessionType, SessionType } from '../../common/chatSessionsService.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { getExplicitFileOrImageAttachmentSummary, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { getStickyScrollTargetItem, IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, IChatWorkingProgress, isRequestVM, isResponseVM, IChatPendingDividerViewModel, isPendingDividerVM, IChatTurnPillsPart } from '../../common/model/chatViewModel.js';
@@ -136,7 +136,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { AccessibilityWorkbenchSettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { isActiveBackgroundTerminalToolInvocation, isAskQuestionsToolInvocation, isCarouselToolConfirmation, isMcpToolInvocation } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 import { isToolResultInputOutputDetails } from '../../common/tools/languageModelToolsService.js';
-import { AgentSessionProviders, isAgentHostTarget } from '../agentSessions/agentSessions.js';
+import { isAgentHostTarget } from '../agentSessions/agentSessions.js';
 
 const $ = dom.$;
 
@@ -681,14 +681,9 @@ const mostRecentResponseClassName = 'chat-most-recent-response';
 export function shouldHideChatUserIdentity(username: string, sessionResource: URI, isResponse: boolean, isSessionsWindow: boolean, isSystemInitiatedRequest: boolean): boolean {
 	const sessionType = getChatSessionType(sessionResource);
 	return username === COPILOT_USERNAME ||
-		(isResponse && isAgentHostCopilotSessionType(sessionType)) ||
+		(isResponse && isCopilotAgentHostSessionType(sessionType)) ||
 		isSessionsWindow ||
 		isSystemInitiatedRequest;
-}
-
-function isAgentHostCopilotSessionType(sessionType: string): boolean {
-	return sessionType === AgentSessionProviders.AgentHostCopilot ||
-		parseRemoteAgentHostSessionTypeAuthority(sessionType, SessionType.CopilotCLI) !== undefined;
 }
 
 function upvoteAnimationSettingToEnum(value: string | undefined): ClickAnimation | undefined {
@@ -2528,6 +2523,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
+	private readonly requestDisclosureState = new WeakMap<IChatRequestViewModel, boolean>();
+
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.stickyScrollSource = undefined;
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
@@ -2555,6 +2552,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+		const isFirstRequest = this.viewModel?.model.getRequests()[0]?.id === element.id;
+		const requestSummary = isFirstRequest && !element.confirmation && !element.pendingKind && this.viewModel?.editing?.id !== element.id
+			? this.rendererOptions.firstRequestSummary
+			: undefined;
 		if (element.id === this.viewModel?.editing?.id && !isStickyScrollRow) {
 			this._onDidRerender.fire(templateData);
 		}
@@ -2579,7 +2580,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		if (!element.confirmation && !isStickyAndEditing) {
-			const requestMarkdown = this.getRequestMarkdown(element, explicitFileOrImageVariables);
+			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables);
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -2594,7 +2595,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		dom.clearNode(templateData.value);
-		const isFirstRequest = this.viewModel?.model.getRequests()[0]?.id === element.id;
 		if (!isStickyScrollRow && (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest))) {
 			const requestOriginPart = this.instantiationService.createInstance(ChatRequestOriginPart, element.sessionResource, element.origin);
 			templateData.value.appendChild(requestOriginPart.domNode);
@@ -2626,7 +2626,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(otherAttachmentsPart);
 			}
 		}
-		const contentContainer = templateData.value;
+		let contentContainer = templateData.value;
+		if (requestSummary && !isStickyScrollRow) {
+			const details = dom.append(contentContainer, dom.$<HTMLDetailsElement>('details.chat-request-disclosure'));
+			const summary = dom.append(details, dom.$('summary', undefined, requestSummary));
+			details.open = this.requestDisclosureState.get(element) ?? false;
+			const updateExpansionState = () => {
+				this.requestDisclosureState.set(element, details.open);
+				summary.setAttribute('aria-expanded', String(details.open));
+			};
+			updateExpansionState();
+			templateData.elementDisposables.add(dom.addDisposableListener(details, 'toggle', updateExpansionState));
+			templateData.elementDisposables.add(dom.addDisposableListener(summary, dom.EventType.KEY_DOWN, event => {
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+					event.stopPropagation();
+				}
+			}));
+			templateData.elementDisposables.add(dom.addDisposableListener(summary, dom.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+				details.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+				details.open = !details.open;
+				updateExpansionState();
+			}));
+			contentContainer = details;
+			templateData.stickyScrollSource = summary;
+		}
 
 		if (isStickyAndEditing) {
 			const store = new DisposableStore();
@@ -3695,6 +3721,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
+		templateData.completedResponseDisclosureDisposables.add(this.hoverService.setupDelayedHover(label, { content: disclosureLabel }));
 
 		if (templateData.renderedPersistentProgress) {
 			const diffButton = templateData.completedResponseDisclosureDisposables.add(new MutableDisposable<ChatEditStatsButton>());

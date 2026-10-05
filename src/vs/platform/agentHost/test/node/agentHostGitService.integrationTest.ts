@@ -121,6 +121,21 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		await assert.rejects(() => svc!.getCurrentBranchName(directory, { throwOnError: true }), /not a git repository/);
 	});
 
+	(hasGit ? test : test.skip)('listRefNamesWithOids returns an empty result for a successful strict lookup without matches', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-'));
+		cp.execFileSync('git', ['init', '-q'], { cwd: tmpRoot, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.listRefNamesWithOids(URI.file(tmpRoot), 'refs/agents/session*/reviewed', { throwOnError: true }), []);
+	});
+
+	(hasGit ? test : test.skip)('listRefNamesWithOids throws on failed strict lookup without changing best-effort callers', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
+		const directory = URI.file(tmpRoot);
+
+		assert.deepStrictEqual(await svc!.listRefNamesWithOids(directory, 'refs/agents/session*/reviewed'), []);
+		await assert.rejects(() => svc!.listRefNamesWithOids(directory, 'refs/agents/session*/reviewed', { throwOnError: true }), /not a git repository/);
+	});
+
 	(hasGit ? test : test.skip)('reports branch, github remote and clean state for a fresh repo', async () => {
 		const dir = initRepo({ remote: 'https://github.com/owner/repo.git' });
 		const result = await svc!.getSessionGitState(URI.file(dir));
@@ -1740,8 +1755,8 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 		const { dir } = await initRepoWithFiles({ 'a.txt': 'a-v1\n', 'b.txt': 'b-v1\n' });
 		const base = headTree(dir);
 
-		// Working tree modifies a.txt only; capture it as the source tree.
-		await fs.writeFile(join(dir, 'a.txt'), 'a-v2\n');
+		// Change the size too so Git detects the edit even when filesystem timestamps collide.
+		await fs.writeFile(join(dir, 'a.txt'), 'a-v2-modified\n');
 		const source = await svc!.captureWorkingTreeAsTree(URI.file(dir));
 		assert.ok(source, 'expected a working-tree snapshot');
 
@@ -1756,7 +1771,7 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 			},
 			{
 				files: ['a.txt', 'b.txt'],
-				aContent: 'a-v2\n', // overlaid from the source tree
+				aContent: 'a-v2-modified\n', // overlaid from the source tree
 				bContent: 'b-v1\n', // copied verbatim from the base tree
 			});
 	});

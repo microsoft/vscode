@@ -18,7 +18,7 @@ import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/brow
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { SessionCanvasAvailability, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionCanvasInput } from '../../../canvases/common/sessionCanvas.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
@@ -247,9 +247,7 @@ suite('Desktop layout strategies', () => {
 			resource: canvasResource,
 			instanceId: 'preview',
 			title: 'Preview',
-			revision: 1,
-			availability: SessionCanvasAvailability.Ready,
-			resolveSource: async () => URI.parse('https://example.test/preview'),
+			source: URI.parse('https://example.test/preview'),
 		}));
 		harness.activeGroupEditors.push(canvasEditor);
 		harness.activeEditorInput = canvasEditor;

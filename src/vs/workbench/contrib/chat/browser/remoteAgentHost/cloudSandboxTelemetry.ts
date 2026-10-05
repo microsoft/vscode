@@ -13,7 +13,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 /** The Mission Control call being reported. A closed set, so it is safe to send verbatim. */
-export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'getEnvironment' | 'listTasks' | 'getTask' | 'createTask' | 'deleteTask' | 'getTaskEvents' | 'getRepository';
+export type CloudSandboxRequestAction = 'connect' | 'reconnect' | 'getEnvironment' | 'listTasks' | 'getTask' | 'createTask' | 'deleteTask' | 'renameTask' | 'archiveTask' | 'unarchiveTask' | 'getTaskEvents' | 'getRepository' | 'listModels';
 
 /**
  * How a Mission Control request ended, bucketed so a count is meaningful without carrying the
@@ -591,7 +591,7 @@ type CloudSandboxRequestsEvent = {
 };
 
 type CloudSandboxRequestsClassification = {
-	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which Mission Control call was counted (connect, reconnect, getEnvironment, listTasks or getTask).' };
+	action: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Which Mission Control operation was counted, including model discovery, task operations, and environment connections.' };
 	windowMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds covered by these counts.' };
 	total: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Requests issued for this action during the window.' };
 	succeeded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Requests that returned a success status.' };
