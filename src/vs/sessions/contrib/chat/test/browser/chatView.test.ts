@@ -223,7 +223,7 @@ suite('Sessions - Chat View', () => {
 			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
 			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
 		};
-		return { view, loads, cleared, loading, loadCts, onDidDisposeSession };
+		return { view, loads, cleared, loading, loadCts, modelRef, onDidDisposeSession };
 	}
 
 	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
@@ -252,6 +252,22 @@ suite('Sessions - Chat View', () => {
 			released: { cleared: [resource], loading: [true], loads: [] },
 			loads: [resource],
 		});
+	});
+
+	test('reloads a chat whose provider was replaced while its first load was still in flight', async () => {
+		// The connection banner is already clickable while history loads, so the stand-in can go
+		// away before the model is bound; that load still binds to the stand-in's session.
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, cleared, modelRef, onDidDisposeSession } = createProviderReplacementView(resource);
+		modelRef.value = undefined;
+
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		modelRef.value = {};
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ cleared, loads }, { cleared: [resource], loads: [resource] });
 	});
 
 	test('a newer load supersedes a pending provider-replacement reload', async () => {

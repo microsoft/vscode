@@ -681,9 +681,13 @@ export class ChatView extends AbstractChatView {
 		this._loadChat(resource, this._currentSessionObs.get());
 	}
 
+	/**
+	 * A load still in flight binds to the removed provider's session just as a bound model does,
+	 * so it is tracked as well; a fresh load clears the mark.
+	 */
 	private _trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void {
 		const resource = this._currentChatResource;
-		if (resource && this._modelRef.value && removedSessionTypes.includes(getChatSessionType(resource))) {
+		if (resource && removedSessionTypes.includes(getChatSessionType(resource))) {
 			this._chatWithUnregisteredProvider = resource;
 		}
 	}
