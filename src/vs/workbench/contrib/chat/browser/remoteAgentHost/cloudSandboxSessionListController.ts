@@ -68,6 +68,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			dispatch: (channel, action) => this._requireConnection().dispatch(channel, action),
 		}, {
 			filterToWorkspace: false,
+			connectionAuthority: authority,
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 		}));
 		this._controller = this._register(instantiationService.createInstance(AgentHostSessionListController,

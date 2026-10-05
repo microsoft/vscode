@@ -76,7 +76,7 @@ export function updateCodexEpisode(episode: ICodexContinuationEpisode | undefine
 export function getCodexContinuationCandidates(sessions: readonly IAgentSessionMetadata[], models: readonly SessionModelInfo[], activeSession?: string): ICodexContinuationCandidate[] {
 	const candidates: ICodexContinuationCandidate[] = [];
 	for (const session of sessions) {
-		if (AgentSession.provider(session.session) !== 'codex' || !session.model || isSessionStatusArchived(session.status)) {
+		if ((session.provider ?? AgentSession.provider(session.session)) !== 'codex' || !session.model || isSessionStatusArchived(session.status)) {
 			continue;
 		}
 		const selection = parseCodexModelSelection(session.model);
