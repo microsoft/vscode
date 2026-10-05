@@ -70,4 +70,42 @@ suite('PtyHostService', () => {
 			'restarts should notify the local channel without accumulating startup listeners'
 		);
 	});
+
+	test('forwards auto reply ownership through the local pty channel', async () => {
+		const calls: { command: string; args: unknown }[] = [];
+		const channel: IChannel = {
+			call<T>(command: string, args: unknown): Promise<T> {
+				if (command === 'installAutoReply' || command === 'uninstallAllAutoReplies') {
+					calls.push({ command, args });
+				}
+				return Promise.resolve([] as T);
+			},
+			listen: () => Event.None
+		};
+		const starter: IPtyHostStarter = {
+			start: () => ({
+				client: { getChannel: <T extends IChannel>() => channel as T },
+				store: new DisposableStore(),
+				onDidProcessExit: Event.None
+			}),
+			dispose: () => { }
+		};
+		const service = store.add(new PtyHostService(
+			starter,
+			new TestConfigurationService(),
+			new NullLogService(),
+			store.add(new NullLoggerService())
+		));
+		const localChannel = createLocalPtyChannel(service, store.add(new DisposableStore()));
+		await localChannel.call('window A', 'installAutoReply', ['A prompt', 'A reply', 'owner A']);
+		await localChannel.call('window B', 'installAutoReply', ['B prompt', 'B reply', 'owner B']);
+		await localChannel.call('window B', 'uninstallAllAutoReplies', ['owner B']);
+		await timeout(0);
+
+		deepStrictEqual(calls, [
+			{ command: 'installAutoReply', args: ['A prompt', 'A reply', 'owner A'] },
+			{ command: 'installAutoReply', args: ['B prompt', 'B reply', 'owner B'] },
+			{ command: 'uninstallAllAutoReplies', args: ['owner B'] }
+		]);
+	});
 });

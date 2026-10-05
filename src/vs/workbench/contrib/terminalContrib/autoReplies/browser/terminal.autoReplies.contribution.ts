@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -15,6 +16,8 @@ import { TerminalAutoRepliesSettingId, type ITerminalAutoRepliesConfiguration } 
 
 export class TerminalAutoRepliesContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalAutoReplies';
+
+	private readonly _ownerId = generateUuid();
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -29,25 +32,27 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 	}
 
 	private _installListenersOnBackend(backend: ITerminalBackend): void {
+		this._register(toDisposable(() => { backend.uninstallAllAutoReplies(this._ownerId); }));
+
 		// Listen for config changes
 		const initialConfig = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
 			// Ensure the reply is valid
 			const reply = initialConfig.autoReplies[match] as string | null;
 			if (reply) {
-				backend.installAutoReply(match, reply);
+				backend.installAutoReply(match, reply, this._ownerId);
 			}
 		}
 
 		this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalAutoRepliesSettingId.AutoReplies)) {
-				backend.uninstallAllAutoReplies();
+				backend.uninstallAllAutoReplies(this._ownerId);
 				const config = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
 				for (const match of Object.keys(config.autoReplies)) {
 					// Ensure the reply is valid
 					const reply = config.autoReplies[match] as string | null;
 					if (reply) {
-						backend.installAutoReply(match, reply);
+						backend.installAutoReply(match, reply, this._ownerId);
 					}
 				}
 			}

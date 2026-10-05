@@ -386,11 +386,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._proxy.installAutoReply(match, reply);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply, ownerId);
 	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._proxy.uninstallAllAutoReplies();
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies(ownerId);
 	}
 
 	// #endregion

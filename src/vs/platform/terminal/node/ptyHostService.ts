@@ -290,11 +290,11 @@ export class PtyHostService extends Disposable implements IPtyHostService {
 		return this._proxy.orphanQuestionReply(id);
 	}
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._proxy.installAutoReply(match, reply);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply, ownerId);
 	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._proxy.uninstallAllAutoReplies();
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies(ownerId);
 	}
 
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
