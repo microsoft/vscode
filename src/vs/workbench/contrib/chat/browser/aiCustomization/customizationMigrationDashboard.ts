@@ -619,7 +619,14 @@ export class CustomizationMigrationDashboard extends Disposable {
 			if (!entry || entry.type === 'group-header') {
 				return;
 			}
-			this.openMigrationItem(entry);
+			// Single-click (preserveFocus=true, pinned=false, no side-by-side) toggles the
+			// checkbox for selectable items. Double-click and keyboard activation open the detail.
+			const isSingleClick = event.editorOptions.preserveFocus && !event.editorOptions.pinned && !event.sideBySide;
+			if (isSingleClick && !entry.manualReviewReason) {
+				this.setMigrationItemSelected(entry, !entry.selected);
+			} else {
+				this.openMigrationItem(entry);
+			}
 		}));
 		tree.setChildren(null, children);
 		layoutTree();
