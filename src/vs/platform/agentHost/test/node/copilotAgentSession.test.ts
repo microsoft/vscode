@@ -2510,7 +2510,7 @@ suite('CopilotAgentSession', () => {
 			sameResource: canvases[1]?.resource.toString() === resource,
 			actions: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
 		}, {
-			openEvents: 1,
+			openEvents: 0,
 			states: [{
 				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
 				canvasId: 'preview', title: 'Preview', status: 'ready', url: 'https://example.test/live',
@@ -2541,6 +2541,9 @@ suite('CopilotAgentSession', () => {
 			extensionId: 'project:preview',
 			canvasId: 'preview',
 			url: 'https://example.test/live',
+		});
+		mockSession.fire('session.canvas.recorded', {
+			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
 		});
 
 		assert.deepStrictEqual({
@@ -2589,17 +2592,21 @@ suite('CopilotAgentSession', () => {
 		});
 		const canvas = { instanceId: 'private-instance', extensionId: 'opaque-provider', canvasId: 'private-type', url: 'https://example.test/private' };
 		mockSession.fire('session.canvas.opened', canvas);
+		mockSession.fire('session.canvas.recorded', canvas);
 		mockSession.fire('session.canvas.opened', canvas);
 		mockSession.fire('session.canvas.opened', { ...canvas, title: 'New title' });
 		mockSession.fire('session.canvas.unavailable', canvas);
 		mockSession.fire('session.canvas.opened', canvas);
 		mockSession.fire('session.canvas.opened', { ...canvas, instanceId: 'subagent-canvas' }, { agentId: 'agent-1' });
+		mockSession.fire('session.canvas.recorded', { ...canvas, instanceId: 'subagent-canvas' }, { agentId: 'agent-1' });
 		mockSession.fire('session.extensions_loaded', {
 			extensions: [{ id: 'opaque-provider', name: 'Private extension name', source: 'plugin', status: 'running' }],
 		});
 		mockSession.fire('session.canvas.closed', canvas);
 		mockSession.fire('session.canvas.opened', canvas);
+		mockSession.fire('session.canvas.recorded', canvas);
 		mockSession.fire('session.canvas.opened', { ...canvas, instanceId: 'unknown', extensionId: 'project:not-discovered' });
+		mockSession.fire('session.canvas.recorded', { ...canvas, instanceId: 'unknown', extensionId: 'project:not-discovered' });
 
 		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened'), ['user', 'plugin', 'unknown'].map(extensionSource => ({
 			eventName: 'agentHost.canvasOpened',
@@ -2614,7 +2621,7 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
-	test('deduplicates canvas telemetry across projection eviction until the runtime instance closes', async () => {
+	test('uses first-open records without counting projection eviction updates or recovery', async () => {
 		const telemetryService = new CapturingTelemetryService();
 		const { mockSession } = await createAgentSession(disposables, { telemetryService });
 		const canvas = (index: number) => ({
@@ -2626,6 +2633,7 @@ suite('CopilotAgentSession', () => {
 		const openCount = () => telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened').length;
 		for (let index = 0; index < 9; index++) {
 			mockSession.fire('session.canvas.opened', canvas(index));
+			mockSession.fire('session.canvas.recorded', canvas(index));
 		}
 		const counts = [openCount()];
 		mockSession.fire('session.canvas.closed', canvas(0), { agentId: 'agent-1' });
@@ -2634,15 +2642,54 @@ suite('CopilotAgentSession', () => {
 		mockSession.fire('session.canvas.unavailable', canvas(1));
 		mockSession.fire('session.canvas.opened', canvas(1));
 		counts.push(openCount());
-		// Canvas 2 is no longer projected, but its runtime close must still end the counted lifetime.
 		mockSession.fire('session.canvas.closed', canvas(2));
 		mockSession.fire('session.canvas.opened', canvas(2));
+		mockSession.fire('session.canvas.recorded', canvas(2));
 		counts.push(openCount());
 		mockSession.fire('session.canvas.closed', canvas(2));
 		mockSession.fire('session.canvas.opened', canvas(2));
+		mockSession.fire('session.canvas.recorded', canvas(2));
 		counts.push(openCount());
 
 		assert.deepStrictEqual(counts, [9, 9, 9, 10, 11]);
+	});
+
+	test('does not count provider recovery after resume and a user message as a new canvas open', async () => {
+		const results = [];
+		for (const hasRestoredSnapshot of [true, false]) {
+			const telemetryService = new CapturingTelemetryService();
+			const canvas = { instanceId: 'restored', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/restored' };
+			const { session, mockSession, runtime } = await createAgentSession(disposables, {
+				telemetryService,
+				resume: true,
+				configureMockSession: mock => {
+					if (hasRestoredSnapshot) {
+						mock.openCanvases.push(canvas);
+					}
+				},
+			});
+			const openCount = () => telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened').length;
+			mockSession.fire('session.canvas.opened', canvas);
+			const counts = [openCount()];
+			mockSession.fire('user.message', { content: 'Reload the extensions', messageId: 'message-1' } as SessionEventPayload<'user.message'>['data']);
+			await runtime.reloadExtensions();
+			mockSession.fire('session.canvas.unavailable', canvas);
+			mockSession.fire('session.canvas.opened', { ...canvas, url: 'https://example.test/rehydrated' });
+			counts.push(openCount());
+			mockSession.fire('session.canvas.closed', canvas);
+			mockSession.fire('session.canvas.opened', canvas);
+			mockSession.fire('session.canvas.recorded', {
+				instanceId: canvas.instanceId, extensionId: canvas.extensionId, canvasId: canvas.canvasId,
+			});
+			counts.push(openCount());
+			results.push({ hasRestoredSnapshot, counts });
+			session.dispose();
+		}
+
+		assert.deepStrictEqual(results, [
+			{ hasRestoredSnapshot: true, counts: [0, 0, 1] },
+			{ hasRestoredSnapshot: false, counts: [0, 0, 1] },
+		]);
 	});
 
 	test('reports canvas readiness with zero counts when no extensions are installed', async () => {

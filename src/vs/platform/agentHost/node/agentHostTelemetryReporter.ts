@@ -91,7 +91,7 @@ type CanvasOpenedEvent = IAgentHostEventTelemetry & {
 
 type CanvasOpenedClassification = IAgentHostEventClassification & {
 	owner: 'jruales';
-	comment: 'Counts new live canvas instances projected by the agent host, excluding restored replay and updates to an existing instance.';
+	comment: 'Counts live runtime first-open records, excluding restored history, updates, and provider recovery.';
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Canvas open event schema version.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider opening the canvas.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Existing agent host session identifier, not a URI or canvas instance name.' };
@@ -109,7 +109,7 @@ export interface ICanvasExtensionsReadyEvent {
 
 type CanvasExtensionsReadyClassification = {
 	owner: 'jruales';
-	comment: 'Measures the host canvas readiness operation, not total runtime extension startup or model time to first token. Settled can include failed providers.';
+	comment: 'Measures host canvas readiness, not runtime startup or model TTFT. Settled may include failed providers.';
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas readiness event schema version.' };
 	launchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the session is being created or resumed.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, timed out, failed, or the operation was cancelled.' };

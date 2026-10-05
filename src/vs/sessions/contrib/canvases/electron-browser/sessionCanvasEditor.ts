@@ -44,7 +44,7 @@ type CanvasLoadEvent = {
 
 type CanvasLoadClassification = {
 	owner: 'jruales';
-	comment: 'Measures completed canvas editor load attempts. Loaded means initial navigation completed, not first paint or application readiness; interrupted attempts without completion are not observed.';
+	comment: 'Measures completed canvas load attempts, not first paint or application readiness. Crashes may leave no completion.';
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas load event schema version.' };
 	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the load completed, failed, was cancelled, became stale, lost its owner, or the editor was disposed.' };
 	failureStage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Browser creation or initial navigation, present only when a failure occurred in that stage.' };
