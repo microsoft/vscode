@@ -3130,9 +3130,12 @@ export class CopilotAgentSession extends Disposable {
 		const stopwatch = StopWatch.create();
 		let outcome: ICanvasExtensionsReadyEvent['outcome'] = 'alreadySettled';
 		try {
+			const extensionsBeforeRequest = this._canvasExtensions;
 			const extensions = await wrapper.session.rpc.extensions.list();
-			// An extensions_loaded event received during the RPC is newer than its snapshot.
-			this._canvasExtensions ??= extensions.extensions;
+			// Preserve only events received during this request, not older snapshots.
+			if (this._canvasExtensions === extensionsBeforeRequest) {
+				this._canvasExtensions = extensions.extensions;
+			}
 			if (extensions.extensions.some(extension => extension.status === 'starting')) {
 				const ready = await raceTimeout(settled.p, 10_000);
 				outcome = ready === true ? 'settled' : 'timeout';

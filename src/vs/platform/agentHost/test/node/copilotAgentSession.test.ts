@@ -2763,6 +2763,43 @@ suite('CopilotAgentSession', () => {
 		session.dispose();
 	});
 
+	test('replaces extension events received before listing with the newer RPC snapshot', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const order: string[] = [];
+		let sdkSession: MockCopilotSession | undefined;
+		const { mockSession } = await createAgentSession(disposables, {
+			telemetryService,
+			rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'on' } },
+			configureMockSession: mock => {
+				sdkSession = mock;
+				mock.extensions.push(
+					{ id: 'provider', name: 'Preview', source: 'plugin', status: 'running' },
+					{ id: 'failed-provider', name: 'Failed', source: 'project', status: 'failed' },
+				);
+				mock.onExtensionList = () => order.push('list');
+			},
+			getSandboxHostSupport: async () => {
+				assert.ok(sdkSession);
+				order.push('event');
+				sdkSession.fire('session.extensions_loaded', {
+					extensions: [{ id: 'provider', name: 'Preview', source: 'user', status: 'running' }],
+				});
+				return { supported: true, capabilities: [] };
+			},
+		});
+		mockSession.fire('session.canvas.recorded', { instanceId: 'preview', extensionId: 'provider', canvasId: 'preview' });
+
+		assert.deepStrictEqual({
+			order,
+			readiness: canvasReadinessEvents(telemetryService),
+			opens: telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened'),
+		}, {
+			order: ['event', 'list'],
+			readiness: [{ schemaVersion: 1, launchKind: 'create', outcome: 'alreadySettled', extensionCount: 2, failedExtensionCount: 1, hasDuration: true }],
+			opens: [{ eventName: 'agentHost.canvasOpened', data: { schemaVersion: 1, provider: 'copilotcli', agentSessionId: 'test-session-1', extensionSource: 'plugin' } }],
+		});
+	});
+
 	test('observes extension readiness events that race with the status snapshot', async () => {
 		const telemetryService = new CapturingTelemetryService();
 		const listStarted = new DeferredPromise<void>();
