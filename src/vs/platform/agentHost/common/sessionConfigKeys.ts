@@ -96,7 +96,6 @@ export function getPersistedSessionConfigValues(values: Record<string, unknown>,
 
 const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.Permissions,
-	SessionConfigKey.SandboxEnabled,
 	SessionConfigKey.Isolation,
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
@@ -111,7 +110,7 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.AgentMergeInjectedConfiguration,
 ] as const;
 
-/** Removes values owned by a concrete session or target rather than a reusable Automation template. */
+/** Removes session/target-owned values; sandbox preferences remain in the template and are revalidated by runtime policy. */
 export function omitAutomationSessionTemplateConfigValues<T>(values: Record<string, T>): Record<string, T> {
 	const result = omitTransientSessionConfigValues(values);
 	for (const key of automationDefinitionOwnedConfigKeys) {
