@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { type ITerminalBackend } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ITerminalInstanceService } from '../../../terminal/browser/terminal.js';
 import { TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import { TerminalAutoRepliesSettingId, type ITerminalAutoRepliesConfiguration } from '../common/terminalAutoRepliesConfiguration.js';
@@ -22,6 +24,7 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -32,8 +35,6 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 	}
 
 	private _installListenersOnBackend(backend: ITerminalBackend): void {
-		this._register(toDisposable(() => { backend.uninstallAllAutoReplies(this._ownerId); }));
-
 		// Listen for config changes
 		const initialConfig = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
 		for (const match of Object.keys(initialConfig.autoReplies)) {
@@ -44,7 +45,7 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 			}
 		}
 
-		this._register(this._configurationService.onDidChangeConfiguration(async e => {
+		const configListener = this._register(this._configurationService.onDidChangeConfiguration(async e => {
 			if (e.affectsConfiguration(TerminalAutoRepliesSettingId.AutoReplies)) {
 				backend.uninstallAllAutoReplies(this._ownerId);
 				const config = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
@@ -56,6 +57,14 @@ export class TerminalAutoRepliesContribution extends Disposable implements IWork
 					}
 				}
 			}
+		}));
+		this._register(this._lifecycleService.onWillShutdown(e => {
+			configListener.dispose();
+			// Finish while remote IPC is still connected, before the final disconnect joiner.
+			e.join(backend.uninstallAllAutoReplies(this._ownerId), {
+				id: 'join.terminalAutoReplies',
+				label: localize('removeTerminalAutoReplies', "Remove Terminal Auto Replies")
+			});
 		}));
 	}
 }
