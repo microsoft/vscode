@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // @ts-check
-
+// looks good
 const cp = require('child_process');
 const path = require('path');
 const minimist = require('minimist');
