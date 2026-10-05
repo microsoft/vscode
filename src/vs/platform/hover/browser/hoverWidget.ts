@@ -228,7 +228,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 						action.run(e);
 						this.dispose();
 					},
-					iconClass: action.iconClass
+					iconClass: action.iconClass,
+					onDidChange: action.onDidChange,
 				}, keybindingLabel));
 			});
 			statusBarElement.appendChild(actionsElement);

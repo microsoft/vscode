@@ -2769,6 +2769,7 @@ export class ActionListWidget<T> extends Disposable {
 					commandId: action.commandId,
 					run: target => action.run(target),
 					iconClass: action.iconClass,
+					onDidChange: action.onDidChange,
 				}, keybinding?.getLabel() ?? null));
 				this._submenuHoverActionElements.push(hoverAction.actionContainer);
 			}
