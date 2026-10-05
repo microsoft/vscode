@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'fs';
+import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -17,6 +19,8 @@ import { ROOT_STATE_URI, type TerminalState } from '../../../../common/state/ses
 import { TerminalClaimKind } from '../../../../common/state/protocol/channels-terminal/state.js';
 import { terminalText } from '../harness/agentHostE2ETestHarness.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+
+const { Terminal }: Pick<typeof import('@xterm/headless'), 'Terminal'> = createRequire(import.meta.url)('@xterm/headless');
 
 export function defineTerminalResilienceTests(context: IAgentHostE2ETestContext): void {
 	let sequence = 400_000;
@@ -37,7 +41,7 @@ export function defineTerminalResilienceTests(context: IAgentHostE2ETestContext)
 	async function output(terminal: string, marker: string): Promise<string> {
 		return retry(async () => {
 			const text = terminalText(await state(terminal));
-			assert.ok(text.includes(marker), `Terminal has not produced ${marker}`);
+			assert.ok(text.includes(marker), `Terminal has not produced ${marker}; output: ${text}`);
 			return text;
 		}, 100, 300);
 	}
@@ -72,13 +76,21 @@ export function defineTerminalResilienceTests(context: IAgentHostE2ETestContext)
 		await withTerminals(1, async ([terminal]) => {
 			input(terminal.uri, `require('fs').writeFileSync('cwd.txt',process.cwd());console.log('CWD_'+'READY')`);
 			await output(terminal.uri, 'CWD_READY');
-			assert.strictEqual(realpathSync(readFileSync(join(terminal.workspace, 'cwd.txt'), 'utf8')), terminal.workspace);
+			const actual = statSync(readFileSync(join(terminal.workspace, 'cwd.txt'), 'utf8'));
+			const requested = statSync(terminal.workspace);
+			assert.deepStrictEqual({ dev: actual.dev, ino: actual.ino }, { dev: requested.dev, ino: requested.ino });
 		});
 	});
 
-	conformanceTest(context, 'regression coverage: terminal input preserves UTF-8 arguments through real shell execution', async function () {
+	conformanceTest(context, 'regression coverage: terminal input preserves UTF-8 bytes for a running child process', async function () {
 		await withTerminals(1, async ([terminal]) => {
-			input(terminal.uri, `require('fs').writeFileSync('unicode.txt','caf\u00e9');console.log('UNICODE_'+'DONE')`);
+			// Read PTY input in the child, independently of the shell editor's inherited locale.
+			input(terminal.uri, `const fs=require('fs');let text='';process.stdin.setEncoding('utf8');process.stdin.on('data',chunk=>{text+=chunk;if(text.includes('\\n')===false)return;fs.writeFileSync('unicode.txt',text.trim());process.stdin.pause();console.log('UNICODE_'+'DONE')});console.log('INPUT_'+'READY')`);
+			await output(terminal.uri, 'INPUT_READY');
+			context.client.dispatch({
+				channel: terminal.uri, clientSeq: sequence++,
+				action: { type: ActionType.TerminalInput, data: 'caf\u00e9\r' },
+			});
 			await output(terminal.uri, 'UNICODE_DONE');
 			assert.strictEqual(readFileSync(join(terminal.workspace, 'unicode.txt'), 'utf8'), 'caf\u00e9');
 		});
@@ -102,9 +114,21 @@ export function defineTerminalResilienceTests(context: IAgentHostE2ETestContext)
 	conformanceTest(context, 'regression coverage: terminal scrollback preserves a large fragmented process output', async function () {
 		await withTerminals(1, async ([terminal]) => {
 			input(terminal.uri, `console.log('x'.repeat(40000)+'LONG_'+'DONE')`);
-			const text = await output(terminal.uri, 'LONG_DONE');
-			const runLength = [...text.matchAll(/x{20,}/g)].reduce((length, match) => length + match[0].length, 0);
-			assert.strictEqual(runLength, 40000);
+			await output(terminal.uri, 'LONG_DONE');
+			const current = await state(terminal.uri);
+			const disposables = new DisposableStore();
+			try {
+				const screen = disposables.add(new Terminal({ cols: current.cols, rows: current.rows, scrollback: 5000, allowProposedApi: true }));
+				await new Promise<void>(resolve => screen.write(current.content.map(part => part.type === 'command' ? part.output : part.value).join(''), resolve));
+				let runLength = 0;
+				for (let line = 0; line < screen.buffer.active.length; line++) {
+					const text = screen.buffer.active.getLine(line)?.translateToString(true) ?? '';
+					runLength += [...text.matchAll(/x{20,}/g)].reduce((length, match) => length + match[0].length, 0);
+				}
+				assert.strictEqual(runLength, 40000);
+			} finally {
+				disposables.dispose();
+			}
 		});
 	});
 

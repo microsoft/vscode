@@ -425,7 +425,9 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		}));
 	}
 
-	async function editInChat(chat: string, turnId: string, workspace: string, file: string, before: string, after: string, clientSeq: number, prompt = `Use your file editing tool exactly once to replace ${before} with ${after} in ${file}. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".`): Promise<string> {
+	async function editInChat(chat: string, turnId: string, workspace: string, file: string, before: string, after: string, clientSeq: number, prompt = config.provider === 'claude'
+		? `Read ${file} with Read, then use Edit exactly once to replace ${before} with ${after}. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".`
+		: `Use your file editing tool exactly once to replace ${before} with ${after} in ${file}. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".`): Promise<string> {
 		await driveChatTurnToCompletion(context.client, chat, turnId, prompt, clientSeq);
 		const editNames = new Set(['edit', 'Edit', 'MultiEdit', 'Write', 'apply_patch', 'file_edit']);
 		const starts = context.client.receivedNotifications(n =>
@@ -437,7 +439,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		).map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 			.filter(action => action.turnId === turnId && starts.some(start => start.toolCallId === action.toolCallId));
 		assert.ok(completions.length > 0, 'The provider must execute a real file editing tool on the requested chat');
-		assert.ok(completions.every(action => action.result.success), 'Every file edit must complete successfully');
+		assert.ok(completions.every(action => action.result.success), `Every file edit must complete successfully: ${JSON.stringify(completions.map(action => action.result))}`);
 		assert.strictEqual(fs.readFileSync(join(workspace, file), 'utf8'), `${after}\n`);
 		const state = await readChat(chat);
 		const turn = state.turns.at(-1);

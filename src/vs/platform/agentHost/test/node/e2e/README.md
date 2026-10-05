@@ -142,6 +142,8 @@ The expanded side-channel cases cover structured results, ordered content/resour
 
 Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
 
+Terminal resilience assertions compare filesystem identity rather than Windows short/long path spelling, render VT scrollback through a headless terminal rather than counting ConPTY repaint bytes, and send Unicode to an already-running child rather than relying on a shell editor's locale. Claude history-edit fixtures perform the required `Read` before `Edit`, including after cold resume; replayed success text cannot substitute for that tool prerequisite.
+
 The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
