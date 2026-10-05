@@ -11,25 +11,11 @@ import { execFileSync } from 'child_process';
  * Stage 3 of the Copilot SDK -> VS Code integration pipeline.
  * See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
  *
- * Overrides the `@github/copilot-sdk` and/or `@github/copilot` dependency in the
- * root and `remote` manifests to a canary version published to the private npm
- * feed, then refreshes the lockfiles so `npm ci` stays consistent (and the
- * node_modules cache key, derived from these manifests + lockfiles, naturally
- * misses).
+ * Overrides `@github/copilot-sdk` in the root and `remote` manifests, records
+ * the runtime version owned by that SDK, and refreshes the lockfiles.
  *
- * Driven by environment variables so it is a no-op in normal builds:
- *   VSCODE_SDK_CANARY_VERSION - version to pin `@github/copilot-sdk` to (empty =
- *                               no override / normal build). The sentinel
- *                               `latest-canary` resolves to the newest
- *                               `@github/copilot-sdk` canary on the feed here,
- *                               inside the build.
- *   VSCODE_CLI_CANARY_VERSION - version to pin `@github/copilot` to. When empty
- *                               (and an SDK version is set) the CLI version is
- *                               inferred from the SDK's own `@github/copilot`
- *                               dependency so the two stay compatible. When set
- *                               explicitly, it is validated against that same
- *                               dependency range and the build fails fast on a
- *                               confirmed incompatible SDK/CLI pair.
+ * The SDK and runtime cannot be overridden independently: the SDK's platform
+ * package owns the runtime executable and native module as one release unit.
  *
  * npm registry + auth must already be configured in the ambient environment
  * (the orchestrator authenticates to the private feed before invoking this).
@@ -47,18 +33,16 @@ const IS_WINDOWS = process.platform === 'win32';
 const NPM = IS_WINDOWS ? 'npm.cmd' : 'npm';
 
 /**
- * Allowlist for npm version / range specifiers before they are interpolated
- * into `npm view <pkg>@<spec>` argument strings. These specs come from
+ * Allowlist for npm versions and dist-tags before they are interpolated into
+ * `npm view <pkg>@<spec>` argument strings. These specs come from
  * queue-time pipeline parameters and from registry responses, and on Windows
- * the npm calls run with `shell: true` — so restrict to the characters that
- * appear in valid semver versions, ranges and dist-tags and reject anything a
- * shell could otherwise interpret.
+ * the npm calls run with `shell: true`, so shell metacharacters must be rejected.
  */
-const SAFE_SPEC = /^[\w.+~^><=|* -]+$/;
+const SAFE_SPEC = /^[\w.+-]+$/;
 
 function assertSafeSpec(label: string, value: string): void {
 	if (!SAFE_SPEC.test(value)) {
-		throw new Error(`[canary-override] Refusing unsafe ${label} "${value}": only semver versions, ranges and dist-tags are allowed.`);
+		throw new Error(`[canary-override] Refusing unsafe ${label} "${value}": only exact versions and dist-tags are allowed.`);
 	}
 }
 
@@ -70,77 +54,19 @@ interface Override {
 	readonly version: string;
 }
 
-/**
- * Infers the `@github/copilot` version to use from the SDK canary's own
- * `@github/copilot` dependency range, resolved to a concrete published version.
- * Returns undefined (leaving VS Code's pinned CLI) if the SDK declares no such
- * dependency or resolution fails — inference is best-effort, never fatal.
- */
-function inferCliVersion(sdkVersion: string): string | undefined {
-	try {
-		const depsRaw = execFileSync(NPM, ['view', `@github/copilot-sdk@${sdkVersion}`, 'dependencies', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
-		const deps = JSON.parse(depsRaw || '{}');
-		const range = deps['@github/copilot'];
-		if (!range) {
-			console.log(`[canary-override] SDK ${sdkVersion} declares no @github/copilot dependency — leaving VS Code's pinned CLI.`);
-			return undefined;
-		}
-		assertSafeSpec('inferred @github/copilot range', range);
-		const versionRaw = execFileSync(NPM, ['view', `@github/copilot@${range}`, 'version', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
-		const parsed = JSON.parse(versionRaw);
-		const resolved = Array.isArray(parsed) ? parsed[parsed.length - 1] : parsed;
-		if (typeof resolved !== 'string') {
-			console.warn(`[canary-override] Could not resolve @github/copilot@${range} to a concrete version — leaving VS Code's pinned CLI.`);
-			return undefined;
-		}
-		console.log(`[canary-override] Inferred @github/copilot ${resolved} from @github/copilot-sdk@${sdkVersion} (range ${range}).`);
-		return resolved;
-	} catch (err) {
-		console.warn(`[canary-override] Failed to infer @github/copilot from SDK ${sdkVersion}: ${err instanceof Error ? err.message : err}. Leaving VS Code's pinned CLI.`);
-		return undefined;
-	}
+interface CopilotOverride {
+	readonly dependencies: readonly Override[];
+	readonly runtimeVersion?: string;
 }
 
-/**
- * When the CLI version is pinned explicitly (`VSCODE_CLI_CANARY_VERSION`),
- * verify it satisfies the `@github/copilot` range the SDK canary declares so an
- * incompatible SDK/CLI pair fails here with a clear message rather than
- * surfacing as a confusing runtime error in the shipped build. Best-effort: if
- * the SDK declares no such range, or the range cannot be resolved from the feed,
- * we log and continue rather than block on a transient registry hiccup — only a
- * *confirmed* mismatch is fatal.
- */
-function assertCliSatisfiesSdk(sdkVersion: string, cliVersion: string): void {
-	let range: string | undefined;
-	try {
-		const depsRaw = execFileSync(NPM, ['view', `@github/copilot-sdk@${sdkVersion}`, 'dependencies', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
-		range = JSON.parse(depsRaw || '{}')['@github/copilot'];
-	} catch (err) {
-		console.warn(`[canary-override] Could not read @github/copilot-sdk@${sdkVersion} dependencies to check CLI compatibility: ${err instanceof Error ? err.message : err}. Skipping check.`);
-		return;
+function resolveSdkRuntimeVersion(sdkVersion: string): string {
+	const versionRaw = execFileSync(NPM, ['view', `@github/copilot-sdk@${sdkVersion}`, 'copilotCliVersion', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
+	const version = JSON.parse(versionRaw || 'null');
+	if (typeof version !== 'string' || !version) {
+		throw new Error(`[canary-override] @github/copilot-sdk@${sdkVersion} does not declare copilotCliVersion.`);
 	}
-	if (!range) {
-		console.log(`[canary-override] SDK ${sdkVersion} declares no @github/copilot dependency — skipping CLI compatibility check for pinned @github/copilot@${cliVersion}.`);
-		return;
-	}
-	assertSafeSpec('@github/copilot range', range);
-	let satisfying: string[];
-	try {
-		const versionsRaw = execFileSync(NPM, ['view', `@github/copilot@${range}`, 'version', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
-		const parsed = JSON.parse(versionsRaw || 'null');
-		satisfying = Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-	} catch (err) {
-		console.warn(`[canary-override] Could not resolve @github/copilot@${range} to check CLI compatibility: ${err instanceof Error ? err.message : err}. Skipping check.`);
-		return;
-	}
-	if (!satisfying.includes(cliVersion)) {
-		throw new Error(
-			`[canary-override] Incompatible pinned versions: @github/copilot@${cliVersion} does not satisfy the range "${range}" required by @github/copilot-sdk@${sdkVersion} ` +
-			`(versions satisfying the range: ${satisfying.length ? satisfying.join(', ') : '<none published>'}). ` +
-			`Set VSCODE_CLI_CANARY_VERSION to a compatible version, or leave it as 'auto' to infer a compatible CLI from the SDK.`
-		);
-	}
-	console.log(`[canary-override] Verified @github/copilot@${cliVersion} satisfies "${range}" required by @github/copilot-sdk@${sdkVersion}.`);
+	assertSafeSpec('SDK runtime version', version);
+	return version;
 }
 
 /**
@@ -150,9 +76,7 @@ function assertCliSatisfiesSdk(sdkVersion: string, cliVersion: string): void {
  * orchestrator that queues the build never needs feed-read access.
  *
  * Canary versions look like `X.Y.Z-canary.<N>.g<sha>`; "newest" is the highest
- * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`). The resolved
- * concrete version is also emitted as an ADO build tag (`sdk-canary=<version>`)
- * so the orchestrator can read it back for accurate Slack reporting.
+ * `[X, Y, Z, N]` tuple (numeric, so `canary.9` < `canary.10`).
  */
 function resolveLatestCanary(): string {
 	const versionsRaw = execFileSync(NPM, ['view', '@github/copilot-sdk', 'versions', '--json'], { encoding: 'utf8', shell: IS_WINDOWS });
@@ -187,11 +111,9 @@ function resolveLatestCanary(): string {
 	return latest;
 }
 
-function collectOverrides(): Override[] {
+function collectOverrides(): CopilotOverride {
 	let sdkVersion = (process.env['VSCODE_SDK_CANARY_VERSION'] ?? '').trim();
-	if (!sdkVersion) {
-		return [];
-	}
+	const expectedRuntimeVersion = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim();
 	// `latest-canary` sentinel: resolve the newest published @github/copilot-sdk
 	// canary here, inside the build, where private-feed npm auth already exists —
 	// so the GitHub-side orchestrator that queues this build never needs
@@ -199,49 +121,50 @@ function collectOverrides(): Override[] {
 	if (sdkVersion === 'latest-canary') {
 		sdkVersion = resolveLatestCanary();
 	}
-	assertSafeSpec('SDK canary version', sdkVersion);
-	const overrides: Override[] = [{ name: '@github/copilot-sdk', version: sdkVersion }];
+	if (!sdkVersion) {
+		if (expectedRuntimeVersion) {
+			throw new Error('[canary-override] VSCODE_CLI_CANARY_VERSION cannot override the SDK-owned runtime independently.');
+		}
+		return { dependencies: [] };
+	}
 
-	// Explicit CLI version wins (but must be compatible with the SDK); empty
-	// means "infer a compatible CLI from the SDK".
-	const explicitCli = (process.env['VSCODE_CLI_CANARY_VERSION'] ?? '').trim();
-	let cliVersion: string | undefined;
-	if (explicitCli) {
-		assertSafeSpec('CLI canary version', explicitCli);
-		assertCliSatisfiesSdk(sdkVersion, explicitCli);
-		cliVersion = explicitCli;
-	} else {
-		cliVersion = inferCliVersion(sdkVersion);
+	assertSafeSpec('SDK canary version', sdkVersion);
+	const runtimeVersion = resolveSdkRuntimeVersion(sdkVersion);
+	if (expectedRuntimeVersion) {
+		assertSafeSpec('expected SDK runtime version', expectedRuntimeVersion);
+		if (expectedRuntimeVersion !== runtimeVersion) {
+			throw new Error(`[canary-override] @github/copilot-sdk@${sdkVersion} bundles runtime ${runtimeVersion}, not requested runtime ${expectedRuntimeVersion}.`);
+		}
 	}
-	if (cliVersion) {
-		overrides.push({ name: '@github/copilot', version: cliVersion });
-		// Surface the concrete CLI (explicit or inferred from the SDK) as a build
-		// tag so the GitHub orchestrator can read it back (build tags API) and
-		// report the real @github/copilot version instead of `auto`, without
-		// itself needing feed-read access. Mirrors the `sdk-canary=` tag above;
-		// same `=` (not `:`) separator for the Add Build Tag REST URL path.
-		// Idempotent across the per-platform jobs.
-		console.log(`##vso[build.addbuildtag]cli-canary=${cliVersion}`);
-	}
-	return overrides;
+	console.log(`##vso[build.addbuildtag]cli-canary=${runtimeVersion}`);
+	return {
+		dependencies: [{ name: '@github/copilot-sdk', version: sdkVersion }],
+		runtimeVersion,
+	};
 }
 
-function applyOverrides(dir: string, overrides: Override[]): Override[] {
+function applyOverrides(dir: string, override: CopilotOverride): Override[] {
 	const packageJsonPath = path.join(ROOT, dir, 'package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 	const dependencies = packageJson.dependencies ?? {};
 
 	const applied: Override[] = [];
-	for (const override of overrides) {
-		const { name, version } = override;
+	for (const dependencyOverride of override.dependencies) {
+		const { name, version } = dependencyOverride;
 		if (Object.prototype.hasOwnProperty.call(dependencies, name) && dependencies[name] !== version) {
 			dependencies[name] = version;
-			applied.push(override);
+			applied.push(dependencyOverride);
 			console.log(`[canary-override] ${path.join(dir, 'package.json')}: ${name} -> ${version}`);
 		}
 	}
 
-	if (applied.length > 0) {
+	const runtimeVersionChanged = override.runtimeVersion !== undefined && packageJson.copilotRuntimeVersion !== override.runtimeVersion;
+	if (runtimeVersionChanged) {
+		packageJson.copilotRuntimeVersion = override.runtimeVersion;
+		console.log(`[canary-override] ${path.join(dir, 'package.json')}: copilotRuntimeVersion -> ${override.runtimeVersion}`);
+	}
+
+	if (applied.length > 0 || runtimeVersionChanged) {
 		packageJson.dependencies = dependencies;
 		fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n');
 	}
@@ -283,14 +206,14 @@ function verifyResolved(dir: string, overrides: Override[]): void {
 }
 
 function main(): void {
-	const overrides = collectOverrides();
-	if (overrides.length === 0) {
+	const override = collectOverrides();
+	if (override.dependencies.length === 0) {
 		console.log('[canary-override] No canary versions set — nothing to do.');
 		return;
 	}
 
 	for (const dir of TARGET_DIRS) {
-		const applied = applyOverrides(dir, overrides);
+		const applied = applyOverrides(dir, override);
 		if (applied.length > 0) {
 			refreshLockfile(dir);
 			verifyResolved(dir, applied);

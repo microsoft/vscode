@@ -122,10 +122,10 @@ export class TestInstantiationService extends InstantiationService implements ID
 	private _getOrCreateService<T>(serviceMock: IServiceMock<T>, opts: SinonOptions, reset?: boolean): any {
 		const service: any = this._serviceCollection.get(serviceMock.id);
 		if (!reset && service) {
-			if (opts.mock && service['sinonOptions'] && !!service['sinonOptions'].mock) {
+			if (opts.mock && service.sinonOptions && !!service.sinonOptions.mock) {
 				return service;
 			}
-			if (opts.stub && service['sinonOptions'] && !!service['sinonOptions'].stub) {
+			if (opts.stub && service.sinonOptions && !!service.sinonOptions.stub) {
 				return service;
 			}
 		}
@@ -135,7 +135,7 @@ export class TestInstantiationService extends InstantiationService implements ID
 	private _createService(serviceMock: IServiceMock<any>, opts: SinonOptions): any {
 		serviceMock.service = serviceMock.service ? serviceMock.service : this._servciesMap.get(serviceMock.id);
 		const service = opts.mock ? sinon.mock(serviceMock.service) : this._createStub(serviceMock.service);
-		service['sinonOptions'] = opts;
+		service.sinonOptions = opts;
 		return service;
 	}
 

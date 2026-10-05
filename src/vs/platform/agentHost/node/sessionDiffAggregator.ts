@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { Promises } from '../../../base/common/async.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataService.js';
 import type { IDiffComputeService } from '../common/diffComputeService.js';
@@ -103,10 +104,8 @@ export interface IIncrementalDiffOptions {
  * file and the total lines added/removed across the session.
  *
  * When {@link folderScope} is provided, only files whose final path is within
- * one of those absolute roots are returned. It applies to full-recompute mode
- * only (no {@link incremental}); combining a {@link folderScope} with
- * {@link incremental} is unsupported and throws, so an unscoped result can never
- * be returned silently for a scoped request.
+ * one of those absolute roots are returned. In incremental mode the scope also
+ * applies to the carried-over {@link IIncrementalDiffOptions.previousDiffs}.
  */
 export async function computeSessionDiffs(
 	sessionUri: string,
@@ -115,16 +114,18 @@ export async function computeSessionDiffs(
 	incremental?: IIncrementalDiffOptions,
 	folderScope?: readonly URI[],
 ): Promise<ISessionFileDiff[]> {
-	if (incremental && folderScope) {
-		throw new Error('computeSessionDiffs: `folderScope` is not supported in incremental mode; call full-recompute mode (omit `incremental`) when a folder scope is required.');
-	}
-
 	// Full mode (no incremental) is the single-source case of the unioned
 	// computation — delegate so the identity-graph + diff logic lives in one
 	// place and multi-chat sessions reuse the exact same code path.
 	if (!incremental) {
 		return computeUnionedDiffs([{ sessionUri, db }], diffService, folderScope);
 	}
+
+	// Scope the carried-over results too, so results computed under a
+	// different (or no) scope never leak into a scoped request.
+	const previousDiffs = folderScope
+		? incremental.previousDiffs.filter(diff => isFileDiffWithinFolderScope(diff, folderScope))
+		: incremental.previousDiffs;
 
 	// Incremental mode (single source): try to fetch only the current turn's
 	// edits. When the turn only introduces new files (no renames, no re-edits
@@ -134,10 +135,10 @@ export async function computeSessionDiffs(
 
 	const turnEdits = await db.getFileEditsByTurn(incremental.changedTurnId);
 	if (turnEdits.length === 0) {
-		return [...incremental.previousDiffs];
+		return [...previousDiffs];
 	}
 
-	const previousDiffsUris = new Set(incremental.previousDiffs.map(getFileEditUri));
+	const previousDiffsUris = new Set(previousDiffs.map(getFileEditUri));
 	const needsFullHistory = turnEdits.some(e =>
 		e.kind === FileEditKind.Rename ||
 		previousDiffsUris.has(URI.file(e.filePath).toString())
@@ -212,7 +213,7 @@ export async function computeSessionDiffs(
 	// In incremental slow-path mode, build a lookup map from URI string →
 	// previous diff so untouched identities can carry over their previous results.
 	const previousDiffsMap = !fastPath
-		? new Map(incremental.previousDiffs.map(d => [getFileEditUri(d), d]))
+		? new Map(previousDiffs.map(d => [getFileEditUri(d), d]))
 		: undefined;
 
 	// Compute diffs for each file identity
@@ -220,6 +221,12 @@ export async function computeSessionDiffs(
 	const diffPromises: Promise<void>[] = [];
 
 	for (const [identityKey, identity] of identities) {
+		// Apply the folder scope by the identity's FINAL path, mirroring
+		// `computeUnionedDiffs` and `computeTurnDiffs`.
+		if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope)) {
+			continue;
+		}
+
 		// In incremental slow-path mode, skip recomputation for untouched identities
 		if (touchedIdentityKeys && !touchedIdentityKeys.has(identityKey)) {
 			const uri = URI.file(identity.terminalPath).toString();
@@ -265,7 +272,7 @@ export async function computeSessionDiffs(
 	// In fast-path mode, carry over previous diffs for untouched files
 	// (they were not in the identity graph since we only loaded the current turn)
 	if (fastPath) {
-		results.push(...incremental.previousDiffs);
+		results.push(...previousDiffs);
 	}
 
 	return results;
@@ -304,7 +311,7 @@ export async function computeUnionedDiffs(
 	// Load every source's edits in parallel, then concatenate in source order so
 	// the identity graph sees a deterministic session-first ordering while each
 	// source keeps its own insertion order.
-	const perSourceEdits = await Promise.all(sources.map(source => source.db.getAllFileEdits()));
+	const perSourceEdits = await Promises.settled(sources.map(source => source.db.getAllFileEdits()));
 
 	const pathToIdentityKey = new Map<string, string>();
 	const identities = new Map<string, IFileIdentity>();
@@ -390,7 +397,7 @@ export async function computeUnionedDiffs(
 		})());
 	}
 
-	await Promise.allSettled(diffPromises);
+	await Promises.settled(diffPromises);
 
 	return results;
 }
@@ -406,6 +413,16 @@ export async function computeUnionedDiffs(
  */
 function isPathWithinFolderScope(filePath: string, folderRoots: readonly URI[]): boolean {
 	const fileUri = URI.file(filePath);
+	return folderRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, root));
+}
+
+/** Returns `true` when the file identified by `diff` is within any of `folderRoots`. */
+function isFileDiffWithinFolderScope(diff: ISessionFileDiff, folderRoots: readonly URI[]): boolean {
+	const uri = getFileEditUri(diff);
+	if (!uri) {
+		return false;
+	}
+	const fileUri = URI.parse(uri);
 	return folderRoots.some(root => extUriBiasedIgnorePathCase.isEqualOrParent(fileUri, root));
 }
 

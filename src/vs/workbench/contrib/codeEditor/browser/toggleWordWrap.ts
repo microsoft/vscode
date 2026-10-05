@@ -29,7 +29,7 @@ const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
 const isDominatedByLongLinesKey = 'isDominatedByLongLines';
 const CAN_TOGGLE_WORD_WRAP = new RawContextKey<boolean>('canToggleWordWrap', false, true);
-const EDITOR_WORD_WRAP = new RawContextKey<boolean>('editorWordWrap', false, nls.localize('editorWordWrap', 'Whether the editor is currently using word wrapping.'));
+export const EDITOR_WORD_WRAP = new RawContextKey<boolean>('editorWordWrap', false, nls.localize('editorWordWrap', 'Whether the editor is currently using word wrapping.'));
 
 /**
  * State written/read by the toggle word wrap action and associated with a particular model.
@@ -244,6 +244,7 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 	private readonly _editorWordWrap: IContextKey<boolean>;
 	private _activeEditor: ICodeEditor | null;
 	private readonly _activeEditorListener: DisposableStore;
+	private readonly _activeEditorPaneListener: DisposableStore;
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
@@ -255,11 +256,21 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 			disposables.add(addDisposableListener(window, 'focus', () => this._update(), true));
 			disposables.add(addDisposableListener(window, 'blur', () => this._update(), true));
 		}, { window: mainWindow, disposables: this._store }));
-		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);
 		this._activeEditor = null;
 		this._activeEditorListener = this._register(new DisposableStore());
+		this._activeEditorPaneListener = this._register(new DisposableStore());
+		this._register(this._editorService.onDidActiveEditorChange(() => this._updateActiveEditorPane()));
+		this._updateActiveEditorPane();
+	}
+
+	private _updateActiveEditorPane(): void {
+		this._activeEditorPaneListener.clear();
+		const activeEditorPane = this._editorService.activeEditorPane;
+		if (activeEditorPane) {
+			this._activeEditorPaneListener.add(activeEditorPane.onDidChangeControl(() => this._update()));
+		}
 		this._update();
 	}
 
@@ -280,6 +291,8 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 				}
 			}));
 			this._updateFromCodeEditor();
+		} else {
+			this._setValues(false, false);
 		}
 	}
 

@@ -11,7 +11,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionGitHubStateInput } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
@@ -131,11 +131,12 @@ suite('Create Session from Pull Request', () => {
 
 	test('creates session metadata with the selected pull request identity', () => {
 		assert.deepStrictEqual(
-			readSessionGitHubState(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
+			readSessionGitHubStateInput(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
 			{
 				owner: 'microsoft',
 				repo: 'vscode',
 				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+				associatedPullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
 				pullRequestBranchName: 'feature',
 			},
 		);
@@ -165,6 +166,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: attachment.fullName,
 			icon: attachment.icon?.id,
 			uri: attachment.uri.toString(),
+			readyMessage: attachment.readyMessage,
 			value: JSON.parse(attachment.value ?? ''),
 		}, {
 			kind: 'transcriptContext',
@@ -172,6 +174,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: '#42 Improve sessions',
 			icon: 'git-pull-request',
 			uri: 'https://github.com/owner/repo/pull/42',
+			readyMessage: 'Session ready. Pull request #42 is checked out and attached.',
 			value: {
 				usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
 				owner: 'owner',

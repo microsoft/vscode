@@ -114,6 +114,8 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		picker.value = value;
 		this.adjustValueSelection(picker, descriptor, options);
 		picker.placeholder = options?.placeholder ?? descriptor?.placeholder;
+		picker.anchor = options?.anchor;
+		picker.anchorPosition = options?.anchorPosition;
 		picker.quickNavigate = options?.quickNavigateConfiguration;
 		picker.hideInput = !!picker.quickNavigate && !visibleQuickAccess; // only hide input if there was no picker opened already
 		if (typeof options?.itemActivation === 'number' || options?.quickNavigateConfiguration) {

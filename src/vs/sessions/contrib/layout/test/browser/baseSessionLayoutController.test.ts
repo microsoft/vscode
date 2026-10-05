@@ -19,7 +19,7 @@ import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposit
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
 
-/** Mirrors the single-pane panel model: workbench-level visibility, per-session view. */
+/** Mirrors the desktop panel model: workbench-level visibility, per-session view. */
 class TestWorkbenchPanelLayoutController extends BaseLayoutController {
 	protected override get _isPanelVisibilityPerSession(): boolean { return false; }
 }
@@ -411,6 +411,44 @@ suite('BaseLayoutController', () => {
 			'the outgoing session working set should be saved eagerly despite the gated apply holding back'
 		);
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
+	});
+
+	test('[B2] gates working-set restoration on the active chat workspace', async () => {
+		const chatWorkspace = {
+			uri: URI.file('/chat'),
+			label: 'chat',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/chat'), workingDirectory: URI.file('/chat'), name: 'chat', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		createController({ useModal: 'some', workspaceFolders: [{ uri: URI.file('/chat') }] });
+		const session = makeSession(URI.parse('session:1'), {
+			workspace: {
+				uri: URI.file('/aggregate'),
+				label: 'aggregate',
+				icon: Codicon.repo,
+				folders: [{ root: URI.file('/aggregate'), workingDirectory: URI.file('/aggregate'), name: 'aggregate', description: undefined, gitRepository: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: false,
+			},
+			chatWorkspace,
+		});
+		const otherSession = makeSession(URI.parse('session:2'), { workspace: chatWorkspace });
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(otherSession, undefined);
+		await timeout(0);
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{
+			id: `session-working-set:${session.resource.toString()}`,
+			name: `session-working-set:${session.resource.toString()}`,
+		}]);
 	});
 
 	// --- [B3] Persistence & migration / [B4] Save ---

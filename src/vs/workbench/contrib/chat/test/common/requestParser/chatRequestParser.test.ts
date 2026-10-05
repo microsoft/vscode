@@ -19,6 +19,7 @@ import { TestExtensionService, TestStorageService } from '../../../../../test/co
 import { ChatAgentService, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
 import { ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, getPromptText } from '../../../common/requestParser/chatParserTypes.js';
+import { updateRanges } from '../../../common/model/chatModel.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -101,6 +102,115 @@ suite('ChatRequestParser', () => {
 			fullName: 'design.png',
 			hasAttachment: false,
 			isAttachmentReference: true,
+		});
+	});
+
+	test('dynamic variable prompt text remaps surrounding variable ranges', () => {
+		const displayText = 'microsoft/vscode#334061';
+		const url = 'https://github.com/microsoft/vscode/issues/334061';
+		const text = `#before ${displayText} #after`;
+		const linkStart = text.indexOf(displayText);
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: url,
+			fullName: displayText,
+			range: new Range(1, linkStart + 1, 1, linkStart + displayText.length + 1),
+			isAttachmentReference: true,
+			data: URI.parse(url),
+			promptText: url,
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, text);
+		const promptText = getPromptText(result);
+		const variableData = updateRanges({
+			variables: [{
+				id: 'before',
+				name: 'before',
+				kind: 'generic',
+				value: undefined,
+				range: { start: 0, endExclusive: 7 },
+			}, {
+				id: 'after',
+				name: 'after',
+				kind: 'generic',
+				value: undefined,
+				range: { start: text.indexOf('#after'), endExclusive: text.length },
+			}],
+		}, promptText);
+
+		assert.deepStrictEqual({
+			message: promptText.message,
+			ranges: variableData.variables.map(variable => variable.range),
+		}, {
+			message: `#before ${url} #after`,
+			ranges: [
+				{ start: 0, endExclusive: 7 },
+				{ start: url.length + 9, endExclusive: url.length + 15 },
+			],
+		});
+	});
+
+	test('dynamic variable prompt text remaps ranges ending inside a later replacement', () => {
+		const text = '  aa xxx bb yyyyy cc';
+		const firstStart = text.indexOf('xxx');
+		const secondStart = text.indexOf('yyyyy');
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: 'first',
+			fullName: 'xxx',
+			range: new Range(1, firstStart + 1, 1, firstStart + 4),
+			data: undefined,
+			promptText: 'XXXXXXXX',
+		}, {
+			id: 'second',
+			fullName: 'yyyyy',
+			range: new Range(1, secondStart + 1, 1, secondStart + 6),
+			data: undefined,
+			promptText: 'Z',
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const promptText = getPromptText(parser.parseChatRequest(testSessionUri, text));
+		const variableData = updateRanges({
+			variables: [{
+				id: 'first',
+				name: 'first',
+				kind: 'generic',
+				value: undefined,
+				range: { start: firstStart, endExclusive: firstStart + 3 },
+			}, {
+				id: 'second',
+				name: 'second',
+				kind: 'generic',
+				value: undefined,
+				range: { start: secondStart, endExclusive: secondStart + 5 },
+			}, {
+				id: 'overlap',
+				name: 'overlap',
+				kind: 'generic',
+				value: undefined,
+				range: { start: secondStart - 2, endExclusive: secondStart + 3 },
+			}, {
+				id: 'after',
+				name: 'after',
+				kind: 'generic',
+				value: undefined,
+				range: { start: text.indexOf('cc'), endExclusive: text.length },
+			}],
+		}, promptText);
+
+		assert.deepStrictEqual({
+			message: promptText.message,
+			ranges: variableData.variables.map(variable => variable.range),
+			hasInvertedRanges: variableData.variables.some(variable => variable.range && variable.range.start > variable.range.endExclusive),
+		}, {
+			message: 'aa XXXXXXXX bb Z cc',
+			ranges: [
+				{ start: 3, endExclusive: 11 },
+				{ start: 15, endExclusive: 16 },
+				{ start: 13, endExclusive: 16 },
+				{ start: 17, endExclusive: 19 },
+			],
+			hasInvertedRanges: false,
 		});
 	});
 

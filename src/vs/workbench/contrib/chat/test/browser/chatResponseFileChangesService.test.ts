@@ -29,6 +29,7 @@ suite('EditorChatResponseFileChangesService', () => {
 				? constObservable([{
 					originalURI: URI.file('/before.ts'),
 					modifiedURI: URI.file('/after.ts'),
+					modifiedSnapshotURI: URI.file('/after-snapshot.ts'),
 					added: 2,
 					removed: 1,
 					quitEarly: false,
@@ -41,6 +42,17 @@ suite('EditorChatResponseFileChangesService', () => {
 					isDeleted: true,
 					added: 0,
 					removed: 3,
+					quitEarly: false,
+					identical: false,
+					isFinal: true,
+					isBusy: false,
+				}, {
+					originalURI: URI.file('/created.ts'),
+					modifiedURI: URI.file('/created.ts'),
+					modifiedSnapshotURI: URI.file('/created-snapshot.ts'),
+					isCreated: true,
+					added: 4,
+					removed: 0,
 					quitEarly: false,
 					identical: false,
 					isFinal: true,
@@ -58,15 +70,22 @@ suite('EditorChatResponseFileChangesService', () => {
 			resources: opened.resources?.map(resource => ({
 				original: resource.original.resource?.toString(),
 				modified: resource.modified.resource?.toString(),
+				goToFile: resource.goToFileResource?.toString(),
 			})),
 		}, {
 			label: 'Turn File Changes',
 			resources: [{
 				original: 'file:///before.ts',
-				modified: 'file:///after.ts',
+				modified: 'file:///after-snapshot.ts',
+				goToFile: 'file:///after.ts',
 			}, {
 				original: 'file:///deleted-before.ts',
 				modified: undefined,
+				goToFile: 'file:///deleted.ts',
+			}, {
+				original: undefined,
+				modified: 'file:///created-snapshot.ts',
+				goToFile: 'file:///created.ts',
 			}],
 		});
 	});

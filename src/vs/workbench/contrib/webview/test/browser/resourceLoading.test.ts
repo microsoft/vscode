@@ -161,6 +161,14 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 			const query = JSON.parse(result.query);
 			assert.strictEqual(query.requestResourcePath, '/home/user/project/file.txt');
 		});
+
+		test('Fails for vscode-remote path traversal with backslashes', () => {
+			const root = URI.from({ scheme: 'vscode-remote', authority: 'test', path: '/C:/workspace/project' });
+			const resource = URI.from({ scheme: 'vscode-remote', authority: 'test', path: '/C:/workspace/project/..\\..\\outside.txt' });
+			const result = getResourceToLoad(resource, [root], uriIdentityService);
+
+			assert.strictEqual(result, undefined);
+		});
 	});
 
 	suite('Fragment and query strings', () => {

@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentSessionSection, IAgentSession, IAgentSessionSection } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { AgentSessionRenderer, AgentSessionsListDelegate } from '../../../browser/agentSessions/agentSessionsViewer.js';
+import { AgentSessionChatRenderer, AgentSessionRenderer, AgentSessionsListDelegate } from '../../../browser/agentSessions/agentSessionsViewer.js';
 import { ChatSessionStatus } from '../../../common/chatSessionsService.js';
 
 suite('AgentSessionsListDelegate', () => {
@@ -82,6 +82,31 @@ suite('AgentSessionsListDelegate', () => {
 				item: 54,
 				section: 26,
 			},
+		});
+	});
+
+	test('uses compact chat rows', () => {
+		const chat: IAgentSession = {
+			...session,
+			label: 'Peer chat',
+			resource: URI.parse('test://session/default#peer'),
+			parentSession: {
+				resource: session.resource,
+				label: session.label,
+			},
+		};
+		const delegate = new AgentSessionsListDelegate();
+
+		assert.deepStrictEqual({
+			sessionHeight: delegate.getHeight(session),
+			sessionTemplate: delegate.getTemplateId(session),
+			chatHeight: delegate.getHeight(chat),
+			chatTemplate: delegate.getTemplateId(chat),
+		}, {
+			sessionHeight: AgentSessionsListDelegate.ITEM_HEIGHT,
+			sessionTemplate: AgentSessionRenderer.TEMPLATE_ID,
+			chatHeight: AgentSessionsListDelegate.CHAT_ITEM_HEIGHT,
+			chatTemplate: AgentSessionChatRenderer.TEMPLATE_ID,
 		});
 	});
 

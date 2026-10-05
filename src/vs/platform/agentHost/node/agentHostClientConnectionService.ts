@@ -5,6 +5,7 @@
 
 import { Disposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostMcpAuthenticationRequest, IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 
 export const AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION = 30_000 * 10;
 
@@ -17,7 +18,12 @@ export interface IAgentHostClientConnectionCounts {
 export interface IAgentHostClientConnectionSource {
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
+	/** Whether an active connection is local and uses the server's MessagePort transport. */
+	isLocalClient(clientId: string): boolean;
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number>;
+	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
+	/** Requests silent MCP authentication from connected clients. */
+	requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean>;
 }
 
 export const IAgentHostClientConnectionService = createDecorator<IAgentHostClientConnectionService>('agentHostClientConnectionService');
@@ -27,7 +33,12 @@ export interface IAgentHostClientConnectionService {
 	registerSource(source: IAgentHostClientConnectionSource): IDisposable;
 	hasSeenClient(clientId: string): boolean;
 	isClientConnected(clientId: string): boolean;
+	/** Whether any source has an active local MessagePort connection for this client. */
+	isLocalClient(clientId: string): boolean;
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts;
+	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
+	/** Requests silent MCP authentication, stopping at the first successful source. */
+	requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean>;
 }
 
 export class AgentHostClientConnectionService extends Disposable implements IAgentHostClientConnectionService {
@@ -65,6 +76,15 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 		return false;
 	}
 
+	isLocalClient(clientId: string): boolean {
+		for (const source of this._sources) {
+			if (source.isLocalClient(clientId)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts {
 		const connectedClients = new Set<string>();
 		let connectedTransportCount = 0;
@@ -83,5 +103,23 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 			connectedTransportCount,
 			clientTransportCount,
 		};
+	}
+
+	async requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean> {
+		for (const source of this._sources) {
+			if (await source.requestMcpAuthentication(request)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean> {
+		for (const source of this._sources) {
+			if (source.isClientConnected(clientId)) {
+				return source.requestWorkspaceTrust(clientId, request);
+			}
+		}
+		return Promise.reject(new Error(`Cannot request workspace trust because client ${clientId} is not connected.`));
 	}
 }

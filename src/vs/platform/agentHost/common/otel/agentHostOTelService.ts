@@ -6,6 +6,9 @@
 import type { TelemetryConfig } from '@github/copilot-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
+import { IAgentSessionComparisonMetadata } from '../state/sessionState.js';
+import type { IAgentHostFirstResponseDiagnostic, IAgentHostTurnTimingDiagnostic } from './agentHostTiming.js';
+import type { IChatUserInteractionTiming } from '../../../otel/common/chatUserInteraction.js';
 
 
 /**
@@ -28,6 +31,10 @@ export const AgentHostSessionTitleSpanName = 'vscode.agent_host.session.title_ch
 
 export const AgentHostSessionTitleAttribute = 'vscode.agent_host.session.title';
 export const AgentHostSessionUriAttribute = 'vscode.agent_host.session.uri';
+export const AgentHostComparisonIdAttribute = 'vscode.agent_host.comparison.id';
+export const AgentHostComparisonRoleAttribute = 'vscode.agent_host.comparison.role';
+export const AgentHostComparisonAttemptIndexAttribute = 'vscode.agent_host.comparison.attempt_index';
+export const AgentHostComparisonAttemptCountAttribute = 'vscode.agent_host.comparison.attempt_count';
 
 export interface IAgentHostTraceContext {
 	readonly traceId: string;
@@ -37,7 +44,7 @@ export interface IAgentHostTraceContext {
 }
 
 export interface IAgentHostNativeOTelConfig {
-	/** Trace destination. In DB mode this is the Agent Host HTTP/JSON loopback. */
+	/** Signal-specific trace destination. In DB mode this is the Agent Host HTTP/JSON loopback. */
 	readonly traces?: { readonly endpoint: string; readonly protocol: 'http/json' | 'http/protobuf' | 'grpc' };
 	/** User-owned OTLP destination used directly by native SDK logs and metrics. */
 	readonly external?: {
@@ -52,6 +59,12 @@ export interface IAgentHostNativeOTelConfig {
 export interface IAgentHostOTelService {
 	readonly _serviceBrand: undefined;
 
+	/** Whether content-free diagnostics have an enabled, supported destination. */
+	readonly diagnosticsEnabled: boolean;
+	emitTurnTiming(diagnostic: IAgentHostTurnTimingDiagnostic): void;
+	emitFirstResponse(diagnostic: IAgentHostFirstResponseDiagnostic): void;
+	emitUserInteraction(timing: IChatUserInteractionTiming): void;
+
 	/**
 	 * Returns the telemetry config to hand to `new CopilotClient({ telemetry })`,
 	 * starting the loopback receiver + store on first call when in DB mode.
@@ -65,6 +78,9 @@ export interface IAgentHostOTelService {
 
 	/** Return a stable W3C parent for a provider session and emit its anchor span. */
 	getSessionTraceContext(conversationId: string, sessionUri: string): IAgentHostTraceContext | undefined;
+
+	/** Associates bounded comparison metadata with a session before its first provider call. */
+	setSessionComparisonMetadata(sessionUri: string, comparison: IAgentSessionComparisonMetadata | undefined): void;
 
 	/** Release a permanent session's retained W3C context. Idle eviction must not call this. */
 	releaseSessionTraceContext(sessionUri: string): void;
@@ -95,3 +111,21 @@ export interface IAgentHostOTelService {
 }
 
 export const IAgentHostOTelService = createDecorator<IAgentHostOTelService>('agentHostOTelService');
+
+export const NullAgentHostOTelService: IAgentHostOTelService = {
+	_serviceBrand: undefined,
+	diagnosticsEnabled: false,
+	emitTurnTiming: () => { },
+	emitFirstResponse: () => { },
+	emitUserInteraction: () => { },
+	getSdkTelemetryConfig: async () => undefined,
+	getNativeSdkTelemetryConfig: async () => undefined,
+	getSessionTraceContext: () => undefined,
+	setSessionComparisonMetadata: () => { },
+	releaseSessionTraceContext: () => { },
+	withTraceContext: (_context, fn) => fn(),
+	getCurrentTraceContext: () => undefined,
+	getSpansDbPath: () => undefined,
+	emitSessionTitleChanged: () => { },
+	flush: async () => { },
+};

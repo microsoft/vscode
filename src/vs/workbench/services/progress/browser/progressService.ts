@@ -18,6 +18,8 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 import { Dialog } from '../../../../base/browser/ui/dialog/dialog.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
+import { isLegacyExtensionLinkParsing } from '../../../../platform/notification/common/notificationLegacy.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../views/common/viewsService.js';
 import { IPaneCompositePartService } from '../../panecomposite/browser/panecomposite.js';
@@ -117,7 +119,7 @@ export class ProgressService extends Disposable implements IProgressService {
 	private readonly windowProgressStack: [IProgressWindowOptions, Progress<IProgressStep>][] = [];
 	private windowProgressStatusEntry: IStatusbarEntryAccessor | undefined = undefined;
 
-	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<{ message?: string }>) => Promise<R>): Promise<R> {
+	private withWindowProgress<R = unknown>(options: IProgressWindowOptions, callback: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
 		const task: [IProgressWindowOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this.updateWindowProgress())];
 
 		const promise = callback(task[1]);
@@ -150,8 +152,8 @@ export class ProgressService extends Disposable implements IProgressService {
 		if (idx < this.windowProgressStack.length) {
 			const [options, progress] = this.windowProgressStack[idx];
 
-			const progressTitle = options.title;
-			const progressMessage = progress.value?.message;
+			const progressTitle = options.title?.toString();
+			const progressMessage = progress.value?.message?.toString();
 			const progressCommand = options.command;
 			let text: string;
 			let title: string;
@@ -250,6 +252,8 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		const createWindowProgress = () => {
+			const toPlainText = (message: string | NotificationText | undefined) =>
+				isLegacyExtensionLinkParsing(options.legacyExtensionLinkParsing) && typeof message === 'string' ? parseLinkedText(message).toString() : message?.toString();
 
 			// Create a promise that we can resolve as needed
 			// when the outside calls dispose on us
@@ -257,7 +261,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			this.withWindowProgress({
 				location: ProgressLocation.Window,
-				title: options.title ? parseLinkedText(options.title).toString() : undefined, // convert markdown links => string
+				title: toPlainText(options.title),
 				command: 'notifications.showList',
 				type: options.type
 			}, progress => {
@@ -265,7 +269,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				function reportProgress(step: IProgressStep) {
 					if (step.message) {
 						progress.report({
-							message: parseLinkedText(step.message).toString()  // convert markdown links => string
+							message: toPlainText(step.message)
 						});
 					}
 				}
@@ -289,7 +293,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			return toDisposable(() => promise.complete());
 		};
 
-		const createNotification = (message: string, priority?: NotificationPriority, increment?: number): INotificationHandle => {
+		const createNotification = (message: string | NotificationText, priority?: NotificationPriority, increment?: number): INotificationHandle => {
 			const notificationDisposables = new DisposableStore();
 
 			const primaryActions = options.primaryActions ? Array.from(options.primaryActions) : [];
@@ -329,7 +333,8 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const notification = this.notificationService.notify({
 				severity: Severity.Info,
-				message: stripIcons(message), // status entries support codicons, but notifications do not (https://github.com/microsoft/vscode/issues/145722)
+				message: typeof message === 'string' ? stripIcons(message) : message.mapText(stripIcons),
+				legacyExtensionLinkParsing: options.legacyExtensionLinkParsing,
 				source: options.source,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				progress: typeof increment === 'number' && increment >= 0 ? { total: 100, worked: increment } : { infinite: true },
@@ -376,13 +381,15 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		let notificationHandle: INotificationHandle | undefined;
 		let notificationTimeout: Timeout | undefined;
-		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
+		let titleAndMessage: string | NotificationText | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
 		const updateNotification = (step?: IProgressStep): void => {
 
 			// full message (inital or update)
 			if (step?.message && options.title) {
-				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
+				titleAndMessage = typeof options.title === 'string' && typeof step.message === 'string'
+					? `${options.title}: ${step.message}`
+					: NotificationText.concat(options.title, ': ', step.message);
 			} else {
 				titleAndMessage = options.title || step?.message;
 			}
@@ -608,8 +615,8 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 		}, 0));
 
-		const updateDialog = function (message?: string): void {
-			latestMessage = message;
+		const updateDialog = function (message?: string | NotificationText): void {
+			latestMessage = message?.toString();
 
 			// Make sure to only run one dialog update and not multiple
 			if (!scheduler.isScheduled()) {

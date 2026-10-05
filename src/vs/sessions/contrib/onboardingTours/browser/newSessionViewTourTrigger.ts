@@ -7,16 +7,17 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, autorun, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { SessionWorkspacePickerVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 
 const MAX_REQUESTS_FOR_TOUR = 1;
 /** Drives a new-session view tour using the V2 eligibility and readiness criteria. */
 export class NewSessionViewTourTrigger extends Disposable {
+	private readonly _usage: AgentsWindowUsage;
 	private readonly _trigger = observableValue<boolean>(this, false);
 	readonly signal: IObservable<boolean> = this._trigger;
 
@@ -24,12 +25,13 @@ export class NewSessionViewTourTrigger extends Disposable {
 		private readonly _tourId: string,
 		private readonly _onboardingScenarioService: IOnboardingScenarioService,
 		private readonly _sessionsService: ISessionsService,
-		private readonly _storageService: IStorageService,
+		storageService: IStorageService,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _contextKeyService: IContextKeyService,
 		private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
+		this._usage = new AgentsWindowUsage(storageService);
 
 		if (!this._isEligibleUser()) {
 			return;
@@ -58,7 +60,7 @@ export class NewSessionViewTourTrigger extends Disposable {
 		if (isOnboardingDeveloperModeEnabled(this._configurationService, this._tourId)) {
 			return true;
 		}
-		const requestsSent = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		const requestsSent = this._usage.createdSessionCount;
 		return requestsSent <= MAX_REQUESTS_FOR_TOUR;
 	}
 

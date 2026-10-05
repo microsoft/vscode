@@ -58,7 +58,6 @@
 .agent-global-configuration-settings-card {
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsPanel-border);
 	border-radius: var(--vscode-cornerRadius-small);
-	background: color-mix(in srgb, var(--vscode-foreground) 8%, var(--vscode-agentsPanel-background));
 	overflow: hidden;
 }
 

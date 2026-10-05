@@ -7,8 +7,8 @@ import assert from 'assert';
 import { URI } from '../../../base/common/uri.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel, isSessionConversationSideChat } from '../../browser/sessionConversationGroups.js';
-import { ChatOriginKind, IChat, IChatOrigin, SessionStatus } from '../../services/sessions/common/session.js';
+import { getSessionConversationStatusAriaLabel, getSessionConversationStatusLabel } from '../../browser/sessionConversationGroups.js';
+import { ChatOriginKind, IChat, IChatOrigin, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 
 function createChat(id: string, origin?: IChatOrigin): IChat {
 	return new class extends mock<IChat>() {
@@ -20,14 +20,18 @@ function createChat(id: string, origin?: IChatOrigin): IChat {
 suite('Sessions - Session conversation groups', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('identifies only side chats, excluding ordinary chats and subagents', () => {
+	test('identifies only side chats belonging to the given parent chat', () => {
+		const parent = createChat('main');
+		const otherParent = createChat('other');
 		assert.deepStrictEqual([
-			isSessionConversationSideChat(createChat('regular')),
-			isSessionConversationSideChat(createChat('side', { kind: ChatOriginKind.SideChat })),
-			isSessionConversationSideChat(createChat('subagent', { kind: ChatOriginKind.Tool, parentChat: URI.parse('test-chat:/main') })),
+			isSideChatOf(createChat('regular'), parent.resource),
+			isSideChatOf(createChat('side', { kind: ChatOriginKind.SideChat, parentChat: parent.resource }), parent.resource),
+			isSideChatOf(createChat('otherSide', { kind: ChatOriginKind.SideChat, parentChat: otherParent.resource }), parent.resource),
+			isSideChatOf(createChat('subagent', { kind: ChatOriginKind.Tool, parentChat: parent.resource }), parent.resource),
 		], [
 			false,
 			true,
+			false,
 			false,
 		]);
 	});
