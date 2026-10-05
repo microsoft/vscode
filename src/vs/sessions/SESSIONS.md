@@ -219,6 +219,8 @@ Providers may expose an `ISessionConfigurationSnapshot` of resolved draft config
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
 
+A chat view binds its transcript to the content provider serving the chat's session type at load time. When that provider is unregistered and another registers for the same type — a sandbox opened from persisted history whose environment was then woken, or a host that reconnected with a new client — the view reloads the chat so the replacement serves it. A provider that merely goes away leaves the transcript on screen.
+
 ### Multiple chats
 
 Creating or forking a chat is a capability-gated provider operation routed by the management service. Opening an existing chat is view orchestration: `ISessionsService` activates the session, resolves the chat from `session.chats`, and updates visible and active state. Chat-tab presentation remains view-owned configuration and is not carried through service open options.

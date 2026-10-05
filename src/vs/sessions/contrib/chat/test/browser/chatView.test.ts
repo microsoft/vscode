@@ -7,6 +7,8 @@ import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { constObservable, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -14,6 +16,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -192,6 +195,92 @@ suite('Sessions - Chat View', () => {
 
 		assert.deepStrictEqual(loads, [resource]);
 	});
+
+	/** Reaches the provider-replacement reload without standing up the widget's service graph. */
+	function createProviderReplacementView(resource: URI) {
+		const loads: URI[] = [];
+		const cleared: URI[] = [];
+		const loading: boolean[] = [];
+		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
+		const modelRef: { value: object | undefined } = { value: {} };
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const view = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentSessionObs: { get: () => undefined },
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			chatService: { onDidDisposeSession: onDidDisposeSession.event },
+			logService: new NullLogService(),
+			_saveCurrentViewState: () => { },
+			_clearCurrentChat: (_session: unknown, chatResource: URI) => {
+				cleared.push(chatResource);
+				modelRef.value = undefined;
+			},
+			_setLoading: (isLoading: boolean) => loading.push(isLoading),
+			_loadChat: (chatResource: URI) => loads.push(chatResource),
+		}) as {
+			_currentChatResource: URI | undefined;
+			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
+			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+		};
+		return { view, loads, cleared, loading, loadCts, onDidDisposeSession };
+	}
+
+	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, cleared, loading, onDidDisposeSession } = createProviderReplacementView(resource);
+
+		// A registration without a prior removal, or a removal of another type, leaves the bound model alone.
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		view._trackUnregisteredContentProvider(['other-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['other-agent']);
+		const untouched = { cleared: [...cleared], loads: [...loads] };
+
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		// A repeated registration while the release is pending must not clear twice.
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		onDidDisposeSession.fire({ sessionResources: [URI.parse('remote-agent:/other')], reason: 'disposed' });
+		await timeout(0);
+		const released = { cleared: [...cleared], loading: [...loading], loads: [...loads] };
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ untouched, released, loads }, {
+			untouched: { cleared: [], loads: [] },
+			released: { cleared: [resource], loading: [true], loads: [] },
+			loads: [resource],
+		});
+	});
+
+	test('a newer load supersedes a pending provider-replacement reload', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, loadCts, onDidDisposeSession } = createProviderReplacementView(resource);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+
+		// The user moved on before the old model was released, as `setChat` and `_loadChat` would do.
+		view._currentChatResource = URI.parse('remote-agent:/next');
+		loadCts.value?.cancel();
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual(loads, []);
+	});
+
+	test('reloads anyway when the previous model is not released in time', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads } = createProviderReplacementView(resource);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+
+		await timeout(ChatView.REPLACED_PROVIDER_RELEASE_TIMEOUT_MS - 1);
+		const beforeDeadline = [...loads];
+		await timeout(1);
+
+		assert.deepStrictEqual({ beforeDeadline, loads }, { beforeDeadline: [], loads: [resource] });
+	}));
 
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;

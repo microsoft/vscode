@@ -7,9 +7,10 @@ import './media/chatView.css';
 import './media/voiceChatView.css';
 import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -231,6 +232,12 @@ export class ChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.session';
 
+	/**
+	 * How long a reload after a provider replacement waits for the previous model to be released.
+	 * Normally milliseconds; the bound only keeps a model held elsewhere from blocking the reload.
+	 */
+	static readonly REPLACED_PROVIDER_RELEASE_TIMEOUT_MS = 5_000;
+
 	override readonly kind: ChatViewKind = 'chat';
 
 	private readonly _widget: ChatWidget;
@@ -262,6 +269,12 @@ export class ChatView extends AbstractChatView {
 
 	/** Tracks the currently loaded chat resource to avoid redundant reloads. */
 	private _currentChatResource: URI | undefined;
+	/**
+	 * The bound chat whose content provider was unregistered. Its model stays wired to the
+	 * provider that went away, so a replacement registering for the same session type never
+	 * reaches it; the chat is reloaded once one does.
+	 */
+	private _chatWithUnregisteredProvider: URI | undefined;
 	private readonly _currentChatResourceObs = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionObs = observableValue<ISession | undefined>(this, undefined);
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
@@ -458,9 +471,11 @@ export class ChatView extends AbstractChatView {
 		}));
 		this._register(chatPillsDebugService.register(this._chatPills, this._banners, this._isActiveObs));
 		this._ensureBannersMounted();
-		this._register(this.chatSessionsService.onDidChangeContentProviderSchemes(({ added }) => {
+		this._register(this.chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			this._trackUnregisteredContentProvider(removed);
 			// Remote providers are registered after their host connects, possibly after this view's initial load.
 			this._retryUnresolvedChatLoad(added);
+			this._reloadChatForReplacedProvider(added);
 		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -666,6 +681,58 @@ export class ChatView extends AbstractChatView {
 		this._loadChat(resource, this._currentSessionObs.get());
 	}
 
+	private _trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void {
+		const resource = this._currentChatResource;
+		if (resource && this._modelRef.value && removedSessionTypes.includes(getChatSessionType(resource))) {
+			this._chatWithUnregisteredProvider = resource;
+		}
+	}
+
+	/**
+	 * Reload a bound chat once a content provider registers again for its session type. The model
+	 * on screen is still wired to the provider that went away — a sandbox served from history until
+	 * its environment was woken, or a host that reconnected with a new client — so nothing the new
+	 * provider streams reaches it and nothing sent from it reaches the host.
+	 */
+	private _reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void {
+		const resource = this._chatWithUnregisteredProvider;
+		if (!resource || !isEqual(resource, this._currentChatResource) || !this._modelRef.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
+			return;
+		}
+		this._chatWithUnregisteredProvider = undefined;
+		const session = this._currentSessionObs.get();
+		this.logService.trace(`[ChatView] reloading chat after its content provider was replaced uri=${resource.toString()}`);
+		this._saveCurrentViewState();
+
+		this._loadCts.value?.cancel();
+		const cts = new CancellationTokenSource();
+		this._loadCts.value = cts;
+		// The model store hands a released model straight back to the next acquire until its
+		// disposal has settled, so the load must wait for the release to complete.
+		const store = new DisposableStore();
+		const released = new Promise<boolean>(resolve => {
+			store.add(this.chatService.onDidDisposeSession(e => {
+				if (e.sessionResources.some(disposed => isEqual(disposed, resource))) {
+					resolve(true);
+				}
+			}));
+			store.add(disposableTimeout(() => resolve(false), ChatView.REPLACED_PROVIDER_RELEASE_TIMEOUT_MS));
+			store.add(cts.token.onCancellationRequested(() => resolve(false)));
+		});
+		this._clearCurrentChat(session, resource);
+		this._setLoading(true);
+		void released.then(releasedInTime => {
+			store.dispose();
+			if (cts.token.isCancellationRequested || this._loadCts.value !== cts || !isEqual(this._currentChatResource, resource)) {
+				return;
+			}
+			if (!releasedInTime) {
+				this.logService.warn(`[ChatView] previous model was not released before reloading uri=${resource.toString()}`);
+			}
+			this._loadChat(resource, session);
+		});
+	}
+
 	/**
 	 * Drives the widget's loading affordance and the observable mirror of it together, so a
 	 * consumer reading {@link isLoadingTranscript} can never disagree with what the widget shows.
@@ -676,6 +743,8 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _loadChat(resource: URI, session: ISession | undefined, previousChatResource?: URI, previousSession?: ISession): void {
+		// A fresh load binds to whichever provider serves the chat now.
+		this._chatWithUnregisteredProvider = undefined;
 		// Cancel any in-flight load for the previous chat and start a fresh one.
 		this._loadCts.value?.cancel();
 		if (previousChatResource) {

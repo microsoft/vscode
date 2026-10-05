@@ -26,6 +26,8 @@ In both windows, archiving and unarchiving an inventory-owned sandbox session up
 
 In the Agents Window, renaming a discovered sandbox session updates its owning Mission Control task without waking the environment. After success, the provider updates the local title and sends an AHP rename only if already connected; offline renames are not queued for replay. Host-reported titles remain authoritative on connection. Sessions sharing the environment but not owned by the discovered task continue to use AHP.
 
+Opening or restoring a sandbox session does not wake its environment. The Agents Window sandbox provider opts out of connect-on-open preparation; chat content activation reads the environment's state and connects only to an online environment, otherwise serving persisted history read-only with the connection banner offering the connect action. Waking a dormant environment is always a user action.
+
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity

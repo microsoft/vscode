@@ -117,6 +117,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		this._pendingSessionTitles.delete(rawId);
 	}
 
+	/**
+	 * Opening a sandbox session never dials the sandbox. Connecting resumes cloud compute and can
+	 * take as long as the environment needs to wake, so the chat content activation decides from
+	 * the environment's state whether to connect or to serve persisted history, and the connection
+	 * banner leaves waking a dormant environment to the user.
+	 */
+	override async prepareSessionForOpen(): Promise<void> { }
+
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
 		return this._taskArchiveHandler?.rawId === rawId
 			? this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived

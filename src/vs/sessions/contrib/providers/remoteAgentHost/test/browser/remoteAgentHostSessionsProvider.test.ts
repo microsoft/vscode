@@ -4683,6 +4683,48 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 	}));
 });
 
+suite('CloudSandboxSessionsProvider opening', () => {
+	const disposables = new DisposableStore();
+	let connection: MockAgentConnection;
+
+	setup(() => {
+		connection = disposables.add(new MockAgentConnection());
+	});
+
+	teardown(() => {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opens and restores a cached session without waking the sandbox', async () => {
+		let connectCalls = 0;
+		const provider = createProvider(disposables, connection, {
+			address: 'cloudsandbox:open-test',
+			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+			ctor: CloudSandboxSessionsProvider,
+			noConnection: true,
+			connectOnDemand: async () => { connectCalls++; },
+		});
+		provider.seedSessions([createSession('sandbox-session', { provider: 'copilot' })]);
+		const session = provider.getSessions()[0];
+
+		const resolved = await provider.resolveSessionResource(session.resource, 'open');
+		await provider.prepareSessionForOpen(session, 'restore');
+		await provider.prepareSessionForOpen(session, 'open');
+
+		assert.deepStrictEqual({
+			resolved: resolved?.toString(),
+			connectCalls,
+			hostActions: connection.dispatchedActions,
+		}, {
+			resolved: session.resource.toString(),
+			connectCalls: 0,
+			hostActions: [],
+		});
+	});
+});
+
 suite('CloudSandboxSessionsProvider provisional sessions', () => {
 
 	const disposables = new DisposableStore();
