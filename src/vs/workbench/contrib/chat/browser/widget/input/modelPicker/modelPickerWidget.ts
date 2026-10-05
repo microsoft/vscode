@@ -171,6 +171,15 @@ export class ModelPickerWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		if (this._delegate.workflow) {
+			this._register(autorun(reader => {
+				this._delegate.workflow?.summary.read(reader);
+				if (!this._delegate.workflow?.available.read(reader)) {
+					this._tabbedPicker.value?.hide();
+				}
+				this._renderLabel();
+			}));
+		}
 		this._configuration = this._instantiationService.createInstance(ModelPickerConfiguration, {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
@@ -610,6 +619,7 @@ export class ModelPickerWidget extends Disposable {
 			const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 			const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 			this._showTabbedPicker(anchorElement, {
+				workflow: this._delegate.workflow,
 				models,
 				selectedModelId: this._selectedModel?.identifier,
 				recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
@@ -790,9 +800,10 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const name = this._selectedModel
+		const workflow = this.isTabbedPickerEnabled() ? this._delegate.workflow?.summary.get() : undefined;
+		const name = workflow ?? (this._selectedModel
 			? getLanguageModelDisplayNameWithSubscriptionSource(this._selectedModel)
-			: undefined;
+			: undefined);
 
 		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
@@ -801,7 +812,7 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = this._selectedModel
+		const modelIcon = workflow ? Codicon.layers : this._selectedModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(this._selectedModel)
 				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
@@ -838,6 +849,9 @@ export class ModelPickerWidget extends Disposable {
 			const opensDetails = tabbed && !showingAuto && !(this._selectedModel && isHydraFusionModel(this._selectedModel));
 			this._configButton.setAttribute('aria-haspopup', opensDetails ? 'dialog' : 'menu');
 			this._configuration.renderButton(this._configButton, minimal || (tabbed && compact), noModelsAvailable, tabbed);
+			if (workflow) {
+				this._configButton.style.display = 'none';
+			}
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('tabbed', this.isTabbedPickerEnabled());

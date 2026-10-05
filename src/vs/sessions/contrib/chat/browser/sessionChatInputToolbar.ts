@@ -286,7 +286,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace)) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader))) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -295,8 +295,19 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
 }
 
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined): string {
-	return workspace?.folders[0]?.gitRepository?.workTreeUri
+/** Whether `chat` is one of the session's nested chats rather than its main chat. */
+function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+	const mainChat = session?.mainChat?.read(reader);
+	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
+}
+
+/**
+ * The changeset represented by the Changes pill. A nested chat reports its own
+ * Session Changes; the main chat reports Branch Changes for a worktree and
+ * Session Changes otherwise.
+ */
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean): string {
+	return !isNested && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -473,7 +484,11 @@ export class SessionChatInputToolbar extends Disposable {
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
 		const changesLabel = derived(this, reader => {
-			const workspace = this._session.read(reader)?.workspace.read(reader);
+			const session = this._session.read(reader);
+			if (isNestedChat(session, this._chat.read(reader), reader)) {
+				return localize('sessionChatPills.sessionChanges', "Session Changes");
+			}
+			const workspace = session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 			return branch
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
@@ -488,12 +503,13 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
-					const workspace = this._chat.get()?.workspace?.get() ?? session.workspace.get();
+					const chat = this._chat.get();
+					const workspace = chat?.workspace?.get() ?? session.workspace.get();
 					layoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace),
+							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined)),
 						}
 					});
 				},

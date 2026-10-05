@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerWidget } from './modelPickerWidget.js';
@@ -31,6 +32,7 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
+	readonly workflow?: IModelPickerWorkflow;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**

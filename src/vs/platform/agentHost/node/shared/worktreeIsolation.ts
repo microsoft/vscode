@@ -892,7 +892,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 	/**
 	 * All local branch names for the branch picker, ordered with the current and
-	 * default branches first. Pickers filter and limit the returned list.
+	 * default branches first. Pickers filter the returned list and cap how many rows they show.
 	 */
 	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
 		if (!workingDirectory) {
@@ -1554,8 +1554,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return undefined;
 		}
 
-		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? { name: currentBranch, startPoint: currentBranch };
+		const [branch, remoteDefaultBranch] = await Promise.all([
+			this._gitService.getCurrentBranch(repositoryRoot),
+			this._gitService.getDefaultBranch(repositoryRoot),
+		]);
+		const currentBranch = branch ?? 'HEAD';
+		const defaultBranch = remoteDefaultBranch ?? { name: currentBranch, startPoint: currentBranch };
 		return { currentBranch, defaultBranch };
 	}
 

@@ -202,6 +202,16 @@ suite('ChatThinkingContentPart', () => {
 		});
 	});
 
+	test('resolves known tool icons when a provider supplies only the generic tool icon', () => {
+		const tools = ['read', 'read_file', 'view', 'search', 'rg', 'glob', 'terminal', 'bash', 'powershell', 'custom_tool'];
+		const icons = [Codicon.book, Codicon.book, Codicon.book, Codicon.search, Codicon.search, Codicon.search, Codicon.terminal, Codicon.terminal, Codicon.terminal, Codicon.tools];
+		assert.deepStrictEqual({
+			inferred: tools.map(toolId => getToolInvocationIcon(toolId)),
+			generic: tools.map(toolId => getToolInvocationIcon(toolId, { icon: Codicon.tools })),
+			custom: getToolInvocationIcon('read_file', { icon: Codicon.beaker }),
+		}, { inferred: icons, generic: icons, custom: Codicon.beaker });
+	});
+
 	test('uses the MCP icon instead of registered or inferred tool icons', () => {
 		const source: ToolDataSource = { type: 'mcp', label: 'Reference', serverLabel: 'Reference', collectionId: 'reference', definitionId: 'reference', instructions: '' };
 		assert.deepStrictEqual({

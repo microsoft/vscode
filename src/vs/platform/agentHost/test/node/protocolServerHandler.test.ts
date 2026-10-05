@@ -8,6 +8,7 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -20,9 +21,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -45,7 +46,7 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 
@@ -189,9 +190,6 @@ class MockAgentService implements IAgentService {
 	readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onMcpNotification = new Emitter<import('../../common/agent.js').IMcpNotification>();
 	readonly onMcpNotification = this._onMcpNotification.event;
-	private readonly _onDidChangeCanvases = new Emitter<IAgentCanvasSnapshot>();
-	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
-	readonly resolveCanvasSourceCalls: { chat: string; instanceId: string; revision: number }[] = [];
 
 	private _stateManager!: AgentHostStateManager;
 
@@ -249,11 +247,6 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
-	async resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<string> {
-		this.resolveCanvasSourceCalls.push({ chat: chat.toString(), instanceId, revision });
-		return 'https://example.test/canvas';
-	}
-	fireCanvasSnapshot(snapshot: IAgentCanvasSnapshot): void { this._onDidChangeCanvases.fire(snapshot); }
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		const result = [...this.listedSessions];
 		this.afterListSessionsSnapshot?.();
@@ -358,7 +351,6 @@ class MockAgentService implements IAgentService {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
 		this._onMcpNotification.dispose();
-		this._onDidChangeCanvases.dispose();
 	}
 }
 
@@ -539,125 +531,6 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual({ remoteOnly, withLocal, afterLocalCloses: clientConnections.isLocalClient('client'), connected: clientConnections.isClientConnected('client') }, {
 			remoteOnly: false, withLocal: true, afterLocalCloses: false, connected: true,
 		});
-	});
-
-	test('canvas extension is local-only, publishes full snapshots, and fences source resolution', async () => {
-		const snapshot: IAgentCanvasSnapshot = {
-			chat: URI.parse(defaultChatUri),
-			canvases: [{
-				instanceId: 'preview-1',
-				extensionId: 'project:preview',
-				canvasId: 'preview',
-				revision: 4,
-				availability: AgentCanvasAvailability.Ready,
-			}],
-		};
-		agentService.fireCanvasSnapshot(snapshot);
-		const remote = connectClient('canvas-remote', undefined, undefined, {
-			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
-		}, AgentHostTransportKind.WebSocket);
-		const local = connectClient('canvas-local', undefined, undefined, {
-			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
-		}, AgentHostTransportKind.MessagePort);
-		const remoteInitialize = findResponse(remote.sent, 1);
-		const localInitialize = findResponse(local.sent, 1);
-		assert.ok(remoteInitialize && hasKey(remoteInitialize, { result: true }));
-		assert.ok(localInitialize && hasKey(localInitialize, { result: true }));
-
-		const sourceResponse = waitForResponse(local, 2);
-		local.simulateMessage(request(2, ResolveAgentHostCanvasSourceExtensionMethod, {
-			chat: defaultChatUri,
-			instanceId: 'preview-1',
-			revision: 4,
-		}));
-		agentService.fireCanvasSnapshot(snapshot);
-		const remoteSourceResponse = waitForResponse(remote, 2);
-		remote.simulateMessage(request(2, ResolveAgentHostCanvasSourceExtensionMethod, {
-			chat: defaultChatUri,
-			instanceId: 'preview-1',
-			revision: 4,
-		}));
-
-		assert.deepStrictEqual({
-			capabilities: {
-				local: supportsAgentHostCanvases(localInitialize.result as InitializeResult),
-				remote: supportsAgentHostCanvases(remoteInitialize.result as InitializeResult),
-			},
-			localSnapshots: findNotifications(local.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
-			remoteSnapshots: findNotifications(remote.sent, AgentHostCanvasesChangedNotification).length,
-			sourceResponse: await sourceResponse,
-			remoteSourceResponse: await remoteSourceResponse,
-			resolveCalls: agentService.resolveCanvasSourceCalls,
-		}, {
-			capabilities: { local: true, remote: false },
-			localSnapshots: [{ chat: defaultChatUri, canvases: snapshot.canvases }],
-			remoteSnapshots: 0,
-			sourceResponse: { jsonrpc: '2.0', id: 2, result: { url: 'https://example.test/canvas' } },
-			remoteSourceResponse: {
-				jsonrpc: '2.0',
-				id: 2,
-				error: { code: JsonRpcErrorCodes.MethodNotFound, message: `Method not found: ${ResolveAgentHostCanvasSourceExtensionMethod}` },
-			},
-			resolveCalls: [{ chat: defaultChatUri, instanceId: 'preview-1', revision: 4 }],
-		});
-	});
-
-	test('canvas reconnect replays current snapshots and clears snapshots removed while disconnected', async () => {
-		const removedChat = URI.parse(defaultChatUri);
-		const currentChat = URI.parse(buildChatUri('copilotcli:/session-1', 'peer-1'));
-		const removedSnapshot: IAgentCanvasSnapshot = {
-			chat: removedChat,
-			canvases: [{
-				instanceId: 'removed',
-				extensionId: 'project:preview',
-				canvasId: 'preview',
-				revision: 1,
-				availability: AgentCanvasAvailability.Ready,
-			}],
-		};
-		const currentSnapshot: IAgentCanvasSnapshot = {
-			chat: currentChat,
-			canvases: [{
-				instanceId: 'current',
-				extensionId: 'project:preview',
-				canvasId: 'preview',
-				revision: 1,
-				availability: AgentCanvasAvailability.Ready,
-			}],
-		};
-		agentService.fireCanvasSnapshot(removedSnapshot);
-		agentService.fireCanvasSnapshot(currentSnapshot);
-		const initial = connectClient('canvas-reconnect', undefined, undefined, {
-			'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local,
-		}, AgentHostTransportKind.MessagePort);
-		initial.simulateClose();
-
-		agentService.fireCanvasSnapshot({ chat: removedChat, canvases: [] });
-		const updatedCurrentSnapshot: IAgentCanvasSnapshot = {
-			...currentSnapshot,
-			canvases: [{ ...currentSnapshot.canvases[0], revision: 2 }],
-		};
-		agentService.fireCanvasSnapshot(updatedCurrentSnapshot);
-
-		const reconnected = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
-		server.simulateConnection(reconnected);
-		const responsePromise = waitForResponse(reconnected, 2);
-		reconnected.simulateMessage(request(2, 'reconnect', {
-			clientId: 'canvas-reconnect',
-			lastSeenServerSeq: stateManager.serverSeq,
-			subscriptions: [],
-			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
-		}));
-		await responsePromise;
-		await handler.whenIdle();
-
-		assert.deepStrictEqual(
-			findNotifications(reconnected.sent, AgentHostCanvasesChangedNotification).map(notification => notification.params),
-			[
-				{ chat: currentChat.toString(), canvases: updatedCurrentSnapshot.canvases },
-				{ chat: removedChat.toString(), canvases: [] },
-			],
-		);
 	});
 
 	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {
@@ -1765,14 +1638,18 @@ suite('ProtocolServerHandler', () => {
 		await Promise.resolve();
 		transport.simulateClose();
 		await agentService.subscribeBarrier.complete();
-		await Promise.resolve();
+		await handler.whenIdle();
 
 		assert.deepStrictEqual({
+			response: findResponse(transport.sent, 2),
 			subscribes: agentService.subscribeCalls,
 			unsubscribes: agentService.unsubscribeCalls,
+			errorCount: logService.errorCount,
 		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
 			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+			errorCount: 0,
 		});
 	});
 
@@ -1836,17 +1713,147 @@ suite('ProtocolServerHandler', () => {
 
 		const [first, second] = await Promise.all([firstResponse, secondResponse]);
 		assert.deepStrictEqual({
-			firstFailed: hasKey(first, { error: true }),
+			firstError: hasKey(first, { error: true }) ? first.error : undefined,
 			secondSucceeded: hasKey(second, { result: true }),
+			errorCount: logService.errorCount,
 			subscribes: agentService.subscribeCalls,
 			unsubscribes: agentService.unsubscribeCalls,
 		}, {
-			firstFailed: true,
+			firstError: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` },
 			secondSucceeded: true,
+			errorCount: 0,
 			subscribes: [
 				{ resource: sessionUri, clientId: 'client-1' },
 				{ resource: sessionUri, clientId: 'client-1' },
 			],
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('superseded turn changeset subscriptions are cancelled even when their resources exist', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const turns = ['previous-1', 'previous-2', 'latest'].map(turnId => buildTurnChangesetUri(defaultChatUri, turnId));
+		const barrier = new DeferredPromise<void>();
+		for (const channel of turns) {
+			stateManager.registerChangeset(channel);
+		}
+		for (const channel of turns.slice(0, -1)) {
+			agentService.subscribeBarriers.set(channel, barrier);
+		}
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responses = turns.map((_, index) => waitForResponse(transport, index + 2));
+		const emitted: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => emitted.push(envelope)));
+
+		for (const [index, channel] of turns.entries()) {
+			transport.simulateMessage(request(index + 2, 'subscribe', { channel }));
+			if (index < turns.length - 1) {
+				transport.simulateMessage(notification('unsubscribe', { channel }));
+			}
+		}
+		await responses[2];
+		for (const channel of turns.slice(0, -1)) {
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetContentChanged, files: [] });
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		}
+		await barrier.complete();
+		const results = await Promise.all(responses);
+
+		assert.deepStrictEqual({
+			errors: results.slice(0, -1).map(result => hasKey(result, { error: true }) ? result.error : undefined),
+			latestResource: hasKey(results[2], { result: true }) ? (results[2].result as SubscribeResult).snapshot?.resource : undefined,
+			supersededResourcesExist: turns.slice(0, -1).map(channel => !!stateManager.getSnapshot(channel)),
+			emitted: emitted.map(envelope => ({ channel: envelope.channel, type: envelope.action.type })),
+			deliveredActions: findNotifications(transport.sent, 'action').length,
+			unsubscribes: agentService.unsubscribeCalls,
+			errorCount: logService.errorCount,
+		}, {
+			errors: turns.slice(0, -1).map(channel => ({ code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${channel}` })),
+			latestResource: turns[2],
+			supersededResourcesExist: [true, true],
+			emitted: turns.slice(0, -1).flatMap(channel => [
+				{ channel, type: ActionType.ChangesetContentChanged },
+				{ channel, type: ActionType.ChangesetStatusChanged },
+			]),
+			deliveredActions: 0,
+			unsubscribes: turns.slice(0, -1).map(resource => ({ resource, clientId: 'client-1' })),
+			errorCount: 0,
+		});
+	});
+
+	test('unsubscribe cancels a subscribe whose snapshot resolves successfully afterwards', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const barrier = new DeferredPromise<IStateSnapshot>();
+		agentService.subscribe = async () => barrier.p;
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await barrier.complete(stateManager.getSnapshot(sessionUri)!);
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			errorCount: 0,
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('subscribe still reports and logs genuinely missing resources', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const channel = buildTurnChangesetUri(defaultChatUri, 'missing');
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: AHP_SESSION_NOT_FOUND, message: `Resource not found: ${channel}` } },
+			errorCount: 1,
+		});
+	});
+
+	test('subscribe preserves and logs protocol failures while it still owns the subscription', async () => {
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required', { resources: [] });
+		agentService.subscribe = async () => { throw error; };
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: error.code, message: error.message, data: error.data } },
+			errorCount: 1,
+		});
+	});
+
+	test('unsubscribe cancels a subscribe whose restore rejects with a protocol error afterwards', async () => {
+		const barrier = new DeferredPromise<IStateSnapshot>();
+		agentService.subscribe = async () => barrier.p;
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await barrier.error(new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required', { resources: [] }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			errorCount: 0,
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 		});
 	});
@@ -2247,7 +2254,16 @@ suite('ProtocolServerHandler', () => {
 				.map(message => (message.params as SessionSummaryChangedParams).changes);
 			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
 				listedMeta: { providerOnly: true, live: 'current' },
-				summaryChanges: [{ modifiedAt: startedAt, status: SessionStatus.InProgress }],
+				summaryChanges: [{
+					modifiedAt: startedAt,
+					status: SessionStatus.InProgress,
+					chats: [{
+						resource: buildDefaultChatUri(sessionUri),
+						title: '',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.InProgress,
+					}],
+				}],
 			});
 		});
 	});
@@ -2446,14 +2462,16 @@ suite('ProtocolServerHandler', () => {
 	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
+		const unknownStatusChat = URI.parse(`${sessionUri}/chat/unknown`);
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Session Summary',
 			chats: [
-				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ chat: defaultChat, kind: 'default', summary: 'Default Chat', isRead: true },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
+				{ chat: unknownStatusChat, kind: 'peer', summary: 'Unknown Status Chat' },
 			],
 		});
 
@@ -2469,8 +2487,9 @@ suite('ProtocolServerHandler', () => {
 			defaultChat: result.items[0].defaultChat,
 		}, {
 			chats: [
-				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined, status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: peerChat.toString(), title: 'Peer Chat', status: SessionStatus.Idle | SessionStatus.IsArchived, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ resource: unknownStatusChat.toString(), title: 'Unknown Status Chat', origin: undefined },
 			],
 			defaultChat: defaultChat.toString(),
 		});
@@ -2519,6 +2538,22 @@ suite('ProtocolServerHandler', () => {
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
 		});
+	});
+
+	test('createSession captures the initiating Editor or Agents Window client', async () => {
+		const actual = [];
+		for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+			const transport = connectClient(clientInfo.name, undefined, clientInfo);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				channel: `copilot:///${clientInfo.name}`,
+				_meta: withSessionInitiator({ preserved: true }, { name: 'request-supplied-client' }),
+			}));
+			await response;
+			const config = agentService.createSessionConfigs.at(-1);
+			actual.push({ initiator: readSessionInitiator(config), preserved: config?._meta?.preserved });
+		}
+		assert.deepStrictEqual(actual, [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo].map(initiator => ({ initiator, preserved: true })));
 	});
 
 	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
@@ -4710,7 +4745,6 @@ suite('ProtocolServerHandler', () => {
 
 	test('scopes managed settings contributions to each protocol handler', () => {
 		const firstTransport = connectClient('shared-client-id');
-		firstTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
@@ -4739,7 +4773,6 @@ suite('ProtocolServerHandler', () => {
 		secondTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
-		secondTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {
 			disableBypassPermissionsMode: 'disable',
@@ -4750,40 +4783,14 @@ suite('ProtocolServerHandler', () => {
 		secondHandler.dispose();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
-		assert.strictEqual(managedSettingsService.sandboxRequired, true);
-		firstTransport.simulateMessage(notification('setClientSandboxRequired', { required: false }));
-		assert.strictEqual(managedSettingsService.sandboxRequired, false);
-	});
-
-	test('attributes sandbox policy to the initialized client and rejects malformed contributions', () => {
-		const warnings: string[] = [];
-		logService.warn = message => warnings.push(message);
-		const uninitialized = new MockProtocolTransport();
-		server.simulateConnection(uninitialized);
-		uninitialized.simulateMessage(notification('setClientSandboxRequired', { required: true }));
-		assert.strictEqual(managedSettingsService.sandboxRequired, false);
-
-		const governed = connectClient('governed');
-		const other = connectClient('other');
-		governed.simulateMessage(notification('setClientSandboxRequired', { required: true }));
-		other.simulateMessage(notification('setClientSandboxRequired', { required: false, clientId: 'governed' }));
-		for (const params of [{ required: 'false' }, {}, null]) {
-			governed.simulateMessage(notification('setClientSandboxRequired', params));
-		}
-		assert.strictEqual(managedSettingsService.sandboxRequired, true);
-		assert.strictEqual(warnings.length, 3);
-		governed.simulateMessage(notification('setClientSandboxRequired', { required: false }));
-		assert.strictEqual(managedSettingsService.sandboxRequired, false);
 	});
 
 	test('removes managed settings contributions for active and grace clients on dispose', () => {
 		const activeTransport = connectClient('client-managed-settings-active');
-		activeTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
 		const graceTransport = connectClient('client-managed-settings-grace');
-		graceTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
@@ -4797,56 +4804,53 @@ suite('ProtocolServerHandler', () => {
 		handler.dispose();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {});
-		assert.strictEqual(managedSettingsService.sandboxRequired, false);
 	});
 
 	test('removes a managed settings contribution after disconnect grace expires', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const transport = connectClient('client-managed-settings-disconnect');
-			transport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 				permissions: { ask: ['Shell'] },
 			}));
 			transport.simulateClose();
-			assert.strictEqual(managedSettingsService.sandboxRequired, true);
+			assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
 
 			await new Promise(resolve => setTimeout(resolve, 30_001));
 
 			assert.deepStrictEqual(managedSettingsService.permissions, {});
-			assert.strictEqual(managedSettingsService.sandboxRequired, false);
 		});
 	});
 
-	test('disconnect expiry removes only that client sandbox requirement', () => {
+	test('disconnect expiry removes only that client managed permissions', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const first = connectClient('sandbox-first');
-			const second = connectClient('sandbox-second');
-			first.simulateMessage(notification('setClientSandboxRequired', { required: true }));
-			second.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			const first = connectClient('permissions-first');
+			const second = connectClient('permissions-second');
+			first.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { ask: ['Shell'] } }));
+			second.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { deny: ['Write(**)'] } }));
 			first.simulateClose();
 			await new Promise(resolve => setTimeout(resolve, 30_001));
-			assert.strictEqual(managedSettingsService.sandboxRequired, true);
-			second.simulateMessage(notification('setClientSandboxRequired', { required: false }));
-			assert.strictEqual(managedSettingsService.sandboxRequired, false);
+			assert.deepStrictEqual(managedSettingsService.permissions, { deny: ['Write(**)'] });
+			second.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: {} }));
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
 		});
 	});
 
-	test('reconnecting preserves the sandbox contribution beyond the disconnect grace period', () => {
+	test('reconnecting preserves managed permissions beyond the disconnect grace period', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const first = connectClient('sandbox-reconnect');
-			first.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			const first = connectClient('permissions-reconnect');
+			first.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { ask: ['Shell'] } }));
 			first.simulateClose();
 			const reconnected = new MockProtocolTransport();
 			server.simulateConnection(reconnected);
 			reconnected.simulateMessage(request(2, 'reconnect', {
-				clientId: 'sandbox-reconnect',
+				clientId: 'permissions-reconnect',
 				lastSeenServerSeq: stateManager.serverSeq,
 				subscriptions: [],
 			}));
 			await new Promise(resolve => setTimeout(resolve, 30_001));
-			assert.strictEqual(managedSettingsService.sandboxRequired, true);
-			reconnected.simulateMessage(notification('setClientSandboxRequired', { required: false }));
-			assert.strictEqual(managedSettingsService.sandboxRequired, false);
+			assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
+			reconnected.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: {} }));
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
 		});
 	});
 

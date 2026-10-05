@@ -57,7 +57,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
-import { createCustomizationCardPrimaryAction, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
@@ -346,9 +346,8 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
 		const templateDisposables = new DisposableStore();
-		trackCustomizationCardPrimaryActionFocus(primaryAction, root, templateDisposables);
-		const icon = DOM.append(primaryAction, $('.customization-discovery-result-icon'));
-		const identity = DOM.append(primaryAction, $('.customization-discovery-result-identity'));
+		const icon = DOM.append(root, $('.customization-discovery-result-icon'));
+		const identity = DOM.append(root, $('.customization-discovery-result-identity'));
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-result-name'));
 		const detail = DOM.append(heading, $('.customization-discovery-result-detail'));
@@ -420,7 +419,6 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
 		const registerOpenListeners = (open: () => void) => {
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.root, DOM.EventType.CLICK, open));
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
 				open();
@@ -1588,7 +1586,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		);
 		this.browsePrimaryActions.set(resourceKey, primaryAction);
 		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openCatalogItem(item, 'browse')));
-		const icon = DOM.append(primaryAction, $('.customization-discovery-card-icon'));
+		const icon = DOM.append(card, $('.customization-discovery-card-icon'));
 		const type = getCatalogType(item);
 		renderCustomizationMarketplaceIcon(
 			icon,
@@ -1597,7 +1595,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.themeService.getColorTheme().type,
 			this.browseDisposables,
 		);
-		const body = DOM.append(primaryAction, $('.customization-discovery-card-body'));
+		const body = DOM.append(card, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-card-name'));
 		name.textContent = item.displayName;

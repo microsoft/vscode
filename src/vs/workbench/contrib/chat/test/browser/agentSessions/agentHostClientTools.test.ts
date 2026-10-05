@@ -51,6 +51,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IStorageService, InMemoryStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
@@ -89,6 +90,7 @@ suite('AgentHostClientTools', () => {
 
 	/** A remote agent host running the same Copilot CLI harness (`remote-{authority}-{provider}`). */
 	const REMOTE_COPILOT_CLI_SESSION_TYPE = 'remote-devbox-copilotcli';
+	const CLOUD_SANDBOX_SESSION_TYPE = 'remote-cloudsandbox_environment-one-copilot';
 
 	const disposables = new DisposableStore();
 
@@ -348,12 +350,16 @@ suite('AgentHostClientTools', () => {
 			localDisabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, false),
 			localEnabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
 			remoteEnabled: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE, true),
+			sandboxDisabled: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE, false),
+			sandboxEnabled: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE, true),
 			otherEnabled: await publishedTools(tools, 'agent-host-claude', true),
 			withoutCanonical: await publishedTools([collidingCodebaseTool, collidingSemanticSearchTool, readFileTool], AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
 		}, {
 			localDisabled: [['readFile', 'Read File']],
 			localEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			remoteEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			sandboxDisabled: [['readFile', 'Read File']],
+			sandboxEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
 			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
 		});
@@ -974,6 +980,7 @@ suite('AgentHostClientTools', () => {
 				refreshResolvedConfig: async () => { },
 			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
 			instantiationService.stub(ILanguageModelToolsService, toolsService);
+			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 			instantiationService.stub(IAgentHostToolSetEnablementService, {
 				observe: () => constObservable<IToolEnablementState>({ toolSets: new Map(), tools: new Map() }),
 				getState: () => ({ toolSets: new Map(), tools: new Map() }),
@@ -2749,7 +2756,7 @@ suite('AgentHostClientTools', () => {
 
 		test('maps semantic search to codebase only for Copilot sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const invoke = async (sessionType: string, toolCallId: string) => {
-				const isCopilot = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || sessionType === REMOTE_COPILOT_CLI_SESSION_TYPE;
+				const isCopilot = sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE || sessionType === REMOTE_COPILOT_CLI_SESSION_TYPE || sessionType === CLOUD_SANDBOX_SESSION_TYPE;
 				const codebaseTool = isCopilot
 					? semanticSearchTool
 					: { ...semanticSearchTool, canRequestPreApproval: true };
@@ -2792,9 +2799,10 @@ suite('AgentHostClientTools', () => {
 				[
 					await invoke(AGENT_HOST_COPILOT_CLI_SESSION_TYPE, 'copilot-semantic'),
 					await invoke(REMOTE_COPILOT_CLI_SESSION_TYPE, 'remote-copilot-semantic'),
+					await invoke(CLOUD_SANDBOX_SESSION_TYPE, 'sandbox-copilot-semantic'),
 					await invoke('agent-host-claude', 'claude-semantic'),
 				],
-				[semanticSearchTool.id, semanticSearchTool.id, collidingSemanticSearchTool.id],
+				[semanticSearchTool.id, semanticSearchTool.id, semanticSearchTool.id, collidingSemanticSearchTool.id],
 			);
 		}));
 

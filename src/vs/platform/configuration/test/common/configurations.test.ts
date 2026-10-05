@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../base/common/event.js';
 import { equals } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
+import { allSettings, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../common/configurationRegistry.js';
 import { DefaultConfiguration } from '../../common/configurations.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -24,6 +24,67 @@ suite('DefaultConfiguration', () => {
 		configurationRegistry.deregisterConfigurations(configurationRegistry.getConfigurations());
 		configurationRegistry.deregisterDefaultConfigurations(configurationRegistry.getRegisteredDefaultConfigurations());
 	}
+
+	test('hidden experimental defaults update and unregister without entering settings schemas', async () => {
+		const key = 'test.hiddenExperimentalDefault';
+		const otherKey = 'test.hiddenNonExperimentalDefault';
+		const configuration: IConfigurationNode = {
+			id: 'test.hiddenDefaults',
+			properties: {
+				[key]: { type: 'boolean', default: false, included: false, experiment: { mode: 'auto' } },
+				[otherKey]: { type: 'boolean', default: true, included: false },
+			},
+		};
+		configurationRegistry.registerConfiguration(configuration);
+		const defaults = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaults.initialize();
+		const otherDefault = defaults.configurationModel.getValue(otherKey);
+		const values = [defaults.configurationModel.getValue<boolean | undefined>(key)];
+		const changes: (boolean | undefined)[] = [];
+		disposables.add(defaults.onDidChangeConfiguration(e => {
+			if (e.properties.includes(key)) {
+				changes.push(e.defaults.getValue<boolean | undefined>(key));
+			}
+		}));
+		const override = { overrides: { [key]: true }, source: 'experiments' };
+		configurationRegistry.registerDefaultConfigurations([override]);
+		values.push(defaults.configurationModel.getValue<boolean | undefined>(key));
+		values.push(defaults.reload().getValue<boolean | undefined>(key));
+		const visibleDuringOverride = !!configurationRegistry.getConfigurationProperties()[key] || !!allSettings.properties[key];
+		configurationRegistry.deregisterDefaultConfigurations([override]);
+		values.push(defaults.configurationModel.getValue<boolean | undefined>(key));
+		configurationRegistry.deregisterConfigurations([configuration]);
+		values.push(defaults.configurationModel.getValue<boolean | undefined>(key));
+		assert.deepStrictEqual({
+			values,
+			changes,
+			visibleDuringOverride,
+			otherDefault,
+			excludedAfterRemoval: configurationRegistry.getExcludedConfigurationProperties()[key],
+		}, {
+			values: [false, true, true, false, undefined],
+			changes: [true, false, undefined],
+			visibleDuringOverride: false,
+			otherDefault: undefined,
+			excludedAfterRemoval: undefined,
+		});
+	});
+
+	test('notifies when a hidden experimental setting is registered after initialization', async () => {
+		const defaults = disposables.add(new DefaultConfiguration(new NullLogService()));
+		await defaults.initialize();
+		const key = 'test.lateHiddenExperimentalDefault';
+		const changes: (boolean | undefined)[] = [];
+		disposables.add(defaults.onDidChangeConfiguration(e => {
+			if (e.properties.includes(key)) {
+				changes.push(e.defaults.getValue<boolean | undefined>(key));
+			}
+		}));
+		const configuration = { properties: { [key]: { type: 'boolean' as const, default: false, included: false, experiment: { mode: 'auto' as const } } } };
+		configurationRegistry.registerConfiguration(configuration);
+		configurationRegistry.deregisterConfigurations([configuration]);
+		assert.deepStrictEqual(changes, [false, undefined]);
+	});
 
 	test('Test registering a property before initialize', async () => {
 		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));

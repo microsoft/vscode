@@ -40,6 +40,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
+import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -93,6 +94,10 @@ import { AgentHostSessionListController } from '../../../browser/agentSessions/a
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { isResourceEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../common/editor.js';
+import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -1123,6 +1128,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
+	instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
 }
@@ -1576,12 +1582,56 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		for (const key of ['promptRequest', 'permissionRequest'] as const) {
+			test(`Copilot D write ${key} identifies the file through the wire without changing approval options`, async () => {
+				const { startRequest, fire, peer, echo, chatUri } = await openWireSession();
+				const { turnId, progress, finish } = await startRequest();
+				const options = [
+					{ id: 'approve-once', label: 'Approve once', kind: ConfirmationOptionKind.Approve },
+					{ id: 'approve-for-session', label: 'Approve for this session', kind: ConfirmationOptionKind.Approve },
+				];
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'write-permission', toolName: 'edit', displayName: 'Edit' });
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'write-permission',
+					invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: '/workspaces/simple-server/index.js', options,
+					_meta: { [key]: { kind: 'write', intention: 'Edit file', fileName: '/workspaces/simple-server/index.js' } },
+				});
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const messages = IChatToolInvocation.getConfirmationMessages(invocation);
+				const observed = {
+					message: textOf(invocation.invocationMessage),
+					title: textOf(messages?.title),
+					body: textOf(messages?.message),
+					options: messages?.customOptions,
+					state: invocation.state.get().type,
+				};
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: 'approve-for-session' });
+				const sent = await confirmation;
+				echo(sent);
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'write-permission', result: { success: true, pastTenseMessage: 'Edited file', content: [] } });
+				await finish();
+				const message = `Edit [](${toAgentHostUri(URI.file('/workspaces/simple-server/index.js'), agentHostAuthority('sandbox.example:443'))})`;
+				assert.deepStrictEqual({ ...observed, channel: sent.channel, action: sent.action }, {
+					message, title: 'Edit index.js', body: message, options,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					channel: chatUri,
+					action: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'write-permission', approved: true,
+						selectedOptionId: 'approve-for-session', confirmed: ToolCallConfirmationReason.UserAction,
+						_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				});
+			});
+		}
+
 		const appToolCases = [
 			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
 			{ name: 'glob', args: { pattern: '*.ts' }, kind: 'search', running: 'Searching `*.ts`', completed: 'Searched `*.ts`' },
 			{ name: 'read_file', args: { file_path: '/remote/file.ts' }, kind: undefined, running: 'Reading `/remote/file.ts`', completed: 'Read `/remote/file.ts`' },
 			{ name: 'write_file', args: { path: '/remote/file.ts' }, kind: undefined, running: 'Creating file `/remote/file.ts`', completed: 'Created file `/remote/file.ts`' },
-			{ name: 'bash', args: { command: 'echo output', description: 'Check output' }, kind: 'terminal', running: 'Running command `Check output`', completed: 'Ran command `Check output`' },
+			{ name: 'bash', args: { command: 'echo output', description: 'Check output' }, kind: 'terminal', running: 'Running command `Check output`', completed: undefined },
 			{ name: 'write_bash', args: {}, kind: undefined, running: 'Sending input to shell', completed: 'Sent input to shell' },
 			{ name: 'web_search', args: { query: 'auth' }, kind: undefined, running: 'Searching the web `auth`', completed: 'Searched the web `auth`' },
 			{ name: 'apply_patch', args: {}, kind: undefined, running: 'Applying patch', completed: 'Applied patch' },
@@ -1881,6 +1931,74 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('response resource links', () => {
+		for (const host of ['local', 'WSL']) {
+			for (const message of ['/sandbox policy', '/SB   policy   ', 'Hello']) {
+				test(`opens the ${host} sandbox policy only for its submitted slash command (${message})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+					const opened: IResourceEditorInput[] = [];
+					instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+						async openEditor(input: EditorInput | IUntypedEditorInput) {
+							assert.ok(isResourceEditorInput(input));
+							opened.push(input);
+							return upcastPartial<ITextDiffEditorPane>({});
+						},
+					}));
+					const authority = host === 'local' ? 'local' : agentHostAuthority('vscode-remote://wsl+Ubuntu');
+					agentHostService.resourceUris = host === 'local' ? identityAgentHostResourceUriMapper : createAgentHostResourceUriMapper(authority);
+					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+						fullName: 'Test', description: 'test', connection: agentHostService, connectionAuthority: authority,
+					}));
+					const { turnPromise, collected, chatSession, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { message });
+					const resource = URI.parse('agenthost-content:///reports/policy.md?version=1');
+					const content = '[Open Sandbox Policy](agenthost-content:///reports/policy.md?vscodeLinkType=markdown-preview)';
+					fire({
+						type: ActionType.ChatResponsePart, turnId,
+						part: { kind: ResponsePartKind.SystemNotification, content: { markdown: content }, _meta: toSlashCommandResourceMeta(resource, true) },
+					});
+					fire({ type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+					await turnPromise;
+					const fallbackResource = toAgentHostUri(resource.with({ query: '' }), authority);
+					assert.deepStrictEqual({
+						opened: opened.map(input => ({ resource: input.resource?.toString(), options: input.options })),
+						markdown: collected.flat().filter(part => part.kind === 'markdownContent' || part.kind === 'systemNotification').map(part => part.content.value),
+					}, message.startsWith('/') ? {
+						opened: [{
+							resource: agentHostService.resourceUris.fromAgentHost(resource).toString(),
+							options: { pinned: true, override: 'vscode.markdown.preview.editor' },
+						}],
+						markdown: ['Opened the sandbox policy in the editor.'],
+					} : {
+						opened: [],
+						markdown: [`[Open Sandbox Policy](${fallbackResource.with({ query: `${fallbackResource.query}&vscodeLinkType=markdown-preview` }).toString()})`],
+					});
+					chatSession.dispose();
+					const restored = await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/new-turntest'), CancellationToken.None);
+					disposables.add(toDisposable(() => restored.dispose()));
+					assert.strictEqual(opened.length, message.startsWith('/') ? 1 : 0, 'Restoring history must not reopen the policy');
+				}));
+			}
+		}
+
+		test('reports failure to open the sandbox policy instead of claiming success', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+				async openEditor() { throw new Error('Preview failed'); },
+			}));
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+				fullName: 'Test', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+			}));
+			const { turnPromise, collected, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { message: '/sandbox policy' });
+			fire({
+				type: ActionType.ChatResponsePart, turnId,
+				part: { kind: ResponsePartKind.SystemNotification, content: { markdown: '[Open Sandbox Policy](file:///policy.md)' }, _meta: toSlashCommandResourceMeta(URI.file('/policy.md'), true) },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+			await assert.rejects(turnPromise, /Preview failed/);
+			assert.deepStrictEqual(collected.flat().filter(part => part.kind === 'markdownContent'), []);
+		}));
+
 		test('uses the WSL connection for file links despite a local session authority', () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const authority = agentHostAuthority('vscode-remote://wsl+Ubuntu');
@@ -11392,6 +11510,56 @@ suite('AgentHostChatContribution', () => {
 
 	suite('attachment context', () => {
 
+		for (const implicit of [false, true]) {
+			for (const { name, uri, dirty, text, expected } of [
+				{ name: 'untitled editor', uri: URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' }), dirty: false, text: 'draft', expected: 'embedded' },
+				{ name: 'dirty saved editor', uri: URI.file('/workspace/test.ts'), dirty: true, text: 'edited but not saved', expected: 'embedded' },
+				{ name: 'clean saved editor', uri: URI.file('/workspace/test.ts'), dirty: false, text: 'saved', expected: 'resource' },
+				{ name: 'oversized untitled editor', uri: URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' }), dirty: false, text: 'x'.repeat(1024 * 1024 + 1), expected: 'none' },
+				{ name: 'oversized dirty saved editor', uri: URI.file('/workspace/test.ts'), dirty: true, text: 'x'.repeat(1024 * 1024 + 1), expected: 'resource' },
+			]) {
+				test(`sandbox Copilot handles ${implicit ? 'implicit' : 'explicit'} ${name} attachments`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { instantiationService, agentHostService, chatAgentService, chatWidgetService, modelService, workingCopyService } = createTestServices(disposables);
+					const sessionType = 'remote-cloudsandbox_environment-one-copilot';
+					const sessionResource = URI.from({ scheme: sessionType, path: '/session-one' });
+					const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider: 'copilot',
+						backendSessionScheme: 'ahp-session',
+						agentId: 'agent-host-copilot',
+						sessionType,
+						fullName: 'Copilot [Sandbox session title]',
+						description: 'Sandbox Copilot',
+						connection: agentHostService,
+						connectionAuthority: 'cloudsandbox_environment-one',
+					}));
+					modelService.setModelContent(uri, text);
+					workingCopyService.setDirty(uri, dirty);
+					if (implicit) {
+						chatWidgetService.setWidgetForSession(sessionResource, [
+							{ kind: 'implicit', id: 'vscode.implicit.file', name: 'test', isSelection: false, uri, value: uri },
+						]);
+					}
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'check this file',
+						sessionResource,
+						variables: { variables: implicit ? [] : [{ kind: 'file', id: 'v-file', name: 'test', value: uri }] },
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+
+					const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+					assert.deepStrictEqual({ session, attachments: turnAction.message.attachments }, {
+						session: buildDefaultChatUri(AgentSession.uri('ahp-session', 'session-one').toString()),
+						attachments: expected === 'embedded'
+							? [{ type: MessageAttachmentKind.EmbeddedResource, label: 'test', displayKind: 'document', data: encodeBase64(VSBuffer.fromString(text)), contentType: 'text/plain' }]
+							: expected === 'resource'
+								? [{ type: MessageAttachmentKind.Resource, uri: uri.toString(), label: 'test', displayKind: 'document' }]
+								: undefined,
+					});
+				}));
+			}
+		}
+
 		test('file variable with file:// URI becomes file attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -12123,8 +12291,8 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('active editor implicit context is not forwarded for untitled editors on non-Copilot-CLI backends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+		test('active editor implicit context is not forwarded for untitled editors on non-Copilot backends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables, { provider: 'claude' });
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-untitled' });
 			const untitledUri = URI.from({ scheme: 'untitled', path: '/Untitled-1' });
 			chatWidgetService.setWidgetForSession(sessionResource, [
@@ -12283,7 +12451,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('non-file URI variables (e.g. untitled documents) are forwarded as attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { provider: 'claude' });
 			const uri = URI.from({ scheme: 'untitled', path: '/foo' });
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -12403,29 +12571,30 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('inlined unsaved attachment preserves _meta and selection for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });
-			const fileUri = URI.file('/workspace/foo.ts');
-			modelService.setModelContent(fileUri, 'first line\nsecond line\nthird line\nfourth line content');
-			workingCopyService.setDirty(fileUri, true);
+		for (const provider of ['copilotcli', 'copilot', 'codex']) {
+			test(`inlined unsaved attachment preserves _meta and selection for ${provider}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider });
+				const fileUri = URI.file('/workspace/foo.ts');
+				modelService.setModelContent(fileUri, 'first line\nsecond line\nthird line\nfourth line content');
+				workingCopyService.setDirty(fileUri, true);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				message: 'check this',
-				variables: {
-					variables: [
-						upcastPartial({ kind: 'file', id: 'v-file', name: 'foo.ts', value: { uri: fileUri, range: new Range(2, 1, 4, 10) }, _meta: { provider: 'fs', score: 0.42 } }),
-					],
-				},
-			});
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-			await turnPromise;
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: 'check this',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'foo.ts', value: { uri: fileUri, range: new Range(2, 1, 4, 10) }, _meta: { provider: 'fs', score: 0.42 } }),
+						],
+					},
+				});
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
 
-			assert.strictEqual(agentHostService.turnActions.length, 1);
-			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
-			]);
-		}));
+				const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+				assert.deepStrictEqual(turnAction.message.attachments, [
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
+				]);
+			}));
+		}
 
 		test('dirty non-file resource that cannot be inlined is dropped for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });
@@ -14687,7 +14856,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('round-trips queued agent message provenance without rewriting it as a user message', async () => {
+		test('round-trips queued agent provenance and drops delegation ownership after a user edit', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'remote-agent-message');
 			agentHostService.sessionStates.set(backendSession.toString(), {
@@ -14730,15 +14899,33 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 			chatModel.firePendingRequestsChanged();
-			assert.deepStrictEqual({
+			const roundTrip = {
 				projectedOrigin: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].agentHostMessageOrigin,
 				projected: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].metadata,
 				storedOrigin: pendingRequests[0].sendOptions.agentHostMessageOrigin,
 				stored: pendingRequests[0].sendOptions.metadata,
 				rewrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet),
-			}, {
-				projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
-				storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+			};
+
+			agentHostService.dispatchedActions.length = 0;
+			pendingRequests[0] = {
+				...pendingRequests[0],
+				request: upcastPartial<IChatRequestModel>({ id: 'remote-message', message: { text: 'User-edited findings', parts: [] } }),
+			};
+			chatModel.firePendingRequestsChanged();
+			const edited = agentHostService.dispatchedActions.find(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet)?.action;
+
+			assert.deepStrictEqual({ roundTrip, edited }, {
+				roundTrip: {
+					projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
+					storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+				},
+				edited: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Queued,
+					id: 'remote-message',
+					message: { text: 'User-edited findings', origin: { kind: MessageKind.Agent } },
+				},
 			});
 		});
 

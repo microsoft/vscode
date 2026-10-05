@@ -17,6 +17,7 @@ import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
+import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
@@ -114,6 +115,10 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly sandboxEnabledByUndeterminedPolicy?: boolean;
 	readonly managedKeys: readonly string[];
 	readonly settings?: unknown;
+	/** Sessionless resolution layers; session client contributions and policy-helper execution are not included. */
+	readonly layers?: readonly { readonly source: string; readonly settings?: unknown }[];
+	/** Includes source failures and cache-fallback warnings, independently of failClosed. */
+	readonly diagnostics?: readonly { readonly path: string; readonly severity: 'error' | 'warning'; readonly message: string }[];
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
@@ -188,10 +193,15 @@ export interface IAgentSessionChatMetadata {
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
 	readonly archived?: boolean;
+	/** Exact chat read state when known; absence means the provider did not supply it. */
+	readonly isRead?: boolean;
+	readonly changes?: ChangesSummary;
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	/** Host-advertised agent identity; older cached metadata may omit it. */
+	readonly provider?: string;
 	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 
@@ -697,31 +707,6 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
-export const AgentCanvasAvailability = {
-	Ready: 'ready',
-	Unavailable: 'unavailable',
-} as const;
-
-export type AgentCanvasAvailability = typeof AgentCanvasAvailability[keyof typeof AgentCanvasAvailability];
-
-/** A live model-opened canvas projected by an agent provider. */
-export interface IAgentCanvas {
-	readonly instanceId: string;
-	readonly extensionId: string;
-	readonly extensionName?: string;
-	readonly canvasId: string;
-	readonly title?: string;
-	readonly status?: string;
-	readonly revision: number;
-	readonly availability: AgentCanvasAvailability;
-}
-
-/** Full replacement of the live canvas collection for one exact chat. */
-export interface IAgentCanvasSnapshot {
-	readonly chat: URI;
-	readonly canvases: readonly IAgentCanvas[];
-}
-
 /** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
@@ -891,8 +876,6 @@ export interface IAgentChats {
 	/** Reconstruct the turns for `chat` (used on restore). */
 	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
 
-	/** Resolve the current source of a live model-opened canvas. */
-	resolveCanvasSource?(chat: URI, instanceId: string, revision: number, context: AgentChatOperationContext): Promise<string>;
 }
 
 export interface IAgentResolveChatConfigParams {
@@ -936,6 +919,7 @@ export interface IAgentModelInfo {
  */
 export type AgentSignal =
 	| IAgentActionSignal
+	| IAgentCanvasSignal
 	| IAgentModelCallCompletedSignal
 	| IAgentModelCallFinishedSignal
 	| IAgentToolPendingConfirmationSignal
@@ -960,6 +944,14 @@ export interface IAgentActionSignal {
 	readonly action: SessionAction | ChatAction;
 	/** If set, route the action to the subagent session belonging to this tool call. */
 	readonly parentToolCallId?: string;
+}
+
+/** Materializes or updates a chat-owned live canvas channel. */
+export interface IAgentCanvasSignal {
+	readonly kind: 'canvas';
+	readonly chat: URI;
+	readonly resource: URI;
+	readonly state: CanvasState;
 }
 
 /** Reports one completed upstream model response for host-owned turn telemetry. */
@@ -1028,11 +1020,14 @@ export interface IAgentToolPendingConfirmationSignal {
 	 */
 	readonly managedApprovalRequired?: boolean;
 	/**
-	 * Host-only flag (not part of the dispatched action): the model requested
-	 * this shell command run OUTSIDE the sandbox (and the host opted in via
-	 * `sandbox.allowBypass`).
+	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only flag indicating that the sandbox escalation keeps the sandbox attached
+	 * while file and process restrictions record instead of block.
+	 */
+	readonly requestSandboxPermissive?: boolean;
 	/**
 	 * Host-only shell language for terminal auto-approval.
 	 * Only `bash` and `powershell` are eligible for terminal-rule analysis;
@@ -1051,6 +1046,9 @@ export interface IAgentToolPendingConfirmationSignal {
 
 export type AgentSubagentTaskModelSource = 'task_argument' | 'subagent_configuration' | 'custom_agent_definition' | 'unset';
 
+/** `task` is a delegated subagent; `fusionPhase` is a presentation-only chat for one HydraFusion phase of the parent turn. */
+export type AgentSubagentKind = 'task' | 'fusionPhase';
+
 /**
  * A subagent was spawned by a tool call. The host creates a child session
  * silently and routes subsequent inner-tool events to it.
@@ -1066,6 +1064,10 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
 	readonly taskModelSource?: AgentSubagentTaskModelSource;
+	/** Absent means `task`. */
+	readonly subagentKind?: AgentSubagentKind;
+	/** For telemetry, when the chat reports no usage of its own. */
+	readonly model?: string;
 	/**
 	 * The spawning Task tool's short (typically 3-5 word) `description`
 	 * input, e.g. "Review package.json structure". Distinct from
@@ -1303,9 +1305,6 @@ export interface IAgent {
 
 	/** Fires when an opaque chat backing changes and must be persisted again. */
 	readonly onDidChangeChatData: Event<IAgentChatDataChange>;
-
-	/** Full-replacement live canvas snapshots for exact chats owned by this provider. */
-	readonly onDidChangeCanvases?: Event<IAgentCanvasSnapshot>;
 
 	/** Fires when the provider creates a chat, such as a delegated subagent. */
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent>;

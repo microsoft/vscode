@@ -36,6 +36,12 @@ const WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS = 500;
 /** Budget for reading one blob; a timeout here drops a diff's original side. */
 const SHOW_BLOB_TIMEOUT_MS = 15_000;
 
+/**
+ * Budget for listing refs. Sorting by commit date reads every ref's tip commit, which can
+ * exceed the default timeout on a cold disk cache, e.g. on the first start after an update.
+ */
+const GET_REFS_TIMEOUT_MS = 30_000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
@@ -101,7 +107,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 		}
 
-		const output = await this._runGit(workingDirectory, args);
+		const output = await this._runGit(workingDirectory, args, { timeout: GET_REFS_TIMEOUT_MS });
 		return parseGitRefs(output);
 	}
 
@@ -994,8 +1000,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return out?.trim() || undefined;
 	}
 
-	async listRefNamesWithOids(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
-		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern]);
+	async listRefNamesWithOids(repositoryRoot: URI, pattern: string, options?: { readonly throwOnError?: boolean }): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
+		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern], options);
 		if (!out) {
 			return [];
 		}
@@ -1136,6 +1142,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		// Run all probes in parallel. Each handles its own errors and returns
 		// undefined on failure so we can populate fields independently.
+		// `origin/HEAD` is always probed: besides the fallback base branch, it
+		// reports the repository's default branch.
 		const [
 			statusOutput,
 			remotesOutput,
@@ -1143,7 +1151,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		] = await Promise.all([
 			this._runGitStatus(repositoryRoot, ['-b', '--porcelain=v2']),
 			this._runGit(repositoryRoot, ['remote', '-v']),
-			configuredBaseBranch ? undefined : this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
+			this._runGit(repositoryRoot, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']),
 		]);
 
 		// `git status` is the only probe that reports the branch, so a state
@@ -1162,18 +1170,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const hasGitRemote = remotesOutput !== undefined ? remotesOutput.trim().length > 0 : undefined;
 		const hasGitHubRemote = parseHasGitHubRemote(remotesOutput);
 		const baseBranchName = configuredBaseBranch ?? parseDefaultBranchRef(defaultBranchRef);
+		const defaultBranch = parseDefaultRemoteBranchRef(defaultBranchRef);
 		const githubRepo = parseGitHubRepoFromRemote(remotesOutput);
 		const upstreamRemote = status.upstreamBranchName?.split('/')[0];
 		// `gh pr checkout` can create a local branch whose head lives on a fork but
 		// has no upstream tracking ref; Git still reports the branch's push remote,
 		// which can be a remote name or the literal fork URL.
-		const [pushRemote, baseBranchDivergence] = await Promise.all([
+		const [pushRemote, baseBranchDivergence, hasDefaultRemoteBranch] = await Promise.all([
 			!upstreamRemote && status.branchName
 				? this._getPushRemote(repositoryRoot, status.branchName)
 				: undefined,
 			baseBranchName && status.branchName && status.branchName !== baseBranchName
 				? this._computeBaseBranchDivergence(repositoryRoot, baseBranchName, status.outgoingChanges === undefined)
 				: undefined,
+			// `origin/HEAD` can outlive its target (e.g. after the remote renames its default branch).
+			defaultBranch
+				? this._runGit(repositoryRoot, ['show-ref', '--verify', '--quiet', `refs/remotes/${defaultBranch.remoteBranchName}`]).then(output => output !== undefined)
+				: false,
 		]);
 		const githubHeadRepo = upstreamRemote
 			? parseGitHubRepoFromRemote(remotesOutput, upstreamRemote)
@@ -1198,6 +1211,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 			isDetachedHead: status.isDetachedHead,
 			baseBranchName,
 			upstreamBranchName: status.upstreamBranchName,
+			defaultBranchName: defaultBranch?.branchName,
+			defaultRemoteBranchName: hasDefaultRemoteBranch
+				? defaultBranch?.remoteBranchName
+				: undefined,
 			incomingChanges: status.incomingChanges,
 			outgoingChanges,
 			uncommittedChanges: status.uncommittedChanges,
@@ -2048,6 +2065,23 @@ export function parseDefaultBranchRef(symbolicRefOutput: string | undefined): st
 	if (!ref) { return undefined; }
 	const prefix = 'refs/remotes/origin/';
 	return ref.startsWith(prefix) ? ref.substring(prefix.length) : ref;
+}
+
+/**
+ * Parses the target of `refs/remotes/origin/HEAD` (e.g. `refs/remotes/origin/main`)
+ * into the default branch name (`main`) and its remote-tracking branch
+ * (`origin/main`). Returns `undefined` for targets outside `refs/remotes/origin/`.
+ */
+export function parseDefaultRemoteBranchRef(symbolicRefOutput: string | undefined): { readonly branchName: string; readonly remoteBranchName: string } | undefined {
+	const ref = symbolicRefOutput?.trim();
+	const prefix = 'refs/remotes/origin/';
+	if (!ref?.startsWith(prefix) || ref.length === prefix.length) {
+		return undefined;
+	}
+	return {
+		branchName: ref.substring(prefix.length),
+		remoteBranchName: ref.substring('refs/remotes/'.length),
+	};
 }
 
 export function parseRemoteBranchRef(ref: string): { ref: string; name: string; remote: string } | undefined {

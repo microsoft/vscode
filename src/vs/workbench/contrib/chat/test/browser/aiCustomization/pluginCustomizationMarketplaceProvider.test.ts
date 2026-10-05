@@ -84,6 +84,8 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				capabilities: [],
 				representativeQueries: [],
 				originLabel: customReference.displayLabel,
+				publisher: 'microsoft',
+				publisherUrl: URI.parse('https://github.com/microsoft'),
 				version: '1.0',
 				url: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
@@ -101,6 +103,44 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				marketplaceIds: [customReference.canonicalId],
 				marketplaceTypes: [MarketplaceType.Claude, MarketplaceType.Copilot, MarketplaceType.OpenPlugin],
 			},
+		});
+	});
+
+	test('uses a GitHub plugin source owner as the publisher', async () => {
+		const service = new TestPluginMarketplaceService();
+		service.page = {
+			items: [{
+				...plugin,
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'octo-org/review-plugin' },
+			}],
+			errors: [],
+		};
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+
+		const page = await provider.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+			publisher: 'octo-org',
+			publisherUrl: 'https://github.com/octo-org',
+		});
+	});
+
+	test('uses a GitHub URL plugin source owner as the publisher', async () => {
+		const service = new TestPluginMarketplaceService();
+		service.page = {
+			items: [{
+				...plugin,
+				sourceDescriptor: { kind: PluginSourceKind.GitUrl, url: 'https://github.com/acme/monorepo.git', path: 'plugins/review' },
+			}],
+			errors: [],
+		};
+		const provider = new PluginCustomizationMarketplaceProvider('custom', service, new TestConfigurationService());
+
+		const page = await provider.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+			publisher: 'acme',
+			publisherUrl: 'https://github.com/acme',
 		});
 	});
 

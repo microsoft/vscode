@@ -81,7 +81,6 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
-    "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
@@ -6868,6 +6867,14 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/migrate-customizations/SKILL.md",
+        "sessionTypes": [
+          "copilotcli",
+          "claude",
+          "codex"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/init/SKILL.md",
         "sessionTypes": [
           "local"
@@ -6905,6 +6912,7 @@
       },
       {
         "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "when": "config.chat.canvases.enabled",
         "sessionTypes": [
           "copilotcli"
         ]

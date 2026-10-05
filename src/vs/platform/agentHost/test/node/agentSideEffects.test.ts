@@ -126,6 +126,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(session: string): void {
 		this.truncates.push(session);
 	}
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class NoopGitStateService implements IAgentHostGitStateService {
@@ -235,6 +237,7 @@ function createTestSideEffects(
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
+			setRead: async () => { },
 			setArchived: async () => { },
 		}],
 	);
@@ -3456,7 +3459,7 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('marks the parent session unread when a subagent turn completes', () => {
+		test('does not mark the parent session unread when a subagent turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
 			// The session has been read (e.g. a client viewed it after the parent
@@ -3494,8 +3497,8 @@ suite('AgentSideEffects', () => {
 				readChanges: readChangesFrom(envelopes),
 				isReadBitSet: (stateManager.getSessionSummary(sessionUri.toString())!.status & SessionStatus.IsRead) !== 0,
 			}, {
-				readChanges: [false],
-				isReadBitSet: false,
+				readChanges: [],
+				isReadBitSet: true,
 			});
 		});
 		test('marks a read session unread when a turn is cancelled', () => {
@@ -3685,10 +3688,10 @@ suite('AgentSideEffects', () => {
 					phase: { ...metadata.fusionPhase, status: 'cancelled', duration: phase.duration },
 					finalizedBeforeAbort: true,
 					abortCalls: 1,
-					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatToolCallComplete],
-					liveTurns: [turn],
+					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatIsReadChanged, ActionType.ChatToolCallComplete],
+					liveTurns: [structuredClone(turn)],
 					liveActiveTurn: undefined,
-					restoredTurns: [turn],
+					restoredTurns: [structuredClone(turn)],
 					restoredActiveTurn: undefined,
 					pending: [],
 					toolEvents: [],
@@ -4398,6 +4401,29 @@ suite('AgentSideEffects', () => {
 				senderClientId: 'client-editor',
 				senderClientType: AgentHostClientType.EditorWindow,
 			});
+		});
+
+		test('syncs server-dispatched steering message to agent', () => {
+			setupSession();
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: 'server-steer',
+				message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } },
+			});
+
+			assert.deepStrictEqual(agent.setPendingMessagesCalls.map(call => ({
+				chat: call.chat.toString(),
+				steeringMessage: call.steeringMessage,
+				queuedMessages: call.queuedMessages,
+				steeringSender: call.steeringSender,
+			})), [{
+				chat: defaultChatUri,
+				steeringMessage: { id: 'server-steer', message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } } },
+				queuedMessages: [],
+				steeringSender: undefined,
+			}]);
 		});
 
 		test('syncs a peer chat steering message addressed by the peer chat URI', () => {
@@ -7440,6 +7466,55 @@ suite('AgentSideEffects', () => {
 				message: 'Follow up',
 				response: { kind: ResponsePartKind.Markdown, id: 'follow-up-part', content: 'Follow-up response' },
 				completedTurns: 1,
+			});
+		});
+
+		test('a child-scoped error ends the subagent turn as failed before its completion signal', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code', agentDescription: 'Searches' });
+			const error = { errorType: 'subagentFailed', message: 'Search failed' };
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-search',
+				action: { type: ActionType.ChatError, turnId: 'turn-1', duration: 42, part: { kind: ResponsePartKind.Error, error } },
+			});
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-search' });
+
+			const subState = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-search'));
+			assert.deepStrictEqual({
+				activeTurn: subState?.activeTurn,
+				turnStates: subState?.turns.map(turn => turn.state),
+				error: subState?.turns[0]?.responseParts.find(part => part.kind === ResponsePartKind.Error),
+			}, {
+				activeTurn: undefined,
+				turnStates: [TurnState.Error],
+				error: { kind: ResponsePartKind.Error, error },
+			});
+		});
+
+		test('a child-scoped cancellation ends the subagent turn as cancelled before its completion signal', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-task',
+				action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 42 },
+			});
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-task' });
+
+			const subState = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-task'));
+			assert.deepStrictEqual({
+				activeTurn: subState?.activeTurn,
+				turnStates: subState?.turns.map(turn => turn.state),
+			}, {
+				activeTurn: undefined,
+				turnStates: [TurnState.Cancelled],
 			});
 		});
 

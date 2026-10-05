@@ -153,6 +153,14 @@ suite('AgentHostConnectionsService', () => {
 		});
 	});
 
+	test('peer chat selections resolve to the parent session without a fragment', () => {
+		const { service } = createService([info('myhost', 'Remote')], new Map([['myhost', fakeConnection('remote')]]));
+		assert.deepStrictEqual([
+			service.resolveSessionResourceIdentity(URI.parse('agent-host-copilotcli:/parent#peer'))?.backendSession.toString(),
+			service.resolveSessionResourceIdentity(URI.parse('remote-myhost-copilotcli:/parent#peer'))?.backendSession.toString(),
+		], ['copilotcli:/parent', 'copilotcli:/parent']);
+	});
+
 	test('resolveSessionResource maps local and remote schemes to connections', () => {
 		const remoteConn = fakeConnection('remote-host');
 		const byAddress = new Map<string, IAgentConnection>([['myhost', remoteConn]]);

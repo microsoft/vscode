@@ -10,13 +10,15 @@ import { hasKey } from '../../../../base/common/types.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GitHubRepositoryRef } from '../../common/githubQueryService.js';
 import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { GitHubService } from '../../common/githubService.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
 	gitHubGraphQLResponse,
@@ -126,13 +128,13 @@ suite('GitHubQueryService', () => {
 	function setup(server: ProgrammableGitHubServer, capabilities: GitHubHostCapabilities | IGitHubCapabilities = availableCapabilities): {
 		readonly account: { readonly host: string; readonly accountId: string };
 		readonly ref: GitHubRepositoryRef;
-		readonly clock: FakeGitHubScheduler;
+		readonly clock: FakeScheduler;
 		readonly credentials: TestCredentialService;
 		readonly service: GitHubQueryService;
 	} {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 		const ref = { ...account, owner: 'octo', repo: 'repo' };
-		const clock = new FakeGitHubScheduler({ now: 0 });
+		const clock = new FakeScheduler({ now: 0 });
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
 		const capabilityService = hasKey(capabilities, { getCapabilities: true }) ? capabilities : new TestCapabilitiesService(capabilities);
@@ -182,6 +184,266 @@ suite('GitHubQueryService', () => {
 			closedAt: '2026-08-18T02:00:00Z',
 		};
 	}
+
+	suite('repository query contracts', () => {
+		function setupClient(fetch: typeof globalThis.fetch, apiBaseUri = 'https://api.github.com') {
+			const engine = disposables.add(new GitHubService({
+				credentialProvider: { onDidChange: Event.None, getToken: () => 'test-token' },
+				fetch,
+			}, new NullLogService(), NullTelemetryService));
+			const options = { apiBaseUri, graphQlUri: `${apiBaseUri}/graphql`, authorization: { providerId: 'github', sessionId: 'session', scopes: ['repo'] } };
+			const reference = disposables.add(engine.acquireClient(options));
+			const account = { host: new URL(apiBaseUri).host, accountId: '101' };
+			return { engine, options, reference, client: reference.object, account, ref: { ...account, owner: 'octo', repo: 'repo' } };
+		}
+
+		for (const apiBaseUri of ['https://api.github.com', 'https://api.octo.ghe.com', 'https://github.example.test/api/v3']) {
+			test(`metadata and discovery use the authorized API base ${apiBaseUri}`, async () => {
+				const requests: string[] = [];
+				const repository = {
+					...repositoryResponse('canonical/repository'),
+					clone_url: 'https://github.example.test/canonical/repository.git',
+					ssh_url: 'git@github.example.test:canonical/repository.git',
+					stargazers_count: 12,
+					description: null,
+				};
+				const { client, account, ref } = setupClient(async input => {
+					const url = new URL(String(input));
+					requests.push(url.href);
+					const data = url.pathname.endsWith('/user') ? { id: 101 }
+						: url.pathname.endsWith('/user/repos') ? [repository]
+							: url.pathname.endsWith('/search/repositories') ? { items: [repository], total_count: 1, incomplete_results: false }
+								: repository;
+					return new Response(JSON.stringify(data));
+				}, apiBaseUri);
+				const metadata = await client.query.getRepository(ref, signal());
+				const listed = await client.query.listRepositories(account, signal(), {
+					affiliation: ['owner', 'collaborator', 'organization_member'],
+					sort: 'updated', direction: 'desc',
+				});
+				const query = 'vscode & tools in:name fork:true org:octo';
+				const searched = await client.query.searchRepositories(account, query, signal(), { sort: 'stars', direction: 'asc' });
+				assert.deepStrictEqual({ metadata, listed, searched, requests }, {
+					metadata: {
+						id: 'R1', owner: { id: '1', login: 'canonical' }, name: 'repository', nameWithOwner: 'canonical/repository',
+						stars: 12, defaultBranch: 'main', private: true, description: '', url: 'https://example.test/canonical/repository',
+						cloneUrl: repository.clone_url, sshUrl: repository.ssh_url, archived: false, fork: false,
+					},
+					listed: { repositories: [metadata], nextPage: undefined },
+					searched: { repositories: [metadata], nextPage: undefined, totalCount: 1, incompleteResults: false, limitReached: false },
+					requests: [
+						`${apiBaseUri}/user`,
+						`${apiBaseUri}/repos/octo/repo`,
+						`${apiBaseUri}/user/repos?page=1&per_page=100&affiliation=owner%2Ccollaborator%2Corganization_member&sort=updated&direction=desc`,
+						`${apiBaseUri}/search/repositories?q=vscode+%26+tools+in%3Aname+fork%3Atrue+org%3Aocto&page=1&per_page=100&sort=stars&order=asc`,
+					],
+				});
+			});
+		}
+
+		test('fetches one repository page at a time and preserves server pagination on a short page', async () => {
+			const requests: string[] = [];
+			const { client, account } = setupClient(async input => {
+				const url = new URL(String(input));
+				requests.push(url.pathname + url.search);
+				if (url.pathname === '/user') {
+					return new Response('{"id":101}');
+				}
+				return new Response(JSON.stringify([repositoryResponse(`octo/page-${url.searchParams.get('page')}`)]), {
+					headers: url.searchParams.get('page') === '2' ? { Link: '<https://api.github.com/user/repos?page=3&per_page=2>; rel="next"' } : {},
+				});
+			});
+			const first = await client.query.listRepositories(account, signal(), { page: 2, perPage: 2 });
+			assert.strictEqual(requests.length, 2);
+			const second = await client.query.listRepositories(account, signal(), { page: first.nextPage, perPage: 2 });
+			assert.deepStrictEqual({
+				names: [first, second].map(page => page.repositories.map(repository => repository.name)),
+				nextPages: [first.nextPage, second.nextPage],
+				requests,
+			}, {
+				names: [['page-2'], ['page-3']], nextPages: [3, undefined],
+				requests: ['/user', '/user/repos?page=2&per_page=2', '/user/repos?page=3&per_page=2'],
+			});
+		});
+
+		for (const scenario of [
+			{ page: 1, totalCount: 0, incompleteResults: false, link: false, nextPage: undefined, limitReached: false },
+			{ page: 2, totalCount: 250, incompleteResults: true, link: true, nextPage: 3, limitReached: false },
+			{ page: 1, totalCount: 1001, incompleteResults: false, link: true, nextPage: 2, limitReached: true },
+			{ page: 10, totalCount: 1000, incompleteResults: false, link: false, nextPage: undefined, limitReached: false },
+			{ page: 10, totalCount: 1001, incompleteResults: true, link: true, nextPage: undefined, limitReached: true },
+		]) {
+			test(`reports search completeness and the result ceiling ${JSON.stringify(scenario)}`, async () => {
+				let requests = 0;
+				const { client, account } = setupClient(async input => {
+					requests++;
+					if (new URL(String(input)).pathname === '/user') {
+						return new Response('{"id":101}');
+					}
+					return new Response(JSON.stringify({ items: [], total_count: scenario.totalCount, incomplete_results: scenario.incompleteResults }), {
+						headers: scenario.link ? { Link: `<https://api.github.com/search/repositories?q=repo&page=${scenario.page + 1}>; rel="next"` } : {},
+					});
+				});
+				const result = await client.query.searchRepositories(account, 'repo', signal(), { page: scenario.page });
+				assert.deepStrictEqual({ result, requests }, {
+					result: {
+						repositories: [], nextPage: scenario.nextPage, totalCount: scenario.totalCount,
+						incompleteResults: scenario.incompleteResults, limitReached: scenario.limitReached,
+					},
+					requests: 2,
+				});
+			});
+		}
+
+		test('validates repository discovery inputs before resolving credentials or dispatching requests', async () => {
+			let requests = 0;
+			const { client, account } = setupClient(async () => {
+				requests++;
+				throw new Error('Unexpected request');
+			});
+			for (const options of [{ page: 0 }, { page: 1.5 }, { page: Number.MAX_SAFE_INTEGER + 1 }, { perPage: 0 }, { perPage: 101 }, { perPage: NaN }]) {
+				await assert.rejects(client.query.listRepositories(account, signal(), options), { kind: 'validation' });
+				await assert.rejects(client.query.searchRepositories(account, 'repo', signal(), options), { kind: 'validation' });
+			}
+			await assert.rejects(client.query.listRepositories(account, signal(), { affiliation: [] }), { kind: 'validation' });
+			await assert.rejects(client.query.searchRepositories(account, ' \t ', signal()), { kind: 'validation' });
+			await assert.rejects(client.query.searchRepositories(account, 'repo', signal(), { page: 11 }), { kind: 'validation' });
+			await assert.rejects(client.query.searchRepositories(account, 'repo', signal(), { page: 1001, perPage: 1 }), { kind: 'validation' });
+			assert.strictEqual(requests, 0);
+		});
+
+		for (const response of [
+			{},
+			{ items: [], total_count: 1 },
+			{ items: [], total_count: -1, incomplete_results: false },
+			{ items: [], total_count: 1.5, incomplete_results: false },
+			{ items: [], total_count: 1, incomplete_results: 'false' },
+			{ items: {}, total_count: 1, incomplete_results: false },
+			{ items: [{}], total_count: 1, incomplete_results: false },
+		]) {
+			test(`rejects malformed search results without retrying ${JSON.stringify(response)}`, async () => {
+				let requests = 0;
+				const { client, account } = setupClient(async input => {
+					requests++;
+					return new Response(JSON.stringify(new URL(String(input)).pathname === '/user' ? { id: 101 } : response));
+				});
+				await assert.rejects(client.query.searchRepositories(account, 'repo', signal()), { kind: 'malformedResponse' });
+				assert.strictEqual(requests, 2);
+			});
+		}
+
+		test('rejects oversized repository pages and preserves authorization error details', async () => {
+			const requests: string[] = [];
+			const { client, account, ref } = setupClient(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				return path === '/user' ? new Response('{"id":101}')
+					: path === '/user/repos' ? new Response(JSON.stringify([repositoryResponse('octo/one'), repositoryResponse('octo/two')]))
+						: new Response('{"message":"Forbidden"}', { status: 403 });
+			});
+			await assert.rejects(client.query.listRepositories(account, signal(), { perPage: 1 }), { kind: 'malformedResponse' });
+			await assert.rejects(client.query.getRepository(ref, signal()), { kind: 'authorization', statusCode: 403 });
+			assert.deepStrictEqual(requests, ['/user', '/user/repos', '/repos/octo/repo']);
+		});
+
+		test('rejects a mismatched account without invalidating the authorized repository client', async () => {
+			const requests: string[] = [];
+			const { client, account, ref } = setupClient(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				return new Response(JSON.stringify(path === '/user' ? { id: 101 } : repositoryResponse('octo/repo')));
+			});
+			await assert.rejects(client.query.listRepositories({ ...account, accountId: 'other' }, signal()), { kind: 'authentication' });
+			await assert.rejects(client.query.searchRepositories({ ...account, host: 'other.example.test' }, 'repo', signal()), { kind: 'authentication' });
+			await client.query.getRepository(ref, signal());
+			assert.deepStrictEqual(requests, ['/user', '/repos/octo/repo']);
+		});
+
+		test('one-shot and subscribed repository reads share transport ownership and ETags without cancelling peers', async () => {
+			const started = new DeferredPromise<AbortSignal>();
+			const release = new DeferredPromise<void>();
+			const etags: (string | null)[] = [];
+			const { engine, options, reference, client, ref } = setupClient(async (input, init) => {
+				if (new URL(String(input)).pathname === '/user') {
+					return new Response('{"id":101}');
+				}
+				etags.push(new Headers(init?.headers).get('If-None-Match'));
+				if (etags.length === 1) {
+					assert.ok(init?.signal);
+					await started.complete(init.signal);
+					await release.p;
+					return new Response(JSON.stringify(repositoryResponse('octo/repo')), { headers: { ETag: '"repository"' } });
+				}
+				return new Response(null, { status: 304 });
+			});
+			const peer = disposables.add(engine.acquireClient(options));
+			const subscription = disposables.add(client.query.subscribeRepository(ref, { priority: 'visible' }));
+			const refreshed = subscription.refresh();
+			const controller = new AbortController();
+			const reason = new Error('The first consumer cancelled');
+			const rejected = assert.rejects(client.query.getRepository(ref, controller.signal), error => error === reason);
+			const peerRead = peer.object.query.getRepository(ref, signal());
+			const requestSignal = await started.p;
+			controller.abort(reason);
+			reference.dispose();
+			await rejected;
+			const aborted = requestSignal.aborted;
+			await release.complete();
+			const [repository] = await Promise.all([peerRead, refreshed]);
+			const revalidated = await peer.object.query.getRepository(ref, signal());
+			assert.deepStrictEqual({
+				aborted, etags,
+				subscribed: subscription.resource.state.get().value,
+				revalidated,
+			}, { aborted: false, etags: [null, '"repository"'], subscribed: repository, revalidated: repository });
+		});
+
+		for (const isolation of ['session', 'scopes', 'issuer'] as const) {
+			test(`repository discovery never shares private ETags across ${isolation}`, async () => {
+				const etags: (string | null)[] = [];
+				const { engine, options, client, account } = setupClient(async (input, init) => {
+					if (new URL(String(input)).pathname === '/user') {
+						return new Response('{"id":101}');
+					}
+					etags.push(new Headers(init?.headers).get('If-None-Match'));
+					return new Response(JSON.stringify([repositoryResponse('octo/private')]), { headers: { ETag: '"private"' } });
+				});
+				const peer = disposables.add(engine.acquireClient({
+					...options,
+					authorization: {
+						...options.authorization,
+						...(isolation === 'session' ? { sessionId: 'peer' }
+							: isolation === 'scopes' ? { scopes: ['read:user'] }
+								: { authorizationServer: 'https://github.example.test/login/oauth' }),
+					},
+				}));
+				await client.query.listRepositories(account, signal());
+				await Promise.all([client.query.listRepositories(account, signal()), peer.object.query.listRepositories(account, signal())]);
+				assert.deepStrictEqual(etags, [null, '"private"', null]);
+			});
+		}
+
+		test('releasing the final client reference cancels an outstanding repository search', async () => {
+			const started = new DeferredPromise<AbortSignal>();
+			const response = new DeferredPromise<Response>();
+			let requests = 0;
+			const { client, reference, account } = setupClient(async (input, init) => {
+				requests++;
+				if (new URL(String(input)).pathname === '/user') {
+					return new Response('{"id":101}');
+				}
+				assert.ok(init?.signal);
+				await started.complete(init.signal);
+				return response.p;
+			});
+			const rejected = assert.rejects(client.query.searchRepositories(account, 'repo', signal()));
+			const requestSignal = await started.p;
+			reference.dispose();
+			await rejected;
+			await response.complete(new Response('{"items":[],"total_count":0,"incomplete_results":false}'));
+			assert.deepStrictEqual({ requests, aborted: requestSignal.aborted }, { requests: 2, aborted: true });
+		});
+	});
 
 	test('hydrates repository and issue resources in one GraphQL request', async () => {
 		await withServer(async server => {
@@ -1104,7 +1366,7 @@ suite('GitHubQueryService', () => {
 	});
 
 	test('context reads honor the governed transport deadline and release its timers', async () => {
-		const clock = disposables.add(new FakeGitHubScheduler());
+		const clock = disposables.add(new FakeScheduler());
 		const account = { host: 'github.example.test', accountId: '1' };
 		const credentials = disposables.add(new TestCredentialService(account));
 		const started = new DeferredPromise<AbortSignal>();
@@ -1373,7 +1635,7 @@ suite('GitHubQueryService', () => {
 			// so the cadence wins. It still has to be spread: credential
 			// invalidation and rate-limit releases fail whole batches at the very
 			// same instant, and an unjittered retry keeps them phase-locked.
-			const jittered = disposables.add(new FakeGitHubScheduler({ now: 0, jitterValues: [7] }));
+			const jittered = disposables.add(new FakeScheduler({ now: 0, jitterValues: [7] }));
 			const credentials = disposables.add(new TestCredentialService({ host: new URL(server.apiBaseUrl).host, accountId: '101' }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubQueryService(

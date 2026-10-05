@@ -343,6 +343,34 @@ suite('AgentPluginRepositoryService', () => {
 		});
 	});
 
+	test('serializes updates for plugins sharing a Git source checkout', async () => {
+		let activePulls = 0;
+		let maxActivePulls = 0;
+		const pulled: string[] = [];
+		const service = createService(undefined, undefined, {
+			pull: async repoDir => {
+				activePulls++;
+				maxActivePulls = Math.max(maxActivePulls, activePulls);
+				pulled.push(repoDir.path);
+				await timeout(0);
+				activePulls--;
+				return true;
+			},
+		});
+		const base = createPlugin('microsoft/marketplace', '');
+		const results = await Promise.all(['first', 'second'].map(name => service.updatePluginSource({
+			...base,
+			name,
+			sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: `plugins/${name}` },
+		}, { silent: true })));
+
+		assert.deepStrictEqual({ results, maxActivePulls, pulled }, {
+			results: [true, true],
+			maxActivePulls: 1,
+			pulled: ['/cache/agentPlugins/github.com/owner/repo/ref_main', '/cache/agentPlugins/github.com/owner/repo/ref_main'],
+		});
+	});
+
 	test('refreshes an existing repository without a recorded refresh timestamp', async () => {
 		let pullCount = 0;
 		const service = createService(async () => true, undefined, {

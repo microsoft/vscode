@@ -131,6 +131,7 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
 				icon: Codicon.copilot,
+				environment: 'local',
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
 				instantiationService,
@@ -545,6 +546,7 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -602,6 +604,7 @@ suite('AgentHostSessionChangesets', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -627,6 +630,7 @@ suite('AgentHostSessionChangesets', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -644,7 +648,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects chat-owned changesets with session-owned Session Changes', () => {
+	test('prefers chat-owned Session Changes and otherwise projects the session-owned entry', () => {
 		const chatUri = URI.parse('ahp-chat://default/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {
 			resource: chatUri.toString(),
@@ -669,6 +673,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -710,7 +715,7 @@ suite('AgentHostSessionChangesets', () => {
 		}, {
 			absentCatalogue: undefined,
 			initial: ['session'],
-			initialResource: ['file:///session/changeset/session'],
+			initialResource: [`${chatUri}/changeset/session`],
 			preservedIdentity: true,
 			updated: ['branch', 'session'],
 			updatedResource: [`${chatUri}/changeset/branch`, 'file:///session/changeset/session'],
@@ -774,6 +779,7 @@ suite('AgentHostSessionChangesets', () => {
 			} satisfies ISessionTurnFileChange],
 		});
 		const projected = createChatChangesets(sessionUri, constObservable(chatUri), {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -885,6 +891,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -963,6 +970,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1079,6 +1087,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1177,6 +1186,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1247,6 +1257,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1312,6 +1323,7 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
 				icon: Codicon.copilot,
+				environment: 'local',
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
 				instantiationService,
@@ -1461,6 +1473,7 @@ suite('AgentHostSessionChangesets', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const changesets = createChangesets(sessionUri, {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,

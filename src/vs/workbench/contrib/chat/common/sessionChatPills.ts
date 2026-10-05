@@ -48,7 +48,16 @@ export interface IChatBackgroundShell {
 	readonly startedAt: string;
 	/** Whether the shell is tied to its agent's lifetime, when the agent reports it. */
 	readonly attachmentMode?: 'attached' | 'detached';
+	/** The shell's live output, when the agent can show it. Only subscribes while read. */
+	readonly output?: IObservable<ChatBackgroundShellOutput>;
 }
+
+/** What a background shell's live output view shows. */
+export type ChatBackgroundShellOutput =
+	| { readonly status: 'loading' }
+	| { readonly status: 'running'; readonly text: string }
+	| { readonly status: 'exited'; readonly text: string; readonly exitCode?: number }
+	| { readonly status: 'unavailable'; readonly message: string };
 
 export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 	switch (kind) {

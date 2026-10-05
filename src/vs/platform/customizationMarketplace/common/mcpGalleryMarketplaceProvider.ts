@@ -71,6 +71,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 	const url = webUrl ?? repository;
 	const lightIcon = safeWebUri(server.icon?.light);
 	const darkIcon = safeWebUri(server.icon?.dark);
+	const publisherUrl = safeWebUri(server.publisherUrl);
 	const icon: CustomizationMarketplaceIcon | undefined = lightIcon && darkIcon
 		? { light: lightIcon, dark: darkIcon }
 		: lightIcon ?? darkIcon;
@@ -86,6 +87,7 @@ function toMarketplaceEntry(server: IGalleryMcpServer, registry: 'custom' | 'def
 		...(repository ? { repository } : {}),
 		...(icon ? { icon } : {}),
 		publisher: server.publisherDisplayName ?? server.publisher,
+		...(publisherUrl ? { publisherUrl } : {}),
 		version: server.version,
 		stars: server.starsCount,
 		priority: registry === 'custom' ? 1 : 0,

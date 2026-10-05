@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -189,6 +189,26 @@ suite('AgentHostGitService', () => {
 		test('returns undefined for empty/missing output', () => {
 			assert.strictEqual(parseDefaultBranchRef(undefined), undefined);
 			assert.strictEqual(parseDefaultBranchRef('   '), undefined);
+		});
+	});
+
+	suite('parseDefaultRemoteBranchRef', () => {
+		test('splits an origin remote-tracking ref into the default branch and its remote branch', () => {
+			assert.deepStrictEqual({
+				main: parseDefaultRemoteBranchRef('refs/remotes/origin/main\n'),
+				nested: parseDefaultRemoteBranchRef('refs/remotes/origin/release/1.0'),
+				otherRemote: parseDefaultRemoteBranchRef('refs/remotes/upstream/main'),
+				localRef: parseDefaultRemoteBranchRef('refs/heads/main'),
+				prefixOnly: parseDefaultRemoteBranchRef('refs/remotes/origin/'),
+				missing: parseDefaultRemoteBranchRef(undefined),
+			}, {
+				main: { branchName: 'main', remoteBranchName: 'origin/main' },
+				nested: { branchName: 'release/1.0', remoteBranchName: 'origin/release/1.0' },
+				otherRemote: undefined,
+				localRef: undefined,
+				prefixOnly: undefined,
+				missing: undefined,
+			});
 		});
 	});
 

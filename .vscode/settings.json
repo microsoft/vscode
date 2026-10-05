@@ -143,6 +143,7 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
+		".build/typings/electron.d.ts",
 		"product.overrides.json"
 	],
 	"git.worktreeSymlinkFolders": [
