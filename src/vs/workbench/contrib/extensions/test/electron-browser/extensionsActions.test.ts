@@ -863,12 +863,16 @@ suite('ExtensionsActions', () => {
 
 	test('Test DisableGloballyAction when the extension is disabled globally and enabled in workspace', () => {
 		const local = aLocalExtension('a');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stub(IExtensionService, {
+			extensions: [toExtensionDescription(local)],
+			onDidChangeExtensions: Event.None,
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true)
+		});
 		const extensionEnablementService = instantiationService.get(IWorkbenchExtensionEnablementService);
 		return extensionEnablementService.setEnablement([local], EnablementState.DisabledGlobally)
 			.then(() => extensionEnablementService.setEnablement([local], EnablementState.EnabledWorkspace))
 			.then(() => {
-				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
-
 				return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 					.then(extensions => {
 						const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
