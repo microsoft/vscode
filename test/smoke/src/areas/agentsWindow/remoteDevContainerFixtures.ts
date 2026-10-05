@@ -54,6 +54,9 @@ export function getDevContainerCliInstallCommand(codePath?: string): string {
 	if (!codePath && fs.existsSync(overridesPath)) {
 		Object.assign(product, JSON.parse(fs.readFileSync(overridesPath, 'utf8')));
 	}
+	if (!codePath && product.serverDataFolderName) {
+		product.serverDataFolderName += '-dev';
+	}
 	const quality = product.quality ?? 'insider';
 	assertCliQuality(quality);
 	const archive = quality === 'stable' ? 'code' : quality === 'exploration' ? 'code-exploration' : 'code-insiders';
