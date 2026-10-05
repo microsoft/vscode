@@ -5,7 +5,7 @@
 
 import { StringSHA1 } from '../../../base/common/hash.js';
 import type { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry, toTelemetryModel } from './agentHostTelemetryReporter.js';
+import type { AgentHostModelSelectionKind, IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry, toTelemetryModel } from './agentHostTelemetryReporter.js';
 
 export type AutomationRunOutcome = 'success' | 'error' | 'cancelled' | 'timeout' | 'interrupted';
 
@@ -13,7 +13,7 @@ export type AutomationRunOutcome = 'success' | 'error' | 'cancelled' | 'timeout'
 export interface IAutomationConfigurationTelemetry extends IAgentHostCopilotSkuTelemetry {
 	readonly provider: 'default' | 'other' | 'copilot' | 'copilotcli' | 'claude' | 'codex' | 'copilot-cloud';
 	readonly model: ReturnType<typeof toTelemetryModel>;
-	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
+	readonly modelSelectionKind: AgentHostModelSelectionKind;
 	readonly mode: 'providerDefault' | 'other' | 'agent' | 'ask' | 'edit' | 'interactive' | 'plan' | 'autopilot';
 	readonly permissionLevel: 'providerDefault' | 'other' | 'default' | 'assisted' | 'autoApprove' | 'autopilot';
 	readonly isolationMode: 'providerDefault' | 'other' | 'folder' | 'worktree' | 'none';
@@ -36,7 +36,7 @@ export interface IAutomationRunTelemetry extends IAgentHostCopilotSkuTelemetry {
 type AutomationConfigurationClassification = IAgentHostCopilotSkuClassification & {
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded saved provider category, or default/other; session-linked runs report the actual provider.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Trusted catalog model identifier, byokModel or unknown; omitted for the provider default.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the saved model selection is default, auto or explicit.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the saved model selection is default, Auto, HydraFusion, or explicit.' };
 	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded saved session mode, or providerDefault/other.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded saved approval level, or providerDefault/other.' };
 	isolationMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Saved folder/worktree isolation, none for quick chats, or providerDefault/other.' };
