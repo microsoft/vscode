@@ -118,7 +118,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots (`*.traffic.ahp.yaml`) and assembled-prompt snapshots (`*.prompt.md`), resolved relative to the entry point that registered the test. |
 | `providers/copilotPromptsE2E.integrationTest.ts` | The provider request-body boundary: the complete model request body the bundled Copilot CLI sends, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
-| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes after a host restart. The warm policy-change gap is tracked in `KNOWN_ISSUES.md`. |
+| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes with and without a host restart. |
 | `coverage/summary.json` | Checked-in line coverage of the host implementation. |
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
@@ -259,9 +259,6 @@ Setup errors, different failures, and teardown errors remain failures.
 Skip these scenarios while recording so a known early failure cannot overwrite
 a complete fixture with a partial recording. Remove that recording skip together
 with the marker when the upstream fix is adopted.
-
-The managed-telemetry no-restart scenario runs this way by default. Do not
-replace its marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
 `{ allowUnconsumedResponses: true }` to the lease's replay verification at
