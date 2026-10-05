@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ILanguageModelSourcePresentation, languageModelSourcePresentationRegistry } from '../../common/languageModelSourcePresentation.js';
+import { isCopilotAgentHostSessionType } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
@@ -51,8 +52,11 @@ export function getManageModelsProviderLabel(model: ILanguageModel): string {
 /** Provider groups that are labelled "Copilot" in the list, whichever harness publishes them. */
 const COPILOT_PROVIDER_GROUPS = new Set(['copilot', 'copilotcli']);
 
-function isCopilotModel(model: ILanguageModel): boolean {
-	return !!model.provider.vendor.isDefault || COPILOT_PROVIDER_GROUPS.has(model.provider.group.vendor);
+function isCopilotProvider(provider: ILanguageModelProvider): boolean {
+	return !!provider.vendor.isDefault
+		|| COPILOT_PROVIDER_GROUPS.has(provider.group.vendor)
+		// A Copilot agent host's own default group, e.g. a status-only group when its models fail to load.
+		|| (provider.group.vendor === provider.vendor.vendor && isCopilotAgentHostSessionType(provider.vendor.vendor));
 }
 
 export interface ILanguageModelEntry {
@@ -385,7 +389,13 @@ export class ChatModelsViewModel extends Disposable {
 				}
 				group.models.push(model);
 			}
+			const isInSessionScope = this.createSessionScope();
 			for (const statusGroup of this.languageModelGroupStatuses) {
+				// Agent host vendors are registered under their session type; the regular Copilot vendor belongs to no harness.
+				const owner = statusGroup.provider.vendor.isDefault ? undefined : statusGroup.provider.vendor.vendor;
+				if (!isInSessionScope(isCopilotProvider(statusGroup.provider), owner)) {
+					continue;
+				}
 				const groupId = this.getProviderGroupId(statusGroup.provider);
 				let group = result.find(group => group.group.id === groupId);
 				if (!group) {
@@ -428,20 +438,23 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	private getModelsInSessionScope(languageModels: ILanguageModel[]): ILanguageModel[] {
+		const isInSessionScope = this.createSessionScope();
+		return languageModels.filter(model => isInSessionScope(isCopilotProvider(model.provider), model.metadata.targetChatSessionType));
+	}
+
+	/**
+	 * Returns whether an entry is listed for the selected harness. Non-Copilot entries always are.
+	 * A Copilot entry is listed when it belongs to the selected harness, or, if that harness has
+	 * no Copilot list of its own, when it belongs to no harness (the regular Copilot models).
+	 */
+	private createSessionScope(): (isCopilot: boolean, owner: string | undefined) => boolean {
 		const sessionType = this._sessionType;
 		if (!sessionType) {
-			return languageModels;
+			return () => true;
 		}
-		const harnessHasOwnCopilotModels = languageModels.some(model => isCopilotModel(model) && model.metadata.targetChatSessionType === sessionType);
-		return languageModels.filter(model => {
-			if (!isCopilotModel(model)) {
-				return true;
-			}
-			// Show only the selected harness's Copilot list, or the regular one if it has none.
-			return harnessHasOwnCopilotModels
-				? model.metadata.targetChatSessionType === sessionType
-				: !model.metadata.targetChatSessionType;
-		});
+		const harnessHasOwnCopilotList = this.languageModels.some(model => isCopilotProvider(model.provider) && model.metadata.targetChatSessionType === sessionType)
+			|| this.languageModelGroupStatuses.some(status => isCopilotProvider(status.provider) && status.provider.vendor.vendor === sessionType);
+		return (isCopilot, owner) => !isCopilot || (harnessHasOwnCopilotList ? owner === sessionType : owner === undefined);
 	}
 
 	private createLanguageModelProviderEntry(provider: ILanguageModelProvider): ILanguageModelProviderEntry {
@@ -551,14 +564,16 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	getModelsForGroup(group: ILanguageModelProviderEntry | ILanguageModelGroupEntry): ILanguageModel[] {
+		// Only the models listed for the selected harness: groups with the same id can come from several harnesses.
+		const languageModels = this.getModelsInSessionScope(this.languageModels);
 		if (isLanguageModelProviderEntry(group)) {
-			return this.languageModels.filter(m =>
+			return languageModels.filter(m =>
 				this.getProviderGroupId(m.provider) === group.id
 			);
 		}
 
 		// return all models ungrouped
-		return this.languageModels;
+		return languageModels;
 	}
 
 	toggleModelHidden(entry: ILanguageModelEntry): void {

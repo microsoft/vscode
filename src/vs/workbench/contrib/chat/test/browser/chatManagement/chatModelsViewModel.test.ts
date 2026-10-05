@@ -17,6 +17,7 @@ import { IStringDictionary } from '../../../../../../base/common/collections.js'
 import { ILanguageModelsProviderGroup } from '../../../common/languageModelsConfiguration.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
+import Severity from '../../../../../../base/common/severity.js';
 
 class MockLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
@@ -63,6 +64,10 @@ class MockLanguageModelsService implements ILanguageModelsService {
 		}
 		group.modelIdentifiers.push(identifier);
 		this.modelGroups.set(vendorId, groups);
+	}
+
+	addGroupStatus(vendorId: string, message: string): void {
+		this.modelGroups.get(vendorId)?.push({ modelIdentifiers: [], status: { message, severity: Severity.Error } });
 	}
 
 	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
@@ -1078,24 +1083,25 @@ suite('ChatModelsViewModel', () => {
 		assert.deepStrictEqual(models.map(m => m.model.metadata.id), ['claude-haiku-4.5']);
 	});
 
+	function addHarnessModel(vendor: string, id: string, targetChatSessionType: string, modelGroup?: string): void {
+		languageModelsService.addModel(vendor, `${vendor}:${id}`, {
+			extension: new ExtensionIdentifier('vscode.chat'),
+			id,
+			name: id,
+			family: id,
+			version: '1.0',
+			vendor,
+			maxInputTokens: 128000,
+			maxOutputTokens: 4096,
+			isUserSelectable: true,
+			targetChatSessionType,
+			...(modelGroup ? { modelGroup: { id: modelGroup } } : {}),
+			capabilities: { toolCalling: true, vision: false, agentMode: true },
+			isDefaultForLocation: {},
+		});
+	}
+
 	test('shows only the selected harness\'s Copilot list', async () => {
-		const addHarnessModel = (vendor: string, id: string, targetChatSessionType: string, modelGroup?: string) => {
-			languageModelsService.addModel(vendor, `${vendor}:${id}`, {
-				extension: new ExtensionIdentifier('vscode.chat'),
-				id,
-				name: id,
-				family: id,
-				version: '1.0',
-				vendor,
-				maxInputTokens: 128000,
-				maxOutputTokens: 4096,
-				isUserSelectable: true,
-				targetChatSessionType,
-				...(modelGroup ? { modelGroup: { id: modelGroup } } : {}),
-				capabilities: { toolCalling: true, vision: false, agentMode: true },
-				isDefaultForLocation: {},
-			});
-		};
 		for (const vendor of ['copilotcli', 'agent-host-copilotcli', 'agent-host-codex', 'agent-host-claude']) {
 			languageModelsService.addVendor({ vendor, displayName: vendor, managementCommand: undefined, when: undefined, configuration: undefined });
 		}
@@ -1121,6 +1127,42 @@ suite('ChatModelsViewModel', () => {
 			'agent-host-codex': [...others, 'codex-copilot'].sort(),
 			'agent-host-claude': [...others, ...regularCopilot].sort(),
 		});
+	});
+
+	test('shows a Copilot provider status only for its own harness', async () => {
+		for (const vendor of ['agent-host-copilotcli', 'agent-host-copilot', 'ollama']) {
+			languageModelsService.addVendor({ vendor, displayName: vendor === 'ollama' ? 'Ollama' : 'Copilot', managementCommand: undefined, when: undefined, configuration: undefined });
+		}
+		addHarnessModel('agent-host-copilotcli', 'ah-cli', 'agent-host-copilotcli', 'copilotcli');
+		languageModelsService.addGroupStatus('agent-host-copilot', 'models failed to load');
+		languageModelsService.addGroupStatus('ollama', 'fetch failed');
+		await viewModel.refresh();
+
+		const listed: Record<string, string[]> = {};
+		for (const sessionType of ['local', 'agent-host-copilotcli', 'agent-host-copilot']) {
+			viewModel.setSessionType(sessionType);
+			listed[sessionType] = viewModel.filter('').flatMap(entry => entry.type === 'status' ? [`status: ${entry.message}`] : entry.type === 'model' ? [entry.model.metadata.id] : []);
+		}
+
+		const others = ['status: fetch failed', 'gpt-3.5-turbo', 'gpt-4-vision'];
+		assert.deepStrictEqual(listed, {
+			local: ['gpt-4', 'gpt-4o', ...others],
+			'agent-host-copilotcli': ['ah-cli', ...others],
+			'agent-host-copilot': ['status: models failed to load', ...others],
+		});
+	});
+
+	test('hiding a Copilot group hides only the models listed for the selected harness', async () => {
+		languageModelsService.addVendor({ vendor: 'agent-host-codex', displayName: 'Codex', managementCommand: undefined, when: undefined, configuration: undefined });
+		addHarnessModel('agent-host-codex', 'codex-copilot', 'agent-host-codex', 'copilot');
+		await viewModel.refresh();
+		viewModel.setSessionType('agent-host-codex');
+
+		const copilotGroups = viewModel.filter('').filter(isLanguageModelProviderEntry).filter(entry => entry.label === 'GitHub Copilot');
+		assert.strictEqual(copilotGroups.length, 1);
+		viewModel.toggleGroupHidden(copilotGroups[0]);
+
+		assert.deepStrictEqual(languageModelsService.setModelsHiddenCalls, [{ modelIdentifiers: ['agent-host-codex:codex-copilot'], hidden: true }]);
 	});
 
 });
