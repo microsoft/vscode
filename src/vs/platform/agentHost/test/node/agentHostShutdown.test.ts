@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { flushAgentHostPersistenceBeforeShutdown, shutdownAgentHostBeforeDispose } from '../../node/agentHostShutdown.js';
@@ -17,6 +18,25 @@ suite('AgentHostShutdown', () => {
 			3000,
 			new NullLogService(),
 		));
+	});
+
+	test('a failed persistence flush still waits for other stores before shutdown', async () => {
+		const sessionWrite = new DeferredPromise<void>();
+		const steps: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(): void {
+				steps.push('flush error');
+			}
+		};
+		const shutdown = flushAgentHostPersistenceBeforeShutdown([
+			sessionWrite.p.then(() => { steps.push('session flush'); }),
+			Promise.reject(new Error('storage unavailable')),
+		], 3000, logService).then(() => { steps.push('shutdown'); });
+		await timeout(0);
+		await sessionWrite.complete();
+		await shutdown;
+
+		assert.deepStrictEqual(steps, ['session flush', 'flush error', 'shutdown']);
 	});
 
 	test('providers shut down before persistence is flushed', async () => {

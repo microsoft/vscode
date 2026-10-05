@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout } from '../../../base/common/async.js';
+import { Promises, raceTimeout } from '../../../base/common/async.js';
 import type { ILogService } from '../../log/common/log.js';
 
 /**
@@ -34,8 +34,7 @@ export async function shutdownAgentHostBeforeDispose(
 }
 
 /**
- * Flushes Agent Host persistence without allowing a failed or stalled write to
- * prevent process cleanup and exit.
+ * Waits for every persistence flush, even when one fails, without letting stalled writes block process exit indefinitely.
  */
 export async function flushAgentHostPersistenceBeforeShutdown(
 	flushes: readonly Promise<unknown>[],
@@ -43,7 +42,7 @@ export async function flushAgentHostPersistenceBeforeShutdown(
 	logService: Pick<ILogService, 'error' | 'warn'>,
 ): Promise<void> {
 	try {
-		await raceTimeout(Promise.all(flushes), timeoutMs, () => {
+		await raceTimeout(Promises.settled([...flushes]), timeoutMs, () => {
 			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
 		});
 	} catch (error) {
