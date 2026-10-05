@@ -33,8 +33,10 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
-	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
-	Opus48Prompt = 'opus48Prompt',
+	/** On Claude Opus models, tell the agent which lighter model to run a subagent on. Off by default. */
+	SubagentModelGuidance = 'subagentModelGuidance',
+	/** On Claude Opus models, drop the system prompt's general instructions to verify work before finishing. Off by default. */
+	OmitVerificationInstructions = 'omitVerificationInstructions',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -70,7 +72,9 @@ export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
-export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
+export const AgentHostSubagentModelGuidanceSettingId = 'chat.agentHost.subagentModelGuidance';
+
+export const AgentHostOmitVerificationInstructionsEnabledSettingId = 'chat.agentHost.omitVerificationInstructions.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -90,6 +94,20 @@ export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
+
+/**
+ * `off` keeps subagents on the harness default model. The other two tell a
+ * Claude Opus session which lighter models to delegate to: `sameProvider`
+ * names Claude models, `crossProvider` names GPT models. They are alternatives,
+ * so this is one setting rather than two switches.
+ */
+export const subagentModelGuidanceSettingValues = ['off', 'sameProvider', 'crossProvider'] as const;
+export type SubagentModelGuidanceSetting = typeof subagentModelGuidanceSettingValues[number];
+
+/** Narrows a raw setting value to a {@link SubagentModelGuidanceSetting}; anything unrecognized is `off`. */
+export function toSubagentModelGuidanceSetting(value: unknown): SubagentModelGuidanceSetting {
+	return subagentModelGuidanceSettingValues.find(candidate => candidate === value) ?? 'off';
+}
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
 export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
@@ -210,10 +228,22 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.localIndexEnabled.description', "Whether Copilot SDK sessions use the local cross-session store for Chronicle indexing and retrieval."),
 		default: true,
 	}),
-	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
+	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<SubagentModelGuidanceSetting>({
+		type: 'string',
+		title: localize('agentHost.config.subagentModelGuidance.title', "Subagent Model Guidance"),
+		description: localize('agentHost.config.subagentModelGuidance.description', "Controls whether Copilot SDK sessions running a Claude Opus model are told which lighter model to run a subagent on. When off, subagents use the harness default model."),
+		enum: [...subagentModelGuidanceSettingValues],
+		enumLabels: [
+			localize('agentHost.config.subagentModelGuidance.off', "Off"),
+			localize('agentHost.config.subagentModelGuidance.sameProvider', "Same Provider"),
+			localize('agentHost.config.subagentModelGuidance.crossProvider', "Cross Provider"),
+		],
+		default: 'off',
+	}),
+	[CopilotCliConfigKey.OmitVerificationInstructions]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.opus48Prompt.title', "Opus 4.8 Agent Prompt"),
-		description: localize('agentHost.config.opus48Prompt.description', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+		title: localize('agentHost.config.omitVerificationInstructions.title', "Omit Verification Instructions"),
+		description: localize('agentHost.config.omitVerificationInstructions.description', "When enabled, Copilot SDK sessions running a Claude Opus model drop the system prompt's general instructions to verify work before finishing. Instructions about which checks to run are kept."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({

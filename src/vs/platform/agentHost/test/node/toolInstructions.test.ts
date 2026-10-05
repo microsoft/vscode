@@ -7,7 +7,8 @@ import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from '../../node/copilot/prompts/toolInstructions.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
-import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, type SubagentModelGuidanceSetting } from '../../common/copilotCliConfig.js';
+import { subagentModelGuidanceLines } from '../../node/copilot/prompts/promptExperiments.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -58,6 +59,31 @@ suite('toolInstructions', () => {
 			]);
 		});
 
+		test('subagent model guidance replaces the "leave model unset" lines only for Claude Opus sessions with the setting on', () => {
+			const render = (setting: SubagentModelGuidanceSetting | undefined, modelId: string | undefined) => universalToolInstructions({
+				...context([], setting === undefined ? {} : { [CopilotCliConfigKey.SubagentModelGuidance]: setting }),
+				modelId,
+			});
+			const guided = (setting: SubagentModelGuidanceSetting, modelId: string) => `${LARGE_OUTPUT_LINE}\n${subagentModelGuidanceLines(setting, modelId)}`;
+			assert.deepStrictEqual({
+				unset: render(undefined, 'claude-opus-5.5'),
+				off: render('off', 'claude-opus-5.5'),
+				sameProvider: render('sameProvider', 'claude-opus-5.5'),
+				crossProvider: render('crossProvider', 'claude-opus-5-5'),
+				sonnetSession: render('sameProvider', 'claude-sonnet-5.5'),
+				gptSession: render('crossProvider', 'gpt-5.6-sol'),
+				noModel: render('sameProvider', undefined),
+			}, {
+				unset: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				off: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				sameProvider: guided('sameProvider', 'claude-opus-5.5'),
+				crossProvider: guided('crossProvider', 'claude-opus-5-5'),
+				sonnetSession: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				gptSession: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				noModel: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+			});
+		});
+
 		test('adds the registered browser line only when openBrowserPage + an agentic browser tool are present', () => {
 			assert.deepStrictEqual(
 				[
@@ -101,10 +127,14 @@ suite('toolInstructions', () => {
 			]);
 		});
 
-		test('preserves a remove or transform-function override untouched', () => {
-			const transform = (s: string) => s;
+		test('preserves a remove override untouched', () => {
 			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: 'remove' }, [lineFor('a')]), { action: 'remove' });
-			assert.deepStrictEqual(resolveToolInstructionsOverride(hasTools('a'), { action: transform }, [lineFor('a')]), { action: transform });
+		});
+
+		test('appends the rendered lines after a transform override\'s output', async () => {
+			const composed = resolveToolInstructionsOverride(hasTools('a'), { action: (s: string) => s.toUpperCase() }, [lineFor('a')]);
+			assert.ok(composed && typeof composed.action === 'function');
+			assert.strictEqual(await composed.action('foundation'), 'FOUNDATION\nuse a');
 		});
 	});
 

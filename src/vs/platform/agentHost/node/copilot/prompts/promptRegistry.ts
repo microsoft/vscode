@@ -156,7 +156,7 @@ export class AgentHostPromptRegistry {
 	 * turn keeps the prompt it launched with.
 	 */
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
-		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
+		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context, model);
 		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
 		return appendSystemMessageContent(withWorkspacelessScratch, AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
@@ -197,10 +197,11 @@ export class AgentHostPromptRegistry {
 	 * rather than being overwritten by them; a `replace` prompt has no sections,
 	 * so they are appended after its content instead of being silently lost.
 	 */
-	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext): SystemMessageConfig {
+	private _withUniversalSections(config: SystemMessageConfig, context: IAgentHostPromptContext, model: ModelSelection | undefined): SystemMessageConfig {
 		const lineContext: IToolInstructionContext = {
 			hasTool: name => context.hasClientTool(name),
 			getSetting: key => context.getSetting(key),
+			modelId: model?.id,
 		};
 		if (config.mode === 'replace') {
 			const lines = universalToolInstructions(lineContext, toolSearchInstructionLines(context.toolSearchActive));

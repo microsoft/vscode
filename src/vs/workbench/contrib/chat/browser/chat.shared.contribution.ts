@@ -20,7 +20,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOmitVerificationInstructionsEnabledSettingId, AgentHostSubagentModelGuidanceSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, subagentModelGuidanceSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -1675,11 +1675,27 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
-		[AgentHostOpus48PromptEnabledSettingId]: {
+		[AgentHostSubagentModelGuidanceSettingId]: {
+			type: 'string',
+			enum: [...subagentModelGuidanceSettingValues],
+			enumDescriptions: [
+				nls.localize('chat.agentHost.subagentModelGuidance.off', "Subagents run on the harness default model."),
+				nls.localize('chat.agentHost.subagentModelGuidance.sameProvider', "The agent is told to run search, read and run-and-report subagents on a lightweight Claude model, and well-defined implementation subagents on a mid-sized Claude model."),
+				nls.localize('chat.agentHost.subagentModelGuidance.crossProvider', "The same, naming GPT models instead of Claude models."),
+			],
+			markdownDescription: nls.localize('chat.agentHost.subagentModelGuidance', "Controls whether Copilot SDK sessions running a Claude Opus model are told which lighter model to run a subagent on. Takes effect for sessions created or resumed after the change."),
+			default: 'off',
+			tags: ['experimental', 'advanced'],
+			// Rolled out via experiment; the forwarded root-config key re-resolves the
+			// prompt on the next session launch, so `auto` needs no restart.
+			experiment: { mode: 'auto' },
+		},
+		[AgentHostOmitVerificationInstructionsEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
+			description: nls.localize('chat.agentHost.omitVerificationInstructions.enabled', "When enabled, Copilot SDK sessions running a Claude Opus model drop the system prompt's general instructions to verify work before finishing. Instructions about which checks to run are kept. Takes effect for sessions created or resumed after the change."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 		},
 		[AgentHostToolSearchEnabledSettingId]: {
 			type: 'boolean',

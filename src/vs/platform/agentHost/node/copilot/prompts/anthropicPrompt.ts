@@ -6,61 +6,42 @@
 import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk';
 import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
+import { isClaudeOpusModelId, narrowSubagentHarnessDefaultsRule, omitCodeChangeVerification, omitLastInstructionsVerification } from './promptExperiments.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptContext } from './promptRegistry.js';
 
+type SectionOverrides = Partial<Record<SystemMessageSection, SectionOverride>>;
+
 /**
- * `customize`-mode section overrides for Claude Opus 4.8, tuned per Anthropic's
- * "Prompting Claude Opus 4.8" guide:
- * https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8
+ * Claude Opus agent prompt: the opt-in prompt experiments in
+ * `promptExperiments.ts`, each behind its own setting and each editing sections
+ * the other does not touch. With both off it contributes nothing and the
+ * session gets the default system message.
  *
- * Opus 4.8 performs well out of the box, so this stays intentionally minimal:
- * it keeps the SDK foundation prompt (and its tool/safety sections) intact and
- * only nudges the two behaviors the guide calls out for tuning —
- *  - verbosity/tone: the model calibrates length to task complexity, so steer
- *    it toward concision when a consistent style is wanted; and
- *  - subagents: the model spawns fewer by default, so give explicit fan-out
- *    guidance.
- * The guide warns against forcing interim-progress scaffolding ("summarize
- * after every N tool calls"), so none is added here.
+ * `customize` mode with transforms, so the SDK foundation prompt, its
+ * guardrails and its per-session content all stay as they are; only the named
+ * sentences change.
  */
-function opus48SectionOverrides(): Partial<Record<SystemMessageSection, SectionOverride>> {
-	return {
-		tone: {
-			action: 'append',
-			// Leading newline so the appended text starts on its own line rather
-			// than running on from the SDK foundation tone section's last sentence.
-			content: '\nProvide concise, focused responses. Skip non-essential context, and keep examples minimal. Use a direct style and use emojis sparingly.',
-		},
-		guidelines: {
-			action: 'append',
-			content: [
-				'Do not spawn a subagent for work you can complete directly in a single response (e.g. refactoring a function you can already see).',
-				'Spawn multiple subagents in the same turn when fanning out across items or reading multiple files.',
-			].join('\n'),
-		},
-	};
-}
-
-/** Whether `model` is Claude Opus 4.8 — matches the SDK dashed id and the CAPI dotted id. */
-function isOpus48(model: ModelSelection): boolean {
-	return model.id.startsWith('claude-opus-4-8') || model.id.startsWith('claude-opus-4.8');
-}
-
-/**
- * Opus 4.8 agent prompt for Claude Opus 4.8 sessions: matches only Opus 4.8 and
- * is opt-in via {@link CopilotCliConfigKey.Opus48Prompt}. Off → falls back to the
- * default system message.
- */
-class Claude48OpusPromptResolver implements IAgentHostPrompt {
+class ClaudeOpusPromptResolver implements IAgentHostPrompt {
 	static readonly familyPrefixes: readonly string[] = [];
 
 	static matchesModel(model: ModelSelection): boolean {
-		return isOpus48(model);
+		return isClaudeOpusModelId(model.id);
 	}
 
-	resolveSectionOverrides(_model: ModelSelection, context: IAgentHostPromptContext): Partial<Record<SystemMessageSection, SectionOverride>> | undefined {
-		return context.getSetting(CopilotCliConfigKey.Opus48Prompt) === true ? opus48SectionOverrides() : undefined;
+	resolveSectionOverrides(_model: ModelSelection, context: IAgentHostPromptContext): SectionOverrides | undefined {
+		const overrides: SectionOverrides = {};
+		const subagentModelGuidance = context.getSetting(CopilotCliConfigKey.SubagentModelGuidance);
+		if (subagentModelGuidance !== undefined && subagentModelGuidance !== 'off') {
+			// The registry appends the host's tool lines, including the model
+			// guidance itself, after this transform's output.
+			overrides.tool_instructions = { action: narrowSubagentHarnessDefaultsRule };
+		}
+		if (context.getSetting(CopilotCliConfigKey.OmitVerificationInstructions) === true) {
+			overrides.code_change_rules = { action: omitCodeChangeVerification };
+			overrides.last_instructions = { action: omitLastInstructionsVerification };
+		}
+		return Object.keys(overrides).length > 0 ? overrides : undefined;
 	}
 }
 
-agentHostPromptRegistry.registerPrompt(Claude48OpusPromptResolver);
+agentHostPromptRegistry.registerPrompt(ClaudeOpusPromptResolver);
