@@ -3741,6 +3741,96 @@ suite('ChatService', () => {
 			});
 		});
 
+		for (const withRequestId of [true, false]) {
+			test(`passive history preserves checkpoint removals when a later local response changes (request ID: ${withRequestId})`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'retained', prompt: 'Retained request', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+					{ type: 'request', id: withRequestId ? 'removed' : undefined, prompt: 'Removed request', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const [retained, removed] = model.getRequests();
+				const local = model.addRequest({ parts: [], text: 'Local request' }, { variables: [] }, 0);
+				local.response?.complete();
+				const localHistory: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: local.id, prompt: 'Local request', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme, elapsedMs: 1000 },
+				];
+				changes.fire([...first, ...localHistory]);
+
+				model.setCheckpoint(removed.id);
+				for (const request of [...model.getRequests()].reverse()) {
+					if (request.shouldBeBlocked.get()) {
+						await service.removeRequest(resource, request.id);
+					}
+				}
+				model.setCheckpoint(undefined);
+
+				const updated: IChatSessionHistoryItem[] = [
+					...first,
+					localHistory[0],
+					{ type: 'response', parts: [], participant: remoteScheme, elapsedMs: 2000 },
+				];
+				changes.fire(updated);
+				changes.fire(updated);
+				const next = model.addRequest({ parts: [], text: 'New branch' }, { variables: [] }, 0);
+				next.response?.complete();
+
+				assert.deepStrictEqual({
+					requests: model.getRequests().map(request => request.message.text),
+					items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					retained: model.getRequests()[0] === retained,
+					previousRequest: model.getRequests()[model.getRequests().indexOf(next) - 1] === retained,
+				}, {
+					requests: ['Retained request', 'New branch'],
+					items: ['Retained request', 'New branch'],
+					retained: true,
+					previousRequest: true,
+				});
+			});
+		}
+
+		for (const removedLocally of [true, false]) {
+			test(`passive history respects local removals when a provider reintroduces a turn (removed locally: ${removedLocally})`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'retained', prompt: 'Retained request', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+					{ type: 'request', id: 'removed', prompt: 'Removed request', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				if (removedLocally) {
+					await service.removeRequest(resource, 'removed');
+				}
+				changes.fire(first.slice(0, 2));
+				changes.fire([
+					...first.slice(0, 3),
+					{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Updated response') }], participant: remoteScheme },
+				]);
+
+				const expected = removedLocally ? ['Retained request'] : ['Retained request', 'Removed request'];
+				assert.deepStrictEqual({
+					requests: model.getRequests().map(request => request.message.text),
+					items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+				}, { requests: expected, items: expected });
+			});
+		}
+
 		test('passive history removals update the last request and cost before notifying observers', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const history: IChatSessionHistoryItem[] = [

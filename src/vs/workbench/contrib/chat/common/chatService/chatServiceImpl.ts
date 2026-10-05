@@ -981,6 +981,7 @@ export class ChatService extends Disposable implements IChatService {
 				turn.id = initialRequests[index].id;
 			}
 			let pendingHistory: readonly IChatSessionHistoryItem[] | undefined;
+			// Locally created or removed requests take precedence over refreshed history.
 			const localRequestIds = new Set<string>();
 			const refreshHistory = () => {
 				const history = pendingHistory;
@@ -1004,6 +1005,12 @@ export class ChatService extends Disposable implements IChatService {
 				}
 				const previousTurns = new Map(lastTurns.map(turn => [turn.id, turn]));
 				const incomingIds = new Set(turns.map(turn => turn.id));
+				const currentRequestIds = new Set(requests.map(request => request.id));
+				for (const requestId of previousTurns.keys()) {
+					if (requestId !== undefined && !currentRequestIds.has(requestId)) {
+						localRequestIds.add(requestId);
+					}
+				}
 				for (const request of requests) {
 					if (!previousTurns.has(request.id)) {
 						localRequestIds.add(request.id);
