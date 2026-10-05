@@ -126,6 +126,20 @@ jobs:
       integration_tests: false
       smoke_tests: false
 
+  # The other unit test jobs run with product.quality 'insider'. This one covers
+  # 'stable' so stable-only test failures are caught before a stable build.
+  # Linux only: product.quality comes from product.json and is the same on every
+  # OS, so quality-dependent tests fail the same way on all of them.
+  linux-electron-unit-tests-stable:
+    name: Linux
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Electron-Unit (Stable)
+      electron_tests: true
+      integration_tests: false
+      smoke_tests: false
+      test_quality: stable
+
   linux-electron-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
