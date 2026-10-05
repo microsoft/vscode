@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { RELAY_ACTIVITY_INTERVAL_MS } from '../../common/relayActivity.js';
 import {
 	TUNNEL_STEP_TIMEOUT_MS,
 	TunnelAgentHostConnector,
@@ -75,6 +77,7 @@ class FakeRelayClient implements ITunnelRelayClient {
 
 class FakeSocket implements ITunnelMessageSocket {
 	private readonly _onDidReceiveMessage = new Emitter<string>();
+	private readonly _onDidReceiveData = new Emitter<void>();
 	private readonly _onDidClose = new Emitter<ITunnelSocketCloseEvent>();
 	private readonly _queuedMessages: string[];
 
@@ -90,6 +93,7 @@ class FakeSocket implements ITunnelMessageSocket {
 		}
 		return disposable;
 	};
+	readonly onDidReceiveData = this._onDidReceiveData.event;
 	readonly onDidClose = this._onDidClose.event;
 	closeCalls = 0;
 	disposeCalls = 0;
@@ -105,6 +109,14 @@ class FakeSocket implements ITunnelMessageSocket {
 		this.closeCalls++;
 	}
 
+	fireMessage(message: string): void {
+		this._onDidReceiveMessage.fire(message);
+	}
+
+	fireData(): void {
+		this._onDidReceiveData.fire();
+	}
+
 	fireClose(event: ITunnelSocketCloseEvent): void {
 		this._onDidClose.fire(event);
 	}
@@ -112,6 +124,7 @@ class FakeSocket implements ITunnelMessageSocket {
 	dispose(): void {
 		this.disposeCalls++;
 		this._onDidReceiveMessage.dispose();
+		this._onDidReceiveData.dispose();
 		this._onDidClose.dispose();
 	}
 }
@@ -393,6 +406,35 @@ suite('TunnelAgentHostConnector', () => {
 			});
 		} finally {
 			connector.dispose();
+		}
+	});
+
+	test('reports throttled relay activity while a message is still arriving', async () => {
+		const clock = sinon.useFakeTimers();
+		const socket = new FakeSocket();
+		const { connector } = createConnector(
+			{ tunnelId: 'downloading', clusterId: 'cluster', labels: ['protocolv5'] },
+			new FakeRelayClient(),
+			new FakeSocketFactory(socket),
+		);
+		try {
+			const { connectionId } = await connector.connect('token', 'github', 'downloading', 'cluster');
+			const activity: string[] = [];
+			const listener = connector.onDidRelayActivity(id => activity.push(id));
+
+			// Partial data for 1.5 intervals, then the final chunk, whose message arrives before its data event.
+			for (let chunk = 0; chunk < 3; chunk++) {
+				socket.fireData();
+				clock.tick(RELAY_ACTIVITY_INTERVAL_MS / 2);
+			}
+			socket.fireMessage('{"jsonrpc":"2.0","id":1}');
+			socket.fireData();
+			listener.dispose();
+
+			assert.deepStrictEqual(activity, [connectionId, connectionId]);
+		} finally {
+			connector.dispose();
+			clock.restore();
 		}
 	});
 

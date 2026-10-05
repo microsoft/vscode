@@ -25,7 +25,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.AgentsParallelWorkBannerEnabled]: {
 		type: 'boolean',
 		description: nls.localize('chat.agentsParallelWorkBanner.enabled', "Show an invitation to work in parallel in the Agents Window when starting a new Agent Host chat while another Agent Host session is running."),
-		default: product.quality === 'insider',
+		default: false,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
@@ -64,7 +64,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[ChatConfiguration.UnifiedWorkspacePicker]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			description: nls.localize('sessions.chat.unifiedWorkspacePicker.enabled', "Controls whether the Agents Window uses the unified workspace picker, which combines GitHub and remote workspaces, provides search, and, when supported, allows creating sessions with no workspace."),
 			tags: ['experimental'],

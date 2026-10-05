@@ -57,12 +57,13 @@ import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import { handleElicitation } from './claudeElicitationBridge.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/meta/agentModelMeta.js';
 import { tryParseClaudeModelId } from './claudeModelId.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
+import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
@@ -474,6 +475,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 
 	private readonly _metadataStore: ClaudeSessionMetadataStore;
+	private readonly _terminalOutputs: ClaudeTerminalOutputs;
 
 	private _findAnySession(sessionId: string): ClaudeAgentSession | undefined {
 		return this._chatEntriesBySdkId.get(sessionId)?.chatSession;
@@ -635,6 +637,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
+		this._terminalOutputs = _instantiationService.createInstance(ClaudeTerminalOutputs);
 		this._register(this._gitHubEndpointService.onDidChange(() => {
 			this._gitHubEndpointGeneration++;
 			void this.authenticate(this._gitHubEndpointService.getCopilotResource().resource, '').catch(error =>
@@ -1959,7 +1962,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!context.sdkSessionId) {
 			return [];
 		}
-		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		await this._terminalOutputs.restore(context.resource, context.chat, turns);
+		return turns;
 	}
 
 	/**
@@ -2137,13 +2142,29 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				const unknown = await Promise.all(chats.map(chat => limiter.queue(async () => {
 					return await this._isKnownClaudeCodeChat(chat) ? undefined : { ...chat, external: true };
 				})));
-				this._onDidDiscoverChats.fire(unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined));
+				const discovered = unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
+				this._onDidDiscoverChats.fire(discovered);
+				this._recordFirstDiscoveryResult(discovered.length, chats.length);
 				return true;
 			}
 		} catch (err) {
 			this._logService.warn('[Claude] Failed to emit discovered chats', err);
 		}
 		return false;
+	}
+
+	private _recordFirstDiscoveryResult(discoveredCount: number, listedCount: number): void {
+		if (this._shutdownPromise || this._store.isDisposed || !this._startupPerformance.isPending('firstSessionDiscoveryResult', this.id)) {
+			return;
+		}
+		this._startupPerformance.mark('firstSessionDiscoveryResult', {
+			provider: this.id, since: 'processStart',
+			...(this._startupPerformance.isEnabled ? {
+				candidateSessionCount: discoveredCount,
+				externalSessionCount: discoveredCount,
+				filteredSessionCount: listedCount - discoveredCount,
+			} : {}),
+		});
 	}
 
 	private async _isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean> {

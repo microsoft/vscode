@@ -13,6 +13,12 @@
 	isolation: isolate;
 }
 
+.session-grid,
+.session-grid-leaf {
+	width: 100%;
+	height: 100%;
+}
+
 .monaco-workbench .part.sessionspart > .title,
 .monaco-workbench .part.sessionspart > .content {
 	position: relative;

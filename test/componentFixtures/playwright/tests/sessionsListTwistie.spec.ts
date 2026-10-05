@@ -69,6 +69,7 @@ for (const theme of ['Dark', 'Light']) {
 
 			const sessionRow = page.locator('.monaco-list-row').filter({ has: page.locator('.session-item') });
 			const chatTitles = page.locator('.session-chat-title');
+			const tree = page.getByRole('tree', { name: 'Sessions', exact: true });
 			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
 			await expect(page.locator('.session-item.pinned')).toHaveCount(pinned ? 1 : 0);
 			await expect(page.locator('.session-item.sticky')).toHaveCount(sticky ? 1 : 0);
@@ -79,10 +80,12 @@ for (const theme of ['Dark', 'Light']) {
 			await twistie.click();
 			await expect(sessionRow).toHaveAttribute('aria-expanded', 'false');
 			await expect(chatTitles).toHaveCount(0);
+			await expect(tree).toBeFocused();
 
 			await twistie.click();
 			await expect(sessionRow).toHaveAttribute('aria-expanded', 'true');
 			await expect(chatTitles).toHaveText(['Task A', 'Task B']);
+			await expect(tree).toBeFocused();
 		});
 	}
 }

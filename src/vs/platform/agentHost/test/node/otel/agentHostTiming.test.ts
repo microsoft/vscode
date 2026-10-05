@@ -66,7 +66,7 @@ suite('Agent Host timing OTel', () => {
 				delete process.env[key];
 			}
 			Object.assign(process.env, env);
-			return disposables.add(new AgentHostOTelService(fetchFn, new NullLogService(), new class extends mock<INativeEnvironmentService>() {
+			return disposables.add(new AgentHostOTelService({ fetchFn }, new NullLogService(), new class extends mock<INativeEnvironmentService>() {
 				override readonly userDataPath = directory;
 			}));
 		} finally {

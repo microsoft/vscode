@@ -11,6 +11,7 @@ import { localize } from '../../../../nls.js';
 import { getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -27,7 +28,7 @@ import { getSessionOwnedGitHubPullRequestRefs, isActiveSessionStatus, ISession, 
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestState } from '../../github/common/types.js';
-import { getPullRequestKey, parseGitHubPullRequestUrl } from '../../github/common/utils.js';
+import { getPullRequestKey } from '../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../github/common/sessionLifecycleSettings.js';
 import { createSessionArchiveTour, SESSION_ARCHIVE_TOUR_ID } from '../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { getSessionArchiveOnboardingTargetId } from '../../sessions/browser/views/sessionsList.js';

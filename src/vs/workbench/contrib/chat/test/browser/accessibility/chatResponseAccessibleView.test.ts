@@ -148,6 +148,32 @@ suite('ChatResponseAccessibleView', () => {
 		]);
 	});
 
+	test('includes warnings and their link text', () => {
+		const item = upcastPartial<IChatResponseViewModel>({
+			response: upcastPartial<IResponse>({
+				value: [
+					{
+						kind: 'warning',
+						content: new MarkdownString('The model only supports 128 tools, 114 tools were not provided to the model. [Configure Tools](command:aiCustomization.openManagementEditor?%5B%22tools%22%5D)', { isTrusted: { enabledCommands: ['aiCustomization.openManagementEditor'] } }),
+						keepVisibleWhenCollapsed: true,
+					},
+					{ kind: 'markdownContent', content: new MarkdownString('Final answer') },
+				],
+			}),
+		});
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+			{
+				partIndex: 0,
+				text: 'Warning: The model only supports 128 tools, 114 tools were not provided to the model. Configure Tools',
+			},
+			{
+				partIndex: 1,
+				text: 'Final answer',
+			},
+		]);
+	});
+
 	suite('getToolSpecificDataDescription', () => {
 		test('returns empty string for undefined', () => {
 			assert.strictEqual(getToolSpecificDataDescription(undefined), '');

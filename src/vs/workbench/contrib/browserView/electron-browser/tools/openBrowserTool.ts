@@ -27,6 +27,7 @@ import { BrowserChatToolReferenceName } from '../../../../../platform/browserVie
 import { createBrowserPageLink, errorResult, findExistingPagesByHost, getBrowserNetworkPolicyError, getExistingPagesResult, getExternalTunnelNetworkPolicyError, getSessionId, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl } from './browserToolHelpers.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
 import { getAgentBrowserViewCreationDefaults } from '../../../../../platform/browserView/common/browserView.js';
+import { ISandboxNetworkRestrictions } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
 export const OpenPageToolId = 'open_browser_page';
@@ -84,6 +85,9 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = context.parameters as IOpenBrowserToolParams;
 
 		if (!params.url) {
+			if (context.sandboxNetworkRestrictions?.sandboxEnabled) {
+				throw new Error(localize('browser.sandbox.requiresUrl', "Sandboxed Copilot sessions must open a URL in an isolated browser page instead of sharing a user-owned page."));
+			}
 			return {
 				invocationMessage: localize('browser.open.prompt.invocation', "Prompting user to share a browser tab"),
 				pastTenseMessage: localize('browser.open.prompt.past', "Prompted user to share a browser tab"),
@@ -117,6 +121,23 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 		const sessionId = getSessionId(invocation);
 		const activeSessionId = invocation.context?.sessionResource.toString();
+		const restrictions = invocation.context?.sandboxNetworkRestrictions;
+		if (restrictions?.sandboxEnabled) {
+			if (!params.url) {
+				return errorResult(localize('browser.sandbox.requiresUrl', "Sandboxed Copilot sessions must open a URL in an isolated browser page instead of sharing a user-owned page."));
+			}
+			const policyError = getBrowserNetworkPolicyError(params.url, this.agentNetworkFilterService);
+			if (policyError) {
+				return errorResult(policyError);
+			}
+			const rewrite = rewriteRemoteLocalhostUrl(params.url, this.browserViewService, this.remoteExplorerService);
+			const tunnelError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
+			if (tunnelError) {
+				return errorResult(tunnelError);
+			}
+			const result = await this._openNewPage(sessionId, rewrite.url, restrictions);
+			return rewrite.rewritten ? { ...result, content: [remoteUrlRewriteNotice(params.url, rewrite.url), ...result.content] } : result;
+		}
 
 		// If no URL is specified, prompt the user for a page to share.
 		if (!params.url) {
@@ -169,7 +190,7 @@ export class OpenBrowserTool implements IToolImpl {
 			}
 		}
 
-		return withNotice(await this._openNewPage(sessionId, params.url));
+		return withNotice(await this._openNewPage(sessionId, params.url, restrictions));
 	}
 
 	/**
@@ -305,9 +326,11 @@ export class OpenBrowserTool implements IToolImpl {
 		return undefined;
 	}
 
-	private async _openNewPage(sessionId: string, url: string): Promise<IToolResult> {
+	private async _openNewPage(sessionId: string, url: string, restrictions?: ISandboxNetworkRestrictions): Promise<IToolResult> {
 		const input = await this.browserViewService.createBrowserView({
-			...getAgentBrowserViewCreationDefaults(sessionId, this.environmentService.isSessionsWindow ? sessionId : undefined),
+			...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.environmentService.isSessionsWindow ? sessionId : undefined),
+			...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
+			...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
 			initialUrl: url,
 			openSource: 'cdpCreated'
 		}, { preserveFocus: true });

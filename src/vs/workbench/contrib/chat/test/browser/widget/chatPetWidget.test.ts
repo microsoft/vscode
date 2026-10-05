@@ -10,6 +10,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { FileAccess, Schemas } from '../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -24,6 +25,7 @@ import { IHostService } from '../../../../../services/host/browser/host.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
+import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
@@ -33,6 +35,11 @@ suite('ChatPetWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	setup(() => {
+		if (mainWindow.location.protocol === `${Schemas.file}:`) {
+			sinon.stub(FileAccess, 'asBrowserUri').callsFake(resource => FileAccess.asFileUri(resource));
+		}
+	});
 	teardown(() => sinon.restore());
 
 	class TestTelemetryService extends NullTelemetryServiceShape {
@@ -74,7 +81,7 @@ suite('ChatPetWidget', () => {
 		};
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport') {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		const firstParent = mainWindow.document.createElement('div');
@@ -113,6 +120,10 @@ suite('ChatPetWidget', () => {
 		};
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		service.toggle();
+		if (color) {
+			service.unlockAchievement(ChatPetAchievementIds.Blobby);
+			service.setColor(color);
+		}
 		const widget = disposables.add(new ChatPetWidget(
 			firstHost, TestResizeObserver, service, accessibilityService,
 			new class extends mock<IContextMenuService>() { }(),
@@ -150,6 +161,40 @@ suite('ChatPetWidget', () => {
 		return button.getAnimations().flatMap(animation => animation.effect instanceof mainWindow.KeyframeEffect
 			? animation.effect.getKeyframes().filter(frame => frame.top !== undefined).map(frame => frame.top)
 			: []);
+	}
+
+	for (const reducedMotion of [false, true]) {
+		test(`live color changes preserve the current frame and double buffering (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+			try {
+				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800');
+				const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+				await firstImage.decode();
+				await Promise.resolve();
+				clock.tick(800);
+				const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+				const expected = mainWindow.document.createElement('canvas');
+				expected.width = expected.height = 96;
+				const expectedContext = expected.getContext('2d')!;
+				service.setColor('#12abcd');
+				expectedContext.drawImage(getChatPetColoredSprite(firstImage, '#12abcd'), (reducedMotion ? 0 : 20) * 96, 0, 96, 96, 0, 0, 96, 96);
+				assert.strictEqual(activeCanvas.toDataURL(), expected.toDataURL(), 'Recolor the current frame rather than restarting at frame zero');
+				const previousFrame = activeCanvas.toDataURL();
+				service.setColor('insiders');
+				assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
+				const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
+				await insiders.decode();
+				await Promise.resolve();
+				assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
+				service.setColor('#12abcd');
+				const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;
+				expectedContext.clearRect(0, 0, 96, 96);
+				expectedContext.drawImage(getChatPetColoredSprite(insiders, '#12abcd'), 0, 0, 96, 96, 0, 0, 96, 96);
+				assert.strictEqual(immediateCanvas.toDataURL(), expected.toDataURL(), 'Recolor the currently displayed Insiders sheet while Stable loads');
+			} finally {
+				clock.restore();
+			}
+		});
 	}
 
 	test('runs one timed hop for a single key press', () => {
@@ -302,6 +347,63 @@ suite('ChatPetWidget', () => {
 		}, {
 			initialLeft,
 			currentLeft: initialLeft - 24,
+		});
+	});
+
+	test('always offers Change Color without revealing the slash command', async () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		let menu: IContextMenuDelegate | undefined;
+		const commands: string[] = [];
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, parent, parent),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void { menu = delegate; }
+			}(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string): Promise<T | undefined> {
+					commands.push(id);
+					return undefined;
+				}
+			}(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const locked = menu?.getActions().find(action => action.id === CHAT_PET_CHANGE_COLOR_COMMAND_ID);
+		const lockedState = { label: locked?.label, enabled: locked?.enabled };
+		assert.ok(locked);
+		await locked.run();
+		service.unlockAchievement(ChatPetAchievementIds.Blobby);
+		button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const actions = menu?.getActions();
+		const unlocked = actions?.find(action => action.id === CHAT_PET_CHANGE_COLOR_COMMAND_ID);
+		assert.ok(unlocked);
+		await unlocked.run();
+		assert.deepStrictEqual({
+			lockedState,
+			unlockedState: { label: unlocked.label, enabled: unlocked.enabled },
+			legacyVariants: actions?.filter(action => action.id.startsWith('chat.pet.variant.')).length,
+			revealsSlashCommand: actions?.some(action => action.label.includes('/blobby')),
+			commands,
+		}, {
+			lockedState: { label: 'Change Color', enabled: true },
+			unlockedState: { label: 'Change Color', enabled: true },
+			legacyVariants: 0,
+			revealsSlashCommand: false,
+			commands: [CHAT_PET_CHANGE_COLOR_COMMAND_ID, CHAT_PET_CHANGE_COLOR_COMMAND_ID],
 		});
 	});
 
@@ -1657,7 +1759,7 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('defines unique covered-antennae rewards for each achievement', () => {
+	test('defines unique hats and a color customization reward', () => {
 		const accessoryIds = chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id));
 		assert.deepStrictEqual({
 			count: chatPetAchievements.length,
@@ -1672,7 +1774,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 13,
+			count: 14,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -1687,6 +1789,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.ChatReferenceOpened,
 				ChatPetAchievementIds.UsefulOutputCopied,
 				ChatPetAchievementIds.AutopilotEnabled,
+				ChatPetAchievementIds.Blobby,
 			],
 			accessoryIds: [
 				ChatPetAccessoryIds.TopHatMonocle,
@@ -1720,7 +1823,7 @@ suite('ChatPetWidget', () => {
 				'wizard-hat',
 			],
 			atlasCellSizes: Array(13).fill(96),
-			rewardCounts: Array(13).fill(1),
+			rewardCounts: [...Array(13).fill(1), 0],
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
@@ -1770,7 +1873,7 @@ suite('ChatPetWidget', () => {
 			firstMessageRewards: getChatPetAchievement(ChatPetAchievementIds.FirstChatMessage).accessories.map(accessory => accessory.id),
 			newAchievements: achievementIds.map(id => {
 				const achievement = getChatPetAchievement(id);
-				return { title: achievement.title, reward: achievement.accessories[0].id };
+				return { title: achievement.title, reward: achievement.accessories[0]?.id };
 			}),
 		}, {
 			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
@@ -1839,12 +1942,12 @@ suite('ChatPetWidget', () => {
 			modelSwitch: {
 				title: modelSwitch.title,
 				description: modelSwitch.description,
-				accessoryId: modelSwitch.accessories[0].id,
+				accessoryId: modelSwitch.accessories[0]?.id,
 			},
 			customSkill: {
 				title: customSkill.title,
 				description: customSkill.description,
-				accessoryId: customSkill.accessories[0].id,
+				accessoryId: customSkill.accessories[0]?.id,
 			},
 		}, {
 			modelSwitch: {

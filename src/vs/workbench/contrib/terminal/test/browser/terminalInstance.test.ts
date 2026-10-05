@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
-import { createSandbox } from 'sinon';
+import { createSandbox, spy } from 'sinon';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -381,6 +381,18 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should only load the line data event addon once when listeners are re-added', async () => {
+			const instance = await createTerminalInstance();
+			const lineDataEventAddon = instance['_lineDataEventAddon']!;
+			const activateSpy = spy(lineDataEventAddon, 'activate');
+
+			const firstListener = instance.onLineData(() => { });
+			firstListener.dispose();
+			store.add(instance.onLineData(() => { }));
+
+			strictEqual(activateSpy.callCount, 1);
 		});
 
 		for (const title of ['', undefined]) {

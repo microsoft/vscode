@@ -19,6 +19,8 @@ export interface IGitNetworkOptions {
 
 export interface IGitPullOptions extends IGitNetworkOptions {
 	readonly allowHardResetOnDivergence?: boolean;
+	/** Leaves tag and commit checkouts unchanged instead of pulling without a branch. */
+	readonly skipDetachedHead?: boolean;
 }
 
 /**

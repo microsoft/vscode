@@ -5,10 +5,14 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmChatResult, IByokLmInputItem, IByokLmOutputItem, IByokLmTool } from '../../common/agentHostByokLm.js';
 import {
+	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
+	capBridgeTools,
+	endsWithUserMessage,
+	hasVisibleBridgeOutput,
 	IResponsesRequest,
 	responsesRequestToBridge,
 	ResponsesTranslationError,
@@ -69,6 +73,124 @@ suite('byokResponsesTranslation', () => {
 		assert.deepStrictEqual(responsesRequestToBridge('acme', { model: 'm', input: 'hello' }).input, [
 			{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hello' }] },
 		]);
+	});
+
+	test('replaces input_file parts with a newline-delimited omission note', () => {
+		const body: IResponsesRequest = {
+			model: 'm',
+			input: [{
+				type: 'message', role: 'user', content: [
+					{ type: 'input_text', text: 'summarize this' },
+					{ type: 'input_text', text: 'Document file "spec.pdf" at path "/work/spec.pdf"' },
+					{ type: 'input_file', filename: 'spec.pdf', file_data: 'data:application/pdf;base64,JVBERi0xLjQ=' },
+					{ type: 'input_file', file_id: 'file_123' },
+				]
+			}],
+		};
+
+		assert.deepStrictEqual(responsesRequestToBridge('acme', body).input, [
+			{
+				type: 'message', role: 'user', content: [
+					{ type: 'text', text: 'summarize this' },
+					{ type: 'text', text: 'Document file "spec.pdf" at path "/work/spec.pdf"' },
+					{ type: 'text', text: '\n[spec.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+					{ type: 'text', text: '\n[file_123 omitted: this model does not accept file inputs]\n' },
+				]
+			},
+		]);
+	});
+
+	suite('capBridgeTools', () => {
+		const toolNames = (request: IByokLmChatRequest) => request.tools?.map(tool => tool.name);
+		const requestWithTools = (count: number, input: IByokLmChatRequest['input'] = []): IByokLmChatRequest => ({
+			vendor: 'acme',
+			modelId: 'm',
+			input,
+			tools: Array.from({ length: count }, (_, i): IByokLmTool => ({ type: 'function', name: `tool_${i}` })),
+		});
+
+		test('leaves requests within the limit untouched', () => {
+			const request = requestWithTools(3);
+			assert.deepStrictEqual(capBridgeTools(request, 3), { request, droppedToolNames: [] });
+		});
+
+		test('keeps the leading tools in order and reports the dropped tail', () => {
+			const capped = capBridgeTools(requestWithTools(5), 3);
+			assert.deepStrictEqual({ kept: toolNames(capped.request), dropped: capped.droppedToolNames }, {
+				kept: ['tool_0', 'tool_1', 'tool_2'],
+				dropped: ['tool_3', 'tool_4'],
+			});
+		});
+
+		test('caps at the default limit', () => {
+			const capped = capBridgeTools(requestWithTools(200));
+			assert.deepStrictEqual({ kept: capped.request.tools?.length, dropped: capped.droppedToolNames.length }, { kept: BYOK_MAX_TOOLS, dropped: 200 - BYOK_MAX_TOOLS });
+		});
+
+		test('keeps tools the conversation already called, in their original order', () => {
+			const capped = capBridgeTools(requestWithTools(6, [
+				{ type: 'function_call', callId: 'c1', name: 'tool_5', argumentsJson: '{}' },
+				{ type: 'custom_tool_call', callId: 'c2', name: 'tool_3', input: '' },
+			]), 3);
+			assert.deepStrictEqual({ kept: toolNames(capped.request), dropped: capped.droppedToolNames }, {
+				kept: ['tool_0', 'tool_3', 'tool_5'],
+				dropped: ['tool_1', 'tool_2', 'tool_4'],
+			});
+		});
+
+	});
+
+	test('detects input that ends with a user message', () => {
+		const user: IByokLmInputItem = { type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] };
+		const developer: IByokLmInputItem = { type: 'message', role: 'developer', content: [{ type: 'text', text: 'reminder' }] };
+		const assistant: IByokLmInputItem = { type: 'message', role: 'assistant', content: [{ type: 'text', text: 'hello' }] };
+		const call: IByokLmInputItem = { type: 'function_call', callId: 'c1', name: 'tool', argumentsJson: '{}' };
+		const callOutput: IByokLmInputItem = { type: 'function_call_output', callId: 'c1', output: 'ok' };
+		assert.deepStrictEqual({
+			empty: endsWithUserMessage([]),
+			firstTurn: endsWithUserMessage([user]),
+			userThenDeveloper: endsWithUserMessage([user, developer]),
+			developerOnly: endsWithUserMessage([developer]),
+			laterTurn: endsWithUserMessage([user, call, callOutput, assistant, user]),
+			replacementTurnAfterRetainedToolResult: endsWithUserMessage([user, call, callOutput, user]),
+			afterToolResult: endsWithUserMessage([user, call, callOutput]),
+			afterAssistant: endsWithUserMessage([user, assistant]),
+		}, {
+			empty: false,
+			firstTurn: true,
+			userThenDeveloper: true,
+			developerOnly: false,
+			laterTurn: true,
+			replacementTurnAfterRetainedToolResult: true,
+			afterToolResult: false,
+			afterAssistant: false,
+		});
+	});
+
+	test('detects output the runtime counts as a visible response', () => {
+		const text = (value: string): IByokLmOutputItem => ({ type: 'message', content: [{ type: 'text', text: value }] });
+		const reasoning = (summary: string[]): IByokLmOutputItem => ({ type: 'reasoning', id: 'rs_1', summary, encryptedContent: 'opaque' });
+		assert.deepStrictEqual({
+			none: hasVisibleBridgeOutput([]),
+			emptyText: hasVisibleBridgeOutput([text('')]),
+			whitespaceText: hasVisibleBridgeOutput([text('\n\n')]),
+			encryptedReasoningOnly: hasVisibleBridgeOutput([reasoning([]), reasoning([''])]),
+			whitespaceReasoning: hasVisibleBridgeOutput([reasoning([' ', '\n'])]),
+			text: hasVisibleBridgeOutput([text('hi')]),
+			reasoningSummary: hasVisibleBridgeOutput([reasoning(['thinking'])]),
+			functionCall: hasVisibleBridgeOutput([{ type: 'function_call', callId: 'c1', name: 'tool', argumentsJson: '{}' }]),
+			customToolCall: hasVisibleBridgeOutput([{ type: 'custom_tool_call', callId: 'c1', name: 'tool', input: '' }]),
+		}, {
+			none: false,
+			emptyText: false,
+			whitespaceText: false,
+			encryptedReasoningOnly: false,
+			whitespaceReasoning: false,
+			text: true,
+			reasoningSummary: true,
+			functionCall: true,
+			customToolCall: true,
+		});
 	});
 
 	test('rejects missing models and unsupported input items', () => {

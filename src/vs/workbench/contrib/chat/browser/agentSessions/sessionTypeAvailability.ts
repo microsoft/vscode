@@ -44,8 +44,8 @@ export function getSessionTypePickerAvailability(type: string, availability: Ses
 }
 
 /**
- * Whether selecting an Agent SDK harness may initialize its models. A user who
- * is signed in through either GitHub or the harness's own provider can enter an
+ * Whether selecting an Agent SDK harness may initialize its models. A resolved
+ * GitHub account or a provider-owned authentication/discovery path can enter an
  * advertised setup flow; otherwise the signed-out experiment must permit it.
  */
 export function canInitializeSessionTypeOnSelection(entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasAgentSdkSetup: boolean, canInitializeWithoutGitHub = false): boolean {
