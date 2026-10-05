@@ -268,9 +268,9 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 		// Header row: icon + title + mute + dismiss
 		const headerRow = dom.append(container, $('.chat-input-notification-header'));
 
-		// Severity icon
-		const iconElement = dom.append(headerRow, $('.chat-input-notification-icon'));
-		iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(severityToIcon[notification.severity])));
+		// Header icon; the title conveys its meaning to screen readers.
+		const iconElement = dom.append(headerRow, $('.chat-input-notification-icon', { 'aria-hidden': 'true' }));
+		iconElement.appendChild(dom.$(ThemeIcon.asCSSSelector(notification.icon ?? severityToIcon[notification.severity])));
 
 		// Title
 		const titleElement = dom.append(headerRow, $('.chat-input-notification-title'));
@@ -355,7 +355,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 
 					const button = this._contentDisposables.add(new Button(actionsContainer, {
 						...defaultButtonStyles,
-						...(!isPrimary ? {
+						...(!isPrimary && !action.filled ? {
 							buttonBackground: undefined,
 							buttonHoverBackground: undefined,
 							buttonForeground: undefined,
@@ -370,6 +370,7 @@ export class ChatInputNotificationWidget extends Disposable implements IChatInpu
 					button.element.classList.add('chat-input-notification-action-button');
 					button.element.classList.toggle('icon-only', action.iconOnly === true);
 					button.element.classList.toggle('leading', action.leading === true);
+					button.element.classList.toggle('filled', action.filled === true);
 					button.element.classList.toggle('outlined', action.outlined === true);
 					button.label = action.label;
 					const actionAriaLabel = action.ariaLabel ?? action.label;

@@ -6,9 +6,10 @@
 import { DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLifecycle/additionalWorktreeLifecycleContribution.js';
-import { ArtifactToolsContribution } from './artifactTools/artifactToolsContribution.js';
-import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
+import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
+import { ChatInputContribution } from './chatInput/chatInputContribution.js';
+import { ChatReadContribution } from './chatRead/chatReadContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
@@ -17,6 +18,7 @@ import { LocalCommandContribution } from './localCommand/localCommandContributio
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
+import { PersistedFailedTurnsContribution } from './persistedFailedTurns/persistedFailedTurnsContribution.js';
 import { PullRequestChatContribution } from './pullRequest/pullRequestChatContribution.js';
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
@@ -28,18 +30,23 @@ import { SideChatContribution } from './sideChat/sideChatContribution.js';
 import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribution.js';
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
+import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
+import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
 	contributions: IAgentHostChatContributions,
 ): IDisposable {
 	const registrations = new DisposableStore();
+	registrations.add(contributions.registerContribution(WorktreeFailureContribution));
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
 	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
+	registrations.add(contributions.registerContribution(ChatInputContribution));
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
+	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));
@@ -50,12 +57,13 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(MarkUnreadContribution));
 	registrations.add(contributions.registerContribution(ChatDraftContribution));
 	registrations.add(contributions.registerContribution(MarkdownPlanRichLinksContribution));
-	registrations.add(contributions.registerContribution(ArtifactToolsContribution));
+	registrations.add(contributions.registerContribution(WorkspaceContextContribution));
 	registrations.add(contributions.registerContribution(ChatSurfaceContribution));
 	registrations.add(contributions.registerContribution(RemoteSessionOriginContribution));
 	registrations.add(contributions.registerContribution(SideChatContribution));
 	registrations.add(contributions.registerContribution(SessionFlagsContribution));
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
+	registrations.add(contributions.registerContribution(ChatReadContribution));
 	return registrations;
 }

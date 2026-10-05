@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spy } from 'sinon';
+import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
+import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
+import { spy, stub } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -25,7 +28,9 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -41,28 +46,35 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
-import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { SessionsManagementService } from '../../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
+import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -74,13 +86,34 @@ import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessi
 import { IPathService } from '../../../../../../workbench/services/path/common/pathService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
+import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 
-type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationState;
+type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationState | CanvasState;
+
+function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['properties'] = {}): SessionConfigSchema {
+	return {
+		type: 'object',
+		properties: {
+			isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'worktree', sessionMutable: false },
+			branch: { type: 'string', title: 'Base branch', enumDynamic: true, sessionMutable: false },
+			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
+			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
+			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
+			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
+			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
+			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
+			sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+			providerOption: { type: 'string', title: 'Provider option', enum: ['remembered'], sessionMutable: true },
+			...overrides,
+		},
+	};
+}
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -108,7 +141,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		snapshots: [],
 		_meta: { 'vscode.detachedWorktrees': true, [AgentHostAutonomousAutomationsCapabilityMetaKey]: true },
 	});
-
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public automationCatalog: AutomationState = { entries: [] };
@@ -117,9 +149,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public failDisposeSessionFor: string | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
-	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
-	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
+	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } };
+	public resolveSessionConfigRequests: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
+	public resolveSessionConfigHandler: ((request: { config?: Record<string, unknown> }) => ResolveSessionConfigResult) | undefined;
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
+	public onResolveSessionConfig: ((request: { config?: Record<string, unknown> }) => Promise<ResolveSessionConfigResult>) | undefined;
 	public branchCompletionRequests: IAgentSessionConfigCompletionsParams[] = [];
 	public branchCompletionItems: SessionConfigCompletionsResult['items'] = [{ value: 'main', label: 'main' }];
 	public branchCompletionBarrier: DeferredPromise<void> | undefined;
@@ -257,14 +291,27 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async deleteDetachedWorktree(handle: string): Promise<void> { this.deletedDetachedWorktrees.push(handle); }
 	override async claimDetachedWorktree(handle: string): Promise<void> { this.claimedDetachedWorktrees.push(handle); }
 
-	override async resolveSessionConfig(request: { config?: Record<string, unknown> }): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(request: { config?: Record<string, unknown>; workingDirectory?: URI }): Promise<ResolveSessionConfigResult> {
 		this.resolveSessionConfigRequests.push(request);
+		if (this.onResolveSessionConfig) {
+			return this.onResolveSessionConfig(request);
+		}
 		await this.resolveSessionConfigBarrier?.p;
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
 		}
-		return this.resolveSessionConfigResult;
+		if (this.resolveSessionConfigHandler) {
+			return this.resolveSessionConfigHandler(request);
+		}
+		const values = { ...this.resolveSessionConfigResult.values };
+		for (const [key, value] of Object.entries(request.config ?? {})) {
+			const property = this.resolveSessionConfigResult.schema.properties[key];
+			if (property) {
+				values[key] = value;
+			}
+		}
+		return { ...this.resolveSessionConfigResult, values };
 	}
 
 	override async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -282,7 +329,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
-		if (action.type === ActionType.ChatIsArchivedChanged) {
+		if (action.type === ActionType.ChatIsArchivedChanged || action.type === ActionType.ChatIsReadChanged) {
 			const session = URI.parse(parseRequiredSessionUriFromChatUri(channel));
 			const existing = this._sessionStateValues.get(session.toString()) as SessionState | undefined;
 			if (existing) {
@@ -291,9 +338,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 					chats: existing.chats.map(summary => summary.resource === channel
 						? {
 							...summary,
-							status: action.isArchived
-								? summary.status | ProtocolSessionStatus.IsArchived
-								: summary.status & ~ProtocolSessionStatus.IsArchived,
+							status: action.type === ActionType.ChatIsArchivedChanged
+								? action.isArchived
+									? summary.status | ProtocolSessionStatus.IsArchived
+									: summary.status & ~ProtocolSessionStatus.IsArchived
+								: action.isRead
+									? summary.status | ProtocolSessionStatus.IsRead
+									: summary.status & ~ProtocolSessionStatus.IsRead,
 						}
 						: summary),
 				});
@@ -322,7 +373,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	private readonly _sessionStateEmitters = new Map<string, Emitter<SubscriptionState>>();
 	private readonly _sessionStateErrorEmitters = new Map<string, Emitter<Error>>();
-	private readonly _sessionStateValues = new Map<string, SubscriptionState>();
+	private readonly _sessionStateValues = new Map<string, SubscriptionState | Error>();
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 
@@ -349,8 +400,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		const self = this;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
-			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			get value() { return self._sessionStateValues.get(key) as T | Error | undefined; },
+			get verifiedValue() {
+				const value = self._sessionStateValues.get(key);
+				return value instanceof Error ? undefined : value as T | undefined;
+			},
 			onDidChange: emitter.event as unknown as Event<T>,
 			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
@@ -388,6 +442,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	setChatState(chatUri: string, state: ChatState): void {
 		this._sessionStateValues.set(chatUri, state);
 		this._sessionStateEmitters.get(chatUri)?.fire(state);
+	}
+
+	setCanvasState(resource: string, state: CanvasState | Error): void {
+		this._sessionStateValues.set(resource, state);
+		if (state instanceof Error) {
+			this._sessionStateErrorEmitters.get(resource)?.fire(state);
+			return;
+		}
+		this._sessionStateEmitters.get(resource)?.fire(state);
 	}
 
 	setAutomationCatalog(state: AutomationState): void {
@@ -634,6 +697,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			tools: constObservable(options?.activeClient?.tools ?? []),
 			isResolved: constObservable(true),
 			whenResolved: () => Promise.resolve(),
+			getSyncedUri: () => undefined,
 			activeClient: (clientId: string) => constObservable({ clientId, ...(options?.activeClient ?? { tools: [], customizations: [] }) }),
 			dispose: () => { },
 		});
@@ -642,6 +706,29 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ISessionsProvidersService, options?.sessionsProvidersService ?? new class extends mock<ISessionsProvidersService>() { }());
 
 	return disposables.add(instantiationService.createInstance(options?.providerCtor ?? LocalAgentHostSessionsProvider));
+}
+
+function createManagementService(disposables: DisposableStore, provider: ISessionsProvider): ISessionsManagementService {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+		override readonly onDidChangeProviders = Event.None;
+		override getProviders() { return [provider]; }
+		override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
+	}());
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IUriIdentityService, { extUri: extUriIgnorePathCase });
+	instantiationService.stub(IChatService, { onDidSubmitRequest: Event.None });
+	instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
+		override moveHistory(): void { }
+	}());
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+	instantiationService.stub(IWorkspaceTrustManagementService, {
+		getUriTrustInfo: async uri => ({ uri, trusted: true }),
+	});
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+	return disposables.add(instantiationService.createInstance(SessionsManagementService));
 }
 
 function createTestLanguageModel(id: string): ILanguageModelChatMetadata {
@@ -659,13 +746,13 @@ function createTestLanguageModel(id: string): ILanguageModelChatMetadata {
 }
 
 async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
-	if (predicate(provider.getSessionConfig(sessionId))) {
+	if (!provider.isSessionConfigResolving(sessionId).get() && predicate(provider.getSessionConfig(sessionId))) {
 		return;
 	}
 
 	await new Promise<void>(resolve => {
 		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
-			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+			if (changedSessionId === sessionId && !provider.isSessionConfigResolving(sessionId).get() && predicate(provider.getSessionConfig(sessionId))) {
 				disposable.dispose();
 				resolve();
 			}
@@ -759,6 +846,69 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('Copilot schema discovery prevents VS defaults entering creation without filtering readOnly values', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
+		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'assisted', sessionMutable: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], default: 'workspace', sessionMutable: false },
+				}
+			},
+			values: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.target === 'workspace');
+		await timeout(0);
+		assert.deepStrictEqual({
+			discovery: agentHost.resolveSessionConfigRequests.map(request => request.config),
+			creation: provider.getCreateSessionConfig(session.sessionId),
+			eager: agentHost.createSessionConfigs.at(-1)?.config,
+		}, {
+			discovery: [undefined],
+			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+			eager: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+		});
+	});
+
+	test('Copilot worktree configuration resolves conditional baseBranch without writing the new branch key', async () => {
+		agentHost.resolveSessionConfigHandler = request => {
+			const target = request.config?.target ?? 'workspace';
+			return {
+				schema: {
+					type: 'object',
+					properties: {
+						target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], default: 'workspace', sessionMutable: false },
+						...(target === 'worktree' ? {
+							baseBranch: { type: 'string' as const, title: 'Base branch', enum: [], enumDynamic: true, sessionMutable: false },
+							branch: { type: 'string' as const, title: 'New branch', sessionMutable: false },
+						} : {}),
+					},
+					required: target === 'worktree' ? ['baseBranch'] : undefined,
+				},
+				values: { target, ...(request.config?.baseBranch ? { baseBranch: request.config.baseBranch } : {}) },
+			};
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.target === 'workspace');
+		await provider.setWorktreeConfiguration(session.sessionId, { isolationMode: 'worktree', branch: 'main', worktreeBranchTrack: true, worktreeCreateNewBranch: false });
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.map(request => request.config),
+			creation: provider.getCreateSessionConfig(session.sessionId),
+			pending: session.worktreePending?.get(),
+		}, {
+			requests: [undefined, { target: 'worktree' }, { target: 'worktree', baseBranch: 'main' }],
+			creation: { target: 'worktree', baseBranch: 'main' },
+			pending: true,
+		});
+	});
+
 	// ---- Provider identity -------
 
 	test('Automation catalogue state follows local Agent Host connection lifetime', () => {
@@ -831,32 +981,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
 		const codexAgent = { provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [] } as AgentInfo;
 		const setup = { download: 'ready' as const, signInProviderName: 'ChatGPT' };
-		const rootState = (accountStatus: 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
+		const rootState = (accountStatus: 'unknown' | 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
 			agents: [codexAgent],
 			_meta: {
 				...(hasSetup ? { [agentSdkSetupStatusKey(CODEX_AGENT_PROVIDER_ID)]: setup } : {}),
 				[CODEX_ACCOUNT_META_KEY]: { status: accountStatus },
 			},
 		});
-		agentHost.setRootState(rootState('signedIn'));
+		agentHost.setRootState(rootState('unknown'));
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		let changes = 0;
 		disposables.add(provider.onDidChangeSessionTypes(() => changes++));
 
 		const initialization = () => provider.sessionTypes[0]?.initializationOnSelection;
+		const windowGate = () => resolveSignedOutWindowGate(false, provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
 		const states = [initialization()];
+		const windowGates = [windowGate()];
+		agentHost.setRootState(rootState('signedIn'));
+		states.push(initialization());
+		windowGates.push(windowGate());
 		agentHost.setRootState(rootState('signedOut'));
 		states.push(initialization());
+		windowGates.push(windowGate());
 		agentHost.setRootState(rootState('signedOut', false));
 		states.push(initialization());
+		windowGates.push(windowGate());
 
-		assert.deepStrictEqual({ states, changes }, {
+		assert.deepStrictEqual({ states, windowGates, changes, configRequests: agentHost.resolveSessionConfigRequests }, {
 			states: [
+				{ canInitializeWithoutGitHub: true },
 				{ canInitializeWithoutGitHub: true },
 				{ canInitializeWithoutGitHub: false },
 				undefined,
 			],
+			windowGates: [SignedOutWindowGate.Proceed, SignedOutWindowGate.Proceed, SignedOutWindowGate.ForceGitHubSignIn, SignedOutWindowGate.ForceGitHubSignIn],
 			changes: 2,
+			configRequests: [],
 		});
 	});
 
@@ -870,8 +1030,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 
 		const listenerCountAfterSessions = agentHost.rootStateListenerCount;
-		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+		agentHost.setRootState({
+			agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo],
+			config: { schema: { type: 'object', properties: {} }, values: {} },
+		});
 		const supportsMultipleChatsAfterHydration = provider.getSessions()[0].capabilities.get().supportsMultipleChats;
+		const supportsCanvasesAfterHydration = provider.getSessions()[0].capabilities.get().supportsCanvases;
 		agentHost.setRootStateError();
 
 		assert.deepStrictEqual({
@@ -879,14 +1043,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 			listenerCountAfterSessions,
 			sessionCount: provider.getSessions().length,
 			supportsMultipleChatsAfterHydration,
+			supportsCanvasesAfterHydration,
 			supportsMultipleChatsAfterError: provider.getSessions()[0].capabilities.get().supportsMultipleChats,
+			supportsCanvasesAfterError: provider.getSessions()[0].capabilities.get().supportsCanvases,
 		}, {
 			listenerCountBeforeSessions: 1,
 			listenerCountAfterSessions: 1,
 			sessionCount: 200,
 			supportsMultipleChatsAfterHydration: true,
+			supportsCanvasesAfterHydration: true,
 			supportsMultipleChatsAfterError: false,
+			supportsCanvasesAfterError: true,
 		});
+	});
+
+	test('enables canvas presentation only for local Copilot sessions', () => {
+		agentHost.setAgents([
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} },
+			{ provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [], capabilities: {} },
+		]);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		fireSessionAdded(agentHost, 'canvas-copilot');
+		fireSessionAdded(agentHost, 'canvas-codex', { provider: CODEX_AGENT_PROVIDER_ID });
+
+		assert.deepStrictEqual(provider.getSessions().map(session => ({
+			sessionType: session.sessionType,
+			supportsCanvases: session.capabilities.get().supportsCanvases,
+		})), [
+			{ sessionType: 'copilotcli', supportsCanvases: true },
+			{ sessionType: CODEX_AGENT_PROVIDER_ID, supportsCanvases: false },
+		]);
 	});
 
 	test('reports no session types before rootState hydrates', () => {
@@ -894,6 +1082,55 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes, []);
+	});
+
+	test('projects advertised canvas channels through hydration, source updates, errors and removal', () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} }]);
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+		const rawId = 'canvas-owner';
+		fireSessionAdded(agentHost, rawId);
+		const session = provider.getSessions()[0];
+		const resource = 'ahp-canvas://another-host/documents/preview';
+		const chat = 'ahp-chat:/canvas-owner';
+		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		agentHost.setSessionState(rawId, 'copilotcli', {
+			provider: 'copilotcli', title: 'Canvas owner', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready,
+			activeClients: [], chats: [summary], defaultChat: chat,
+		});
+		const chatState: ChatState = { ...summary, turns: [], canvases: [{ resource }] };
+		agentHost.setChatState(chat, chatState);
+		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
+		disposables.add(autorun(reader => session.mainChat.read(reader).canvases?.read(reader)));
+		const read = () => session.mainChat.get().canvases?.get()?.map(canvas => ({
+			resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source?.toString(),
+		}));
+		const pending = read();
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		agentHost.setCanvasState(resource, canvas);
+		const ready = read();
+		agentHost.setCanvasState(resource, { ...canvas, title: 'Updated', url: 'https://example.test/replaced' });
+		const updated = read();
+		agentHost.setCanvasState(resource, new Error('Channel unavailable'));
+		const unavailable = read();
+		agentHost.setCanvasState(resource, { ...canvas, url: 'http:relative' });
+		const unsupported = read();
+		agentHost.setChatState(chat, { ...chatState, canvases: [] });
+
+		assert.deepStrictEqual({
+			supportsCanvases: session.capabilities.get().supportsCanvases,
+			pending, ready, updated, unavailable, unsupported, removed: read(),
+			subscribes: agentHost.sessionSubscribeCounts.get(resource),
+			unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource),
+		}, {
+			supportsCanvases: true,
+			pending: [{ resource, instanceId: undefined, source: undefined }],
+			ready: [{ resource, instanceId: 'preview', source: canvas.url }],
+			updated: [{ resource, instanceId: 'preview', source: 'https://example.test/replaced' }],
+			unavailable: [{ resource, instanceId: undefined, source: undefined }],
+			unsupported: [{ resource, instanceId: 'preview', source: undefined }],
+			removed: [], subscribes: 1, unsubscribes: 1,
+		});
 	});
 
 	test('rebinds session types when Agent Host starts with a new root subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -921,38 +1158,40 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('external discovery notifications update the same session facade without refreshing the window', () => runWithFakedTimers({}, async () => {
-		agentHost.setAgents([{ provider: 'codex', displayName: 'Codex', description: '', models: [] } as AgentInfo]);
-		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
-		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
-		await timeout(0);
-		const session = AgentSession.uri('codex', 'external-live');
-		agentHost.fireNotification({
-			channel: 'ahp-root://', type: NotificationType.SessionAdded,
-			summary: {
-				resource: session.toString(), provider: 'codex', title: 'Created in ChatGPT',
-				status: ProtocolSessionStatus.Idle, createdAt: new Date(1000).toISOString(), modifiedAt: new Date(1000).toISOString(),
-				_meta: withSessionExternal(undefined, true),
-			},
-		});
-		await timeout(100);
-		const facade = provider.getSessions()[0];
-		fireSessionSummaryChanged(agentHost, 'external-live', {
-			title: 'Renamed in ChatGPT', modifiedAt: new Date(2000).toISOString(),
-			workingDirectories: ['file:///project'], _meta: withSessionExternal(undefined, true),
-		}, 'codex');
-		await timeout(100);
-		assert.deepStrictEqual({
-			identityPreserved: provider.getSessions()[0] === facade,
-			title: facade.title.get(), updatedAt: facade.updatedAt.get().getTime(),
-			external: facade.isExternal?.get(), listCalls: agentHost.listSessionsCallCount,
-		}, { identityPreserved: true, title: 'Renamed in ChatGPT', updatedAt: 2000, external: true, listCalls: 1 });
-	}));
+	for (const providerId of ['codex', 'copilotcli'] as const) {
+		test(`${providerId} external discovery notifications update the same session facade without refreshing the window`, () => runWithFakedTimers({}, async () => {
+			agentHost.setAgents([{ provider: providerId, displayName: providerId, description: '', models: [] } as AgentInfo]);
+			const configurationService = new TestConfigurationService();
+			configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+			await timeout(0);
+			const session = AgentSession.uri(providerId, 'external-live');
+			agentHost.fireNotification({
+				channel: 'ahp-root://', type: NotificationType.SessionAdded,
+				summary: {
+					resource: session.toString(), provider: providerId, title: 'Created externally',
+					status: ProtocolSessionStatus.Idle, createdAt: new Date(1000).toISOString(), modifiedAt: new Date(1000).toISOString(),
+					_meta: withSessionExternal(undefined, true),
+				},
+			});
+			await timeout(100);
+			const facade = provider.getSessions()[0];
+			fireSessionSummaryChanged(agentHost, 'external-live', {
+				title: 'Renamed externally', modifiedAt: new Date(2000).toISOString(),
+				workingDirectories: ['file:///project'], _meta: withSessionExternal(undefined, true),
+			}, providerId);
+			await timeout(100);
+			assert.deepStrictEqual({
+				identityPreserved: provider.getSessions()[0] === facade,
+				title: facade.title.get(), updatedAt: facade.updatedAt.get().getTime(),
+				external: facade.isExternal?.get(), listCalls: agentHost.listSessionsCallCount,
+			}, { identityPreserved: true, title: 'Renamed externally', updatedAt: 2000, external: true, listCalls: 1 });
+		}));
+	}
 
 	for (const delivery of ['action', 'summary', 'reconnect'] as const) {
 		test(`external adoption metadata updates the same facade via ${delivery}`, () => runWithFakedTimers({}, async () => {
-			agentHost.addSession(createSession('adoption', { _meta: withSessionExternal(undefined, true) }));
+			agentHost.addSession(createSession('adoption', { _meta: withSessionInitiator(withSessionExternal(undefined, true), { name: 'github/cli' }) }));
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
 			const session = provider.getSessions()[0];
@@ -976,11 +1215,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				identityPreserved: provider.getSessions()[0] === session,
 				observed,
 				metadata,
+				application: session.application.get(),
 				additionalListCalls: agentHost.listSessionsCallCount - initialListCalls,
 			}, {
 				identityPreserved: true,
 				observed: [true, false],
 				metadata: { 'vscode.external': false },
+				application: { id: 'github/cli', label: 'Copilot CLI' },
 				additionalListCalls: delivery === 'reconnect' ? 1 : 0,
 			});
 		}));
@@ -1060,12 +1301,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 		const provider = createProvider(disposables, agentHost);
 		assert.deepStrictEqual(
-			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id })),
+			provider.sessionTypes.map(t => ({ id: t.id, icon: t.icon.id, supportsWorktreeConfiguration: t.supportsWorktreeConfiguration })),
 			[
-				{ id: 'copilotcli', icon: 'copilot' },
-				{ id: 'claude', icon: 'claude' },
-				{ id: 'openai', icon: 'openai' },
-				{ id: 'unknown-agent', icon: 'vm' },
+				{ id: 'copilotcli', icon: 'copilot', supportsWorktreeConfiguration: true },
+				{ id: 'claude', icon: 'claude', supportsWorktreeConfiguration: true },
+				{ id: 'openai', icon: 'openai', supportsWorktreeConfiguration: true },
+				{ id: 'unknown-agent', icon: 'vm', supportsWorktreeConfiguration: true },
 			],
 		);
 	});
@@ -1407,8 +1648,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 			git: {
 				branchName: 'feature/worktree',
 				baseBranchName: 'main',
+				hasGitRemote: false,
 				hasGitHubRemote: true,
 				upstreamBranchName: 'origin/feature/worktree',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				incomingChanges: 2,
 				outgoingChanges: 3,
 				uncommittedChanges: 4,
@@ -1421,10 +1665,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const gitRepository = session.workspace.get()!.folders[0].gitRepository!;
 		assert.deepStrictEqual({
 			branchName: gitRepository.branchName,
+			hasGitRemote: gitRepository.hasGitRemote,
+			defaultBranchName: gitRepository.defaultBranchName,
+			defaultRemoteBranchName: gitRepository.defaultRemoteBranchName,
 			uncommittedChanges: gitRepository.uncommittedChanges,
 			changedEvents: changes.map(change => change.changed.map(changed => changed === session)),
 		}, {
 			branchName: 'feature/worktree',
+			hasGitRemote: false,
+			defaultBranchName: 'main',
+			defaultRemoteBranchName: 'origin/main',
 			uncommittedChanges: 4,
 			changedEvents: [[true]],
 		});
@@ -1754,6 +2004,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('hydrates current chat read state before live metadata is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const previousHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => previousHost.dispose()));
+		const rawId = 'cached-chat-read-state';
+		const sessionUri = AgentSession.uri('copilotcli', rawId);
+		const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+		const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+		previousHost.addSession(createSession(rawId, {
+			summary: 'Cached Chat Read State',
+			status: ProtocolSessionStatus.Idle,
+			chats: [
+				{ chat: defaultChat, kind: 'default', summary: 'Default', isRead: false },
+			],
+		}));
+		const previousProvider = createProvider(disposables, previousHost, undefined, { storageService });
+		await timeout(0);
+		const previousSession = previousProvider.getSessions()[0];
+		previousProvider.getSessionConfig(previousSession.sessionId);
+		previousHost.setSessionState(rawId, 'copilotcli', {
+			provider: 'copilotcli',
+			title: 'Session',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [
+				{ resource: defaultChat.toString(), title: 'Default', status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead, modifiedAt: new Date(0).toISOString() },
+				{ resource: peerChat.toString(), title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() },
+			],
+			defaultChat: defaultChat.toString(),
+		});
+		await storageService.flush();
+
+		const nextHost = new MockAgentHostService();
+		disposables.add(toDisposable(() => nextHost.dispose()));
+		nextHost.setAuthenticationPending(true);
+		const nextProvider = createProvider(disposables, nextHost, undefined, { storageService });
+		const restored = nextProvider.getSessions()[0];
+
+		assert.deepStrictEqual({
+			sessionIsRead: restored.isRead.get(),
+			chatReadState: restored.chats.get().map(chat => chat.isRead.get()),
+		}, {
+			sessionIsRead: false,
+			chatReadState: [true, false],
+		});
+	}));
+
 	test('hydrates persisted change stats before the live list is available', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const previousHost = new MockAgentHostService();
@@ -1895,10 +2193,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		// Storage-key literals of the pre-`.v2` cache schema, whose entries
-		// carried a stale `isRead: true` written by the old always-read adapter.
-		const LEGACY_KEY = 'localAgentHost.cachedSessions';
-		const CURRENT_KEY = 'localAgentHost.cachedSessions.v2';
+		const LEGACY_KEYS = ['localAgentHost.cachedSessions', 'localAgentHost.cachedSessions.v2', 'localAgentHost.cachedSessions.v3'];
+		const CURRENT_KEY = 'localAgentHost.cachedSessions.v4';
 		const storageService = disposables.add(new InMemoryStorageService());
 
 		// Simulate a previous (old-schema) window: persist a session, then move
@@ -1906,7 +2202,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await persistCachedSessions(disposables, storageService, [createSession('legacy-1', { summary: 'Legacy One' })]);
 		const snapshot = storageService.get(CURRENT_KEY, StorageScope.APPLICATION);
 		assert.ok(snapshot, 'precondition: current-key snapshot should exist');
-		storageService.store(LEGACY_KEY, snapshot, StorageScope.APPLICATION, StorageTarget.USER);
+		for (const legacyKey of LEGACY_KEYS) {
+			storageService.store(legacyKey, snapshot, StorageScope.APPLICATION, StorageTarget.USER);
+		}
 		storageService.remove(CURRENT_KEY, StorageScope.APPLICATION);
 
 		// Fresh launch with authentication pending so no live refresh runs: the
@@ -1918,10 +2216,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			cachedSessions: provider.getSessions().length,
-			legacyKeyPresent: storageService.get(LEGACY_KEY, StorageScope.APPLICATION) !== undefined,
+			legacyKeysPresent: LEGACY_KEYS.filter(key => storageService.get(key, StorageScope.APPLICATION) !== undefined),
 		}, {
 			cachedSessions: 0,
-			legacyKeyPresent: false,
+			legacyKeysPresent: [],
 		});
 	}));
 
@@ -2002,7 +2300,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			origin: undefined,
 		} as ActionEnvelope);
 		await storageService.flush();
-		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v2', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
+		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v4', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
 
 		assert.deepStrictEqual({
 			repersisted: repersisted[0].multiRoot,
@@ -2336,6 +2634,38 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
 	});
 
+	test('initial configuration and model preferences reach the first send of a host-listed session', async () => {
+		const modelId = 'agent-host-copilotcli:configured-model';
+		const metadata = {
+			...createTestLanguageModel('configured-model'), targetChatSessionType: 'agent-host-copilotcli',
+			configurationSchema: { type: 'object' as const, properties: { reasoningEffort: { type: 'string' as const, enum: ['low', 'high'] } } },
+		};
+		let sent: object | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			languageModelIds: [modelId],
+			lookupLanguageModel: () => metadata,
+			acquireOrLoadSession: async () => new ImmortalReference(new class extends mock<IChatModel>() {
+				override readonly inputModel = new class extends mock<IInputModel>() {
+					override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+					override setState(): void { }
+					override clearState(): void { }
+				}();
+			}()),
+			sendRequest: async (_resource, _message, options) => {
+				sent = { config: options?.agentHostSessionConfig, model: options?.userSelectedModelId, modelConfiguration: options?.userSelectedModelConfiguration };
+				return { kind: 'sent' as const, data: {} as IChatSendRequestData };
+			},
+		});
+		agentHost.addSession(createSession('initial-options', { summary: 'Initial Options' }));
+		fireSessionAdded(agentHost, 'initial-options', { title: 'Initial Options' });
+		const session = provider.getSessions().find(session => session.title.get() === 'Initial Options')!;
+		provider.setModel(session.sessionId, session.resource, modelId, ChatModelSource.Chosen);
+		await provider.getAutomationModelConfiguration(session.sessionId)!.setModelConfiguration(modelId, { reasoningEffort: 'high' });
+		await provider.sendRequest(session.sessionId, session.resource, { query: 'first turn', sessionConfig: { mode: 'plan', approvalMode: 'manual' } });
+		assert.deepStrictEqual(sent, { config: { mode: 'plan', approvalMode: 'manual' }, model: modelId, modelConfiguration: { reasoningEffort: 'high' } });
+	});
+
 	test('setAgent updates existing session agent and lets draft debounce persist it', () => {
 		const provider = createProvider(disposables, agentHost);
 		fireSessionAdded(agentHost, 'set-agent', { title: 'Set Agent Session' });
@@ -2361,6 +2691,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(session!.mode.get(), undefined);
 		assert.deepStrictEqual(agentHost.dispatchedActions, []);
+	});
+
+	test('sandbox policy is seeded from snapshots and updates without a config change', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'policy', { title: 'Managed Session' });
+		fireSessionAdded(agentHost, 'other-policy', { title: 'Other Session' });
+		const session = provider.getSessions().find(s => s.title.get() === 'Managed Session')!;
+		const other = provider.getSessions().find(s => s.title.get() === 'Other Session')!;
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Managed Session', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+			_meta: withSessionSandboxPolicy(undefined, { enabled: true }),
+		};
+		agentHost.setSessionState('policy', 'copilotcli', JSON.parse(JSON.stringify(state)));
+		const initial = provider.getSessionSandboxPolicy(session.sessionId);
+		const updates: ReturnType<typeof provider.getSessionSandboxPolicy>[] = [];
+		disposables.add(provider.onDidChangeSessionConfig(id => {
+			if (id === session.sessionId) {
+				updates.push(provider.getSessionSandboxPolicy(id));
+			}
+		}));
+		agentHost.setSessionState('policy', 'copilotcli', { ...state, _meta: withSessionSandboxPolicy(undefined, { enabled: true, allowBypass: true }) });
+		agentHost.setSessionState('policy', 'copilotcli', { ...state, _meta: undefined });
+		assert.deepStrictEqual({ initial, updates, unrelated: provider.getSessionSandboxPolicy(other.sessionId) }, {
+			initial: { enabled: true },
+			updates: [{ enabled: true, allowBypass: true }, undefined],
+			unrelated: undefined,
+		});
 	});
 
 	test('restores the selected agent from the default chat draft on resume', () => {
@@ -2641,6 +2999,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 		});
 	});
+
 	// ---- getCustomAgents / onDidChangeCustomAgents -------
 
 	test('getCustomAgents collects agents from session customizations, coalesced by URI and sorted by name', async () => {
@@ -3006,24 +3365,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 					githubOwner: 'microsoft',
 					githubRepo: 'vscode',
 					branchName: 'main',
+					defaultBranchName: 'main',
+					defaultRemoteBranchName: 'origin/main',
 				},
 			},
 		});
 
-		const gitRepository = session.workspace.get()?.folders[0]?.gitRepository;
+		const initialGitRepository = session.workspace.get()?.folders[0]?.gitRepository;
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [],
+			_meta: {
+				git: {
+					hasGitHubRemote: true,
+					githubOwner: 'microsoft',
+					githubRepo: 'vscode',
+					branchName: 'main',
+					defaultBranchName: 'main',
+				},
+			},
+		});
+		const updatedGitRepository = session.workspace.get()?.folders[0]?.gitRepository;
 		assert.deepStrictEqual({
-			hasGitHubRemote: gitRepository?.hasGitHubRemote,
-			branchName: gitRepository?.branchName,
-			gitHubInfo: gitRepository?.gitHubInfo.get(),
+			initial: {
+				hasGitHubRemote: initialGitRepository?.hasGitHubRemote,
+				branchName: initialGitRepository?.branchName,
+				defaultBranchName: initialGitRepository?.defaultBranchName,
+				defaultRemoteBranchName: initialGitRepository?.defaultRemoteBranchName,
+				gitHubInfo: initialGitRepository?.gitHubInfo.get(),
+			},
+			updated: {
+				defaultBranchName: updatedGitRepository?.defaultBranchName,
+				defaultRemoteBranchName: updatedGitRepository?.defaultRemoteBranchName,
+			},
 		}, {
-			hasGitHubRemote: true,
-			branchName: 'main',
-			gitHubInfo: {
-				owner: 'microsoft',
-				repo: 'vscode',
-				pullRequests: undefined,
-				pullRequest: undefined,
-				issues: undefined,
+			initial: {
+				hasGitHubRemote: true,
+				branchName: 'main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+				gitHubInfo: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequests: undefined,
+					pullRequest: undefined,
+					issues: undefined,
+				},
+			},
+			updated: {
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: undefined,
 			},
 		});
 	});
@@ -3276,6 +3672,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			tools,
 			isResolved,
 			whenResolved: () => Promise.resolve(),
+			getSyncedUri: () => undefined,
 			activeClient: clientId => derived(reader => {
 				customAgents.read(reader);
 				return {
@@ -3551,7 +3948,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3803,6 +4200,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('workspace change project survives subsequent state updates with an unchanged old project', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const previous = URI.file('/home/user/previous');
+		const next = URI.file('/home/user/next');
+		const previousProject = { uri: previous.toString(), displayName: 'previous' };
+		agentHost.addSession(createSession('workspace-change', {
+			project: { uri: previous, displayName: previousProject.displayName },
+			workingDirectory: previous,
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId);
+		const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'workspace-change'));
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Chat', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat,
+			project: previousProject, workingDirectories: [previous.toString()],
+			chats: [{ resource: defaultChat, title: 'Chat', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		};
+		agentHost.setSessionState('workspace-change', 'copilotcli', state);
+		agentHost.setSessionState('workspace-change', 'copilotcli', {
+			...state,
+			workingDirectories: [next.toString()],
+			chats: [{ ...state.chats[0], workingDirectories: [next.toString()] }],
+		});
+		fireSessionSummaryChanged(agentHost, 'workspace-change', {
+			project: { uri: next.toString(), displayName: 'next' },
+			workingDirectories: [next.toString()],
+		});
+		await timeout(0);
+		agentHost.setSessionState('workspace-change', 'copilotcli', {
+			...state,
+			workingDirectories: [next.toString()],
+			chats: [{ ...state.chats[0], workingDirectories: [next.toString()] }],
+			activity: 'Continuing the task',
+		});
+
+		assert.deepStrictEqual({
+			sessionLabel: session.workspace.get()?.label,
+			sessionRoot: session.workspace.get()?.folders[0]?.root.toString(),
+			chatRoot: session.chats.get()[0].workspace.get()?.folders[0]?.root.toString(),
+			chatDirectory: session.chats.get()[0].workspace.get()?.folders[0]?.workingDirectory.toString(),
+		}, {
+			sessionLabel: 'next',
+			sessionRoot: next.toString(),
+			chatRoot: next.toString(),
+			chatDirectory: next.toString(),
+		});
+	}));
+
 	test('isolated conversion groups by repository while running in the worktree', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const scratchDirectory = URI.file('/tmp/copilot-scratch/quick-isolated');
 		const repository = URI.file('/home/user/project');
@@ -3881,6 +4329,90 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
+	test('does not resolve recent samples when any sample selection prerequisite is disabled', async () => {
+		const configuration = new TestConfigurationService({
+			[DevContainerSamplesEnabledSettingId]: true,
+			[DevContainerAgentHostEnabledSettingId]: true,
+			[RemoteAgentHostsEnabledSettingId]: true,
+			'chat.disableAIFeatures': false,
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configuration });
+		const source = devContainerSampleUri(devContainerSamples[0]);
+		const initiallyVisible = !!provider.resolveWorkspace(source);
+		const disabled: boolean[] = [];
+		for (const [setting, value] of [
+			[DevContainerSamplesEnabledSettingId, false],
+			[DevContainerAgentHostEnabledSettingId, false],
+			[RemoteAgentHostsEnabledSettingId, false],
+			['chat.disableAIFeatures', true],
+		] as const) {
+			await configuration.setUserConfiguration(setting, value);
+			disabled.push(!!provider.resolveWorkspace(source));
+			await configuration.setUserConfiguration(setting, !value);
+		}
+		assert.deepStrictEqual({ initiallyVisible, disabled, restored: provider.resolveWorkspace(source)?.description }, {
+			initiallyVisible: true,
+			disabled: [false, false, false, false],
+			restored: 'https://github.com/microsoft/vscode-remote-try-go',
+		});
+	});
+
+	for (const available of [true, false]) {
+		test(`sample drafts defer provisioning and never create a local backend (available: ${available})`, async () => {
+			let containerStarts = 0;
+			let trustRequests = 0;
+			agentHost.resolveSessionConfigResult = {
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+				values: { isolation: 'worktree' },
+			};
+			const resolveConfig = stub(agentHost, 'resolveSessionConfig').callsFake(async request => {
+				agentHost.resolveSessionConfigRequests.push(request);
+				return {
+					...agentHost.resolveSessionConfigResult,
+					values: { ...agentHost.resolveSessionConfigResult.values, ...request.config },
+				};
+			});
+			disposables.add(toDisposable(() => resolveConfig.restore()));
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({
+					[DevContainerSamplesEnabledSettingId]: true,
+					[DevContainerWorktreeEnabledSettingId]: true,
+					[DevContainerAgentHostEnabledSettingId]: true,
+					[RemoteAgentHostsEnabledSettingId]: true,
+				}),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return available; }
+					override async connect(): Promise<never> {
+						containerStarts++;
+						throw new Error('Sample provisioning reached');
+					}
+				}(),
+				requestWorkspaceTrust: async () => { trustRequests++; return true; },
+			});
+			const session = provider.createNewSession(devContainerSampleUri(devContainerSamples[0]), provider.sessionTypes[0].id);
+			await timeout(0);
+			const before = {
+				containerStarts, trustRequests,
+				localCreates: agentHost.createdSessionUris.length,
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+				workingDirectories: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory),
+			};
+			assert.throws(() => provider.setDevContainerEnabled(session.sessionId, false), /must run in a container/);
+			await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'first prompt'), available ? /Sample provisioning reached/ : /selected Dev Container is not available/);
+			assert.deepStrictEqual({
+				before,
+				after: { containerStarts, trustRequests, localCreates: agentHost.createdSessionUris.length },
+				isolation: provider.getSessionConfig(session.sessionId)?.values.isolation,
+				schema: provider.getSessionConfig(session.sessionId)?.schema,
+			}, {
+				before: { containerStarts: 0, trustRequests: 0, localCreates: 0, enabled: true, workingDirectories: available ? [undefined, undefined] : [undefined] },
+				after: { containerStarts: available ? 1 : 0, trustRequests: available ? 1 : 0, localCreates: 0 },
+				isolation: available ? 'folder' : 'worktree',
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+			});
+		});
+	}
+
 	test('enables a preferred Dev Container after asynchronous availability resolves', async () => {
 		const availability = new DeferredPromise<boolean>();
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -3912,6 +4444,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 			enabled: true,
 		});
 	});
+
+	for (const outcome of ['available', 'unavailable', 'error', 'canceled'] as const) {
+		test(`notifies Dev Container request changes while availability is pending (${outcome})`, async () => {
+			const availability = new DeferredPromise<boolean>();
+			const provider = createProvider(disposables, agentHost, undefined, {
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override isAvailable(): Promise<boolean> { return availability.p; }
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config);
+			const read = () => ({
+				requested: provider.isDevContainerRequested(session.sessionId),
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+			});
+			let observed = read();
+			disposables.add(provider.onDidChangeSessionConfig(sessionId => {
+				if (sessionId === session.sessionId) {
+					observed = read();
+				}
+			}));
+			const states = [observed];
+			provider.preferDevContainer(session.sessionId);
+			states.push(observed);
+			if (outcome === 'canceled') {
+				provider.setDevContainerEnabled(session.sessionId, false);
+				states.push(observed);
+			}
+			if (outcome === 'error') {
+				await availability.error(new Error('Configuration probe failed'));
+			} else {
+				await availability.complete(outcome !== 'unavailable');
+			}
+			await timeout(0);
+			states.push(observed);
+			const settled = { requested: outcome === 'available', enabled: outcome === 'available' };
+			assert.deepStrictEqual({ states, actual: read() }, {
+				states: [
+					{ requested: false, enabled: false },
+					{ requested: true, enabled: false },
+					...(outcome === 'canceled' ? [{ requested: false, enabled: false }] : []),
+					settled,
+				],
+				actual: settled,
+			});
+		});
+	}
 
 	test('enables a preferred Dev Container immediately after availability resolved', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -4121,6 +4700,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		let connectedWorkspace: URI | undefined;
 		let logWorkspace: URI | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 				override async isAvailable(): Promise<boolean> { return true; }
 				override async showLog(workspace: URI): Promise<void> {
@@ -4167,6 +4747,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}
 			let connectCalls = 0;
 			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
 					override async isAvailable(): Promise<boolean> { return true; }
 					override async connect(): Promise<never> {
@@ -4289,6 +4870,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}();
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			setUrisTrust: async uris => {
 				if (uris.some(uri => uri.toString() === remoteWorkspace.toString())) {
 					throw setupError;
@@ -4337,6 +4919,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const selectedTargetModels: [string, URI, string, ChatModelSource][] = [];
 		const selectedTargetAgents: [string, string, string][] = [];
 		let targetMetadata: Record<string, unknown> | undefined;
+		let targetModelConfiguration: Pick<ISessionsProviderCreateSessionOptions, 'modelId' | 'modelConfiguration'> | undefined;
 		const sourceAgentUri = 'file:///home/user/project/.github/agents/reviewer.agent.md';
 		const targetAgent: AgentCustomization = {
 			type: CustomizationType.Agent,
@@ -4354,6 +4937,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			override createNewSession(workspaceUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
 				assert.strictEqual(workspaceUri.toString(), remoteWorkspace.toString());
 				targetMetadata = options?.metadata;
+				targetModelConfiguration = {
+					modelId: options?.modelId,
+					modelConfiguration: options?.modelConfiguration,
+				};
 				assert.ok(state.replacement);
 				return state.replacement;
 			}
@@ -4364,6 +4951,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				deletedTargetDrafts.push(sessionId);
 			}
 			override isSessionConfigResolving() { return constObservable(false); }
+			override async whenSessionConfigResolved() { return this.getSessionConfig(); }
+			override getNewSessionCancellationToken() { return CancellationToken.None; }
 			override getSessionConfig(): ResolveSessionConfigResult {
 				return {
 					schema: {
@@ -4389,6 +4978,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 					desiredModelResolution: { kind: 'notRequested' } as const,
 					modelTarget: 'remote-devcontainer-copilot',
 				};
+			}
+			override getModelsSnapshotForCreation() {
+				return this.getModelsSnapshot();
 			}
 			override setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
 				selectedTargetModels.push([sessionId, chatResource, modelId, source]);
@@ -4423,6 +5015,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			devContainerAgentHostService,
 			sessionsProvidersService,
+			configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
 			languageModelIds: [sourceModelId],
 			lookupLanguageModel: id => id === sourceModelId
 				? { ...createTestLanguageModel('gpt-5'), targetChatSessionType: 'agent-host-copilotcli' }
@@ -4433,7 +5026,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		state.provider = provider;
-		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		const source = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
+			modelId: sourceModelId,
+			modelConfiguration: { thinkingLevel: 'high' },
+		});
 		const sourceBackendSession = AgentSession.uri(provider.sessionTypes[0].id, AgentSession.id(source.resource));
 		await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
 		await timeout(0);
@@ -4449,7 +5045,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		};
 		state.replacement = replacement;
 
-		provider.setModel(source.sessionId, source.mainChat.get().resource, sourceModelId, ChatModelSource.Chosen);
 		provider.setAgent(source.sessionId, { uri: sourceAgentUri, name: 'Reviewer' });
 		provider.setDevContainerEnabled(source.sessionId, true);
 		const prepared = await provider.prepareNewSession(source.sessionId, CancellationToken.None, 'Fix the issue');
@@ -4463,6 +5058,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: prepared.session.sessionId,
 			transferredConfig,
 			selectedTargetModels,
+			targetModelConfiguration,
 			selectedTargetAgents,
 			createdWorktree: agentHost.createDetachedWorktreeCalls.map(call => ({ session: call.session.toString(), prompt: call.prompt })),
 			targetMetadata,
@@ -4479,6 +5075,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			preparedSessionId: replacement.sessionId,
 			transferredConfig: [['isolation', 'folder'], ['mode', 'interactive']],
 			selectedTargetModels: [[replacement.sessionId, replacementResource, targetModelId, ChatModelSource.Chosen]],
+			targetModelConfiguration: {
+				modelId: targetModelId,
+				modelConfiguration: { thinkingLevel: 'high' },
+			},
 			selectedTargetAgents: [[replacement.sessionId, targetAgent.uri, targetAgent.name]],
 			createdWorktree: [{ session: sourceBackendSession.toString(), prompt: 'Fix the issue' }],
 			targetMetadata: {
@@ -4501,18 +5101,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		agentHost.resolveSessionConfigResult = {
 			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove'], title: 'Auto-approve' } } },
-			values: { autoApprove: 'autoApprove' },
+			values: {},
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, c => c?.values.autoApprove === 'autoApprove');
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			discovery: agentHost.resolveSessionConfigRequests[0]?.config,
 		}, {
 			seededImmediately: 'autoApprove',
 			forwardedToAgentHost: 'autoApprove',
+			discovery: undefined,
 		});
 	});
 
@@ -4521,7 +5123,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, c => c?.values.mode === 'autopilot');
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.mode,
@@ -4536,7 +5138,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const config = new TestConfigurationService();
 		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true } } },
 			values: { autoApprove: 'autoApprove' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
@@ -4565,6 +5167,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await config.setUserConfiguration('chat.defaultConfiguration', { approvals });
 			const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
@@ -4596,20 +5199,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 			});
 
-			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: alternateIsolation } };
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: alternateIsolation } };
 			const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 			const initial = provider.getSessionConfig(first.sessionId)?.values.isolation;
+			await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+			await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, alternateIsolation);
 			const firstChat = await provider.createNewChat(first.sessionId);
 			await provider.sendRequest(first.sessionId, firstChat.resource, { query: 'first' });
 
-			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: settingIsolation } };
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: settingIsolation } };
 			const second = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 			const secondInitial = provider.getSessionConfig(second.sessionId)?.values.isolation;
+			await provider.whenSessionConfigResolved(second.sessionId, CancellationToken.None);
+			await provider.setSessionConfigValue(second.sessionId, SessionConfigKey.Isolation, settingIsolation);
 			const secondChat = await provider.createNewChat(second.sessionId);
 			await provider.sendRequest(second.sessionId, secondChat.resource, { query: 'second' });
 			await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, !useWorktree);
 
-			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: alternateIsolation } };
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: alternateIsolation } };
 			const firstNewWorkspaceSession = provider.createNewSession(newWorkspace, provider.sessionTypes[0].id);
 			const newWorkspaceInitial = provider.getSessionConfig(firstNewWorkspaceSession.sessionId)?.values.isolation;
 			const newWorkspaceChat = await provider.createNewChat(firstNewWorkspaceSession.sessionId);
@@ -4648,7 +5255,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const workspace = URI.file('/project');
 		const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, first.sessionId, () => !provider.isSessionConfigResolving(first.sessionId).get());
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'folder' } };
 		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'folder');
 		provider.deleteNewSession(first.sessionId);
 
@@ -4691,22 +5298,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('an empty branch list does not trigger a second completion request', async () => {
+	test('an empty branch list is requested again on the next picker open, then cached', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.branchCompletionItems = [];
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
-		const branches = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		const first = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		agentHost.branchCompletionItems = [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }];
+		const second = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		const requestsAfterSecond = agentHost.branchCompletionRequests.length;
+		const third = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
-			branches,
-			queries: agentHost.branchCompletionRequests.map(request => request.query),
+			first,
+			second: second.map(item => item.value),
+			third: third.map(item => item.value),
+			requestsAfterThird: agentHost.branchCompletionRequests.length - requestsAfterSecond,
 		}, {
-			branches: [],
-			queries: [undefined],
+			first: [],
+			second: ['main', 'feature'],
+			third: ['main', 'feature'],
+			requestsAfterThird: 0,
 		});
 	});
 
-	test('failed branch loading reports the error without retrying', async () => {
+	test('failed branch loading reports the error and is requested again on the next picker open', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.failBranchCompletions = true;
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
@@ -4716,13 +5331,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		} catch (cause) {
 			error = String(cause);
 		}
+		agentHost.failBranchCompletions = false;
+		const retried = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
 			error,
-			requestCount: agentHost.branchCompletionRequests.length,
+			retried: retried.map(item => item.value),
 		}, {
 			error: 'Error: branch completions unavailable',
-			requestCount: 1,
+			retried: ['main'],
 		});
 	});
 
@@ -4730,6 +5347,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const barrier = agentHost.branchCompletionBarrier = new DeferredPromise<void>();
 		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
 		provider.deleteNewSession(first.sessionId);
 		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
 		barrier.complete();
@@ -4793,15 +5411,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const originalWorkspace = URI.file('/Project');
 		const equivalentWorkspace = URI.file('/project');
 		const provider = create();
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } };
 		const first = provider.createNewSession(originalWorkspace, provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'worktree');
 		const firstChat = await provider.createNewChat(first.sessionId);
 		await provider.sendRequest(first.sessionId, firstChat.resource, { query: 'first' });
 
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'folder' } };
 		const restoredProvider = create();
 		const second = restoredProvider.createNewSession(equivalentWorkspace, restoredProvider.sessionTypes[0].id);
 		const inherited = restoredProvider.getSessionConfig(second.sessionId)?.values.isolation;
+		await restoredProvider.whenSessionConfigResolved(second.sessionId, CancellationToken.None);
+		await restoredProvider.setSessionConfigValue(second.sessionId, SessionConfigKey.Isolation, 'folder');
 		const secondChat = await restoredProvider.createNewChat(second.sessionId);
 		await restoredProvider.sendRequest(second.sessionId, secondChat.resource, { query: 'second' });
 
@@ -4913,7 +5535,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = await provider.createNewChat(session.sessionId);
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder' },
 		};
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
@@ -4955,7 +5577,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder' },
 		};
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
@@ -5134,7 +5756,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
 		const providerOption = { enabled: true };
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema({ providerOption: { type: 'object', title: 'Provider option', properties: { enabled: { type: 'boolean', title: 'Enabled' } } } }),
 			values: { isolation: 'folder', branch: 'main', providerOption },
 		};
 		const changing = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
@@ -5148,7 +5770,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await barrier.complete();
 		await changing;
 		const selectedConfig = await capture;
-		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		const liveConfig = provider.getSessionConfig(session.sessionId)!.values;
 		liveConfig.isolation = 'worktree';
 		providerOption.enabled = false;
 
@@ -5169,24 +5791,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await provider.getNewSessionConfig(session.sessionId);
-		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		const liveConfig = provider.getSessionConfig(session.sessionId)!;
 		const snapshots = [];
 		for (const isolation of ['unexpected', { kind: 'worktree' }, undefined]) {
-			liveConfig[SessionConfigKey.Isolation] = isolation;
+			liveConfig.schema.properties[SessionConfigKey.Isolation] = typeof isolation === 'object'
+				? { type: 'object', title: 'Provider isolation', properties: { kind: { type: 'string', title: 'Kind' } } }
+				: { type: 'string', title: 'Provider isolation', enum: ['unexpected'] };
+			liveConfig.values[SessionConfigKey.Isolation] = isolation;
 			snapshots.push(await provider.getNewSessionConfig(session.sessionId));
 		}
 
 		assert.deepStrictEqual(snapshots, [
 			{ isolation: undefined, providerConfig: { isolation: 'unexpected' } },
 			{ isolation: undefined, providerConfig: { isolation: { kind: 'worktree' } } },
-			{ isolation: undefined, providerConfig: { isolation: undefined } },
+			{ isolation: undefined, providerConfig: {} },
 		]);
 	});
 
 	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'feature' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
@@ -5195,7 +5820,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setIsolationMode(session.sessionId, 'workspace');
@@ -5215,7 +5840,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('resets the branch to the isolation default when New Worktree is toggled', async () => {
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'main' },
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -5224,13 +5849,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'main' },
 		};
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
@@ -5247,9 +5872,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('selects the current branch upstream when New Worktree is toggled on', async () => {
+	test('selects the default remote branch for New Worktree and the current branch for Branch', async () => {
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -5263,18 +5888,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: withSessionGitState(undefined, { branchName: 'feature', upstreamBranchName: 'upstream/feature' }),
+			_meta: withSessionGitState(undefined, { branchName: 'feature', upstreamBranchName: 'origin/feature', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' }),
 		});
 		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
-			values: { isolation: 'worktree', branch: 'upstream/feature' },
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/main' },
 		};
 
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
 		const worktreeConfig = provider.getCreateSessionConfig(session.sessionId);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
@@ -5285,14 +5910,203 @@ suite('LocalAgentHostSessionsProvider', () => {
 			worktreeConfig,
 			config: provider.getCreateSessionConfig(session.sessionId),
 		}, {
-			repository: 'upstream/feature',
+			repository: 'origin/feature',
 			requests: [
-				{ isolation: 'worktree', branch: 'upstream/feature' },
-				{ isolation: 'folder' },
+				{ isolation: 'worktree', branch: 'origin/main' },
+				{ isolation: 'folder', branch: 'feature' },
 			],
-			worktreeConfig: { isolation: 'worktree', branch: 'upstream/feature' },
+			worktreeConfig: { isolation: 'worktree', branch: 'origin/main' },
 			config: { isolation: 'folder', branch: 'feature' },
 		});
+	});
+
+	test('selects the local default branch when New Worktree has no remote default branch', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'feature' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'feature' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName: 'feature', defaultBranchName: 'main' }),
+		});
+		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstToggleRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: [{ isolation: 'worktree', branch: 'main' }],
+			config: { isolation: 'worktree', branch: 'main' },
+		});
+	});
+
+	test('restored folder isolation selects the current branch when Git state first hydrates', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const workspace = URI.parse('file:///home/user/project');
+		storageService.store(STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS, JSON.stringify({ [workspace.toString()]: 'folder' }), StorageScope.PROFILE, StorageTarget.MACHINE);
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'origin/main' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(workspace, sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'origin/main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const resolvedBeforeGitState = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+
+		agentHost.setSessionState(AgentSession.id(agentHost.createdSessionUris.at(-1)!), sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, {
+				branchName: 'main',
+				upstreamBranchName: 'origin/main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+			}),
+		});
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId).get());
+
+		assert.deepStrictEqual({
+			resolvedBeforeGitState,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			resolvedBeforeGitState: 'origin/main',
+			requests: [{ isolation: 'folder', branch: 'main' }],
+			config: { isolation: 'folder', branch: 'main' },
+		});
+	});
+
+	test('folder drafts follow branch switches reported by the Git state', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName }),
+		});
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+
+		// The first report only describes the checkout the draft was resolved against.
+		reportBranch('main');
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'lszomoru/featureA' },
+		};
+		reportBranch('lszomoru/featureA');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'lszomoru/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const folderBranch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/main' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+		reportBranch('dev');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			folderBranch,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			worktreeBranch: provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch],
+		}, {
+			folderBranch: 'lszomoru/featureA',
+			requests: [
+				{ isolation: 'folder', branch: 'lszomoru/featureA' },
+				{ isolation: 'worktree' },
+			],
+			worktreeBranch: 'origin/main',
+		});
+	});
+
+	test('folder drafts skip obsolete branch reports while config resolution is in flight', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName }),
+		});
+		reportBranch('main');
+
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		const firstResolveStarted = new DeferredPromise<void>();
+		const releaseFirstResolve = new DeferredPromise<void>();
+		agentHost.onResolveSessionConfig = async request => {
+			if (request.config?.[SessionConfigKey.Branch] === 'featureA') {
+				firstResolveStarted.complete();
+				await releaseFirstResolve.p;
+			}
+			return {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { ...request.config },
+			};
+		};
+
+		reportBranch('featureA');
+		await firstResolveStarted.p;
+		reportBranch('featureB');
+		reportBranch('featureC');
+		releaseFirstResolve.complete();
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'featureC' && !provider.isSessionConfigResolving(session.sessionId).get());
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config), [
+			{ isolation: 'folder', branch: 'featureA' },
+			{ isolation: 'folder', branch: 'featureC' },
+		]);
 	});
 
 	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
@@ -5303,7 +6117,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { [SessionConfigKey.WorktreeBranchTrack]: false },
 		};
 		await provider.setWorktreeBranchTrack(session.sessionId, false);
@@ -5319,17 +6133,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 					[SessionConfigKey.WorktreeBranchTrack]: false,
 				},
 			],
-			createSessionConfig: { [SessionConfigKey.WorktreeBranchTrack]: false },
+			createSessionConfig: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
 			remembered: {},
 		});
 	});
 
-	test('applies programmatic worktree configuration in one resolve without waiting for the startup resolve', async () => {
+	test('waits for schema discovery then applies programmatic worktree configuration in one resolve', async () => {
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.WorktreeBranchTrack]: true,
@@ -5354,13 +6168,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			config: provider.getCreateSessionConfig(session.sessionId),
 		}, {
 			requestsBeforeResolve: [
-				{ isolation: 'worktree' },
-				{
-					[SessionConfigKey.Isolation]: 'worktree',
-					[SessionConfigKey.WorktreeBranchTrack]: true,
-					[SessionConfigKey.WorktreeCreateNewBranch]: false,
-					[SessionConfigKey.Branch]: 'feature/pull-request',
-				},
+				undefined,
 			],
 			config: {
 				[SessionConfigKey.Isolation]: 'worktree',
@@ -5386,9 +6194,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature/automation' },
 		};
+		agentHost.resolveSessionConfigHandler = () => agentHost.resolveSessionConfigResult;
 
 		await assert.rejects(() => provider.setIsolationMode(session.sessionId, 'worktree'), /did not apply session config 'isolation'/);
 	});
@@ -5413,7 +6222,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'feature/automation' },
 		};
 
@@ -5425,7 +6234,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await setting;
 
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [
-			{ isolation: 'worktree' },
+			undefined,
 			{ isolation: 'worktree', branch: 'feature/automation' },
 		]);
 	});
@@ -5453,7 +6262,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('branch selection stays on the current workspace and the next workspace resolves its own branch', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'main-a' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
@@ -5466,7 +6275,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.deleteNewSession(sessionA.sessionId);
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'current-b' },
 		};
 		const requestCountBeforeWorkspaceB = agentHost.resolveSessionConfigRequests.length;
@@ -5481,8 +6290,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			branchSelectionRequest: { isolation: 'worktree', branch: 'feature-a' },
 			rememberedValues: {},
-			workspaceBRequest: { isolation: 'worktree' },
-			workspaceBResolved: { isolation: 'folder', branch: 'current-b' },
+			workspaceBRequest: undefined,
+			workspaceBResolved: { isolation: 'worktree', branch: 'current-b' },
 		});
 	});
 
@@ -5524,25 +6333,72 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession forwards git.worktreeIncludeFiles as derived session config', () => {
+	test('createNewSession forwards Git worktree file settings after schema discovery', async () => {
 		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'user/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**', '.cache/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const seededImmediately = provider.getSessionConfig(session.sessionId)?.values;
+		const discovery = agentHost.resolveSessionConfigRequests[0]?.config;
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			seededImmediately,
+			discovery,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
-			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
-			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'] },
+			seededImmediately: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			discovery: undefined,
+			forwardedToAgentHost: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 		});
 	});
 
-	test('Automation drafts merge derived worktree settings with saved provider configuration', () => {
+	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
+		const folder = URI.file('/home/user/project');
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'user/');
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['user.json']);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules']);
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+		};
+		let sentConfig: Record<string, unknown> | undefined;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: configService,
+			openSession: true,
+			sendRequest: async (resource, _message, options): Promise<ChatSendResult> => {
+				sentConfig = options?.agentHostSessionConfig;
+				agentHost.addSession(createSession(AgentSession.id(resource), { summary: 'Created From Send' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(folder, provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		const chat = await provider.createNewChat(session.sessionId);
+
+		// The Agents window loads the folder settings once it mounts the draft's folder.
+		configService.setUserConfiguration('git.branchPrefix', 'folder/', folder);
+		configService.setUserConfiguration('git.worktreeIncludeFiles', ['folder.json'], folder);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', [], folder);
+		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+
+		assert.deepStrictEqual({
+			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
+			sentConfig,
+		}, {
+			createdWith: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			sentConfig: { isolation: 'worktree', worktreeBranchPrefix: 'folder/', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
+		});
+	});
+
+	test('Automation drafts merge derived worktree settings with saved provider configuration after discovery', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.branchPrefix', 'automation/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json']);
+		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		const session = provider.createNewSession(
 			URI.parse('file:///home/user/project'),
@@ -5558,20 +6414,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 			},
 		);
+		const seededImmediately = provider.getSessionConfig(session.sessionId)?.values;
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			seededImmediately,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
 			seededImmediately: {
 				worktreeBranchPrefix: 'automation/',
 				worktreeIncludeFiles: ['product.overrides.json'],
+				worktreeSymlinkFolders: ['node_modules/**'],
 				mode: 'plan',
 				autoApprove: 'assisted',
 			},
 			forwardedToAgentHost: {
+				isolation: 'worktree',
 				worktreeBranchPrefix: 'automation/',
 				worktreeIncludeFiles: ['product.overrides.json'],
+				worktreeSymlinkFolders: ['node_modules/**'],
 				mode: 'plan',
 				autoApprove: 'assisted',
 			},
@@ -5588,16 +6449,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
 		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
-		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+		const policySession = policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+		await policyRestrictedProvider.whenSessionConfigResolved(policySession.sessionId, CancellationToken.None);
+		const policyRestricted = agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove;
 
 		// Case 2: an ordinary configured setting is a plain default — the remembered pick wins over it
 		const configuredDefaultConfig = new TestConfigurationService();
 		await configuredDefaultConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'manual' });
 		const configuredDefaultProvider = createProvider(disposables, agentHost, undefined, { configurationService: configuredDefaultConfig, storageService });
-		configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
+		const configuredSession = configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
+		await configuredDefaultProvider.whenSessionConfigResolved(configuredSession.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			policyRestricted: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			policyRestricted,
 			configuredDefault: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
 		}, {
 			policyRestricted: 'default',
@@ -5621,6 +6485,250 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('createNewSession explicit mode overrides the permission choice default before eager creation', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		storageService.store(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, JSON.stringify({
+			[SessionConfigKey.Mode]: 'autopilot',
+			[SessionConfigKey.AutoApprove]: 'autoApprove',
+		}), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const sessionTypeId = provider.sessionTypes[0].id;
+
+		const defaultSession = provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, {
+			permissionId: 'default',
+		});
+		await waitForSessionConfig(provider, defaultSession.sessionId, config => config?.values.mode === 'interactive');
+		const allowAllSession = provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, {
+			permissionId: 'autoApprove',
+		});
+		await waitForSessionConfig(provider, allowAllSession.sessionId, config => config?.values.autoApprove === 'autoApprove');
+		const comparisonSession = provider.createNewSession(URI.file('/home/user/project'), sessionTypeId, {
+			permissionId: 'autoApprove',
+			modeId: 'autopilot',
+		});
+		await waitForSessionConfig(provider, comparisonSession.sessionId, config => config?.values.mode === 'autopilot');
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [undefined, {
+			mode: 'interactive',
+			autoApprove: 'default',
+			isolation: 'worktree',
+		}, undefined, {
+				mode: 'interactive',
+				autoApprove: 'autoApprove',
+				isolation: 'worktree',
+			}, undefined, {
+				mode: 'autopilot',
+				autoApprove: 'autoApprove',
+				isolation: 'worktree',
+			}]);
+	});
+
+	for (const mode of ['interactive', 'autopilot', 'plan']) {
+		for (const permissionId of ['default', 'assisted', 'autoApprove']) {
+			test(`comparison drafts inherit ${mode} with ${permissionId} from the source input`, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const sessionTypeId = provider.sessionTypes[0].id;
+				const workspace = URI.file('/home/user/project');
+				const source = provider.createNewSession(workspace, sessionTypeId, { permissionId, modeId: mode });
+				await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === mode && config.values.autoApprove === permissionId);
+				const permission = provider.getPermissionOptionForSession(source.sessionId);
+				assert.ok(permission);
+				const attempt = provider.createNewSession(workspace, sessionTypeId, {
+					permissionId: permission.id, modeId: permission.comparisonModeId,
+				});
+				await waitForSessionConfig(provider, attempt.sessionId, config => config?.values.mode === mode && config.values.autoApprove === permissionId);
+				const attemptConfig = provider.getSessionConfig(attempt.sessionId);
+				assert.deepStrictEqual({
+					permissionId: permission.id, mode: permission.comparisonModeId,
+					attemptMode: attemptConfig?.values.mode, attemptPermission: attemptConfig?.values.autoApprove,
+				}, { permissionId, mode, attemptMode: mode, attemptPermission: permissionId });
+			});
+		}
+	}
+
+	for (const approval of [
+		{ provider: 'conforming-host', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
+		{ provider: 'conforming-host', key: 'autoApprove', values: ['default', 'assisted', 'autoApprove'] },
+		{ provider: 'copilotcli', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
+	]) {
+		for (const [index, permissionId] of ['default', 'assisted', 'autoApprove'].entries()) {
+			test(`comparison permissions preserve ${approval.provider} ${approval.key} ${permissionId} through management launch`, async () => {
+				agentHost.setAgents([{ provider: approval.provider, displayName: 'Host', description: '', models: [] }]);
+				agentHost.resolveSessionConfigResult = {
+					schema: {
+						type: 'object', properties: {
+							[approval.key]: { type: 'string', title: 'Approvals', enum: approval.values, default: approval.values[0] },
+							mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], default: 'interactive' },
+						}
+					},
+					values: { [approval.key]: approval.values[0], mode: 'interactive' },
+				};
+				let sends = 0;
+				const provider = createProvider(disposables, agentHost, [
+					{ type: `agent-host-${approval.provider}`, name: 'host', displayName: 'Host', description: 'test', icon: undefined },
+				], {
+					sendRequest: async resource => {
+						sends++;
+						agentHost.addSession(createSession(AgentSession.id(resource), { provider: approval.provider }));
+						return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+					},
+				});
+				const management = createManagementService(disposables, provider);
+				const workspace = URI.file('/home/user/project');
+				const source = management.createNewSession(workspace, { providerId: provider.id, sessionTypeId: approval.provider });
+				await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
+				await provider.setSessionConfigValue(source.sessionId, approval.key, approval.values[index]);
+				await provider.setSessionConfigValue(source.sessionId, 'mode', 'autopilot');
+				await timeout(0);
+				const permission = provider.getPermissionOptionForSession(source.sessionId);
+				assert.ok(permission);
+
+				const createdBefore = agentHost.createSessionConfigs.length;
+				const barrier = new DeferredPromise<void>();
+				agentHost.resolveSessionConfigBarrier = barrier;
+				const attemptPromise = management.createAndSendNewChatRequest(workspace, { query: 'Implement', background: true }, {
+					providerId: provider.id, sessionTypeId: approval.provider,
+					permissionId: permission.id, modeId: permission.comparisonModeId,
+				});
+				await timeout(0);
+				const createdWhileResolving = agentHost.createSessionConfigs.length - createdBefore;
+				const sentWhileResolving = sends;
+				await barrier.complete();
+				const attempt = await attemptPromise;
+				assert.deepStrictEqual({
+					permissionId: permission.id, mode: permission.comparisonModeId, createdWhileResolving, sentWhileResolving,
+					sends, launched: !!attempt,
+					discovery: agentHost.resolveSessionConfigRequests.at(-2)?.config,
+					resolved: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+					creation: agentHost.createSessionConfigs.at(-1)?.config,
+				}, {
+					permissionId, mode: 'autopilot', createdWhileResolving: 0, sentWhileResolving: 0, sends: 1, launched: true, discovery: undefined,
+					resolved: { [approval.key]: approval.values[index], mode: 'autopilot' },
+					creation: { [approval.key]: approval.values[index], mode: 'autopilot' },
+				});
+			});
+		}
+	}
+
+	for (const modeId of ['autopilot', 'plan']) {
+		test(`comparison mode accepts the effective read-only ${modeId} default without explicit permissions`, async () => {
+			agentHost.resolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot', 'plan'], default: modeId, readOnly: true },
+					},
+				},
+				values: {},
+			};
+			let sends = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				sendRequest: async resource => {
+					sends++;
+					agentHost.addSession(createSession(AgentSession.id(resource)));
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			const management = createManagementService(disposables, provider);
+			const session = await management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+				providerId: provider.id, sessionTypeId: provider.sessionTypes[0].id, modeId,
+			});
+			assert.deepStrictEqual({ launched: !!session, created: agentHost.createSessionConfigs.length, sends }, { launched: true, created: 1, sends: 1 });
+		});
+
+		for (const restriction of ['unsupported', 'omitted', 'clamped', 'readOnly'] as const) {
+			test(`comparison mode rejects ${restriction} ${modeId} before backend creation`, async () => {
+				agentHost.setAgents([{ provider: 'conforming-host', displayName: 'Host', description: '', models: [] }]);
+				agentHost.resolveSessionConfigResult = {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'allow-all'], default: 'manual' },
+							...(restriction === 'unsupported' ? {} : {
+								mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot', 'plan'], default: restriction === 'omitted' ? undefined : 'interactive', readOnly: restriction === 'readOnly' },
+							}),
+						},
+					},
+					values: { approvalMode: 'manual', ...(restriction === 'clamped' || restriction === 'readOnly' ? { mode: 'interactive' } : {}) },
+				};
+				agentHost.resolveSessionConfigHandler = request => ({
+					...agentHost.resolveSessionConfigResult,
+					values: { ...agentHost.resolveSessionConfigResult.values, approvalMode: request.config?.approvalMode ?? 'manual' },
+				});
+				let sends = 0;
+				const provider = createProvider(disposables, agentHost, [
+					{ type: 'agent-host-conforming-host', name: 'host', displayName: 'Host', description: 'test', icon: undefined },
+				], {
+					sendRequest: async () => { sends++; throw new Error('Must not send'); },
+				});
+				const management = createManagementService(disposables, provider);
+				await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+					providerId: provider.id, sessionTypeId: 'conforming-host', permissionId: 'autoApprove', modeId,
+				}), new RegExp(`selected session mode '${modeId}' could not be applied`));
+				await timeout(0);
+				assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
+			});
+		}
+	}
+
+	for (const failingResolve of ['discovery', 'application']) {
+		for (const cancelled of [false, true]) {
+			test(`comparison config preserves ${cancelled ? 'cancellation' : 'host failure'} during ${failingResolve}`, async () => {
+				const error = cancelled ? new CancellationError() : new Error('Host connection unavailable');
+				agentHost.resolveSessionConfigHandler = request => {
+					if (failingResolve === 'discovery' || request.config) {
+						throw error;
+					}
+					return agentHost.resolveSessionConfigResult;
+				};
+				let sends = 0;
+				const provider = createProvider(disposables, agentHost, undefined, {
+					sendRequest: async () => { sends++; throw new Error('Must not send'); },
+				});
+				const management = createManagementService(disposables, provider);
+				await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+					providerId: provider.id, sessionTypeId: provider.sessionTypes[0].id, permissionId: 'autoApprove', modeId: 'autopilot',
+				}), candidate => candidate === error);
+				await timeout(0);
+				assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
+			});
+		}
+	}
+
+	for (const restriction of ['readOnly', 'unavailable', 'policy', 'clamped', 'effective'] as const) {
+		test(`comparison permissions reject ${restriction} approval instead of using a default`, async () => {
+			agentHost.setAgents([{ provider: 'conforming-host', displayName: 'Host', description: '', models: [] }]);
+			agentHost.resolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'allow-all'], default: 'manual', readOnly: restriction === 'readOnly' },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+					}
+				},
+				values: {
+					approvalMode: 'manual',
+					availableApprovalModes: restriction === 'unavailable' ? ['manual'] : ['manual', 'allow-all'],
+					...(restriction === 'effective' ? { effectiveApprovalMode: 'manual' } : {}),
+				},
+			};
+			if (restriction === 'clamped') {
+				agentHost.resolveSessionConfigHandler = () => agentHost.resolveSessionConfigResult;
+			}
+			let sends = 0;
+			const provider = createProvider(disposables, agentHost, [
+				{ type: 'agent-host-conforming-host', name: 'host', displayName: 'Host', description: 'test', icon: undefined },
+			], {
+				configurationService: restriction === 'policy' ? createPolicyRestrictedConfigurationService() : undefined,
+				sendRequest: async () => { sends++; throw new Error('Must not send'); },
+			});
+			const management = createManagementService(disposables, provider);
+			await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+				providerId: provider.id, sessionTypeId: 'conforming-host', permissionId: 'autoApprove',
+			}), /selected session permissions could not be applied/);
+			await timeout(0);
+			assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
+		});
+	}
+
 	test('createNewSession restores and captures an Automation session template', async () => {
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',
@@ -5634,23 +6742,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 				[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 				[SessionConfigKey.WorktreeBranchPrefix]: 'template-prefix/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['template.json'],
+				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 				[SessionConfigKey.AgentMerge]: true,
 			},
 		};
 		agentHost.resolveSessionConfigResult = {
-			schema: {
-				type: 'object',
-				properties: {
-					clearedOption: { type: 'boolean', title: 'Cleared option' },
-				},
-			},
+			schema: createVSCodeSessionConfigSchema({
+				providerOption: { type: 'object', title: 'Provider option', properties: { enabled: { type: 'boolean', title: 'Enabled' } }, sessionMutable: true },
+				clearedOption: { type: 'boolean', title: 'Cleared option', default: false, sessionMutable: true },
+				worktreeBranchPrefix: { type: 'string', title: 'Host branch prefix', readOnly: true },
+				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true },
+			}),
 			values: {
 				mode: 'plan',
 				autoApprove: 'assisted',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'stale-prefix/',
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 			},
+		};
+		agentHost.resolveSessionConfigHandler = request => {
+			const values = { ...agentHost.resolveSessionConfigResult.values, ...request.config };
+			if (values.clearedOption === false) {
+				delete values.clearedOption;
+			}
+			return { schema: agentHost.resolveSessionConfigResult.schema, values };
 		};
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(
@@ -5686,6 +6802,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				autoApprove: 'assisted',
 				providerOption: { enabled: true },
 				clearedOption: true,
+				worktreeBranchPrefix: 'stale-prefix/',
+				shellInitScripts: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 			},
 			modelId: sessionTemplate.modelId,
 			agentUri: sessionTemplate.agent.uri,
@@ -5699,6 +6817,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}), /model configuration requires a model identifier/);
 		await timeout(0);
 		assert.deepStrictEqual(agentHost.createSessionConfigs, []);
+	});
+
+	test('forwards programmatic parent session provenance to eager creation', async () => {
+		const provider = createProvider(disposables, agentHost);
+		provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, {
+			metadata: { existing: 'value' },
+			createdBySession: {
+				session: URI.parse('agent-host-copilotcli:/parent'),
+				chat: URI.parse('agent-host-chat:/parent/default'),
+				turnId: 'turn-1',
+			},
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual(agentHost.createSessionConfigs[0]?.metadata, withSessionCreationReference({ existing: 'value' }, {
+			session: 'agent-host-copilotcli:/parent',
+			chat: 'agent-host-chat:/parent/default',
+			turnId: 'turn-1',
+		}));
 	});
 
 	test('Automation model options reach eager creation and the browser-executed first request', async () => {
@@ -5848,7 +6985,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const initialConfig = { mode: 'interactive', autoApprove: 'default', providerOption: true };
 		const updatedConfig = { ...initialConfig, mode: 'plan', autoApprove: 'assisted' };
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema({ providerOption: { type: 'boolean', title: 'Provider option', sessionMutable: true } }),
 			values: initialConfig,
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -5866,8 +7003,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		agentHost.failResolveSessionConfig = false;
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
-			values: updatedConfig,
+			schema: createVSCodeSessionConfigSchema({ providerOption: { type: 'boolean', title: 'Provider option', sessionMutable: true } }),
+			values: initialConfig,
 		};
 		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
 
@@ -5885,7 +7022,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('Automation capture waits for tracked configuration operations before reading values', async () => {
 		const initialConfig = { mode: 'interactive' };
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: initialConfig,
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -5900,7 +7037,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const operation = (async () => {
 			await barrier.p;
 			agentHost.resolveSessionConfigResult = {
-				schema: { type: 'object', properties: {} },
+				schema: createVSCodeSessionConfigSchema(),
 				values: { mode: 'plan' },
 			};
 			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'plan');
@@ -5945,6 +7082,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			captured,
 		}, {
 			initialConfig: {
+				isolation: 'worktree',
 				mode: 'autopilot',
 				autoApprove: 'assisted',
 			},
@@ -5989,12 +7127,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 
 		const capturedWithoutEdit = await provider.getAutomationSessionConfiguration(session.sessionId);
+		const initialConfig = provider.getCreateSessionConfig(session.sessionId)?.autoApprove;
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'default');
 		const capturedAfterEdit = await provider.getAutomationSessionConfiguration(session.sessionId);
 
 		assert.deepStrictEqual({
 			displayed: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
-			initialConfig: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			initialConfig,
 			capturedWithoutEdit: capturedWithoutEdit?.sessionTemplate?.config?.autoApprove,
 			capturedAfterEdit: capturedAfterEdit?.sessionTemplate?.config?.autoApprove,
 		}, {
@@ -6170,6 +7309,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			tools: constObservable(activeClient.tools),
 			isResolved: constObservable(true),
 			whenResolved: () => resolution.p,
+			getSyncedUri: () => undefined,
 			activeClient: clientId => {
 				activeClientReads++;
 				return constObservable({ clientId, ...activeClient });
@@ -6571,15 +7711,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 	// ---- Multi-chat catalog (applyChatCatalog reconciliation) ----------------
 
 	suite('multi-chat catalog', () => {
-		function makeChatSummary(resource: string, title: string, status = ProtocolSessionStatus.Idle, workingDirectories?: readonly string[]): ChatSummary {
-			return { resource, title, status, modifiedAt: new Date(0).toISOString(), workingDirectories: workingDirectories ? [...workingDirectories] : undefined };
+		function makeChatSummary(resource: string, title: string, status = ProtocolSessionStatus.Idle, workingDirectories?: readonly string[], modifiedAt = new Date(0).toISOString()): ChatSummary {
+			return { resource, title, status, modifiedAt, workingDirectories: workingDirectories ? [...workingDirectories] : undefined };
 		}
 
-		function makeState(chats: ChatSummary[], opts?: { sessionTitle?: string; defaultChat?: string; configValues?: Record<string, unknown>; meta?: SessionState['_meta']; workingDirectories?: readonly string[] }): SessionState {
+		function makeState(chats: ChatSummary[], opts?: { sessionTitle?: string; defaultChat?: string; configValues?: Record<string, unknown>; meta?: SessionState['_meta']; workingDirectories?: readonly string[]; status?: ProtocolSessionStatus }): SessionState {
 			return {
 				provider: 'copilotcli',
 				title: opts?.sessionTitle ?? 'Session',
-				status: ProtocolSessionStatus.Idle,
+				status: opts?.status ?? ProtocolSessionStatus.Idle,
 				lifecycle: SessionLifecycle.Ready,
 				activeClients: [],
 				chats,
@@ -6603,7 +7743,156 @@ suite('LocalAgentHostSessionsProvider', () => {
 			return session!;
 		}
 
-		test('list metadata surfaces peer titles and archived state without subscribing and loads stable chat details while observed', async () => {
+		test('resolves exact chat modified times lazily while single-chat sessions use the aggregate time', async () => {
+			const singleModifiedTime = 10_000;
+			agentHost.addSession(createSession('single-chat-time', { summary: 'Single', modifiedTime: singleModifiedTime }));
+			const multiSessionUri = AgentSession.uri('copilotcli', 'multi-chat-time');
+			const defaultChat = URI.parse(buildDefaultChatUri(multiSessionUri));
+			const peerChat = URI.parse(buildChatUri(multiSessionUri, 'peer-1'));
+			agentHost.addSession(createSession('multi-chat-time', {
+				summary: 'Multi',
+				modifiedTime: 20_000,
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default' },
+					{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const single = provider.getSessions().find(session => session.title.get() === 'Single');
+			const multi = provider.getSessions().find(session => session.title.get() === 'Multi');
+			assert.ok(single && multi);
+			const peer = multi.chats.get()[1];
+			const before = {
+				single: single.mainChat.get().updatedAt.get()?.getTime(),
+				main: multi.mainChat.get().updatedAt.get(),
+				peer: peer.updatedAt.get(),
+				singleSubscriptions: agentHost.sessionSubscribeCounts.get(single.resource.toString()) ?? 0,
+				multiSubscriptions: agentHost.sessionSubscribeCounts.get(multiSessionUri.toString()) ?? 0,
+			};
+
+			const observed: { single?: number; main?: number; peer?: number } = {};
+			disposables.add(autorun(reader => {
+				observed.single = single.mainChat.read(reader).updatedAt.read(reader)?.getTime();
+				observed.main = multi.mainChat.read(reader).updatedAt.read(reader)?.getTime();
+				observed.peer = peer.updatedAt.read(reader)?.getTime();
+			}));
+			const mainModifiedAt = new Date(30_000).toISOString();
+			const peerModifiedAt = new Date(40_000).toISOString();
+			agentHost.setSessionState('multi-chat-time', 'copilotcli', makeState([
+				makeChatSummary(defaultChat.toString(), 'Default', ProtocolSessionStatus.Idle, undefined, mainModifiedAt),
+				makeChatSummary(peerChat.toString(), 'Peer', ProtocolSessionStatus.Idle, undefined, peerModifiedAt),
+			], { defaultChat: defaultChat.toString() }));
+			fireSessionSummaryChanged(agentHost, 'multi-chat-time', { modifiedAt: new Date(50_000).toISOString() });
+
+			assert.deepStrictEqual({
+				before,
+				session: multi.updatedAt.get().getTime(),
+				singleSubscriptions: agentHost.sessionSubscribeCounts.get(AgentSession.uri('copilotcli', 'single-chat-time').toString()) ?? 0,
+				multiSubscriptions: agentHost.sessionSubscribeCounts.get(multiSessionUri.toString()),
+				observed,
+			}, {
+				before: {
+					single: singleModifiedTime,
+					main: undefined,
+					peer: undefined,
+					singleSubscriptions: 0,
+					multiSubscriptions: 0,
+				},
+				session: 50_000,
+				singleSubscriptions: 0,
+				multiSubscriptions: 1,
+				observed: {
+					single: singleModifiedTime,
+					main: 30_000,
+					peer: 40_000,
+				},
+			});
+		});
+
+		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const rawId = 'nested-default-changeset';
+			const repo = URI.file('/repo');
+			const session = setupMultiChatSession(provider, rawId, [repo]);
+			const backend = AgentSession.uri('copilotcli', rawId).toString();
+			const main = buildDefaultChatUri(backend);
+			const peer = buildChatUri(backend, 'peer');
+			const entry = (owner: string, changeKind: string, path: string) => ({ label: changeKind, changeKind, uriTemplate: `${owner}/changeset/${path}` });
+			const chatState = (resource: string, changesets: ChatState['changesets']): ChatState => ({
+				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], changesets,
+			});
+			agentHost.setSessionState(rawId, 'copilotcli', {
+				...makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main, workingDirectories: [repo.toString()] }),
+				changesets: [entry(backend, 'session', 'session')],
+			});
+			agentHost.setChatState(main, chatState(main, [entry(main, 'branch', 'branch'), entry(main, 'turn', 'turn/{turnId}')]));
+			agentHost.setChatState(peer, chatState(peer, [entry(peer, 'branch', 'branch'), entry(peer, 'session', 'session'), entry(peer, 'turn', 'turn/{turnId}')]));
+			activeSession.set(new class extends mock<IActiveSession>() {
+				override readonly resource = session.resource;
+			}(), undefined);
+			let defaults: (string | undefined)[] = [];
+			disposables.add(autorun(reader => {
+				defaults = session.chats.read(reader).map(chat => chat.changesets.read(reader)?.find(changeset => changeset.isDefault.read(reader))?.id);
+			}));
+
+			assert.deepStrictEqual(defaults, [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID]);
+		});
+
+		test('reads background shells from each chat\'s state while the session is active', () => {
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const rawId = 'background-shell-catalog';
+			const session = setupMultiChatSession(provider, rawId);
+			const backend = AgentSession.uri('copilotcli', rawId);
+			const main = buildDefaultChatUri(backend);
+			const peer = buildChatUri(backend, 'peer');
+			const startedAt = new Date(0).toISOString();
+			const copilotShell: BackgroundShellWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:same-id', label: 'Run tests', command: 'npm test',
+				startedAt, _meta: toCopilotBackgroundShellMeta('same-id', 'attached'),
+			};
+			const plainShell: BackgroundShellWork = {
+				kind: BackgroundWorkKind.Shell, id: 'same-id', label: 'Build', command: 'npm run build',
+				startedAt,
+			};
+			const subagent: BackgroundSubagentWork = {
+				kind: BackgroundWorkKind.Subagent, id: 'subagent:reviewer', label: 'Reviewer',
+				startedAt, chat: buildChatUri(backend, 'reviewer'),
+			};
+			const chatState = (resource: string, backgroundWork: BackgroundWork[]): ChatState => ({
+				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: startedAt, turns: [], backgroundWork,
+			});
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main }));
+			agentHost.setChatState(main, chatState(main, [copilotShell, subagent]));
+			agentHost.setChatState(peer, chatState(peer, [plainShell]));
+			disposables.add(autorun(reader => {
+				for (const chat of session.chats.read(reader)) {
+					chat.backgroundShells?.read(reader);
+				}
+			}));
+			const shells = () => session.chats.get().map(chat => chat.backgroundShells?.get());
+
+			const inactive = shells();
+			activeSession.set(new class extends mock<IActiveSession>() {
+				override readonly resource = session.resource;
+			}(), undefined);
+			const active = shells();
+			agentHost.setChatState(main, chatState(main, []));
+			const afterRemoval = shells();
+
+			const peerShell = { id: 'same-id', description: 'Build', command: 'npm run build', startedAt };
+			assert.deepStrictEqual({ inactive, active, afterRemoval }, {
+				inactive: [[], []],
+				active: [[{ id: 'shell:same-id', shellId: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
+				afterRemoval: [[], [peerShell]],
+			});
+		});
+
+		test('list metadata surfaces exact chat state without subscribing and loads stable chat details while observed', async () => {
 			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
 			const rawId = 'multi-catalog-list';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
@@ -6611,9 +7900,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			agentHost.addSession(createSession(rawId, {
 				summary: 'Session',
+				status: ProtocolSessionStatus.Idle,
 				chats: [
-					{ chat: defaultChat, kind: 'default', summary: 'Default' },
-					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden, archived: true },
+					{ chat: defaultChat, kind: 'default', summary: 'Default', isRead: true },
+					{ chat: peerChat, kind: 'peer', summary: 'Catalog Peer', interactivity: ProtocolChatInteractivity.Hidden, archived: true, isRead: false },
 				],
 			}));
 			const provider = createProvider(disposables, agentHost);
@@ -6632,12 +7922,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({
 				titles: session.chats.get().map(chat => chat.title.get()),
 				interactivity: session.chats.get().map(chat => chat.interactivity.get()),
+				sessionIsRead: session.isRead.get(),
+				chatReadState: session.chats.get().map(chat => chat.isRead.get()),
 				observedInteractivity,
 				observedArchived,
 				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
 			}, {
 				titles: ['Default', 'Catalog Peer'],
 				interactivity: [ChatInteractivity.Full, ChatInteractivity.Hidden],
+				sessionIsRead: false,
+				chatReadState: [true, false],
 				observedInteractivity: ChatInteractivity.Hidden,
 				observedArchived: true,
 				sessionSubscriptions: 0,
@@ -6648,7 +7942,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				initialPeer.status.read(reader);
 			}));
 			agentHost.setSessionState(rawId, 'copilotcli', makeState([
-				makeChatSummary(defaultChat.toString(), 'Default'),
+				makeChatSummary(defaultChat.toString(), 'Default', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
 				makeChatSummary(peerChat.toString(), 'Hydrated Peer', ProtocolSessionStatus.InProgress),
 			], { defaultChat: defaultChat.toString() }));
 
@@ -6657,13 +7951,56 @@ suite('LocalAgentHostSessionsProvider', () => {
 				peerIdentityPreserved: session.chats.get()[1] === initialPeer,
 				peerTitle: session.chats.get()[1].title.get(),
 				peerStatus: session.chats.get()[1].status.get(),
+				chatReadState: session.chats.get().map(chat => chat.isRead.get()),
 				supportsMultipleChats: session.capabilities.get().supportsMultipleChats,
 			}, {
 				sessionSubscriptions: 1,
 				peerIdentityPreserved: true,
 				peerTitle: 'Hydrated Peer',
 				peerStatus: SessionStatus.InProgress,
+				chatReadState: [true, false],
 				supportsMultipleChats: false,
+			});
+		});
+
+		test('list metadata and root summary updates surface chat change summaries without subscribing', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+			const rawId = 'multi-catalog-changes';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default', changes: { additions: 1, deletions: 2, files: 1 } },
+					{ chat: peerChat, kind: 'peer', summary: 'Peer', changes: { additions: 5 } },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const readSummaries = () => session.chats.get().map(chat => chat.changesSummary?.get());
+			const listed = readSummaries();
+
+			fireSessionSummaryChanged(agentHost, rawId, {
+				chats: [
+					{ resource: defaultChat.toString(), title: 'Default' },
+					{ resource: peerChat.toString(), title: 'Peer', changes: { additions: 6, deletions: 1, files: 2 } },
+				],
+				defaultChat: defaultChat.toString(),
+			});
+
+			assert.deepStrictEqual({
+				listed,
+				updated: readSummaries(),
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+			}, {
+				listed: [{ additions: 1, deletions: 2, files: 1 }, { additions: 5, deletions: 0, files: 0 }],
+				updated: [{ additions: 1, deletions: 2, files: 1 }, { additions: 6, deletions: 1, files: 2 }],
+				sessionSubscriptions: 0,
 			});
 		});
 
@@ -6782,6 +8119,108 @@ suite('LocalAgentHostSessionsProvider', () => {
 					peerChat: [peerDirectory.toString()],
 					inheritedPeerChat: [primaryDirectory.toString(), peerDirectory.toString()],
 				});
+			});
+		});
+
+		test('peer read state follows the exact chat summary', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-read-state');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-read-state').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+			], { defaultChat }));
+			const peer = session.chats.get()[1];
+			const read = peer.isRead.get();
+
+			agentHost.setSessionState('multi-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle),
+			], { defaultChat }));
+
+			assert.deepStrictEqual({ read, unread: peer.isRead.get() }, { read: true, unread: false });
+		});
+
+		test('lightweight chat status updates exact read state and absence remains unknown', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'compact-read-state');
+			const sessionUri = AgentSession.uri('copilotcli', 'compact-read-state').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('compact-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+			], { defaultChat, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead }));
+			fireSessionSummaryChanged(agentHost, 'compact-read-state', {
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+				chats: [
+					{ resource: defaultChat, title: '', status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead },
+					{ resource: peerChat, title: 'Peer', status: ProtocolSessionStatus.Idle },
+				],
+				defaultChat,
+			});
+			const afterKnownStatus = {
+				session: session.isRead.get(),
+				chats: session.chats.get().map(chat => chat.isRead.get()),
+			};
+			fireSessionSummaryChanged(agentHost, 'compact-read-state', {
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer' },
+				],
+				defaultChat,
+			});
+
+			assert.deepStrictEqual({
+				afterKnownStatus,
+				afterUnknownStatus: {
+					session: session.isRead.get(),
+					chats: session.chats.get().map(chat => chat.isRead.get()),
+				},
+			}, {
+				afterKnownStatus: { session: false, chats: [true, false] },
+				afterUnknownStatus: { session: false, chats: [true, false] },
+			});
+		});
+
+		test('tool chat unread state does not clamp the session aggregate', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'tool-read-state');
+			const sessionUri = AgentSession.uri('copilotcli', 'tool-read-state').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const toolChat = buildSubagentChatUri(sessionUri, 'tool-call');
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			fireSessionSummaryChanged(agentHost, 'tool-read-state', {
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+			});
+
+			agentHost.setSessionState('tool-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{
+					...makeChatSummary(toolChat, 'Tool'),
+					origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-call' },
+				},
+			], { defaultChat, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead }));
+			const withUnreadTool = session.isRead.get();
+			agentHost.setSessionState('tool-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{
+					...makeChatSummary(toolChat, 'Tool'),
+					origin: { kind: ProtocolChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tool-call' },
+				},
+				makeChatSummary(peerChat, 'Peer'),
+			], { defaultChat, status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead }));
+
+			assert.deepStrictEqual({
+				withUnreadTool,
+				withUnreadPeer: session.isRead.get(),
+			}, {
+				withUnreadTool: true,
+				withUnreadPeer: false,
 			});
 		});
 
@@ -6930,6 +8369,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		for (const customDefaultChat of [false, true]) {
+			test(`maps PR artifact owners to chat resources with ${customDefaultChat ? 'host-advertised' : 'local'} chat URIs`, () => {
+				const provider = createProviderWithPullRequestModels();
+				const rawId = `multi-pr-owner-${customDefaultChat}`;
+				const directory = URI.file('/work/vscode');
+				const session = setupMultiChatSession(provider, rawId, [directory]);
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = customDefaultChat ? 'custom-chat://host/conversation/main' : buildDefaultChatUri(sessionUri);
+				const peerChat = buildChatUri(sessionUri, 'peer-1');
+				const meta = withSessionArtifacts({
+					githubData: {
+						[directory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/pull/2'] },
+					},
+				}, [
+					{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+					{ id: 'peer-pr', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]);
+
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([
+					makeChatSummary(defaultChat, 'Main', ProtocolSessionStatus.Idle, [directory.toString()]),
+					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [directory.toString()]),
+				], { defaultChat, meta }));
+				const main = session.mainChat.get();
+				const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+				assert.ok(peer);
+				assert.deepStrictEqual({
+					owners: session.artifacts?.get().map(artifact => [artifact.id, artifact.chat?.toString()]),
+					restrictedMain: getSessionGitHubReferences(session, undefined, main, false).pullRequests.map(ref => ref.number),
+					restrictedPeer: getSessionGitHubReferences(session, undefined, peer, false).pullRequests.map(ref => ref.number),
+					automaticMain: getSessionGitHubReferences(session, undefined, main).pullRequests.map(ref => ref.number),
+					automaticPeer: getSessionGitHubReferences(session, undefined, peer).pullRequests.map(ref => ref.number),
+				}, {
+					owners: [['peer-pr', peer.resource.toString()], ['main-pr', main.resource.toString()]],
+					restrictedMain: [1],
+					restrictedPeer: [2],
+					automaticMain: [1, 2],
+					automaticPeer: [2, 1],
+				});
+			});
+		}
+
+		test('remaps artifact ownership when a single chat catalog hydrates without attributing unknown owners', () => {
+			const provider = createProviderWithPullRequestModels();
+			const rawId = 'pr-owner-hydration';
+			const session = setupMultiChatSession(provider, rawId);
+			const defaultChat = 'custom-chat://host/conversation/main';
+			const unknownChat = 'custom-chat://host/conversation/unknown';
+			const meta = withSessionArtifacts(undefined, [
+				{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+				{ id: 'unknown-pr', chat: unknownChat, type: SessionArtifactType.PullRequest, label: 'Unknown PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				{ id: 'legacy-pr', type: SessionArtifactType.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/3' },
+			]);
+			const snapshots: (readonly (readonly (string | undefined)[])[])[] = [];
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([], { meta }));
+			disposables.add(autorun(reader => {
+				snapshots.push(session.artifacts?.read(reader).map(artifact => [artifact.id, artifact.chat?.toString()]) ?? []);
+			}));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat, 'Main'),
+			], { defaultChat, meta }));
+
+			assert.deepStrictEqual({ before: snapshots[0], after: snapshots.at(-1) }, {
+				before: [['legacy-pr', undefined], ['unknown-pr', unknownChat], ['main-pr', defaultChat]],
+				after: [['legacy-pr', undefined], ['unknown-pr', unknownChat], ['main-pr', session.mainChat.get().resource.toString()]],
+			});
+		});
+
 		function recordedGitHubReferences(meta: SessionState['_meta']): SessionState['_meta'] {
 			return withSessionArtifacts(meta, [
 				{ id: 'recorded-pr', type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2', isGitHub: true },
@@ -7060,6 +8566,48 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		for (const isolateMain of [false, true]) {
+			test(`isolating the ${isolateMain ? 'main' : 'peer'} chat updates its workspace and branch without moving a same-folder chat`, () => {
+				const provider = createProvider(disposables, agentHost);
+				const original = URI.file('/work/repo').toString();
+				const worktree = URI.file('/work/repo.worktrees/isolated').toString();
+				const id = 'chat-isolation';
+				const session = setupMultiChatSession(provider, id, [URI.parse(original)]);
+				const sessionUri = AgentSession.uri('copilotcli', id).toString();
+				const main = buildDefaultChatUri(sessionUri);
+				const peer = buildChatUri(sessionUri, 'peer-1');
+				const publish = (isolated: boolean) => {
+					const meta = withSessionGitState(withWorkingDirectoryScopeId({
+						gitData: { isolated: { branchName: 'agents/isolated', baseBranchName: 'main' } },
+					}, [worktree], 'isolated'), { branchName: 'main' });
+					agentHost.setSessionState(id, 'copilotcli', makeState([
+						makeChatSummary(main, '', ProtocolSessionStatus.Idle, [isolated && isolateMain ? worktree : original]),
+						makeChatSummary(peer, 'Peer', ProtocolSessionStatus.Idle, [isolated && !isolateMain ? worktree : original]),
+					], { defaultChat: main, meta, workingDirectories: isolated ? [original, worktree] : [original] }));
+				};
+				publish(false);
+				const chats = session.chats.get();
+				const folders = (chat: IChat) => chat.workspace.get()?.folders.map(folder => ({
+					directory: folder.workingDirectory.toString(), branch: folder.gitRepository?.branchName,
+				}));
+				const before = chats.map(folders);
+				publish(true);
+				assert.deepStrictEqual({
+					before,
+					after: chats.map(folders),
+					sameChats: session.chats.get().every((chat, index) => chat === chats[index]),
+					aggregate: session.workspace.get()?.folders.map(folder => folder.workingDirectory.toString()),
+				}, {
+					before: [[{ directory: original, branch: 'main' }], [{ directory: original, branch: 'main' }]],
+					after: [isolateMain, !isolateMain].map(isolated => [{
+						directory: isolated ? worktree : original, branch: isolated ? 'agents/isolated' : 'main',
+					}]),
+					sameChats: true,
+					aggregate: [original, worktree],
+				});
+			});
+		}
+
 		test('main chat keeps the session workspace identity for the session folder', () => {
 			const provider = createProvider(disposables, agentHost);
 			const primaryDirectory = URI.file('/workspace-primary');
@@ -7071,6 +8619,88 @@ suite('LocalAgentHostSessionsProvider', () => {
 			], { defaultChat, workingDirectories: [primaryDirectory.toString()] }));
 
 			assert.strictEqual(session.mainChat.get().workspace.get(), session.workspace.get());
+		});
+
+		test('single-chat isolation replaces the workspace but keeps the repository project identity', () => {
+			const provider = createProvider(disposables, agentHost);
+			const repository = URI.file('/work/repo');
+			const worktree = URI.file('/work/repo.worktrees/isolated');
+			const id = 'single-chat-isolation';
+			const session = setupMultiChatSession(provider, id, [repository]);
+			const main = buildDefaultChatUri(AgentSession.uri('copilotcli', id));
+			agentHost.setSessionState(id, 'copilotcli', makeState([
+				makeChatSummary(main, '', ProtocolSessionStatus.Idle, [repository.toString()]),
+			], { defaultChat: main, workingDirectories: [repository.toString()] }));
+			const chat = session.mainChat.get();
+			const meta = withSessionGitState(undefined, { branchName: 'agents/isolated', baseBranchName: 'main' });
+			fireSessionSummaryChanged(agentHost, id, {
+				project: { uri: repository.toString(), displayName: 'repo' },
+				workingDirectories: [worktree.toString()], _meta: meta,
+			});
+			agentHost.setSessionState(id, 'copilotcli', makeState([
+				makeChatSummary(main, '', ProtocolSessionStatus.Idle, [worktree.toString()]),
+			], { defaultChat: main, meta, workingDirectories: [worktree.toString()], configValues: { isolation: 'worktree' } }));
+			const describe = (workspace: ISessionWorkspace | undefined) => ({
+				project: workspace?.uri.toString(),
+				folders: workspace?.folders.map(folder => ({
+					root: folder.root.toString(), directory: folder.workingDirectory.toString(),
+					worktree: folder.gitRepository?.workTreeUri?.toString(), branch: folder.gitRepository?.branchName,
+				})),
+			});
+			const expected = {
+				project: repository.toString(),
+				folders: [{ root: repository.toString(), directory: worktree.toString(), worktree: worktree.toString(), branch: 'agents/isolated' }],
+			};
+			assert.deepStrictEqual({
+				session: describe(session.workspace.get()),
+				chat: describe(chat.workspace.get()),
+				sameChat: chat === session.mainChat.get(),
+			}, { session: expected, chat: expected, sameChat: true });
+		});
+
+		test('authoritative isolation config clears worktree pending after moving back to a folder', () => {
+			const provider = createProvider(disposables, agentHost);
+			const repository = URI.file('/work/repo');
+			const destination = URI.file('/work/destination');
+			const worktree = URI.file('/work/repo.worktrees/isolated');
+			const id = 'isolation-pending-roundtrip';
+			const session = setupMultiChatSession(provider, id, [repository]);
+			const main = buildDefaultChatUri(AgentSession.uri('copilotcli', id));
+			const publish = (isolation: string, directory: URI, project: URI) => {
+				const state = makeState([
+					makeChatSummary(main, '', ProtocolSessionStatus.Idle, [directory.toString()]),
+				], { defaultChat: main, workingDirectories: [directory.toString()] });
+				agentHost.setSessionState(id, 'copilotcli', {
+					...state,
+					project: { uri: project.toString(), displayName: 'repo' },
+					config: {
+						schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+						values: { isolation },
+					},
+				});
+			};
+			const snapshots: { pending: boolean | undefined; directory: string | undefined }[] = [];
+			const snapshot = () => snapshots.push({
+				pending: session.worktreePending?.get(),
+				directory: session.mainChat.get().workspace.get()?.folders[0].workingDirectory.toString(),
+			});
+			publish('worktree', repository, repository);
+			snapshot();
+			publish('worktree', worktree, repository);
+			snapshot();
+			publish('folder', destination, destination);
+			snapshot();
+			publish('worktree', destination, destination);
+			snapshot();
+			publish('folder', destination, destination);
+			snapshot();
+			assert.deepStrictEqual(snapshots, [
+				{ pending: true, directory: repository.toString() },
+				{ pending: false, directory: worktree.toString() },
+				{ pending: false, directory: destination.toString() },
+				{ pending: true, directory: destination.toString() },
+				{ pending: false, directory: destination.toString() },
+			]);
 		});
 
 		test('Agent Merge observable updates when a peer chat folder hydrates', () => {
@@ -7355,6 +8985,223 @@ suite('LocalAgentHostSessionsProvider', () => {
 			);
 		});
 
+		test('peer chat read state updates optimistically and dispatches to the host-supplied chat resource', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-read-resource');
+			const backendSessionUri = AgentSession.uri('copilotcli', 'backend-chat-read').toString();
+			const defaultChat = buildDefaultChatUri(backendSessionUri);
+			const peerChat = buildChatUri(backendSessionUri, 'peer-1');
+			agentHost.setSessionState('chat-read-resource', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+			const [main, peer] = session.chats.get();
+			const before = { main: main.isRead.get(), peer: peer.isRead.get() };
+
+			await provider.setChatReadState(session.sessionId, peer.resource, true);
+
+			assert.deepStrictEqual({
+				before,
+				isRead: peer.isRead.get(),
+				action: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				before: { main: true, peer: false },
+				isRead: true,
+				action: [{ channel: peerChat, isRead: true }],
+			});
+		});
+
+		test('legacy hosts preserve client read state and use the session read action', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.9.0' }, undefined);
+			const sessionUri = AgentSession.uri('copilotcli', 'legacy-chat-read').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const hiddenChat = buildChatUri(sessionUri, 'hidden');
+			agentHost.addSession(createSession('legacy-chat-read', {
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: '' },
+					{ chat: URI.parse(peerChat), kind: 'peer', summary: 'Peer' },
+					{ chat: URI.parse(hiddenChat), kind: 'peer', summary: 'Hidden', interactivity: ProtocolChatInteractivity.Hidden },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource) === 'legacy-chat-read');
+			assert.ok(session);
+			const initial = {
+				session: session.isRead.get(),
+				chats: session.chats.get().map(chat => chat.isRead.get()),
+			};
+
+			const accepted = await provider.setChatReadState(session.sessionId, session.chats.get()[2].resource, true);
+			const retried = await provider.setChatReadState(session.sessionId, session.chats.get()[2].resource, true);
+			fireSessionSummaryChanged(agentHost, 'legacy-chat-read', {
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer' },
+					{ resource: hiddenChat, title: 'Hidden', interactivity: ProtocolChatInteractivity.Hidden },
+				],
+				defaultChat,
+			});
+
+			assert.deepStrictEqual({
+				initial,
+				accepted,
+				retried,
+				afterRefresh: {
+					session: session.isRead.get(),
+					chats: session.chats.get().map(chat => chat.isRead.get()),
+				},
+				actions: agentHost.dispatchedActions.map(dispatch => ({
+					channel: dispatch.channel,
+					type: dispatch.action.type,
+					isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
+				})),
+			}, {
+				initial: { session: false, chats: [false, false, false] },
+				accepted: true,
+				retried: true,
+				afterRefresh: { session: true, chats: [true, true, true] },
+				actions: [
+					{
+						channel: sessionUri,
+						type: ActionType.SessionIsReadChanged,
+						isRead: true,
+					},
+					{
+						channel: sessionUri,
+						type: ActionType.SessionIsReadChanged,
+						isRead: true,
+					},
+				],
+			});
+		});
+
+		test('single default chat read state updates optimistically and dispatches to the host', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'single-chat-read');
+			const sessionUri = AgentSession.uri('copilotcli', 'single-chat-read').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('single-chat-read', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			const main = session.mainChat.get();
+			const before = { session: session.isRead.get(), main: main.isRead.get() };
+
+			await provider.setChatReadState(session.sessionId, main.resource, true);
+			const afterRead = { session: session.isRead.get(), main: main.isRead.get() };
+			await provider.setChatReadState(session.sessionId, main.resource, false);
+
+			assert.deepStrictEqual({
+				before,
+				afterRead,
+				afterUnread: { session: session.isRead.get(), main: main.isRead.get() },
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				before: { session: false, main: false },
+				afterRead: { session: true, main: true },
+				afterUnread: { session: false, main: false },
+				actions: [
+					{ channel: defaultChat, isRead: true },
+					{ channel: defaultChat, isRead: false },
+				],
+			});
+		});
+
+		test('default chat read state dispatches before session state hydrates', async () => {
+			const rawId = 'default-chat-read-before-hydration';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			agentHost.addSession(createSession(rawId, {
+				status: ProtocolSessionStatus.Idle,
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default', isRead: false },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId);
+			assert.ok(session);
+
+			await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+
+			assert.deepStrictEqual({
+				session: session.isRead.get(),
+				main: session.mainChat.get().isRead.get(),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				session: true,
+				main: true,
+				actions: [{ channel: defaultChat.toString(), isRead: true }],
+			});
+		});
+
+		test('explicit session read marks every aggregate chat and the session read', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'default-chat-read');
+			const backendSessionUri = AgentSession.uri('copilotcli', 'default-chat-read').toString();
+			const defaultChat = buildDefaultChatUri(backendSessionUri);
+			const peerChat = buildChatUri(backendSessionUri, 'peer-1');
+			const hiddenChat = buildChatUri(backendSessionUri, 'hidden');
+			agentHost.setSessionState('default-chat-read', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead), origin: { kind: ProtocolChatOriginKind.User } },
+				{ ...makeChatSummary(hiddenChat, 'Hidden'), interactivity: ProtocolChatInteractivity.Hidden },
+			], { defaultChat }));
+			const [main, peer, hidden] = session.chats.get();
+
+			await provider.setSessionReadState(session.sessionId, true);
+			const afterSessionRead = {
+				session: session.isRead.get(),
+				main: main.isRead.get(),
+				peer: peer.isRead.get(),
+			};
+			await provider.setSessionReadState(session.sessionId, false);
+
+			assert.deepStrictEqual({
+				afterSessionRead,
+				hidden: hidden.isRead.get(),
+				final: {
+					session: session.isRead.get(),
+					main: main.isRead.get(),
+					peer: peer.isRead.get(),
+				},
+				action: agentHost.dispatchedActions
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						type: dispatch.action.type,
+						isRead: dispatch.action.type === ActionType.SessionIsReadChanged || dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					}))
+					.filter(action => action.isRead !== undefined),
+			}, {
+				afterSessionRead: { session: true, main: true, peer: true },
+				hidden: false,
+				final: { session: false, main: true, peer: true },
+				action: [
+					{ channel: defaultChat, type: ActionType.ChatIsReadChanged, isRead: true },
+					{ channel: backendSessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+					{ channel: backendSessionUri, type: ActionType.SessionIsReadChanged, isRead: false },
+				],
+			});
+		});
+
 		test('side chats cannot be archived independently', () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'side-chat-archive');
@@ -7495,6 +9342,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -7868,6 +9716,66 @@ suite('LocalAgentHostSessionsProvider', () => {
 				sourceOnPeer: ChatModelSource.Chosen,
 				peerInputSelectedModels: ['agent-host-copilotcli:peer-model'],
 				peerInputModes: ['agent://peer'],
+			});
+		}));
+
+		test('createSideChat inherits the model the source chat last ran on when no model is recorded for it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+			let sent: { modelId: string | undefined; modelConfiguration: IChatSendRequestOptions['userSelectedModelConfiguration'] } | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				lookupLanguageModel: createTestLanguageModel,
+				acquireOrLoadSession: async () => {
+					const inputModel = new class extends mock<IInputModel>() {
+						override readonly state = constObservable<IChatModelInputState | undefined>(undefined);
+						override setState(): void { }
+						override clearState(): void { }
+						override toJSON(): undefined { return undefined; }
+					}();
+					const chatModel = new class extends mock<IChatModel>() {
+						override readonly inputModel = inputModel;
+					}();
+					return { object: chatModel, dispose() { } } satisfies IChatModelReference;
+				},
+				sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+					sent = { modelId: options?.userSelectedModelId, modelConfiguration: options?.userSelectedModelConfiguration };
+					return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+				},
+			});
+			const session = setupMultiChatSession(provider, 'side-chat-byok');
+			const sessionUri = AgentSession.uri('copilotcli', 'side-chat-byok').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('side-chat-byok', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			// The main chat ran on a BYOK model; the host records it on the turn, but the
+			// chat has no persisted draft model, so the adapter never learns it.
+			agentHost.setChatState(defaultChat, {
+				resource: defaultChat,
+				title: 'Session',
+				status: ProtocolSessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				turns: [{
+					id: 'turn-1',
+					startedAt: new Date(0).toISOString(),
+					message: { text: 'hi', origin: { kind: MessageKind.User }, model: { id: 'byok-model', config: { reasoningEffort: 'high' } } },
+					responseParts: [],
+					usage: undefined,
+					state: TurnState.Complete,
+				}],
+			});
+
+			const sideChat = await provider.createSideChat(session.sessionId, session.resource, 'turn-1');
+			await provider.sendRequest(session.sessionId, sideChat.resource, { query: 'side question' });
+
+			assert.deepStrictEqual({
+				adapterModelId: session.modelId.get(),
+				createdModel: agentHost.createdChats.at(-1)?.options?.model,
+				sent,
+			}, {
+				adapterModelId: undefined,
+				createdModel: { id: 'byok-model', config: { reasoningEffort: 'high' } },
+				// The source turn's configuration travels with the model, not the global default.
+				sent: { modelId: 'agent-host-copilotcli:byok-model', modelConfiguration: { reasoningEffort: 'high' } },
 			});
 		}));
 
@@ -8635,6 +10543,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
 		provider.getSessions();
 		await timeout(0);
+		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(await pathService.userHome({ preferLocal: true })), 'copilot-session');
 		const getHomeLabel = (resource: URI): string | undefined => {
 			const home = labelService.getUriHome(resource);
 			return home ? labelService.getUriLabel(home) : undefined;
@@ -8644,7 +10553,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			formatterCount: labelService.formatterCount,
 			quickChat: getHomeLabel(URI.joinPath(claudeHome, 'artifact.md')),
 			root: getHomeLabel(URI.file('/artifact.md')),
-			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+			copilotState: getHomeLabel(URI.joinPath(copilotStateHome, 'artifact.md')),
 		}, {
 			formatterCount: 4,
 			quickChat: 'claude/Claude Quick Chat',
@@ -8670,7 +10579,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			formatterChanges,
-			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+			copilotState: getHomeLabel(URI.joinPath(copilotStateHome, 'artifact.md')),
 		}, {
 			formatterChanges: 1,
 			copilotState: 'Copilot/Renamed\u2215Session\u29F5Title',
@@ -8679,7 +10588,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.dispose();
 		assert.deepStrictEqual({
 			quickChat: labelService.getUriHome(URI.joinPath(claudeHome, 'artifact.md')),
-			copilotState: labelService.getUriHome(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+			copilotState: labelService.getUriHome(URI.joinPath(copilotStateHome, 'artifact.md')),
 		}, {
 			quickChat: undefined,
 			copilotState: undefined,
@@ -8691,13 +10600,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.addSession(createSession(`session-${index}`, { summary: `Session ${index}` }));
 		}
 		const labelService = new MockLabelService();
+		const userHome = URI.file('/home/test');
 		const provider = createProvider(disposables, agentHost, undefined, {
-			pathService: new TestPathService(URI.file('/home/test')),
+			pathService: new TestPathService(userHome),
 			labelService,
 		});
 		provider.getSessions();
 		await timeout(0);
-		const resource = URI.file('/home/test/.copilot/session-state/session-42/artifact.md');
+		const stateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'session-42');
+		const resource = URI.joinPath(stateHome, 'artifact.md');
 		const home = labelService.getUriHome(resource);
 
 		assert.deepStrictEqual({
@@ -8706,7 +10617,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			label: home ? labelService.getUriLabel(home) : undefined,
 		}, {
 			formatterCount: 1,
-			home: URI.file('/home/test/.copilot/session-state/session-42').toString(),
+			home: stateHome.toString(),
 			label: 'Copilot/Session 42',
 		});
 	}));
@@ -8731,6 +10642,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	test('registers the SDK session state home from recorded artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const userHome = URI.file('/home/test');
+		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'sdk-session');
+		const artifactUri = URI.joinPath(sdkStateHome, 'files', 'plan.md');
 		const metadata = createSession('ahp-session', { summary: 'Artifact Session' });
 		agentHost.addSession({
 			...metadata,
@@ -8739,20 +10653,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 				type: SessionArtifactType.File,
 				label: 'Plan',
 				isArtifact: true,
-				uri: 'file:///home/test/.copilot/session-state/sdk-session/files/plan.md',
+				uri: artifactUri.toString(),
 			}])
 		});
 		const labelService = new MockLabelService();
 		const provider = createProvider(disposables, agentHost, undefined, {
-			pathService: new TestPathService(URI.file('/home/test')),
+			pathService: new TestPathService(userHome),
 			labelService,
 		});
 		provider.getSessions();
 		await timeout(0);
 
 		assert.strictEqual(
-			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/sdk-session/files/plan.md'))?.toString(),
-			URI.file('/home/test/.copilot/session-state/sdk-session').toString()
+			labelService.getUriHome(artifactUri)?.toString(),
+			sdkStateHome.toString()
 		);
 	}));
 
@@ -8852,7 +10766,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			loading: false,
 			createdSessions: 1,
 			resolveRequests: 1,
-			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			config: { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } },
 		});
 	});
 
@@ -9167,6 +11081,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const sendA = provider.sendRequest(sessionA.sessionId, chatA.resource, { query: 'A' });
 		const sendB = provider.sendRequest(sessionB.sessionId, chatB.resource, { query: 'B' });
 		await new Promise<void>(resolve => setTimeout(resolve, 10));
+		const pendingSessionIds = provider.getSessions()
+			.map(session => AgentSession.id(session.resource.toString()))
+			.sort();
 
 		// The committed session keeps each send's own (eager) id. Materialize B
 		// FIRST, then A — the ordering that made A grab B's session.
@@ -9177,8 +11094,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const [committedA, committedB] = await Promise.all([sendA, sendB]);
 
 		assert.deepStrictEqual(
-			{ a: AgentSession.id(committedA.resource.toString()), b: AgentSession.id(committedB.resource.toString()) },
-			{ a: ownA, b: ownB },
+			{
+				pending: pendingSessionIds,
+				a: AgentSession.id(committedA.resource.toString()),
+				b: AgentSession.id(committedB.resource.toString()),
+			},
+			{ pending: [ownA, ownB].sort(), a: ownA, b: ownB },
 		);
 	});
 
@@ -9911,11 +11832,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			supported, awaitingMetadata,
 			identityPreserved: provider.getSessions()[0] === session,
 			external: session.isExternal?.get(),
+			harness: session.harness,
+			environment: session.environment,
+			application: session.application.get(),
 			imported: agentHost.importedSessions.map(resource => resource.toString()),
 			turns: agentHost.dispatchedActions,
 		}, {
 			supported: [false, true, false], awaitingMetadata: true,
 			identityPreserved: true, external: false,
+			harness: 'copilot',
+			environment: 'local',
+			application: { id: 'github/autopilot', label: 'Copilot App' },
 			imported: [AgentSession.uri('copilotcli', 'import-session').toString()],
 			turns: [],
 		});
@@ -10233,6 +12160,46 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			properties: ['codex.sandboxMode'],
 			values: { 'codex.sandboxMode': 'read-only' },
+		});
+	}));
+
+	test('sandbox writes avoid schema round trips and stale resolution cannot undo host rollback', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('sandbox-rollback', { summary: 'Sandbox Rollback' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Sandbox Rollback')!;
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'], sessionMutable: true },
+				},
+			},
+			values: { sandboxEnabled: 'on', mode: 'interactive' },
+		};
+		agentHost.setSessionState('sandbox-rollback', 'copilotcli', {
+			provider: 'copilotcli', title: 'Sandbox Rollback', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], config,
+		});
+		await waitForSessionConfig(provider, session.sessionId, value => value?.values.sandboxEnabled === 'on');
+		const initialRequests = agentHost.resolveSessionConfigRequests.length;
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, 'off');
+		const sandboxRequests = agentHost.resolveSessionConfigRequests.length - initialRequests;
+		const optimistic = provider.getSessionConfig(session.sessionId)?.values.sandboxEnabled;
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		agentHost.resolveSessionConfigResult = { ...config, values: { sandboxEnabled: 'off', mode: 'plan' } };
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'plan');
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'sandbox-rollback').toString(),
+			serverSeq: 1, origin: undefined,
+			action: { type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'on' } },
+		});
+		await barrier.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ sandboxRequests, optimistic, values: provider.getSessionConfig(session.sessionId)?.values }, {
+			sandboxRequests: 0, optimistic: 'off', values: { sandboxEnabled: 'on', mode: 'plan' },
 		});
 	}));
 

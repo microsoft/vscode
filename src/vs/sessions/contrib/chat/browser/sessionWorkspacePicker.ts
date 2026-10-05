@@ -24,6 +24,7 @@ import { ITabDescriptor, TabbedActionListWidget } from '../../../../platform/act
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { DevContainerSample, devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../../../platform/agentHost/common/devContainerSamples.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -39,14 +40,14 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, isWorktreeWorkspaceUri } from '../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 import { SessionWorkspacePickerGroupContext } from '../../../common/contextkeys.js';
 // eslint-disable-next-line local/code-import-patterns -- TODO: move remote host options out of providers
 import { getStatusHover, getStatusLabel, removeRemoteHost, showRemoteHostOptions } from '../../providers/remoteAgentHost/browser/remoteHostOptions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { defaultCountBadgeStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../common/devContainerAgentHostService.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
 import { Menus } from '../../../browser/menus.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
@@ -55,10 +56,20 @@ import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin, WorkspaceSession
 import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessionWorkspaceFallback.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../common/newChatContextIds.js';
-import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
+
+type DevContainerSampleSelectedEvent = {
+	sampleId: DevContainerSample['id'];
+};
+
+type DevContainerSampleSelectedClassification = {
+	owner: 'chrmarti';
+	comment: 'Records accepted user selections of Dev Container samples in the Agents workspace picker, not container provisioning or session creation.';
+	sampleId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected built-in sample catalog identifier: go, dotnet, node, php, python, or rust. Does not contain a workspace path or repository URL.' };
+};
 
 const FILTER_THRESHOLD = 10;
 
@@ -76,7 +87,14 @@ const TABBED_PICKER_WIDTH = 360;
  * selection than leave the user staring at an unreachable workspace.
  */
 const RESTORE_CONNECT_GRACE_MS = 5000;
-const MAX_UNIFIED_RECENT_WORKSPACES = 10;
+const MAX_NEW_PICKER_RECENT_WORKSPACES = 10;
+/**
+ * A touch tap fires a Gesture Tap and, shortly after, a browser "ghost" click at the same position.
+ * The picker may render under that position before the click arrives, so the click can be retargeted
+ * to a picker item rather than the trigger.
+ */
+const GHOST_CLICK_GUARD_MS = 500;
+const GHOST_CLICK_GUARD_DISTANCE = 30;
 
 /**
  * Item type used in the action list.
@@ -129,9 +147,11 @@ export interface IWorkspacePickerNoWorkspaceOption {
 export interface IWorkspacePickerTrigger {
 	readonly label?: string;
 	readonly ariaLabel: string;
-	readonly tooltip?: string;
+	readonly tooltip?: string | (() => string);
 	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
 	readonly icon?: ThemeIcon;
+	readonly contextViewLayer?: number;
+	readonly hideNoWorkspaceOption?: boolean;
 	readonly hideIconWhenAttached?: boolean;
 	readonly reflectsWorkspace?: boolean;
 	readonly group?: string;
@@ -145,6 +165,7 @@ export interface IWorkspacePickerContextAction {
 	readonly label: string;
 	readonly description?: string;
 	readonly icon: ThemeIcon;
+	readonly placement?: 'top';
 	readonly run: () => Promise<void>;
 }
 
@@ -279,7 +300,7 @@ export class WorkspacePicker extends Disposable {
 		} else if (this._tabbedWidget.isVisible) {
 			this._tabbedWidget.refreshActiveList();
 		} else {
-			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+			this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 		}
 	}, 50));
 	private _attachedContext: readonly IChatRequestVariableEntry[] = [];
@@ -510,7 +531,7 @@ export class WorkspacePicker extends Disposable {
 				} else if (this._tabbedWidget.isVisible) {
 					this._tabbedWidget.refreshActiveList();
 				} else {
-					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 				}
 			}
 		}));
@@ -520,7 +541,8 @@ export class WorkspacePicker extends Disposable {
 			this._restoreAutomaticSelection();
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+			if (e.affectsConfiguration(DevContainerAgentHostEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)
+				|| e.affectsConfiguration(DevContainerSamplesEnabledSettingId) || e.affectsConfiguration('chat.disableAIFeatures')) {
 				this._clearDevContainerAvailability(true);
 			}
 		}));
@@ -568,6 +590,17 @@ export class WorkspacePicker extends Disposable {
 		return slot;
 	}
 
+	/**
+	 * Renders another trigger without replacing the primary picker controls.
+	 */
+	renderAdditionalTrigger(container: HTMLElement, options: IWorkspacePickerTrigger): IDisposable {
+		const disposables = new DisposableStore();
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot.sessions-chat-workspace-picker'));
+		disposables.add({ dispose: () => slot.remove() });
+		disposables.add(this._addTrigger(slot, options));
+		return disposables;
+	}
+
 	renderCategoryTriggers(container: HTMLElement, triggers: readonly IWorkspacePickerTrigger[], label?: string): HTMLElement {
 		this._renderDisposables.clear();
 		const row = dom.append(container, dom.$('.sessions-workspace-category-picker'));
@@ -599,6 +632,7 @@ export class WorkspacePicker extends Disposable {
 
 	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
 		return this.sessionsProvidersService.getProviders()
+			.filter(provider => this._isWorkspaceProviderVisible(provider.id))
 			.flatMap(provider => provider.browseActions)
 			.filter(action => action.attachesContext === true)
 			.map(action => ({
@@ -633,10 +667,11 @@ export class WorkspacePicker extends Disposable {
 		this._renderTriggerLabel(trigger);
 		if (options?.tooltip) {
 			if (options.focusCommand) {
+				const tooltip = typeof options.tooltip === 'function' ? options.tooltip() : options.tooltip;
 				registerPickerKeybindingPresentation(
 					triggerDisposables,
 					trigger,
-					options.tooltip,
+					tooltip,
 					options.focusCommand.id,
 					options.focusCommand.when,
 					options.focusCommand.enabled,
@@ -646,7 +681,10 @@ export class WorkspacePicker extends Disposable {
 					this.keybindingService,
 				);
 			} else {
-				triggerDisposables.add(this.hoverService.setupDelayedHover(trigger, { content: options.tooltip }));
+				const tooltip = options.tooltip;
+				triggerDisposables.add(typeof tooltip === 'function'
+					? this.hoverService.setupDelayedHover(trigger, () => ({ content: tooltip() }))
+					: this.hoverService.setupDelayedHover(trigger, { content: tooltip }));
 			}
 		}
 		// Onboarding spotlight target — id is referenced by the "new session" tour
@@ -658,12 +696,28 @@ export class WorkspacePicker extends Disposable {
 		}));
 
 		triggerDisposables.add(touch.Gesture.addTarget(trigger));
-		[dom.EventType.CLICK, touch.EventType.Tap].forEach(eventType => {
-			triggerDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+		let pendingTap: { readonly at: number; readonly pageX: number; readonly pageY: number } | undefined;
+		triggerDisposables.add(dom.addDisposableListener(dom.getWindow(trigger).document, dom.EventType.CLICK, e => {
+			if (!pendingTap || this._now() - pendingTap.at >= GHOST_CLICK_GUARD_MS) {
+				pendingTap = undefined;
+				return;
+			}
+			if (e.detail > 0
+				&& Math.abs(e.pageX - pendingTap.pageX) < GHOST_CLICK_GUARD_DISTANCE
+				&& Math.abs(e.pageY - pendingTap.pageY) < GHOST_CLICK_GUARD_DISTANCE) {
+				pendingTap = undefined;
 				dom.EventHelper.stop(e, true);
-				this.showPicker(false, trigger, options?.group, options?.attachesContext);
-			}));
-		});
+			}
+		}, true));
+		triggerDisposables.add(dom.addDisposableListener(trigger, touch.EventType.Tap, (e) => {
+			pendingTap = { at: this._now(), pageX: e.pageX, pageY: e.pageY };
+			dom.EventHelper.stop(e, true);
+			this.showPicker(false, trigger, options?.group, options?.attachesContext);
+		}));
+		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
+			dom.EventHelper.stop(e, true);
+			this.showPicker(false, trigger, options?.group, options?.attachesContext);
+		}));
 		triggerDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				dom.EventHelper.stop(e, true);
@@ -687,6 +741,11 @@ export class WorkspacePicker extends Disposable {
 		});
 
 		return triggerDisposables;
+	}
+
+	/** Overridable clock so the ghost-click guard can be tested deterministically. */
+	protected _now(): number {
+		return Date.now();
 	}
 
 	/**
@@ -791,6 +850,9 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!this._isWorkspaceProviderVisible(provider.id)) {
+				continue;
+			}
 			if (provider.supportsLocalWorkspaces && !byLabel.has(SESSION_WORKSPACE_GROUP_LOCAL)) {
 				byLabel.set(SESSION_WORKSPACE_GROUP_LOCAL, { id: SESSION_WORKSPACE_GROUP_LOCAL });
 			}
@@ -867,6 +929,7 @@ export class WorkspacePicker extends Disposable {
 				getWidgetAriaLabel: () => localize('workspacePicker.ariaLabel', "Workspace Picker"),
 			},
 			this._buildListOptions(items, undefined),
+			this._triggerOptions.get(triggerElement)?.contextViewLayer,
 		);
 	}
 
@@ -906,6 +969,7 @@ export class WorkspacePicker extends Disposable {
 			delegate,
 			accessibilityProvider,
 			width: TABBED_PICKER_WIDTH,
+			contextViewLayer: this._triggerOptions.get(triggerElement)?.contextViewLayer,
 			tabBarClassName: 'sessions-workspace-picker-tabbar',
 		});
 	}
@@ -992,6 +1056,10 @@ export class WorkspacePicker extends Disposable {
 			this._selectedDevContainerFolderUri = item.preferDevContainer ? item.folderUri : undefined;
 			this._onDidSelectWorkspaceMode.fire({ folderUri: item.folderUri, preferDevContainer: item.preferDevContainer === true });
 			this._selectFolder(item.folderUri, true, item.providerId);
+			const sample = findDevContainerSample(item.folderUri);
+			if (sample) {
+				this.telemetryService.publicLog2<DevContainerSampleSelectedEvent, DevContainerSampleSelectedClassification>('devContainerSampleSelected', { sampleId: sample.id });
+			}
 			return true;
 		}
 		return false;
@@ -1082,7 +1150,7 @@ export class WorkspacePicker extends Disposable {
 					} else if (this._tabbedWidget.isVisible) {
 						this._tabbedWidget.refreshActiveList();
 					} else {
-						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true });
+						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 					}
 				}
 			}));
@@ -1187,8 +1255,10 @@ export class WorkspacePicker extends Disposable {
 		return !!this.options.getNoWorkspaceOption && this.recentWorkspacesService.isNoWorkspaceChecked();
 	}
 
-	selectNoWorkspace(): void {
-		this.options.onUserSelection?.();
+	selectNoWorkspace(userSelection = true): void {
+		if (userSelection) {
+			this.options.onUserSelection?.();
+		}
 		this._selectionGeneration++;
 		this._sessionRestoreGeneration++;
 		this._hidePicker();
@@ -1407,8 +1477,9 @@ export class WorkspacePicker extends Disposable {
 	 * currently active tab when tabs are shown.
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
-		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
-		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
+		const providers = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id));
+		const all = providers.flatMap(p => p.browseActions);
+		const hasLocalSupport = providers.some(p => p.supportsLocalWorkspaces);
 		if (hasLocalSupport) {
 			all.unshift(this._localBrowseAction);
 		}
@@ -1416,6 +1487,10 @@ export class WorkspacePicker extends Disposable {
 			(!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
 			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
 		);
+	}
+
+	private _isWorkspaceProviderVisible(providerId: string): boolean {
+		return this.sessionsProvidersService.getProvider(providerId)?.supportsWorkspaceSelection !== false;
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
@@ -1502,7 +1577,7 @@ export class WorkspacePicker extends Disposable {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		// Collect recent workspaces from picker storage across all providers
-		const allProviders = this.sessionsProvidersService.getProviders();
+		const allProviders = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id));
 		const providerIds = new Set(allProviders.map(p => p.id));
 		const availableTabs = this._getAvailableTabs();
 		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
@@ -1521,6 +1596,8 @@ export class WorkspacePicker extends Disposable {
 			? (w: IResolvedFolderWorkspace) => this._isGroupInActiveTab(w.workspace.group)
 			: undefined;
 		const useRemoteSubmenu = this._useConsolidatedRemoteWorkspaces() && this._directPickerGroup === undefined;
+		const limitRecentWorkspaces = this._useConsolidatedRemoteWorkspaces()
+			|| this.configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 		const remotePickerItem: { id: string; run?: () => void } = { id: 'workspacePicker.remote' };
 		const remoteSubmenuActions: IAction[] = [];
 		const remoteFilterItems: IActionListItem<IWorkspacePickerItem>[] = [];
@@ -1529,7 +1606,8 @@ export class WorkspacePicker extends Disposable {
 			remotePickerItem.run = run;
 		};
 		const createWorkspaceModeActions = (workspace: ISessionWorkspace, folderUri: URI, providerId: string, item: IWorkspacePickerItem): IAction[] | undefined => {
-			if ((workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL && workspace.group !== SESSION_WORKSPACE_GROUP_REMOTE)
+			if (findDevContainerSample(folderUri)
+				|| (workspace.group !== SESSION_WORKSPACE_GROUP_LOCAL && workspace.group !== SESSION_WORKSPACE_GROUP_REMOTE)
 				|| this._isProviderUnavailable(providerId)
 				|| !this._isDevContainerWorkspaceAvailable(folderUri, providerId)) {
 				return undefined;
@@ -1587,15 +1665,14 @@ export class WorkspacePicker extends Disposable {
 				...entries.filter(({ workspace }) => ThemeIcon.isEqual(this._getWorkspaceIcon(workspace), Codicon.repo)),
 			]
 			: entries;
-		const recentEntries = orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => !entry.isSessionWorkspace))
-			.slice(0, useRemoteSubmenu ? MAX_UNIFIED_RECENT_WORKSPACES : undefined);
+		const recentEntries = orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => !entry.isSessionWorkspace));
 		const orderedRecentWorkspaceEntries = [
 			...recentEntries,
 			...orderByWorkspaceKind(recentWorkspaceEntries.filter(entry => entry.isSessionWorkspace)),
-		];
+		].slice(0, limitRecentWorkspaces ? MAX_NEW_PICKER_RECENT_WORKSPACES : undefined);
 
 		let previousRecentWorkspaceIsRepository: boolean | undefined;
-		for (const { workspace, providerId, repositoryId, isSessionWorkspace } of orderedRecentWorkspaceEntries) {
+		for (const { workspace, providerId, repositoryId } of orderedRecentWorkspaceEntries) {
 			const folderUri = workspace.folders[0]?.root;
 			if (!folderUri) {
 				continue;
@@ -1605,7 +1682,13 @@ export class WorkspacePicker extends Disposable {
 				|| (repositoryId !== undefined && repositoryId === this._getCurrentRepositoryId());
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
-			const item: IWorkspacePickerItem = { folderUri, providerId, checked: selected || attached || undefined };
+			const item: IWorkspacePickerItem = {
+				id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+				folderUri,
+				providerId,
+				checked: selected || attached || undefined,
+				preferDevContainer: !!findDevContainerSample(folderUri),
+			};
 			const modeActions = createWorkspaceModeActions(workspace, folderUri, providerId, item);
 			const recentWorkspaceIsRepository = ThemeIcon.isEqual(icon, Codicon.repo);
 			if (previousRecentWorkspaceIsRepository !== undefined && previousRecentWorkspaceIsRepository !== recentWorkspaceIsRepository) {
@@ -1627,7 +1710,7 @@ export class WorkspacePicker extends Disposable {
 				disabled: this._isProviderUnavailable(providerId),
 				item,
 				submenuActions,
-				onRemove: isSessionWorkspace ? undefined : () => this._removeRecentWorkspace(folderUri),
+				onRemove: () => this._removeRecentWorkspace(folderUri),
 			});
 		}
 
@@ -1711,6 +1794,37 @@ export class WorkspacePicker extends Disposable {
 				});
 			}
 		});
+
+		if (this._directPickerAttachesContext !== true
+			&& (!activeGroup || activeGroup === SESSION_WORKSPACE_GROUP_LOCAL)
+			&& areDevContainerSamplesEnabled(this.configurationService)
+			&& allProviders.some(provider => provider.id === LOCAL_AGENT_HOST_PROVIDER_ID && isAgentHostProvider(provider))) {
+			const sampleItem: { folderUri?: URI; providerId: string; preferDevContainer: boolean } = {
+				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+				preferDevContainer: true,
+			};
+			const filterItems = devContainerSamples.map(sample => ({
+				kind: ActionListItemKind.Action,
+				label: sample.name,
+				description: getDevContainerSampleUrl(sample),
+				group: { title: '', icon: Codicon.remote },
+				item: { folderUri: devContainerSampleUri(sample), providerId: LOCAL_AGENT_HOST_PROVIDER_ID, preferDevContainer: true },
+			}));
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('workspacePicker.devContainer.samples', "Dev Container Sample"),
+				group: { title: '', icon: Codicon.remote },
+				item: sampleItem,
+				submenuActions: [new SubmenuAction('workspacePicker.devContainer.samples', '', devContainerSamples.map(sample => toAction({
+					id: `workspacePicker.devContainer.sample.${sample.id}`,
+					label: sample.name,
+					tooltip: getDevContainerSampleUrl(sample),
+					run: () => { sampleItem.folderUri = devContainerSampleUri(sample); },
+				})))],
+				filterItems,
+				openSubmenuOnClick: true,
+			});
+		}
 
 		// Inline "Manage" entries: dynamic remote provider rows + menu-contributed
 		// actions filtered by the `sessionWorkspacePickerGroup` context key.
@@ -1855,7 +1969,10 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		const noWorkspaceOption = this._getNoWorkspaceOption();
-		if (!noWorkspaceOption || this._directPickerAttachesContext === true) {
+		const hideNoWorkspaceOption = this._activeTriggerElement
+			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
+			: false;
+		if (!noWorkspaceOption || this._directPickerAttachesContext === true || hideNoWorkspaceOption) {
 			return items;
 		}
 
@@ -1889,7 +2006,7 @@ export class WorkspacePicker extends Disposable {
 		return this.options.getNoWorkspaceOption?.();
 	}
 
-	private _getNoWorkspaceLabel(): string {
+	protected _getNoWorkspaceLabel(): string {
 		return this._useConsolidatedRemoteWorkspaces()
 			? localize('workspacePicker.chat', "Chat")
 			: localize('workspacePicker.noWorkspace', "No workspace");
@@ -2279,7 +2396,8 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _canRestoreProviderWorkspace(providerId: string): boolean {
-		return !this.options.sessionWorkspaceProviderFilter || this.options.sessionWorkspaceProviderFilter(providerId);
+		return this._isWorkspaceProviderVisible(providerId)
+			&& (!this.options.sessionWorkspaceProviderFilter || this.options.sessionWorkspaceProviderFilter(providerId));
 	}
 
 	private _canRestoreWorkspace(): boolean {
@@ -2377,7 +2495,8 @@ export class WorkspacePicker extends Disposable {
 	// -- Recent workspaces (sessions' own history) --
 
 	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces());
+		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces())
+			.filter(workspace => this._isWorkspaceProviderVisible(workspace.providerId));
 		const seen = new Set(recentWorkspaces.map(({ workspace }) =>
 			this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri)));
 		const sessionWorkspaces = (this._sessionWorkspaceFallback?.getWorkspaces() ?? []).filter(({ workspace }) => {

@@ -186,7 +186,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		container.style.borderRightWidth = '';
 	}
 
-	/** The part background color. Overridden by the single-pane variant to match the editor. */
+	/** The part background color. Overridden by the desktop variant to match the editor. */
 	protected getPartBackgroundColor(): string {
 		return this.getColor(agentsPanelBackground) || '';
 	}
@@ -302,16 +302,10 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			return;
 		}
 
-		const borderTotal = 2; // 1px border on each side
-
-		// The right gutter is provided by the workbench grid (see Workbench.layout).
-		// The bottom margin is 5px when the panel is visible (paired with the panel's
-		// 5px top margin to center the sash) and 0 when the panel is hidden (so the card
-		// fills its cell; the workbench grid's 10px bottom gutter provides the visible gap).
-		// When the editor is visible, padding-left: 5px keeps the inner content position
-		// aligned with the editor card.
+		const compact = this.layoutService.isModernUICompact();
+		const borderTotal = compact ? 0 : 2;
 		const editorVisible = this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
-		const paddingLeft = editorVisible ? AuxiliaryBarPart.CONTENT_PADDING_LEFT : 0;
+		const paddingLeft = editorVisible && !compact ? AuxiliaryBarPart.CONTENT_PADDING_LEFT : 0;
 		const marginBottom = AuxiliaryBarPart.MARGIN_BOTTOM;
 
 		super.layout(

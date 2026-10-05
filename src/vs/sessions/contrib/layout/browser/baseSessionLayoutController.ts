@@ -37,7 +37,7 @@ import { IPaneCompositePartService } from '../../../../workbench/services/paneco
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
-import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsQuickChatSessionContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logSidePanelToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IChangesViewService } from '../../changes/common/changesViewService.js';
@@ -50,8 +50,7 @@ const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-tog
 
 /**
  * Per-session view state: auxiliary bar visibility and active view container.
- * Treated as opaque persisted data by the base controller; only the desktop
- * controller interprets it (see `desktopSessionLayoutController.md`).
+ * Retained as opaque persisted data for legacy layout-state migration.
  */
 export interface ISessionViewState {
 	readonly auxiliaryBarVisible: boolean;
@@ -82,7 +81,7 @@ const WORKING_SETS_STORAGE_KEY = 'sessions.workingSets';
  * specified here is enumerated as rules **B1-B6** in
  * [baseSessionLayoutController.md](./baseSessionLayoutController.md).
  *
- * It owns the panel visibility (or, in single-pane, the panel view), editor
+ * It owns the panel visibility (or, in desktop, the panel view), editor
  * working sets, persistence, and the multi-session suppression that every layout
  * needs. Auxiliary bar management is platform-specific and supplied by subclasses
  * through {@link _registerViewStateManagement} (see the desktop / mobile controllers).
@@ -139,8 +138,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	/**
 	 * Storage key for this controller's per-session layout state. Overridable so a
-	 * sibling controller (e.g. single-pane) persists to a fresh key instead of
-	 * sharing the classic desktop state.
+	 * presentation-specific controller can persist to its own key.
 	 */
 	protected get _layoutStateStorageKey(): string {
 		return SESSION_LAYOUT_STATE_KEY;
@@ -358,7 +356,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// session change, not on the workspace-gated `activeSessionForWorkingSet`
 		// derive below. The derive lags while the incoming session's workspace
 		// resolves, and autoruns driven by the raw active session (e.g. the
-		// single-pane managed-tabs sync) async-close the outgoing session's docked
+		// desktop managed-tabs sync) async-close the outgoing session's docked
 		// editors during that window. Saving here synchronously — before those
 		// closes run — captures which editor was active (e.g. the Changes tab) so it
 		// is restored active on return.
@@ -407,12 +405,12 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 
 		// Side-pane toggle UI (menu item, keybinding, command-palette entry).
-		this._register(this._registerSidePaneToggleAction());
+		this._register(BaseLayoutController.registerSidePaneToggleAction());
 
 		// Platform-specific auxiliary bar / view-state management.
 		this._registerViewStateManagement();
 
-		// Layout-specific auxiliary controllers (e.g. single-pane detail/tab
+		// Layout-specific auxiliary controllers (e.g. desktop detail/tab
 		// controllers), created and owned by the layout controller so they share
 		// its lifecycle and coordinate through it.
 		this._registerAuxiliaryControllers();
@@ -438,7 +436,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 * command-palette entry). The command calls the workbench layout service
 	 * directly; this controller observes the service's toggle lifecycle events.
 	 */
-	private _registerSidePaneToggleAction(): IDisposable {
+	static registerSidePaneToggleAction(): IDisposable {
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -455,7 +453,7 @@ export abstract class BaseLayoutController extends Disposable {
 					category: Categories.View,
 					f1: true,
 					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), SinglePaneLayoutEnabledContext),
+						ContextKeyExpr.or(IsQuickChatSessionContext.negate(), DesktopLayoutContext),
 						CustomViewVisibleContext.negate()
 					),
 					keybinding: {
@@ -608,9 +606,8 @@ export abstract class BaseLayoutController extends Disposable {
 
 	/**
 	 * Hook deciding whether {@link _applyWorkingSet} actively hides the editor part
-	 * when restoring a session that had it hidden. The base never hides (in the
-	 * classic layout the editor part visibility is not a per-session choice); the
-	 * single-pane layout restores its docked editor part both ways.
+	 * when restoring a session that had it hidden. The base never hides; layouts
+	 * may opt into restoring their editor part both ways.
 	 */
 	protected _shouldHideEditorPartOnApply(_editorPartHidden: boolean): boolean {
 		return false;
@@ -831,9 +828,7 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 
 			// On the initial restore after a reload, preserve the editor part
-			// visibility that the workbench already restored. Single-pane is the
-			// Layouts may opt into an authoritative editor-hidden restore through
-			// `_shouldHideEditorPartOnApply`; the classic and single-pane layouts do not.
+			// visibility that the workbench already restored.
 			if (options?.isInitialRestore) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {

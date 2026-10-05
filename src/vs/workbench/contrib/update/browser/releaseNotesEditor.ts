@@ -829,10 +829,21 @@ export async function renderReleaseNotesMarkdown(
 		allowedAttributes: { augment: ['aria-role', 'viewBox', 'fill', 'xmlns', 'd'] }
 	};
 	const codeBlockIds = new WeakMap<marked.Token, string>();
+	const tryoutCodeSpans = new WeakSet<marked.Tokens.Codespan>();
+	const renderCodeSpan = simpleSettingRenderer.getCodeSpanRenderer();
 	const renderer = new marked.Renderer();
 	const content = await renderMarkdownDocument(text, extensionService, languageService, {
 		sanitizerConfig,
 		markedExtensions: [{
+			tokenizer: {
+				codespan(source) {
+					const token = marked.Tokenizer.prototype.codespan.call(this, source);
+					if (token && !this.lexer.state.inLink && !this.lexer.state.inRawBlock) {
+						tryoutCodeSpans.add(token);
+					}
+					return token;
+				},
+			},
 			walkTokens: token => {
 				if (codeBlocks && token.type === 'code') {
 					const id = `release-notes-code-${generateUuid()}`;
@@ -842,7 +853,7 @@ export async function renderReleaseNotesMarkdown(
 			},
 			renderer: {
 				html: simpleSettingRenderer.getHtmlRenderer(),
-				codespan: simpleSettingRenderer.getCodeSpanRenderer(),
+				codespan: token => (tryoutCodeSpans.has(token) ? tryouts?.renderCodeSpan(token.text) : undefined) ?? renderCodeSpan(token),
 				code: token => codeBlocks ? renderer.code(token).replace('<code', `<code id="${codeBlockIds.get(token)}"`) : false,
 			}
 		}]
