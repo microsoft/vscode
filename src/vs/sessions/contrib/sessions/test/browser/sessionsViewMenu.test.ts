@@ -11,7 +11,9 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
+import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -20,16 +22,19 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../browser/menus.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsListFilters } from '../../browser/views/sessionsListFilters.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../browser/views/sessionsView.js';
+import { TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
@@ -60,6 +65,7 @@ suite('Sessions - View Menu', () => {
 		const sorting = SessionsViewSortingContext.bindTo(contextKeyService);
 		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
 		const capped = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
+		const compact = SessionsViewCompactContext.bindTo(contextKeyService);
 		const filters = store.add(new SessionsListFilters(store.add(new InMemoryStorageService()), store.add(new NullLogService())));
 		const sessionsChanged = store.add(new Emitter<void>());
 		const providersChanged = store.add(new Emitter<void>());
@@ -120,7 +126,7 @@ suite('Sessions - View Menu', () => {
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		};
 		return {
-			snapshot, sorting, grouping, capped, filters, run, sessionsControl,
+			snapshot, sorting, grouping, capped, compact, contextKeyService, filters, run, sessionsControl,
 			setSessions: (value: readonly ISession[]) => {
 				sessions = value;
 				sessionsChanged.fire();
@@ -143,10 +149,50 @@ suite('Sessions - View Menu', () => {
 			{ title: 'Harness', group: '2_filters', submenu: Menus.SessionsViewHarness.id },
 			{ title: 'Created Externally', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
 			{ title: 'Show Done', group: '3_visibility', checked: false },
-			{ title: 'Compact View', group: '4_view', checked: false },
-			{ title: 'Collapse All Groups', group: '4_view' },
 			{ title: 'Reset Filters', group: '5_reset' },
 		]);
+	});
+
+	test('places Compact View and Collapse All Groups in their own header overflow group', () => {
+		const { snapshot, contextKeyService } = createMenu();
+		const menuService = store.add(new MenuService(new TestCommandService(), new MockKeybindingService(), store.add(new InMemoryStorageService())));
+		const { primary, secondary } = getActionBarActions(
+			menuService.getMenuActions(Menus.SidebarSessionsHeader, contextKeyService),
+			group => group.startsWith('navigation'),
+		);
+		const viewActionIds = ['sessionsViewPane.toggleCompact', 'sessionsViewPane.collapseAllGroups'];
+		assert.deepStrictEqual({
+			group: snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view'),
+			primary: primary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
+			secondary: secondary.filter(action => viewActionIds.includes(action.id)).map(action => action.id),
+			filter: snapshot(Menus.SessionsViewFilter).filter(item => item.title === 'Compact View' || item.title === 'Collapse All Groups'),
+		}, {
+			group: [
+				{ title: 'Compact View', group: 'view', checked: false },
+				{ title: 'Collapse All Groups', group: 'view' },
+			],
+			primary: [],
+			secondary: viewActionIds,
+			filter: [],
+		});
+	});
+
+	test('preserves the Compact View toggle and hides header view actions when AI is disabled', () => {
+		const { snapshot, compact, contextKeyService } = createMenu();
+		const viewActions = () => snapshot(Menus.SidebarSessionsHeader).filter(item => item.group === 'view');
+		compact.set(true);
+		const checked = viewActions();
+		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
+		const phone = viewActions();
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		assert.deepStrictEqual({ checked, phone, disabled: viewActions() }, {
+			checked: [
+				{ title: 'Compact View', group: 'view', checked: true },
+				{ title: 'Collapse All Groups', group: 'view' },
+			],
+			phone: [{ title: 'Collapse All Groups', group: 'view' }],
+			disabled: [],
+		});
 	});
 
 	test('uses the filter icon for the Filter Sessions action', () => {

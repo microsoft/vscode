@@ -477,10 +477,10 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			toggled: SessionsViewCompactContext,
 			menu: [{
-				id: Menus.SessionsViewFilter,
-				group: '4_view',
+				id: Menus.SidebarSessionsHeader,
+				group: 'view',
 				order: 0,
-				when: IsPhoneLayoutContext.negate(),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -547,7 +547,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: Menus.SessionsViewFilter, group: '4_view', order: 1 }]
+			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 1, when: ChatContextKeys.enabled }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
