@@ -8,10 +8,14 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IAgentHostCustomizationService } from '../../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
-import { findLocalMcpServer } from '../../browser/mcpCommands.js';
-import { IMcpServer, IMcpService } from '../../common/mcpTypes.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { findLocalMcpServer, McpConfigureSamplingModels } from '../../browser/mcpCommands.js';
+import { IMcpSamplingService, IMcpServer, IMcpService } from '../../common/mcpTypes.js';
 
 type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
@@ -48,7 +52,7 @@ function agentHostServer(id: string, name: string): AgentHostMcpServer {
 }
 
 suite('MCP commands', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('findLocalMcpServer matches exact, unambiguous definition IDs and labels', () => {
 		const byId = new TestMcpServer('extension.server', 'Extension Server');
@@ -70,5 +74,26 @@ suite('MCP commands', () => {
 			ambiguousLabel: undefined,
 			unmatched: undefined,
 		});
+	});
+
+	test('Configure Sampling Models preselects only defaults that are not scoped to a session type', async () => {
+		const models: Record<string, Partial<ILanguageModelChatMetadata>> = {
+			'copilot/default': { name: 'Copilot Default', isUserSelectable: true, isDefaultForLocation: { [ChatAgentLocation.Chat]: true } },
+			'agent-host/default': { name: 'Agent Host Default', isUserSelectable: true, isDefaultForLocation: { [ChatAgentLocation.Chat]: true }, targetChatSessionType: 'agent-host-codex' },
+			'copilot/other': { name: 'Copilot Other', isUserSelectable: true, isDefaultForLocation: {} },
+		};
+		let offered: readonly IQuickPickItem[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IQuickInputService, { pick: async (items: readonly IQuickPickItem[]) => { offered = items; return undefined; } } as Partial<IQuickInputService>);
+		instantiationService.stub(ILanguageModelsService, { getLanguageModelIds: () => Object.keys(models), lookupLanguageModel: (id: string) => models[id] as ILanguageModelChatMetadata });
+		instantiationService.stub(IMcpSamplingService, { getConfig: () => ({ allowedModels: [] }) });
+
+		await instantiationService.invokeFunction(accessor => new McpConfigureSamplingModels().run(accessor, new TestMcpServer('server', 'Server')));
+
+		assert.deepStrictEqual(offered.map(item => [item.id, !!item.picked]), [
+			['copilot/default', true],
+			['agent-host/default', false],
+			['copilot/other', false],
+		]);
 	});
 });

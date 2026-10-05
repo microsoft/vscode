@@ -1658,7 +1658,7 @@ export class McpConfigureSamplingModels extends Action2 {
 				label: model.name,
 				description: model.tooltip,
 				id,
-				picked: existingIds.size ? existingIds.has(id) : model.isDefaultForLocation[ChatAgentLocation.Chat],
+				picked: existingIds.size ? existingIds.has(id) : !model.targetChatSessionType && model.isDefaultForLocation[ChatAgentLocation.Chat],
 			};
 		}).filter(isDefined);
 

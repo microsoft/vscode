@@ -43,6 +43,7 @@ import { AgentHostConfigKey } from '../../../common/agentHostCustomizationConfig
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { readCodexAccountInfo } from '../../../common/codexAccount.js';
+import { readAgentModelIsDefault } from '../../../common/meta/agentModelDefaultMeta.js';
 import type { GetAccountResponse } from '../../../node/codex/protocol/generated/v2/GetAccountResponse.js';
 import type { GetAccountRateLimitsResponse } from '../../../node/codex/protocol/generated/v2/GetAccountRateLimitsResponse.js';
 
@@ -222,7 +223,7 @@ suite('CodexAgent model refresh', () => {
 				provider: 'codex',
 				id: toCodexModelSelectionId('openai', 'gpt-5.6-sol'),
 				name: 'GPT-5.6-Sol',
-				meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
+				meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt', 'vscode.defaultModel': true },
 			}],
 			account: 'signedIn',
 		});
@@ -795,6 +796,30 @@ suite('CodexAgent model refresh', () => {
 		assert.deepStrictEqual(agent.models.get().map(model => model.id), [
 			toCodexModelSelectionId('vscode-proxy', 'gpt-5.6'),
 		]);
+	});
+
+	test('marks the model a session runs without a selection as the default', async () => {
+		const copilotModels = [
+			{ id: 'gpt-5.5', name: 'GPT-5.5', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI', is_chat_default: false },
+			{ id: 'gpt-5.6', name: 'GPT-5.6', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI', is_chat_default: true },
+		] as CCAModel[];
+		const agent = createAgent(disposables, async () => copilotModels);
+		agent['_githubToken'] = 'token';
+		agent['_connection'] = createChatGPTConnection() as never;
+
+		await agent.refreshModels();
+
+		assert.deepStrictEqual({
+			defaults: agent.models.get().map(model => [model.id, readAgentModelIsDefault(model)]),
+			runsWithoutSelection: agent['_defaultModel']()?.id,
+		}, {
+			defaults: [
+				[toCodexModelSelectionId('vscode-proxy', 'gpt-5.6'), true],
+				[toCodexModelSelectionId('vscode-proxy', 'gpt-5.5'), false],
+				[toCodexModelSelectionId('openai', 'gpt-5.6-sol'), false],
+			],
+			runsWithoutSelection: toCodexModelSelectionId('vscode-proxy', 'gpt-5.6'),
+		});
 	});
 
 	test('waits for an app-server already starting when signed-out use becomes enabled', async () => {
@@ -1400,7 +1425,7 @@ suite('CodexAgent model refresh', () => {
 				enum: ['low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
 				default: 'low',
 			},
-			meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
+			meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt', 'vscode.defaultModel': true },
 		}]);
 	});
 

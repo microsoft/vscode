@@ -10,6 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -202,6 +203,26 @@ suite('AgentHostLanguageModelProvider', () => {
 			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
 			['gpt-5', undefined, undefined],
 		]);
+	});
+
+	test('declares only the model the host marks as its default, wherever it is listed', async () => {
+		const provider = createProvider();
+		const defaultsFor = async (models: SessionModelInfo[]) => {
+			provider.updateModels(models);
+			const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+			return infos.map(info => [info.metadata.id, info.metadata.isDefaultForLocation]);
+		};
+
+		assert.deepStrictEqual({
+			marked: await defaultsFor([makeModel('auto'), makeModel('gpt-5.5', { 'vscode.defaultModel': true }), makeModel('claude-sonnet-4.6')]),
+			// A host that does not mark one declares no default, rather than one inferred from list order.
+			unmarked: await defaultsFor([makeModel('gpt-5.5'), makeModel('auto')]),
+			invalid: await defaultsFor([makeModel('gpt-5.5', { 'vscode.defaultModel': 'true' }), makeModel('auto', { 'vscode.defaultModel': 1 })]),
+		}, {
+			marked: [['auto', {}], ['gpt-5.5', { [ChatAgentLocation.Chat]: true }], ['claude-sonnet-4.6', {}]],
+			unmarked: [['gpt-5.5', {}], ['auto', {}]],
+			invalid: [['gpt-5.5', {}], ['auto', {}]],
+		});
 	});
 
 	test('carries picker category, price category, and promo from model metadata', async () => {
