@@ -778,7 +778,8 @@ suite('AgentsWindowInvitationOnboarding', () => {
 						title: container.querySelector('.spotlight-callout-title')?.textContent ?? undefined,
 						description: container.querySelector('.spotlight-callout-description')?.textContent ?? undefined,
 						action: next.textContent,
-						primary: !next.classList.contains('secondary') && next.style.backgroundColor === 'var(--vscode-button-background)',
+						primary: !next.classList.contains('secondary')
+							&& [defaultButtonStyles.buttonBackground, defaultButtonStyles.buttonHoverBackground].includes(next.style.backgroundColor),
 					});
 					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 				},
@@ -840,7 +841,8 @@ suite('AgentsWindowInvitationOnboarding', () => {
 						steps.push({
 							title: container.querySelector('.spotlight-callout-title')?.textContent ?? undefined,
 							action: next.textContent,
-							primary: !next.classList.contains('secondary') && next.style.backgroundColor === 'var(--vscode-button-background)',
+							primary: !next.classList.contains('secondary')
+								&& [defaultButtonStyles.buttonBackground, defaultButtonStyles.buttonHoverBackground].includes(next.style.backgroundColor),
 							interactive: container.querySelector('.spotlight-callout')?.getAttribute('aria-modal') === 'false',
 							clickable: !!hit && target.contains(hit),
 						});
