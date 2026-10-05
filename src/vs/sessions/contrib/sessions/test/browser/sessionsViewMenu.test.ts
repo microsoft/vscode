@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -134,18 +135,26 @@ suite('Sessions - View Menu', () => {
 	test('exposes each category at the top level and keeps view actions separate from filters', () => {
 		const { snapshot } = createMenu();
 		assert.deepStrictEqual(snapshot(Menus.SessionsViewFilter), [
-			{ title: 'Ordering (Created)', group: '1_presentation', submenu: Menus.SessionsViewOrdering.id },
-			{ title: 'Grouping (Workspace)', group: '1_presentation', submenu: Menus.SessionsViewGrouping.id },
-			{ title: 'Show (Recent)', group: '1_presentation', submenu: Menus.SessionsViewShow.id },
+			{ title: 'Ordering', group: '1_presentation', submenu: Menus.SessionsViewOrdering.id },
+			{ title: 'Grouping', group: '1_presentation', submenu: Menus.SessionsViewGrouping.id },
+			{ title: 'Show', group: '1_presentation', submenu: Menus.SessionsViewShow.id },
 			{ title: 'Environment', group: '2_filters', submenu: Menus.SessionsViewEnvironment.id },
 			{ title: 'Created In', group: '2_filters', submenu: Menus.SessionsViewSource.id },
 			{ title: 'Harness', group: '2_filters', submenu: Menus.SessionsViewHarness.id },
-			{ title: 'Created Externally (Last 7 Days)', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
+			{ title: 'Created Externally', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
 			{ title: 'Show Done', group: '3_visibility', checked: false },
 			{ title: 'Compact View', group: '4_view', checked: false },
 			{ title: 'Collapse All Groups', group: '4_view' },
 			{ title: 'Reset Filters', group: '5_reset' },
 		]);
+	});
+
+	test('uses the filter icon for the Filter Sessions action', () => {
+		const item = MenuRegistry.getMenuItems(Menus.SidebarSessionsHeader).filter(isISubmenuItem).find(item => item.submenu === Menus.SessionsViewFilter);
+		assert.deepStrictEqual(item && { title: item.title, icon: item.icon }, {
+			title: { value: 'Filter Sessions', original: 'Filter Sessions' },
+			icon: Codicon.filter,
+		});
 	});
 
 	test('Created Externally keeps its time choice independent from the opt-in External section', async () => {
@@ -171,18 +180,18 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Show in External Section', group: '2_grouping', checked: false },
 			],
 			grouped: {
-				title: 'Created Externally (Last 7 Days)',
+				title: 'Created Externally',
 				checked: ['Last 7 Days', 'Show in External Section'],
 			},
 			changedTime: {
-				title: 'Created Externally (Last 30 Days)',
+				title: 'Created Externally',
 				checked: ['Last 30 Days', 'Show in External Section'],
 			},
-			ungrouped: { title: 'Created Externally (Last 30 Days)', checked: ['Last 30 Days'] },
+			ungrouped: { title: 'Created Externally', checked: ['Last 30 Days'] },
 		});
 	});
 
-	test('single-choice submenu titles and checked items track the selected choices', () => {
+	test('keeps submenu titles unchanged while checked items track the selected choices', () => {
 		const { snapshot, sorting, grouping, capped } = createMenu();
 		sorting.set(SessionsSorting.Updated);
 		capped.set(false);
@@ -197,8 +206,8 @@ suite('Sessions - View Menu', () => {
 			grouping: snapshot(Menus.SessionsViewGrouping),
 			show,
 		}, {
-			workspaceTitles: ['Ordering (Updated)', 'Grouping (Workspace)', 'Show (All)'],
-			timeTitles: ['Ordering (Updated)', 'Grouping (Time)'],
+			workspaceTitles: ['Ordering', 'Grouping', 'Show'],
+			timeTitles: ['Ordering', 'Grouping'],
 			ordering: [
 				{ title: 'Created', group: '1_sort', checked: false },
 				{ title: 'Updated', group: '1_sort', checked: true },
@@ -336,7 +345,7 @@ suite('Sessions - View Menu', () => {
 					{ title: 'Cloud', group: '2_environments', checked: true },
 				],
 			},
-			reset: { local: true, cloud: true, archived: false, show: 'Show (Recent)' },
+			reset: { local: true, cloud: true, archived: false, show: 'Show' },
 		});
 	});
 
@@ -367,7 +376,7 @@ suite('Sessions - View Menu', () => {
 		};
 		assert.deepStrictEqual({ excluded, restored }, {
 			excluded: {
-				title: 'Environment (2 Selected)',
+				title: 'Environment',
 				sources: [
 					{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
 					{ title: 'VS Code (Build Server)', group: '3_applications_000002', checked: true },
@@ -419,12 +428,12 @@ suite('Sessions - View Menu', () => {
 		const cloudApplication = { title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true };
 		assert.deepStrictEqual({ empty, local, none, cloud }, {
 			empty: { title: 'Environment', sources: [localApplication, cloudApplication] },
-			local: { title: 'Environment (Local)', sources: [localApplication] },
+			local: { title: 'Environment', sources: [localApplication] },
 			none: {
-				title: 'Environment (None)',
+				title: 'Environment',
 				sources: [{ title: 'Select an Environment First', group: '3_applications', enabled: false }],
 			},
-			cloud: { title: 'Environment (Cloud)', sources: [cloudApplication] },
+			cloud: { title: 'Environment', sources: [cloudApplication] },
 		});
 	});
 
@@ -451,7 +460,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('summarizes included disconnected hosts and retains cached creation choices through rename and catalog changes', () => {
+	test('keeps the Environment title and cached creation choices through disconnect, rename, and catalog changes', () => {
 		const connected = observableValue('connected', true);
 		const remote = buildTestSession({ id: 'remote', title: 'Remote', environment: 'remote' }).session;
 		const { snapshot, filters, setSessions, setEnvironments } = createMenu([remote], [{ id: 'remote', label: 'Build Server', isConnected: connected }]);
@@ -475,7 +484,7 @@ suite('Sessions - View Menu', () => {
 		filters.setExcluded({ kind: 'environment', id: 'remote' }, false);
 		const includedAgain = state();
 		const expectedCached = {
-			title: 'Environment (Renamed Server)',
+			title: 'Environment',
 			environments: [
 				{ title: 'Local', group: '2_environments', checked: false },
 				{ title: 'Cloud', group: '2_environments', checked: false },
@@ -483,7 +492,7 @@ suite('Sessions - View Menu', () => {
 			sources: [{ title: 'VS Code (Renamed Server)', group: '3_applications_000002', checked: false }],
 		};
 		const expectedNone = {
-			title: 'Environment (None)',
+			title: 'Environment',
 			environments: expectedCached.environments,
 			sources: [{ title: 'Select an Environment First', group: '3_applications', enabled: false }],
 		};
@@ -495,7 +504,7 @@ suite('Sessions - View Menu', () => {
 	test('uses Show Archived when the archive wording is configured', () => {
 		const { snapshot } = createMenu([], [], ChatSessionArchiveActionWording.Archive);
 		assert.deepStrictEqual(snapshot(Menus.SessionsViewFilter).filter(item => item.group === '3_visibility'), [
-			{ title: 'Created Externally (Last 7 Days)', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
+			{ title: 'Created Externally', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
 			{ title: 'Show Archived', group: '3_visibility', checked: false },
 		]);
 	});
