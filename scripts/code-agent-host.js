@@ -8,7 +8,7 @@
 const cp = require('child_process');
 const path = require('path');
 const minimist = require('minimist');
-
+// test commit
 async function main() {
 	const args = minimist(process.argv.slice(2), {
 		boolean: ['help', 'enable-mock-agent', 'quiet', 'without-connection-token'],
