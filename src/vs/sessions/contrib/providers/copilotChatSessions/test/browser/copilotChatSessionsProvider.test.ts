@@ -2565,17 +2565,21 @@ suite('CopilotChatSessionsProvider', () => {
 		 * resolution reports `pending` until it yields the model, mirroring an agent host that has
 		 * connected but not yet published.
 		 */
-		function provisionedSession(sendRequest?: CloudSandboxSessionsProvider['sendRequest'], sandboxModels: () => readonly ILanguageModelChatMetadataAndIdentifier[] = () => []): ICloudSandboxProvisionedSession & { published: string[]; modelSelections: { modelId: string; source: ChatModelSource }[]; modelsChanged: Emitter<void> } {
+		function provisionedSession(sendRequest?: CloudSandboxSessionsProvider['sendRequest'], sandboxModels: () => readonly ILanguageModelChatMetadataAndIdentifier[] = () => []): ICloudSandboxProvisionedSession & { published: string[]; renames: { sessionId: string; title: string }[]; modelSelections: { modelId: string; source: ChatModelSource }[]; modelsChanged: Emitter<void> } {
+			const title = observableValue('title', 'main');
 			const committed = upcastPartial<ISession>({
 				sessionId: 'agenthost:sess-new',
 				resource: URI.parse('agent-host-copilot:/sess-new'),
+				title,
 			});
 			const sandboxSession = upcastPartial<ISession>({
 				sessionId: 'agenthost:sess-new',
 				resource: URI.parse('agent-host-copilot:/sess-new'),
+				title,
 				mainChat: constObservable(upcastPartial<IChat>({ resource: URI.parse('agent-host-copilot:/sess-new') })),
 			});
 			const published: string[] = [];
+			const renames: { sessionId: string; title: string }[] = [];
 			const modelSelections: { modelId: string; source: ChatModelSource }[] = [];
 			const modelsChanged = disposables.add(new Emitter<void>());
 			return {
@@ -2584,10 +2588,15 @@ suite('CopilotChatSessionsProvider', () => {
 				environmentId: 'env-new',
 				session: sandboxSession,
 				published,
+				renames,
 				modelSelections,
 				modelsChanged,
 				provider: upcastPartial<CloudSandboxSessionsProvider>({
 					sendRequest: sendRequest ?? (async () => committed),
+					renameSession: async (sessionId, newTitle) => {
+						renames.push({ sessionId, title: newTitle });
+						title.set(newTitle, undefined);
+					},
 					publishWithheldSession: (rawId: string) => { published.push(rawId); },
 					onDidChangeModels: modelsChanged.event,
 					getModelsSnapshot: (_sessionId: string, desiredModelId?: string) => {
@@ -2630,6 +2639,40 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 
 		for (const providerMode of ['default', 'sandbox'] as const) {
+			for (const { name, options, expected } of [
+				{ name: 'first prompt', options: { query: 'Fix the login bug' }, expected: 'Fix the login bug' },
+				{ name: 'multiline prompt', options: { query: 'Fix the login bug\nHere are the details' }, expected: 'Fix the login bug' },
+				{ name: 'surrounding whitespace', options: { query: '  Fix the login bug  \nHere are the details' }, expected: 'Fix the login bug' },
+				{ name: 'long prompt', options: { query: 'x'.repeat(101) }, expected: 'x'.repeat(100) },
+				{ name: 'explicit title', options: { query: 'Fix the login bug', title: 'Login fix' }, expected: 'Login fix' },
+				{ name: 'empty first line', options: { query: '\nFix the login bug' }, expected: 'New Session' },
+				{ name: 'whitespace first line', options: { query: '  \nFix the login bug' }, expected: 'New Session' },
+			]) {
+				test(`${providerMode} creation pushes the ${name} title to the sandbox before sending`, async () => {
+					let titleAtSend: string | undefined;
+					const provisioned = provisionedSession(async () => {
+						titleAtSend = provisioned.session.title.get();
+						return provisioned.session;
+					});
+					const { provider } = createSandboxProvider({ providerMode, provision: async () => provisioned });
+					const sessionType = providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id;
+					const draft = provider.createNewSession(repoWorkspace, sessionType);
+					const session = provider.getSession(draft.sessionId)!;
+					session.setUseSandbox(true);
+
+					const committed = await provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, options);
+
+					assert.deepStrictEqual({
+						renames: provisioned.renames,
+						titleAtSend,
+						committedTitle: committed.title.get(),
+					}, {
+						renames: [{ sessionId: 'agenthost:sess-new', title: expected }],
+						titleAtSend: expected,
+						committedTitle: expected,
+					});
+				});
+			}
 			test(`${providerMode} sandbox startup uses draft preparation progress without registering a chat provider or changing its resource`, async () => {
 				const pending = new DeferredPromise<ICloudSandboxProvisionedSession>();
 				const preparing = new DeferredPromise<void>();

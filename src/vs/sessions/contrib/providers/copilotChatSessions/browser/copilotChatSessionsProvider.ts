@@ -1716,7 +1716,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sandboxSends.add(session.sessionId);
 		const preparation = session.startPreparation();
 		const token = preparation.object;
-		session.setTitle((options.title || options.query.split('\n')[0]).substring(0, 100) || localize('new session', "New Session"));
+		session.setTitle((options.title || options.query.split('\n')[0]).trim().substring(0, 100) || localize('new session', "New Session"));
 		session.setStatus(SessionStatus.InProgress);
 		this._sessionCache.set(session.resource.toString(), session);
 		const placeholder = this._chatToSession(session);
@@ -1754,6 +1754,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			// *additional* peer chat inside a session that already has one.
 			const chat = provisioned.session.mainChat.get();
 			await raceCancellationError(this._carryModelToSandbox(provisioned, chat.resource, selectedModel), token);
+			// Preserve the prompt-derived title rather than the host's branch-name default.
+			await raceCancellationError(provisioned.provider.renameSession(provisioned.session.sessionId, session.title.get()), token);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, options);
 
 			// Retire only once the turn is dispatched; swapping earlier bounces the view home.

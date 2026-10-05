@@ -4074,7 +4074,7 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		refresh(): Promise<void> { return this._refreshSessions(); }
 	}
 
-	function createSandbox(): { provider: TestSandboxProvider; connection: MockAgentConnection; renamed: string[] } {
+	function createSandbox(provisional = false): { provider: TestSandboxProvider; connection: MockAgentConnection; renamed: string[] } {
 		const connection = store.add(new MockAgentConnection());
 		connection.addSession({ ...metadata, session: backendUri });
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
@@ -4083,7 +4083,11 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		}) as TestSandboxProvider;
 		const renamed: string[] = [];
 		provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
-		provider.seedSessions([metadata], { updateExisting: true });
+		if (provisional) {
+			provider.seedProvisionalSession(metadata);
+		} else {
+			provider.seedSessions([metadata], { updateExisting: true });
+		}
 		return { provider, connection, renamed };
 	}
 
@@ -4142,6 +4146,23 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		const session = provider.getSessions()[0];
 		await assert.rejects(provider.renameSession(session.sessionId, 'New title'), /task rename rejected/);
 		assert.deepStrictEqual({ title: session.title.get(), dispatched: connection.dispatchedActions }, { title: 'Old title', dispatched: [] });
+	});
+
+	test('does not queue a provisional rename rejected by Mission Control', async () => {
+		const { provider, connection } = createSandbox(true);
+		const session = provider.getCachedSession('sandbox-session')!;
+		provider.setTaskRenameHandler('sandbox-session', async () => { throw new Error('task rename rejected'); });
+		await assert.rejects(provider.renameSession(session.sessionId, 'New title'), /task rename rejected/);
+		provider.setConnection(connection);
+		await provider.refresh();
+
+		assert.deepStrictEqual({
+			title: session.title.get(),
+			dispatched: connection.dispatchedActions,
+		}, {
+			title: 'Old title',
+			dispatched: [],
+		});
 	});
 
 	test('does not update a session deleted while task rename is in flight', async () => {
@@ -4659,6 +4680,120 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 			origin: undefined,
 		} as ActionEnvelope);
 		await timeout(0);
+	}
+
+	for (const source of ['session-added notification', 'host listing'] as const) {
+		test(`a provisional rename reaches the host after delayed creation via ${source}`, async () => {
+			const rawId = 'delayed-title';
+			let hostTitle: string | undefined;
+			const rejectedTitles: string[] = [];
+			connection = new class extends MockAgentConnection {
+				override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+					if (action.type === ActionType.SessionTitleChanged) {
+						if (hostTitle === undefined) {
+							rejectedTitles.push(action.title);
+						} else {
+							hostTitle = action.title;
+							this.addSession(createSession(rawId, { provider: 'ahp-session', summary: hostTitle }));
+						}
+					}
+					super.dispatch(channel, action);
+				}
+			}();
+			const provider = createProvider(disposables, connection, {
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+			}) as CloudSandboxSessionsProvider;
+			const metadata = createSession(rawId, { provider: 'copilot', summary: 'owner/repository' });
+			provider.seedProvisionalSession(metadata);
+			const taskRenames: string[] = [];
+			provider.setTaskRenameHandler(rawId, async title => { taskRenames.push(title); });
+			provider.setConnection(connection);
+			await timeout(0);
+			const session = provider.getCachedSession(rawId)!;
+
+			await provider.renameSession(session.sessionId, 'Fix the login bug');
+			provider.seedSessions([{ ...metadata, summary: 'Discovery title', modifiedTime: metadata.modifiedTime + 1 }], { updateExisting: true });
+			const beforeHostCreation = {
+				localTitle: session.title.get(),
+				actions: [...connection.dispatchedActions],
+				taskRenames: [...taskRenames],
+			};
+
+			hostTitle = 'main';
+			connection.addSession(createSession(rawId, { provider: 'ahp-session', summary: hostTitle }));
+			if (source === 'session-added notification') {
+				fireSessionAdded(connection, rawId, { provider: 'ahp-session', title: hostTitle });
+			} else {
+				await refreshViaTurnComplete(connection, rawId);
+			}
+			await refreshViaTurnComplete(connection, rawId);
+
+			assert.deepStrictEqual({
+				beforeHostCreation,
+				localTitle: session.title.get(),
+				hostTitle,
+				rejectedTitles,
+				taskRenames,
+				actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			}, {
+				beforeHostCreation: { localTitle: 'Fix the login bug', actions: [], taskRenames: ['Fix the login bug'] },
+				localTitle: 'Fix the login bug',
+				hostTitle: 'Fix the login bug',
+				rejectedTitles: [],
+				taskRenames: ['Fix the login bug'],
+				actions: [{ channel: `ahp-session:/${rawId}`, action: { type: ActionType.SessionTitleChanged, title: 'Fix the login bug' } }],
+			});
+		});
+	}
+
+	test('a newer rename replaces the queued initial title before host creation', async () => {
+		const provider = createSandboxProvider(disposables, connection, { noConnection: true });
+		provider.seedProvisionalSession(createSession('renamed-before-create'));
+		const session = provider.getCachedSession('renamed-before-create')!;
+
+		await provider.renameSession(session.sessionId, 'First prompt');
+		await provider.renameSession(session.sessionId, 'My chosen title');
+		provider.setConnection(connection);
+		await timeout(0);
+		fireSessionAdded(connection, 'renamed-before-create', { title: 'main' });
+
+		assert.deepStrictEqual({
+			title: session.title.get(),
+			actions: connection.dispatchedActions.map(({ action }) => action),
+		}, {
+			title: 'My chosen title',
+			actions: [{ type: ActionType.SessionTitleChanged, title: 'My chosen title' }],
+		});
+	});
+
+	for (const removal of ['local deletion', 'host removal'] as const) {
+		test(`a queued title is discarded on ${removal}`, async () => {
+			const provider = createSandboxProvider(disposables, connection, { noConnection: true });
+			const metadata = createSession('removed-before-create');
+			provider.seedProvisionalSession(metadata);
+			const session = provider.getCachedSession('removed-before-create')!;
+			await provider.renameSession(session.sessionId, 'First prompt');
+			provider.setConnection(connection);
+			await timeout(0);
+
+			if (removal === 'local deletion') {
+				provider.removeDeletedSession('removed-before-create');
+			} else {
+				fireSessionRemoved(connection, 'removed-before-create');
+			}
+			provider.seedSessions([metadata]);
+			fireSessionAdded(connection, 'removed-before-create', { title: 'main' });
+
+			assert.deepStrictEqual({
+				title: provider.getCachedSession('removed-before-create')?.title.get(),
+				actions: connection.dispatchedActions,
+			}, {
+				title: 'main',
+				actions: [],
+			});
+		});
 	}
 
 	test('a provisional session survives a host listing that does not know it yet', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
