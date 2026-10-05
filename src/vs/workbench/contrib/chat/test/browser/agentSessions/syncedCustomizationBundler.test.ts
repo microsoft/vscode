@@ -30,6 +30,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly statFailures = new ResourceSet();
 	private readonly writeFailures = new ResourceSet();
 	private statDelay = 0;
+	private statBlock: Promise<void> | undefined;
 	activeStats = 0;
 	maxActiveStats = 0;
 	statCalls = 0;
@@ -41,6 +42,10 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 
 	delayStats(delay: number): void {
 		this.statDelay = delay;
+	}
+
+	blockStatsUntil(released: Promise<void>): void {
+		this.statBlock = released;
 	}
 
 	failStat(resource: URI): void {
@@ -59,6 +64,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			if (this.statDelay > 0) {
 				await timeout(this.statDelay);
 			}
+			await this.statBlock;
 			if (this.statFailures.has(resource)) {
 				throw new Error('Unavailable test resource');
 			}
@@ -397,7 +403,8 @@ suite('SyncedCustomizationBundler', () => {
 			await seedFile(`/skills/replaced/references/${index}.md`, `reference ${index}`);
 		}
 		const replacement = await seedFile('/replacement.md', 'replacement content');
-		memFs.delayStats(50);
+		const statsReleased = new DeferredPromise<void>();
+		memFs.blockStatsUntil(statsReleased.p);
 
 		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		while (memFs.maxActiveStats < 10) {
@@ -407,7 +414,9 @@ suite('SyncedCustomizationBundler', () => {
 		const replacementBundle = replacementBundler.bundle([{ uri: replacement, type: PromptsType.instructions }]);
 		await timeout(0);
 
-		assert.strictEqual(memFs.activeStats, 10);
+		const activeStats = memFs.activeStats;
+		statsReleased.complete();
+		assert.strictEqual(activeStats, 10);
 		await assert.rejects(disposedBundle, error => isCancellationError(error));
 		await replacementBundle;
 		assert.strictEqual(
