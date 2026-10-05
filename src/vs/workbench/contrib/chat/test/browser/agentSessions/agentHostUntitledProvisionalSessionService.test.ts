@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -60,6 +61,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	createGate: DeferredPromise<void> | undefined;
 	failNextCreate = false;
 	failNextDispose = false;
+	enforceStandardTombstones = false;
+	private readonly _tombstones = new Set<string>();
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
@@ -92,6 +95,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		assert.ok(config?.session);
 		this.createCalls.push(config);
+		if (this.enforceStandardTombstones && this._tombstones.has(config.session.toString())) {
+			throw new Error(`Session storage identity is already in use: ${config.session.toString()}`);
+		}
 		if (this.failNextCreate) {
 			this.failNextCreate = false;
 			throw new Error('create failed');
@@ -111,6 +117,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			throw new Error('dispose failed');
 		}
 		this.disposed.push(session);
+		if (this.enforceStandardTombstones && session.scheme === 'ahp-session') {
+			const creation = [...this.createCalls].reverse().find(call => call.session?.toString() === session.toString());
+			if (creation?._meta?.[VSCODE_EPHEMERAL_SESSION_META_KEY] !== true) {
+				this._tombstones.add(session.toString());
+			}
+		}
 	}
 
 	fireAgentHostStart(): void {
@@ -1269,6 +1281,84 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			finalConfig: { isolation: 'worktree' },
 		});
 	});
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`standard ${provider} rebind retries with a fresh identity after retiring a stale candidate`, async () => {
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [],
+				_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
+			}, undefined);
+			agentHost.enforceStandardTombstones = true;
+			const ui = URI.from({ scheme: `agent-host-${provider}`, path: '/untitled-standard-race' });
+			const realUi = ui.with({ path: '/standard-race' });
+			await provisional.getOrCreate(ui, provider, undefined);
+			const creationCount = agentHost.createCalls.length;
+			const gate = new DeferredPromise<void>();
+			cleanup.add({ dispose: () => gate.cancel() });
+			agentHost.createGate = gate;
+
+			const rebind = provisional.tryRebind(ui, realUi, provider);
+			await timeout(0);
+			const configChange = provisional.applyConfigChange(ui, provider, undefined, { isolation: 'worktree' });
+			await gate.complete();
+			const [rebound] = await Promise.all([rebind, configChange]);
+			assert.ok(rebound);
+			const boundResource = realUi.with({ path: rebound.path });
+			const finalCreates = agentHost.createCalls.slice(creationCount);
+
+			assert.deepStrictEqual({
+				count: finalCreates.length,
+				distinct: new Set(finalCreates.map(call => call.session?.toString())).size,
+				firstRetired: agentHost.disposed.some(session => session.toString() === finalCreates[0].session?.toString()),
+				scheme: rebound.scheme,
+				mapping: provisional.get(boundResource)?.toString(),
+				unpublishedCandidate: provisional.get(realUi),
+				config: finalCreates.at(-1)?.config,
+			}, {
+				count: 2,
+				distinct: 2,
+				firstRetired: true,
+				scheme: 'ahp-session',
+				mapping: rebound.toString(),
+				unpublishedCandidate: undefined,
+				config: { isolation: 'worktree' },
+			});
+		});
+	}
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`standard ${provider} rebind keeps the latest folder after retiring a stale candidate`, async () => {
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [],
+				_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
+			}, undefined);
+			agentHost.enforceStandardTombstones = true;
+			const ui = URI.from({ scheme: `agent-host-${provider}`, path: '/untitled-folder-race' });
+			const real = ui.with({ path: '/folder-race' });
+			const initial = URI.file('/initial-folder');
+			const latest = URI.file('/latest-folder');
+			folderService.setFolder(ui, initial);
+			await provisional.getOrCreate(ui, provider, initial);
+			const creationCount = agentHost.createCalls.length;
+			const gate = new DeferredPromise<void>();
+			cleanup.add({ dispose: () => gate.cancel() });
+			agentHost.createGate = gate;
+
+			const rebinding = provisional.tryRebind(ui, real, provider);
+			await timeout(0);
+			folderService.setFolder(ui, latest);
+			await gate.complete();
+			const rebound = await rebinding;
+			assert.ok(rebound);
+			await provisional.waitForPending(ui);
+			const attempts = agentHost.createCalls.slice(creationCount);
+			assert.deepStrictEqual({
+				distinct: new Set(attempts.map(call => call.session?.toString())).size,
+				finalDirectories: attempts.at(-1)?.workingDirectories?.map(directory => directory.toString()),
+				mapping: provisional.get(real.with({ path: rebound.path }))?.toString(),
+			}, { distinct: 2, finalDirectories: [latest.toString()], mapping: rebound.toString() });
+		});
+	}
 
 	test('tryRebind disposes its candidate when the old entry is retired during creation', async () => {
 		const ui = untitledChatUri('rebind-dispose-race');

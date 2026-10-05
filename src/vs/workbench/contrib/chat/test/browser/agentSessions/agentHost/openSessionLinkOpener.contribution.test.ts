@@ -27,6 +27,52 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../..
 suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('scoped standard links discover only their owning connection despite a colliding ambient ID', async () => {
+		const backend = URI.parse('ahp-session:/shared');
+		const remote = URI.parse('remote-other-host-claude:/shared');
+		const local = URI.parse('agent-host-codex:/shared');
+		const resources = new Map<string, URI>([[`local:${backend}`, local]]);
+		const opened: string[] = [];
+		let listings = 0;
+		let opener: IOpener | undefined;
+		const owner = new class extends mock<IAgentConnection>() {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				listings++;
+				return [{ session: backend, provider: 'claude', startTime: 0, modifiedTime: 0 }];
+			}
+		}();
+		const connections = new class extends mock<IAgentHostConnectionsService>() {
+			override readonly ambientConnection = new class extends mock<IAgentConnection>() {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> { throw new Error('Wrong connection'); }
+			}();
+			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return authority === 'other-host' ? owner : undefined; }
+			override findSessionResource(resource: URI, authority = 'local'): URI | undefined { return resources.get(`${authority}:${resource}`); }
+			override getSessionResource(resource: URI, authority?: string, provider?: string): URI {
+				assert.deepStrictEqual([authority, provider], ['other-host', 'claude']);
+				resources.set(`${authority}:${resource}`, remote);
+				return remote;
+			}
+		}();
+		store.add(new AgentHostOpenSessionLinkOpenerContribution(
+			new class extends mock<IOpenerService>() {
+				override registerOpener(value: IOpener): IDisposable { opener = value; return Disposable.None; }
+			}(),
+			new class extends mock<IChatWidgetService>() {
+				override async openSession(resource: URI): Promise<IChatWidget | undefined> { opened.push(resource.toString()); return {} as IChatWidget; }
+			}(),
+			new class extends mock<IChatSessionsService>() { override async activateChatSessionItemProvider(): Promise<void> { } }(),
+			store.add(new ChatRequestOriginService()),
+			new class extends mock<ILinkPresentationService>() { override registerLinkPresentationProvider(): IDisposable { return Disposable.None; } }(),
+			new NullLogService(),
+			new class extends mock<ISessionSummaryHoverService>() { override registerProvider(): IDisposable { return Disposable.None; } }(),
+			new class extends mock<IPathService>() { }(),
+			connections,
+		));
+		assert.ok(opener);
+		const result = await opener.open(URI.parse(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host')));
+		assert.deepStrictEqual({ result, listings, opened }, { result: true, listings: 1, opened: [remote.with({ fragment: 'peer' }).toString()] });
+	});
+
 	test('standard link presentation waits for advertised provider metadata and coalesces the initial listing', async () => {
 		const backend = URI.parse('ahp-session:/cold-link');
 		const client = URI.parse('agent-host-codex:/cold-link');

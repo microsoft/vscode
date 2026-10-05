@@ -14,6 +14,7 @@ import { MarkdownString, type IMarkdownString } from '../../../../../../base/com
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
@@ -662,40 +663,56 @@ suite('stateToProgressAdapter', () => {
 				history[2].type === 'request' ? history[2].origin : undefined,
 			], [{
 				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), undefined, 'creating-turn', 'local')),
 				delegationScope: 'session',
 			}, undefined]);
 		});
 
-		test('created session maps an aliased backend source to its logical provider', () => {
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			test(`created ${provider} session retains its standard delegation source`, () => {
+				const turn = createTurn({
+					message: {
+						text: 'Hello',
+						origin: { kind: MessageKind.User },
+						_meta: toAgentMessageDelegationMeta({
+							sourceSession: 'ahp-session:/creator',
+							sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+						}),
+					},
+				});
+
+				const history = rawTurnsToHistory(
+					URI.parse('ahp-session:/created'),
+					[turn],
+					`agent-host-${provider}`,
+					'remote',
+				);
+
+				assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+					kind: ChatRequestOriginKind.Delegation,
+					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), undefined, undefined, 'remote')),
+					delegationScope: 'session',
+				});
+			});
+		}
+
+		test('delegation keeps opaque source session and chat resources on their owning connection', () => {
+			const source = URI.parse('session-store://tenant/root?revision=2');
+			const chat = URI.parse('conversation://tenant/peer?revision=1#part');
 			const turn = createTurn({
 				message: {
-					text: 'Hello',
-					origin: { kind: MessageKind.User },
-					_meta: toAgentMessageDelegationMeta({
-						sourceSession: 'ahp-session:/creator',
-						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
-					}),
+					text: 'Delegated', origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({ sourceSession: source.toString(), sourceChat: chat.toString() }),
 				},
 			});
-
-			const history = rawTurnsToHistory(
-				URI.parse('ahp-session:/created'),
-				[turn],
-				'copilot',
-				'remote',
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				'copilot',
-			);
-
-			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
-				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
-				delegationScope: 'session',
-			});
+			const history = rawTurnsToHistory(URI.parse('ahp-session:/receiver'), [turn], 'agent-host-claude', 'other-host');
+			const link = history[0].type === 'request' ? history[0].origin?.sourceSessionResource : undefined;
+			assert.ok(link);
+			assert.deepStrictEqual({
+				source: parseOpenSessionLinkUri(link)?.toString(),
+				chat: URI.parse(parseOpenSessionLinkChatId(link)!).toString(),
+				owner: parseOpenSessionLinkConnectionAuthority(link),
+			}, { source: source.toString(), chat: chat.toString(), owner: 'other-host' });
 		});
 
 		test('thread coordination tools restore deterministic target-session chips', () => {
@@ -1605,7 +1622,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
 			};
 
-			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), () => errorDetails);
 			const responses = history.filter(item => item.type === 'response');
 
 			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [

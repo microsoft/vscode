@@ -90,7 +90,7 @@ export function isSendMessageTool(toolName: string): boolean {
  * ecosystem-wide invariant (an absent chat id already means "the default chat"),
  * so it is enforced here once rather than at each call site.
  */
-export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string): string {
+export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string, connectionAuthority?: string): string {
 	const session = typeof backendSession === 'string' ? URI.parse(backendSession) : backendSession;
 	const provider = session.scheme;
 	const rawId = AgentSession.id(backendSession);
@@ -99,6 +99,9 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
 	}
 	const base = URI.from({ scheme: AGENT_HOST_SESSION_LINK_SCHEME, authority: provider, path: `/${rawId}` }).toString();
 	const query: string[] = [];
+	if (connectionAuthority) {
+		query.push(`connectionAuthority=${encodeURIComponent(connectionAuthority)}`);
+	}
 	if (session.authority || session.query || session.fragment) {
 		query.push(`session=${encodeURIComponent(session.toString())}`);
 	}
@@ -116,8 +119,8 @@ export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: s
  *
  * Shape: `<product-protocol>://agents/agent-host-session/<provider>/<rawSessionId>[/chat/<chatId>]`.
  */
-export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const sessionLinkText = buildOpenSessionLinkUri(backendSession);
+export function buildExternalOpenSessionLinkUri(productUrlProtocol: string, backendSession: URI | string, chatId?: string, turnId?: string, connectionAuthority?: string): string {
+	const sessionLinkText = buildOpenSessionLinkUri(backendSession, undefined, undefined, connectionAuthority);
 	const link = URI.parse(sessionLinkText);
 	const sessionLink = link.with({ query: '' }).toString();
 	const encodedTarget = sessionLink.slice(`${AGENT_HOST_SESSION_LINK_SCHEME}://`.length);
@@ -180,6 +183,9 @@ export function parseOpenSessionLinkUri(uri: URI | string): URI | undefined {
 	if (parsed.scheme !== AGENT_HOST_SESSION_LINK_SCHEME || !parsed.authority) {
 		return undefined;
 	}
+	if (/(?:^|&)connectionAuthority=/.test(parsed.query) && !parseOpenSessionLinkConnectionAuthority(parsed)) {
+		return undefined;
+	}
 	const rawId = parsed.path.replace(/^\//, '');
 	if (!rawId) {
 		return undefined;
@@ -208,6 +214,10 @@ export function parseOpenSessionLinkChatId(uri: URI | string): string | undefine
 
 export function parseOpenSessionLinkTurnId(uri: URI | string): string | undefined {
 	return readOpenSessionLinkQueryParam(uri, 'turn');
+}
+
+export function parseOpenSessionLinkConnectionAuthority(uri: URI | string): string | undefined {
+	return readOpenSessionLinkQueryParam(uri, 'connectionAuthority');
 }
 
 function readOpenSessionLinkQueryParam(uri: URI | string, name: string): string | undefined {

@@ -40,7 +40,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			: adopted;
 	}
 
-	private _taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
+	private _taskRenameHandler: { readonly sessionKey: string; readonly rename: (title: string) => Promise<void> } | undefined;
 	private _taskArchiveHandler: { readonly sessionKey: string; readonly setArchived: (archived: boolean) => Promise<void> } | undefined;
 	private readonly _archiveSequencer = new Sequencer();
 
@@ -95,7 +95,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	/** Bind the discovered session's Mission Control rename operation. */
 	setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
-		this._taskRenameHandler = { rawId, rename };
+		this._taskRenameHandler = { sessionKey: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename };
 	}
 
 	override async renameSession(sessionId: string, title: string): Promise<void> {
@@ -105,7 +105,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
 		}
 		const handler = this._taskRenameHandler;
-		if (!handler || handler.rawId !== AgentSession.id(session.resource)) {
+		if (handler?.sessionKey !== sessionKey) {
 			if (!this.connection) {
 				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
 			}
@@ -180,9 +180,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const adapter = this.createAdapter(meta);
 		adapter.updateDiscoveryMetadata(meta);
 		this._sessionCache.set(meta.session.toString(), adapter);
-		this._withheldSessions.add(rawId);
+		this._withheldSessions.add(meta.session.toString());
 		// No deadline yet: the clock starts when the host first omits it.
-		this._provisionalSessions.set(rawId, undefined);
+		this._provisionalSessions.set(meta.session.toString(), undefined);
 	}
 
 	/**
@@ -193,7 +193,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * a placeholder row and reveal this one.
 	 */
 	publishWithheldSession(rawId: string, options?: { announce?: boolean }): void {
-		if (!this._withheldSessions.delete(rawId)) {
+		if (!this._withheldSessions.delete(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString())) {
 			return;
 		}
 		const session = this.getCachedSession(rawId);
@@ -207,7 +207,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * which callers that seeded a session need before it is listed.
 	 */
 	getCachedSession(rawId: string): ISession | undefined {
-		return [...this._sessionCache.values()].find(session => AgentSession.id(session.resource) === rawId);
+		return this._sessionCache.get(AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString());
 	}
 
 	getSessionModifiedTime(rawId: string): number | undefined {
@@ -218,8 +218,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const cached = this.getCachedSession(rawId);
 		const key = cached ? this._sessionKeyFromChatId(cached.sessionId) : undefined;
 		const session = key ? this._removeCachedSession(key) : undefined;
-		this._withheldSessions.delete(rawId);
-		this._provisionalSessions.delete(rawId);
+		const taskKey = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
+		this._withheldSessions.delete(taskKey);
+		this._provisionalSessions.delete(taskKey);
 		if (session) {
 			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 			session.dispose();
@@ -230,11 +231,10 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const sessions = super.getSessions();
 		return this._withheldSessions.size === 0
 			? sessions
-			: sessions.filter(session => !this._withheldSessions.has(AgentSession.id(session.resource)));
+			: sessions.filter(session => !this._withheldSessions.has(this._sessionKeyFromChatId(session.sessionId) ?? ''));
 	}
 
 	protected override _isSessionEvictable(rawId: string): boolean {
-		rawId = AgentSession.id(rawId);
 		if (!this._provisionalSessions.has(rawId)) {
 			return true;
 		}
@@ -247,7 +247,6 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	protected override _onHostListedSessions(rawIds: ReadonlySet<string>): void {
-		rawIds = new Set([...rawIds].map(key => AgentSession.id(key)));
 		if (this._provisionalSessions.size === 0) {
 			return;
 		}

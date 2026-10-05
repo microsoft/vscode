@@ -14,6 +14,7 @@ import { Disposable, DisposableStore, IReference, toDisposable } from '../../../
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { constObservable, observableValue, autorun, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -747,6 +748,17 @@ suite('AgentHostClientTools', () => {
 			public resourceReadData = '{"task":"build"}';
 			public resourceReadEncoding = ContentEncoding.Utf8;
 			public readonly resourceReadResponses = new Map<string, Promise<{ data: string; encoding: ContentEncoding }>>();
+
+			override async listSessions() {
+				const sessions = new Set([AgentSession.uri('copilot', 'session-1').toString()]);
+				for (const [resource, entry] of this._liveSubscriptions) {
+					const parent = parseDefaultChatUri(resource);
+					if (parent || hasKey(entry.state, { provider: true })) {
+						sessions.add(parent ?? resource);
+					}
+				}
+				return [...sessions].map(resource => ({ session: URI.parse(resource), provider: 'copilot', startTime: 0, modifiedTime: 0 }));
+			}
 
 			override async resourceRead(uri: URI) {
 				this.resourceReadUris.push(uri);
@@ -3032,6 +3044,7 @@ suite('AgentHostClientTools', () => {
 				const backendSession = AgentSession.uri('copilot', `session-${index}`);
 				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: `/session-${index}` });
 				const chat = buildDefaultChatUri(backendSession.toString());
+				connection.applySessionAction(backendSession, { type: ActionType.SessionTitleChanged, title: 'Test' });
 				const subscription = disposables.add(new ChatStateSubscription(chat, connection.clientId, () => ++clientSeq, () => { }));
 				disposables.add(subscription.onDidChange(state => connection.setChatState(chat, state)));
 				await handler.provideChatSessionContent(sessionResource, CancellationToken.None);

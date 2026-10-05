@@ -4238,8 +4238,8 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 
 suite('CloudSandboxSessionsProvider renaming', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Old title' });
-	const backendUri = metadata.session.with({ scheme: 'ahp-session' });
+	const backendUri = AgentSession.uri('ahp-session', 'sandbox-session');
+	const metadata = { ...createSession('sandbox-session', { provider: 'copilot', summary: 'Old title' }), session: backendUri, provider: 'copilot' };
 
 	class TestSandboxProvider extends CloudSandboxSessionsProvider {
 		refresh(): Promise<void> { return this._refreshSessions(); }
@@ -4256,6 +4256,40 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
 		provider.seedSessions([metadata], { updateExisting: true });
 		return { provider, connection, renamed };
+	}
+
+	for (const nativeProvider of ['copilotcli', 'codex', 'claude']) {
+		test(`task rename and removal retain a colliding ${nativeProvider} session`, async () => {
+			const connection = store.add(new MockAgentConnection());
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:rename-test', ctor: TestSandboxProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' }, noConnection: true,
+			}) as TestSandboxProvider;
+			const renamed: string[] = [];
+			provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
+			provider.seedSessions([createSession('sandbox-session', { provider: nativeProvider }), metadata]);
+			const other = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === nativeProvider);
+			const task = provider.getCachedSession('sandbox-session');
+			assert.ok(other && task);
+			const otherTitle = other.title.get();
+
+			await assert.rejects(provider.renameSession(other.sessionId, 'Other title'), /Connect to the environment/);
+			provider.removeDeletedSession('sandbox-session');
+
+			assert.deepStrictEqual({
+				taskBackend: task instanceof AgentHostSessionAdapter ? task.backendUri.toString() : undefined,
+				renamed,
+				cachedTask: provider.getCachedSession('sandbox-session'),
+				remaining: provider.getSessions().map(session => session.sessionId),
+				otherTitleUnchanged: other.title.get() === otherTitle,
+			}, {
+				taskBackend: backendUri.toString(),
+				renamed: [],
+				cachedTask: undefined,
+				remaining: [other.sessionId],
+				otherTitleUnchanged: true,
+			});
+		});
 	}
 
 	test('renames a disconnected task and its default chat without connecting', async () => {
@@ -4889,7 +4923,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createSandboxProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'provisional-1'),
+			session: AgentSession.uri('ahp-session', 'provisional-1'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Just provisioned',
@@ -4900,7 +4935,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		const survivedUnknown = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		// Once the host knows it, it reconciles like any other session.
-		connection.addSession(createSession('provisional-1', { summary: 'Just provisioned' }));
+		connection.addSession({ ...createSession('provisional-1', { summary: 'Just provisioned' }), session: AgentSession.uri('ahp-session', 'provisional-1'), provider: 'copilotcli' });
 		await refreshViaTurnComplete(connection, 'other-1');
 		const afterHostKnows = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
@@ -4914,7 +4949,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createSandboxProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'never-listed'),
+			session: AgentSession.uri('ahp-session', 'never-listed'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Never materialized',
@@ -4949,7 +4985,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		// the sandbox is awake.
 		const provider = createSandboxProvider(disposables, connection, { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'slow-wake'),
+			session: AgentSession.uri('ahp-session', 'slow-wake'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Slow to wake',
@@ -4969,7 +5006,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		disposables.add(provider.onDidChangeSessions(e => announced.push(e.added.map(s => s.sessionId))));
 
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'withheld-1'),
+			session: AgentSession.uri('ahp-session', 'withheld-1'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Withheld Session',
@@ -4999,7 +5037,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	test('publishing with announce:false lists the session without firing its own event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createSandboxProvider(disposables, new MockAgentConnection(), { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'withheld-2'),
+			session: AgentSession.uri('ahp-session', 'withheld-2'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Withheld Session',

@@ -6,16 +6,38 @@
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { CreateRemoteSessionTool, ListAgentHostsTool } from '../../browser/remoteSessionTools.js';
+import { resolveRemoteSessionReference } from '../../browser/remoteSessionSource.js';
 import { ICreatedRemoteSession, ICreateRemoteSessionOptions, IRemoteSessionHost, IRemoteSessionService, RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
 
 suite('RemoteSessionTools', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opaque scoped references require exact advertised identity instead of a reconstructed neighbor', () => {
+		const backend = URI.parse('session-store://tenant/root?revision=2');
+		const frontend = backend.with({ scheme: 'remote-other-host-claude' });
+		const connections = new class extends mock<IAgentHostConnectionsService>() {
+			override findSessionResource(resource: URI, authority?: string): URI | undefined {
+				return authority === 'other-host' && isEqual(resource, backend) ? frontend : undefined;
+			}
+			override resolveSessionResourceIdentity(resource: URI) {
+				return isEqual(resource, frontend) ? { backendSession: backend, backendSessionIsAdvertised: true as const, connectionAuthority: 'other-host' }
+					: { backendSession: resource.with({ scheme: 'claude' }), connectionAuthority: 'other-host' };
+			}
+		}();
+		const resolved = resolveRemoteSessionReference(buildOpenSessionLinkUri(backend, 'peer', undefined, 'other-host'), connections);
+		assert.deepStrictEqual([resolved.resource.toString(), resolved.identity.backendSession.toString()], [frontend.with({ fragment: 'peer' }).toString(), backend.toString()]);
+		assert.throws(() => resolveRemoteSessionReference(frontend.with({ query: 'revision=3' }).toString(), connections), /host-qualified/);
+	});
+
 	const source = URI.parse('agent-host-copilot:/source#peer');
 	const progress = { report: () => { } };
 	const result: ICreatedRemoteSession = {
