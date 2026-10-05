@@ -14,6 +14,7 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../platfor
 import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
+import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
 /**
@@ -51,11 +52,12 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	private readonly _withheldSessions = new Set<string>();
 
 	/**
-	 * Raw id → deadline after which eviction resumes, or `undefined` while the clock has not
+	 * Backend session key → deadline after which eviction resumes, or `undefined` while the clock has not
 	 * started. It starts when a connected host first omits the session, not at seed time, because
 	 * waking a sandbox can take minutes.
 	 */
 	private readonly _provisionalSessions = new Map<string, number | undefined>();
+	private readonly _pendingSessionTitles = new Map<string, string>();
 
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
@@ -82,6 +84,27 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
 	}
 
+	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		const changed = super.updateAdapter(adapter, meta);
+		const sessionKey = meta.session.toString();
+		// Unlike discovery seeds, this metadata comes from the host's listing or session-added notification.
+		this._provisionalSessions.delete(sessionKey);
+		const title = this._pendingSessionTitles.get(sessionKey);
+		if (title !== undefined && this.connection) {
+			this._pendingSessionTitles.delete(sessionKey);
+			void super.renameSession(adapter.sessionId, title).catch(error => {
+				this._logService.error(`[CloudSandboxSessionsProvider] Failed to apply initial title for ${sessionKey}`, error);
+			});
+			return true;
+		}
+		return changed;
+	}
+
+	protected override _onBackendSessionRemoved(rawId: string): void {
+		super._onBackendSessionRemoved(rawId);
+		this._pendingSessionTitles.delete(rawId);
+	}
+
 	protected override _resolveArchivedState(sessionKey: string, isArchived: boolean): boolean {
 		return this._taskArchiveHandler?.sessionKey === sessionKey
 			? this._sessionCache.get(sessionKey)?.isArchived.get() ?? isArchived
@@ -106,16 +129,18 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		}
 		const handler = this._taskRenameHandler;
 		if (handler?.sessionKey !== sessionKey) {
-			if (!this.connection) {
+			if (!this.connection && !this._provisionalSessions.has(sessionKey)) {
 				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
 			}
-			return super.renameSession(sessionId, title);
+		} else {
+			await handler.rename(title);
+			if (this._store.isDisposed || this._sessionCache.get(sessionKey) !== session) {
+				throw new CancellationError();
+			}
 		}
-		await handler.rename(title);
-		if (this._store.isDisposed || this._sessionCache.get(sessionKey) !== session) {
-			throw new CancellationError();
-		}
-		if (this.connection) {
+		if (this._provisionalSessions.has(sessionKey)) {
+			this._pendingSessionTitles.set(sessionKey, title);
+		} else if (this.connection) {
 			return super.renameSession(sessionId, title);
 		}
 		session.title.set(title, undefined);
@@ -221,6 +246,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const taskKey = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString();
 		this._withheldSessions.delete(taskKey);
 		this._provisionalSessions.delete(taskKey);
+		this._pendingSessionTitles.delete(taskKey);
 		if (session) {
 			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 			session.dispose();
@@ -243,6 +269,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return false;
 		}
 		this._provisionalSessions.delete(rawId);
+		this._pendingSessionTitles.delete(rawId);
 		return true;
 	}
 
