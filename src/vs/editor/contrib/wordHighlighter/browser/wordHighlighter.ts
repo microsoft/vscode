@@ -348,9 +348,8 @@ class WordHighlighter {
 						break;
 				}
 			}
-			const newFromAllProvidersEnablement = this.editor.getOption(EditorOption.occurrencesHighlightFromAllProviders);
-			if (this.occurrencesHighlightFromAllProvidersEnablement !== newFromAllProvidersEnablement) {
-				this.occurrencesHighlightFromAllProvidersEnablement = newFromAllProvidersEnablement;
+			if (e.hasChanged(EditorOption.occurrencesHighlightFromAllProviders)) {
+				this.occurrencesHighlightFromAllProvidersEnablement = this.editor.getOption(EditorOption.occurrencesHighlightFromAllProviders);
 				this._stopAll();
 				if (this.occurrencesHighlightEnablement !== 'off') {
 					this._run();
