@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { isValidBasename } from '../../../../../base/common/extpath.js';
 import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceConfigValue } from '../../../../../base/common/managedSettings.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isWindows } from '../../../../../base/common/platform.js';
+import { isWeb, isWindows } from '../../../../../base/common/platform.js';
 import { extUri, extUriIgnorePathCase, joinPath, normalizePath, removeTrailingPathSeparator } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -219,7 +220,7 @@ export function parseMarketplaceReference(value: string): IMarketplaceReference 
 		const owner = shorthandMatch[1];
 		const repo = shorthandMatch[2];
 		const ref = shorthandMatch[3];
-		if (hasDotSegments(`${owner}/${repo}`)) {
+		if (!isValidCacheSegments([owner, repo])) {
 			return undefined;
 		}
 		return {
@@ -273,6 +274,9 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	const ref = uri.fragment || undefined;
 	const cloneUri = uri.fragment ? uri.with({ fragment: '' }) : uri;
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
+	if (!isValidCacheSegments([sanitizedAuthority])) {
+		return undefined;
+	}
 	const trimmedPath = uri.path.replace(/\/+/g, '/').replace(/\/+$/g, '').replace(/^\/+/, '');
 
 	// Host-only marketplace endpoint (e.g. `https://plugins.internal.example.com`).
@@ -297,6 +301,9 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
+	if (!isValidCacheSegments(pathSegments)) {
+		return undefined;
+	}
 	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
 	const canonicalPath = pathHasGitSuffix ? trimmedPath.toLowerCase() : `${trimmedPath.toLowerCase()}${gitSuffix}`;
 
@@ -345,6 +352,10 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 		return undefined;
 	}
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
+	const cacheSegments = [sanitizePathSegment(authority.toLowerCase()), ...pathSegments, ...getRefCacheSegments(ref)];
+	if (!isValidCacheSegments(cacheSegments)) {
+		return undefined;
+	}
 	const githubRepo = extractGitHubRepo(authority, pathWithoutGit);
 
 	// Normalize git@github.com:<owner>/<repo>.git to the same canonical id the
@@ -362,7 +373,7 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 		displayLabel: rawValue,
 		cloneUrl: `${match[1]}@${authority}:${pathWithGit}`,
 		canonicalId,
-		cacheSegments: [sanitizePathSegment(authority.toLowerCase()), ...pathSegments, ...getRefCacheSegments(ref)],
+		cacheSegments,
 		kind: MarketplaceReferenceKind.GitUri,
 		ref,
 		githubRepo,
@@ -396,25 +407,45 @@ function sanitizePathSegment(value: string): string {
 	return value.replace(/[\\/:*?"<>|]/g, '_');
 }
 
-export function hasDotSegments(path: string): boolean {
+function hasDotSegments(path: string): boolean {
 	return path.split(/[\\/]/).some(segment => segment === '.' || segment === '..');
 }
 
-export function getGitUrlCacheSegments(url: string): string[] {
-	let parsed: URI;
-	try {
-		parsed = URI.parse(url);
-	} catch {
-		return ['git', sanitizePathSegment(url)];
+function isValidCacheSegments(segments: readonly string[], windows = isWindows && !isWeb): boolean {
+	return segments.every(segment => !hasDotSegments(segment)
+		&& (!windows || !segment || (isValidBasename(segment, true) && !/[\u0000-\u001f\u007f]/.test(segment))));
+}
+
+export function gitRevisionCacheSuffix(ref?: string, sha?: string): string[] {
+	const segments = sha ? [`sha_${sanitizePathSegment(sha)}`] : ref ? [`ref_${sanitizePathSegment(ref)}`] : [];
+	if (!isValidCacheSegments(segments)) {
+		throw new Error(localize('invalidPluginCacheSegments', "Invalid plugin cache path '{0}'.", segments.join('/')));
 	}
-	const authority = sanitizePathSegment(parsed.authority || 'unknown').toLowerCase();
-	const pathPart = parsed.path.replace(/^\/+/, '').replace(/\.git$/i, '').replace(/\/+$/g, '');
-	return [authority, ...pathPart.split('/').map(sanitizePathSegment)];
+	return segments;
+}
+
+export function getGitUrlCacheSegments(url: string): string[] {
+	let path: string;
+	let segments: string[];
+	try {
+		const parsed = URI.parse(url);
+		path = parsed.path;
+		const authority = sanitizePathSegment(parsed.authority || 'unknown').toLowerCase();
+		const pathPart = path.replace(/^\/+/, '').replace(/\.git$/i, '').replace(/\/+$/g, '');
+		segments = [authority, ...pathPart.split('/').map(sanitizePathSegment)];
+	} catch {
+		path = /^[^@\s]+@[^:\s]+:(?<path>.+)$/.exec(url)?.groups?.path ?? url;
+		segments = ['git', sanitizePathSegment(url)];
+	}
+	if (hasDotSegments(path) || !isValidCacheSegments(segments)) {
+		throw new Error(localize('invalidPluginCacheSegments', "Invalid plugin cache path '{0}'.", url));
+	}
+	return segments;
 }
 
 /** Resolves remote plugin cache segments without permitting traversal or the cache root itself. */
 export function getPluginCacheUri(cacheRoot: URI, segments: readonly string[]): URI {
-	if (segments.some(hasDotSegments)) {
+	if (!isValidCacheSegments(segments, cacheRoot.scheme === Schemas.file && isWindows)) {
 		throw new Error(localize('invalidPluginCacheSegments', "Invalid plugin cache path '{0}'.", segments.join('/')));
 	}
 	return validatePluginCacheUri(cacheRoot, joinPath(cacheRoot, ...segments));
@@ -425,8 +456,11 @@ export function validatePluginCacheUri(cacheRoot: URI, resource: URI): URI {
 	// Revived URI caches must not override the structural path we validate.
 	const directory = removeTrailingPathSeparator(normalizePath(URI.from(resource)));
 	const root = removeTrailingPathSeparator(normalizePath(URI.from(cacheRoot)));
-	const comparer = root.scheme === Schemas.file && isWindows ? extUriIgnorePathCase : extUri;
-	if (!comparer.isEqualOrParent(directory, root) || comparer.isEqual(directory, root)) {
+	const windows = root.scheme === Schemas.file && isWindows;
+	const comparer = windows ? extUriIgnorePathCase : extUri;
+	const relative = comparer.relativePath(root, directory);
+	if (!comparer.isEqualOrParent(directory, root) || comparer.isEqual(directory, root)
+		|| (windows && (relative === undefined || !isValidCacheSegments(relative.split('/'), true)))) {
 		throw new Error(localize('invalidPluginCachePath', "Invalid plugin cache path '{0}'.", resource.toString()));
 	}
 	return directory;

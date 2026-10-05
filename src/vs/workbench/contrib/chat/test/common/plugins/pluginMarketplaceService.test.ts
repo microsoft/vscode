@@ -10,6 +10,7 @@ import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.j
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { isWeb, isWindows } from '../../../../../../base/common/platform.js';
 import { basename, joinPath } from '../../../../../../base/common/resources.js';
@@ -29,7 +30,7 @@ import { IEnvironmentService } from '../../../../../../platform/environment/comm
 import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
-import { parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
+import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
@@ -112,6 +113,31 @@ suite('PluginMarketplaceService', () => {
 		assert.doesNotThrow(() => validatePluginCacheUri(root, URI.file(String.raw`c:\CACHE\agentPlugins\github.com\owner\repo`)));
 		assert.throws(() => validatePluginCacheUri(root, URI.file('c:\\CACHE\\agentPlugins\\')), /Invalid plugin cache path/);
 	});
+
+	for (const segment of ['.. ', 'repo.', 'NUL', 'data:stream', 'file\u0001']) {
+		(isWindows ? test : test.skip)(`rejects Windows-invalid plugin cache component ${JSON.stringify(segment)}`, () => {
+			const root = URI.file('/cache/agentPlugins');
+			const segments = ['host', segment, 'repo'];
+			assert.throws(() => getPluginCacheUri(root, segments), /Invalid plugin cache path/);
+			assert.throws(() => validatePluginCacheUri(root, joinPath(root, ...segments)), /Invalid plugin cache path/);
+			const virtualRoot = root.with({ scheme: Schemas.inMemory });
+			assert.strictEqual(getPluginCacheUri(virtualRoot, segments).path, `${virtualRoot.path}/host/${segment}/repo`);
+		});
+	}
+
+	for (const value of [
+		'https://example.com/a/%2e%2e%20/repo.git',
+		'https://example.com/a/repo..git',
+		'owner/NUL',
+		'git@example.com:a/repo..git',
+	]) {
+		(isWindows && !isWeb ? test : test.skip)(`rejects Windows-invalid marketplace cache path ${value}`, () => {
+			assert.deepStrictEqual({
+				invalid: parseMarketplaceReference(value),
+				allowed: parseMarketplaceReference('owner/repo')?.cloneUrl,
+			}, { invalid: undefined, allowed: 'https://github.com/owner/repo.git' });
+		});
+	}
 
 	test('workspace marketplace traversal cannot replace an allowed clone target', async () => {
 		const allowed = 'https://github.com/microsoft/vscode.git';
@@ -1763,8 +1789,28 @@ suite('parsePluginSource', () => {
 		['Git URL suffix', { source: 'url', url: 'https://example.com/...git' }],
 		['SCP parent', { source: 'url', url: 'git@example.com:a/../../b.git' }],
 		['git-subdir parent', { source: 'git-subdir', url: 'https://example.com/a/../b', path: 'plugins/tool' }],
+		['backslash parent', { source: 'url', url: String.raw`https://example.com/a\..\b.git` }],
+		['encoded backslash parent', { source: 'url', url: 'https://example.com/a%5c..%5cb.git' }],
+		['encoded backslash and dots', { source: 'url', url: 'https://example.com/a%5c%2e%2e%5cb.git' }],
+		['git-subdir backslash parent', { source: 'git-subdir', url: String.raw`https://example.com/a\..\b`, path: 'plugins/tool' }],
 	] as const) {
 		test(`skips unsafe Git source with a warning: ${name}`, () => {
+			const warnings: (string | Error)[] = [];
+			const logService = store.add(new class extends NullLogService {
+				override warn(message: string | Error): void { warnings.push(message); }
+			}());
+			const result = parsePluginSource(source, undefined, { ...logContext, logService });
+			assert.deepStrictEqual({ result, warnings: warnings.length }, { result: undefined, warnings: 1 });
+		});
+	}
+
+	for (const [name, source] of [
+		['GitHub reserved name', { source: 'github', repo: 'owner/NUL' }],
+		['Git URL trailing dot', { source: 'url', url: 'https://example.com/a/repo..git' }],
+		['GitHub revision', { source: 'github', repo: 'owner/repo', ref: 'branch.' }],
+		['Git URL revision', { source: 'url', url: 'https://example.com/a/repo.git', ref: 'branch ' }],
+	] as const) {
+		(isWindows && !isWeb ? test : test.skip)(`skips Windows-invalid Git source with a warning: ${name}`, () => {
 			const warnings: (string | Error)[] = [];
 			const logService = store.add(new class extends NullLogService {
 				override warn(message: string | Error): void { warnings.push(message); }

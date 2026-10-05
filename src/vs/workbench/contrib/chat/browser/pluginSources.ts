@@ -22,7 +22,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { TerminalCapability, type ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
-import { getGitUrlCacheSegments, getPluginCacheUri } from '../common/plugins/marketplaceReference.js';
+import { getGitUrlCacheSegments, getPluginCacheUri, gitRevisionCacheSuffix } from '../common/plugins/marketplaceReference.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, IPluginSourceDescriptor, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
@@ -33,16 +33,6 @@ import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 
 function sanitizeCacheSegment(name: string): string {
 	return name.replace(/[\\/:*?"<>|]/g, '_');
-}
-
-function gitRevisionCacheSuffix(ref?: string, sha?: string): string[] {
-	if (sha) {
-		return [`sha_${sanitizeCacheSegment(sha)}`];
-	}
-	if (ref) {
-		return [`ref_${sanitizeCacheSegment(ref)}`];
-	}
-	return [];
 }
 
 function shellEscapeArg(value: string): string {

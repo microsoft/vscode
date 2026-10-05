@@ -166,6 +166,10 @@ suite('AgentPluginRepositoryService', () => {
 		['unnormalized escape', '/cache/agentPlugins/host/../../outside'],
 		['cache root with trailing separator', '/cache/agentPlugins/'],
 		['cache root after normalization', '/cache/agentPlugins/host/../'],
+		...(isWindows ? [
+			['Windows parent alias', '/cache/agentPlugins/host/.. /repo'],
+			['Windows reserved name', '/cache/agentPlugins/host/NUL/repo'],
+		] : []),
 	]) {
 		test(`recovers from indexed marketplace destination ${name} without accessing it`, async () => {
 			const storage = store.add(new InMemoryStorageService());
@@ -237,6 +241,8 @@ suite('AgentPluginRepositoryService', () => {
 		{ name: 'Git URL dot segment inside cache', descriptor: { kind: PluginSourceKind.GitUrl, url: 'http://example.com/team/../other.git' } },
 		{ name: 'Git URL suffix', descriptor: { kind: PluginSourceKind.GitUrl, url: 'http://example.com/...git' } },
 		{ name: 'GitHub cache root', descriptor: { kind: PluginSourceKind.GitHub, repo: '../..' } },
+		{ name: 'backslash Git URL', descriptor: { kind: PluginSourceKind.GitUrl, url: String.raw`https://example.com/a\..\b.git` } },
+		{ name: 'encoded backslash Git URL', descriptor: { kind: PluginSourceKind.GitUrl, url: 'https://example.com/a%5c..%5cb.git' } },
 	];
 	for (const { name, descriptor } of unsafeSources) {
 		test(`rejects plugin source cache traversal: ${name}`, async () => {
