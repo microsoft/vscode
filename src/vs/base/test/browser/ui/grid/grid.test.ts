@@ -584,6 +584,30 @@ suite('Grid', function () {
 		});
 	});
 
+	test('changing orientation restores maximized visibility before replacing nodes', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		grid.maximizeView(view1);
+		grid.orientation = grid.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		grid.exitMaximizedView();
+
+		assert.deepStrictEqual({
+			maximized: grid.hasMaximizedView(),
+			visibility: [view1, view2, view3].map(view => grid.isViewVisible(view)),
+		}, {
+			maximized: false,
+			visibility: [true, true, true],
+		});
+	});
+
 	test('maximization preserves hidden branch visibility', function () {
 		const deserializer = new TestViewDeserializer(store);
 		const grid = store.add(SerializableGrid.deserialize({

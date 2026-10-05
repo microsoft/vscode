@@ -85,15 +85,12 @@ export class DesktopWorkbench extends Workbench {
 	override setDockedAuxiliaryBarWidth(width: number): void {
 		this._dockedAuxiliaryBarWidth = width;
 		if (this.workbenchGrid && this.partVisibility.auxiliaryBar && !this.partVisibility.editor) {
-			this._syncingEditorVisibility = true;
-			try {
+			this._runWithEditorVisibilitySyncSuspended(() => {
 				this.workbenchGrid.resizeView(this.editorPartView, {
 					width: this._dockedAuxiliaryBarWidth,
 					height: this.workbenchGrid.getViewSize(this.editorPartView).height,
 				});
-			} finally {
-				this._syncingEditorVisibility = false;
-			}
+			});
 		}
 		this._layoutDockedAuxBar();
 	}
@@ -277,8 +274,7 @@ export class DesktopWorkbench extends Workbench {
 			return;
 		}
 
-		this._syncingEditorVisibility = true;
-		try {
+		this._runWithEditorVisibilitySyncSuspended(() => {
 			const effectiveAuxiliaryBarWidth = DockedAuxiliaryBarController.getEffectiveWidth(this._dockedAuxiliaryBarWidth, nodeWidth);
 			const editorContentVisible = nodeWidth > effectiveAuxiliaryBarWidth + DesktopWorkbench._EDITOR_CONTENT_VISIBLE_THRESHOLD;
 
@@ -294,19 +290,21 @@ export class DesktopWorkbench extends Workbench {
 				this._savePartVisibility();
 				return;
 			}
-
-		} finally {
-			this._syncingEditorVisibility = false;
-		}
+		});
 	}
 
-	protected override _runWithEditorResizeSyncSuspended(fn: () => void): void {
+	private _runWithEditorVisibilitySyncSuspended(fn: () => void): void {
+		const wasSyncingEditorVisibility = this._syncingEditorVisibility;
 		this._syncingEditorVisibility = true;
 		try {
 			fn();
 		} finally {
-			this._syncingEditorVisibility = false;
+			this._syncingEditorVisibility = wasSyncingEditorVisibility;
 		}
+	}
+
+	protected override _runWithEditorResizeSyncSuspended(fn: () => void): void {
+		this._runWithEditorVisibilitySyncSuspended(fn);
 	}
 
 	protected override _applyEditorVisibility(hidden: boolean): void {
@@ -405,15 +403,12 @@ export class DesktopWorkbench extends Workbench {
 				this._editorNodeShouldBeVisible()
 			);
 			if (!hidden && !this.partVisibility.editor) {
-				this._syncingEditorVisibility = true;
-				try {
+				this._runWithEditorVisibilitySyncSuspended(() => {
 					this.workbenchGrid.resizeView(this.editorPartView, {
 						width: this._dockedAuxiliaryBarWidth,
 						height: this.workbenchGrid.getViewSize(this.editorPartView).height
 					});
-				} finally {
-					this._syncingEditorVisibility = false;
-				}
+				});
 			}
 		}
 		this._layoutDockedAuxBar();

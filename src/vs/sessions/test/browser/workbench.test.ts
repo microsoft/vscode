@@ -196,6 +196,7 @@ suite('Sessions - Workbench', () => {
 			isViewMaximized(view: object): boolean;
 			getViewSize(view: object): IViewSize;
 			getViewCachedVisibleSize(view: object): number | undefined;
+			setViewVisible?(view: object, visible: boolean): void;
 			moveView(view: object, size: number | Sizing, referenceView: object, direction: Direction): void;
 			resizeView(view: object, size: IViewSize): void;
 			exitMaximizedView(): void;
@@ -3323,6 +3324,79 @@ suite('Sessions - Workbench', () => {
 			],
 			maximizedExitSuspensionStates: [true],
 			layoutCount: 2,
+		});
+	});
+
+	test('keeps editor resize sync suspended while restoring detail-only panel maximization', () => {
+		const host = createHost({
+			single: true,
+			partVisibility: { editor: false, auxiliaryBar: true, panel: true },
+		}) as ITestWorkbench & IPanelAlignmentTestHarness;
+		let panelMaximized = true;
+		let editorDetached = false;
+		const detailVisibilityCallbacks: boolean[] = [];
+		const gridChangeSuspensionStates: boolean[] = [];
+		const getViewSize = (view: object): IViewSize => {
+			if (view === host.editorPartView && editorDetached) {
+				throw new Error('Invalid grid element');
+			}
+			if (view === host.panelPartView) {
+				return { width: 1200, height: 320 };
+			}
+			if (view === host.editorPartView) {
+				return { width: 300, height: 800 };
+			}
+			return { width: 640, height: 800 };
+		};
+		const fireGridChangeWhileEditorIsDetached = () => {
+			gridChangeSuspensionStates.push(host._syncingEditorVisibility);
+			editorDetached = true;
+			try {
+				onGridDidChange.call(host);
+			} finally {
+				editorDetached = false;
+			}
+		};
+		host._panelAlignment = 'center';
+		host._panelMaximizedEditorState = { width: 300 };
+		host.workbenchGrid = {
+			isViewVisible: () => true,
+			isViewMaximized: view => view === host.panelPartView && panelMaximized,
+			getViewSize,
+			getViewCachedVisibleSize: () => undefined,
+			setViewVisible: () => { },
+			moveView: () => fireGridChangeWhileEditorIsDetached(),
+			resizeView: () => {
+				gridChangeSuspensionStates.push(host._syncingEditorVisibility);
+				onGridDidChange.call(host);
+			},
+			exitMaximizedView: () => {
+				panelMaximized = false;
+				detailVisibilityCallbacks.push(true);
+				onEditorPartGridVisibilityChange.call(host, true);
+			},
+		};
+		host.getMaximumEditorDimensions = () => ({ width: 1200, height: 500 });
+		host.storageService = { store: () => { } };
+		host._onDidChangePanelAlignment = { fire: () => { } };
+		host._layoutGrid = () => { };
+
+		detailVisibilityCallbacks.push(false);
+		onEditorPartGridVisibilityChange.call(host, false);
+		setPanelAlignment.call(host, 'justify');
+
+		assert.deepStrictEqual({
+			alignment: host._panelAlignment,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			detailVisibilityCallbacks,
+			gridChangeSuspensionStates,
+			panelMaximized,
+		}, {
+			alignment: 'justify',
+			auxiliaryBarVisible: true,
+			detailVisibilityCallbacks: [false, true],
+			gridChangeSuspensionStates: [true, true, true, true, true],
+			panelMaximized: false,
 		});
 	});
 

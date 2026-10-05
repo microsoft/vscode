@@ -1135,6 +1135,7 @@ export class GridView implements IDisposable {
 			return;
 		}
 
+		this.exitMaximizedView();
 		const { size, orthogonalSize, absoluteOffset, absoluteOrthogonalOffset } = this._root;
 		this.root = flipNode(this._root, orthogonalSize, size);
 		this.root.layout(size, 0, { orthogonalSize, absoluteOffset: absoluteOrthogonalOffset, absoluteOrthogonalOffset: absoluteOffset, absoluteSize: size, absoluteOrthogonalSize: orthogonalSize });
