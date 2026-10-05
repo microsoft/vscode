@@ -97,15 +97,6 @@ export function requiredNumber(value: object, key: string): number {
 	return property;
 }
 
-/** Reads a safe integer within inclusive bounds. */
-export function requiredInteger(value: object, key: string, min: number, max: number): number {
-	const property = Reflect.get(value, key);
-	if (typeof property !== 'number' || !Number.isSafeInteger(property) || property < min || property > max) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a safe integer between ${min} and ${max}`, 'malformedResponse');
-	}
-	return property;
-}
-
 export function booleanProperty(value: object, key: string): boolean | undefined {
 	const property = Reflect.get(value, key);
 	return typeof property === 'boolean' ? property : undefined;
