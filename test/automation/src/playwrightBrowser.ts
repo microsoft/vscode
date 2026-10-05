@@ -45,6 +45,7 @@ async function launchServer(options: LaunchOptions) {
 		'--disable-telemetry',
 		'--disable-experiments',
 		'--disable-workspace-trust',
+		'--force-disable-user-env',
 		`--port=${port++}`,
 		'--enable-smoke-test-driver',
 		'--accept-server-license-terms',
@@ -133,7 +134,10 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	// long enough to visibly skew offsets measured against it.
 	const videoStartedAt = options.videosPath ? Date.now() : undefined;
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(() => page.setViewportSize({ width: 1440, height: 900 }), 'page.setViewportSize', logger);
+	// Match the recording canvas while recording, so the capture has no empty
+	// margins; keep the established size otherwise so smoke runs are unchanged.
+	const viewport = options.videosPath ? { width: 1920, height: 1080 } : { width: 1440, height: 900 };
+	await measureAndLog(() => page.setViewportSize(viewport), 'page.setViewportSize', logger);
 
 	// Always log failed requests and console errors/warnings (even without
 	// `--verbose`) so that hard-to-reproduce startup stalls can be root caused

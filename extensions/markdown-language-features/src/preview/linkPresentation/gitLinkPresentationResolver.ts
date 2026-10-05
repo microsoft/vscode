@@ -6,6 +6,7 @@
 import type { LinkPresentation } from '@vscode/markdown-editor';
 import type { IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
+import { buildGitCommitLookupFailurePresentation, buildGitCommitPresentation, buildLoadingLinkPresentation, type GitCommitPresentationData } from './linkPresentationBuilders';
 import { createAsyncLinkPresentation, decodeUrlPathSegments, ImmutableLinkPresentationCache, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 
 export class GitLinkPresentationResolver implements LinkPresentationResolver {
@@ -28,18 +29,13 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 
 		return createAsyncLinkPresentation(
 			href,
-			{
-				kind: 'commit',
-				status: { kind: 'pending', label: 'Loading' },
-			},
+			buildLoadingLinkPresentation('commit'),
 			context,
 			() => this.#cache.get(href, () => this.#resolve(target)),
-			error => ({
-				kind: 'commit',
-				status: { kind: 'error', label: 'Not available' },
-				tooltip: error instanceof Error ? error.message : 'The Git commit could not be resolved.',
-				ariaLabel: `Git commit ${target.sha.slice(0, 7)} could not be resolved`,
-			}),
+			error => buildGitCommitLookupFailurePresentation(
+				target.sha.slice(0, 7),
+				error instanceof Error ? error.message : 'The Git commit could not be resolved.',
+			),
 			[context.onDidRequestRefresh, this.#onDidChangeRepositories.event],
 		);
 	}
@@ -80,7 +76,7 @@ export class GitLinkPresentationResolver implements LinkPresentationResolver {
 	}
 
 	async #resolve(target: GitCommitTarget): Promise<LinkPresentation> {
-		return getGitCommitPresentation((await this.#findCommit(target)).commit);
+		return buildGitCommitPresentation((await this.#findCommit(target)).commit);
 	}
 
 	async #findCommit(target: GitCommitTarget): Promise<GitCommitResult> {
@@ -224,30 +220,11 @@ interface GitRemote {
 	readonly pushUrl?: string;
 }
 
-interface GitCommit {
-	readonly hash: string;
-	readonly message: string;
-	readonly shortStat?: {
-		readonly insertions: number;
-		readonly deletions: number;
-	};
-}
+interface GitCommit extends GitCommitPresentationData { }
 
 interface GitCommitResult {
 	readonly repository: GitRepository;
 	readonly commit: GitCommit;
 }
 
-export function getGitCommitPresentation(commit: GitCommit): LinkPresentation {
-	const title = commit.message.split(/\r?\n/, 1)[0];
-	const insertions = commit.shortStat?.insertions ?? 0;
-	const deletions = commit.shortStat?.deletions ?? 0;
-	const shortHash = commit.hash.slice(0, 7);
-	return {
-		kind: 'commit',
-		detail: title,
-		// TODO: Include insertion and deletion counts once the Markdown editor package supports them.
-		tooltip: `${shortHash} · ${title} · ${insertions} insertions, ${deletions} deletions`,
-		ariaLabel: `Commit ${shortHash}, ${insertions} insertions and ${deletions} deletions: ${title}`,
-	};
-}
+export { buildGitCommitPresentation as getGitCommitPresentation } from './linkPresentationBuilders';

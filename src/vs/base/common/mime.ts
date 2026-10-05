@@ -35,6 +35,7 @@ const mapExtToTextMimes: Record<string, string> = {
 const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.aac': 'audio/x-aac',
 	'.avi': 'video/x-msvideo',
+	'.avif': 'image/avif',
 	'.bmp': 'image/bmp',
 	'.flv': 'video/x-flv',
 	'.gif': 'image/gif',

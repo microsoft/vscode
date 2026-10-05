@@ -16,7 +16,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, IRequestService } from '../../../request/common/request.js';
 import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type IAgentHostClientProxyConnection } from '../../common/agentHostClientProxyChannel.js';
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
-import { AgentConfigurationService, type IAgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
@@ -34,8 +34,6 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	register(_clientId: string, _connection: IAgentHostClientProxyConnection) {
 		return Disposable.None;
 	}
-
-	bindConfigurationService(_configurationService: IAgentConfigurationService, _transient: boolean): void { }
 
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
@@ -71,7 +69,8 @@ suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fires when the first connection registers and after all connections reconnect', () => {
-		const resolver = disposables.add(new AgentHostProxyResolver(new NullLogService()));
+		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
 		let registrations = 0;
 		disposables.add(resolver.onDidRegisterConnection(() => registrations++));
 		const connection: IAgentHostClientProxyConnection = {
@@ -96,11 +95,10 @@ suite('AgentHostProxyResolver', () => {
 	});
 
 	test('reads manually configured proxy settings from Agent Host configuration', async () => {
-		const resolver = disposables.add(new AgentHostProxyResolver(new NullLogService()));
 		const configurationService = createAgentConfigurationService(disposables);
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
 		let configurationChanges = 0;
 		disposables.add(resolver.onDidChangeConfiguration(() => configurationChanges++));
-		resolver.bindConfigurationService(configurationService, false);
 		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080' });
 
 		assert.deepStrictEqual({
@@ -112,21 +110,25 @@ suite('AgentHostProxyResolver', () => {
 		});
 	});
 
-	test('clears persisted proxy values when binding local mirrored configuration', () => {
-		const resolver = disposables.add(new AgentHostProxyResolver(new NullLogService()));
+	test('reads local mirrored proxy values as transient before construction', () => {
 		const configurationService = createAgentConfigurationService(disposables);
 		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://stale-proxy.example:8080' });
+		configurationService.publishRootTransientValues({ [AgentHostProxyConfigKey.Proxy]: undefined });
+		const resolver = disposables.add(new AgentHostProxyResolver(configurationService, new NullLogService()));
 
-		resolver.bindConfigurationService(configurationService, true);
-
-		assert.strictEqual(configurationService.getRootConfigValues?.()[AgentHostProxyConfigKey.Proxy], undefined);
+		assert.deepStrictEqual({
+			configuration: configurationService.getRootConfigValues?.()[AgentHostProxyConfigKey.Proxy],
+			resolver: resolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy),
+		}, {
+			configuration: undefined,
+			resolver: undefined,
+		});
 	});
 
 	test('uses manually configured Kerberos authentication without a renderer bridge', async () => {
-		const resolver = disposables.add(new TestAgentHostProxyResolver(new NullLogService()));
 		const configurationService = createAgentConfigurationService(disposables);
-		resolver.bindConfigurationService(configurationService, false);
 		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxyKerberosServicePrincipal]: 'HTTP/proxy.example' });
+		const resolver = disposables.add(new TestAgentHostProxyResolver(configurationService, new NullLogService()));
 
 		const authorization = await (resolver as unknown as {
 			_hostLookupKerberosAuthorization(url: string): Promise<string | undefined>;

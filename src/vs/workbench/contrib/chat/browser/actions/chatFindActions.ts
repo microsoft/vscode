@@ -100,7 +100,7 @@ export function registerChatFindActions(): void {
 				title: localize2('chat.findNext', "Find Next in Chat"),
 				keybinding: [
 					{
-						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.findWidgetVisible),
+						when: ContextKeyExpr.and(ChatContextKeys.findSupported, ChatContextKeys.inChatSession, EditorContextKeys.focus.toNegated()),
 						primary: KeyCode.F3,
 						mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
 						weight: KeybindingWeight.WorkbenchContrib,
@@ -125,7 +125,7 @@ export function registerChatFindActions(): void {
 				title: localize2('chat.findPrevious', "Find Previous in Chat"),
 				keybinding: [
 					{
-						when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.findWidgetVisible),
+						when: ContextKeyExpr.and(ChatContextKeys.findSupported, ChatContextKeys.inChatSession, EditorContextKeys.focus.toNegated()),
 						primary: KeyMod.Shift | KeyCode.F3,
 						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
 						weight: KeybindingWeight.WorkbenchContrib,

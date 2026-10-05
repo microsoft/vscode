@@ -15,7 +15,7 @@ For more information about auto detection of Tasks, see the [documentation](http
 
 ### Script Explorer
 
-The Npm Script Explorer shows the npm scripts found in your workspace. The explorer view is enabled by the setting `npm.enableScriptExplorer`. A script can be opened, run, or debug from the explorer.
+The Npm Script Explorer shows the npm scripts found in your workspace. A script can be opened, run, or debug from the explorer.
 
 ### Run Scripts from the Editor
 
@@ -37,7 +37,6 @@ The extension fetches data from <https://registry.npmjs.org> and <https://regist
 - `npm.packageManager` - The package manager used to install dependencies: `auto`, `npm`, `yarn`, `pnpm` or `bun`. The default is `auto`, which detects your package manager based on files in your workspace.
 - `npm.scriptRunner` - The script runner used to run the scripts: `auto`, `npm`, `yarn`, `pnpm`, `bun` or `node`. The default is `auto`, which detects your script runner based on files in your workspace.
 - `npm.exclude` - Glob patterns for folders that should be excluded from automatic script detection. The pattern is matched against the **absolute path** of the package.json. For example, to exclude all test folders use '&ast;&ast;/test/&ast;&ast;'.
-- `npm.enableScriptExplorer` - Enable an explorer view for npm scripts.
 - `npm.scriptExplorerAction` - The default click action: `open` or `run`, the default is `open`.
 - `npm.enableRunFromFolder` - Enable running npm scripts from the context menu of folders in Explorer, the default is `false`.
 - `npm.scriptCodeLens.enable` - Enable/disable the code lenses to run a script, the default is `false`.

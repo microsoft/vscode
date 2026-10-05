@@ -224,12 +224,10 @@ class WindowKindFilterProvider implements IExperimentationFilterProvider {
 }
 
 /**
- * Emits the Copilot-side filters for the new TAS assignments API (POST /api/v1/assignments)
- * using the new userParam key names. Reads the Copilot token fresh on each call so refreshed
- * assignments pick up account changes. The generic `vscode_core_*` app/build/extension/target
- * filters are added automatically by `vscode-tas-client`.
+ * Emits Copilot account, Chat extension version, and environment userParams for the new TAS assignments API.
+ * Reads the token fresh on each call; generic app/build/extension-identity/target filters come from `vscode-tas-client`.
  */
-class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
+export class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider {
 	private readonly _releaseDate: string | undefined;
 
 	constructor(
@@ -257,6 +255,11 @@ class CopilotAssignmentsFilterProvider implements IExperimentationFilterProvider
 		filters.set('github_core_businessid', token?.enterpriseList.join(','));
 		filters.set('github_core_isghormsftstaff', internalOrg ? '1' : '0');
 		filters.set('github_core_ghmsftorexternal', internalOrg === 'github' ? 'github' : (internalOrg === 'microsoft' || internalOrg === 'vscode') ? 'microsoft' : 'external');
+		filters.set('github_core_userkind', token?.userKind || undefined);
+		filters.set('github_core_copilotsku', token?.sku);
+		filters.set('github_core_issn', token?.isSn() ? '1' : '0');
+		filters.set('github_core_isfcv1', token?.isFcv1() ? '1' : '0');
+		filters.set('vscode_core_copilotchatextensionversion', trimVersionSuffix(packageJson.version));
 
 		this._logService.trace(`[CopilotAssignmentsFilterProvider]::getFilters Filters: ${JSON.stringify(Array.from(filters.entries()))}`);
 		return filters;

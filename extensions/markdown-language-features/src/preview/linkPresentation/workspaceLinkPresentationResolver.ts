@@ -6,6 +6,7 @@
 import type { LinkPresentation } from '@vscode/markdown-editor';
 import type { IObservable } from '@vscode/observables';
 import * as vscode from 'vscode';
+import { buildLoadingLinkPresentation, buildWorkspaceLookupFailurePresentation, buildWorkspaceResourcePresentation } from './linkPresentationBuilders';
 import { createAsyncLinkPresentation, type LinkPresentationResolver, type LinkPresentationResolverContext } from './linkPresentationResolver';
 
 export class WorkspaceLinkPresentationResolver implements LinkPresentationResolver {
@@ -30,18 +31,15 @@ export class WorkspaceLinkPresentationResolver implements LinkPresentationResolv
 		}
 		return createAsyncLinkPresentation(
 			href,
-			{
-				kind: 'file',
-				status: { kind: 'pending', label: vscode.l10n.t("Loading") },
-			},
+			buildLoadingLinkPresentation('file', vscode.l10n.t("Loading")),
 			context,
 			() => this.#resolve(href),
-			error => ({
-				kind: 'file',
-				status: { kind: 'error', label: vscode.l10n.t("Not found") },
-				tooltip: error instanceof Error ? error.message : vscode.l10n.t("The workspace resource could not be resolved."),
-				ariaLabel: vscode.l10n.t("Workspace resource could not be resolved: {0}", href),
-			}),
+			error => buildWorkspaceLookupFailurePresentation(
+				'file',
+				vscode.l10n.t("Not found"),
+				error instanceof Error ? error.message : vscode.l10n.t("The workspace resource could not be resolved."),
+				vscode.l10n.t("Workspace resource could not be resolved: {0}", href),
+			),
 			[context.onDidRequestRefresh, this.#onDidChangeWorkspaceResource.event],
 		);
 	}
@@ -53,38 +51,17 @@ export class WorkspaceLinkPresentationResolver implements LinkPresentationResolv
 
 	async #resolve(href: string): Promise<LinkPresentation> {
 		const uri = vscode.Uri.parse(href);
-		const stat = await vscode.workspace.fs.stat(uri);
-		return this.#present(uri, stat.type === vscode.FileType.Directory ? 'folder' : 'file');
-	}
-
-	async #present(uri: vscode.Uri, kind: 'file' | 'folder'): Promise<LinkPresentation> {
+		await vscode.workspace.fs.stat(uri);
 		const label = vscode.workspace.asRelativePath(uri, false);
 		const repository = await this.#getGitApi().then(api => api?.getRepository(uri) ?? undefined);
 		const branch = repository?.state.HEAD?.name;
-		const changed = repository ? repositoryChangeCount(repository) : 0;
-		const isRepositoryRoot = kind === 'folder' && repository?.rootUri.fsPath === uri.fsPath;
-		if (isRepositoryRoot) {
-			const detail = [branch, changed ? `${changed} changes` : 'clean'].filter((value): value is string => !!value).join(' · ');
-			return {
-				kind: 'repository',
-				...(detail ? { detail } : {}),
-				status: branch ? { kind: changed ? 'warning' : 'success', label: branch } : undefined,
-				tooltip: uri.toString(true),
-				ariaLabel: `Local repository ${label}${branch ? ` on branch ${branch}` : ''}, ${changed ? `${changed} changes` : 'clean'}`,
-			};
-		}
-
-		const details = [
-			compactParent(label),
+		return buildWorkspaceResourcePresentation({
+			kind: 'file',
+			label,
+			href: uri.toString(true),
 			branch,
-			repository && repositoryContainsChange(repository, uri) ? 'modified' : undefined,
-		].filter((value): value is string => !!value);
-		return {
-			kind,
-			...(details.length ? { detail: details.join(' · ') } : {}),
-			tooltip: uri.toString(true),
-			ariaLabel: `${kind === 'folder' ? 'Folder' : 'File'} ${label}`,
-		};
+			modified: !!repository && repositoryContainsChange(repository, uri),
+		});
 	}
 
 	#getGitApi(): Promise<GitApi | undefined> {
@@ -125,14 +102,6 @@ interface GitChange {
 	readonly uri: vscode.Uri;
 }
 
-function repositoryChangeCount(repository: GitRepository): number {
-	const state = repository.state;
-	return state.mergeChanges.length
-		+ state.indexChanges.length
-		+ state.workingTreeChanges.length
-		+ state.untrackedChanges.length;
-}
-
 function repositoryContainsChange(repository: GitRepository, uri: vscode.Uri): boolean {
 	const key = uri.toString();
 	const state = repository.state;
@@ -142,20 +111,4 @@ function repositoryContainsChange(repository: GitRepository, uri: vscode.Uri): b
 		...state.workingTreeChanges,
 		...state.untrackedChanges,
 	].some(change => change.uri.toString() === key);
-}
-
-function relativeParent(value: string): string | undefined {
-	const separator = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
-	return separator > 0 ? value.slice(0, separator) : undefined;
-}
-
-function compactParent(value: string): string | undefined {
-	const parent = relativeParent(value);
-	if (!parent) {
-		return undefined;
-	}
-	if (!/^(?:[a-z]:[\\/]|[\\/])/i.test(parent)) {
-		return parent;
-	}
-	return parent.split(/[\\/]+/).filter(Boolean).slice(-4).join('/');
 }

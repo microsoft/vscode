@@ -477,18 +477,19 @@ interface TestAgentConfigurationService extends IAgentConfigurationService {
 
 function createConfigurationService(enabled: boolean, disposables: DisposableStore): TestAgentConfigurationService {
 	const rootConfigChange = disposables.add(new Emitter<void>());
-	const workingDirectoryPendingChange = disposables.add(new Emitter<string>());
 	return {
 		_serviceBrand: undefined,
 		onDidRootConfigChange: rootConfigChange.event,
 		onDidSessionConfigChange: Event.None,
-		onDidChangeWorkingDirectoryPending: workingDirectoryPendingChange.event,
 		getEffectiveValue: () => undefined,
 		getEffectiveWorkingDirectories: () => undefined,
-		isWorkingDirectoryPending: () => false,
-		resolveWorkingDirectoryForResume: async (_session, workingDirectory) => workingDirectory,
 		updateSessionConfig: () => { },
 		getSessionConfigValues: () => undefined,
+		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxEnabled: () => undefined,
+		setSessionSandboxPolicy: () => { },
+		setSessionSandboxEnabled: () => { },
+		rejectSessionSandboxChange: () => { },
 		getRootValue: (schema, key) => schema.validate(key, enabled) ? enabled : undefined,
 		updateRootConfig: () => { },
 		persistRootConfig: () => { },

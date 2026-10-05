@@ -176,10 +176,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}
 
 		// Layout content with reduced dimensions to account for visual margins and border.
-		const borderTotal = 2; // 1px border on each side
+		const compact = this.layoutService.isModernUICompact();
+		const borderTotal = compact ? 0 : 2;
+		const marginTop = compact ? 0 : PanelPart.MARGIN_TOP;
 		super.layout(
 			width - borderTotal,
-			height - PanelPart.MARGIN_TOP - borderTotal,
+			height - marginTop - borderTotal,
 			top, left
 		);
 

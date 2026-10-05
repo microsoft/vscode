@@ -4,9 +4,7 @@ description: Use when asked to consume workbench tree widgets in VS Code.
 
 # Workbench Tree Widgets Overview
 
-**Location**: `src/vs/platform/list/browser/listService.ts`
-**Type**: Platform Services
-**Layer**: Platform
+**Location**: `src/vs/platform/list/browser/listService.ts` **Type**: Platform Services **Layer**: Platform
 
 ## Purpose
 

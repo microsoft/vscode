@@ -1,8 +1,6 @@
 # Copilot Agent Runtime — Customization Surface Spec
 
-> **Specification change gate:** This is a scoped external-runtime snapshot, not
-> a change log. Update it only after deliberately re-auditing the referenced
-> runtime contract; do not patch it for VS Code implementation bugs.
+> **Specification change gate:** This is a scoped external-runtime snapshot, not a change log. Update it only after deliberately re-auditing the referenced runtime contract; do not patch it for VS Code implementation bugs.
 
 > **Purpose:** Definitive reference for every customization mechanism that affects agent behavior when a user sends a message. Intended for building a UI that collects all customizations into a single view.
 >

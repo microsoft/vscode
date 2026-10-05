@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
-import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../base/common/async.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { createSandboxNetworkFilter, IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { equals } from '../../../base/common/objects.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
+import { getAgentBrowserViewCreationDefaults } from '../common/browserView.js';
 import { PlaywrightTab, DialogInterruptedError } from './playwrightTab.js';
 import { CDPRequest, CDPResponse, CDPTargetInfo } from '../common/cdp/types.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -61,6 +64,29 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessions = this._register(new DisposableMap<string, PlaywrightSession>());
+	private readonly _networkRestrictions = new Map<string, ISandboxNetworkRestrictions>();
+	private readonly _networkRestrictionUpdates = new Map<string, Promise<void>>();
+
+	async setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void> {
+		const apply = async () => {
+			await this._pendingInits.get(sessionId);
+			await this.browserViewGroupRemoteService.setSessionNetworkRestrictions(sessionId, restrictions);
+			if (!equals(this._networkRestrictions.get(sessionId), restrictions)) {
+				await this.disposeSession(sessionId);
+				this._networkRestrictions.set(sessionId, restrictions);
+			}
+		};
+		// A failed update is reported to its caller but must not prevent a later retry.
+		const update = (this._networkRestrictionUpdates.get(sessionId) ?? Promise.resolve()).then(apply, apply);
+		this._networkRestrictionUpdates.set(sessionId, update);
+		try {
+			await update;
+		} finally {
+			if (this._networkRestrictionUpdates.get(sessionId) === update) {
+				this._networkRestrictionUpdates.delete(sessionId);
+			}
+		}
+	}
 
 	/** In-flight session initializations keyed by session ID. */
 	private readonly _pendingInits = new Map<string, Promise<PlaywrightSession>>();
@@ -70,6 +96,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	constructor(
 		private readonly windowId: number,
+		private readonly useSessionStorageAffinity: boolean,
 		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
 		private readonly logService: ILogService,
 		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
@@ -84,6 +111,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	 * connection if the session does not already exist.
 	 */
 	private async _getOrCreateSession(sessionId: string): Promise<PlaywrightSession> {
+		await this._networkRestrictionUpdates.get(sessionId);
 		const existing = this._sessions.get(sessionId);
 		if (existing) {
 			this._touchSession(sessionId);
@@ -111,10 +139,18 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	 */
 	private async _initSession(sessionId: string): Promise<PlaywrightSession> {
 		this.logService.debug(`[PlaywrightService] Initializing session ${sessionId}`);
+		const restrictions = this._networkRestrictions.get(sessionId);
 
 		const group = await this.browserViewGroupRemoteService.createGroup(
-			{ mainWindowId: this.windowId, sessionId },
-			{ audience: { type: 'agent', sessionId } }
+			{ audience: { type: 'agent', sessionId }, ...(restrictions?.sandboxEnabled ? { sandboxSessionId: sessionId } : {}) },
+			{
+				host: {
+					windowId: this.windowId
+				},
+				...getAgentBrowserViewCreationDefaults(sessionId, restrictions || this.useSessionStorageAffinity ? sessionId : undefined),
+				...(restrictions?.sandboxEnabled ? { initialAudiences: [{ type: 'agent' as const, sessionId }] } : {}),
+				...(restrictions ? { sandboxNetworkRestrictions: restrictions } : {}),
+			}
 		);
 
 		const actionScope: IPlaywrightActionScope = { activeCalls: 0 };
@@ -172,7 +208,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 			group,
 			actionScope,
 			this.logService,
-			this.agentNetworkFilterService,
+			restrictions ? createSandboxNetworkFilter(this.agentNetworkFilterService, restrictions) : this.agentNetworkFilterService,
 			this.telemetryService,
 		);
 
@@ -180,8 +216,10 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		// recreated fresh on the next tool call.
 		browser.on('disconnected', () => {
 			this.logService.debug(`[PlaywrightService] Browser disconnected for session ${sessionId}`);
-			this._sessions.deleteAndDispose(sessionId);
-			this._inactivityTimers.deleteAndDispose(sessionId);
+			if (this._sessions.get(sessionId) === session) {
+				this._sessions.deleteAndDispose(sessionId);
+				this._inactivityTimers.deleteAndDispose(sessionId);
+			}
 		});
 
 		this._sessions.set(sessionId, session);
@@ -192,9 +230,9 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 
 	// --- Playwright operations (delegated to per-session instances) ---
 
-	async openPage(sessionId: string, url: string): Promise<{ pageId: string; summary: string }> {
+	async waitForPageAndGetSummary(sessionId: string, pageId: string, expectedUrl: string, discoveryTimeoutMs: number): Promise<string> {
 		const session = await this._getOrCreateSession(sessionId);
-		return session.openPage(url);
+		return session.waitForPageAndGetSummary(pageId, expectedUrl, discoveryTimeoutMs);
 	}
 
 	async getSummary(sessionId: string, pageId: string): Promise<string> {
@@ -230,6 +268,7 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 	// --- Session lifecycle ---
 
 	async disposeSession(sessionId: string): Promise<void> {
+		this._networkRestrictions.delete(sessionId);
 		if (this._sessions.has(sessionId)) {
 			this.logService.debug(`[PlaywrightService] Disposing session ${sessionId}`);
 			this._sessions.deleteAndDispose(sessionId);
@@ -276,7 +315,6 @@ class PlaywrightSession extends Disposable {
 	private readonly _pageDiscoveryPromises = new Map<Page, Promise<string>>();
 
 	private readonly _watchedContexts = new WeakSet<BrowserContext>();
-	private _openContext: BrowserContext | undefined = undefined;
 
 	/** In-flight deferred results keyed by their generated ID. */
 	private readonly _deferredResults = this._register(new DisposableMap<string, {
@@ -308,29 +346,23 @@ class PlaywrightSession extends Disposable {
 
 	// --- Page operations ---
 
-	async openPage(url: string): Promise<{ pageId: string; summary: string }> {
-		if (!this._openContext) {
-			this._openContext = await this._browser.newContext();
-			this._onContextAdded(this._openContext);
-		}
+	async waitForPageAndGetSummary(pageId: string, expectedUrl: string, discoveryTimeoutMs: number): Promise<string> {
+		const page = await this._waitForPage(pageId, Date.now() + discoveryTimeoutMs);
 
-		const page = await this._openContext.newPage();
-		const viewId = await this._onPageAdded(page);
-
-		if (url && url !== 'about:blank' && page.url() !== url) {
-			try {
-				await page.goto(url, { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
-			} catch (error) {
-				if (!isNavigationTimeoutError(error)) {
-					throw error;
-				}
-
-				throw new Error(`Navigation to ${url} timed out after ${OPEN_PAGE_NAVIGATION_TIMEOUT_MS} ms. The page (ID: ${viewId}) is open and can be reused.`);
+		try {
+			if (expectedUrl !== 'about:blank' && page.url() === 'about:blank') {
+				await page.waitForURL(url => url.toString() !== 'about:blank', { waitUntil: 'domcontentloaded', timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
+			} else {
+				await page.waitForLoadState('domcontentloaded', { timeout: OPEN_PAGE_NAVIGATION_TIMEOUT_MS });
 			}
+		} catch (error) {
+			if (!isNavigationTimeoutError(error)) {
+				throw error;
+			}
+			throw new Error(`Timed out waiting for browser page "${pageId}" to navigate to "${expectedUrl}". The page is open and can be reused.`, { cause: error });
 		}
 
-		const summary = await this._getSummary(viewId);
-		return { pageId: viewId, summary };
+		return this._getSummary(pageId);
 	}
 
 	async getSummary(pageId: string): Promise<string> {
@@ -526,6 +558,33 @@ class PlaywrightSession extends Disposable {
 	// --- Private: page matching (view ↔ page pairing) ---
 
 	private async _getPage(viewId: string): Promise<Page> {
+		const page = await this._tryGetPage(viewId);
+		if (page) {
+			return page;
+		}
+		throw new Error(`Page "${viewId}" not found`);
+	}
+
+	private async _waitForPage(viewId: string, deadline: number): Promise<Page> {
+		while (true) {
+			const remaining = deadline - Date.now();
+			if (remaining <= 0) {
+				throw new Error(`Timed out waiting for browser page "${viewId}" to become available. The page is open and can be reused.`);
+			}
+
+			const page = await raceTimeout(this._tryGetPage(viewId), remaining);
+			if (page) {
+				return page;
+			}
+
+			const delay = Math.min(50, deadline - Date.now());
+			if (delay > 0) {
+				await timeout(delay);
+			}
+		}
+	}
+
+	private async _tryGetPage(viewId: string): Promise<Page | undefined> {
 		const resolved = this._viewIdToPage.get(viewId);
 		if (resolved) {
 			return resolved;
@@ -538,7 +597,7 @@ class PlaywrightSession extends Disposable {
 		if (discovered) {
 			return discovered;
 		}
-		throw new Error(`Page "${viewId}" not found`);
+		return undefined;
 	}
 
 	private _onPageAdded(page: Page): Promise<string> {

@@ -34,6 +34,7 @@ import type { IProgressState } from '@xterm/addon-progress';
 import type { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import type { TerminalEditorInput } from './terminalEditorInput.js';
 import type { MaybePromise } from '../../../../base/common/async.js';
+import type { IAction } from '../../../../base/common/actions.js';
 import { isNumber, type SingleOrMany } from '../../../../base/common/types.js';
 import type { ToolConfirmationAction } from '../../chat/common/tools/languageModelToolsService.js';
 
@@ -123,10 +124,15 @@ export interface IAhpTerminalCommandSource extends IDisposable {
 export interface IChatTerminalToolProgressPart {
 	readonly elementIndex: number;
 	readonly contentIndex: number;
+	readonly terminalToolSessionId: string | undefined;
+	/** Opens the complete output associated with this progress part, when available. */
+	readonly fullOutputAction?: IAction;
 	focusTerminal(): Promise<void>;
 	toggleOutputFromKeyboard(): Promise<void>;
 	toggleOutputFromAction(): Promise<void>;
 	continueInBackground(): void;
+	didRegisterOutputSource(terminalToolSessionId: string): void;
+	markContinuedInBackground(): void;
 	focusOutput(): void;
 	getCommandAndOutputAsText(): string | undefined;
 }
@@ -135,6 +141,12 @@ export interface IChatTerminalToolProgressPart {
 export interface IChatTerminalOutputSource {
 	readonly onDidChange: Event<void>;
 	readonly output: string;
+	/**
+	 * Whether the underlying command has finished. A command can exit without
+	 * reporting an {@link exitCode}, so completion must be read from here
+	 * rather than inferred from the code being present.
+	 */
+	readonly hasExited: boolean;
 	readonly exitCode: number | undefined;
 }
 
@@ -146,7 +158,6 @@ export interface ITerminalChatService {
 	 * the chat UI first renders, enabling late binding of the focus action.
 	 */
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance>;
-	readonly onDidRegisterOutputSource: Event<string>;
 
 	/**
 	 * Associate a tool session id with a terminal instance. The association is automatically

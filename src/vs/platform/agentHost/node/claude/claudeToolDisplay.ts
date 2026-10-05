@@ -92,11 +92,9 @@ interface ClaudeToolRow {
 }
 
 const TOOL_ROWS: { readonly [toolName: string]: ClaudeToolRow } = {
-	// shell tools — no `language` is carried: the workbench picks
-	// `'shellscript'` from the tool name (it only special-cases
-	// `'powershell'`), and the SDK's `Bash` tool is the generic shell
-	// entry point (bash on POSIX, Git Bash on Windows), so claiming a
-	// specific dialect here would be misleading and unused.
+	// Shell tools — no `language` is carried. The SDK calls its generic
+	// command tool `Bash`, but the command may invoke bash, pwsh, or any
+	// other executable, so claiming a specific dialect would be misleading.
 	Bash: { permissionKind: 'shell', toolKind: 'terminal' },
 	BashOutput: { permissionKind: 'shell', toolKind: 'terminal' },
 	KillBash: { permissionKind: 'shell', toolKind: 'terminal' },

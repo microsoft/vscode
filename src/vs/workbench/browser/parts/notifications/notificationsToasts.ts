@@ -14,6 +14,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { NOTIFICATIONS_TOAST_BORDER, NOTIFICATIONS_BACKGROUND } from '../../../common/theme.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { INotificationsToastController } from './notificationsCommands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -328,6 +329,11 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 						notificationList.updateNotificationHeight(item);
 					}
 					break;
+				case NotificationViewItemContentChangeKind.PROGRESS:
+					if (e.activeProgressChanged) {
+						notificationList.updateNotificationsList(0, 1, [item]);
+					}
+					break;
 			}
 		}));
 
@@ -572,8 +578,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 	override updateStyles(): void {
 		this.mapNotificationToToast.forEach(({ toast }) => {
-			const backgroundColor = this.getColor(NOTIFICATIONS_BACKGROUND);
-			toast.style.background = backgroundColor ? backgroundColor : '';
+			toast.style.background = asCssVariable(NOTIFICATIONS_BACKGROUND);
 
 			const borderColor = this.getColor(NOTIFICATIONS_TOAST_BORDER);
 			toast.style.border = borderColor ? `1px solid ${borderColor}` : '';
@@ -661,15 +666,20 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		let singleToastHeightToGive = heightToGive;
 		let multipleToastsHeightToGive = Math.round(heightToGive * 0.618);
 
-		let visibleToasts = 0;
-		for (const toast of this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE)) {
-
+		const toasts = this.getToasts(ToastVisibility.HIDDEN_OR_VISIBLE);
+		for (const toast of toasts) {
 			// In order to measure the client height, the element cannot have display: none
 			toast.container.style.opacity = '0';
 			this.updateToastVisibility(toast, true);
+		}
 
-			singleToastHeightToGive -= toast.container.offsetHeight;
-			multipleToastsHeightToGive -= toast.container.offsetHeight;
+		const toastHeights = toasts.map(toast => toast.container.offsetHeight);
+		let visibleToasts = 0;
+		for (let i = 0; i < toasts.length; i++) {
+			const toast = toasts[i];
+			const toastHeight = toastHeights[i];
+			singleToastHeightToGive -= toastHeight;
+			multipleToastsHeightToGive -= toastHeight;
 
 			let makeVisible = false;
 			if (visibleToasts === NotificationsToasts.MAX_NOTIFICATIONS) {

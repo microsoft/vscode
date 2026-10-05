@@ -17,7 +17,15 @@ suite('ChatRequestOrigin', () => {
 	};
 
 	test('serializes and revives source session resources', () => {
-		assert.deepStrictEqual(reviveChatRequestOrigin(serializeChatRequestOrigin(origin)), origin);
+		const scopedDelegation = {
+			kind: ChatRequestOriginKind.Delegation,
+			sourceSessionResource: URI.parse('agent-host-session://copilot/source?turn=turn-1'),
+			delegationScope: 'session' as const,
+		};
+		assert.deepStrictEqual([
+			reviveChatRequestOrigin(serializeChatRequestOrigin(origin)),
+			reviveChatRequestOrigin(serializeChatRequestOrigin(scopedDelegation)),
+		], [origin, scopedDelegation]);
 	});
 
 	test('opens with the first provider that handles the origin', async () => {

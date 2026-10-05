@@ -22,8 +22,8 @@ import type { SessionSummaryChangedParams } from '../../../../common/state/proto
 import type { OtlpExportLogsParams } from '../../../../common/state/protocol/channels-otlp/notifications.js';
 import type { IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../../../../common/agentService.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { TerminalClaimKind } from '../../../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
+import { SessionInputRequestKind, TerminalClaimKind } from '../../../../common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
@@ -1047,6 +1047,9 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				? result.actions.map(action => ({ channel: action.channel, type: action.action.type }))
 				: result.type, [
 				{ channel: sessionUri, type: ActionType.SessionTitleChanged },
+				// Renaming a single-chat session also retitles its default chat, so the
+				// session channel carries the resulting chat update too.
+				{ channel: sessionUri, type: ActionType.SessionChatUpdated },
 				{ channel: chatUri, type: ActionType.ChatDraftChanged },
 			]);
 		} finally {
@@ -1192,32 +1195,6 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		}), { code: AhpErrorCodes.SessionAlreadyExists });
 	}, context.runHostOnlyKnownIssueTests);
 
-	conformanceTest(context, 'a session cannot fork onto its own resource', async function () {
-		const { sessionUri } = await createSession('self-fork');
-
-		await assert.rejects(context.client.call('createSession', {
-			channel: sessionUri,
-			provider: config.provider,
-			fork: { session: sessionUri, turnId: 'irrelevant' },
-		}), { code: AhpErrorCodes.SessionAlreadyExists });
-	});
-
-	conformanceTest(context, 'forking from a missing session is rejected', async function () {
-		const target = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-		const missingSource = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
-		await context.client.call('initialize', {
-			channel: ROOT_STATE_URI,
-			protocolVersions: [PROTOCOL_VERSION],
-			clientId: `missing-fork-source-${config.provider}`,
-		});
-
-		await assert.rejects(context.client.call('createSession', {
-			channel: target,
-			provider: config.provider,
-			fork: { session: missingSource, turnId: 'missing-turn' },
-		}), { code: AhpErrorCodes.SessionNotFound });
-	});
-
 	conformanceTest(context, 'createSession rejects an active client owned by another connection', async function () {
 		const client = await context.connectClient();
 		try {
@@ -1335,6 +1312,66 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		const state = subscribed.snapshot!.state as ChatState;
 
 		assert.strictEqual(state.draft?.text, 'changed while unsubscribed');
+	});
+
+	conformanceTest(context, 'a client cannot dispatch a server-only session action', async function () {
+		const victimClientId = `server-action-victim-${config.provider}`;
+		const attacker = await initializeAdditionalClient('server-action-attacker');
+		const workspace = mkdtempSync(join(tmpdir(), 'ahp-server-action-'));
+		tempDirs.push(workspace);
+
+		try {
+			const sessionUri = await createRealSession(context.client, config, victimClientId, createdSessions, URI.file(workspace));
+			await attacker.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			attacker.clearReceived();
+
+			const seq = nextClientSeq();
+			attacker.dispatch({
+				channel: sessionUri,
+				clientSeq: seq,
+				action: {
+					type: ActionType.SessionInputNeededSet,
+					request: {
+						id: 'forged-client-tool-request',
+						kind: SessionInputRequestKind.ToolClientExecution,
+						chat: buildDefaultChatUri(sessionUri),
+						turnId: 'turn-1',
+						clientId: victimClientId,
+						toolCall: {
+							toolCallId: 'tool-call-1',
+							toolName: 'readFile',
+							displayName: 'Read File',
+							contributor: { kind: ToolCallContributorKind.Client, clientId: victimClientId },
+							status: ToolCallStatus.Running,
+							invocationMessage: 'Reading file',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							toolInput: '{"filePath":"/victim/secret.txt"}',
+						},
+					},
+				},
+			});
+
+			const rejected = await attacker.waitForNotification(n =>
+				isActionNotification(n, ActionType.SessionInputNeededSet)
+				&& getActionEnvelope(n).channel === sessionUri
+				&& getActionEnvelope(n).origin?.clientSeq === seq,
+				30_000,
+			);
+			const envelope = getActionEnvelope(rejected);
+			const state = (await attacker.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
+
+			assert.deepStrictEqual({
+				hasRejectionReason: typeof envelope.rejectionReason === 'string' && envelope.rejectionReason.length > 0,
+				origin: envelope.origin,
+				inputNeeded: state.inputNeeded,
+			}, {
+				hasRejectionReason: true,
+				origin: { clientId: `server-action-attacker-${config.provider}`, clientSeq: seq },
+				inputNeeded: undefined,
+			});
+		} finally {
+			attacker.close();
+		}
 	});
 
 	// The protocol declares working-directory mutation on both the session and

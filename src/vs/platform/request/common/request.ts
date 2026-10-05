@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { streamToBuffer } from '../../../base/common/buffer.js';
+import { streamToBuffer, VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { getErrorMessage } from '../../../base/common/errors.js';
+import { getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { listenStream } from '../../../base/common/stream.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { localize } from '../../../nls.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
@@ -110,7 +111,11 @@ export abstract class AbstractRequestService extends Disposable implements IRequ
 			});
 			return result;
 		} catch (error) {
-			this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			if (isCancellationError(error)) {
+				this.logService.trace(`${prefix} - cancelled`, options.type);
+			} else {
+				this.logService.error(`${prefix} - error`, options.type, getErrorMessage(error));
+			}
 			throw error;
 		}
 	}
@@ -174,6 +179,27 @@ export async function asText(context: IRequestContext): Promise<string | null> {
 	return buffer.toString();
 }
 
+/** Reads a response without buffering more than the caller's maximum size. */
+export function readBoundedResponse(context: IRequestContext, maxBytes: number, onLimitExceeded: () => Error): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const chunks: VSBuffer[] = [];
+		let bytes = 0;
+		listenStream(context.stream, {
+			onData: chunk => {
+				bytes += chunk.byteLength;
+				if (bytes > maxBytes) {
+					reject(onLimitExceeded());
+					context.stream.destroy();
+				} else {
+					chunks.push(chunk);
+				}
+			},
+			onError: reject,
+			onEnd: () => resolve(VSBuffer.concat(chunks).toString()),
+		});
+	});
+}
+
 export async function asTextOrError(context: IRequestContext): Promise<string | null> {
 	if (!isSuccess(context)) {
 		throw new Error('Server returned ' + context.res.statusCode);
@@ -216,7 +242,7 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.experimental.networkInterfaceCheckInterval',
 ];
 
-export const systemCertificatesNodeDefault = false;
+export const systemCertificatesNodeDefault = true;
 
 let proxyConfiguration: IConfigurationNode[] = [];
 let previousUseHostProxy: boolean | undefined = undefined;

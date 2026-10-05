@@ -73,8 +73,8 @@ suite('ChatRichLink', () => {
 		}, {
 			pending: { status: 'pending', spinner: true },
 			warning: { status: 'warning', spinner: true },
-			error: { status: 'error', icon: 'chat-rich-link-status-icon codicon codicon-error' },
-			completed: { status: 'success', icon: 'chat-rich-link-status-icon codicon codicon-pass-filled' },
+			error: { status: 'error', icon: 'chat-rich-link-status-icon codicon codicon-error-compact' },
+			completed: { status: 'success', icon: 'chat-rich-link-status-icon codicon codicon-pass-filled-compact' },
 		});
 	});
 });

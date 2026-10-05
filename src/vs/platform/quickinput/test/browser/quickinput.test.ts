@@ -10,16 +10,16 @@ import { unthemedButtonStyles } from '../../../../base/browser/ui/button/button.
 import { unthemedListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { unthemedToggleStyles } from '../../../../base/browser/ui/toggle/toggle.js';
 import { Event } from '../../../../base/common/event.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../base/common/async.js';
 import { unthemedCountStyles } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { unthemedKeybindingLabelOptions } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { unthemedProgressBarOptions } from '../../../../base/browser/ui/progressbar/progressbar.js';
 import { QuickInputController } from '../../browser/quickInputController.js';
 import { TestThemeService } from '../../../theme/test/common/testThemeService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { QuickPick } from '../../browser/quickInput.js';
+import { backButton, QuickPick } from '../../browser/quickInput.js';
 import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
@@ -165,6 +165,142 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		]);
 	});
 
+	for (const action of ['accept', 'cancel'] as const) {
+		test(`hides immediately on ${action} when CSS suppresses close motion`, async () => {
+			fixture.classList.add('modern-ui', 'monaco-enable-motion');
+			const quickpick = store.add(controller.createQuickPick());
+			quickpick.items = [{ label: 'item' }];
+			store.add(quickpick.onDidAccept(() => quickpick.hide()));
+			const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+			widget.style.animation = 'none';
+
+			quickpick.show();
+			await controller[action]();
+
+			assert.deepStrictEqual({
+				display: widget.style.display,
+				closing: widget.classList.contains('quick-input-widget-closing'),
+				inert: widget.inert,
+				visible: controller.isVisible(),
+			}, {
+				display: 'none',
+				closing: false,
+				inert: false,
+				visible: false,
+			});
+		});
+	}
+
+	test('finishes closing when the close animation finishes', async () => {
+		sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [animation] = widget.getAnimations();
+		assert.ok(animation);
+		const finished = Event.toPromise(Event.fromDOMEventEmitter(animation, 'finish'), store.add(new DisposableStore()));
+		animation.finish();
+		await finished;
+
+		assert.deepStrictEqual({
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+		}, {
+			display: 'none',
+			closing: false,
+			inert: false,
+		});
+	});
+
+	test('finishes closing when reduced motion cancels the animation', async () => {
+		sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [animation] = widget.getAnimations();
+		assert.ok(animation);
+		const cancelled = Event.toPromise(Event.fromDOMEventEmitter(animation, 'cancel'), store.add(new DisposableStore()));
+		fixture.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+		const animationCount = widget.getAnimations().length;
+		await cancelled;
+
+		assert.deepStrictEqual({
+			animationCount,
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+		}, {
+			animationCount: 0,
+			display: 'none',
+			closing: false,
+			inert: false,
+		});
+	});
+
+	test('reopening discards the previous close animation callbacks and timeout', () => {
+		const clock = sinon.useFakeTimers();
+		fixture.classList.add('modern-ui', 'monaco-enable-motion');
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+		quickpick.hide();
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		const [animation] = widget.getAnimations();
+		assert.ok(animation);
+
+		quickpick.show();
+		clock.tick(150);
+		const reopened = {
+			display: widget.style.display,
+			closing: widget.classList.contains('quick-input-widget-closing'),
+			inert: widget.inert,
+			visible: controller.isVisible(),
+		};
+		quickpick.hide();
+		animation.dispatchEvent(new mainWindow.Event('finish'));
+		animation.dispatchEvent(new mainWindow.Event('cancel'));
+
+		assert.deepStrictEqual({
+			reopened,
+			closingAgain: {
+				display: widget.style.display,
+				closing: widget.classList.contains('quick-input-widget-closing'),
+				inert: widget.inert,
+				visible: controller.isVisible(),
+			},
+		}, {
+			reopened: { display: '', closing: false, inert: false, visible: true },
+			closingAgain: { display: '', closing: true, inert: true, visible: false },
+		});
+		clock.tick(150);
+	});
+
+	test('title bar is hidden when empty', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		const titleBar = fixture.querySelector<HTMLElement>('.quick-input-titlebar')!;
+		const states: string[] = [];
+		const recordState = () => states.push(titleBar.style.display);
+
+		quickpick.show();
+		recordState();
+
+		quickpick.title = 'Title';
+		recordState();
+
+		quickpick.title = undefined;
+		quickpick.buttons = [backButton];
+		recordState();
+
+		quickpick.buttons = [];
+		recordState();
+
+		assert.deepStrictEqual(states, ['none', '', '', 'none']);
+	});
+
 	test('overlay picker aligns its input with the anchor and bypasses motion', () => {
 		fixture.style.width = '600px';
 		fixture.style.height = '400px';
@@ -219,6 +355,120 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				closing: false,
 				inert: false,
 			},
+		});
+	});
+
+	test('positions an anchored picker below its anchor when requested', () => {
+		fixture.style.width = '600px';
+		fixture.style.height = '400px';
+		controller.layout({ width: 600, height: 400 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '40px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.anchor = anchor;
+		quickpick.anchorPosition = 'below';
+		quickpick.show();
+
+		const widget = fixture.querySelector<HTMLElement>('.quick-input-widget')!;
+		assert.deepStrictEqual({
+			top: widget.getBoundingClientRect().top,
+			anchorBottomWithGap: anchor.getBoundingClientRect().bottom + 4,
+		}, {
+			top: anchor.getBoundingClientRect().bottom + 4,
+			anchorBottomWithGap: anchor.getBoundingClientRect().bottom + 4,
+		});
+	});
+
+	test('scoped anchors apply only to the next unanchored quick pick', async () => {
+		const anchor = document.createElement('div');
+		const explicitAnchor = document.createElement('div');
+		fixture.appendChild(anchor);
+		fixture.appendChild(explicitAnchor);
+		let explicitState = { anchor: false, position: undefined as string | undefined };
+		let inheritedState = { anchor: false, position: undefined as string | undefined };
+		await controller.withQuickInputAnchor(anchor, 'below', async () => {
+			const input = store.add(controller.createInputBox());
+			input.show();
+			input.hide();
+			const explicit = store.add(controller.createQuickPick());
+			explicit.anchor = explicitAnchor;
+			explicit.anchorPosition = 'above';
+			explicit.show();
+			explicitState = { anchor: explicit.anchor === explicitAnchor, position: explicit.anchorPosition };
+			explicit.hide();
+			const inherited = store.add(controller.createQuickPick());
+			inherited.show();
+			inheritedState = { anchor: inherited.anchor === anchor, position: inherited.anchorPosition };
+			inherited.hide();
+		});
+		const subsequent = store.add(controller.createQuickPick());
+		subsequent.show();
+
+		assert.deepStrictEqual({
+			explicitState,
+			inheritedState,
+			subsequentAnchor: subsequent.anchor,
+			subsequentPosition: subsequent.anchorPosition,
+		}, {
+			explicitState: { anchor: true, position: 'above' },
+			inheritedState: { anchor: true, position: 'below' },
+			subsequentAnchor: undefined,
+			subsequentPosition: undefined,
+		});
+	});
+
+	test('serializes scoped anchor operations', async () => {
+		const firstAnchor = document.createElement('div');
+		const secondAnchor = document.createElement('div');
+		fixture.appendChild(firstAnchor);
+		fixture.appendChild(secondAnchor);
+		const firstStarted = new DeferredPromise<void>();
+		const releaseFirst = new DeferredPromise<void>();
+		const order: string[] = [];
+		let firstPickerAnchored = false;
+		let secondPickerAnchored = false;
+
+		const first = controller.withQuickInputAnchor(firstAnchor, 'below', async () => {
+			order.push('first:start');
+			firstStarted.complete();
+			await releaseFirst.p;
+			const picker = store.add(controller.createQuickPick());
+			picker.show();
+			firstPickerAnchored = picker.anchor === firstAnchor;
+			picker.hide();
+			order.push('first:end');
+		});
+		await firstStarted.p;
+		const second = controller.withQuickInputAnchor(secondAnchor, 'above', async () => {
+			order.push('second:start');
+			const picker = store.add(controller.createQuickPick());
+			picker.show();
+			secondPickerAnchored = picker.anchor === secondAnchor;
+			picker.hide();
+			order.push('second:end');
+		});
+		await Promise.resolve();
+		const orderWhileFirstIsPending = order.slice();
+		releaseFirst.complete();
+		await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			orderWhileFirstIsPending,
+			order,
+			firstPickerAnchored,
+			secondPickerAnchored,
+		}, {
+			orderWhileFirstIsPending: ['first:start'],
+			order: ['first:start', 'first:end', 'second:start', 'second:end'],
+			firstPickerAnchored: true,
+			secondPickerAnchored: true,
 		});
 	});
 
@@ -382,6 +632,24 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
+	});
+
+	test('id is exposed as DOM metadata and cleared when absent', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.items = [{ id: 'item-id', label: 'item with id' }];
+		quickpick.show();
+
+		const entry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const id = entry.getAttribute('data-quick-input-id');
+
+		quickpick.items = [{ label: 'item without id' }];
+		const recycledEntry = fixture.querySelector<HTMLElement>('.quick-input-list-entry')!;
+		const recycledId = recycledEntry.getAttribute('data-quick-input-id');
+
+		assert.deepStrictEqual({ id, recycledId }, {
+			id: 'item-id',
+			recycledId: null
+		});
 	});
 
 	test('isKeyModified - returns false when no modifiers are pressed', () => {

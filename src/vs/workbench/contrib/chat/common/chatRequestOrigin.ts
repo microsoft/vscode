@@ -14,17 +14,20 @@ export const enum ChatRequestOriginKind {
 export interface IChatRequestOrigin {
 	readonly kind: ChatRequestOriginKind;
 	readonly sourceSessionResource: URI;
+	readonly delegationScope?: 'chat' | 'session';
 }
 
 export interface ISerializableChatRequestOrigin {
 	readonly kind: ChatRequestOriginKind;
 	readonly sourceSessionResource: UriComponents;
+	readonly delegationScope?: 'chat' | 'session';
 }
 
 export function serializeChatRequestOrigin(origin: IChatRequestOrigin): ISerializableChatRequestOrigin {
 	return {
 		kind: origin.kind,
 		sourceSessionResource: origin.sourceSessionResource.toJSON(),
+		...(origin.delegationScope ? { delegationScope: origin.delegationScope } : {}),
 	};
 }
 
@@ -33,7 +36,11 @@ export function reviveChatRequestOrigin(origin: ISerializableChatRequestOrigin |
 		return undefined;
 	}
 	const sourceSessionResource = URI.revive(origin.sourceSessionResource);
-	return sourceSessionResource ? { kind: origin.kind, sourceSessionResource } : undefined;
+	return sourceSessionResource ? {
+		kind: origin.kind,
+		sourceSessionResource,
+		...(origin.delegationScope ? { delegationScope: origin.delegationScope } : {}),
+	} : undefined;
 }
 
 export interface IChatRequestOriginOpener {

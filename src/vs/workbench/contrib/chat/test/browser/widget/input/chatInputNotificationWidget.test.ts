@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { IStringDictionary } from '../../../../../../../base/common/collections.js';
+import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { ICommandEvent, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
@@ -15,14 +18,20 @@ import { SyncDescriptor } from '../../../../../../../platform/instantiation/comm
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationService } from '../../../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
-import { ChatInputNotificationWidget, IChatInputNotificationDelegate } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
+import { ChatInputNotificationWidget, IChatInputNotificationDelegate, IChatInputNotificationModelSelection } from '../../../../browser/widget/input/chatInputNotificationWidget.js';
+import { isByokModel } from '../../../../common/chatSelectedModel.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getCopilotHarnessIntroductionContent } from '../../../../browser/agentSessions/copilotHarnessIntroduction.js';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -65,12 +74,47 @@ class RecordingTelemetryService extends NullTelemetryServiceShape {
 suite('ChatInputNotificationWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createNotificationService(): IChatInputNotificationService {
+	function context(overrides: Partial<IChatInputNotificationContext> = {}): IChatInputNotificationContext {
+		return {
+			sessionType: undefined,
+			sessionResource: undefined,
+			deferredNotificationsEnabled: true,
+			isTransientChat: false,
+			sessionStarted: false,
+			modelState: { currentModel: undefined, models: [] },
+			...overrides,
+		};
+	}
+
+	function showForNonByokModels(context: IChatInputNotificationContext): boolean {
+		return !context.modelState.currentModel || !isByokModel(context.modelState.currentModel.metadata);
+	}
+
+	function modelSelection(options: {
+		readonly state?: IObservable<IChatInputNotificationModelState>;
+		readonly currentModel?: ILanguageModelChatMetadataAndIdentifier;
+		readonly models?: readonly ILanguageModelChatMetadataAndIdentifier[];
+		readonly openPicker?: () => void;
+		readonly selectModel?: (modelIdentifier: string) => boolean;
+		readonly applyModelConfiguration?: (modelIdentifier: string, values: IStringDictionary<unknown>) => Promise<void>;
+	} = {}): IChatInputNotificationModelSelection {
+		return {
+			state: options.state ?? constObservable({ currentModel: options.currentModel, models: options.models ?? [] }),
+			openPicker: options.openPicker ?? (() => { }),
+			selectModel: options.selectModel ?? (() => true),
+			applyModelConfiguration: options.applyModelConfiguration,
+		};
+	}
+
+	function createNotificationService(logService?: ILogService): IChatInputNotificationService {
 		const descriptor = getSingletonServiceDescriptors().find(([id]) => id === IChatInputNotificationService)?.[1];
 		assert.ok(descriptor);
 		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
 		instantiationService.stub(ICommandService, new TestCommandService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		if (logService) {
+			instantiationService.stub(ILogService, logService);
+		}
 
 		const childInstantiationService = store.add(instantiationService.createChild(new ServiceCollection(
 			[IChatInputNotificationService, new SyncDescriptor(descriptor.ctor, descriptor.staticArguments)]
@@ -197,7 +241,7 @@ suite('ChatInputNotificationWidget', () => {
 			actions: [],
 			dismissible: false,
 			autoDismissOnMessage: false,
-			deferForNewUsers: true,
+			when: context => context.deferredNotificationsEnabled,
 		});
 
 		const renderedText = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
@@ -211,21 +255,17 @@ suite('ChatInputNotificationWidget', () => {
 	});
 
 	test('skips notifications that opt out of transient chats without hiding others', () => {
-		const transient = createWidget({ delegate: { isTransientChat: true } });
-		const persistent = createWidget({ delegate: { isTransientChat: false } });
-		const rendered = (widget: ChatInputNotificationWidget) => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		const isTransientChat = observableValue('isTransientChat', false);
+		const { notificationService, widget } = createWidget({ delegate: { isTransientChat } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], when: context => !context.isTransientChat });
 
-		for (const { notificationService } of [transient, persistent]) {
-			showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
-			showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInTransientChats: true });
-		}
+		const persistent = widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		isTransientChat.set(true, undefined);
 
-		assert.deepStrictEqual({
-			transient: rendered(transient.widget),
-			persistent: rendered(persistent.widget),
-		}, {
-			transient: 'Ordinary notification',
+		assert.deepStrictEqual({ persistent, transient: widget.domNode.querySelector('.chat-input-notification-header')?.textContent }, {
 			persistent: 'Model promotion',
+			transient: 'Ordinary notification',
 		});
 	});
 
@@ -233,7 +273,7 @@ suite('ChatInputNotificationWidget', () => {
 		const sessionStarted = observableValue('sessionStarted', false);
 		const { widget, notificationService } = createWidget({ delegate: { sessionStarted } });
 		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
-		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], hideInStartedSessions: true });
+		showNotification(notificationService, { id: 'promotion', message: 'Model promotion', actions: [], when: context => !context.sessionStarted });
 
 		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
 		const before = rendered();
@@ -242,6 +282,29 @@ suite('ChatInputNotificationWidget', () => {
 		assert.deepStrictEqual({ before, after: rendered() }, {
 			before: 'Model promotion',
 			after: 'Ordinary notification',
+		});
+	});
+
+	test('reactively hides notifications that opt out of BYOK models', () => {
+		const modelState = observableValue<IChatInputNotificationModelState>('modelState', { currentModel: undefined, models: [] });
+		const { widget, notificationService } = createWidget({ delegate: { modelSelection: modelSelection({ state: modelState }) } });
+		showNotification(notificationService, { id: 'ordinary', message: 'Ordinary notification', actions: [] });
+		showNotification(notificationService, { id: 'quota', message: 'Credits at 88%', actions: [], when: showForNonByokModels });
+
+		const rendered = () => widget.domNode.querySelector('.chat-input-notification-header')?.textContent;
+		// An unresolved selection must not withhold the notification.
+		const unresolved = rendered();
+		modelState.set({ currentModel: makeModel('copilot', false), models: [] }, undefined);
+		const copilot = rendered();
+		modelState.set({ currentModel: makeModel('customendpoint', true), models: [] }, undefined);
+		const byok = rendered();
+		modelState.set({ currentModel: makeModel('copilot', false), models: [] }, undefined);
+
+		assert.deepStrictEqual({ unresolved, copilot, byok, backToCopilot: rendered() }, {
+			unresolved: 'Credits at 88%',
+			copilot: 'Credits at 88%',
+			byok: 'Ordinary notification',
+			backToCopilot: 'Credits at 88%',
 		});
 	});
 
@@ -332,6 +395,64 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('escaped diagnostic text is selectable and support links open with mouse and keyboard', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const opened: { link: string; allowCommands: boolean | readonly string[] | undefined }[] = [];
+		instantiationService.stub(IOpenerService, {
+			open: async (link: URI | string, options?: OpenOptions) => {
+				opened.push({ link: link.toString(), allowCommands: options?.allowCommands });
+				return true;
+			},
+		});
+
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		store.add(toDisposable(() => container.remove()));
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		container.appendChild(widget.domNode);
+		const url = 'https://aka.ms/ghcp-sandbox-os-support';
+		const reason = `Update Windows: ${url} [not a command](command:evil) <b>literal</b>`;
+		notificationService.setNotification({
+			id: 'sandbox-diagnostic',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: new MarkdownString().appendText('Update Windows: ').appendLink(url, url).appendText(' [not a command](command:evil) <b>literal</b>'),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+
+		const title = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-title');
+		const description = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.ok(title && description && link);
+		link.click();
+		link.focus();
+		const focused = document.activeElement === link;
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const titleStyle = dom.getWindow(title).getComputedStyle(title);
+		const descriptionStyle = dom.getWindow(description).getComputedStyle(description);
+		assert.deepStrictEqual({
+			text: description.textContent?.replace(/\u00a0/g, ' '),
+			links: description.querySelectorAll('a').length,
+			titleSelection: titleStyle.userSelect || titleStyle.getPropertyValue('-webkit-user-select'),
+			descriptionSelection: descriptionStyle.userSelect || descriptionStyle.getPropertyValue('-webkit-user-select'),
+			focused,
+			opened,
+		}, {
+			text: reason,
+			links: 1,
+			titleSelection: 'text',
+			descriptionSelection: 'text',
+			focused: true,
+			opened: [{ link: url, allowCommands: false }, { link: url, allowCommands: false }],
+		});
+	});
+
 	test('auto-dismiss on message only applies to the sending session', () => {
 		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
 		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
@@ -350,7 +471,7 @@ suite('ChatInputNotificationWidget', () => {
 			});
 		}
 
-		notificationService.handleMessageSent({ sessionType: SessionType.AgentHostCopilot, sessionResource: firstSession });
+		notificationService.handleMessageSent(context({ sessionType: SessionType.AgentHostCopilot, sessionResource: firstSession }));
 
 		assert.deepStrictEqual({
 			inFirstSession: notificationService.getActiveNotification(n => n.id === 'first')?.id,
@@ -358,6 +479,72 @@ suite('ChatInputNotificationWidget', () => {
 		}, {
 			inFirstSession: undefined,
 			inSecondSession: 'second',
+		});
+	});
+
+	test('auto-dismiss respects input-instance ownership even when two inputs show the same session', () => {
+		const notificationService = createNotificationService();
+		const sessionResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-session' });
+		const owner = URI.from({ scheme: Schemas.vscodeChatInput, path: '/owner' });
+		const other = URI.from({ scheme: Schemas.vscodeChatInput, path: '/other' });
+		notificationService.setNotification({
+			id: 'owned', inputUri: owner, sessionResources: [sessionResource],
+			severity: ChatInputNotificationSeverity.Info, message: 'Owned notice', description: undefined,
+			actions: [], dismissible: true, autoDismissOnMessage: true,
+		});
+		notificationService.handleMessageSent(context({ sessionResource, inputUri: other }));
+		const afterOtherInput = notificationService.getActiveNotification()?.id;
+		notificationService.handleMessageSent(context({ sessionResource, inputUri: owner }));
+		assert.deepStrictEqual({ afterOtherInput, afterOwner: notificationService.getActiveNotification() }, {
+			afterOtherInput: 'owned', afterOwner: undefined,
+		});
+	});
+
+	test('logs a producer dismissal failure without leaving the notice active', () => {
+		const log = store.add(new RecordingLogService());
+		const notificationService = createNotificationService(log);
+		let errors = 0;
+		store.add(log.onError(() => errors++));
+		notificationService.setNotification({
+			id: 'owned', severity: ChatInputNotificationSeverity.Info, message: 'Owned notice', description: undefined,
+			actions: [], dismissible: true, autoDismissOnMessage: false,
+			onDismiss: () => { throw new Error('dismiss failed'); },
+		});
+		notificationService.dismissNotification('owned');
+		assert.deepStrictEqual({ errors, active: notificationService.getActiveNotification() }, { errors: 1, active: undefined });
+	});
+
+	test('auto-dismiss on message applies the sending input predicate', () => {
+		const notificationService = createNotificationService();
+		const notification: IChatInputNotification = {
+			id: 'quota',
+			severity: ChatInputNotificationSeverity.Info,
+			message: 'Credits at 90%',
+			description: undefined,
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: true,
+			when: showForNonByokModels,
+		};
+		notificationService.setNotification(notification);
+		notificationService.announceRendered(notification, notification);
+		const announcedById = Reflect.get(notificationService, '_announcedById') as Map<string, string>;
+
+		notificationService.handleMessageSent(context({ modelState: { currentModel: makeModel('customendpoint', true), models: [] } }));
+		const afterByokMessage = notificationService.getActiveNotification()?.id;
+		const announcedAfterByokMessage = announcedById.has(notification.id);
+		notificationService.handleMessageSent(context({ modelState: { currentModel: makeModel('copilot', false), models: [] } }));
+
+		assert.deepStrictEqual({
+			afterByokMessage,
+			announcedAfterByokMessage,
+			afterCopilotMessage: notificationService.getActiveNotification()?.id,
+			announcedAfterCopilotMessage: announcedById.has(notification.id),
+		}, {
+			afterByokMessage: 'quota',
+			announcedAfterByokMessage: true,
+			afterCopilotMessage: undefined,
+			announcedAfterCopilotMessage: false,
 		});
 	});
 
@@ -369,7 +556,7 @@ suite('ChatInputNotificationWidget', () => {
 	 */
 	function createRecordingNotificationService() {
 		const notifications = new Map<string, IChatInputNotification>();
-		const announced: (IChatInputNotification | undefined)[] = [];
+		const announced: { notification: IChatInputNotification | undefined; body: IChatInputNotificationBody | undefined }[] = [];
 		const dismissed: string[] = [];
 		const onDidChange = store.add(new Emitter<void>());
 		const onDidDismiss = store.add(new Emitter<string>());
@@ -390,8 +577,9 @@ suite('ChatInputNotificationWidget', () => {
 				}
 				return active;
 			},
+			refresh() { },
 			handleMessageSent() { },
-			announceRendered(notification) { announced.push(notification); },
+			announceRendered(notification, body) { announced.push({ notification, body }); },
 		};
 		return { service, announced, dismissed, set: (notification: IChatInputNotification) => service.setNotification(notification) };
 	}
@@ -413,6 +601,32 @@ suite('ChatInputNotificationWidget', () => {
 		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, options.delegate));
 		return { notificationService, widget };
 	}
+
+	function makeModel(vendor: string, isBYOK: boolean, id = 'test-model'): ILanguageModelChatMetadataAndIdentifier {
+		return {
+			identifier: `${vendor}/${id}`,
+			metadata: { id, vendor, family: id, isBYOK } as ILanguageModelChatMetadata,
+		};
+	}
+
+	test('only marks a banner shown when its host becomes visible', () => {
+		const hostVisible = observableValue('hostVisible', false);
+		const telemetryService = new RecordingTelemetryService();
+		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		let shown = 0;
+		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		const contents = widget.domNode.firstChild;
+		const whileHidden = shown;
+		hostVisible.set(true, undefined);
+		hostVisible.set(false, undefined);
+		hostVisible.set(true, undefined);
+		assert.deepStrictEqual({
+			whileHidden,
+			shown,
+			sameContents: widget.domNode.firstChild === contents,
+			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
+		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+	});
 
 	function clickAction(widget: ChatInputNotificationWidget): void {
 		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
@@ -448,6 +662,149 @@ suite('ChatInputNotificationWidget', () => {
 
 		assert.deepStrictEqual(commandService.executed, [{ id: 'test.usePromo', args: [{ modelIdentifier: 'm' }] }]);
 		assert.strictEqual(notificationService.dismissed.join(','), 'promo');
+	});
+
+	test('supports a leading primary action and a keyboard-reachable Ignore button with managed hover', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'parallel', message: 'Run agents side by side',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command, label: 'Open Agents Window', commandId: 'test.open', primary: true,
+			}, {
+				kind: ChatInputNotificationActionKind.Command, label: 'Ignore', commandId: 'test.ignore', primary: false, tooltip: 'Don\'t Show Again',
+			}],
+		});
+		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+		assert.deepStrictEqual(buttons.map(button => ({
+			label: button.textContent,
+			secondary: button.classList.contains('secondary'),
+			background: button.style.backgroundColor,
+			tabIndex: button.tabIndex,
+			description: button.getAttribute('aria-description'),
+		})), [
+			{ label: 'Open Agents Window', secondary: false, background: defaultButtonStyles.buttonBackground, tabIndex: 0, description: null },
+			{ label: 'Ignore', secondary: true, background: '', tabIndex: 0, description: 'Don\'t Show Again' },
+		]);
+		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
+	});
+
+	test('uses explicit accessible labels for icon-only actions', () => {
+		const { notificationService, widget } = createWidget();
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: 'Copilot preview',
+			actions: [{
+				kind: ChatInputNotificationActionKind.Command,
+				label: '$(thumbsup)',
+				ariaLabel: 'Helpful',
+				iconOnly: true,
+				tooltip: 'Helpful',
+				commandId: 'test.helpful',
+			}],
+		});
+		const button = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-action-button');
+		assert.deepStrictEqual({
+			icon: !!button?.querySelector('.codicon-thumbsup'),
+			iconOnly: button?.classList.contains('icon-only'),
+			compactActions: widget.domNode.querySelector('.chat-input-notification-actions')?.classList.contains('compact'),
+			ariaLabel: button?.getAttribute('aria-label'),
+			description: button?.getAttribute('aria-description'),
+		}, {
+			icon: true,
+			iconOnly: true,
+			compactActions: true,
+			ariaLabel: 'Copilot preview Helpful',
+			description: null,
+		});
+	});
+
+	for (const leading of [false, true]) {
+		test(`renders ${leading ? 'split' : 'grouped'} filled actions with a header dismiss button`, () => {
+			const { notificationService, widget } = createWidget();
+			showNotification(notificationService, {
+				id: 'feedback',
+				message: 'Copilot preview',
+				actions: [{
+					kind: ChatInputNotificationActionKind.Command,
+					label: 'Learn More',
+					commandId: 'test.learnMore',
+					primary: false,
+					leading,
+					filled: true,
+				}, {
+					kind: ChatInputNotificationActionKind.Command,
+					label: '$(thumbsup) Got it!',
+					ariaLabel: 'Got it!',
+					commandId: 'test.gotIt',
+					primary: true,
+				}],
+			});
+			const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+			const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+			const dismiss = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-header .chat-input-notification-dismiss');
+			buttons[0].dispatchEvent(new MouseEvent('mouseover'));
+			const hoverBackground = buttons[0].style.backgroundColor;
+			buttons[0].dispatchEvent(new MouseEvent('mouseout'));
+
+			assert.deepStrictEqual({
+				split: actions?.classList.contains('split'),
+				buttons: buttons.map(button => ({
+					label: button.textContent,
+					leading: button.classList.contains('leading'),
+					filled: button.classList.contains('filled'),
+					secondary: button.classList.contains('secondary'),
+					background: button.style.backgroundColor,
+					foreground: button.style.color,
+					ariaLabel: button.ariaLabel,
+					tabIndex: button.tabIndex,
+				})),
+				hoverBackground,
+				dismiss: { ariaLabel: dismiss?.ariaLabel, tabIndex: dismiss?.tabIndex },
+			}, {
+				split: leading,
+				buttons: [
+					{ label: 'Learn More', leading, filled: true, secondary: true, background: defaultButtonStyles.buttonSecondaryBackground, foreground: defaultButtonStyles.buttonSecondaryForeground, ariaLabel: 'Copilot preview Learn More', tabIndex: 0 },
+					{ label: 'Got it!', leading: false, filled: false, secondary: false, background: defaultButtonStyles.buttonBackground, foreground: defaultButtonStyles.buttonForeground, ariaLabel: 'Copilot preview Got it!', tabIndex: 0 },
+				],
+				hoverBackground: defaultButtonStyles.buttonSecondaryHoverBackground,
+				dismiss: { ariaLabel: 'Dismiss notification', tabIndex: 0 },
+			});
+		});
+	}
+
+	test('renders the original feedback layout with a leading outlined action and no header dismiss', () => {
+		const { notificationService, widget } = createWidget();
+		const content = getCopilotHarnessIntroductionContent('current', 'feedback');
+		showNotification(notificationService, {
+			id: 'feedback',
+			message: content.title,
+			actions: content.actions,
+			dismissible: content.dismissible,
+		});
+		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+		assert.deepStrictEqual({
+			split: actions?.classList.contains('split'),
+			compact: actions?.classList.contains('compact'),
+			dismiss: !!widget.domNode.querySelector('.chat-input-notification-dismiss'),
+			buttons: [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')].map(button => ({
+				label: button.textContent,
+				leading: button.classList.contains('leading'),
+				outlined: button.classList.contains('outlined'),
+				filled: button.classList.contains('filled'),
+				iconOnly: button.classList.contains('icon-only'),
+				ariaLabel: button.ariaLabel,
+				tabIndex: button.tabIndex,
+			})),
+		}, {
+			split: true,
+			compact: true,
+			dismiss: false,
+			buttons: [
+				{ label: 'Learn More', leading: true, outlined: true, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Learn More', tabIndex: 0 },
+				{ label: 'Got it!', leading: false, outlined: false, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Got it!', tabIndex: 0 },
+				{ label: '', leading: false, outlined: false, filled: false, iconOnly: true, ariaLabel: 'You\'re using a new Copilot experience Not Helpful', tabIndex: 0 },
+			],
+		});
 	});
 
 	test('actions without explicit commandArgs are executed with empty args', async () => {
@@ -517,21 +874,25 @@ suite('ChatInputNotificationWidget', () => {
 		const telemetryService = new RecordingTelemetryService();
 		const switchedModels: string[] = [];
 		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
 		const { notificationService, widget } = createWidget({
 			telemetryService,
 			delegate: {
-				switchToModel: modelIdentifier => {
-					switchedModels.push(modelIdentifier);
-					return true;
-				},
-				openModelPicker: () => pickerOpenCount++,
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: modelIdentifier => {
+						switchedModels.push(modelIdentifier);
+						return true;
+					},
+					openPicker: () => pickerOpenCount++,
+				}),
 			},
 		});
 
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'vendor/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier(model.identifier) }],
 		});
 
 		clickAction(widget);
@@ -544,7 +905,205 @@ suite('ChatInputNotificationWidget', () => {
 		}, {
 			switchedModels: ['vendor/model'],
 			pickerOpenCount: 0,
-			actionEvents: [{ id: 'promo', telemetryId: undefined, actionKind: ChatInputNotificationActionKind.SwitchToModel }],
+			actionEvents: [{ id: 'promo', telemetryId: undefined, actionKind: ChatInputNotificationActionKind.SwitchToModel, actionId: '' }],
+		});
+	});
+
+	/** Clicks a switch-to-model action against one model and reports what the input did. */
+	async function runSwitchAction(options: {
+		readonly schema: ILanguageModelConfigurationSchema;
+		readonly config: IStringDictionary<unknown>;
+		readonly selectModel?: (modelIdentifier: string) => boolean;
+		readonly applyModelConfiguration?: (modelIdentifier: string, values: IStringDictionary<unknown>) => Promise<void>;
+	}): Promise<{ switchedModels: string[]; pickerOpenCount: number }> {
+		const switchedModels: string[] = [];
+		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
+		model.metadata = { ...model.metadata, configurationSchema: options.schema };
+
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: modelIdentifier => {
+						const switched = options.selectModel?.(modelIdentifier) ?? true;
+						if (switched) {
+							switchedModels.push(modelIdentifier);
+						}
+						return switched;
+					},
+					openPicker: () => pickerOpenCount++,
+					applyModelConfiguration: options.applyModelConfiguration,
+				}),
+			},
+		});
+
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			actions: [{
+				label: 'Try Model',
+				kind: ChatInputNotificationActionKind.SwitchToModel,
+				matchesModel: matchesModelIdentifier(model.identifier),
+				config: options.config,
+			}],
+		});
+
+		clickAction(widget);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		return { switchedModels, pickerOpenCount };
+	}
+
+	test('configures the model it switched to, dropping keys the model does not declare', async () => {
+		const applied: { modelIdentifier: string; values: IStringDictionary<unknown> }[] = [];
+		const order: string[] = [];
+
+		await runSwitchAction({
+			schema: { properties: { thinkingLevel: { enum: ['low', 'high'] }, contextSize: {} } },
+			config: { thinkingLevel: 'high', contextSize: 272000, unknownKey: 1, thinkingLevelTypo: 'high' },
+			selectModel: () => { order.push('select'); return true; },
+			applyModelConfiguration: async (modelIdentifier, values) => {
+				order.push('configure');
+				applied.push({ modelIdentifier, values });
+			},
+		});
+
+		assert.deepStrictEqual({ applied, order }, {
+			applied: [{ modelIdentifier: 'vendor/model', values: { thinkingLevel: 'high', contextSize: 272000 } }],
+			order: ['select', 'configure'],
+		});
+	});
+
+	test('does not configure a model it failed to switch to', async () => {
+		let applyCount = 0;
+
+		const { switchedModels } = await runSwitchAction({
+			schema: { properties: { thinkingLevel: { enum: ['high'] } } },
+			config: { thinkingLevel: 'high' },
+			selectModel: () => false,
+			applyModelConfiguration: async () => { applyCount++; },
+		});
+
+		assert.deepStrictEqual({ applyCount, switchedModels }, { applyCount: 0, switchedModels: [] });
+	});
+
+	test('switches even when applying configuration fails', async () => {
+		const result = await runSwitchAction({
+			schema: { properties: { thinkingLevel: { enum: ['high'] } } },
+			config: { thinkingLevel: 'high' },
+			applyModelConfiguration: async () => { throw new Error('storage failed'); },
+		});
+
+		assert.deepStrictEqual(result, { switchedModels: ['vendor/model'], pickerOpenCount: 0 });
+	});
+
+	test('an ambiguous unique-match target opens the picker and applies no configuration', async () => {
+		let applyCount = 0;
+		let pickerOpenCount = 0;
+		const switchedModels: string[] = [];
+		const first = makeModel('vendor', false, 'model');
+		const second = { ...makeModel('vendor', false, 'model'), identifier: 'vendor/model-2' };
+
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				modelSelection: modelSelection({
+					models: [first, second],
+					selectModel: modelIdentifier => { switchedModels.push(modelIdentifier); return true; },
+					openPicker: () => pickerOpenCount++,
+					applyModelConfiguration: async () => { applyCount++; },
+				}),
+			},
+		});
+
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			actions: [{
+				label: 'Try Model',
+				kind: ChatInputNotificationActionKind.SwitchToModel,
+				matchesModel: model => model.metadata.id === 'model',
+				config: { thinkingLevel: 'high' },
+				requireUniqueModel: true,
+			}],
+		});
+
+		clickAction(widget);
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({ switchedModels, applyCount, pickerOpenCount }, {
+			switchedModels: [],
+			applyCount: 0,
+			pickerOpenCount: 1,
+		});
+	});
+
+	test('resolves and announces body changes from the input model', () => {
+		const autoModel = makeModel('copilot', false, 'auto');
+		const manualModel = makeModel('copilot', false, 'manual');
+		const modelState = observableValue<IChatInputNotificationModelState>('modelState', { currentModel: manualModel, models: [autoModel, manualModel] });
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				modelSelection: modelSelection({ state: modelState }),
+			},
+		});
+		const defaultBody = {
+			description: 'Set additional budget.',
+			actions: [{ kind: ChatInputNotificationActionKind.Command, label: 'Manage Budget', commandId: 'test.manageBudget' }],
+		} as const;
+		const switchBody = {
+			description: 'Switch to Auto.',
+			actions: [{ kind: ChatInputNotificationActionKind.SwitchToModel, label: 'Switch to Auto', matchesModel: (model: ILanguageModelChatMetadataAndIdentifier) => model.metadata.id === 'auto' }],
+		} as const;
+		const notification = {
+			id: 'quota',
+			message: 'Credits at 90%',
+			...defaultBody,
+			resolveBody: (context: IChatInputNotificationContext) => context.modelState.currentModel?.metadata.id === 'auto' ? defaultBody : switchBody,
+		} as const;
+
+		showNotification(notificationService, notification);
+
+		const result = (widget: ChatInputNotificationWidget) => ({
+			description: widget.domNode.querySelector('.chat-input-notification-description')?.textContent,
+			action: widget.domNode.querySelector('.chat-input-notification-action-button')?.textContent,
+		});
+		const manual = result(widget);
+		modelState.set({ currentModel: autoModel, models: [autoModel, manualModel] }, undefined);
+		const auto = result(widget);
+		modelState.set({ currentModel: manualModel, models: [autoModel, manualModel] }, undefined);
+		assert.deepStrictEqual({
+			manual,
+			auto,
+			backToManual: result(widget),
+			announced: notificationService.announced.filter(entry => entry.notification).map(entry => entry.body?.description),
+		}, {
+			manual: { description: 'Switch to Auto.', action: 'Switch to Auto' },
+			auto: { description: 'Set additional budget.', action: 'Manage Budget' },
+			backToManual: { description: 'Switch to Auto.', action: 'Switch to Auto' },
+			announced: ['Switch to Auto.', 'Set additional budget.', 'Switch to Auto.'],
+		});
+	});
+
+	test('uses the default body when its resolver fails', async () => {
+		const logService = store.add(new RecordingLogService());
+		const { notificationService, widget } = createWidget({ logService });
+		const didLogError = Event.toPromise(logService.onError);
+
+		showNotification(notificationService, {
+			id: 'promo',
+			message: 'Promo',
+			description: 'Ends soon',
+			actions: [],
+			resolveBody: () => { throw new Error('resolver failed'); },
+		});
+		await didLogError;
+
+		assert.deepStrictEqual({
+			description: widget.domNode.querySelector('.chat-input-notification-description')?.textContent,
+			action: widget.domNode.querySelector('.chat-input-notification-action-button'),
+		}, {
+			description: 'Ends soon',
+			action: null,
 		});
 	});
 
@@ -552,15 +1111,15 @@ suite('ChatInputNotificationWidget', () => {
 		let pickerOpenCount = 0;
 		const { notificationService, widget } = createWidget({
 			delegate: {
-				switchToModel: () => false,
-				openModelPicker: () => pickerOpenCount++,
+				modelSelection: modelSelection({ openPicker: () => pickerOpenCount++ }),
 			},
 		});
 
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'missing/model' }],
+			description: 'Ends soon',
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier('missing/model') }],
 		});
 
 		clickAction(widget);
@@ -571,19 +1130,23 @@ suite('ChatInputNotificationWidget', () => {
 
 	test('opens the local model picker when direct selection fails', async () => {
 		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
 		const logService = store.add(new RecordingLogService());
 		const { notificationService, widget } = createWidget({
 			logService,
 			delegate: {
-				switchToModel: () => { throw new Error('selection failed'); },
-				openModelPicker: () => pickerOpenCount++,
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: () => { throw new Error('selection failed'); },
+					openPicker: () => pickerOpenCount++,
+				}),
 			},
 		});
 
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'vendor/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier(model.identifier) }],
 		});
 
 		const didLogError = Event.toPromise(logService.onError);
@@ -596,20 +1159,24 @@ suite('ChatInputNotificationWidget', () => {
 	test('attempts the model picker fallback only once when it fails', async () => {
 		const logService = store.add(new RecordingLogService());
 		let pickerOpenCount = 0;
+		const model = makeModel('vendor', false, 'model');
 		const { notificationService, widget } = createWidget({
 			logService,
 			delegate: {
-				switchToModel: () => false,
-				openModelPicker: () => {
-					pickerOpenCount++;
-					throw new Error('picker failed');
-				},
+				modelSelection: modelSelection({
+					models: [model],
+					selectModel: () => false,
+					openPicker: () => {
+						pickerOpenCount++;
+						throw new Error('picker failed');
+					},
+				}),
 			},
 		});
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'missing/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier(model.identifier) }],
 		});
 
 		const didLogError = Event.toPromise(logService.onError);
@@ -625,10 +1192,16 @@ suite('ChatInputNotificationWidget', () => {
 		showNotification(notificationService, {
 			id: 'promo',
 			message: 'Promo',
-			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, modelIdentifier: 'vendor/model' }],
+			actions: [{ label: 'Try Model', kind: ChatInputNotificationActionKind.SwitchToModel, matchesModel: matchesModelIdentifier('vendor/model') }],
 		});
 
-		assert.strictEqual(widget.domNode.querySelector('.chat-input-notification-action-button'), null);
+		assert.deepStrictEqual({
+			header: widget.domNode.querySelector('.chat-input-notification-header')?.textContent,
+			action: widget.domNode.querySelector('.chat-input-notification-action-button'),
+		}, {
+			header: 'Promo',
+			action: null,
+		});
 	});
 
 	test('matches Agent Host notifications against the resource scheme', () => {
@@ -691,15 +1264,22 @@ suite('ChatInputNotificationWidget', () => {
 			id: 'copilot-promo',
 			severity: ChatInputNotificationSeverity.Info,
 			message: 'Copilot promo',
-			description: undefined,
+			description: 'Default body',
 			actions: [],
+			resolveBody: () => ({ description: 'Agent Host body', actions: [] }),
 			dismissible: true,
 			autoDismissOnMessage: false,
 			sessionTypes: [SessionType.AgentHostCopilot],
 		});
-		assert.strictEqual(lastAnnounced(), undefined, 'nothing should be announced in a non-matching session');
+		assert.strictEqual(lastAnnounced()?.notification, undefined, 'nothing should be announced in a non-matching session');
 
 		currentSessionType.set(SessionType.AgentHostCopilot, undefined);
-		assert.strictEqual(lastAnnounced()?.id, 'copilot-promo', 'the promo should be announced once its session is active');
+		assert.deepStrictEqual({
+			id: lastAnnounced()?.notification?.id,
+			description: lastAnnounced()?.body?.description,
+		}, {
+			id: 'copilot-promo',
+			description: 'Agent Host body',
+		});
 	});
 });

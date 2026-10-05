@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { setUnexpectedErrorHandler, errorHandler } from '../../../../base/common/errors.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -11,6 +13,8 @@ import * as types from '../../common/extHostTypes.js';
 import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
 import { Position as EditorPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range as EditorRange } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
+import { Cache } from '../../common/cache.js';
 import { TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { IMarkerService } from '../../../../platform/markers/common/markers.js';
 import { MarkerService } from '../../../../platform/markers/common/markerService.js';
@@ -151,6 +155,96 @@ suite('ExtHostLanguageFeatures', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
+		disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
+			provideDocumentDropEdits: () => []
+		}));
+		await rpcProtocol.sync();
+		const provider = languageFeaturesService.documentDropEditProvider.all(model)[0];
+		assert.strictEqual(await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None), undefined);
+	});
+
+	for (const declinedRequests of [0, 2]) {
+		test(`DocumentDropEdits releases cache IDs after ${declinedRequests} declined requests`, async () => {
+			let requests = 0;
+			disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
+				provideDocumentDropEdits: () => ++requests <= declinedRequests ? undefined : new types.DocumentDropEdit('inserted text')
+			}));
+			await rpcProtocol.sync();
+			const provider = languageFeaturesService.documentDropEditProvider.all(model)[0];
+			const release = sinon.spy(extHost, '$releaseDocumentOnDropEdits');
+			try {
+				for (let i = 0; i < declinedRequests; i++) {
+					assert.strictEqual(await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None), undefined);
+				}
+				const first = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
+				assert.ok(first);
+				disposables.add(first);
+				const second = await provider.provideDocumentDropEdits(model, new Position(1, 1), new VSDataTransfer(), CancellationToken.None);
+				assert.ok(second);
+				disposables.add(second);
+				second.dispose();
+				first.dispose();
+				await rpcProtocol.sync();
+				assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
+			} finally {
+				release.restore();
+			}
+		});
+	}
+
+	// --- paste edits
+
+	for (const declinedRequests of [0, 2]) {
+		test(`DocumentPasteEdits releases cache IDs after ${declinedRequests} declined requests`, async () => {
+			let requests = 0;
+			disposables.add(extHost.registerDocumentPasteEditProvider(defaultExtension, defaultSelector, {
+				provideDocumentPasteEdits: () => ++requests <= declinedRequests ? undefined : [new types.DocumentPasteEdit('pasted text', 'Test paste', types.DocumentDropOrPasteEditKind.Text)]
+			}, { pasteMimeTypes: ['text/plain'], providedPasteEditKinds: [types.DocumentDropOrPasteEditKind.Text] }));
+			await rpcProtocol.sync();
+			const provider = languageFeaturesService.documentPasteEditProvider.all(model)[0];
+			const release = sinon.spy(extHost, '$releasePasteEdits');
+			const provide = () => provider.provideDocumentPasteEdits!(model, [new Selection(1, 1, 1, 1)], new VSDataTransfer(), { triggerKind: languages.DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+			try {
+				for (let i = 0; i < declinedRequests; i++) {
+					const declined = await provide();
+					declined?.dispose();
+				}
+				await rpcProtocol.sync();
+				release.resetHistory();
+				const first = await provide();
+				assert.ok(first);
+				disposables.add(first);
+				const second = await provide();
+				assert.ok(second);
+				disposables.add(second);
+				second.dispose();
+				first.dispose();
+				await rpcProtocol.sync();
+				assert.deepStrictEqual(release.args.map(([, cacheId]) => cacheId), [2, 1]);
+			} finally {
+				release.restore();
+			}
+		});
+	}
+
+	test('DocumentPasteEdits does not cache empty results without release IDs', async () => {
+		disposables.add(extHost.registerDocumentPasteEditProvider(defaultExtension, defaultSelector, {
+			provideDocumentPasteEdits: () => []
+		}, { pasteMimeTypes: ['text/plain'], providedPasteEditKinds: [types.DocumentDropOrPasteEditKind.Text] }));
+		await rpcProtocol.sync();
+		const provider = languageFeaturesService.documentPasteEditProvider.all(model)[0];
+		const cache = sinon.spy(Cache.prototype, 'add');
+		try {
+			const result = await provider.provideDocumentPasteEdits!(model, [new Selection(1, 1, 1, 1)], new VSDataTransfer(), { triggerKind: languages.DocumentPasteTriggerKind.Automatic }, CancellationToken.None);
+			result?.dispose();
+			await rpcProtocol.sync();
+			assert.strictEqual(cache.callCount, 0);
+		} finally {
+			cache.restore();
+		}
+	});
 
 	// --- outline
 

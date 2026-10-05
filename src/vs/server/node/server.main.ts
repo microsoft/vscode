@@ -12,7 +12,7 @@ import { createServer as doCreateServer, IServerAPI } from './remoteExtensionHos
 import { parseArgs, ErrorReporter } from '../../platform/environment/node/argv.js';
 import { join, dirname } from '../../base/common/path.js';
 import { performance } from 'perf_hooks';
-import { serverOptions } from './serverEnvironmentService.js';
+import { agentHostBridgeConnectionTokenEnvironmentVariable, serverOptions } from './serverEnvironmentService.js';
 import product from '../../platform/product/common/product.js';
 import * as perf from '../../base/common/performance.js';
 
@@ -35,6 +35,8 @@ const errorReporter: ErrorReporter = {
 };
 
 const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+const agentHostBridgeConnectionToken = process.env[agentHostBridgeConnectionTokenEnvironmentVariable];
+delete process.env[agentHostBridgeConnectionTokenEnvironmentVariable];
 
 const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
 const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
@@ -67,5 +69,5 @@ export function spawnCli() {
  * invoked by server-main.js
  */
 export function createServer(address: string | net.AddressInfo | null): Promise<IServerAPI> {
-	return doCreateServer(address, args, REMOTE_DATA_FOLDER);
+	return doCreateServer(address, args, REMOTE_DATA_FOLDER, agentHostBridgeConnectionToken);
 }

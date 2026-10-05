@@ -6,28 +6,443 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
+import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, renderVirtualizedSectionLoadingPlaceholder, setVirtualizedRowActionsTabbable, setupCollapsibleSection } from '../../../browser/aiCustomization/customizationCardList.js';
 
 suite('aiCustomizationListWidget', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses tree presentations for the redesigned customization sections', () => {
+		assert.deepStrictEqual({
+			agents: usesCustomizationTreePresentation(AICustomizationManagementSection.Agents),
+			skills: usesCustomizationTreePresentation(AICustomizationManagementSection.Skills),
+			instructions: usesCustomizationTreePresentation(AICustomizationManagementSection.Instructions),
+			hooks: usesCustomizationTreePresentation(AICustomizationManagementSection.Hooks),
+			prompts: usesCustomizationTreePresentation(AICustomizationManagementSection.Prompts),
+		}, {
+			agents: true,
+			skills: true,
+			instructions: true,
+			hooks: true,
+			prompts: true,
+		});
+	});
+
+	test('keeps editable source sections visible until search filtering starts', () => {
+		assert.deepStrictEqual({
+			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
+			skills: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Skills, false),
+			instructions: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Instructions, false),
+			hooks: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Hooks, false),
+			filtered: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, true),
+			prompts: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Prompts, false),
+		}, {
+			agents: [PromptsStorage.local, PromptsStorage.user],
+			skills: [PromptsStorage.local, PromptsStorage.user],
+			instructions: [PromptsStorage.local, PromptsStorage.user],
+			hooks: [PromptsStorage.local, PromptsStorage.user],
+			filtered: [],
+			prompts: [PromptsStorage.local, PromptsStorage.user],
+		});
+	});
+
+	test('uses localized compact labels instead of parsing display labels', () => {
+		assert.deepStrictEqual([
+			getTargetedCreateActionLabel('$(add) Nuevo agente (Espacio de trabajo)', 'Nuevo agente'),
+			getTargetedCreateActionLabel('$(add) Create from provider'),
+		], [
+			'Nuevo agente',
+			'Create from provider',
+		]);
+	});
+
+	test('collapsible sections are expanded by default and only the disclosure toggles them', () => {
+		const disposables = new DisposableStore();
+		const heading = document.createElement('div');
+		const content = document.createElement('div');
+		const headerAction = document.createElement('button');
+		heading.appendChild(headerAction);
+		const changes: boolean[] = [];
+		const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, collapsed => changes.push(collapsed));
+
+		try {
+			headerAction.click();
+			const initiallyExpanded = {
+				expanded: toggle.getAttribute('aria-expanded'),
+				controlsContent: toggle.getAttribute('aria-controls') === content.id,
+				hidden: content.hidden,
+				display: content.style.display,
+				changes: [...changes],
+			};
+			toggle.click();
+			const collapsed = {
+				expanded: toggle.getAttribute('aria-expanded'),
+				label: toggle.getAttribute('aria-label'),
+				hidden: content.hidden,
+				display: content.style.display,
+				changes: [...changes],
+			};
+			toggle.click();
+
+			assert.deepStrictEqual({
+				initiallyExpanded,
+				collapsed,
+				expandedAgain: {
+					expanded: toggle.getAttribute('aria-expanded'),
+					label: toggle.getAttribute('aria-label'),
+					hidden: content.hidden,
+					display: content.style.display,
+					changes,
+				},
+			}, {
+				initiallyExpanded: {
+					expanded: 'true',
+					controlsContent: true,
+					hidden: false,
+					display: '',
+					changes: [],
+				},
+				collapsed: {
+					expanded: 'false',
+					label: 'Expand Workspace',
+					hidden: true,
+					display: 'none',
+					changes: [true],
+				},
+				expandedAgain: {
+					expanded: 'true',
+					label: 'Collapse Workspace',
+					hidden: false,
+					display: '',
+					changes: [true, false],
+				},
+			});
+		} finally {
+			disposables.dispose();
+		}
+	});
+
+	test('collapsible sections create disclosures outside auxiliary document realms', () => {
+		const disposables = new DisposableStore();
+		const auxiliaryDocument = document.implementation.createHTMLDocument();
+		const heading = auxiliaryDocument.createElement('div');
+		const content = auxiliaryDocument.createElement('div');
+		Object.defineProperty(auxiliaryDocument, 'createElement', {
+			configurable: true,
+			value: () => {
+				throw new Error('Auxiliary documents must not create workbench controls');
+			},
+		});
+
+		try {
+			const toggle = setupCollapsibleSection(heading, content, 'Workspace', disposables, false, () => { });
+			assert.deepStrictEqual({
+				ownerDocument: toggle.ownerDocument === auxiliaryDocument,
+				parent: toggle.parentElement === heading,
+				expanded: toggle.getAttribute('aria-expanded'),
+			}, {
+				ownerDocument: true,
+				parent: true,
+				expanded: 'true',
+			});
+		} finally {
+			disposables.dispose();
+		}
+	});
+
+	test('collapsed groups are scoped to their customization page', () => {
+		assert.deepStrictEqual({
+			agents: getCollapsedCustomizationGroupKey(AICustomizationManagementSection.Agents, PromptsStorage.local),
+			skills: getCollapsedCustomizationGroupKey(AICustomizationManagementSection.Skills, PromptsStorage.local),
+		}, {
+			agents: 'agents:local',
+			skills: 'skills:local',
+		});
+	});
+
+	test('virtualized customization labels include item status', () => {
+		const item: IAICustomizationListItem = {
+			id: 'prompt',
+			uri: URI.file('Q:\\workspace\\.github\\prompts\\review.prompt.md'),
+			name: 'review',
+			displayName: 'Review',
+			filename: '.github\\prompts\\review.prompt.md',
+			description: 'Review the current changes',
+			source: PromptsStorage.local,
+			promptType: PromptsType.prompt,
+			disabled: false,
+			status: 'degraded',
+		};
+
+		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. .github\\prompts\\review.prompt.md. Needs attention');
+	});
+
+	test('virtualized row actions use a focused-row tab stop and skip disabled controls', () => {
+		const actions = document.createElement('div');
+		const action = document.createElement('a');
+		action.setAttribute('role', 'button');
+		const toggle = document.createElement('div');
+		toggle.setAttribute('role', 'switch');
+		const disabledAction = document.createElement('a');
+		disabledAction.setAttribute('role', 'button');
+		disabledAction.setAttribute('aria-disabled', 'true');
+		actions.append(action, toggle, disabledAction);
+
+		setVirtualizedRowActionsTabbable(actions, true);
+		const focused = [action.tabIndex, toggle.tabIndex, disabledAction.tabIndex];
+		setVirtualizedRowActionsTabbable(actions, false);
+
+		assert.deepStrictEqual({
+			focused,
+			unfocused: [action.tabIndex, toggle.tabIndex, disabledAction.tabIndex],
+		}, {
+			focused: [0, 0, -1],
+			unfocused: [-1, -1, -1],
+		});
+	});
+
+	test('virtualized section height is redistributed when a sibling collapses', () => {
+		const root = document.createElement('div');
+		const createSection = () => {
+			const section = document.createElement('section');
+			const list = document.createElement('div');
+			section.appendChild(list);
+			root.appendChild(section);
+			Object.defineProperty(list, 'offsetHeight', { configurable: true, get: () => list.hidden ? 0 : Number.parseFloat(list.style.height) || 100 });
+			Object.defineProperty(section, 'offsetHeight', { configurable: true, get: () => 40 + list.offsetHeight });
+			return list;
+		};
+		const first = createSection();
+		const second = createSection();
+		Object.defineProperty(root, 'clientHeight', { configurable: true, value: 300 });
+
+		const expanded = layoutVirtualizedSections(root, [
+			{ container: first, contentHeight: 300, minimumHeight: 44 },
+			{ container: second, contentHeight: 300, minimumHeight: 44 },
+		]);
+		first.hidden = true;
+		const redistributed = layoutVirtualizedSections(root, [
+			{ container: first, contentHeight: 300, minimumHeight: 44 },
+			{ container: second, contentHeight: 300, minimumHeight: 44 },
+		]);
+
+		assert.deepStrictEqual({ expanded, redistributed }, {
+			expanded: [110, 110],
+			redistributed: [0, 220],
+		});
+	});
+
+	test('virtualized sections show up to four rows by default', () => {
+		assert.deepStrictEqual({
+			fourOfFive: getVirtualizedSectionMinimumHeight([44, 44, 44, 44, 44], height => height),
+			allOfThree: getVirtualizedSectionMinimumHeight([44, 66, 44], height => height),
+		}, {
+			fourOfFive: 176,
+			allOfThree: 154,
+		});
+	});
+
+	test('virtualized sections keep one complete row when the initial height is constrained', () => {
+		const root = document.createElement('div');
+		const sections = Array.from({ length: 3 }, () => {
+			const section = document.createElement('section');
+			const list = document.createElement('div');
+			section.appendChild(list);
+			root.appendChild(section);
+			Object.defineProperty(list, 'offsetHeight', { configurable: true, get: () => Number.parseFloat(list.style.height) || 0 });
+			Object.defineProperty(section, 'offsetHeight', { configurable: true, get: () => 40 + list.offsetHeight });
+			return list;
+		});
+		Object.defineProperty(root, 'clientHeight', { configurable: true, value: 180 });
+
+		const constrained = layoutVirtualizedSections(root, sections.map(container => ({
+			container,
+			contentHeight: 300,
+			minimumHeight: 44,
+		})));
+
+		assert.deepStrictEqual({
+			constrained,
+			overflow: root.style.overflow,
+			reservesPageScrollbarLane: root.classList.contains('virtualized-section-layout-overflow'),
+		}, {
+			constrained: [44, 44, 44],
+			overflow: 'visible',
+			reservesPageScrollbarLane: true,
+		});
+	});
+
+	test('virtualized sections distribute remaining height after reserving complete rows', () => {
+		const root = document.createElement('div');
+		const sections = [352, 88, 44, 220].map(contentHeight => {
+			const section = document.createElement('section');
+			const list = document.createElement('div');
+			section.appendChild(list);
+			root.appendChild(section);
+			Object.defineProperty(list, 'offsetHeight', { configurable: true, get: () => Number.parseFloat(list.style.height) || 44 });
+			Object.defineProperty(section, 'offsetHeight', { configurable: true, get: () => 40 + list.offsetHeight });
+			return { container: list, contentHeight, minimumHeight: 44 };
+		});
+		Object.defineProperty(root, 'clientHeight', { configurable: true, value: 349 });
+
+		const heights = layoutVirtualizedSections(root, sections);
+
+		assert.deepStrictEqual({
+			heights,
+			overflow: root.style.overflow,
+			reservesPageScrollbarLane: root.classList.contains('virtualized-section-layout-overflow'),
+		}, {
+			heights: [48, 48, 44, 48],
+			overflow: '',
+			reservesPageScrollbarLane: false,
+		});
+	});
+
+	test('loading placeholders and replacement lists keep a stable row height and scroll position', () => {
+		const container = document.createElement('div');
+		const placeholder = renderVirtualizedSectionLoadingPlaceholder(container, 'Loading customizations...', 44);
+		const list = {
+			scrollTop: 88,
+			layout: (height: number) => {
+				assert.strictEqual(height, 44);
+				list.scrollTop = 0;
+			},
+		};
+
+		layoutVirtualizedSectionList(list, container, 44);
+
+		assert.deepStrictEqual({
+			placeholderHeight: placeholder.style.height,
+			containerHeight: container.style.height,
+			scrollTop: list.scrollTop,
+		}, {
+			placeholderHeight: '44px',
+			containerHeight: '44px',
+			scrollTop: 88,
+		});
+	});
+
+	test('collapsed virtualized lists retain their scroll position', () => {
+		const container = document.createElement('div');
+		let layoutCount = 0;
+		const list = {
+			scrollTop: 88,
+			layout: () => layoutCount++,
+		};
+
+		layoutVirtualizedSectionList(list, container, 0);
+
+		assert.deepStrictEqual({
+			containerHeight: container.style.height,
+			scrollTop: list.scrollTop,
+			layoutCount,
+		}, {
+			containerHeight: '0px',
+			scrollTop: 88,
+			layoutCount: 0,
+		});
+	});
+
+	test('card lists use roving focus and expose focused-row actions', async () => {
+		const disposables = new DisposableStore();
+		const list = document.createElement('div');
+		document.body.appendChild(list);
+		const controller = disposables.add(new CustomizationCardListController(list, 'Customizations'));
+		const createItem = (label: string) => {
+			const row = document.createElement('div');
+			const primaryAction = createCustomizationCardPrimaryAction(row, label);
+			const action = document.createElement('button');
+			row.appendChild(action);
+			list.appendChild(row);
+			controller.addItem({ row, primaryAction, label, actions: [action], contextMenuAction: action });
+			return { row, primaryAction, action };
+		};
+		const alpha = createItem('Alpha');
+		const beta = createItem('Beta');
+		const disabledActionRow = document.createElement('div');
+		const disabledActionPrimary = createCustomizationCardPrimaryAction(disabledActionRow, 'Disabled Action');
+		const disabledAction = document.createElement('button');
+		disabledAction.disabled = true;
+		const enabledAction = document.createElement('button');
+		disabledActionRow.append(disabledAction, enabledAction);
+		list.appendChild(disabledActionRow);
+		controller.addItem({ row: disabledActionRow, primaryAction: disabledActionPrimary, label: 'Disabled Action', actions: [disabledAction, enabledAction], contextMenuAction: enabledAction });
+		const remoteRow = document.createElement('div');
+		const remoteAction = document.createElement('button');
+		remoteRow.appendChild(remoteAction);
+		list.appendChild(remoteRow);
+		controller.addItem({ row: remoteRow, primaryAction: remoteRow, label: 'Remote', actions: [remoteAction], contextMenuAction: remoteAction });
+		controller.finalize();
+
+		try {
+			alpha.primaryAction.focus();
+			alpha.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+			beta.action.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }));
+			const spaceKeyEvent = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+			beta.primaryAction.dispatchEvent(spaceKeyEvent);
+			disabledActionPrimary.focus();
+			disabledActionPrimary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }));
+			const disabledActionTabTarget = document.activeElement;
+			beta.primaryAction.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+			enabledAction.tabIndex = 0;
+			await new Promise(resolve => setTimeout(resolve, 0));
+
+			assert.deepStrictEqual({
+				listRole: list.getAttribute('role'),
+				rowRoles: [alpha.row.getAttribute('role'), beta.row.getAttribute('role'), disabledActionRow.getAttribute('role'), remoteRow.getAttribute('role')],
+				positions: [alpha.row.getAttribute('aria-posinset'), beta.row.getAttribute('aria-posinset')],
+				remotePosition: remoteRow.getAttribute('aria-posinset'),
+				setSizes: [alpha.row.getAttribute('aria-setsize'), beta.row.getAttribute('aria-setsize'), disabledActionRow.getAttribute('aria-setsize'), remoteRow.getAttribute('aria-setsize')],
+				tabIndexes: [alpha.primaryAction.tabIndex, beta.primaryAction.tabIndex, remoteRow.tabIndex, alpha.action.tabIndex, beta.action.tabIndex, remoteAction.tabIndex],
+				spaceDefaultPrevented: spaceKeyEvent.defaultPrevented,
+				disabledActionTabIndexes: [disabledAction.tabIndex, enabledAction.tabIndex],
+				disabledActionTabTarget,
+				activeElement: document.activeElement,
+			}, {
+				listRole: 'list',
+				rowRoles: ['listitem', 'listitem', 'listitem', 'listitem'],
+				positions: ['1', '2'],
+				remotePosition: '4',
+				setSizes: ['4', '4', '4', '4'],
+				tabIndexes: [0, -1, -1, -1, -1, -1],
+				spaceDefaultPrevented: false,
+				disabledActionTabIndexes: [-1, -1],
+				disabledActionTabTarget: enabledAction,
+				activeElement: alpha.primaryAction,
+			});
+		} finally {
+			disposables.dispose();
+			list.remove();
+		}
+	});
 
 	suite('truncateToFirstLine', () => {
 		test('keeps first line when text has multiple lines', () => {
@@ -60,10 +475,36 @@ suite('aiCustomizationListWidget', () => {
 			);
 		});
 
-		test('truncates non-hook descriptions to the first line', () => {
+		suite('splitPathLabel', () => {
+			test('keeps the filename visible after a path separator', () => {
+				assert.deepStrictEqual({
+					posix: splitPathLabel('.github/prompts/deeply/nested/review.prompt.md'),
+					windows: splitPathLabel('.github\\prompts\\deeply\\nested\\review.prompt.md'),
+					filename: splitPathLabel('review.prompt.md'),
+				}, {
+					posix: {
+						prefix: '.github/prompts/deeply/nested',
+						suffix: '/review.prompt.md',
+						suffixOffset: 29,
+					},
+					windows: {
+						prefix: '.github\\prompts\\deeply\\nested',
+						suffix: '\\review.prompt.md',
+						suffixOffset: 29,
+					},
+					filename: {
+						prefix: '',
+						suffix: 'review.prompt.md',
+						suffixOffset: 0,
+					},
+				});
+			});
+		});
+
+		test('shows the file location for non-hook customizations', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('Show the first line.\nHide the rest.', 'prompt.md', PromptsType.prompt),
-				'Show the first line.'
+				getCustomizationSecondaryText('Prompt description', '.github/prompts/review.prompt.md', PromptsType.prompt),
+				'.github/prompts/review.prompt.md'
 			);
 		});
 
@@ -73,6 +514,25 @@ suite('aiCustomizationListWidget', () => {
 				'prompt.md'
 			);
 		});
+	});
+
+	test('normalizes remote workspace customization locations through the label service', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				return `${options?.relative ? 'relative' : 'absolute'}:${resource.path}`;
+			}
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, new class extends mock<IProductService>() { }());
+		const item = normalizer.normalizeItem({
+			uri: URI.parse('vscode-remote://ssh-remote+host/workspace/.github/prompts/review.prompt.md'),
+			type: PromptsType.prompt,
+			name: 'Review',
+			source: PromptsStorage.local,
+			extensionId: undefined,
+			pluginUri: undefined,
+		}, PromptsType.prompt);
+
+		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
 	});
 
 	suite('extractExtensionIdFromPath', () => {
@@ -161,10 +621,13 @@ suite('aiCustomizationListWidget', () => {
 		let instaService: TestInstantiationService;
 		const searchBarHeight = 40;
 		const headerHeight = 30;
+		const searchBarMargin = 16;
 		const setLayoutHeights = (widget: AICustomizationListWidget, clientHeight: number): void => {
 			Object.defineProperty(widget.element, 'clientHeight', { configurable: true, value: clientHeight });
 			Object.defineProperty(widget.element.querySelector('.list-search-and-button-container')!, 'offsetHeight', { configurable: true, value: searchBarHeight });
 			Object.defineProperty(widget.element.querySelector('.section-title-header')!, 'offsetHeight', { configurable: true, value: headerHeight });
+			Object.defineProperty(widget.element, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: 0 }) });
+			Object.defineProperty(widget.element.querySelector('.list-container')!, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: headerHeight + searchBarHeight + searchBarMargin }) });
 		};
 
 		const descriptor: IHarnessDescriptor = {
@@ -197,6 +660,7 @@ suite('aiCustomizationListWidget', () => {
 
 			instaService.stub(IAICustomizationWorkspaceService, {
 				activeProjectRoot: observableValue('test', undefined),
+				activeProjectLabel: observableValue('test', undefined),
 				getActiveProjectRoot: () => undefined,
 				managementSections: [AICustomizationManagementSection.Agents],
 				isSessionsWindow: false,
@@ -238,6 +702,9 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+			instaService.stub(ICustomizationMarketplaceService, {
+				sources: [],
+			});
 
 			// The widget reads items from the items model; stub it with empty
 			// per-section observables. This avoids needing to wire up the full
@@ -268,7 +735,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '430px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '414px');
 		});
 
 		test('falls back to supplied layout height when rendered container height is 0', () => {
@@ -280,7 +747,396 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
+		});
+
+		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'instruction',
+				uri: URI.file('Q:\\workspace\\.github\\instructions\\typescript.instructions.md'),
+				name: 'TypeScript',
+				filename: '.github\\instructions\\typescript.instructions.md',
+				description: 'TypeScript instructions',
+				source: PromptsStorage.local,
+				promptType: PromptsType.instructions,
+				disabled: false,
+				badge: '*.ts',
+				status: 'loaded',
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Instructions);
+			widget.layout(800, 500);
+
+			const row = widget.element.querySelector('.ai-customization-list-item');
+			assert.deepStrictEqual({
+				badgeDisplay: row?.querySelector<HTMLElement>('.item-badge')?.style.display,
+				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
+				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
+				descriptionDisplay: row?.querySelector<HTMLElement>('.item-description')?.style.display,
+				secondaryText: row?.querySelector<HTMLElement>('.item-description')?.textContent,
+				usesHookSecondaryTextStyling: !row?.querySelector<HTMLElement>('.item-description')?.classList.contains('is-filename'),
+			}, {
+				badgeDisplay: 'none',
+				statusDisplay: 'none',
+				hasOverflowAction: true,
+				descriptionDisplay: '',
+				secondaryText: '.github\\instructions\\typescript.instructions.md',
+				usesHookSecondaryTextStyling: true,
+			});
+		});
+
+		test('hook rows use an overflow menu without loaded status and keep commands separate from recycled path labels', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'prompt',
+				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+				name: 'Review',
+				filename: '.github/prompts/review.prompt.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.prompt,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Prompts);
+			items.set([{
+				id: 'hook',
+				uri: URI.file('/workspace/.github/hooks/hooks.json'),
+				name: 'Pre Tool Use',
+				filename: '.github/hooks/hooks.json',
+				description: 'npm run lint',
+				source: PromptsStorage.local,
+				promptType: PromptsType.hook,
+				disabled: false,
+				status: 'loaded',
+			}], undefined);
+			widget.layout(800, 500);
+
+			const row = widget.element.querySelector('.ai-customization-list-item');
+			assert.deepStrictEqual({
+				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
+				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
+				command: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.textContent,
+				commandDisplay: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.style.display,
+				pathDisplay: row?.querySelector<HTMLElement>('.item-path')?.style.display,
+			}, {
+				statusDisplay: 'none',
+				hasOverflowAction: true,
+				command: 'npm run lint',
+				commandDisplay: '',
+				pathDisplay: 'none',
+			});
+		});
+
+		test('shows one aligned icon per item when a marketplace skill has an icon', async () => {
+			const marketplaceUri = URI.file('/workspace/.github/skills/marketplace/SKILL.md');
+			const plainUri = URI.file('/workspace/.github/skills/plain/SKILL.md');
+			const themeChanges = disposables.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
+			let themeType = ColorScheme.DARK;
+			instaService.stub(IThemeService, new class extends mock<IThemeService>() {
+				override readonly onDidColorThemeChange = themeChanges.event;
+				override getColorTheme() { return { type: themeType } as ReturnType<IThemeService['getColorTheme']>; }
+			}());
+			const marketplaceItem: IAICustomizationListItem = {
+				id: 'marketplace',
+				uri: marketplaceUri,
+				name: 'Marketplace Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+				marketplace: {
+					resource: {
+						sourceId: 'testSource',
+						identifier: 'marketplace',
+						displayName: 'Marketplace Skill',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						icon: {
+							light: URI.parse('https://example.com/skill-light.png'),
+							dark: URI.parse('https://example.com/skill-dark.png'),
+						},
+					},
+					state: { kind: 'installed', target: { kind: 'skill', uri: marketplaceUri } },
+				},
+			};
+			const plainItem: IAICustomizationListItem = {
+				id: 'plain',
+				uri: plainUri,
+				name: 'Plain Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [marketplaceItem, plainItem]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const rows = [...widget.element.querySelectorAll<HTMLElement>('.ai-customization-list-item')];
+			const withMarketplaceIcon = widget.element.classList.contains('show-item-type-icons');
+			const readIconState = () => rows.map(row => {
+				const icon = row.querySelector<HTMLElement>('.item-type-icon')!;
+				return {
+					name: row.querySelector('.item-name')?.textContent,
+					image: icon.querySelector<HTMLImageElement>('img')?.src,
+					fallbackDisplay: icon.querySelector<HTMLElement>('.codicon')?.style.display,
+					visibleChildren: [...icon.children].filter(child => !(child instanceof HTMLElement) || !child.hidden).length,
+				};
+			});
+			const darkIconState = readIconState();
+			themeType = ColorScheme.LIGHT;
+			themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
+			const lightIconState = readIconState();
+			items.set([plainItem], undefined);
+
+			assert.deepStrictEqual({
+				withMarketplaceIcon,
+				darkIconState,
+				lightIconState,
+				withoutMarketplaceIcon: widget.element.classList.contains('show-item-type-icons'),
+			}, {
+				withMarketplaceIcon: true,
+				darkIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				lightIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				withoutMarketplaceIcon: false,
+			});
+		});
+
+		test('replaces tree rows when switching customization pages', async () => {
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
+				id: 'agent-one',
+				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
+				name: 'Agent One',
+				filename: 'agent-one.agent.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			}]);
+			const skills = observableValue<readonly IAICustomizationListItem[]>('skills', [{
+				id: 'skill-one',
+				uri: URI.file('/workspace/.github/skills/skill-one/SKILL.md'),
+				name: 'Skill One',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: section => section === AICustomizationManagementSection.Agents ? agents : skills,
+				getCount: section => observableValue('test', section === AICustomizationManagementSection.Agents ? agents.get().length : skills.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const agentRows = Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			const skillRows = Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+
+			assert.deepStrictEqual({ agentRows, skillRows }, {
+				agentRows: ['Agent One'],
+				skillRows: ['Skill One'],
+			});
+		});
+
+		test('announces updated item count when the model changes after section load', async () => {
+			const ariaHost = document.createElement('div');
+			document.body.appendChild(ariaHost);
+			disposables.add(toDisposable(() => ariaHost.remove()));
+			setARIAContainer(ariaHost);
+
+			const createAgent = (index: number): IAICustomizationListItem => ({
+				id: `agent-${index}`,
+				uri: URI.file(`Q:\\workspace\\.github\\agents\\agent-${index}.agent.md`),
+				name: `agent-${index}`,
+				filename: `agent-${index}.agent.md`,
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
+				createAgent(1),
+				createAgent(2),
+				createAgent(3),
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', items.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['3 agents'],
+			);
+
+			items.set([createAgent(1), createAgent(2)], undefined);
+			assert.deepStrictEqual(
+				[...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+				['2 agents'],
+			);
+		});
+
+		for (const isSessionsWindow of [false, true]) {
+			test(`keyboard-focused skill rows expose validation diagnostics in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+				const listService = disposables.add(new ListService());
+				instaService.stub(IListService, listService);
+				instaService.stub(IAICustomizationWorkspaceService, 'isSessionsWindow', isSessionsWindow);
+				const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+					id: 'dreaming',
+					uri: URI.file('/workspace/.codex/skills/dreaming/SKILL.md'),
+					name: 'dreaming',
+					filename: 'SKILL.md',
+					source: PromptsStorage.local,
+					promptType: PromptsType.skill,
+					disabled: true,
+					status: 'error',
+					statusMessage: 'missing field `description`',
+				}]);
+				instaService.stub(IAICustomizationItemsModel, {
+					getItems: () => items,
+					getCount: () => observableValue('test', 1),
+					getPluginCount: () => observableValue('test', 0),
+					whenSectionLoaded: async () => { },
+					getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('agent-host-codex:///session'), dispose() { } }),
+				});
+				const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+				document.body.appendChild(widget.element);
+				disposables.add(toDisposable(() => widget.element.remove()));
+				setLayoutHeights(widget, 500);
+
+				await widget.setSection(AICustomizationManagementSection.Skills);
+				widget.layout(800, 500);
+
+				const row = widget.element.querySelector<HTMLElement>('.ai-customization-list-item');
+				assert(row);
+				const list = row.closest<HTMLElement>('.monaco-list');
+				assert(list);
+				list.focus();
+				list.dispatchEvent(new FocusEvent('focus'));
+				const focusedList = listService.lastFocusedList;
+				assert(focusedList);
+				const activeDescendant = list.getAttribute('aria-activedescendant');
+				const focusedRow = activeDescendant ? document.getElementById(activeDescendant) : undefined;
+
+				assert.deepStrictEqual({
+					hasKeyboardFocus: document.activeElement === list,
+					activeDescendant,
+					label: focusedRow?.getAttribute('aria-label'),
+				}, {
+					hasKeyboardFocus: true,
+					activeDescendant: focusedRow?.id,
+					label: 'dreaming. SKILL.md. Error. missing field `description`, disabled',
+				});
+			});
+		}
+
+		test('async section rerenders update the grouped tree', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', []);
+			let completeLoading!: () => void;
+			const loading = new Promise<void>(resolve => completeLoading = resolve);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: () => loading,
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			const setSection = widget.setSection(AICustomizationManagementSection.Skills);
+			items.set([
+				...Array.from({ length: 4 }, (_, index): IAICustomizationListItem => ({
+					id: `workspace-${index}`,
+					uri: URI.file(`Q:\\workspace\\.github\\skills\\workspace-${index}\\SKILL.md`),
+					name: `Workspace ${index}`,
+					filename: 'SKILL.md',
+					source: PromptsStorage.local,
+					promptType: PromptsType.skill,
+					disabled: false,
+				})),
+				...Array.from({ length: 2 }, (_, index): IAICustomizationListItem => ({
+					id: `user-${index}`,
+					uri: URI.file(`Q:\\user\\skills\\user-${index}\\SKILL.md`),
+					name: `User ${index}`,
+					filename: 'SKILL.md',
+					source: PromptsStorage.user,
+					promptType: PromptsType.skill,
+					disabled: false,
+				})),
+			], undefined);
+			completeLoading();
+			await setSection;
+
+			widget.layout(500, 800);
+
+			const groups = Array.from(widget.element.querySelectorAll<HTMLElement>('.group-label'), label => label.textContent);
+			const rowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
+			assert.deepStrictEqual({
+				groups,
+				rowCount,
+			}, {
+				groups: ['User', 'Workspace'],
+				rowCount: 6,
+			});
 		});
 	});
 });

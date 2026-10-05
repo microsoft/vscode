@@ -56,7 +56,8 @@ export enum ChatSetupStrategy {
 	SetupWithoutEnterpriseProvider = 2,
 	SetupWithEnterpriseProvider = 3,
 	SetupWithGoogleProvider = 4,
-	SetupWithAppleProvider = 5
+	SetupWithAppleProvider = 5,
+	SetupWithMicrosoftProvider = 6
 }
 
 export type ChatSetupResultValue = boolean /* success */ | undefined /* canceled */;
@@ -78,9 +79,29 @@ export class ChatSetupError extends Error {
 	}
 }
 
+export enum ChatSetupSource {
+	Unknown = 'unknown',
+	Command = 'command',
+	AnonymousCommand = 'anonymousCommand',
+	ForcedSignInCommand = 'forcedSignInCommand',
+	Accounts = 'accounts',
+	TitleBar = 'titleBar',
+	Url = 'url',
+	Chat = 'chat',
+	InlineRename = 'inlineRename',
+	SessionsSetup = 'sessionsSetup',
+	AgentHost = 'agentHost',
+	Scm = 'scm',
+	CodeReview = 'codeReview',
+}
+
 export interface IChatSetupRunOptions {
+	/** Categorical setup entry point, used only for dialog impression telemetry. */
+	readonly telemetrySource?: ChatSetupSource;
 	readonly disableChatViewReveal?: boolean;
 	readonly forceSignInDialog?: boolean;
+	/** Continue setup with the default account if sign-in completes while the dialog is open. */
+	readonly autoDismissOnSignIn?: boolean;
 	readonly cancellationToken?: CancellationToken;
 	readonly additionalScopes?: readonly string[];
 	readonly forceAnonymous?: ChatSetupAnonymous;

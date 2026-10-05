@@ -351,7 +351,25 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Lifecycle' }).click();
 			assert.strictEqual(await browserPage.locator('#state-input').inputValue(), 'Preserved state');
 
+			const writtenPage = await app.code.driver.waitForNewPage('about:blank', () => browserPage.locator('#write-popup').click());
+			openPages.add(writtenPage);
+			await writtenPage.waitForLoadState('load');
+			await writtenPage.locator('#written-content').waitFor();
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor();
+			assert.deepStrictEqual(await writtenPage.evaluate(() => ({
+				content: document.querySelector('#written-content')?.textContent,
+				openerTitle: window.opener.document.title
+			})), {
+				content: 'Written by opener',
+				openerTitle: 'Browser Smoke Lifecycle'
+			});
+			await writtenPage.close();
+			openPages.delete(writtenPage);
+			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Written Popup' }).waitFor({ state: 'detached' });
+
 			await app.restart();
+			const mainLog = fs.readFileSync(path.join(app.logsPath, 'main.log'), 'utf8');
+			assert.doesNotMatch(mainLog, /Cannot read properties of undefined \(reading 'isDestroyed'\)/, 'Closing the native popup must not fail during disposal');
 			openPages.clear();
 			const restoredPage = await app.code.driver.waitForPage('/lifecycle', 30_000);
 			openPages.add(restoredPage);
@@ -580,7 +598,16 @@ function pageForRoute(route: string, requestCount: number): string {
 					});
 				</script>`);
 		case '/lifecycle':
-			return html('Browser Smoke Lifecycle', '<div id="lifecycle-content">Lifecycle content</div><input id="state-input"><a id="open-popup" target="_blank" href="/popup-child">Open child</a><div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>');
+			return html('Browser Smoke Lifecycle', `<div id="lifecycle-content">Lifecycle content</div><input id="state-input">
+				<a id="open-popup" target="_blank" href="/popup-child">Open child</a><button id="write-popup">Write child</button>
+				<div style="height: 1800px"></div><div id="scroll-marker">Scroll marker</div>
+				<script>
+					document.querySelector('#write-popup').addEventListener('click', () => {
+						const child = window.open('', '_blank', 'popup=false');
+						child.document.write('<!DOCTYPE html><title>Browser Smoke Written Popup</title><div id="written-content">Written by opener</div>');
+						child.document.close();
+					});
+				</script>`);
 		case '/popup-child':
 			return html('Browser Smoke Popup Child', '<div id="popup-child-content">Popup child</div>');
 		default:

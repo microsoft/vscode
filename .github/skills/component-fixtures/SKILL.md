@@ -1,6 +1,6 @@
 ---
 name: component-fixtures
-description: Use when creating or updating component fixtures for screenshot testing, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, and common pitfalls.
+description: Use when creating or updating component fixtures for screenshot testing or their shared infrastructure, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, validation, and common pitfalls.
 ---
 
 # Component Fixtures
@@ -56,10 +56,30 @@ function renderMyComponent({ container, disposableStore, theme }: ComponentFixtu
 
 Key points:
 - **`defineThemedFixtureGroup`** automatically creates Dark and Light variants for each fixture
-- **`defineComponentFixture`** wraps your render function with theme setup and shadow DOM isolation
+- **`defineComponentFixture`** wraps your render function with theme setup, async readiness, and disposable management
 - **`createEditorServices`** provides a `TestInstantiationService` with base editor services pre-registered
 - Always register created widgets with `disposableStore.add(...)` to prevent leaks
 - Pass `colorTheme: theme` to `createEditorServices` so theme colors render correctly
+
+### File icon themes
+
+Fixtures use Seti file icons by default. Select another built-in theme, or disable file icons, on the individual fixture:
+
+```typescript
+defineComponentFixture({ fileIconTheme: 'vs-minimal', render: renderMyComponent });
+defineComponentFixture({ fileIconTheme: 'none', render: renderMyComponent });
+```
+
+When the rendered component reads `IThemeService`, pass the selected theme from `ComponentFixtureContext` to `createEditorServices`:
+
+```typescript
+function renderMyComponent({ disposableStore, theme, fileIconTheme }: ComponentFixtureContext): void {
+	const instantiationService = createEditorServices(disposableStore, {
+		colorTheme: theme,
+		fileIconTheme,
+	});
+}
+```
 
 ## Utilities from fixtureUtils.ts
 
@@ -77,7 +97,11 @@ Key points:
 
 ## CSS Scoping
 
-Fixtures render inside shadow DOM. The component-explorer automatically adopts the global VS Code stylesheets and theme CSS.
+Fixtures share the document and workbench stylesheets (`isolation: 'none'`). The helpers scope theme and file-icon styles, but DOM, CSS, and process-wide registrations are not isolated automatically.
+
+### Shared theme initialization
+
+`fixtureUtilsCss.ts` loads the shared workbench color and size registrations before generating and caching theme CSS, including the agent tokens in `vs/workbench/common/agentsColors.ts` and `agentsSizes.ts`. Keep required product-wide registrations in this shared bootstrap, not in individual fixtures: discovering another fixture must not change an existing fixture's typography or colors. Reuse lightweight registration modules from the owning shared layer rather than importing product entry points or higher-layer contributions.
 
 ### Matching production CSS selectors
 
@@ -141,9 +165,25 @@ const element = new class extends mock<IChatRequestViewModel>() { }();
 
 ## Async Rendering
 
-The component explorer waits **2 animation frames** after the synchronous render function returns. For most components, this is sufficient.
+The component explorer awaits the render promise, then waits two animation frames. Those frames are not a readiness guarantee for image decoding, native resize observers, delayed layout, or scrollbar idle timers.
 
-If your render function returns a `Promise`, the component explorer waits for the promise to resolve.
+The render promise must resolve only when the fixture represents its named state:
+
+- Await assets that affect the screenshot. An editor's `setInput()` may return before its main image or thumbnails have loaded; wait for the expected image count and await `decode()`, failing on missing or broken images.
+- Finish layout-changing actions before positioning the viewport. Wait for content height, scroll height, scroll position, and finite animations to settle, then scroll and settle again. Assert that an "offscreen" header is actually offscreen and a "visible" header is not covered by sticky content.
+- Account for transient visuals such as auto-hiding scrollbars. A stable height does not mean a stable screenshot.
+- Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
+- Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
+
+Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
+
+For async fixtures with paint-order-sensitive edges, `deferPaint: true` keeps the headless fixture transparent until rendering has finished, without changing its layout or interactive preview. It prevents intermediate paints from affecting the final rasterization; it does **not** replace awaiting readiness.
+
+### Validating fixtures
+
+Do not add automated tests whose subject is fixtures or fixture infrastructure (including fixture-only unit, Playwright, and screenshot-stability tests). Validate fixture changes with the existing Component Explorer rendering, screenshot, stability, and error tools, plus direct inspection or temporary browser probes. Ordinary tests for production behavior belong at the owning production API.
+
+Validate at the same readiness boundary CI uses: capture immediately after the headless `renderFixture()` resolves, after idle callbacks, and after remounting following another fixture. Compare exact hashes on the same platform and separately inspect the intended state; do not commit the temporary probes as fixture tests.
 
 ### Pitfall: DOM reparenting causes flickering
 
@@ -241,6 +281,10 @@ const carousel: IChatQuestionCarousel = {
 
 If a component builds its DOM internally and doesn't expose the root element, add a public `readonly domNode: HTMLElement` property so fixtures can append it to the container.
 
+### Keep test-only operations out of the production API
+
+When a fixture or test must drive state that production reaches only through user input or services (for example focusing, selecting, or collapsing rows, or locating a rendered row), don't add public methods for it: other code will start calling them and bypass the real flows. Make the minimum `protected` and implement the operations in a test-only subclass under `test/` (such as `TestSessionsList extends SessionsList`), which product code cannot import.
+
 ## Writing Fixture-Friendly Components
 
 When designing new UI components, follow these practices to make them easy to fixture:
@@ -314,6 +358,16 @@ interface IMyWidgetOptions {
 
 The fixture needs to append the widget's DOM to the container. Expose it as a public `readonly domNode: HTMLElement`.
 
+### 7. Make hover and focus states renderable
+
+Fixtures cannot trigger CSS `:hover`, and DOM focus is only deterministic through `ctx.focus()`. Keep interaction-dependent visuals reachable from state:
+
+- Pair every `:hover` selector a visual depends on with a `.hovered` class, e.g. `.monaco-list-row:is(:hover, .hovered)`; `:is()` keeps specificity unchanged. List widgets already style `.monaco-list-row.hovered` like a hovered row.
+- Drive focus and selection through the component (list rows get `.focused` and `.selected` from the list traits), from a test-only subclass when production has no such API (see [Keep test-only operations out of the production API](#keep-test-only-operations-out-of-the-production-api)). Then call `ctx.focus()` when the state needs DOM focus.
+- When JavaScript also reacts to hover (for example `mouseover` listeners), dispatch a `mouseover` on the element as well as adding `.hovered`.
+
+`src/vs/sessions/contrib/sessions/test/browser/sessionsListFixtureUtils.ts` renders `interaction: { hovered, focused, selected }` this way.
+
 ## Multiple Fixture Variants
 
 Create variants to show different states of the same component:
@@ -341,3 +395,7 @@ Update this section with insights from your fixture development experience!
 * Do not copy the component to the fixture and modify it there. Always adapt the original component to be fixture-friendly, then render it in the fixture. This ensures the fixture tests the real component code and lifecycle, rather than a modified version that may hide bugs.
 
 * **Don't recompose child widgets in fixtures.** Never manually instantiate and add a sub-widget (e.g., a toolbar content widget) that the parent component is supposed to create. Instead, configure the parent correctly (e.g., set the right editor option, register the right provider) so the child appears through the normal code path. Manually recomposing hides integration bugs and doesn't test the real widget lifecycle.
+
+* **Describe state as data for service-heavy components.** When a component reads many services, give it one harness that takes plain state and renders it through the real state-owning services and production menus, instead of per-fixture mocks and DOM hacks. Fixtures then only list data, and a new feature adds a state field to the harness. The sessions list harness (`sessionsListFixtureUtils.ts`) follows this pattern; its real toolbars exposed header bugs that stubbed menus had hidden.
+
+* **Never vary process-wide registrations per fixture.** The explorer UI mounts all fixtures of a folder at once, and they share command, menu, and other global registries. Register shared actions once, the same for every fixture, and vary per-fixture presentation through the fixture's own services, such as its menu service. Screenshot runs render fixtures one at a time and don't catch mount-order races, so preview the whole folder (`___explorer?fixture=<folder>`) to check.

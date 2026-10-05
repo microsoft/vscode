@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getExtensionForMimeType, normalizeMimeType } from '../../common/mime.js';
+import { getExtensionForMimeType, getMediaMime, normalizeMimeType } from '../../common/mime.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Mime', () => {
@@ -24,6 +24,7 @@ suite('Mime', () => {
 		assert.ok(['.jpe', '.jpeg', '.jpg'].includes(getExtensionForMimeType('image/jpg')!));
 		// image/jpeg is an alias for image/jpg and should also return a valid extension
 		assert.ok(['.jpe', '.jpeg', '.jpg'].includes(getExtensionForMimeType('image/jpeg')!));
+		assert.strictEqual(getExtensionForMimeType('image/avif'), '.avif');
 		assert.strictEqual(getExtensionForMimeType('image/png'), '.png');
 		assert.strictEqual(getExtensionForMimeType('image/gif'), '.gif');
 		assert.strictEqual(getExtensionForMimeType('image/webp'), '.webp');
@@ -31,6 +32,10 @@ suite('Mime', () => {
 		assert.ok(['.mp4', '.mp4v', '.mpg4'].includes(getExtensionForMimeType('video/mp4')!));
 		assert.strictEqual(getExtensionForMimeType('text/plain'), '.txt');
 		assert.strictEqual(getExtensionForMimeType('unknown/type'), undefined);
+	});
+
+	test('getMediaMime', () => {
+		assert.strictEqual(getMediaMime('profile.avif'), 'image/avif');
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

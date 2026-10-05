@@ -69,8 +69,8 @@ const coverage = require('../coverage');
 const { pathToFileURL } = require('url');
 
 // Disabled custom inspect. See #38847
-if (util.inspect && util.inspect['defaultOptions']) {
-	util.inspect['defaultOptions'].customInspect = false;
+if (util.inspect && util.inspect.defaultOptions) {
+	util.inspect.defaultOptions.customInspect = false;
 }
 
 // VSCODE_GLOBALS: package/product.json
@@ -191,9 +191,7 @@ async function loadTests(opts) {
 
 	//#region Unexpected Output
 
-	const _allowedTestOutput = [
-		/The vm module of Node\.js is deprecated in the renderer process and will be removed./,
-	];
+	const _allowedTestOutput = [];
 
 	// allow snapshot mutation messages locally
 	if (!IS_CI) {

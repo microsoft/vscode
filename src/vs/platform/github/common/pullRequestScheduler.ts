@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { IGitHubScheduler } from './githubScheduler.js';
+import { IRequestScheduler } from './scheduler.js';
 
 interface IScheduledPullRequestTask {
 	readonly key: string;
@@ -20,7 +20,7 @@ export class PullRequestScheduler extends Disposable {
 	private _sequence = 0;
 
 	constructor(
-		private readonly _scheduler: IGitHubScheduler,
+		private readonly _scheduler: IRequestScheduler,
 	) {
 		super();
 	}

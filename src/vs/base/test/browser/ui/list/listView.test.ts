@@ -577,4 +577,29 @@ suite('ListView', function () {
 			element.remove();
 		}
 	});
+
+	test('does not throw when laid out with a collapsed viewport and zero-height dynamic items', function () {
+		type TestElement = { height: number };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 0; },
+			getTemplateId() { return 'template'; },
+			getDynamicHeight(element) { return element.height; }
+		};
+		const renderer: IListRenderer<TestElement, void> = {
+			templateId: 'template',
+			renderTemplate() { },
+			renderElement() { },
+			disposeTemplate() { }
+		};
+
+		const elements: TestElement[] = [{ height: 0 }, { height: 0 }, { height: 0 }];
+		const listView = new ListView<TestElement>(document.createElement('div'), delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			// Collapsing the viewport before splicing zero-height items previously yielded an inverted range that crashed probeDynamicHeights.
+			listView.layout(0, 200);
+			assert.doesNotThrow(() => listView.splice(0, 0, elements));
+		} finally {
+			listView.dispose();
+		}
+	});
 });

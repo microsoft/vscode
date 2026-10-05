@@ -7,7 +7,7 @@ import './media/editortitlecontrol.css';
 import { Dimension, clearNode } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService, Themable } from '../../../../platform/theme/common/themeService.js';
-import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
+import { IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView, IInternalEditorOpenOptions } from './editor.js';
 import { IEditorTabsControl } from './editorTabsControl.js';
 import { MultiEditorTabsControl } from './multiEditorTabsControl.js';
 import { SingleEditorTabsControl } from './singleEditorTabsControl.js';
@@ -49,6 +49,8 @@ export class EditorTitleControl extends Themable {
 		private readonly model: IReadonlyEditorGroupModel,
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		private readonly showHeader: boolean,
+		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
+		private readonly useModernUITabs: boolean,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -73,12 +75,12 @@ export class EditorTitleControl extends Themable {
 				break;
 		}
 
-		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds, this.showHeader);
+		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model, this.menuIds, this.showHeader, this.useModernUITabs);
 		return this.editorTabsControlDisposable.add(control);
 	}
 
 	private createHeaderControl(): EditorHeaderControl {
-		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader);
+		const control = this.instantiationService.createInstance(EditorHeaderControl, this.parent, this.groupView, this.groupsView, this.menuIds, this.showHeader, this.reserveHeaderSpace);
 		this.headerControlDisposable.value = control;
 		return control;
 	}
@@ -184,12 +186,12 @@ export class EditorTitleControl extends Themable {
 		}
 	}
 
-	layout(dimensions: IEditorTitleControlDimensions): Dimension {
+	layout(dimensions: IEditorTitleControlDimensions, headerWidth = dimensions.container.width): Dimension {
 
 		// Layout tabs control
 		this.editorTabsControl.layout(dimensions);
 
-		this.headerControl.layout(dimensions.container.width);
+		this.headerControl.layout(headerWidth);
 
 		return new Dimension(dimensions.container.width, this.getHeight().total);
 	}

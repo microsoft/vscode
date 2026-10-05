@@ -151,6 +151,10 @@ export interface IByokLmModelInfo {
 	readonly modelIdentifier?: string;
 	/** Maximum context window tokens (prompt + output), when known. */
 	readonly maxContextWindowTokens?: number;
+	/** Independent maximum input tokens, when known. */
+	readonly maxPromptTokens?: number;
+	/** Independent maximum output tokens, when known. */
+	readonly maxOutputTokens?: number;
 	/** Whether the model accepts image inputs, when known. */
 	readonly supportsVision?: boolean;
 	/** Reasoning effort values advertised by the renderer model, when known. */
