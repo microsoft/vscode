@@ -28,6 +28,7 @@ import { AgentHostTransportFailureReason } from '../../../../../../platform/agen
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -84,7 +85,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
 	override readonly initializeResult = constObservable({
-		protocolVersion: '1',
+		protocolVersion: PROTOCOL_VERSION,
 		serverSeq: 0,
 		snapshots: [],
 		automations: { create: {}, schedules: {}, runCancellation: {} },
@@ -1301,7 +1302,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const handle = '00000000-0000-4000-8000-000000000001';
 			const hostConnection = new class extends MockAgentConnection {
 				override readonly initializeResult = constObservable({
-					protocolVersion: '1', serverSeq: 0, snapshots: [],
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [],
 					automations: { create: {}, schedules: {}, runCancellation: {} },
 					_meta: getAgentHostExtensionInitializeResultMeta(),
 				});
@@ -3462,7 +3463,7 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		const importedSessions: URI[] = [];
 		const connection = disposables.add(new class extends MockAgentConnection {
 			override readonly initializeResult = constObservable({
-				protocolVersion: '1', serverSeq: 0, snapshots: [],
+				protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [],
 				automations: { create: {}, schedules: {}, runCancellation: {} },
 				_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, true),
 			});
