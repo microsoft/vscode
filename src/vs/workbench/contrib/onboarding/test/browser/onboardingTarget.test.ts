@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -50,6 +51,24 @@ suite('Onboarding target providers', () => {
 
 		assert.strictEqual(resolveOnboardingTarget(mainWindow, 'test.control', 'stale'), undefined);
 	});
+
+	for (const owner of ['registration', 'provider'] as const) {
+		test(`exposes the activation event from the ${owner}`, () => {
+			const element = createTarget();
+			const activated = disposables.add(new Emitter<void>());
+			if (owner === 'registration') {
+				disposables.add(markOnboardingTarget(element, 'test.activation', { onDidActivate: activated.event }));
+			} else {
+				disposables.add(registerOnboardingTargetProvider('test.activation', () => ({ element, onDidActivate: activated.event })));
+			}
+			const target = resolveOnboardingTarget(mainWindow, 'test.activation');
+			assert.ok(target?.onDidActivate);
+			let activations = 0;
+			disposables.add(target.onDidActivate(() => activations++));
+			activated.fire();
+			assert.strictEqual(activations, 1);
+		});
+	}
 
 	test('ignores hidden, detached and other-window controls', () => {
 		const element = createTarget();

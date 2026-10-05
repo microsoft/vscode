@@ -15,6 +15,29 @@ const legacyAutoArchiveMergedSessionsAfterDaysSetting = 'chat.agentSessions.auto
 const legacyAutoDeleteArchivedMergedSessionsAfterDaysSetting = 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays';
 
 export const agentsWindowHandoffConfigurationProperties = {
+	[ChatConfiguration.AgentsWindowBannerEnabled]: {
+		type: 'boolean',
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		description: nls.localize('chat.agentsWindowBanner.enabled', "Show occasional invitations to continue or manage running Agent Host chats in the Agents Window. Invitations are hidden for users who have created at least three sessions in the Agents Window and created their latest session within the past 30 days."),
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[ChatConfiguration.AgentsWindowBannerDeveloperMode]: {
+		type: 'boolean',
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		description: nls.localize('chat.agentsWindowBanner.developerMode', "Preview one Agents Window invitation per window reload, ignoring experiment enablement, previous dismissals, frequency limits, and Agents Window usage. Activity requirements and delays still apply. Previews do not update invitation history or experiment telemetry."),
+		tags: ['experimental', 'advanced'],
+	},
+	[ChatConfiguration.AgentsWindowBannerRevealCurrentSession]: {
+		type: 'boolean',
+		default: true,
+		scope: ConfigurationScope.APPLICATION,
+		markdownDescription: nls.localize('chat.agentsWindowBanner.revealCurrentSession', "Open the invited chat when using an Agents Window invitation. When disabled, show the New Session view instead. When `#onboarding.enabled#` is enabled, highlight the invited session in the sessions list, followed by the New Session button if this setting is enabled."),
+		tags: ['experimental', 'advanced'],
+		experiment: { mode: 'auto' },
+	},
 	[ChatConfiguration.OpenInAgentsWindowTransferDraft]: {
 		type: 'boolean',
 		description: nls.localize('chat.openInAgentsWindow.transferDraft', "Copy the prompt and attachments from a new chat when opening the Agents Window. Existing drafts in the Agents Window are preserved."),
@@ -28,6 +51,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 		default: false,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
+		deprecationMessage: nls.localize('chat.agentsParallelWorkBanner.deprecated', "Use chat.agentsWindowBanner.enabled instead."),
 	},
 	[ChatConfiguration.CopilotHarnessIntroductionMode]: {
 		type: 'string',
@@ -56,8 +80,28 @@ export const agentsWindowHandoffConfigurationProperties = {
 		markdownDescription: nls.localize('chat.agentsHandoffTip.delaySeconds', "Controls the delay, in seconds, after the latest user message before offering to continue an in-progress session in the Agents Window. Requires `#chat.agentsHandoffTip.mode#` to be `default` or `custom`."),
 		tags: ['experimental', 'advanced'],
 		experiment: { mode: 'auto' },
+		deprecationMessage: nls.localize('chat.agentsHandoffTip.delayDeprecated', "Agents Window invitation delays are now controlled independently for each scenario."),
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
+
+for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.AgentsHandoffTipMode]) {
+	Registry.as<IConfigurationMigrationRegistry>(WorkbenchConfigurationExtensions.ConfigurationMigration).registerConfigurationMigrations([{
+		key,
+		includeApplication: true,
+		migrateFn: (value, accessor) => {
+			if (value === undefined) {
+				return [];
+			}
+			const pairs: ConfigurationKeyValuePairs = [[key, { value: undefined }]];
+			if (accessor(ChatConfiguration.AgentsWindowBannerEnabled) === undefined) {
+				const parallel = key === ChatConfiguration.AgentsParallelWorkBannerEnabled ? value : accessor(ChatConfiguration.AgentsParallelWorkBannerEnabled);
+				const handoff = key === ChatConfiguration.AgentsHandoffTipMode ? value : accessor(ChatConfiguration.AgentsHandoffTipMode);
+				pairs.push([ChatConfiguration.AgentsWindowBannerEnabled, { value: parallel !== false && handoff !== 'hidden' }]);
+			}
+			return pairs;
+		},
+	}]);
+}
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'chat',

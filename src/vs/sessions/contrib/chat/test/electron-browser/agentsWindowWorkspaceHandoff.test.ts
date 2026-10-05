@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -14,7 +14,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITelemetryData, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { AgentsWindowOpenSource, IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
-import { ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { LifecyclePhase, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
 import { SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
@@ -25,6 +25,7 @@ import { IAgentsWindowWorkspaceHandoff } from '../../browser/agentsWindowWorkspa
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { IOpenNewSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
 
 const startWindowOpenTelemetry = Reflect.get(SelectAgentsFolderContribution.prototype, '_startWindowOpenTelemetry') as (
 	source: AgentsWindowOpenSource,
@@ -40,7 +41,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const sessions: URI[] = [];
 		const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
 			this: typeof harness, folder: URI | undefined, session: URI | undefined,
-			isDefault: boolean, token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft
+			isDefault: boolean, token: CancellationToken, telemetry: undefined, draft: IAgentsWindowDraft, noWorkspace?: boolean, showNewSession?: boolean
 		) => Promise<void>;
 		const configurationService = new TestConfigurationService();
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
@@ -51,12 +52,52 @@ suite('Agents Window workspace handoff telemetry', () => {
 		};
 		await handleOpenIntent.call(harness, undefined, undefined, true, CancellationToken.None, undefined, draft);
 		const persisted = URI.parse('agent-host-copilot:/persisted');
-		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft);
+		await handleOpenIntent.call(harness, URI.file('/source'), persisted, false, CancellationToken.None, undefined, draft, false, true);
 		assert.deepStrictEqual({ drafts, sessions }, {
 			drafts: [{ folderUri: undefined, preferDevContainer: false, isDefault: true, draft, noWorkspace: false }],
 			sessions: [persisted],
 		});
 	});
+
+	for (const cancelBeforeRestore of [false, true]) {
+		test(`routes a spotlight-only invitation to the new-session composer after restore starts (cancelled: ${cancelBeforeRestore})`, async () => {
+			const lifecycleService = disposables.add(new TestLifecycleService());
+			lifecycleService.usePhases = true;
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const events: string[] = [];
+			const calls: { options: IOpenNewSessionOptions; usesHandoffToken: boolean }[] = [];
+			const harness = {
+				lifecycleService,
+				newSessionComposerService: { notifyUserNavigation: () => events.push('navigation') },
+				sessionsService: {
+					openNewSession: async (options: IOpenNewSessionOptions, token: CancellationToken) => {
+						events.push('newSession');
+						calls.push({ options, usesHandoffToken: token === cancellation.token });
+					},
+				},
+				_workspaceHandoff: { selectWorkspace: () => assert.fail('The invitation must preserve the pending draft, not select a workspace') },
+				openExistingSession: () => assert.fail('A spotlight-only invitation must not open the invited chat'),
+			};
+			const handleOpenIntent = Reflect.get(SelectAgentsFolderContribution.prototype, 'handleOpenIntent') as (
+				this: typeof harness, workspace: URI | undefined, session: URI | undefined, isDefault: boolean,
+				token: CancellationToken, telemetry: undefined, draft: undefined, noWorkspace: boolean, showNewSession: boolean
+			) => Promise<void>;
+			const running = handleOpenIntent.call(harness, undefined, undefined, false, cancellation.token, undefined, undefined, false, true);
+			await timeout(0);
+			const beforeRestore = [...events];
+			if (cancelBeforeRestore) {
+				cancellation.cancel();
+			} else {
+				lifecycleService.phase = LifecyclePhase.Restored;
+			}
+			await running;
+			assert.deepStrictEqual({ beforeRestore, events, calls }, {
+				beforeRestore: [],
+				events: cancelBeforeRestore ? [] : ['navigation', 'newSession'],
+				calls: cancelBeforeRestore ? [] : [{ options: { cancelRestore: true }, usesHandoffToken: true }],
+			});
+		});
+	}
 
 	test('preserves unresolved draft workspace intent instead of treating remote workspaces as absent', async () => {
 		const configurationService = new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true });
