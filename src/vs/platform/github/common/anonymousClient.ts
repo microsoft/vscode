@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
@@ -12,7 +11,7 @@ import { resolveReadApiUrl } from './githubEndpoints.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
-import { asObject, requiredInteger, requiredSha, requiredString } from './githubResponse.js';
+import { asObject, requiredSha } from './githubResponse.js';
 import { GitHubAnonymousReadOptions, GitHubRestResponse, GitHubTransport } from './githubTransport.js';
 import { GitHubRequestError, GitHubServiceOptions } from './githubTypes.js';
 import { encodePathSegments } from './githubUrls.js';
@@ -44,6 +43,7 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 
 	constructor(
 		readonly apiBaseUri: string,
+		private readonly _rawBaseUri: string | undefined,
 		options: GitHubServiceOptions,
 		queue: RequestQueue,
 		rateLimits: GitHubRateLimitCoordinator,
@@ -82,6 +82,9 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 			const abortSignal = toAbortSignal(signal, lifetime);
 			abortSignal.throwIfAborted();
 
+			if (!this._rawBaseUri) {
+				throw new GitHubRequestError('GitHub raw-content endpoint is not configured for this host.', 'validation');
+			}
 			const requestOptions: GitHubAnonymousReadOptions = { ...options, deadline: options.deadline ?? Date.now() + 5 * 60_000 };
 			const repositoryPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 
@@ -89,35 +92,27 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 			abortSignal.throwIfAborted();
 			const commitSha = requiredSha(asObject(commitResponse.data, 'GitHub returned an invalid repository revision.'), 'sha');
 
-			const fileResponse = await this.get<unknown>(`${repositoryPath}/contents/${encodePathSegments(path)}?ref=${commitSha}`, abortSignal, requestOptions);
+			const base = new URL(`${this._rawBaseUri}/`);
+			const root = new URL(`${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${commitSha}/`, base);
+			const url = new URL(encodePathSegments(path), root);
+			if (root.origin !== base.origin || !root.pathname.startsWith(base.pathname)
+				|| url.origin !== root.origin || !url.pathname.startsWith(root.pathname) || url.pathname === root.pathname) {
+				throw new GitHubRequestError('GitHub file path escaped its pinned repository revision.', 'validation');
+			}
+			const file = await this._transport.anonymousDownload({ kind: 'anonymous', host: root.host, origin: root.origin }, root.pathname, {
+				url: url.href,
+				maximumBytes: 1024 * 1024,
+				timeout: 5 * 60_000,
+				caller: requestOptions.caller,
+				priority: requestOptions.priority,
+				deadline: requestOptions.deadline,
+			}, abortSignal);
 			abortSignal.throwIfAborted();
-			const file = asObject(fileResponse.data, 'GitHub returned an invalid repository file.');
-			if (requiredString(file, 'type') !== 'file' || requiredString(file, 'encoding') !== 'base64') {
-				throw new GitHubRequestError('GitHub did not return a base64-encoded repository file.', 'malformedResponse');
+			if (file.truncated) {
+				throw new GitHubRequestError('GitHub repository file exceeded its byte limit.', 'responseTooLarge');
 			}
 
-			const size = requiredInteger(file, 'size', 0, 1024 * 1024);
-			const encoded = requiredString(file, 'content').replace(/\s/g, '');
-			const invalidContent = 'GitHub returned invalid base64 repository file contents.';
-			if (encoded.length !== Math.ceil(size / 3) * 4) {
-				throw new GitHubRequestError(invalidContent, 'malformedResponse');
-			}
-
-			let decoded: VSBuffer;
-			try {
-				decoded = decodeBase64(encoded);
-			} catch (error) {
-				if (!(error instanceof SyntaxError)) {
-					throw error;
-				}
-				throw new GitHubRequestError(invalidContent, 'malformedResponse');
-			}
-
-			if (decoded.byteLength !== size) {
-				throw new GitHubRequestError(invalidContent, 'malformedResponse');
-			}
-
-			return { commitSha, content: decoded.toString() };
+			return { commitSha, content: file.text };
 		} finally {
 			lifetime.dispose();
 		}

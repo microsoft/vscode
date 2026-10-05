@@ -147,15 +147,20 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return { object: client, dispose: () => release.dispose() };
 	}
 
-	acquireAnonymousClient(options: GitHubAnonymousClientOptions = { apiBaseUri: deriveGitHubEndpoints(undefined).apiBaseUri }): IReference<IGitHubAnonymousClient> {
+	acquireAnonymousClient(options: GitHubAnonymousClientOptions = deriveGitHubEndpoints(undefined)): IReference<IGitHubAnonymousClient> {
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
 		}
-		const key = normalizeReadApiBaseUri(options.apiBaseUri);
+		const apiBaseUri = normalizeReadApiBaseUri(options.apiBaseUri);
+		const defaults = deriveGitHubEndpoints(undefined);
+		const rawBaseUri = options.rawBaseUri !== undefined
+			? normalizeReadApiBaseUri(options.rawBaseUri)
+			: apiBaseUri === defaults.apiBaseUri ? defaults.rawBaseUri : undefined;
+		const key = JSON.stringify([apiBaseUri, rawBaseUri]);
 		let client = this._anonymousClients.get(key);
 		if (!client) {
 			this._ensureClientCapacity();
-			client = new GitHubAnonymousClient(key, this._options, this._queue, this._rateLimits, this._telemetry, this._logService);
+			client = new GitHubAnonymousClient(apiBaseUri, rawBaseUri, this._options, this._queue, this._rateLimits, this._telemetry, this._logService);
 			this._anonymousClients.set(key, client);
 		}
 		const retained = client;

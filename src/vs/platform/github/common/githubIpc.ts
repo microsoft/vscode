@@ -18,7 +18,7 @@ import { RequestErrorKind } from './types.js';
 export const GITHUB_CHANNEL_NAME = 'github';
 export const ISharedProcessGitHubService = createDecorator<ISharedProcessGitHubService>('sharedProcessGitHubService');
 
-export interface GitHubAnonymousRequest extends GitHubAnonymousClientOptions {
+export interface GitHubAnonymousRequest extends Pick<GitHubAnonymousClientOptions, 'apiBaseUri'> {
 	readonly path: string;
 	readonly options?: GitHubAnonymousReadOptions;
 }

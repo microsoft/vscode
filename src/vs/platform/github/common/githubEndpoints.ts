@@ -10,6 +10,8 @@ import { GitHubRequestError } from './githubTypes.js';
 export interface IGitHubEndpoints {
 	/** REST API base (e.g. `https://api.github.com`). */
 	readonly apiBaseUri: string;
+	/** Raw-content base when known; custom hosts may configure it explicitly. */
+	readonly rawBaseUri?: string;
 	/** GraphQL endpoint (distinct from `apiBaseUri` for on-prem: `/api/graphql`, not `/api/v3/graphql`). */
 	readonly graphQlUri: string;
 	/** OAuth authorization server URI. */
@@ -27,6 +29,7 @@ export const GITHUB_DOT_COM_COPILOT_API_BASE_URI = 'https://api.githubcopilot.co
 /** Canonical github.com endpoints, used when no enterprise URI is configured. */
 const GITHUB_DOT_COM_ENDPOINTS: IGitHubEndpoints = {
 	apiBaseUri: 'https://api.github.com',
+	rawBaseUri: 'https://raw.githubusercontent.com',
 	graphQlUri: 'https://api.github.com/graphql',
 	oauthServer: 'https://github.com/login/oauth',
 	enterpriseHost: undefined,

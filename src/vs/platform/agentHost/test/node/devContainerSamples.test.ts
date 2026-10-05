@@ -7,7 +7,6 @@ import assert from 'assert';
 import { createHash } from 'crypto';
 import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
@@ -100,10 +99,7 @@ suite('Dev Container samples', () => {
 				const url = String(input);
 				fetchedUrls.push(url);
 				calls.push(url.includes('/commits/') ? 'commit' : 'config');
-				const content = VSBuffer.fromString(JSON.stringify(config));
-				return new Response(JSON.stringify(url.includes('/commits/') ? { sha: commit } : {
-					type: 'file', encoding: 'base64', size: content.byteLength, content: encodeBase64(content), sha: 'b'.repeat(40),
-				}));
+				return new Response(JSON.stringify(url.includes('/commits/') ? { sha: commit } : config));
 			},
 		}, new NullLogService(), NullTelemetryService));
 		let existing = false;
@@ -160,7 +156,7 @@ suite('Dev Container samples', () => {
 		}, {
 			calls: ['commit', 'config', 'volume ls', 'volume create', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks',
 				'volume ls', 'volume inspect', 'up (skip hooks)', 'started container', 'clone', 'read config', 'hooks'],
-			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://api.github.com/repos/microsoft/${folder}/contents/.devcontainer/devcontainer.json?ref=${commit}`],
+			fetchedUrls: [`https://api.github.com/repos/microsoft/${folder}/commits/HEAD`, `https://raw.githubusercontent.com/microsoft/${folder}/${commit}/.devcontainer/devcontainer.json`],
 			cloneUsesLowercaseUrl: [true, true],
 			cloneUsesPinnedCommit: [true, true],
 			sameIdentity: true,
