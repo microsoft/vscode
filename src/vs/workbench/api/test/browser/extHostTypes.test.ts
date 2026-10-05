@@ -11,7 +11,9 @@ import { isWindows } from '../../../../base/common/platform.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { AbstractExtHostExtensionService } from '../../common/extHostExtensionService.js';
 import * as types from '../../common/extHostTypes.js';
 
 function assertToJSON(a: any, expected: any) {
@@ -815,6 +817,29 @@ suite('ExtHostTypes', function () {
 			assert.ok(err._message?.includes(String(port)));
 		}
 		assert.strictEqual(types.validateResolvedAuthorityPort({ host: 'localhost', port: 8080 }, 'test+authority'), undefined);
+	});
+
+	test('$resolveAuthority rejects structural resolver result with invalid port', async () => {
+		// ponytail: prototype seam avoids full service DI; exercises actual $resolveAuthority wiring
+		const resolveWithPort = (port: unknown) => {
+			const service = Object.create(AbstractExtHostExtensionService.prototype);
+			service._logService = new NullLogService();
+			service._register = (x: any) => x;
+			service._extHostTunnelService = { setTunnelFactory: async () => undefined };
+			service._extHostManagedSockets = { setFactory: () => { } };
+			service._activateAndGetResolver = async () => ({
+				authorityPrefix: 'test',
+				resolver: { resolve: async () => ({ host: 'localhost', port }) }
+			});
+			return AbstractExtHostExtensionService.prototype.$resolveAuthority.call(service, 'test+authority', 1);
+		};
+
+		const invalid: any = await resolveWithPort(-1);
+		assert.strictEqual(invalid.type, 'error');
+		assert.strictEqual(invalid.error.code, RemoteAuthorityResolverErrorCode.InvalidAuthority);
+
+		const valid: any = await resolveWithPort(8080);
+		assert.strictEqual(valid.type, 'ok');
 	});
 
 	test('ResolvedAuthority.isResolvedAuthority port validation', () => {
