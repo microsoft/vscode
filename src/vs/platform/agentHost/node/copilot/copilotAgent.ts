@@ -81,9 +81,9 @@ import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomiza
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
+import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { readSessionAdditionalWorktrees } from '../shared/sessionAdditionalWorktrees.js';
-import { IByokLmProxyService } from './byokLmProxyService.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -314,15 +314,15 @@ interface IWorkingDirectoryMetadataSnapshot {
 }
 
 interface IWorkingDirectoryChangeTransactionOptions {
-	readonly updateCustomizationAnchor?: boolean;
-	readonly sharedCustomizationDirectories?: readonly URI[];
 	readonly resource: URI;
-	readonly previousMetadata: IWorkingDirectoryMetadataSnapshot;
 	readonly activeClient: ActiveClient;
 	readonly workingDirectory: URI;
 	readonly previousWorkingDirectory: URI;
 	readonly previousCustomizationDirectory: URI;
 	readonly previousCustomizationAdditionalDirectories: readonly URI[];
+	readonly previousMetadata: IWorkingDirectoryMetadataSnapshot;
+	readonly updateCustomizationAnchor?: boolean;
+	readonly sharedCustomizationDirectories?: readonly URI[];
 }
 
 /** Stable empty host-customization snapshot used before the host publishes one. */
@@ -1683,17 +1683,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 				const previousCustomizationDirectory = activeClient.pluginController.directory ?? previousWorkingDirectory;
 				const previousCustomizationAdditionalDirectories = [...activeClient.pluginController.additionalDirectories];
 				const transaction = this._createWorkingDirectoryChangeTransaction({
-					updateCustomizationAnchor: !chatOnly || replaceSessionWorkspace,
-					sharedCustomizationDirectories: chatOnly && !replaceSessionWorkspace && isEqual(resource, configurationResource)
-						? [previousCustomizationDirectory, ...previousCustomizationAdditionalDirectories]
-						: undefined,
 					resource,
-					previousMetadata: storedMetadata.snapshot,
 					activeClient,
 					workingDirectory,
 					previousWorkingDirectory,
 					previousCustomizationDirectory,
 					previousCustomizationAdditionalDirectories,
+					previousMetadata: storedMetadata.snapshot,
+					updateCustomizationAnchor: !chatOnly || replaceSessionWorkspace,
+					sharedCustomizationDirectories: chatOnly && !replaceSessionWorkspace && isEqual(resource, configurationResource)
+						? [previousCustomizationDirectory, ...previousCustomizationAdditionalDirectories]
+						: undefined,
 				});
 				await entry.setWorkingDirectory(workingDirectory, transaction);
 			});

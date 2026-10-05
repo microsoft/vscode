@@ -2326,23 +2326,21 @@ suite('CodexAgent workspace conversion', () => {
 		}, { main: scratch.fsPath, peer: folder.fsPath, mainMetadata: scratch.fsPath });
 	});
 
-	for (const restriction of ['mainChatOnly', 'topLevelChatOnly'] as const) {
-		test(`native worker root routing cannot execute a ${restriction} server tool`, async () => {
-			const { agent, entry } = await createWorkspaceHarness();
-			let calls = 0;
-			const definition: IAgentServerToolDefinition = { name: 'main_only', [restriction]: true, inputSchema: { type: 'object' } };
-			agent.setServerToolHost({
-				...createRecordingServerToolHost([]),
-				definitions: [definition],
-				toolNames: [definition.name],
-				getDefinitionsForSession: () => [definition],
-				executeTool: () => { calls++; return ''; },
-			});
-			agent['_sessionIdByThreadId'].set('native-child', entry.sessionId);
-			const response = await agent['_handleDynamicToolCallRpc']({ threadId: 'native-child', turnId: 'child-turn', callId: 'child-call', tool: definition.name, namespace: null, arguments: {} });
-			assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
+	test('native worker root routing cannot execute a topLevelChatOnly server tool', async () => {
+		const { agent, entry } = await createWorkspaceHarness();
+		let calls = 0;
+		const definition: IAgentServerToolDefinition = { name: 'top_level_only', topLevelChatOnly: true, inputSchema: { type: 'object' } };
+		agent.setServerToolHost({
+			...createRecordingServerToolHost([]),
+			definitions: [definition],
+			toolNames: [definition.name],
+			getDefinitionsForSession: () => [definition],
+			executeTool: () => { calls++; return ''; },
 		});
-	}
+		agent['_sessionIdByThreadId'].set('native-child', entry.sessionId);
+		const response = await agent['_handleDynamicToolCallRpc']({ threadId: 'native-child', turnId: 'child-turn', callId: 'child-call', tool: definition.name, namespace: null, arguments: {} });
+		assert.deepStrictEqual({ calls, success: response.result?.success }, { calls: 0, success: false });
+	});
 
 	for (const notificationFirst of [false, true]) {
 		test(`preserves the thread and history when settings arrive ${notificationFirst ? 'before' : 'after'} acknowledgement`, async () => {

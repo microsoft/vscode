@@ -98,7 +98,6 @@ import { ArtifactServerToolName, SessionServerToolName } from '../../common/serv
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
-import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -18395,7 +18394,6 @@ Use the attached image as context.
 		class FakeServerToolHost implements IAgentServerToolHost {
 			readonly toolNames: readonly string[];
 			readonly advertised: string[] = [];
-			readonly definitionRequests: Array<{ sessionUri: string; chatUri: string | undefined }> = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
 			readonly confirmationToolNames = new Set<string>();
 			readonly sessionConfirmationToolNames = new Set<string>();
@@ -18410,10 +18408,7 @@ Use the attached image as context.
 				this.advertised.push(sessionUri);
 			}
 
-			getDefinitionsForSession(sessionUri: string, chatUri?: string): readonly IAgentServerToolDefinition[] {
-				this.definitionRequests.push({ sessionUri, chatUri });
-				return this.definitions;
-			}
+			getDefinitionsForSession(): readonly IAgentServerToolDefinition[] { return this.definitions; }
 
 			canRequireConfirmation(toolName: string): boolean { return this.confirmationToolNames.has(toolName); }
 
@@ -18574,55 +18569,41 @@ Use the attached image as context.
 			assert.deepStrictEqual(runtime.createServerSdkTools().map(tool => tool.name), ['ephemeralServerTool']);
 		});
 
-		test('addresses server tool discovery to the exact peer chat', async () => {
-			const sessionUri = AgentSession.uri('copilot', 'test-session-1');
-			const chatChannelUri = URI.parse(buildChatUri(sessionUri, 'peer'));
-			const serverToolHost = new FakeServerToolHost();
-			const { runtime } = await createAgentSession(disposables, { serverToolHost, sessionUri, chatChannelUri });
-			serverToolHost.definitionRequests.length = 0;
-
-			runtime.createServerSdkTools();
-
-			assert.deepStrictEqual(serverToolHost.definitionRequests, [{ sessionUri: sessionUri.toString(), chatUri: chatChannelUri.toString() }]);
-		});
-
-		for (const restriction of ['mainChatOnly', 'topLevelChatOnly'] as const) {
-			test(`rejects inherited ${restriction} tools from native workers and unknown origins`, async () => {
-				const serverToolHost = new FakeServerToolHost([{ name: 'mainOnly', [restriction]: true }]);
-				const { session, runtime, mockSession } = await createAgentSession(disposables, { serverToolHost });
-				session.resetTurnState('turn-main-only');
-				const tool = runtime.createServerSdkTools()[0];
-				mockSession.fire('subagent.started', {
-					toolCallId: 'worker-task',
-					agentName: 'helper',
-					agentDisplayName: 'Helper',
-					agentDescription: 'Helps',
-				} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'worker-agent' });
-				for (const [toolCallId, agentId] of [['worker-tool', 'worker-agent'], ['unknown-worker-tool', 'unmapped-agent']]) {
-					mockSession.fire('tool.execution_start', {
-						toolCallId, toolName: 'mainOnly', arguments: {},
-					} as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
-				}
-				const results = await Promise.all(['worker-tool', 'unknown-worker-tool', 'missing-origin'].map(toolCallId => invokeClientToolHandler(tool, toolCallId)));
+		test('rejects inherited topLevelChatOnly tools from native workers and unknown origins', async () => {
+			const serverToolHost = new FakeServerToolHost([{ name: 'topLevelOnly', topLevelChatOnly: true }]);
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { serverToolHost });
+			session.resetTurnState('turn-top-level-only');
+			const tool = runtime.createServerSdkTools()[0];
+			mockSession.fire('subagent.started', {
+				toolCallId: 'worker-task',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'worker-agent' });
+			for (const [toolCallId, agentId] of [['worker-tool', 'worker-agent'], ['unknown-worker-tool', 'unmapped-agent']]) {
 				mockSession.fire('tool.execution_start', {
-					toolCallId: 'root-tool', toolName: 'mainOnly', arguments: {},
-				} as SessionEventPayload<'tool.execution_start'>['data']);
-				const rootResult = await invokeClientToolHandler(tool, 'root-tool');
-				assert.deepStrictEqual({
-					workerResults: results.map(result => result.resultType),
-					rootResult: rootResult.resultType,
-					executions: serverToolHost.executions,
-				}, {
-					workerResults: ['failure', 'failure', 'failure'],
-					rootResult: 'success',
-					executions: [{
-						sessionUri: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-						toolName: 'mainOnly',
-						rawArgs: {},
-					}],
-				});
+					toolCallId, toolName: 'topLevelOnly', arguments: {},
+				} as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+			}
+			const results = await Promise.all(['worker-tool', 'unknown-worker-tool', 'missing-origin'].map(toolCallId => invokeClientToolHandler(tool, toolCallId)));
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'root-tool', toolName: 'topLevelOnly', arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const rootResult = await invokeClientToolHandler(tool, 'root-tool');
+			assert.deepStrictEqual({
+				workerResults: results.map(result => result.resultType),
+				rootResult: rootResult.resultType,
+				executions: serverToolHost.executions,
+			}, {
+				workerResults: ['failure', 'failure', 'failure'],
+				rootResult: 'success',
+				executions: [{
+					sessionUri: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
+					toolName: 'topLevelOnly',
+					rawArgs: {},
+				}],
 			});
-		}
+		});
 
 		test('server tool handler routes to the host and returns a success result', async () => {
 			const serverToolHost = new FakeServerToolHost();
@@ -18695,47 +18676,6 @@ Use the attached image as context.
 				pendingConfirmations: 0,
 			});
 		});
-
-		for (const target of ['single', 'main', 'peer'] as const) {
-			test(`isolation confirmation uses live session context for the ${target} chat`, async () => {
-				const sessionUri = AgentSession.uri('copilot', 'test-session-1');
-				const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
-				stateManager.createSession({
-					resource: sessionUri.toString(), provider: 'copilot', title: 'Isolation', status: SessionStatus.Idle,
-					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
-				});
-				const peer = buildChatUri(sessionUri, 'peer');
-				if (target !== 'single') {
-					stateManager.addChat(sessionUri.toString(), peer);
-				}
-				const chatChannelUri = URI.parse(target === 'peer' ? peer : buildDefaultChatUri(sessionUri));
-				const serverToolHost = new AgentServerToolHost(stateManager, [createSessionIsolationToolGroup({
-					supportsChatIsolation: () => true,
-					requestChatIsolation: () => { },
-				})]);
-				const { session, runtime, waitForSignal } = await createAgentSession(disposables, { serverToolHost, sessionUri, chatChannelUri });
-				const permission = runtime.handlePermissionRequest({
-					kind: 'custom-tool', toolCallId: 'tc-isolate', toolName: SessionServerToolName.IsolateSession, args: {},
-				});
-				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'tc-isolate');
-				assert.ok(signal.kind === 'pending_confirmation');
-				session.respondToPermissionRequest('tc-isolate', false);
-				await permission;
-				assert.deepStrictEqual({
-					chat: signal.chat.toString(),
-					message: signal.state.invocationMessage,
-					title: signal.state.confirmationTitle,
-					input: signal.state.toolInput,
-				}, {
-					chat: chatChannelUri.toString(),
-					message: target === 'single'
-						? 'Change this chat\'s workspace to a new worktree? The original folder is left unchanged. Uncommitted edits are not copied, except configured worktree include-files.'
-						: 'Change only this chat\'s workspace to a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.',
-					title: 'Change Workspace?',
-					input: undefined,
-				});
-			});
-		}
 
 		test('requests confirmation when a server tool has content to confirm', async () => {
 			const serverToolHost = new FakeServerToolHost();

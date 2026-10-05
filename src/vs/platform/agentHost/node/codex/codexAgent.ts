@@ -2841,8 +2841,8 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link _handleDynamicToolCallRpc} by name.
 	 */
 	private _buildDynamicTools(session: ICodexSession): DynamicToolSpec[] | undefined {
-		const serverTools = (this._serverToolHost?.getDefinitionsForSession(session.configurationResource.toString(), session.chatChannel?.toString()) ?? [])
-			.filter(tool => !(tool.mainChatOnly || tool.topLevelChatOnly) || !!session.chatChannel);
+		const serverTools = (this._serverToolHost?.getDefinitionsForSession(session.configurationResource.toString()) ?? [])
+			.filter(tool => !tool.topLevelChatOnly || !!session.chatChannel);
 		const clientTools = session.clientToolSet.merged();
 		// Server tools first; a server tool name shadows a colliding client tool
 		// (the agent host owns those names) and matches the routing order below.
@@ -2886,10 +2886,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (host && params.namespace === null && host.toolNames.includes(params.tool)) {
 			try {
 				const definition = host.definitions.find(tool => tool.name === params.tool);
-				if ((definition?.mainChatOnly || definition?.topLevelChatOnly) && (session.threadId !== params.threadId
+				if (definition?.topLevelChatOnly && (session.threadId !== params.threadId
 					|| this._subagentsByThreadId.has(params.threadId)
-					|| !host.getDefinitionsForSession(session.configurationResource.toString(), session.chatChannel?.toString()).some(tool => tool.name === params.tool))) {
-					return { result: this._toolFailure(`Server tool ${params.tool} is only available to the main chat`) };
+					|| !host.getDefinitionsForSession(session.configurationResource.toString()).some(tool => tool.name === params.tool))) {
+					return { result: this._toolFailure(`Server tool ${params.tool} is only available to top-level chats`) };
 				}
 				const chatChannel = session.chatChannel?.toString();
 				if (!chatChannel) {
@@ -2902,7 +2902,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
-					const display = host.getDisplay?.(chatChannel, params.tool, params.arguments) ?? getServerToolDisplay(params.tool, params.arguments);
+					const display = getServerToolDisplay(params.tool, params.arguments);
 					const invocationMessage = display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
 					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 						this._fire(session.sessionUri, {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
+import { raceTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -58,6 +58,7 @@ import { INewSessionComposerService } from '../../../chat/browser/newSessionComp
 
 /** Storage key prefix for cached session summaries, per remote address. */
 const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v4.';
+const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
 const DEV_CONTAINER_IDLE_POLL_INTERVAL_MS = 60 * 1000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
 const CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY = ['remoteAgentHost.cachedSessions.v3.', 'remoteAgentHost.cachedSessions.v2.', 'remoteAgentHost.cachedSessions.'];
@@ -407,14 +408,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (!this.connection) {
 			return;
 		}
-		// Resolve the handle up front: a dropped connection clears the session metadata the rollback would need.
-		const handle = this._getDetachedWorktreeHandle(sessionId);
-		await this._setDetachedWorktreeArchived(sessionId, true, handle);
-		try {
-			await super.archiveSession(sessionId);
-		} catch (error) {
-			await this._setDetachedWorktreeArchived(sessionId, false, handle);
-			throw error;
+		await this._setDetachedWorktreeArchived(sessionId, true);
+		if (!this._setSessionArchived(sessionId, true)) {
+			await this._setDetachedWorktreeArchived(sessionId, false);
 		}
 	}
 
@@ -488,34 +484,38 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
 		}
 		const subscription = connection.getSubscription(StateComponents.Session, backendUri, 'RemoteAgentHostSessionsProvider.archive');
-		const channel = backendUri.toString();
+		const confirmationAction = Event.toPromise(Event.filter(connection.onDidAction, envelope =>
+			envelope.channel === backendUri.toString()
+			&& envelope.action.type === ActionType.SessionIsArchivedChanged
+			&& envelope.action.isArchived === archived
+		));
 		try {
-			if (!this._setSessionArchivedLocally(sessionId, archived)) {
+			let timedOut = false;
+			const confirmation = raceTimeout(
+				confirmationAction,
+				DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS,
+				() => timedOut = true,
+			);
+			if (!this._setSessionArchived(sessionId, archived)) {
 				throw new Error(archived
 					? localize('devContainerAgentHost.archiveDisconnected', "Unable to archive Dev Container session '{0}' while disconnected.", sessionId)
 					: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
 			}
-			const outcome = await this._dispatchArchive(
-				connection,
-				subscription.object,
-				envelope => envelope.channel === channel
-					&& envelope.action.type === ActionType.SessionIsArchivedChanged
-					&& envelope.action.isArchived === archived,
-				() => connection.dispatch(channel, { type: ActionType.SessionIsArchivedChanged as const, isArchived: archived }),
-			);
-			if (outcome.status === 'rejected') {
+			const confirmationEnvelope = await confirmation;
+			if (confirmationEnvelope?.rejectionReason) {
 				this._setSessionArchivedLocally(sessionId, !archived);
 				throw new Error(archived
-					? localize('devContainerAgentHost.archiveRejected', "Unable to archive Dev Container session '{0}': {1}", sessionId, outcome.reason)
-					: localize('devContainerAgentHost.unarchiveRejected', "Unable to unarchive Dev Container session '{0}': {1}", sessionId, outcome.reason));
+					? localize('devContainerAgentHost.archiveRejected', "Unable to archive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason)
+					: localize('devContainerAgentHost.unarchiveRejected', "Unable to unarchive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason));
 			}
-			if (outcome.status === 'timedOut') {
+			if (timedOut) {
 				this._setSessionArchivedLocally(sessionId, !archived);
 				throw new Error(archived
 					? localize('devContainerAgentHost.archiveTimeout', "Timed out waiting for Dev Container session '{0}' to be archived.", sessionId)
 					: localize('devContainerAgentHost.unarchiveTimeout', "Timed out waiting for Dev Container session '{0}' to be unarchived.", sessionId));
 			}
 		} finally {
+			confirmationAction.cancel();
 			subscription.dispose();
 		}
 	}
@@ -678,8 +678,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return readAgentDevContainerWorktreeMetadata(this._getSessionMetadata(sessionId))?.handle;
 	}
 
-	private async _setDetachedWorktreeArchived(sessionId: string, archived: boolean, handle = this._getDetachedWorktreeHandle(sessionId)): Promise<void> {
+	private async _setDetachedWorktreeArchived(sessionId: string, archived: boolean): Promise<void> {
 		// TODO: Resolve experimental Dev Container worktree ownership across all sessions sharing this provider.
+		const handle = this._getDetachedWorktreeHandle(sessionId);
 		if (!handle) {
 			return;
 		}

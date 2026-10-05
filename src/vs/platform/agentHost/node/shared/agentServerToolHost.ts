@@ -3,13 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgentServerToolDefinition, IAgentServerToolHost, IServerToolDisplay } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type SessionState, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
-
-export type { IServerToolDisplay } from '../../common/agentServerTools.js';
 
 export const IAgentHostServerToolService = createDecorator<IAgentHostServerToolService>('agentHostServerToolService');
 
@@ -28,6 +26,28 @@ export interface IServerToolDisplayResult {
 	readonly text?: string;
 	/** Whether the tool completed successfully. */
 	readonly success: boolean;
+}
+
+/**
+ * Display strings for a server tool, authored by the group that owns the tool
+ * so every provider renders it identically (instead of each provider's display
+ * layer re-deriving the strings from the tool name). Each field is optional: a
+ * provider uses the returned value where present and falls back to its own
+ * generic display otherwise.
+ */
+export interface IServerToolDisplay {
+	/** Human-readable tool name (e.g. "List Comments"). */
+	readonly displayName?: string;
+	/** Message shown while the tool runs (e.g. "List comments"). */
+	readonly invocationMessage?: StringOrMarkdown;
+	/** Past-tense message shown once the tool completes. When omitted, the provider reuses `invocationMessage`. */
+	readonly pastTenseMessage?: StringOrMarkdown;
+	/** Short title shown when the tool requires confirmation. */
+	readonly confirmationTitle?: string;
+	/** Plain-language description of the decision shown when the tool requires confirmation. */
+	readonly confirmationMessage?: StringOrMarkdown;
+	/** Whether the generic raw-input preview should be omitted from the confirmation. */
+	readonly hideConfirmationInput?: boolean;
 }
 
 export interface IServerToolExecutionContext {
@@ -107,12 +127,11 @@ export interface IServerToolGroup {
 	 * its {@link IServerToolDisplayResult result}. Returns `undefined` (or
 	 * individually-absent fields) to let the provider fall back to its generic
 	 * display. Optional: a group without bespoke display omits this.
-	 * Live confirmations also receive the owning session; history replay does not.
 	 *
 	 * `toolName` is the bare tool name (the provider strips any transport
 	 * prefix such as Claude's `mcp__<server>__` before calling).
 	 */
-	getDisplay?(toolName: string, args: unknown, result?: IServerToolDisplayResult, session?: SessionState): IServerToolDisplay | undefined;
+	getDisplay?(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined;
 }
 
 /**
@@ -170,7 +189,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		return this._groups.flatMap(group => (group.getDefinitions?.() ?? group.definitions).filter(definition => group.isEnabled(definition.name)));
 	}
 
-	getDefinitionsForSession(sessionUri: URI, chatUri: URI = buildDefaultChatUri(sessionUri)): readonly IAgentServerToolDefinition[] {
+	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
 		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
 		return this._groups.flatMap<IAgentServerToolDefinition>(group => {
@@ -192,8 +211,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 				.filter(definition => group.isEnabled(definition.name, sessionUri) && group.isEnabledForSession(definition.name, sessionUri))
 				.map(definition => group.getDefinitionForSession?.(definition, sessionUri) ?? definition);
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
-		}).filter(definition => (!definition.mainChatOnly || this._isOwningChat(sessionUri, chatUri))
-			&& (!definition.topLevelChatOnly || !isSubagentSession(sessionUri)));
+		}).filter(definition => !definition.topLevelChatOnly || !isSubagentSession(sessionUri));
 	}
 
 	get toolNames(): readonly string[] {
@@ -223,11 +241,6 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		const group = this._groupByToolName.get(toolName);
 		const name = this._currentToolName(toolName);
 		return group?.isEnabled(name) === true && (group.canRequireConfirmation?.(name) ?? false);
-	}
-
-	getDisplay(chatUri: URI, toolName: string, args: unknown): IServerToolDisplay | undefined {
-		const session = this._stateManager.getSessionState(parseRequiredSessionUriFromChatUri(chatUri));
-		return this._groupByToolName.get(toolName)?.getDisplay?.(this._currentToolName(toolName), args, undefined, session);
 	}
 
 	requiresConfirmation(chatUri: URI, toolName: string): boolean {
@@ -262,18 +275,11 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, mainChatOnly: _mainChatOnly, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
-	}
-
-	private _isOwningChat(sessionUri: URI, chatUri: URI): boolean {
-		return !isSubagentSession(sessionUri) && isDefaultChatUri(chatUri) && parseRequiredSessionUriFromChatUri(chatUri) === sessionUri;
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
 		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
-		if (group.definitions.find(definition => definition.name === toolName)?.mainChatOnly && !this._isOwningChat(sessionUri, chatUri)) {
-			return false;
-		}
 		if (group.definitions.find(definition => definition.name === toolName)?.topLevelChatOnly && isSubagentSession(sessionUri)) {
 			return false;
 		}

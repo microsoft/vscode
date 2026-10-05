@@ -36,7 +36,7 @@ export class AgentHostStartError extends Error {
 	}
 }
 
-/** Reports an unsafe CWD mutation; the directory must be retained while the host quarantines the session. */
+/** Reports a provider CWD error after the new directory became irreversible and authoritative. */
 export class AgentWorkingDirectoryChangedError extends Error {
 	constructor(
 		readonly workingDirectory: URI,

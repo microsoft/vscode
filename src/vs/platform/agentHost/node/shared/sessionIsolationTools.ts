@@ -25,14 +25,12 @@ export function createSessionIsolationToolGroup(accessor?: ISessionIsolationTool
 		isEnabled: () => true,
 		isEnabledForSession: (_tool, session) => accessor?.supportsChatIsolation(URI.parse(session)) === true,
 		canRequireConfirmation: () => true,
-		getDisplay: (_tool, _args, _result, session) => ({
+		getDisplay: () => ({
 			displayName: localize('isolateSession.name', "Change Workspace to a New Worktree"),
 			invocationMessage: localize('isolateSession.invocation', "Requesting a workspace change to a new worktree"),
 			pastTenseMessage: localize('isolateSession.complete', "Requested a workspace change to a new worktree"),
 			confirmationTitle: localize('isolateSession.confirmTitle', "Change Workspace?"),
-			confirmationMessage: session && session.chats.length > 1
-				? localize('isolateSession.confirm', "Change only this chat's workspace to a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.")
-				: localize('isolateSession.confirmSingleChat', "Change this chat's workspace to a new worktree? The original folder is left unchanged. Uncommitted edits are not copied, except configured worktree include-files."),
+			confirmationMessage: localize('isolateSession.confirm', "Change only this chat's workspace to a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files."),
 			hideConfirmationInput: true,
 		}),
 		execute: (_stateManager, context, _tool, args) => {

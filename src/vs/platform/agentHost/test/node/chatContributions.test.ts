@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -911,7 +911,6 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		onDidChangePendingSession: Event.None,
 		supportsChatIsolation: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
@@ -987,10 +986,8 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 	);
 	let conversionPending = false;
-	const conversionChanges = disposables.add(new Emitter<string>());
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		onDidChangePendingSession: conversionChanges.event,
 		supportsChatIsolation: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
@@ -999,10 +996,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 		isPending: () => conversionPending,
 		isConversionTurn: () => false,
 		cancel: () => {
-			if (conversionPending) {
-				conversionPending = false;
-				conversionChanges.fire(session);
-			}
+			conversionPending = false;
 		},
 		updateSessionWorkspace: async () => { },
 	});
@@ -1037,7 +1031,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => { conversionPending = pending; conversionChanges.fire(session); } };
+	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {

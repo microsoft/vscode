@@ -128,7 +128,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _syncPendingMessages(channel: ProtocolURI): void {
-		const state = this._stateManager.getChatState(channel);
+		const state = this._stateManager.getSessionState(channel);
 		if (!state) {
 			return;
 		}
@@ -153,7 +153,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (this._stateManager.getActiveTurnId(channel)) {
 			return;
 		}
-		const state = this._stateManager.getChatState(channel);
+		const state = this._stateManager.getSessionState(channel);
 		if (!state?.queuedMessages?.length || state.steeringMessage) {
 			return;
 		}

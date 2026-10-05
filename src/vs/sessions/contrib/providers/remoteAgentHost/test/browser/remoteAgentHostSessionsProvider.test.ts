@@ -153,11 +153,9 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	}
 
 	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
-		const clientSeq = this._nextSeq++;
-		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq });
-		// Like the real host, only answer a channel whose subscription is already active.
-		if (this.echoDispatchedActions && !this.inactiveArchiveChannels.has(channel)) {
-			queueMicrotask(() => this.fireAction({ channel, action, serverSeq: this._nextSeq++, origin: { clientId: this.clientId, clientSeq }, rejectionReason: this.dispatchedActionRejectionReason } as ActionEnvelope));
+		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+		if (this.echoDispatchedActions) {
+			queueMicrotask(() => this.fireAction({ channel, action, serverSeq: this._nextSeq++, origin: undefined, rejectionReason: this.dispatchedActionRejectionReason } as ActionEnvelope));
 		}
 	}
 
@@ -178,27 +176,16 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	 * does: the reference resolves, then settles into an error state via `onDidError`.
 	 */
 	public readonly failNextSessionSubscribe = new Set<string>();
-	/**
-	 * Channels whose archive subscription has not received its initial snapshot yet: its value
-	 * stays `undefined` and the host drops envelopes for it until {@link activateArchiveChannel}.
-	 */
-	public readonly inactiveArchiveChannels = new Set<string>();
-	private readonly _onDidActivateArchiveChannel = new Emitter<string>();
 
-	activateArchiveChannel(channel: string): void {
-		this.inactiveArchiveChannels.delete(channel);
-		this._onDidActivateArchiveChannel.fire(channel);
-	}
-
-	override getSubscription<T>(_kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
+	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
 		if (isAhpAutomationCatalogChannel(key) && !this._sessionStateValues.has(key)) {
 			this._sessionStateValues.set(key, { entries: [] });
 		}
-		return this._getSubscription<T>(key, owner.endsWith('.archive'));
+		return this._getSubscription<T>(key);
 	}
 
-	private _getSubscription<T>(key: string, isArchiveSubscription = false): IReference<IAgentSubscription<T>> {
+	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
 		if (!emitter) {
@@ -213,15 +200,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		const failing = this.failNextSessionSubscribe.delete(key);
 		const self = this;
 		let error: Error | undefined;
-		// An archive subscription models a session the host has loaded unless the test holds its snapshot back.
-		const archiveSnapshot = isArchiveSubscription ? Object.freeze({}) as unknown as SessionState : undefined;
-		const readValue = () => (error ?? self._sessionStateValues.get(key) ?? (archiveSnapshot && !self.inactiveArchiveChannels.has(key) ? archiveSnapshot : undefined));
 		const sub: IAgentSubscription<T> = {
-			get value() { return readValue() as unknown as T | Error | undefined; },
+			get value() { return (error ?? self._sessionStateValues.get(key)) as unknown as T | Error | undefined; },
 			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
-			onDidChange: (archiveSnapshot
-				? Event.any(emitter.event, Event.map(Event.filter(self._onDidActivateArchiveChannel.event, channel => channel === key), () => archiveSnapshot))
-				: emitter.event) as unknown as Event<T>,
+			onDidChange: emitter.event as unknown as Event<T>,
 			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
@@ -267,7 +249,6 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
-		this._onDidActivateArchiveChannel.dispose();
 		this._onDidRootStateChange.dispose();
 		for (const emitter of this._sessionStateEmitters.values()) {
 			emitter.dispose();
@@ -2159,30 +2140,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('rolls back the detached worktree archive when the host archive cannot be dispatched', async () => {
-		const handle = '00000000-0000-4000-8000-000000000001';
-		const metadata = { 'vscode.devContainerWorktree': { version: 1, handle } };
-		const operations: string[] = [];
-		const providerRef: { current?: RemoteAgentHostSessionsProvider } = {};
-		const localAgentHostService = new class extends mock<IAgentHostService>() {
-			override async setDetachedWorktreeArchived(actualHandle: string, archived: boolean): Promise<void> {
-				operations.push(`${archived ? 'archive' : 'unarchive'}:${actualHandle}`);
-				if (archived) {
-					providerRef.current!.clearConnection();
-				}
-			}
-		}();
-		const provider = createProvider(disposables, connection, { localAgentHostService });
-		providerRef.current = provider;
-		fireSessionAdded(connection, 'worktree-connection-lost', { title: 'Worktree Connection Lost', metadata });
-		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Worktree Connection Lost');
-		assert.ok(session);
-
-		await assert.rejects(provider.archiveSession(session.sessionId), /Archiving this session is unavailable/);
-
-		assert.deepStrictEqual(operations, [`archive:${handle}`, `unarchive:${handle}`]);
-	});
-
 	test('releases archive confirmation listeners after repeated timeouts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('archive-timeout'));
 		const provider = createProvider(disposables, connection, {
@@ -2379,7 +2336,6 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.addSession(createSession('container-session', { _meta: metadata }));
 		await provider.refresh();
 		const session = provider.getSessions()[0];
-		connection.echoDispatchedActions = true;
 		await provider.archiveSession(session.sessionId);
 		await provider.unarchiveSession(session.sessionId);
 		await provider.deleteSession(session.sessionId);
@@ -4560,7 +4516,6 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		provider.setConnection(connection);
 		await timeout(0);
 		const session = provider.getSessions()[0];
-		connection.echoDispatchedActions = true;
 		await provider.archiveSession(session.sessionId);
 		connection.fireAction({
 			channel: 'ahp-session:/additional-session',
@@ -4708,7 +4663,6 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		const provider = createProvider(disposables, connection);
 		await timeout(0);
 		const session = provider.getSessions()[0];
-		connection.echoDispatchedActions = true;
 		await provider.archiveSession(session.sessionId);
 		const archived = session.isArchived.get();
 		await provider.unarchiveSession(session.sessionId);
@@ -4725,16 +4679,6 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
 			],
 		});
-	}));
-	test('other remote providers roll back an archive the host rejects', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		connection.addSession(createSession('remote-session'));
-		const provider = createProvider(disposables, connection);
-		await timeout(0);
-		const session = provider.getSessions()[0];
-		connection.echoDispatchedActions = true;
-		connection.dispatchedActionRejectionReason = 'Cannot archive a session while a workspace is changing.';
-		await assert.rejects(() => provider.archiveSession(session.sessionId), /Unable to archive this session: Cannot archive a session while a workspace is changing\./);
-		assert.strictEqual(session.isArchived.get(), false);
 	}));
 });
 

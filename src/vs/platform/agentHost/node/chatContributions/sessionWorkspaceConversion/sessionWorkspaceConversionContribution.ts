@@ -40,7 +40,6 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 		if (!this._conversionService.isPending(request.chat)) {
 			return undefined;
 		}
-
 		return {
 			kind: 'reject',
 			error: {

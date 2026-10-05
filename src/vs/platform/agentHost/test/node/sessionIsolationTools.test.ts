@@ -39,16 +39,16 @@ suite('Session isolation tool', () => {
 		return { stateManager, host, group, session, main, peer, calls, disable: () => { enabled = false; } };
 	}
 
-	test('advertises to main and peer chats but rejects subagent calls', () => {
-		const { host, session, main, peer } = createHarness();
+	test('advertises to the session but rejects subagent calls', () => {
+		const { host, session, main } = createHarness();
 		const childSession = buildSubagentSessionUri(URI.parse(session), 'worker').toString();
 		const child = buildDefaultChatUri(childSession);
 		assert.deepStrictEqual({
-			main: host.getDefinitionsForSession(session, main).map(tool => tool.name),
-			peer: host.getDefinitionsForSession(session, peer).map(tool => tool.name),
-			child: host.getDefinitionsForSession(childSession, child),
-		}, { main: [SessionServerToolName.IsolateSession], peer: [SessionServerToolName.IsolateSession], child: [] });
+			session: host.getDefinitionsForSession(session).map(tool => tool.name),
+			child: host.getDefinitionsForSession(childSession),
+		}, { session: [SessionServerToolName.IsolateSession], child: [] });
 		assert.throws(() => host.executeTool(child, SessionServerToolName.IsolateSession, {}), /disabled/);
+		assert.strictEqual(host.requiresConfirmation(main, SessionServerToolName.IsolateSession), true);
 	});
 
 	for (const target of ['main', 'peer'] as const) {
@@ -99,25 +99,5 @@ suite('Session isolation tool', () => {
 		assert.match(tool.description!, /original folder is unchanged/);
 		assert.match(tool.description!, /does not.*move other chats/);
 		assert.match(tool.description!, /final tool call.*end the turn/);
-	});
-
-	test('confirmation follows the owning session chat count and stays neutral without live state', () => {
-		const { stateManager, host, session, main, peer } = createHarness();
-		const multiChatMessage = 'Change only this chat\'s workspace to a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.';
-		const singleChatMessage = 'Change this chat\'s workspace to a new worktree? The original folder is left unchanged. Uncommitted edits are not copied, except configured worktree include-files.';
-		const multi = [main, peer].map(chat => host.getDisplay(chat, SessionServerToolName.IsolateSession, {})?.confirmationMessage);
-		stateManager.removeChat(session, peer);
-		const single = host.getDisplay(main, SessionServerToolName.IsolateSession, {})?.confirmationMessage;
-		stateManager.addChat(session, peer);
-		assert.deepStrictEqual({
-			multi, single,
-			afterAddingChat: host.getDisplay(main, SessionServerToolName.IsolateSession, {})?.confirmationMessage,
-			withoutState: getServerToolDisplay(SessionServerToolName.IsolateSession, {})?.confirmationMessage,
-		}, {
-			multi: [multiChatMessage, multiChatMessage],
-			single: singleChatMessage,
-			afterAddingChat: multiChatMessage,
-			withoutState: singleChatMessage,
-		});
 	});
 });

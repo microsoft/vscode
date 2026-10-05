@@ -254,7 +254,6 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
-				onDidChangePendingSession: Event.None,
 				supportsChatIsolation: () => false,
 				canIsolateChat: () => false,
 				requestChatIsolation: () => { },

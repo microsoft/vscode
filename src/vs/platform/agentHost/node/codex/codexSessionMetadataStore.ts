@@ -111,8 +111,11 @@ export class CodexSessionMetadataStore {
 	}
 
 	/**
-	 * Persist defined overlay fields, best-effort by default.
-	 * Strict writes propagate failures when a workspace transition depends on durable state.
+	 * Persist the supplied overlay fields. Only-write-on-defined.
+	 * Best-effort: failures are logged and swallowed because the caller
+	 * has already committed in-memory state and a corrupt DB shouldn't
+	 * abort the current turn. With `strict`, failures propagate instead
+	 * because a workspace transition depends on the durable state.
 	 */
 	async write(session: URI, fields: ICodexSessionOverlayUpdate, strict = false): Promise<void> {
 		try {

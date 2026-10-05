@@ -2975,7 +2975,7 @@ export class CopilotAgentSession extends Disposable {
 			return [];
 		}
 		const sessionUri = parseRequiredSessionUriFromChatUri(this._chatChannelUri.toString());
-		return host.getDefinitionsForSession(sessionUri, this._chatChannelUri.toString()).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
+		return host.getDefinitionsForSession(sessionUri).filter(def => !this._launchPlan.isEphemeral || def.enabledForEphemeralSessions).map(def => ({
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
@@ -2984,8 +2984,8 @@ export class CopilotAgentSession extends Disposable {
 				try {
 					// Native SDK workers inherit tools but invocation payloads omit their agent identity.
 					const toolCall = this._activeToolCalls.get(invocation.toolCallId);
-					if ((def.mainChatOnly || def.topLevelChatOnly) && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
-						throw new Error('This tool can only be called from the owning main chat with a known root tool-call origin.');
+					if (def.topLevelChatOnly && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
+						throw new Error('This tool can only be called from a top-level chat with a known root tool-call origin.');
 					}
 					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
 					return { textResultForLlm: await text, resultType: 'success' };
@@ -5208,10 +5208,7 @@ export class CopilotAgentSession extends Disposable {
 			this._surfaceProvisionalFusionToolCall(toolCallId);
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
-			const serverDisplay = serverToolName && request.kind === 'custom-tool'
-				? serverToolHost?.getDisplay?.(this._chatChannelUri.toString(), serverToolName, request.args)
-				: undefined;
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, serverDisplay);
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'

@@ -121,9 +121,8 @@ import { IAgentHostNewSessionFolderService, computeWorkingDirectories } from './
 import { AgentHostSnapshotController } from './agentHostSnapshotController.js';
 import { AgentHostResponseFileChangesProvider } from './agentHostResponseFileChanges.js';
 import type { AgentHostPromptCacheNotification } from './agentHostPromptCacheNotification.js';
-import { AgentHostChatInputState, AgentHostChatIsolationState, codexWriterLockMessage } from './agentHostChatInputState.js';
+import { AgentHostChatInputState, codexWriterLockMessage } from './agentHostChatInputState.js';
 import { readChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
-import { readAgentHostChatIsolationStates } from '../../../../../../platform/agentHost/common/meta/agentHostChatIsolationMeta.js';
 import { AgentHostSandboxNotification } from './agentHostSandboxNotification.js';
 import { IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
@@ -802,13 +801,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			return session && chat && !((session.status | chat.status) & SessionStatus.IsArchived) ? readChatInputState(session, chat.resource) : undefined;
 		});
 		this._inputState = refreshChat ? this._register(this._instantiationService.createInstance(AgentHostChatInputState, sessionResource, providerInputState, refreshChat)) : undefined;
-		const isolationState = derived(this, reader => {
-			const session = this._sessionState.read(reader).read(reader);
-			const chat = this._chatState.read(reader).read(reader);
-			return chat ? readAgentHostChatIsolationStates(session)[chat.resource] : undefined;
-		});
-		const isolation = this._register(this._instantiationService.createInstance(AgentHostChatIsolationState, sessionResource, isolationState));
-		this.isInputBlocked = derived(this, reader => isolation.isInputBlocked.read(reader) || (this._inputState?.isInputBlocked.read(reader) ?? false));
+		this.isInputBlocked = this._inputState?.isInputBlocked ?? constObservable(false);
 		this.retryInput = this._inputState ? () => this._inputState!.retry() : undefined;
 		this.isReadOnly = derived(this, reader => {
 			const sessionArchived = Boolean((this._sessionState.read(reader).read(reader)?.status ?? 0) & SessionStatus.IsArchived);
@@ -831,13 +824,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		// Always provide an interrupt callback so the chat UI's stop button
 		// can cancel a remote turn at any time. The callback resolves the
 		// current active turn at call time and dispatches ChatTurnCancelled.
-		this.interruptActiveResponseCallback = async () => {
-			if (isolationState.get() === 'isolating' || isolationState.get() === 'changingWorkspace') {
-				this._logService.info('[AgentHostChatSession] Cannot interrupt workspace isolation.');
-				return false;
-			}
-			return interruptActiveResponse();
-		};
+		this.interruptActiveResponseCallback = async () => interruptActiveResponse();
 
 		this.forkSession = this._forkSession;
 		this.renameSession = this._renameSession;

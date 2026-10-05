@@ -21,12 +21,11 @@ import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { AgentHostGlobalAutoApproveEnabledConfigKey, platformSessionSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { isAgentWorkspaceContinuationMessage } from '../../common/meta/agentWorkspaceContinuationMeta.js';
-import { readAgentHostChatIsolationStates } from '../../common/meta/agentHostChatIsolationMeta.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { sessionReducer } from '../../common/state/protocol/channels-session/reducer.js';
-import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionGitState, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, SessionStatus, TurnState, withSessionGitState, withSessionWorkspaceless, type ErrorInfo, type Message, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildChatUri, buildDefaultChatUri, ChatInteractivity, ChatOriginKind, createErrorResponsePart, customizationId, CustomizationLoadStatus, CustomizationType, isHostNoticeTurn, isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, MessageKind, readMessageSystemInitiatedLabel, readSessionGitState, readSessionHasWorkspaceTransitions, readSessionWorkspaceless, ResponsePartKind, SessionStatus, TurnState, withSessionGitState, withSessionWorkspaceless, type ErrorInfo, type Message, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import type { IAgentHostTurnService, IDeferredAgentHostTurn } from '../../node/agentHostTurnService.js';
@@ -531,21 +530,19 @@ suite('SessionWorkspaceConversionService', () => {
 				blocked: harness.service.isPending(peer.toString()),
 				otherBlocked: harness.service.isPending(harness.chat.toString()),
 				restoredBlocked: restored.service.isPending(peer.toString()),
-				progress: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())),
 				sessionQuarantine: await database.getMetadata(AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY),
 				failedTurns: harness.failedContinuations.length,
 			}, {
 				releases: failure === 'provider' || failure === 'destinationTrust' ? 1 : 0,
 				providerCalls: failure === 'trust' || failure === 'destinationTrust' ? 0 : 1,
 				blocked: unsafe, otherBlocked: false, restoredBlocked: unsafe,
-				progress: unsafe ? { [peer.toString()]: 'blocked' } : {},
 				sessionQuarantine: undefined, failedTurns: unsafe ? 1 : 0,
 			});
 		});
 	}
 
 	for (const target of ['single', 'main', 'peer'] as const) {
-		test(`tool isolation of an idle ${target} chat publishes its progress, persists the transition and continues the chat`, async () => {
+		test(`tool isolation of an idle ${target} chat persists the transition and continues the chat`, async () => {
 			const worktree = URI.file('/worktree');
 			const host: IChatIsolationHost = {
 				runWithChatCatalogLock: (_session, operation) => operation(),
@@ -571,11 +568,9 @@ suite('SessionWorkspaceConversionService', () => {
 				startTurn(harness.stateManager, other, 'other-turn');
 			}
 			const calls: string[] = [];
-			const progress: Readonly<Record<string, string>>[] = [];
 			const provider: IAgent = harness.agent;
 			provider.setChatWorkingDirectory = async resource => {
 				calls.push(resource.toString());
-				progress.push(readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())));
 				const running = harness.stateManager.getChatState(chat.toString())!;
 				assert.deepStrictEqual({
 					activeTurn: running.activeTurn?.id,
@@ -586,8 +581,7 @@ suite('SessionWorkspaceConversionService', () => {
 			};
 			await changeWorkspaceViaTool(harness, chat, undefined);
 			assert.deepStrictEqual({
-				calls, turns: harness.stateManager.getChatState(chat.toString())!.turns.map(turn => turn.id), progress,
-				finalProgress: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())),
+				calls, turns: harness.stateManager.getChatState(chat.toString())!.turns.map(turn => turn.id),
 				active: harness.stateManager.getActiveTurnId(chat.toString()),
 				otherActive: target === 'single' ? undefined : harness.stateManager.getActiveTurnId(other.toString()),
 				continue: harness.continuations.map(entry => entry.chat),
@@ -595,11 +589,11 @@ suite('SessionWorkspaceConversionService', () => {
 				transition: (await harness.database.getTurnWorkspaceTransitions()).get('continuation-1'),
 				transitions: readSessionHasWorkspaceTransitions(harness.stateManager.getSessionState(harness.session.toString())?._meta),
 			}, {
-				calls: [chat.toString()], turns: ['turn-0', 'turn-1'], progress: [{ [chat.toString()]: 'isolating' }], finalProgress: {},
+				calls: [chat.toString()], turns: ['turn-0', 'turn-1'],
 				active: 'continuation-1', otherActive: target === 'single' ? undefined : 'other-turn',
 				continue: [chat.toString()], persisted: worktree.toString(),
 				transition: serializeAgentWorkspaceTransition({
-					content: 'Workspace changed to workspace-less in a new worktree',
+					content: 'Workspace changed to a new worktree of workspace-less',
 					workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
 					workspaceName: 'workspace-less',
 				}),
@@ -625,9 +619,8 @@ suite('SessionWorkspaceConversionService', () => {
 				assert.deepStrictEqual(options, { replaceSessionWorkspace: true });
 				calls.push([chat.toString(), directory.toString()]);
 				assert.deepStrictEqual({
-					state: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())),
 					blocked: harness.service.isPending(chat.toString()),
-				}, { state: { [chat.toString()]: 'changingWorkspace' }, blocked: true });
+				}, { blocked: true });
 			};
 			await changeWorkspaceViaTool(harness, harness.chat, workspace);
 			const state = harness.stateManager.getSessionState(harness.session.toString())!;
@@ -840,52 +833,15 @@ suite('SessionWorkspaceConversionService', () => {
 		});
 	}
 
-	test('does not publish empty workspace operation metadata for an ineligible session', () => {
-		const harness = createHarness();
-		makeFolderSession(harness);
-		const provider: IAgent = harness.agent;
-		provider.setChatWorkingDirectory = undefined;
-		harness.stateManager.setSessionMeta(harness.session.toString(), undefined);
-		let metadataUpdates = 0;
-		disposables.add(harness.stateManager.onDidEmitEnvelope(envelope => {
-			if (envelope.action.type === ActionType.SessionMetaChanged) {
-				metadataUpdates++;
-			}
-		}));
-		harness.stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [] });
-		harness.stateManager.dispatchServerAction(harness.session.toString(), { type: ActionType.SessionConfigChanged, config: { isolation: 'folder' } });
-		harness.stateManager.addChat(harness.session.toString(), buildChatUri(harness.session, 'peer'));
-		assert.deepStrictEqual({
-			metadata: harness.stateManager.getSessionState(harness.session.toString())?._meta,
-			metadataUpdates,
-		}, { metadata: withSessionWorkspaceless(undefined, false), metadataUpdates: 0 });
-	});
-
 	for (const quarantined of [false, true]) {
-		test(`restoring chat isolation publishes a block only for a durable failure (quarantined: ${quarantined})`, async () => {
+		test(`restoring chat isolation blocks the chat only for a durable failure (quarantined: ${quarantined})`, async () => {
 			const harness = createHarness(new TestWorktreeIsolation(URI.file('/worktree')));
 			makeFolderSession(harness);
 			if (quarantined) {
 				await harness.database.setMetadata('agentHost.chatIsolationQuarantined', 'true');
 			}
-			const observed: string[] = [];
-			disposables.add(harness.stateManager.onDidEmitEnvelope(envelope => {
-				if (envelope.action.type === ActionType.SessionMetaChanged) {
-					const state = readAgentHostChatIsolationStates(envelope.action)[harness.chat.toString()];
-					if (state) {
-						observed.push(state);
-					}
-				}
-			}));
 			await harness.service.restoreChatIsolation(harness.chat.toString());
-			assert.deepStrictEqual({
-				observed,
-				pending: harness.service.isPending(harness.chat.toString()),
-				states: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())),
-			}, {
-				observed: quarantined ? ['blocked'] : [], pending: quarantined,
-				states: quarantined ? { [harness.chat.toString()]: 'blocked' } : {},
-			});
+			assert.strictEqual(harness.service.isPending(harness.chat.toString()), quarantined);
 		});
 	}
 
@@ -908,8 +864,7 @@ suite('SessionWorkspaceConversionService', () => {
 			isolatableBeforeRestore,
 			pending: harness.service.isPending(peer.toString()),
 			isolatable: harness.service.canIsolateChat(peer),
-			states: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())),
-		}, { pendingAfterRemoval: false, isolatableBeforeRestore: true, pending: false, isolatable: true, states: {} });
+		}, { pendingAfterRemoval: false, isolatableBeforeRestore: true, pending: false, isolatable: true });
 	});
 
 	test('ignores a stale isolation restore after peer deletion and recreation', async () => {
@@ -941,8 +896,7 @@ suite('SessionWorkspaceConversionService', () => {
 		assert.deepStrictEqual({
 			pending: harness.service.isPending(peer.toString()),
 			isolatable: harness.service.canIsolateChat(peer),
-			states: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString())),
-		}, { pending: false, isolatable: true, states: {} });
+		}, { pending: false, isolatable: true });
 	});
 
 	test('does not quarantine a recreated peer when its deleted workspace conversion finishes', async () => {
@@ -1028,7 +982,7 @@ suite('SessionWorkspaceConversionService', () => {
 			},
 			mainTurnIds: ['turn-0', 'turn-1'],
 			continuations: [harness.chat.toString()],
-			transition: ['Workspace changed to workspace-less in a new worktree'],
+			transition: ['Workspace changed to a new worktree of workspace-less'],
 			providerCalls: [worktree.toString()],
 			gitRefreshes: [],
 			worktreeConfig: {
@@ -1057,7 +1011,7 @@ suite('SessionWorkspaceConversionService', () => {
 				requestChatIsolation: (chat, turnId) => service.requestChatIsolation(chat, turnId, 'client-1'),
 			})]);
 			const chat = target === 'peer' ? peer : harness.chat;
-			const toolsAtInitialization = host.getDefinitionsForSession(session.toString(), chat.toString()).map(tool => tool.name);
+			const toolsAtInitialization = host.getDefinitionsForSession(session.toString()).map(tool => tool.name);
 			host.advertise(chat.toString());
 			startTurn(stateManager, chat);
 			assert.throws(() => host.executeTool(chat.toString(), SessionServerToolName.IsolateSession, {}), /workspace cannot be changed to a new worktree/);
@@ -1147,7 +1101,7 @@ suite('SessionWorkspaceConversionService', () => {
 		harness.agent.getDescriptor = () => ({ provider: 'codex', displayName: 'Codex', description: '' });
 		host.advertise(session);
 		assert.deepStrictEqual({
-			mainTools: host.getDefinitionsForSession(session, main).map(tool => tool.name),
+			mainTools: host.getDefinitionsForSession(session).map(tool => tool.name),
 		}, { mainTools: [SessionServerToolName.IsolateSession] });
 		const calls: string[] = [];
 		const provider: IAgent = harness.agent;
@@ -1160,12 +1114,12 @@ suite('SessionWorkspaceConversionService', () => {
 			calls,
 			directories: harness.stateManager.getSessionState(session)?.workingDirectories,
 			continuations: harness.continuations.map(entry => entry.chat),
-			toolsAfter: host.getDefinitionsForSession(session, main).map(tool => tool.name),
+			toolsAfter: host.getDefinitionsForSession(session).map(tool => tool.name),
 		}, { calls: [main], directories: ['file:///worktree'], continuations: [main], toolsAfter: [SessionServerToolName.IsolateSession] });
 		assert.throws(() => host.executeTool(main, SessionServerToolName.IsolateSession, {}), /workspace cannot be changed to a new worktree/);
 	});
 
-	test('tool-driven conversion publishes its blocking state and protects its continuation turn only while converting', async () => {
+	test('tool-driven conversion blocks its chat and protects its continuation turn only while converting', async () => {
 		const harness = createHarness(new TestWorktreeIsolation(URI.file('/workspace/project.worktrees/feature')));
 		makeFolderSession(harness);
 		const entered = new DeferredPromise<void>();
@@ -1177,7 +1131,7 @@ suite('SessionWorkspaceConversionService', () => {
 		};
 		const chat = harness.chat.toString();
 		const snapshot = () => ({
-			state: readAgentHostChatIsolationStates(harness.stateManager.getSessionState(harness.session.toString()))[chat],
+			pending: harness.service.isPending(chat),
 			protectedTurn: harness.service.isConversionTurn(chat, 'continuation-1'),
 		});
 		startTurn(harness.stateManager, harness.chat);
@@ -1190,9 +1144,9 @@ suite('SessionWorkspaceConversionService', () => {
 		release.complete();
 		await converting;
 		assert.deepStrictEqual({ requested, during, after: snapshot() }, {
-			requested: { state: undefined, protectedTurn: false },
-			during: { state: 'isolating', protectedTurn: true },
-			after: { state: undefined, protectedTurn: false },
+			requested: { pending: true, protectedTurn: false },
+			during: { pending: true, protectedTurn: true },
+			after: { pending: false, protectedTurn: false },
 		});
 	});
 
@@ -1330,7 +1284,7 @@ suite('SessionWorkspaceConversionService', () => {
 					siblingTurn: target === 'single' ? undefined : 'sibling-turn',
 					continuations: [chat.toString()],
 					transition: serializeAgentWorkspaceTransition({
-						content: isolation ? 'Workspace changed to destination in a new worktree' : 'Workspace changed to destination',
+						content: isolation ? 'Workspace changed to a new worktree of destination' : 'Workspace changed to destination',
 						workspaceKind: isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 						workspaceName: 'destination',
 					}),
@@ -2079,7 +2033,7 @@ suite('SessionWorkspaceConversionService', () => {
 				[SessionConfigKey.Branch]: 'main',
 			},
 			outcomeNotifications: [{
-				content: 'Workspace changed to project in a new worktree',
+				content: 'Workspace changed to a new worktree of project',
 				meta: {
 					kind: AgentSystemNotificationKind.WorkspaceTransition,
 					severity: undefined,
@@ -2088,7 +2042,7 @@ suite('SessionWorkspaceConversionService', () => {
 					fusionStatus: undefined,
 				},
 			}],
-			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in a worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
+			continuationText: `The current session is now attached to ${worktreeIsolation.worktree.fsPath} in an isolated worktree. Continue the user's original task in this workspace. Do not request another session or workspace conversion.`,
 		});
 	});
 

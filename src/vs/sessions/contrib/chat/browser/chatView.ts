@@ -532,7 +532,7 @@ export class ChatView extends AbstractChatView {
 				const requests = model.getRequests();
 				const lastRequest = model.lastRequestObs.read(reader);
 				requestCount = requests.length;
-				visibleRequestCount = requests.filter(request => !request.isHiddenFromTranscript).length;
+				visibleRequestCount = requests.filter(request => !request.isRequestHiddenFromTranscript).length;
 				const hiddenResponse = lastRequest?.isRequestHiddenFromTranscript ? lastRequest.response : undefined;
 				hiddenRequestIncomplete = hiddenResponse?.isIncomplete.read(reader);
 				hiddenRequestState = hiddenResponse?.state;

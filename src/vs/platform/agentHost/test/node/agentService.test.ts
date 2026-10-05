@@ -57,7 +57,6 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
-import { readAgentHostChatIsolationStates } from '../../common/meta/agentHostChatIsolationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -2597,7 +2596,7 @@ suite('AgentService (node dispatcher)', () => {
 					const session = resolveAgentChatContext(context, chat).configurationResource.toString();
 					observed.push({
 						lifecycle: getStateManager(svc).getSessionState(session)?.lifecycle,
-						tools: this.serverToolHost!.getDefinitionsForSession(session, chat.toString())
+						tools: this.serverToolHost!.getDefinitionsForSession(session)
 							.filter(tool => tool.name === SessionServerToolName.IsolateSession || tool.name === SessionServerToolName.SetWorkspace).map(tool => tool.name),
 					});
 					return base.createChat(chat, context, options);
@@ -5584,7 +5583,7 @@ suite('AgentService (node dispatcher)', () => {
 						: /Only this chat now uses the workspace/.test(call.prompt) ? 'workspace continuation'
 							: /did not complete successfully/.test(call.prompt) ? 'failure continuation' : call.prompt),
 					queuedSender: outcome === 'queued' || outcome === 'failed' ? agent.sendMessageCalls.at(-1)?.senderClientId : undefined,
-					quarantined: readAgentHostChatIsolationStates(state.getSessionState(session.toString()))[peer.toString()] === 'blocked',
+					quarantined: await perSession.database(peer).getMetadata('agentHost.chatIsolationQuarantined') === 'true',
 					rejections,
 				}, {
 					directory: [moved ? destination.toString() : original.toString()],
@@ -5640,7 +5639,7 @@ suite('AgentService (node dispatcher)', () => {
 				if (scenario === 'sibling') {
 					await svc.createChat(session, URI.parse(peer));
 				}
-				const toolsBefore = agent.serverToolHost!.getDefinitionsForSession(session.toString(), main).map(tool => tool.name).filter(name => name === SessionServerToolName.SetWorkspace);
+				const toolsBefore = agent.serverToolHost!.getDefinitionsForSession(session.toString()).map(tool => tool.name).filter(name => name === SessionServerToolName.SetWorkspace);
 				svc.dispatchAction(main, {
 					type: ActionType.ChatTurnStarted, turnId: 'request-turn', startedAt: new Date().toISOString(),
 					message: { text: 'Work in the destination', origin: { kind: MessageKind.User } },

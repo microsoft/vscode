@@ -244,7 +244,6 @@ function createTestSideEffects(
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		onDidChangePendingSession: Event.None,
 		supportsChatIsolation: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
