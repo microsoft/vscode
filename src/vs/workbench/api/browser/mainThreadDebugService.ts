@@ -29,7 +29,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private readonly _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
 	private readonly _debugConfigurationProviders: Map<number, IDebugConfigurationProvider>;
-	private readonly _debugAdapterDescriptorFactories: Map<number, IDebugAdapterDescriptorFactory>;
+	private readonly _debugAdapterDescriptorFactories = this._toDispose.add(new DisposableMap<number>());
 	private readonly _extHostKnownSessions: Set<DebugSessionUUID>;
 	private readonly _visualizerHandles = new Map<string, IDisposable>();
 	private readonly _visualizerTreeHandles = new Map<string, IDisposable>();
@@ -87,7 +87,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		this._debugAdapters = new Map();
 		this._debugConfigurationProviders = new Map();
-		this._debugAdapterDescriptorFactories = new Map();
 		this._extHostKnownSessions = new Set();
 
 		const viewModel = this.debugService.getViewModel();
@@ -295,18 +294,13 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return Promise.resolve(this._proxy.$provideDebugAdapter(handle, this.getSessionDto(session)));
 			}
 		};
-		this._debugAdapterDescriptorFactories.set(handle, provider);
-		this._toDispose.add(this.debugService.getAdapterManager().registerDebugAdapterDescriptorFactory(provider));
+		this._debugAdapterDescriptorFactories.set(handle, this.debugService.getAdapterManager().registerDebugAdapterDescriptorFactory(provider));
 
 		return Promise.resolve(undefined);
 	}
 
 	public $unregisterDebugAdapterDescriptorFactory(handle: number): void {
-		const provider = this._debugAdapterDescriptorFactories.get(handle);
-		if (provider) {
-			this._debugAdapterDescriptorFactories.delete(handle);
-			this.debugService.getAdapterManager().unregisterDebugAdapterDescriptorFactory(provider);
-		}
+		this._debugAdapterDescriptorFactories.deleteAndDispose(handle);
 	}
 
 	private getSession(sessionId: DebugSessionUUID | undefined): IDebugSession | undefined {
