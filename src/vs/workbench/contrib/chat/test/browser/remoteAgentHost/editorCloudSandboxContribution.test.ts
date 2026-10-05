@@ -34,6 +34,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -144,6 +145,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
 	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
+	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -165,7 +167,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[] };
+	const errorNotifications: NotificationMessage[] = [];
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override error(message: NotificationMessage): void { errorNotifications.push(message); }
+	}());
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -264,6 +270,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			calls.deletedTasks.push(taskId);
 			await options?.deleteTask?.(taskId, token);
 		}
+		override async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
+			calls.archivedTasks.push({ taskId, archived });
+			await options?.setTaskArchived?.(taskId, archived, token);
+		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
 		override async connect(connectOptions: ICloudSandboxConnectOptions, token: CancellationToken) {
@@ -352,7 +362,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -393,6 +403,84 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('archives and unarchives a discovered task without connecting', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		controller.setChatSessionItemArchived!(resource, true);
+		await timeout(0);
+		const archived = h.items()[0].archived;
+		controller.setChatSessionItemArchived!(resource, false);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived, unarchived: h.items()[0].archived,
+			tasks: h.calls.archivedTasks, connected: h.calls.connected,
+		}, {
+			archived: true, unarchived: false,
+			tasks: [{ taskId: discovered.taskId, archived: true }, { taskId: discovered.taskId, archived: false }],
+			connected: [],
+		});
+	});
+
+	test('reconciles remote task archive state while connected and after disconnection', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		h.state.online = true;
+		await h.contribution.activate();
+		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, isArchived: true }] };
+		await h.refresh();
+		const connectedArchived = h.items()[0].archived;
+		h.state.connected = false;
+		h.connectionsChanged.fire();
+		const disconnectedArchived = h.items()[0].archived;
+		h.state.result = { kind: 'complete', sessions: [{ ...discovered, isArchived: false }] };
+		await h.refresh();
+		assert.deepStrictEqual({
+			connectedArchived, disconnectedArchived, unarchived: h.items()[0].archived,
+		}, { connectedArchived: true, disconnectedArchived: true, unarchived: false });
+	});
+
+	test('notifies the user when Mission Control rejects archiving and preserves the current flag', async () => {
+		const h = createHarness(store, { setTaskArchived: async () => { throw new Error('archive rejected'); } });
+		await h.refresh();
+		h.controllers.get(sessionType)!.setChatSessionItemArchived!(resource, true);
+		await timeout(0);
+		assert.deepStrictEqual({
+			archived: h.items()[0].archived, notifications: h.errorNotifications,
+		}, {
+			archived: false, notifications: ['Unable to change the sandbox session\'s archive state: archive rejected'],
+		});
+	});
+
+	test('drops old queued archive operations after disable and re-enable without notifying cancellation', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const h = createHarness(store, {
+			setTaskArchived: async () => {
+				await entered.complete();
+				await pending.p;
+			},
+		});
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		controller.setChatSessionItemArchived!(resource, true);
+		await entered.p;
+		controller.setChatSessionItemArchived!(resource, false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		await h.setEnabled(CloudSandboxEnabledSettingId, true);
+		await h.refresh();
+		await pending.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			mutations: h.calls.archivedTasks, notifications: h.errorNotifications,
+			replaced: h.controllers.get(sessionType) !== controller, archived: h.items()[0].archived,
+		}, {
+			mutations: [{ taskId: discovered.taskId, archived: true }], notifications: [],
+			replaced: true, archived: false,
+		});
+	});
 
 	test('trusts only discovered sandbox authorities and releases trust on teardown', async () => {
 		const h = createHarness(store);
@@ -550,7 +638,7 @@ suite('Editor cloud sandbox discovery', () => {
 			isNew: h.resolvers.get(sessionType)?.isNew(resource),
 			group: h.contributions.get(sessionType)?.sessionListGroup,
 		}, {
-			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: undefined, isRead: undefined }],
+			items: [{ resource: resource.toString(), title: discovered.name, status: ChatSessionStatus.NeedsInput, archived: false, isRead: undefined }],
 			created: 0, connected: [], isNew: false, group: SessionType.CopilotCloud,
 		});
 	});
@@ -1132,7 +1220,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 	});
 
-	test('waits for authentication before adopting host read and archive flags', async () => {
+	test('waits for authentication before adopting host read flags and preserves task archive state', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -1144,12 +1232,12 @@ suite('Editor cloud sandbox discovery', () => {
 		h.authenticationPending.set(false, undefined);
 		await h.controllers.get(sessionType)!.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ before, after: h.items().map(item => [item.label, item.isRead, item.archived]) }, {
-			before: [[discovered.name, undefined, undefined]],
-			after: [['Host title', true, true]],
+			before: [[discovered.name, undefined, false]],
+			after: [['Host title', true, false]],
 		});
 	});
 
-	test('publishes unknown read and archive flags on disconnect without changing activity', async () => {
+	test('publishes unknown read flags on disconnect without changing task archive state or activity', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -1173,16 +1261,16 @@ suite('Editor cloud sandbox discovery', () => {
 			})),
 			items: controller.items.map(item => [item.resource.toString(), item.status, item.isRead, item.archived]),
 		}, {
-			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, true]],
+			before: [[resource.toString(), ChatSessionStatus.NeedsInput, true, false]],
 			deltas: [{
-				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+				items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, false]],
 				removed: undefined,
 			}],
-			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, undefined]],
+			items: [[resource.toString(), ChatSessionStatus.NeedsInput, undefined, false]],
 		});
 	});
 
-	test('publishes host read and archive flags again when connection availability returns', async () => {
+	test('publishes host read flags again when connection availability returns without overriding task archive state', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		h.state.online = true;
@@ -1199,7 +1287,7 @@ suite('Editor cloud sandbox discovery', () => {
 		h.state.connected = true;
 		h.connectionsChanged.fire();
 
-		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, true]]]);
+		assert.deepStrictEqual(deltas.map(delta => delta.addedOrUpdated?.map(item => [item.isRead, item.archived])), [[[true, false]]]);
 	});
 
 	test('falls back to original history after a failed live connection, without creating a replacement', async () => {

@@ -641,21 +641,12 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
-The protocol client separately forwards policy-origin `ChatAgentSandboxEnabled: on`
-through `setClientSandboxRequired`, on connect, reconnect, and policy changes, for
-local and remote hosts independently of the legacy managed-permissions bridge.
-The host owns these transient, handler-scoped client contributions and requires
-sandboxing while any contributing client requires it. Ordinary root settings
-cannot change that floor; withdrawal or disconnect-grace expiry removes only the
-owning client's contribution. On all platforms, the configuration service combines
-that VS Code policy requirement with the runtime floor before resolving
-session overrides or publishing policy metadata. Ordinary user `on` remains
-overridable; Windows uses the same unified enablement setting.
-Runtime bypass/outbound restrictions cannot be weakened by this requirement.
-Approved bypass also requires the local `allowUnsandboxedCommands` setting.
-An explicit VS Code requirement does not offer the unresolved-runtime-policy
-retry-Off path. Removing it restores the underlying runtime floor, not an
-unconditional permission to disable sandboxing.
+Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host
+sandbox requirement. The existing sandbox-settings forwarder still sends the
+effective setting, including a legacy policy value, as an overridable root default.
+Session `off` may override that default unless runtime-native managed settings
+require sandboxing. The runtime's `sandbox.enabled` managed setting is the
+authoritative enterprise requirement on every supported platform.
 Explicit managed enablement replaces disallowed `off` selections with `on`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
@@ -679,8 +670,7 @@ replace it, including an explicit disabled floor when the requirement disappears
 Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Native managed settings remain runtime-enforced;
-the forwarded VS Code requirement is enforced in host session configuration.
+evidence of an enforced floor. Native managed settings remain runtime-enforced.
 Local desktop pickers use renderer-managed policy until session policy is published;
 this fallback never applies to remote hosts or overrides a host-published policy.
 

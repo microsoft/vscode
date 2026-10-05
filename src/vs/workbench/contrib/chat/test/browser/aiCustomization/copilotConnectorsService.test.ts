@@ -31,7 +31,11 @@ import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticati
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 
-function catalogResponse(status: 'available' | 'connected', names = ['mail']): unknown {
+function catalogResponse(
+	status: 'available' | 'connected',
+	names = ['mail'],
+	publisherMetadata?: { readonly homepage?: string; readonly author?: { readonly name?: string; readonly url?: string } },
+): unknown {
 	return {
 		plugins: names.map(name => ({
 			name,
@@ -43,6 +47,7 @@ function catalogResponse(status: 'available' | 'connected', names = ['mail']): u
 				representativeQueries: [`Search ${name}`],
 				iconUrl: `https://example.com/${name}.png`,
 				documentationUrl: `https://example.com/${name}`,
+				...publisherMetadata,
 			},
 			connection: {
 				status,
@@ -206,20 +211,20 @@ suite('CopilotConnectorsService', () => {
 	}
 
 	test('validates catalog metadata and exposes an MCP marketplace source', async () => {
-		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar']) }]);
+		const fixture = createFixture([{ body: catalogResponse('available', ['mail', 'calendar'], { homepage: 'https://github.com/features/copilot' }) }]);
 		const source = new CopilotConnectorsMarketplaceProvider(fixture.service, fixture.configurationService);
 
 		const first = await source.query({ query: 'connector', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 1 }, CancellationToken.None);
 		const second = await source.query({ query: 'connector', mediaType: CustomizationMarketplaceMediaType.McpServer, pageSize: 1, cursor: first.nextCursor }, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			first: first.items.map(item => ({ identifier: item.identifier, installation: item.installation, publisher: item.publisher })),
+			first: first.items.map(item => ({ identifier: item.identifier, installation: item.installation, publisher: item.publisher, publisherUrl: item.publisherUrl?.toString() })),
 			second: second.items.map(item => item.identifier),
 			total: first.total,
 			hasCursor: typeof first.nextCursor === 'string',
 			requests: fixture.requests.map(request => request.url),
 		}, {
-			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot' }],
+			first: [{ identifier: 'mail', installation: { kind: 'copilotConnector', name: 'mail' }, publisher: 'GitHub Copilot', publisherUrl: 'https://github.com/features/copilot' }],
 			second: ['calendar'],
 			total: 2,
 			hasCursor: true,

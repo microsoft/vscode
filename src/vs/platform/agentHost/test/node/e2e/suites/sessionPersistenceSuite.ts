@@ -112,7 +112,7 @@ export function defineSessionPersistenceTests(context: IAgentHostE2ETestContext)
 		const workspace = fs.mkdtempSync(`${tmpdir()}/ahp-persistence-`);
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `persistence-${config.provider}`, createdSessions, URI.file(workspace));
-		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-rename', '/rename Persisted Session', 1, { expectUnread: false });
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-persistence-memory', 'Remember the exact code word VIOLET_REHYDRATE. Reply exactly "READY".', 10);
 
 		await releaseAndRestoreSession(sessionUri);

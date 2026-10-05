@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { createSessionComparisonJudgePrompt } from '../../../../../platform/agentHost/common/sessionComparisonPrompts.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -381,6 +382,36 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	ComparisonJudgeInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Judge Instructions is a compact collapsed disclosure, with the complete prompt hidden until expanded.'],
+		render: context => renderChatView(context, false, {
+			height: 240, listHeight: 220, inputVisible: false,
+			messages: [{ user: createSessionComparisonJudgePrompt('comparison-id'), assistant: [] }],
+			onRendered: ({ listWidget }) => {
+				listWidget.updateRendererOptions({ firstRequestSummary: 'Judge Instructions' });
+				if (!context.container.querySelector('details.chat-request-disclosure')) {
+					throw new Error('Judge instructions must render as a collapsed disclosure.');
+				}
+			},
+		}),
+	}),
+	ComparisonSynthesisInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Synthesis Instructions is a compact collapsed disclosure rather than a full prompt or file attachment.'],
+		render: context => renderChatView(context, false, {
+			height: 240, listHeight: 220, inputVisible: false,
+			messages: [{ user: 'Synthesize the strongest parts of the comparison. Call #readAttemptComparison and inspect the authoritative worktrees.', assistant: [] }],
+			onRendered: ({ listWidget }) => {
+				listWidget.updateRendererOptions({ firstRequestSummary: 'Synthesis Instructions' });
+				if (!context.container.querySelector('details.chat-request-disclosure')) {
+					throw new Error('Synthesis instructions must render as a collapsed disclosure.');
+				}
+			},
+		}),
+	}),
 	PhoneChatComposerSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['With neither setting enabled, a phone-sized active chat uses the standard bottom-pinned composer and keeps the send action aligned with the other input actions.'],

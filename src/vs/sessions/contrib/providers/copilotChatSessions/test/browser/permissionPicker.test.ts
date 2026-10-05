@@ -201,7 +201,6 @@ suite('Copilot PermissionPicker', () => {
 			}
 		}();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let allowBypass: boolean | undefined;
@@ -320,9 +319,7 @@ suite('Copilot PermissionPicker', () => {
 	});
 
 	test('sandbox re-enablement observes host confirmation and session bypass policy', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-		});
+		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const allowsBypass = observableValue('sessionAllowsBypass', false);
 		const confirmedEnabled = observableValue<boolean | undefined>('confirmedEnabled', undefined);
@@ -403,7 +400,6 @@ suite('Copilot PermissionPicker', () => {
 	test('updates the shield icon when sandbox configuration finishes resolving', () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.On);
 		const isResolving = observableValue('isResolving', true);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);

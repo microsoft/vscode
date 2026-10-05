@@ -10,6 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { IAction } from '../../../../../base/common/actions.js';
 import { disposableLongTimeout } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
@@ -20,6 +21,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agentService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -71,6 +73,26 @@ const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWi
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.titleBar';
 const COPILOT_HARNESS_INTRODUCTION_IGNORED_STORAGE_KEY = 'chat.agentsParallelWork.copilotHarnessIntroductionIgnored';
+
+type OpenInAgentsWindowDecisionEvent = {
+	branch: 'revealCurrentSession' | 'openWorkspaceFallback';
+	entryPoint: 'applicationTitleBar';
+	agentSessionId: string;
+};
+
+type OpenInAgentsWindowDecisionClassification = {
+	branch: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The navigation branch selected from the effective reveal-current-session setting.' };
+	entryPoint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The application surface where the Open in Agents action was invoked.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A SHA-1 hash of the local Agent Host session identifier for deterministic correlation.' };
+	owner: 'alexdima';
+	comment: 'Tracks eligible application title-bar decisions between revealing the current local Agent Host session and opening the workspace fallback.';
+};
+
+function hashAgentSessionIdForTelemetry(sessionResource: URI): string {
+	const sha1 = new StringSHA1();
+	sha1.update(AgentSession.id(sessionResource));
+	return sha1.digest();
+}
 
 function ensureAgentModeEnabled(configurationService: IConfigurationService): void {
 	if (configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled) === false) {
@@ -242,10 +264,23 @@ export class OpenWorkspaceInAgentsWindowTitleBarAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
-		if (configurationService.getValue<boolean>(ChatConfiguration.OpenInAgentsWindowRevealCurrentSession) === true
-			&& sessionResource
-			&& !isUntitledChatSession(sessionResource)
-			&& isLocalAgentHostTarget(getChatSessionType(sessionResource))) {
+		if (!sessionResource
+			|| isUntitledChatSession(sessionResource)
+			|| !isLocalAgentHostTarget(getChatSessionType(sessionResource))) {
+			await accessor.get(ICommandService).executeCommand(OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, { source: AgentsWindowOpenSource.TitleBar });
+			return;
+		}
+
+		const telemetryService = accessor.get(ITelemetryService);
+		logSettingExperimentTrigger(telemetryService, ChatConfiguration.OpenInAgentsWindowRevealCurrentSession);
+		const revealCurrentSession = configurationService.getValue<boolean>(ChatConfiguration.OpenInAgentsWindowRevealCurrentSession) === true;
+		telemetryService.publicLog2<OpenInAgentsWindowDecisionEvent, OpenInAgentsWindowDecisionClassification>('chat.openInAgentsWindowDecision', {
+			branch: revealCurrentSession ? 'revealCurrentSession' : 'openWorkspaceFallback',
+			entryPoint: 'applicationTitleBar',
+			agentSessionId: hashAgentSessionIdForTelemetry(sessionResource),
+		});
+
+		if (revealCurrentSession) {
 			await accessor.get(ICommandService).executeCommand(
 				OpenChatSessionInAgentsWindowAction.ID,
 				{ agentsWindowOpenSource: AgentsWindowOpenSource.TitleBar },
