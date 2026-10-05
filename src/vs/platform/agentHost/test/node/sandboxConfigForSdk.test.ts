@@ -217,6 +217,33 @@ suite('buildSandboxConfigForSdk', () => {
 			});
 		});
 
+		test('defaults credential authentication to true and respects independent choices on every platform', () => {
+			for (const platform of ['linux', 'darwin', 'win32'] as const) {
+				for (const authenticateGit of [undefined, false, true]) {
+					for (const authenticateGh of [undefined, false, true]) {
+						const config: ISandboxConfigValue = {
+							[AgentHostSandboxKey.AuthenticateGit]: authenticateGit,
+							[AgentHostSandboxKey.AuthenticateGh]: authenticateGh,
+						};
+						assert.deepStrictEqual([
+							buildSandboxConfigForSdk(platform, { ...config, enabled: AgentSandboxEnabledValue.On }),
+							buildSandboxConfigForSdk(platform, { ...config, enabled: AgentSandboxEnabledValue.Off }),
+						], [
+							{ ...expectedSandboxConfig(), auth: { git: authenticateGit ?? true, gh: authenticateGh ?? true } },
+							undefined,
+						]);
+					}
+				}
+			}
+		});
+
+		test('validates credential preferences as optional boolean host settings', () => {
+			for (const key of [AgentHostSandboxKey.AuthenticateGit, AgentHostSandboxKey.AuthenticateGh]) {
+				assert.deepStrictEqual([{}, { [key]: true }, { [key]: false }, { [key]: 'false' }, { [key]: null }]
+					.map(config => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, config)), [true, true, true, false, false]);
+			}
+		});
+
 	});
 
 	suite('filesystem policy', () => {

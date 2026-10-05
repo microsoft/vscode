@@ -14,7 +14,7 @@ import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
  * Provider-agnostic session-database metadata key under which agents
  * persist the branch they want git-driven diffs anchored to. Read by
  * {@link IAgentHostChangesetService} when computing per-session file diffs; absent
- * value means the diff falls back to anchoring at HEAD.
+ * or cleared value falls back to the detected base branch, then HEAD.
  */
 export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
 
@@ -28,7 +28,7 @@ export const META_DIFF_BASE_BRANCH = 'agentHost.diffBaseBranch';
  * pick the same base branch.
  */
 export function resolveDiffBaseBranchName(persistedBaseBranch: string | undefined, sessionGitStateBaseBranch: string | undefined): string | undefined {
-	const branchName = persistedBaseBranch ?? sessionGitStateBaseBranch;
+	const branchName = persistedBaseBranch || sessionGitStateBaseBranch;
 	if (!branchName) {
 		return undefined;
 	}

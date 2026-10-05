@@ -665,7 +665,7 @@ class DocumentPasteEditProvider {
 			only: context.only ? new DocumentDropOrPasteEditKind(context.only) : undefined,
 			triggerKind: context.triggerKind,
 		}, token);
-		if (!edits || token.isCancellationRequested) {
+		if (!edits?.length || token.isCancellationRequested) {
 			return [];
 		}
 

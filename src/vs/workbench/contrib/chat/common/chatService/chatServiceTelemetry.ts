@@ -15,7 +15,7 @@ import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constan
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../chatSessionsService.js';
-import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostProvider, isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { isByokModel } from '../chatSelectedModel.js';
 
@@ -378,7 +378,7 @@ export class ChatRequestTelemetry {
 			: undefined;
 		this.selectedModelSource = !metadata ? 'unknown'
 			: isByokModel(metadata) ? 'byok'
-				: metadata.vendor === COPILOT_VENDOR_ID || modelProvider === 'copilotcli' ? 'copilot'
+				: metadata.vendor === COPILOT_VENDOR_ID || isCopilotAgentHostProvider(modelProvider) ? 'copilot'
 					: metadata.targetChatSessionType && (!modelProvider || modelProvider === 'unknown') ? 'unknown'
 						: 'other';
 	}
