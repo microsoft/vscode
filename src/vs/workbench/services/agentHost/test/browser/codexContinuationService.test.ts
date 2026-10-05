@@ -20,13 +20,12 @@ import { ROOT_STATE_URI, RootState, SessionModelInfo } from '../../../../../plat
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IWorkbenchAssignmentService } from '../../../assignment/common/assignmentService.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { ICodexAccountService } from '../../browser/codexAccountService.js';
-import { CODEX_CONTINUATION_STORAGE_KEY, CodexContinuationService } from '../../browser/codexContinuationService.js';
+import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_STORAGE_KEY, CodexContinuationService } from '../../browser/codexContinuationService.js';
 
 suite('Codex continuation coordination', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,21 +72,20 @@ suite('Codex continuation coordination', () => {
 			lastFocused = true;
 			override async hadLastFocus() { return this.lastFocused; }
 		}();
-		const telemetry = new class extends NullTelemetryServiceShape {
-			override publicLog2(name?: string, data?: ITelemetryData): void { order.push(name === 'experimentTrigger' ? 'trigger' : String(data?.action)); }
+		const telemetry = new class extends TestExperimentTriggerTelemetryService {
+			override publicLog2(name?: string, data?: ITelemetryData): void {
+				super.publicLog2(name, data);
+				order.push(name === 'experimentTrigger' ? 'trigger' : String(data?.action));
+			}
 		}();
-		const assignment = new class extends mock<IWorkbenchAssignmentService>() {
-			override onDidRefetchAssignments = Event.None;
-			override async getTreatment<T>(): Promise<T | undefined> { order.push('treatment'); return treatment as T; }
-		}();
-		const config = new TestConfigurationService({ chat: { agentHost: { codexAgent: { enabled: true } } } });
+		const config = new TestConfigurationService({ chat: { agentHost: { codexAgent: { enabled: true } }, experimental: { codexContinuation: { enabled: treatment } } } });
 		const environment = new class extends mock<IWorkbenchEnvironmentService>() {
 			override isSessionsWindow = true;
 		}();
 
-		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, assignment, config, environment));
+		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, config, environment));
 		service.setSelectableModels([{ id: target.id, vendor: 'agent-host-codex' }]);
-		return { service, order, host, account, entitlement, session, activity, notifications, quotaChanged };
+		return { service, order, telemetry, config, host, account, entitlement, session, activity, notifications, quotaChanged };
 	}
 
 	for (const treatment of [false, true]) {
@@ -101,15 +99,93 @@ suite('Codex continuation coordination', () => {
 			}, { candidate: undefined, wouldShow: false, telemetry: [] });
 		}));
 
-		test(`trigger precedes treatment and permanent-state gating in arm ${treatment}`, () => runWithFakedTimers({}, async () => {
+		test(`trigger precedes setting and permanent-state gating in arm ${treatment}`, () => runWithFakedTimers({}, async () => {
 			const storage = store.add(new InMemoryStorageService());
 			storage.store(CODEX_CONTINUATION_STORAGE_KEY, { permanent: 'completed' }, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
-			const { service, order, activity } = create(storage, treatment);
+			const { service, order, activity, telemetry } = create(storage, treatment);
 			await timeout(101);
 			assert.strictEqual(await service.wouldShow('agentsWindow'), false);
-			assert.deepStrictEqual({ order, listSessions: activity.listSessions }, { order: ['trigger', 'treatment'], listSessions: 1 });
+			assert.deepStrictEqual({ order, listSessions: activity.listSessions, triggers: telemetry.triggers }, {
+				order: ['trigger'], listSessions: 1, triggers: [`config.${CODEX_CONTINUATION_SETTING}`],
+			});
+		}));
+
+		test(`the effective setting controls presentation in arm ${treatment}`, () => runWithFakedTimers({}, async () => {
+			const { service, telemetry } = create(store.add(new InMemoryStorageService()), treatment);
+			await timeout(101);
+			assert.deepStrictEqual({
+				first: await service.wouldShow('agentsWindow'), second: await service.wouldShow('agentsWindow'),
+				reserved: await service.reservePresentation(), triggers: telemetry.triggers,
+			}, {
+				first: treatment, second: treatment, reserved: treatment,
+				triggers: [`config.${CODEX_CONTINUATION_SETTING}`],
+			});
 		}));
 	}
+
+	for (const action of ['dismiss', 'disable', 'complete'] as const) {
+		test(`developer preview bypasses quota and setting without changing suppression or telemetry: ${action}`, () => runWithFakedTimers({}, async () => {
+			let sharedReads = 0;
+			let sharedWrites = 0;
+			const storage = store.add(new class extends InMemoryStorageService {
+				override async readApplicationSharedValue(key: string): Promise<string | undefined> {
+					sharedReads++;
+					return super.readApplicationSharedValue(key);
+				}
+				override async compareAndSwapApplicationSharedValue(key: string, expected: string | undefined, value: string) {
+					sharedWrites++;
+					return super.compareAndSwapApplicationSharedValue(key, expected, value);
+				}
+			}());
+			storage.store(CODEX_CONTINUATION_STORAGE_KEY, { permanent: 'disabled' }, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+			const persisted = storage.get(CODEX_CONTINUATION_STORAGE_KEY, StorageScope.APPLICATION_SHARED);
+			const { service, account, order } = create(storage, false);
+			account.account = { ...account.account, rateLimits: [{ usedPercent: 1, windowDurationMins: 300 }] };
+			await timeout(101);
+			assert.strictEqual(await service.showPreview(), true);
+			assert.strictEqual(await service.wouldShow('agentsWindow'), true);
+			assert.strictEqual(await service.reservePresentation(), true);
+			assert.strictEqual(await service.markVisible('agentsWindow', service.candidate.get()!), true);
+			assert.strictEqual(service.ownsEpisode(), true);
+			await service[action]('agentsWindow');
+			const release = service.releasePresentation();
+			service.endPreview();
+			await release;
+			await timeout(101);
+			assert.deepStrictEqual({
+				persisted: storage.get(CODEX_CONTINUATION_STORAGE_KEY, StorageScope.APPLICATION_SHARED),
+				sharedReads, sharedWrites, telemetry: order, ownsEpisode: service.ownsEpisode(), candidate: service.candidate.get(),
+			}, { persisted, sharedReads: 0, sharedWrites: 0, telemetry: [], ownsEpisode: false, candidate: undefined });
+			assert.strictEqual(await service.showPreview(), true);
+			service.endPreview();
+		}));
+	}
+
+	test('developer preview retains model, identity, and Copilot quota checks', () => runWithFakedTimers({}, async () => {
+		const unmappable = create(store.add(new InMemoryStorageService()), false, false);
+		const missingModel = create(store.add(new InMemoryStorageService()), false);
+		delete missingModel.session.model;
+		const exhausted = create(store.add(new InMemoryStorageService()), false);
+		exhausted.entitlement.quotas = { premiumChat: { unlimited: false, percentRemaining: 0 } };
+		assert.deepStrictEqual(await Promise.all([unmappable, missingModel, exhausted].map(async h => ({
+			preview: await h.service.showPreview(), candidate: h.service.candidate.get(), telemetry: h.order,
+		}))), Array.from({ length: 3 }, () => ({ preview: false, candidate: undefined, telemetry: [] })));
+	}));
+
+	test('turning off the setting invalidates a claimed notice and prevents further claims', () => runWithFakedTimers({}, async () => {
+		const { service, config, telemetry } = create(store.add(new InMemoryStorageService()));
+		await timeout(101);
+		await service.wouldShow('agentsWindow');
+		await service.reservePresentation();
+		const candidate = service.candidate.get()!;
+		assert.strictEqual(await service.markVisible('agentsWindow', candidate), true);
+		await config.setUserConfiguration(CODEX_CONTINUATION_SETTING, false);
+		assert.deepStrictEqual({
+			ownsEpisode: service.ownsEpisode(), wouldShow: await service.wouldShow('agentsWindow'),
+			reserved: await service.reservePresentation(), visible: await service.markVisible('agentsWindow', candidate),
+			triggers: telemetry.triggers,
+		}, { ownsEpisode: false, wouldShow: false, reserved: false, visible: false, triggers: [`config.${CODEX_CONTINUATION_SETTING}`] });
+	}));
 
 	test('accessibility visibility is scoped to live notice and guide lifetimes', () => {
 		const { service } = create(store.add(new InMemoryStorageService()));
@@ -258,7 +334,7 @@ suite('Codex continuation coordination', () => {
 		await service.reservePresentation();
 		onRead = () => { host.hasFocus = false; };
 		assert.strictEqual(await service.markVisible('editorWindow', service.candidate.get()!), false);
-		assert.deepStrictEqual(order, ['trigger', 'treatment']);
+		assert.deepStrictEqual(order, ['trigger']);
 		assert.strictEqual((storage.getObject(CODEX_CONTINUATION_STORAGE_KEY, StorageScope.APPLICATION_SHARED, {}) as { episode?: object }).episode, undefined);
 	}));
 	test('a closed surface cannot claim through a late visibility callback', () => runWithFakedTimers({}, async () => {
@@ -267,7 +343,7 @@ suite('Codex continuation coordination', () => {
 		await service.wouldShow('agentsWindow');
 		await service.reservePresentation();
 		assert.strictEqual(await service.markVisible('agentsWindow', service.candidate.get()!, () => false), false);
-		assert.deepStrictEqual(order, ['trigger', 'treatment']);
+		assert.deepStrictEqual(order, ['trigger']);
 	}));
 	test('native active-window check excludes a background renderer with emulated document focus', () => runWithFakedTimers({}, async () => {
 		const { service, host, order } = create(store.add(new InMemoryStorageService()));

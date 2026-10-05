@@ -20,15 +20,14 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { logExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
-import { IWorkbenchAssignmentService } from '../../assignment/common/assignmentService.js';
+import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { hasUsableCopilotPremiumQuota, IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ICodexAccountService, shouldShowCodexAccount } from './codexAccountService.js';
 import { CODEX_CONTINUATION_MAX_AGE, CodexContinuationSurface, getCodexContinuationCandidates, getCodexTriggeringLimits, ICodexContinuationCandidate, ICodexContinuationEpisode, updateCodexEpisode } from './codexContinuation.js';
 
-export const CODEX_CONTINUATION_TREATMENT = 'chatgptCopilotContinuation';
+export const CODEX_CONTINUATION_SETTING = 'chat.experimental.codexContinuation.enabled';
 export const CODEX_CONTINUATION_STORAGE_KEY = 'agentHost.codexContinuation';
 export type CodexContinuationAction = 'shown' | 'continueClicked' | 'dismissed' | 'dontShowAgain' | 'guideShown' | 'guideCompleted' | 'guideCancelled' | 'guideUnavailable';
 interface IStoredContinuation {
@@ -48,6 +47,10 @@ export interface ICodexContinuationService {
 	setActiveSession(resource: URI | undefined): void;
 	setSelectableModels(models: readonly { readonly id: string; readonly vendor: string }[]): void;
 	refresh(): void;
+	/** Previews the real flow without quota/treatment gating, shared suppression writes, or telemetry. */
+	showPreview(): Promise<boolean>;
+	/** Ends a developer preview when its notice or guided action is closed. */
+	endPreview(): void;
 	resolve(candidate?: ICodexContinuationCandidate, activeSession?: string, allowCommittedTarget?: boolean): Promise<ICodexContinuationCandidate | undefined>;
 	wouldShow(surface: CodexContinuationSurface): Promise<boolean>;
 	reservePresentation(): Promise<boolean>;
@@ -85,6 +88,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 	private _triggered = false;
 	private _activeSession: string | undefined;
 	private _state: IStoredContinuation = {};
+	private _preview: { state: IStoredContinuation } | undefined;
 	private readonly _writes = new Sequencer();
 	private _selectableModels: readonly { readonly id: string; readonly vendor: string }[] = [];
 
@@ -96,7 +100,6 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		@IHostService private readonly _host: IHostService,
 		@IStorageService private readonly _storage: IStorageService,
 		@ITelemetryService private readonly _telemetry: ITelemetryService,
-		@IWorkbenchAssignmentService private readonly _assignment: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly _configuration: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environment: IWorkbenchEnvironmentService,
 	) {
@@ -108,7 +111,6 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		this._register(_entitlement.onDidChangeQuotaExceeded(schedule));
 		this._register(_entitlement.onDidChangeSentiment(schedule));
 		this._register(_configuration.onDidChangeConfiguration(() => { bind(); this.refresh(); }));
-		this._register(_assignment.onDidRefetchAssignments(() => this._changed()));
 		this._register(_host.onDidChangeFocus(focused => { if (focused) { this.refresh(); } schedule(); }));
 		this._register(_storage.onDidChangeValue(StorageScope.APPLICATION_SHARED, CODEX_CONTINUATION_STORAGE_KEY, this._store)(() => {
 			if (this._triggered) {
@@ -156,13 +158,42 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		this._agentHost.dispatch(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [CODEX_ACCOUNT_REFRESH_REQUEST_KEY]: generateUuid() } });
 	}
 
+	async showPreview(): Promise<boolean> {
+		if (!this._host.hasFocus || this._store.isDisposed) { return false; }
+		// Let a real presentation finish its pending storage claim before deciding
+		// whether there is already a notice or guide to show.
+		await this._writes.queue(async () => { });
+		if (this._preview || this.isVisible.get() || (this._state.reservation?.owner === this._owner && this._state.reservation.until > Date.now())) { return true; }
+		this._preview = { state: {} };
+		this._generation++;
+		await this._update();
+		if (!this._candidate.get()) {
+			this.endPreview();
+			return false;
+		}
+		return true;
+	}
+
+	endPreview(): void {
+		if (this._preview) {
+			this._preview = undefined;
+			this._generation++;
+			this._changed();
+			this._evaluate.schedule();
+		}
+	}
+
+	private _presentationEnabled(): boolean {
+		return !!this._preview || this._configuration.getValue<boolean>(CODEX_CONTINUATION_SETTING) === true;
+	}
+
 	private _enabled(): boolean {
 		return shouldShowCodexAccount(this._configuration, this._environment.isSessionsWindow)
 			&& !this._entitlement.sentiment.hidden && !this._entitlement.sentiment.disabledInWorkspace;
 	}
 
 	private _baseEligible(): boolean {
-		return this._enabled() && getCodexTriggeringLimits(this._account.account, Date.now()).length > 0
+		return this._enabled() && (!!this._preview || getCodexTriggeringLimits(this._account.account, Date.now()).length > 0)
 			&& hasUsableCopilotPremiumQuota(this._entitlement.entitlement, this._entitlement.quotas)
 			&& [this._entitlement.quotas.sessionRateLimit, this._entitlement.quotas.weeklyRateLimit].every(limit =>
 				!limit || limit.unlimited || (Number.isFinite(limit.percentRemaining) && limit.percentRemaining > 10 && limit.percentRemaining <= 100));
@@ -211,17 +242,19 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 	async wouldShow(_surface: CodexContinuationSurface): Promise<boolean> {
 		if (!this._host.hasFocus || !this._candidate.get() || !this._baseEligible() || !await this._host.hadLastFocus()) { return false; }
 		if (!this._host.hasFocus || !this._baseEligible() || this._store.isDisposed) { return false; }
-		logExperimentTrigger(this._telemetry, CODEX_CONTINUATION_TREATMENT);
-		this._triggered = true;
-		const enabled = await this._assignment.getTreatment<boolean>(CODEX_CONTINUATION_TREATMENT) ?? false;
+		if (!this._preview) {
+			logSettingExperimentTrigger(this._telemetry, CODEX_CONTINUATION_SETTING);
+			this._triggered = true;
+		}
+		if (!this._presentationEnabled()) { return false; }
 		if (!this._host.hasFocus || !this._baseEligible() || this._store.isDisposed) { return false; }
 		const state = await this._mutate(state => state);
-		return enabled && !state.permanent && !state.episode && !state.reservation;
+		return this._presentationEnabled() && !state.permanent && !state.episode && !state.reservation;
 	}
 
 	async reservePresentation(): Promise<boolean> {
-		if (!this._host.hasFocus || !this._baseEligible() || this._store.isDisposed || !await this._host.hadLastFocus()) { return false; }
-		const state = await this._mutate(state => !this._host.hasFocus || !this._baseEligible() || this._store.isDisposed || state.permanent || state.episode || state.reservation ? state : {
+		if (!this._presentationEnabled() || !this._host.hasFocus || !this._baseEligible() || this._store.isDisposed || !await this._host.hadLastFocus()) { return false; }
+		const state = await this._mutate(state => !this._presentationEnabled() || !this._host.hasFocus || !this._baseEligible() || this._store.isDisposed || state.permanent || state.episode || state.reservation ? state : {
 			...state, reservation: { owner: this._owner, until: Date.now() + 30_000 },
 		});
 		return state.reservation?.owner === this._owner;
@@ -232,7 +265,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 	}
 
 	async markVisible(surface: CodexContinuationSurface, candidate: ICodexContinuationCandidate, isVisible: () => boolean = () => true): Promise<boolean> {
-		const canClaim = () => this._triggered && !this._store.isDisposed && this._host.hasFocus && isVisible() && this._baseEligible()
+		const canClaim = () => (!!this._preview || this._triggered) && this._presentationEnabled() && !this._store.isDisposed && this._host.hasFocus && isVisible() && this._baseEligible()
 			&& this._candidate.get()?.session.session.toString() === candidate.session.session.toString();
 		if (!canClaim() || !await this._host.hadLastFocus()) { return false; }
 		let claimed = false;
@@ -248,7 +281,8 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 	}
 
 	ownsEpisode(): boolean {
-		return this._triggered && !this._state.permanent && this._state.episode?.owner === this._owner;
+		const state = this._preview?.state ?? this._state;
+		return (!!this._preview || this._triggered) && this._presentationEnabled() && !state.permanent && state.episode?.owner === this._owner;
 	}
 
 	dismiss(surface: CodexContinuationSurface): void { this.log('dismissed', surface); this._changed(); }
@@ -280,7 +314,11 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 
 	/** Compare-and-swap uses the authoritative shared database, never a stale renderer cache. */
 	private _mutate(change: (state: IStoredContinuation) => IStoredContinuation): Promise<IStoredContinuation> {
+		const preview = this._preview;
 		return this._writes.queue(async () => {
+			// Capture the preview before queueing: a late release must never write
+			// real suppression after the preview has ended.
+			if (preview) { return preview.state = change(preview.state); }
 			let raw = await this._storage.readApplicationSharedValue(CODEX_CONTINUATION_STORAGE_KEY);
 			for (let attempt = 0; attempt < 10; attempt++) {
 				const state = this._parse(raw);
@@ -302,6 +340,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 	private _changed(): void { this._revision.set(this._revision.get() + 1, undefined); }
 
 	log(action: CodexContinuationAction, surface: CodexContinuationSurface): void {
+		if (this._preview) { return; }
 		const limits = getCodexTriggeringLimits(this._account.account, Date.now());
 		this._telemetry.publicLog2<InteractionEvent, InteractionClassification>('agentHost.codexContinuation', {
 			action, surface, limitKind: limits.length > 1 ? 'both' : limits[0]?.duration === 300 ? 'fiveHour' : 'weekly',

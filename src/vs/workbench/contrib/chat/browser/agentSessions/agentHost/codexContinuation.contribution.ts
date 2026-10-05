@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../../nls.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NotificationsFilter, Severity } from '../../../../../../platform/notification/common/notification.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { ICodexContinuationService } from '../../../../../services/agentHost/browser/codexContinuationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidgetService } from '../../chat.js';
 import { ChatViewPane } from '../../widgetHosts/viewPane/chatViewPane.js';
@@ -81,3 +84,16 @@ class CodexContinuationContribution extends Disposable {
 	}
 }
 registerWorkbenchContribution2(CodexContinuationContribution.ID, CodexContinuationContribution, WorkbenchPhase.AfterRestored);
+
+// Private commands are manually bindable, but are not offered in the Command
+// Palette or the Keyboard Shortcuts editor's unbound-command list.
+CommandsRegistry.registerCommand('_chat.showCodexContinuation', async accessor => {
+	const nudge = accessor.get(ICodexContinuationService);
+	const notifications = accessor.get(INotificationService);
+	if (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow) {
+		accessor.get(IWorkbenchLayoutService).setPartHidden(false, Parts.SIDEBAR_PART);
+	}
+	if (!await nudge.showPreview()) {
+		notifications.info(localize('codexContinuation.previewUnavailable', "To preview the suggestion, open a Codex conversation that uses ChatGPT and has a matching model available through GitHub Copilot."));
+	}
+});
