@@ -3699,45 +3699,47 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		});
 	});
 
-	for (const discoveredFirst of [true, false]) {
-		test(`preserves the discovery application through host hydration and reload (discovery first: ${discoveredFirst})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			const storageService = disposables.add(new InMemoryStorageService());
-			const provider = createSandboxProvider(storageService);
-			const discoveryMeta = withSessionInitiator(undefined, { name: 'slack' });
-			if (discoveredFirst) {
-				seed(provider, { _meta: discoveryMeta });
-			}
-			connection.addSession({
-				...metadata,
-				session: backendResource,
-				_meta: withSessionInitiator(undefined, { name: 'vscode-agents-window' }),
-			});
-			provider.setConnection(connection);
-			await timeout(0);
-			if (!discoveredFirst) {
-				seed(provider, { _meta: discoveryMeta });
-			}
-			const applications = [provider.getSessions()[0].application.get()];
-			provider.clearConnection();
-			await storageService.flush();
-			provider.dispose();
+	for (const [application, label] of [['slack', 'Slack'], ['CUSTOM_cloud_app', 'Custom Cloud App']]) {
+		for (const discoveredFirst of [true, false]) {
+			test(`preserves the discovery application ${application} through host hydration and reload (discovery first: ${discoveredFirst})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+				const storageService = disposables.add(new InMemoryStorageService());
+				const provider = createSandboxProvider(storageService);
+				const discoveryMeta = withSessionInitiator(undefined, { name: application });
+				if (discoveredFirst) {
+					seed(provider, { _meta: discoveryMeta });
+				}
+				connection.addSession({
+					...metadata,
+					session: backendResource,
+					_meta: withSessionInitiator(undefined, { name: 'vscode-agents-window' }),
+				});
+				provider.setConnection(connection);
+				await timeout(0);
+				if (!discoveredFirst) {
+					seed(provider, { _meta: discoveryMeta });
+				}
+				const applications = [provider.getSessions()[0].application.get()];
+				provider.clearConnection();
+				await storageService.flush();
+				provider.dispose();
 
-			const restored = createSandboxProvider(storageService);
-			applications.push(restored.getSessions()[0].application.get());
-			restored.setConnection(connection);
-			await timeout(0);
-			seed(restored);
-			applications.push(restored.getSessions()[0].application.get());
-			seed(restored, { _meta: withSessionInitiator(undefined, { name: 'teams' }) });
-			applications.push(restored.getSessions()[0].application.get());
+				const restored = createSandboxProvider(storageService);
+				applications.push(restored.getSessions()[0].application.get());
+				restored.setConnection(connection);
+				await timeout(0);
+				seed(restored);
+				applications.push(restored.getSessions()[0].application.get());
+				seed(restored, { _meta: withSessionInitiator(undefined, { name: 'teams' }) });
+				applications.push(restored.getSessions()[0].application.get());
 
-			assert.deepStrictEqual(applications, [
-				{ id: 'slack', label: 'Slack' },
-				{ id: 'slack', label: 'Slack' },
-				{ id: 'slack', label: 'Slack' },
-				{ id: 'teams', label: 'Teams' },
-			]);
-		}));
+				assert.deepStrictEqual(applications, [
+					{ id: application, label },
+					{ id: application, label },
+					{ id: application, label },
+					{ id: 'teams', label: 'Teams' },
+				]);
+			}));
+		}
 	}
 
 	test('discovery refreshes a provisional session without publishing or replacing it', () => {
