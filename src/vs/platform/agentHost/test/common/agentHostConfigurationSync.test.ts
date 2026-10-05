@@ -11,7 +11,10 @@ import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
+import { AgentHostByokModelsEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostByokModelsEnabledSettingId } from '../../common/agentService.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
+import '../../common/agentHostStarter.config.contribution.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
@@ -170,6 +173,21 @@ suite('AgentHostConfigurationSync', () => {
 			localValue: true,
 			ambientValue: true,
 			hiddenValue: 'on',
+		});
+	});
+
+	test('mirrors BYOK enabled by default while preserving explicit opt-out', () => {
+		const defaultPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({}), AgentHostConfigurationSyncTarget.Local);
+		const disabledPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[AgentHostByokModelsEnabledSettingId]: { userValue: false },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({
+			defaultValue: defaultPatch[AgentHostByokModelsEnabledConfigKey],
+			explicitlyDisabled: disabledPatch[AgentHostByokModelsEnabledConfigKey],
+		}, {
+			defaultValue: true,
+			explicitlyDisabled: false,
 		});
 	});
 
