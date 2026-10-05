@@ -37,6 +37,28 @@ import {
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('inventory-owned hosts offer local hide and disconnect without SSH location controls', () => {
+		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({
+			address: 'cloudsandbox:environment', isConnected, removeLabel: 'Hide in This Profile', disconnectLabel: 'Disconnect',
+		}).map(item => ({ id: item.id, label: item.label }));
+		assert.deepStrictEqual({ connected: snapshot(true), disconnected: snapshot(false) }, {
+			connected: [
+				{ id: 'disconnect', label: '$(debug-disconnect) Disconnect' },
+				{ id: 'rename', label: '$(edit) Rename...' },
+				{ id: 'remove', label: '$(trash) Hide in This Profile' },
+				{ id: 'copy', label: '$(copy) Copy Address' },
+				{ id: 'settings', label: '$(settings-gear) Open Settings' },
+			],
+			disconnected: [
+				{ id: 'reconnect', label: '$(debug-restart) Reconnect' },
+				{ id: 'rename', label: '$(edit) Rename...' },
+				{ id: 'remove', label: '$(trash) Hide in This Profile' },
+				{ id: 'copy', label: '$(copy) Copy Address' },
+				{ id: 'settings', label: '$(settings-gear) Open Settings' },
+			],
+		});
+	});
+
 	for (const hasRemove of [false, true]) {
 		test(`host removal ${hasRemove ? 'uses permanent removal instead of temporary disconnect' : 'preserves the legacy disconnect fallback'}`, async () => {
 			const calls: string[] = [];

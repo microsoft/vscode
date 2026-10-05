@@ -281,7 +281,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }, configOverrides: Partial<IRemoteAgentHostSessionsProviderConfig> = {}): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -381,6 +381,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		devContainerSourceWorkspaceUri: overrides?.devContainerSourceWorkspace,
 		resolveDevContainerWorktreeConnection: overrides?.resolveDevContainerWorktreeConnection,
 		readOnlyWhenDisconnected: overrides?.readOnlyWhenDisconnected,
+		...configOverrides,
 	};
 
 	const baseCtor = overrides?.ctor ?? RemoteAgentHostSessionsProvider;
@@ -835,6 +836,40 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { 'copilot.passive': false } }, undefined);
 		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.Full);
 	});
+
+	test('inventory-owned disconnect retains summaries and restores them under the same account only', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession(createSession('retained', { summary: 'Retained native session' }));
+		let disconnects = 0;
+		const inventoryConfig: Partial<IRemoteAgentHostSessionsProviderConfig> = {
+			sessionCacheKey: 'test.missionControl.account-one',
+			retainSessionsOnDisconnect: true,
+			readOnlyWhenDisconnected: true,
+			disconnectOnDemand: async () => { disconnects++; },
+		};
+		const provider = createProvider(disposables, connection, { storageService }, inventoryConfig);
+		await timeout(0);
+		await provider.disconnect();
+		provider.clearConnection();
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		const disconnected = provider.getSessions().map(session => ({
+			title: session.title.get(), resource: session.resource.toString(), interactivity: session.mainChat.get().interactivity.get(),
+		}));
+		await storageService.flush();
+		const restored = createProvider(disposables, connection, { storageService, noConnection: true }, inventoryConfig);
+		const otherAccount = createProvider(disposables, connection, { storageService, noConnection: true }, { ...inventoryConfig, sessionCacheKey: 'test.missionControl.account-two' });
+		assert.deepStrictEqual({
+			disconnects, disconnected,
+			restored: restored.getSessions().map(session => session.resource.toString()),
+			otherAccount: otherAccount.getSessions().length,
+			advertisedAgents: restored.sessionTypes,
+		}, {
+			disconnects: 1, disconnected: [{
+				title: 'Retained native session', resource: disconnected[0].resource, interactivity: ChatInteractivity.ReadOnly,
+			}],
+			restored: [disconnected[0].resource], otherAccount: 0, advertisedAgents: [],
+		});
+	}));
 
 	test('keeps initial connections read-only but permits self-healing reconnects', () => {
 		const provider = createProvider(disposables, connection, { readOnlyWhenDisconnected: true });

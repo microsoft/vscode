@@ -608,7 +608,7 @@ suite('Mission Control WPS', () => {
 				};
 				service = store.add(new MissionControlEnvironment({
 					userDataPath: path,
-					name: 'VS Code OSS',
+					name: 'Test Machine (VS Code OSS)',
 					fetch: async (input, init) => {
 						const url = new URL(input.toString());
 						requests.push({ path: url.pathname, credential: new Headers(init?.headers).get('Authorization'), body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined });
@@ -705,7 +705,7 @@ suite('Mission Control WPS', () => {
 
 		test('refreshes the host-owned name on startup, periodic, recovery, and withdrawal heartbeats', async () => {
 			await withEnvironment([], async ({ service, clock, requests, sockets, options }) => {
-				const hostName = 'VS Code OSS';
+				const hostName = 'Test Machine (VS Code OSS)';
 				const snapshot = () => {
 					let storedName: string | undefined;
 					let registrations = 0;

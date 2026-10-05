@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hostname } from 'os';
 import { Disposable, DisposableStore, type IDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -35,14 +36,11 @@ interface IMissionControlHostOptions {
 	readonly trackProtocolHandler: (handler: ProtocolServerHandler) => IDisposable;
 }
 
-export function getMissionControlEnvironmentName(product: IProductService): string {
-	if (product.quality === 'stable') {
-		return 'VS Code';
-	}
-	if (product.quality === 'insider') {
-		return 'VS Code Insiders';
-	}
-	return product.nameShort === 'Code - OSS' || product.nameShort === 'Code - OSS Dev' ? 'VS Code OSS' : product.nameShort;
+export function getMissionControlEnvironmentName(product: IProductService, machineName = hostname()): string {
+	const applicationName = product.quality === 'stable' ? 'VS Code'
+		: product.quality === 'insider' ? 'VS Code Insiders'
+			: product.nameShort === 'Code - OSS' || product.nameShort === 'Code - OSS Dev' ? 'VS Code OSS' : product.nameShort;
+	return `${machineName.replace(/\.local$/i, '')} (${applicationName})`;
 }
 
 /** Entry-owned adapter from the native runtime graph to the registration lifecycle. */

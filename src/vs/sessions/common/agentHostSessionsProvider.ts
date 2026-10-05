@@ -181,6 +181,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse

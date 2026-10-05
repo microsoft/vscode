@@ -29,7 +29,7 @@ The existing setting keys are retained so current opt-in continues working. Clas
 
 ## Environment identity, name and ownership
 
-The registered name is `VS Code`, `VS Code Insiders`, or `VS Code OSS`; other product variants use their product short name. The same host-owned name is sent on registration and every heartbeat. This display label is not identity.
+The registered default name is the owning machine's hostname followed by the application in parentheses, for example `Robs-MacBook-Pro (VS Code Insiders)`. A trailing `.local` is omitted from the display label; other hostname suffixes and casing are preserved. The application is `VS Code`, `VS Code Insiders`, or `VS Code OSS`; other product variants use their product short name. The same host-owned name is sent on registration and every heartbeat. This display label is not identity, and client-local display-name overrides remain independent.
 
 A random stable compute UUID is persisted in `agent-host-mission-control-id` under the user-data directory. It is not derived from hardware. The versioned record retains its canonical directory only locally, so a migrated profile copied to another directory receives a different identity without changing the original. Legacy plain UUIDs migrate in place; copies made before migration remain an explicit edge case. Restarting the same profile reuses its identity. Separate user-data directories intentionally represent separate hosts and may have identical display names.
 
@@ -37,9 +37,9 @@ The first accepted account owns the shared utility process until restart. Same-o
 
 ## Discover and connect
 
-Enable `chat.remoteAgentHostsEnabled` and invoke **Connect to Mission Control Environment...** from the Command Palette or Agents Window workspace-management menu. The picker lists your account's existing user-local environments, shows cached results immediately, and refreshes in the background without clearing the search. It excludes the native host's own environment so the owning window stays on local IPC.
+In a source or extension-development window, enable `chat.remoteAgentHostsEnabled` and choose **Mission Control** in the Agents Window's remote-host management flow, or invoke **Connect to Mission Control Environment...** from the Command Palette. The picker lists your account's existing user-local environments, restores account/profile-local inventory before network discovery, and refreshes without clearing the search. It excludes the native host's own environment so the owning window stays on local IPC. Normal built products can opt in to hosting but do not expose this development-gated discovery UX.
 
-Selection revalidates availability. An offline user-local host is not woken or replaced; start its owning application before connecting. Discovery itself does not provision compute or create sessions. Connected user-local hosts use the generic native Sessions provider, not the managed-sandbox task/history/checkout adapter. The fuller retained-host/management UX is a separate increment.
+Selection revalidates availability. An offline user-local host is not woken or replaced; start its owning application before connecting. Discovery itself does not provision compute or create sessions. Connected user-local hosts use the generic native Sessions provider, not the managed-sandbox task/history/checkout adapter. Disconnect retains the host; Hide and Restore are local profile preferences, not remote lifecycle operations. Rename changes the local label without changing the owning machine or its registered default name. See the [remote provider contract](../../sessions/contrib/providers/remoteAgentHost/REMOTE_AGENT_HOST_SESSIONS_PROVIDER.md#registration).
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
@@ -71,4 +71,4 @@ Registration and heartbeat request construction are separate methods. Local mana
 
 ## Validation boundaries
 
-Tests cover built-product adapter construction without pre-opt-in traffic, product names, registration/heartbeat consistency, owner/lane/passive/resource guards, sealed vectors, stale generations, bounded mirrors and recovery. Current release artifact/network/client evidence and the explicitly agreed deferrals are listed in [remaining work](./MISSION_CONTROL_PRODUCTION_GAPS.md). Do not describe earlier CI or live exercises as evidence for a later unpushed increment.
+Tests cover built-product adapter construction without pre-opt-in traffic, machine/application names, registration/heartbeat consistency, owner/lane/passive/resource guards, sealed vectors, stale generations, bounded mirrors and recovery. Current release artifact/network/client evidence and the explicitly agreed deferrals are listed in [remaining work](./MISSION_CONTROL_PRODUCTION_GAPS.md). Do not describe earlier CI or live exercises as evidence for a later unpushed increment.

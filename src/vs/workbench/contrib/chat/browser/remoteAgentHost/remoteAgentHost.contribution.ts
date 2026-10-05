@@ -26,6 +26,8 @@ import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './c
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
 import './missionControlEnvironmentActions.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 
 const missionControlFakeEndpoint = 'chat.agentHost.experimentalMissionControlFakeEndpoint';
@@ -170,6 +172,7 @@ class MissionControlContribution extends Disposable {
 registerSingleton(ICloudSandboxTelemetryService, CloudSandboxTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxApiService, CloudSandboxApiService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, InstantiationType.Delayed);
+registerSingleton(IMissionControlEnvironmentService, MissionControlEnvironmentService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, InstantiationType.Delayed);
 
 registerWorkbenchContribution2(RemoteAgentHostContribution.ID, RemoteAgentHostContribution, WorkbenchPhase.AfterRestored);

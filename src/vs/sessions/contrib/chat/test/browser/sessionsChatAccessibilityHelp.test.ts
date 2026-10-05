@@ -16,6 +16,8 @@ import { AccessibleViewType } from '../../../../../platform/accessibility/browse
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -90,9 +92,32 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
+		instantiationService.stub(IEnvironmentService, { isBuilt: false });
+		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChatAction);
 		instantiationService.stub(IContextKeyService, contextKeyService);
+	}
+
+	for (const { name, built, extensionDevelopment, enabled } of [
+		{ name: 'source', built: false, extensionDevelopment: false, enabled: true },
+		{ name: 'extension development', built: true, extensionDevelopment: true, enabled: true },
+		{ name: 'normal built product', built: true, extensionDevelopment: false, enabled: false },
+	]) {
+		test(`Mission Control accessibility help uses the discovery development gate: ${name}`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IEnvironmentService, { isBuilt: built, isExtensionDevelopment: extensionDevelopment });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			assert.strictEqual(content.includes('choose Mission Control to discover your user-local hosts'), enabled);
+		});
 	}
 
 	test('describes Dev Container samples only when all picker prerequisites are enabled', () => {
