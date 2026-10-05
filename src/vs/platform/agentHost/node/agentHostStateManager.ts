@@ -1941,17 +1941,17 @@ export class AgentHostStateManager extends Disposable {
 				config: preserveProviderBackedRootConfigValues(this._rootState, action.config),
 			};
 		}
+		let singleChatToSynchronize: { readonly chat: URI; readonly isRead: boolean } | undefined;
 		if (action.type === ActionType.SessionIsReadChanged && action.isRead) {
 			const state = this._sessionStates.get(channel)?.state;
 			const aggregateChats = state?.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)) ?? [];
 			if (aggregateChats.length > 1 && aggregateChats.some(chat => !isSessionStatusRead(chat.status))) {
 				action = { ...action, isRead: false };
 			} else if (aggregateChats.length === 1 && !isSessionStatusRead(aggregateChats[0].status)) {
-				this.dispatchServerAction(aggregateChats[0].resource, { type: ActionType.ChatIsReadChanged, isRead: true });
+				singleChatToSynchronize = { chat: aggregateChats[0].resource, isRead: true };
 			}
 		}
 		let sessionReadStateToSynchronize: { readonly session: URI; readonly isRead: boolean } | undefined;
-		let singleChatToSynchronize: { readonly chat: URI; readonly isRead: boolean } | undefined;
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
