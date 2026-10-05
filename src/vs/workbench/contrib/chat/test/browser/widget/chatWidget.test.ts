@@ -43,7 +43,7 @@ import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequ
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
-import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
 import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
@@ -57,6 +57,87 @@ import { createChatUserInteractionTestHarness } from '../chatUserInteractionTest
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('context usage response subscriptions remain bounded across historical replacements and removals', () => {
+		let activeSubscriptions = 0;
+		const createRequest = (id: string) => {
+			const changes = store.add(new Emitter<ChatResponseModelChangeReason>());
+			const onDidChange: Event<ChatResponseModelChangeReason> = listener => {
+				const subscription = changes.event(listener);
+				activeSubscriptions++;
+				return toDisposable(() => {
+					activeSubscriptions--;
+					subscription.dispose();
+				});
+			};
+			return {
+				request: upcastPartial<IChatRequestModel>({ id, response: upcastPartial<IChatResponseModel>({ onDidChange }) }),
+				changes,
+			};
+		};
+		let historical = createRequest('historical');
+		const local = createRequest('local');
+		const requests = [historical.request, local.request];
+		const modelChanges = store.add(new Emitter<IChatChangeEvent>());
+		const model = upcastPartial<IChatModel>({
+			onDidChange: modelChanges.event,
+			getRequests: () => requests,
+			get lastRequest() { return requests.at(-1); },
+			sessionCost: 3,
+		});
+		const subscriptions = store.add(new MutableDisposable<DisposableStore>());
+		const latestRequests: (string | undefined)[] = [];
+		const costs: number[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			_contextUsageDisposables: subscriptions,
+			_widget: { viewModel: { model } },
+			contextUsageWidget: {
+				update: (request: IChatRequestModel | undefined) => latestRequests.push(request?.id),
+				updateSessionCost: (cost: number) => costs.push(cost),
+			},
+			languageModelsService: upcastPartial<ILanguageModelsService>({ onDidChangeLanguageModels: Event.None }),
+		});
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise private setup without widening the production API.
+		input['updateContextUsageWidget']();
+		const replacementCounts = new Set([activeSubscriptions]);
+		for (let index = 0; index < 25; index++) {
+			const replacement = createRequest('historical');
+			requests[0] = replacement.request;
+			modelChanges.fire({ kind: 'addRequest', request: replacement.request, index: 0, replacedRequest: historical.request });
+			historical.changes.dispose();
+			historical = replacement;
+			replacementCounts.add(activeSubscriptions);
+		}
+		historical.changes.fire({ reason: 'other' });
+		const costUpdatesBeforeRemoval = costs.length;
+		requests.shift();
+		modelChanges.fire(upcastPartial<IChatChangeEvent>({ kind: 'removeRequest', requestId: historical.request.id }));
+		const afterHistoricalRemoval = activeSubscriptions;
+		const next = createRequest('next');
+		requests.push(next.request);
+		modelChanges.fire({ kind: 'addRequest', request: next.request });
+		const afterAppend = activeSubscriptions;
+		local.changes.fire({ reason: 'other' });
+		requests.pop();
+		modelChanges.fire(upcastPartial<IChatChangeEvent>({ kind: 'removeRequest', requestId: next.request.id }));
+		const afterTailRemoval = activeSubscriptions;
+		subscriptions.clear();
+		assert.deepStrictEqual({
+			replacementCounts: [...replacementCounts],
+			afterHistoricalRemoval, afterAppend, afterTailRemoval,
+			afterDispose: activeSubscriptions,
+			latestRequests: [...new Set(latestRequests)],
+			costUpdatesBeforeRemoval,
+			costs: [...new Set(costs)],
+		}, {
+			replacementCounts: [1],
+			afterHistoricalRemoval: 0, afterAppend: 1, afterTailRemoval: 0,
+			afterDispose: 0,
+			latestRequests: ['local', 'next'],
+			costUpdatesBeforeRemoval: 1,
+			costs: [3],
+		});
+	});
 
 	function createTranscriptProgressWidget() {
 		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
