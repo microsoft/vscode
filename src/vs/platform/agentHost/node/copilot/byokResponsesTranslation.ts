@@ -9,7 +9,6 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
-	IByokLmImagePart,
 	IByokLmInputItem,
 	IByokLmOutputItem,
 	IByokLmTool,
@@ -146,25 +145,18 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, p
 }
 
 /**
- * Splits a Responses tool output into the bridge's text `output` and `images`.
- * The Copilot runtime sends a content-part array (`input_text` /
- * `input_image`) instead of a string when a tool result carries images and the
- * model declares vision support.
+ * Maps a Responses tool output to the bridge's text `output` and, when it
+ * carries images, the ordered `content` parts. The Copilot runtime sends a
+ * content-part array (`input_text` / `input_image`) instead of a string when a
+ * tool result carries images and the model declares vision support.
  */
-function toToolOutput(output: string | IResponsesContentPart[] | undefined, path: string): { output: string; images?: IByokLmImagePart[] } {
+function toToolOutput(output: string | IResponsesContentPart[] | undefined, path: string): { output: string; content?: IByokLmContentPart[] } {
 	if (!Array.isArray(output)) {
 		return { output: output ?? '' };
 	}
-	let text = '';
-	const images: IByokLmImagePart[] = [];
-	for (const part of toContentParts(output, path)) {
-		if (part.type === 'text') {
-			text += part.text;
-		} else {
-			images.push(part);
-		}
-	}
-	return images.length ? { output: text, images } : { output: text };
+	const content = toContentParts(output, path);
+	const text = content.map(part => part.type === 'text' ? part.text : '').join('');
+	return content.some(part => part.type === 'image') ? { output: text, content } : { output: text };
 }
 
 function requiredString(value: string | undefined, path: string): string {

@@ -512,7 +512,7 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
-	test('forwards tool-result images as data parts of the tool result', async () => {
+	test('forwards tool-result images as ordered data parts of the tool result', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),
 			() => responseOf([{ type: 'text', value: 'ok' }]),
@@ -524,14 +524,23 @@ suite('AgentHostByokLmHandler', () => {
 			modelId: 'claude',
 			input: [
 				{ type: 'function_call', callId: 't1', name: 'view', argumentsJson: '{"path":"/work/a.png"}' },
-				{ type: 'function_call_output', callId: 't1', output: 'Viewed image file successfully.', images: [{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' }] },
+				{
+					type: 'function_call_output', callId: 't1', output: 'caption Acaption B', content: [
+						{ type: 'text', text: 'caption A' },
+						{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2VB' },
+						{ type: 'text', text: 'caption B' },
+						{ type: 'image', mimeType: 'image/jpeg', data: 'aW1hZ2VC' },
+					]
+				},
 			],
 		}, CancellationToken.None);
 
 		const toolResult = service.captured?.messages.at(-1)?.content[0];
 		assert.deepStrictEqual(toolResult?.type === 'tool_result' && toolResult.value.map(part => part.type === 'data' ? { ...part, data: part.data.toString() } : part), [
-			{ type: 'text', value: 'Viewed image file successfully.' },
-			{ type: 'data', mimeType: 'image/png', data: 'image' },
+			{ type: 'text', value: 'caption A' },
+			{ type: 'data', mimeType: 'image/png', data: 'imageA' },
+			{ type: 'text', value: 'caption B' },
+			{ type: 'data', mimeType: 'image/jpeg', data: 'imageB' },
 		]);
 	});
 

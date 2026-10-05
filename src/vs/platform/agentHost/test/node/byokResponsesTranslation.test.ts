@@ -100,15 +100,17 @@ suite('byokResponsesTranslation', () => {
 		]);
 	});
 
-	test('splits array tool outputs into text and images', () => {
-		// Shape the Copilot runtime sends when a tool result carries an image for a vision-capable model.
+	test('keeps array tool outputs with images as ordered content parts', () => {
+		// Shape the Copilot runtime sends when a tool result carries images for a vision-capable model.
 		const body: IResponsesRequest = {
 			model: 'm',
 			input: [
 				{
 					type: 'function_call_output', call_id: 'call_1', output: [
-						{ type: 'input_text', text: 'Viewed image file successfully.' },
-						{ type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,aW1hZ2U=' },
+						{ type: 'input_text', text: 'caption A' },
+						{ type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,aW1hZ2VB' },
+						{ type: 'input_text', text: 'caption B' },
+						{ type: 'input_image', detail: 'auto', image_url: 'data:image/jpeg;base64,aW1hZ2VC' },
 					]
 				},
 				{ type: 'custom_tool_call_output', call_id: 'call_2', output: [{ type: 'input_text', text: 'a' }, { type: 'input_text', text: 'b' }] },
@@ -116,7 +118,14 @@ suite('byokResponsesTranslation', () => {
 		};
 
 		assert.deepStrictEqual(responsesRequestToBridge('acme', body).input, [
-			{ type: 'function_call_output', callId: 'call_1', output: 'Viewed image file successfully.', images: [{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' }] },
+			{
+				type: 'function_call_output', callId: 'call_1', output: 'caption Acaption B', content: [
+					{ type: 'text', text: 'caption A' },
+					{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2VB' },
+					{ type: 'text', text: 'caption B' },
+					{ type: 'image', mimeType: 'image/jpeg', data: 'aW1hZ2VC' },
+				]
+			},
 			{ type: 'custom_tool_call_output', callId: 'call_2', output: 'ab' },
 		]);
 	});
