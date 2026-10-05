@@ -20,7 +20,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
-import { ChatLayoutPresentation, CHAT_SPECIFIC_LAYOUT_SETTING } from '../../../../common/chatLayout.js';
+import { ChatLayoutPresentation, SESSIONS_LAYOUT_MODE_SETTING } from '../../../../common/chatLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -468,7 +468,7 @@ suite('SessionsTerminalContribution', () => {
 			override isViewVisible(): boolean { return false; }
 			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
 		});
-		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'disabled' });
+		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'session' });
 		phone = observableValue('phone', false);
 		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
@@ -493,10 +493,10 @@ suite('SessionsTerminalContribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function enableChatOwnership(mode: 'per-chat' | 'shared' = 'per-chat'): void {
+	function enableChatOwnership(mode: 'chat' | 'chat-shared' = 'chat'): void {
 		contribution.dispose();
 		layoutPresentation.dispose();
-		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: mode });
+		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: mode });
 		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = layoutPresentation;
@@ -510,7 +510,7 @@ suite('SessionsTerminalContribution', () => {
 		return peer;
 	}
 
-	for (const mode of ['shared', 'per-chat'] as const) {
+	for (const mode of ['chat-shared', 'chat'] as const) {
 		test(`${mode} chat ownership isolates same-session same-cwd A/B/A processes without focus or pane reveal`, async () => {
 			enableChatOwnership(mode);
 			const session = makeAgentSession({ repository: URI.file('/same') });
@@ -580,7 +580,7 @@ suite('SessionsTerminalContribution', () => {
 	});
 
 	test('closing a chat retains processes and confirmed deletion affects only its owner', async () => {
-		enableChatOwnership('shared');
+		enableChatOwnership('chat-shared');
 		const session = makeAgentSession({ repository: URI.file('/same') });
 		const peer = addPeer(session, 'peer');
 		activeSessionObs.set(session, undefined);
@@ -753,7 +753,7 @@ suite('SessionsTerminalContribution', () => {
 	});
 
 	test('queued main and peer creation follows consecutive promotions without retagging peers as main', async () => {
-		enableChatOwnership('shared');
+		enableChatOwnership('chat-shared');
 		const barrier = new DeferredPromise<void>();
 		terminalCreationBarriers.set('/same', barrier);
 		const from = makeAgentSession({ repository: URI.file('/same'), sessionResource: URI.parse('opaque:/draft'), chatResource: URI.parse('opaque:/draft/main') });
@@ -810,7 +810,7 @@ suite('SessionsTerminalContribution', () => {
 		const peer = addPeer(session, 'peer');
 		activeSessionObs.set(session, undefined);
 		await tick();
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'per-chat');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat');
 		session.activeChat.set(peer, undefined);
 		await tick();
 		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], enabled: layoutPresentation.enabled }, { ids: [1], enabled: false });

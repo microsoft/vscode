@@ -70,7 +70,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	}
 
 	private get _sharedChatLayout(): boolean {
-		return this._chatLayoutEnabled && this._layoutService.chatLayoutPresentation.configured === 'shared';
+		return this._chatLayoutEnabled && this._layoutService.chatLayoutPresentation.configured === 'chat-shared';
 	}
 
 	private _compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {

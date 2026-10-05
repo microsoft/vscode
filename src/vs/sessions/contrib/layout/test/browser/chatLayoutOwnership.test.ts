@@ -103,7 +103,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 	for (const crossSession of [false, true]) {
 		test(`shared ${crossSession ? 'cross-session/cross-workspace' : 'same-session'} A/B/A keeps editors and active tabs per owner but shares composition and bottom visibility`, async () => {
-			const controller = createDesktopController({ chatLayoutMode: 'shared' });
+			const controller = createDesktopController({ chatLayoutMode: 'chat-shared' });
 			const first = makeSession(URI.parse('session:shared-a'));
 			const otherWorkspace = {
 				...first.workspace.get()!,
@@ -169,7 +169,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		{ editor: true, auxiliaryBar: true },
 	]) {
 		test(`shared first peer preserves Editor=${composition.editor} Details=${composition.auxiliaryBar} and close/reopen uses global last-open`, async () => {
-			createDesktopController({ chatLayoutMode: 'shared' });
+			createDesktopController({ chatLayoutMode: 'chat-shared' });
 			const session = makeSession(URI.parse('session:combination'));
 			const peer = addPeerChat(session, URI.parse('chat:combination'));
 			harness.activeSessionObs.set(session, undefined);
@@ -196,7 +196,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		});
 
 		test(`shared settled managed tabs preserve first-peer Editor=${composition.editor} Details=${composition.auxiliaryBar}`, async () => {
-			createDesktopController({ chatLayoutMode: 'shared', activateAux: true });
+			createDesktopController({ chatLayoutMode: 'chat-shared', activateAux: true });
 			const session = makeSession(URI.parse('session:managed-shared'));
 			const peer = addPeerChat(session, URI.parse('chat:managed-shared'));
 			harness.activeSessionObs.set(session, undefined);
@@ -214,7 +214,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	}
 
 	test('shared draft and Quick Chat round trips, promotion, and deletion never overwrite global existing preferences', async () => {
-		createDesktopController({ chatLayoutMode: 'shared' });
+		createDesktopController({ chatLayoutMode: 'chat-shared' });
 		const existing = makeSession(URI.parse('session:existing'));
 		const peer = addPeerChat(existing, URI.parse('chat:existing-peer'));
 		harness.activeSessionObs.set(existing, undefined);
@@ -259,7 +259,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('shared phone suspension preserves global preferences and resumes the focused owner', async () => {
-		createDesktopController({ chatLayoutMode: 'shared' });
+		createDesktopController({ chatLayoutMode: 'chat-shared' });
 		const session = makeSession(URI.parse('session:phone'));
 		const peer = addPeerChat(session, URI.parse('chat:phone'));
 		harness.activeSessionObs.set(session, undefined);
@@ -284,7 +284,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	for (const quick of [false, true]) {
 		for (const multiple of [false, true]) {
 			test(`shared ${quick ? 'Quick Chat conversion' : 'same-resource draft submit'} applies existing preferences with multiple-visible=${multiple}`, async () => {
-				createDesktopController({ chatLayoutMode: 'shared' });
+				createDesktopController({ chatLayoutMode: 'chat-shared' });
 				const existing = makeSession(URI.parse('session:conversion-existing'));
 				harness.activeSessionObs.set(existing, undefined);
 				await settle();
@@ -314,7 +314,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	}
 
 	test('per-chat same-session switching captures ordinary editor resources and active tab without a shutdown save', async () => {
-		createDesktopController({ chatLayoutMode: 'per-chat' });
+		createDesktopController({ chatLayoutMode: 'chat' });
 		const session = makeSession(URI.parse('session:ordinary'));
 		const peer = addPeerChat(session, URI.parse('chat:ordinary'));
 		harness.activeSessionObs.set(session, undefined);
@@ -343,7 +343,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const session = makeSession(URI.parse('session:mode-reload'));
 		const peer = addPeerChat(session, URI.parse('chat:mode-reload'));
 		let controller: TestDesktopController | undefined;
-		const reload = async (mode: 'shared' | 'per-chat') => {
+		const reload = async (mode: 'chat-shared' | 'chat') => {
 			controller?.dispose();
 			harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode: mode, workspaceFolders: [{ uri: URI.file('/repo') }] });
 			harness.storageService = storage;
@@ -352,7 +352,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			harness.activeSessionObs.set(session, undefined);
 			await settle();
 		};
-		await reload('per-chat');
+		await reload('chat');
 		setVisible(true, true);
 		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
 		await settle();
@@ -366,7 +366,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			SIDE_PANE_COMPOSITION_STORAGE_KEY, SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY, CHAT_LAYOUT_STATE_STORAGE_KEY,
 		].map(key => storage.get(key, StorageScope.WORKSPACE));
 
-		await reload('shared');
+		await reload('chat-shared');
 		setVisible(true, false);
 		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
 		await settle();
@@ -376,7 +376,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const sharedBefore = [
 			'sessions.sharedChatLayout.sidePaneComposition', 'sessions.sharedChatLayout.sidePanePreHideComposition', 'sessions.singlePane.sharedChatLayoutState',
 		].map(key => storage.get(key, StorageScope.WORKSPACE));
-		await reload('shared');
+		await reload('chat-shared');
 		assert.deepStrictEqual({ composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART) }, {
 			composition: { editor: false, auxiliaryBar: false }, panel: false,
 		});
@@ -391,7 +391,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		].map(key => storage.get(key, StorageScope.WORKSPACE)), perChatBefore);
 		const sharedAfterReopen = storage.get('sessions.sharedChatLayout.sidePaneComposition', StorageScope.WORKSPACE);
 
-		await reload('per-chat');
+		await reload('chat');
 		assert.deepStrictEqual({ composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART) }, {
 			composition: { editor: true, auxiliaryBar: true }, panel: false,
 		});
@@ -406,7 +406,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R1] disabled: a same-session chat switch never affects the shared composition', async () => {
-		createDesktopController({ chatLayoutMode: 'disabled' });
+		createDesktopController({ chatLayoutMode: 'session' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -432,7 +432,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			sessionResource: 'session:a',
 			editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
 		}];
-		createDesktopController({ chatLayoutMode: 'per-chat', layoutState });
+		createDesktopController({ chatLayoutMode: 'chat', layoutState });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -455,7 +455,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			sessionResource: 'session:a',
 			editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
 		}];
-		createDesktopController({ useModal: 'some', chatLayoutMode: 'per-chat', layoutState });
+		createDesktopController({ useModal: 'some', chatLayoutMode: 'chat', layoutState });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -479,7 +479,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			sessionResource: 'session:a',
 			editorWorkingSet: { id: 'ws-legacy', name: 'ws-legacy' },
 		}];
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat', layoutState });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat', layoutState });
 		const firstRunStore = new DisposableStore();
 		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
 
@@ -569,7 +569,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R7] a fresh controller restores a saved peer chat\'s own bottomVisible independently of the main chat and of its panel view', async () => {
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat' });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
 		const firstRunStore = new DisposableStore();
 		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
 
@@ -622,7 +622,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R7] a fresh controller keeps a saved peer\'s hidden bottom hidden without opening its remembered view, then restores that exact view once the bottom is shown', async () => {
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat' });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
 		const firstRunStore = new DisposableStore();
 		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
 
@@ -681,7 +681,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R7] a well-formed entry followed by a malformed entry discards the whole saved layout record rather than half-applying it', async () => {
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat' });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
 		harness.storageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify({
 			version: 1,
 			entries: [
@@ -701,7 +701,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R7] a malformed panelVisible value discards the saved layout record instead of silently misreading it', async () => {
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat' });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
 		harness.storageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify({
 			version: 1,
 			entries: [{ sessionResource: 'session:a', panelVisible: 'yes' }],
@@ -717,7 +717,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R7] a malformed editorWorkingSet shape discards the saved layout record instead of silently misreading it', async () => {
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat' });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
 		harness.storageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify({
 			version: 1,
 			entries: [{ sessionResource: 'session:a', editorWorkingSet: { id: 'missing-name-field' } }],
@@ -733,7 +733,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -767,7 +767,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: toggling the side pane closed on A, visiting B, then reopening the side pane on A restores A\'s own composition', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -800,7 +800,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] a fresh controller backed by an independently reconstructed storage service restores A\'s own normal-toggle last-open composition, not B\'s, with no geometry involved', async () => {
-		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'per-chat' });
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutMode: 'chat' });
 		const firstRunStore = new DisposableStore();
 		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
 		await settle();
@@ -857,7 +857,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: all four Editor/Details compositions round-trip per owner', async () => {
-		createDesktopController({ chatLayoutMode: 'per-chat' });
+		createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -890,7 +890,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: focused owner composition round-trips while two sessions are simultaneously visible', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -924,7 +924,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: focused owner editor working set round-trips while two sessions are simultaneously visible', async () => {
-		createDesktopController({ chatLayoutMode: 'per-chat' });
+		createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -960,7 +960,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: focused owner panel visibility and view round-trip while two sessions are simultaneously visible', async () => {
-		createDesktopController({ chatLayoutMode: 'per-chat' });
+		createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -994,7 +994,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R5] enabled: panel visibility and view changes made while two sessions are simultaneously visible are captured to the focused owner only', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -1032,7 +1032,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a confirmed peer-chat deletion clears only that owner\'s composition', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1061,7 +1061,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a confirmed peer-chat deletion also forgets its captured editor working set and panel visibility/view', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1096,7 +1096,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a confirmed peer-chat deletion deletes only that peer\'s real working-set handle, leaving the main chat\'s handle untouched and still applicable', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1136,7 +1136,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a draft promotion carries a peer chat\'s editor working set and panel visibility/view to its new owner key', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Completed });
@@ -1175,7 +1175,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a confirmed peer-chat deletion also forgets its normal-toggle last-open composition cache', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1202,7 +1202,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a draft promotion carries a peer chat\'s normal-toggle last-open composition to its new owner key', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Completed });
@@ -1232,7 +1232,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a draft promotion carries a peer chat\'s composition to its new owner key', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Completed });
@@ -1262,7 +1262,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] toggling the side pane while a Quick Chat is active does not capture its composition into the durable owner catalog', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true });
@@ -1284,7 +1284,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R13] entering a phone layout freezes the on-screen composition; exiting resumes the focused chat\'s own composition', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1324,7 +1324,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R13] a normal toggle while suspended neither writes a stale last-open cache entry nor loses the one captured before suspension', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1358,7 +1358,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R13] a phone transition while B is focused never reads or writes under A\'s (the main chat\'s) owner key', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1389,7 +1389,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R13] a session switch while suspended does not apply any composition, and resumes with the newly focused session\'s own composition', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -1424,7 +1424,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R13] resuming re-applies the focused owner\'s own composition even when the owner key is unchanged across the suspension', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
@@ -1453,7 +1453,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	test('[R8] a working-set handle still referenced by the frozen legacy (disabled-mode) storage key survives an ordinary outgoing save that overwrites the enabled-mode owner\'s copy, and the fresh replacement handle is still correctly freed once unreferenced', async () => {
 		const legacyWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
 		const controller = createDesktopController({
-			chatLayoutMode: 'per-chat',
+			chatLayoutMode: 'chat',
 			layoutState: [{ sessionResource: 'session:a', editorWorkingSet: legacyWorkingSet }],
 		});
 		await settle();
@@ -1484,7 +1484,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 	test('[R8] a working-set handle shared with the frozen legacy storage key survives an outgoing overwrite even when the versioned chat-layout key already has its own current entries on reload', async () => {
 		const sharedWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
-		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode: 'per-chat', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode: 'chat', workspaceFolders: [{ uri: URI.file('/repo') }] });
 		harness.storageService.store(
 			'sessions.singlePane.layoutState',
 			JSON.stringify([{ sessionResource: 'session:a', editorWorkingSet: sharedWorkingSet }]),
@@ -1527,7 +1527,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	test('[R8] deleting a session\'s main chat entity clears its own tracked working set like any other owner, but never destroys a handle still referenced by the frozen legacy storage key', async () => {
 		const legacyWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
 		const controller = createDesktopController({
-			chatLayoutMode: 'per-chat',
+			chatLayoutMode: 'chat',
 			layoutState: [{ sessionResource: 'session:a', editorWorkingSet: legacyWorkingSet }],
 		});
 		await settle();
@@ -1553,7 +1553,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R8] a promotion that collapses a peer chat onto an already-used owner key never calls the destructive deleteWorkingSet API on the incoming handle, correctly frees the orphaned pre-existing destination handle it overwrites, and still cleans up the surviving handle exactly once on later removal', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'per-chat' });
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
 		const shared = makeSession(URI.parse('chat:shared'));
@@ -1603,7 +1603,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			path: `/${encodeURIComponent(sessionResource.toString())}/${encodeURIComponent(peerResource.toString())}`,
 		});
 
-		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode: 'per-chat', workspaceFolders: [{ uri: URI.file('/repo') }] });
+		harness = createTestHarness(store, { desktopLayout: true, chatLayoutMode: 'chat', workspaceFolders: [{ uri: URI.file('/repo') }] });
 		harness.storageService.store(
 			CHAT_LAYOUT_STATE_STORAGE_KEY,
 			JSON.stringify({

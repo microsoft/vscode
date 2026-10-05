@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { CHAT_SPECIFIC_LAYOUT_SETTING, ChatLayoutContext, ChatLayoutPresentation, getChatLayoutOwnerAfterReplacement } from '../../common/chatLayout.js';
+import { SESSIONS_LAYOUT_MODE_SETTING, ChatLayoutContext, ChatLayoutPresentation, getChatLayoutOwnerAfterReplacement } from '../../common/chatLayout.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 
@@ -28,46 +28,55 @@ suite('Chat layout contract', () => {
 		});
 	}
 
-	test('string mode is frozen until reconstruction and defaults to disabled', async () => {
+	test('string mode is frozen until reconstruction and defaults to session', async () => {
 		const configuration = new TestConfigurationService();
 		const phone = observableValue('phone', false);
 		const initial = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'per-chat');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat');
 		const enabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'shared');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat-shared');
 		const shared = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'disabled');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'session');
 		const disabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		assert.deepStrictEqual([initial, enabled, shared, disabled].map(presentation => ({
 			mode: presentation.state.get().mode, active: presentation.state.get().active, frozen: Object.isFrozen(presentation.state.get()),
 		})), [
-			{ mode: 'disabled', active: false, frozen: true },
-			{ mode: 'per-chat', active: true, frozen: true },
-			{ mode: 'shared', active: true, frozen: true },
-			{ mode: 'disabled', active: false, frozen: true },
+			{ mode: 'session', active: false, frozen: true },
+			{ mode: 'chat', active: true, frozen: true },
+			{ mode: 'chat-shared', active: true, frozen: true },
+			{ mode: 'session', active: false, frozen: true },
 		]);
 	});
 
-	test('booleans and invalid enum values never enable ownership', () => {
-		assert.deepStrictEqual([true, false, 'enabled', null].map(value => {
-			const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: value }), true, constObservable(false)));
+	test('booleans, former modes and invalid enum values never enable ownership', () => {
+		const values = [true, false, 'disabled', 'shared', 'per-chat', 'enabled', null];
+		assert.deepStrictEqual(values.map(value => {
+			const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: value }), true, constObservable(false)));
 			return { mode: presentation.state.get().mode, enabled: presentation.enabled };
-		}), Array.from({ length: 4 }, () => ({ mode: 'disabled', enabled: false })));
+		}), values.map(() => ({ mode: 'session', enabled: false })));
+	});
+
+	test('the unreleased former setting does not enable ownership', () => {
+		const configuration = new TestConfigurationService({ 'sessions.experimental.chatSpecificLayout': 'per-chat' });
+		const presentation = store.add(new ChatLayoutPresentation(configuration, true, constObservable(false)));
+		assert.deepStrictEqual({ mode: presentation.configured, enabled: presentation.enabled }, {
+			mode: 'session', enabled: false,
+		});
 	});
 
 	test('phone startup remains legacy even after returning to desktop', () => {
-		const configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'per-chat' });
+		const configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'chat' });
 		const phone = observableValue('phone', true);
 		const presentation = store.add(new ChatLayoutPresentation(configuration, false, phone));
 		phone.set(false, undefined);
 		assert.deepStrictEqual({ configured: presentation.configured, enabled: presentation.enabled, active: presentation.state.get().active }, {
-			configured: 'per-chat', enabled: false, active: false,
+			configured: 'chat', enabled: false, active: false,
 		});
 	});
 
 	test('runtime suspension invalidates queued work and resumes the focused owner without changing captured ownership', () => {
 		const phone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'per-chat' }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'chat' }), true, phone));
 		const main = chat('opaque-main:/one');
 		const peer = chat('different-peer:/two');
 		const activeChat = observableValue('activeChat', main);
@@ -94,7 +103,7 @@ suite('Chat layout contract', () => {
 
 	test('same-session, cross-session, and A/B/A focus changes invalidate snapshots; no session has no owner', () => {
 		const localPhone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'per-chat' }), true, localPhone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'chat' }), true, localPhone));
 		const main = chat('chat:/main');
 		const peer = chat('chat:/peer');
 		const activeChat = observableValue('activeChat', main);

@@ -18,7 +18,7 @@ import { ITaskService } from '../../../../../workbench/contrib/tasks/common/task
 import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { WorkbenchSessionTaskRunner } from '../../browser/workbenchSessionTaskRunner.js';
-import { ChatLayoutPresentation, CHAT_SPECIFIC_LAYOUT_SETTING } from '../../../../common/chatLayout.js';
+import { ChatLayoutPresentation, SESSIONS_LAYOUT_MODE_SETTING } from '../../../../common/chatLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -128,7 +128,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 			}
 		});
 		phone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'disabled' }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'session' }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});
@@ -153,8 +153,8 @@ suite('WorkbenchSessionTaskRunner', () => {
 		workspaceFoldersByUri.set(folder.toString(), { uri: folder, name: 'folder', index: 0, toResource: () => folder } as IWorkspaceFolder);
 	}
 
-	function enableChatOwnership(mode: 'per-chat' | 'shared' = 'per-chat'): void {
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: mode }), true, phone));
+	function enableChatOwnership(mode: 'chat' | 'chat-shared' = 'chat'): void {
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: mode }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});
@@ -163,7 +163,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 		tasksByLabel.set('build', new InMemoryTask('build', { kind: 'inMemory', label: 'test' }, 'build', 'composite', RunOptions.defaults, {}));
 	}
 
-	for (const mode of ['shared', 'per-chat'] as const) {
+	for (const mode of ['chat-shared', 'chat'] as const) {
 		test(`${mode} same-cwd sibling workbench tasks carry distinct immutable scopes through task cloning`, async () => {
 			enableChatOwnership(mode);
 			const session = makeSession({ repository: repoUri, worktree: worktreeUri });

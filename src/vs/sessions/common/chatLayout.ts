@@ -11,8 +11,8 @@ import { IConfigurationService } from '../../platform/configuration/common/confi
 import { IActiveSession } from '../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../services/sessions/common/session.js';
 
-export const CHAT_SPECIFIC_LAYOUT_SETTING = 'sessions.experimental.chatSpecificLayout';
-export type ChatLayoutMode = 'disabled' | 'shared' | 'per-chat';
+export const SESSIONS_LAYOUT_MODE_SETTING = 'sessions.layout.mode';
+export type ChatLayoutMode = 'session' | 'chat-shared' | 'chat';
 
 export interface IChatLayoutOwner {
 	readonly sessionResource: URI;
@@ -49,9 +49,9 @@ export class ChatLayoutPresentation extends Disposable {
 
 	constructor(configurationService: IConfigurationService, startupDesktop: boolean, isPhoneLayout: IObservable<boolean>) {
 		super();
-		const configured = configurationService.getValue<string>(CHAT_SPECIFIC_LAYOUT_SETTING);
-		this.configured = configured === 'shared' || configured === 'per-chat' ? configured : 'disabled';
-		this.enabled = startupDesktop && this.configured !== 'disabled';
+		const configured = configurationService.getValue<string>(SESSIONS_LAYOUT_MODE_SETTING);
+		this.configured = configured === 'chat-shared' || configured === 'chat' ? configured : 'session';
+		this.enabled = startupDesktop && this.configured !== 'session';
 		this._state = observableValue<IChatLayoutPresentationSnapshot>(this, Object.freeze({ mode: this.configured, active: false, generation: 0 }));
 		this.state = this._state;
 		this._register(autorun(reader => {

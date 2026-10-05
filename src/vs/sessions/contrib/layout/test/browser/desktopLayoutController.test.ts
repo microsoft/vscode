@@ -1473,7 +1473,7 @@ suite('DesktopLayoutController', () => {
 		}];
 		harness = createTestHarness(store, {
 			useModal: 'some',
-			chatLayoutMode: 'per-chat',
+			chatLayoutMode: 'chat',
 			desktopLayout: true,
 			workspaceFolders: [{ uri: URI.file('/repo') }],
 			layoutState,
