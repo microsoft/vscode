@@ -1086,75 +1086,79 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
-	test('restores MCP app data for completed tool calls', async () => {
-		const events: ISessionEvent[] = [
-			{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
-			{
-				type: 'assistant.message',
-				data: {
-					messageId: 'm2',
-					content: '',
-					toolRequests: [{
+	for (const scheme of ['copilot', 'ahp-session']) {
+		test(`restores MCP app data for completed tool calls on ${scheme} resources`, async () => {
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
+				{
+					type: 'assistant.message',
+					data: {
+						messageId: 'm2',
+						content: '',
+						toolRequests: [{
+							toolCallId: 'tc-1',
+							name: 'GitHub-get_me',
+							arguments: {},
+							type: 'function',
+							mcpServerName: 'GitHub',
+							mcpToolName: 'get_me',
+						}],
+					},
+				},
+				{
+					type: 'tool.execution_start',
+					data: {
 						toolCallId: 'tc-1',
-						name: 'GitHub-get_me',
+						toolName: 'GitHub-get_me',
 						arguments: {},
-						type: 'function',
 						mcpServerName: 'GitHub',
 						mcpToolName: 'get_me',
-					}],
-				},
-			},
-			{
-				type: 'tool.execution_start',
-				data: {
-					toolCallId: 'tc-1',
-					toolName: 'GitHub-get_me',
-					arguments: {},
-					mcpServerName: 'GitHub',
-					mcpToolName: 'get_me',
-					toolDescription: {
-						_meta: {
-							ui: {
-								resourceUri: 'ui://github-mcp-server/get-me',
+						toolDescription: {
+							_meta: {
+								ui: {
+									resourceUri: 'ui://github-mcp-server/get-me',
+								},
 							},
 						},
 					},
 				},
-			},
-			{
-				type: 'tool.execution_complete',
-				data: {
-					toolCallId: 'tc-1',
-					success: true,
-					result: { content: '{"login":"octocat"}' },
+				{
+					type: 'tool.execution_complete',
+					data: {
+						toolCallId: 'tc-1',
+						success: true,
+						result: { content: '{"login":"octocat"}' },
+					},
 				},
-			},
-		];
+			];
 
-		const chatUri = URI.parse(buildChatUri(session, 'restored-chat'));
-		const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
-		const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
+			const owner = AgentSession.uri(scheme, 'test-session');
+			const providerId = scheme === 'ahp-session' ? 'copilotcli' : scheme;
+			const chatUri = URI.parse(buildChatUri(owner, 'restored-chat'));
+			const sdkConversationUri = URI.parse('copilot-sdk:/conversation-123');
+			const { turns } = await mapSessionEventsWithRouting(sdkConversationUri, undefined, toSessionEvents(events), chatUri);
 
-		const part = turns[0].responseParts[0] as ToolCallResponsePart;
-		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
-		assert.deepStrictEqual({
-			contributor: part.toolCall.contributor,
-			meta: readToolCallMeta(part.toolCall),
-		}, {
-			contributor: {
-				kind: ToolCallContributorKind.MCP,
-				customizationId: 'mcp-top-level:copilot:test-session:GitHub',
-			},
-			meta: {
-				mcpServerName: 'GitHub',
-				mcpToolName: 'get_me',
-				ui: {
-					resourceUri: 'ui://github-mcp-server/get-me',
-					channel: `mcp://copilot/${encodeURIComponent(chatUri.toString())}/GitHub`,
+			const part = turns[0].responseParts[0] as ToolCallResponsePart;
+			assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
+			assert.deepStrictEqual({
+				contributor: part.toolCall.contributor,
+				meta: readToolCallMeta(part.toolCall),
+			}, {
+				contributor: {
+					kind: ToolCallContributorKind.MCP,
+					customizationId: `mcp-top-level:${providerId}:test-session:GitHub`,
 				},
-			},
+				meta: {
+					mcpServerName: 'GitHub',
+					mcpToolName: 'get_me',
+					ui: {
+						resourceUri: 'ui://github-mcp-server/get-me',
+						channel: `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/GitHub`,
+					},
+				},
+			});
 		});
-	});
+	}
 
 	test('derives shell tool intention from the description argument on replay', async () => {
 		const events: ISessionEvent[] = [

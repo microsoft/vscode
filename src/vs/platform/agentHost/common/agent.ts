@@ -14,7 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
@@ -507,6 +507,9 @@ export interface IAgentChatContext {
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
+	readonly turnTelemetryCorrelation?: IAgentTurnTelemetryCorrelation;
+	/** Records provider-owned dispatch facts on the addressed turn, before progress can complete it. */
+	readonly reportCodexModelProvider?: (provider: CodexModelProvider) => void;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
@@ -1154,12 +1157,11 @@ export namespace AgentSession {
 	}
 
 	/**
-	 * Extracts the provider name from a session URI scheme.
-	 * Accepts both a URI object and a URI string.
+	 * Legacy provider-scheme fallback; standard sessions require explicit provider metadata.
 	 */
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
-		return parsed.scheme || undefined;
+		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
 	}
 }
 
@@ -1328,6 +1330,9 @@ export interface IAgent {
 	 * not advertise the capability MUST reject the call.
 	 */
 	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
+
+	/** Changes the addressed chat's backing. Shared roots may change only under the host's single-chat catalog lock. */
+	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI, options?: { readonly replaceSessionWorkspace: boolean }): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;

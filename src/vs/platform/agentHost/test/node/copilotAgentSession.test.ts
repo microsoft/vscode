@@ -40,7 +40,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
-import { readMcpServerDisplayName, readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -12335,7 +12335,7 @@ Use the attached image as context.
 				deltas: [{ content: '', hasInvocationMessage: true }],
 				readyContributor: {
 					kind: ToolCallContributorKind.MCP,
-					customizationId: 'mcp-top-level:copilot:test-session-1:docs',
+					customizationId: 'mcp-top-level:copilotcli:test-session-1:docs',
 				},
 				invocationMessage: 'Look up documentation',
 			});
@@ -12535,54 +12535,58 @@ Use the attached image as context.
 			}
 		});
 
-		test('tool_start carries the MCP App channel when the server is already ready', async () => {
-			// A tool call cannot begin until its MCP server is Ready, so the
-			// AHP `mcp://` channel is always available at `tool.execution_start`
-			// and is published as part of the initial `_meta.ui` payload.
-			const { mockSession, signals } = await createAgentSession(disposables, {
-				configureMockSession: m => {
-					m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
-				},
-			});
-			mockSession.fire('session.mcp_server_status_changed', {
-				serverName: 'docs',
-				status: 'connected',
-			} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
-			mockSession.fire('tool.execution_start', {
-				toolCallId: 'tc-app-channel',
-				toolName: 'mcp_tool',
-				mcpServerName: 'docs',
-				arguments: { topic: 'metadata' },
-				toolDescription: {
-					name: 'mcp_tool',
-					_meta: {
-						ui: { resourceUri: 'ui://docs' },
-					},
-				},
-			} as SessionEventPayload<'tool.execution_start'>['data']);
-
-			const toolStart = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
-			assert.ok(toolStart && isAction(toolStart, ActionType.ChatToolCallStart));
-			if (toolStart && isAction(toolStart, ActionType.ChatToolCallStart)) {
-				const action = toolStart.action as ChatToolCallStartAction;
-				assert.deepStrictEqual({
-					contributor: action.contributor,
-					meta: action._meta,
-				}, {
-					contributor: {
-						kind: ToolCallContributorKind.MCP,
-						customizationId: 'mcp-top-level:copilot:test-session-1:docs',
-					},
-					meta: {
-						mcpServerName: 'docs',
-						ui: {
-							resourceUri: 'ui://docs',
-							channel: buildMcpChannel(URI.parse(buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1'))), 'docs'),
-						},
+		for (const scheme of ['copilot', 'copilotcli', 'ahp-session']) {
+			test(`tool_start carries the MCP App channel when the server is already ready (${scheme})`, async () => {
+				const owningSession = AgentSession.uri(scheme, 'test-session-1');
+				// A tool call cannot begin until its MCP server is Ready, so the
+				// AHP `mcp://` channel is always available at `tool.execution_start`
+				// and is published as part of the initial `_meta.ui` payload.
+				const { mockSession, signals } = await createAgentSession(disposables, {
+					sessionUri: owningSession,
+					configureMockSession: m => {
+						m.mcpListResult = { servers: [{ name: 'docs', status: 'connected' }] };
 					},
 				});
-			}
-		});
+				mockSession.fire('session.mcp_server_status_changed', {
+					serverName: 'docs',
+					status: 'connected',
+				} as SessionEventPayload<'session.mcp_server_status_changed'>['data']);
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-app-channel',
+					toolName: 'mcp_tool',
+					mcpServerName: 'docs',
+					arguments: { topic: 'metadata' },
+					toolDescription: {
+						name: 'mcp_tool',
+						_meta: {
+							ui: { resourceUri: 'ui://docs' },
+						},
+					},
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+
+				const toolStart = signals.find(s => isAction(s, ActionType.ChatToolCallStart));
+				assert.ok(toolStart && isAction(toolStart, ActionType.ChatToolCallStart));
+				if (toolStart && isAction(toolStart, ActionType.ChatToolCallStart)) {
+					const action = toolStart.action as ChatToolCallStartAction;
+					assert.deepStrictEqual({
+						contributor: action.contributor,
+						meta: action._meta,
+					}, {
+						contributor: {
+							kind: ToolCallContributorKind.MCP,
+							customizationId: 'mcp-top-level:copilotcli:test-session-1:docs',
+						},
+						meta: {
+							mcpServerName: 'docs',
+							ui: {
+								resourceUri: 'ui://docs',
+								channel: buildMcpChannel(URI.parse(buildDefaultChatUri(owningSession)), 'docs', 'copilotcli'),
+							},
+						},
+					});
+				}
+			});
+		}
 
 		test('tool_start derives intention from a shell tool description argument', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -17451,7 +17455,7 @@ Use the attached image as context.
 			};
 			const activeClientToolSet = new ActiveClientToolSet();
 			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
-			const serverCustomizationId = 'mcp-top-level:copilot:test-session-1:docs';
+			const serverCustomizationId = 'mcp-top-level:copilotcli:test-session-1:docs';
 			const created = await createAgentSession(disposables, {
 				clientSnapshot: toolSearchSnapshot,
 				activeClientToolSet,
@@ -18659,6 +18663,42 @@ Use the attached image as context.
 			assert.deepStrictEqual(runtime.createServerSdkTools().map(tool => tool.name), ['ephemeralServerTool']);
 		});
 
+		test('rejects inherited topLevelChatOnly tools from native workers and unknown origins', async () => {
+			const serverToolHost = new FakeServerToolHost([{ name: 'topLevelOnly', topLevelChatOnly: true }]);
+			const { session, runtime, mockSession } = await createAgentSession(disposables, { serverToolHost });
+			session.resetTurnState('turn-top-level-only');
+			const tool = runtime.createServerSdkTools()[0];
+			mockSession.fire('subagent.started', {
+				toolCallId: 'worker-task',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'worker-agent' });
+			for (const [toolCallId, agentId] of [['worker-tool', 'worker-agent'], ['unknown-worker-tool', 'unmapped-agent']]) {
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'topLevelOnly', arguments: {},
+				} as SessionEventPayload<'tool.execution_start'>['data'], { agentId });
+			}
+			const results = await Promise.all(['worker-tool', 'unknown-worker-tool', 'missing-origin'].map(toolCallId => invokeClientToolHandler(tool, toolCallId)));
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'root-tool', toolName: 'topLevelOnly', arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const rootResult = await invokeClientToolHandler(tool, 'root-tool');
+			assert.deepStrictEqual({
+				workerResults: results.map(result => result.resultType),
+				rootResult: rootResult.resultType,
+				executions: serverToolHost.executions,
+			}, {
+				workerResults: ['failure', 'failure', 'failure'],
+				rootResult: 'success',
+				executions: [{
+					sessionUri: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
+					toolName: 'topLevelOnly',
+					rawArgs: {},
+				}],
+			});
+		});
+
 		test('server tool handler routes to the host and returns a success result', async () => {
 			const serverToolHost = new FakeServerToolHost();
 			serverToolHost.result = 'listed 2 comments';
@@ -19292,7 +19332,7 @@ Use the attached image as context.
 		] as const) {
 			test(testCase.name, async () => {
 				const serverName = 'component-explorer';
-				const id = 'mcp-top-level:copilot:test-session-1:component-explorer';
+				const id = 'mcp-top-level:copilotcli:test-session-1:component-explorer';
 				const enablement: NonNullable<McpServerCustomization['enablement']> = [{ kind: CustomizationEnablementKind.Global, enabled: testCase.desired }];
 				const server: McpServerCustomization = {
 					type: CustomizationType.McpServer,
@@ -19326,7 +19366,7 @@ Use the attached image as context.
 
 		test('does not reverse an external disable when an enable reconciliation is already running', async () => {
 			const serverName = 'component-explorer';
-			const id = 'mcp-top-level:copilot:test-session-1:component-explorer';
+			const id = 'mcp-top-level:copilotcli:test-session-1:component-explorer';
 			const enablement: NonNullable<McpServerCustomization['enablement']> = [{ kind: CustomizationEnablementKind.Global, enabled: true }];
 			const enableGate = new DeferredPromise<void>();
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
@@ -19379,7 +19419,7 @@ Use the attached image as context.
 			for (const enabled of [false, true]) {
 				test(`reconciles ${status} servers with desired enablement ${enabled}`, async () => {
 					const serverName = 'azure';
-					const id = 'mcp-top-level:copilot:test-session-1:azure';
+					const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 					const { session, mockSession } = await createAgentSession(disposables, {
 						sessionCustomizations: () => [{
 							type: CustomizationType.McpServer,
@@ -19422,7 +19462,7 @@ Use the attached image as context.
 
 		test('does not enable a server while its customization resolution is pending', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19444,7 +19484,7 @@ Use the attached image as context.
 
 		test('does not enable a server resolved as disabled when the SDK reports it disabled', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19471,7 +19511,7 @@ Use the attached image as context.
 
 		test('uses a non-starting list to disable a runtime-enabled server without waiting for pending inventory', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const inventoryGate = new DeferredPromise<void>();
 			const disableGate = new DeferredPromise<void>();
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -19524,7 +19564,7 @@ Use the attached image as context.
 
 		test('uses a non-starting list to enable a runtime-disabled server without waiting for pending inventory', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const inventoryGate = new DeferredPromise<void>();
 			const enableGate = new DeferredPromise<void>();
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -19577,7 +19617,7 @@ Use the attached image as context.
 
 		test('does not send when the non-starting MCP list fails', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19608,7 +19648,7 @@ Use the attached image as context.
 
 		test('does not send when required MCP disablement fails', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19642,7 +19682,7 @@ Use the attached image as context.
 
 		test('uses desired enablement resolved after the non-starting list completes', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const enablementGate = new DeferredPromise<void>();
 			let desiredEnabled = false;
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -19685,7 +19725,7 @@ Use the attached image as context.
 
 		test('enables a server resolved as enabled when the SDK reports it disabled', async () => {
 			const serverName = 'azure';
-			const id = 'mcp-top-level:copilot:test-session-1:azure';
+			const id = 'mcp-top-level:copilotcli:test-session-1:azure';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19785,7 +19825,7 @@ Use the attached image as context.
 
 		test('session MCP desired enablement reconciles runtime drift', async () => {
 			const serverName = 'slack';
-			const id = 'mcp-top-level:copilot:test-session-1:slack';
+			const id = 'mcp-top-level:copilotcli:test-session-1:slack';
 			let desiredEnabled = true;
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
@@ -19876,7 +19916,7 @@ Use the attached image as context.
 
 		test('sending a message does not mark an enabled server as Starting', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19908,7 +19948,7 @@ Use the attached image as context.
 
 		test('backgroundMcpServerStartup accepts a blocking server without waiting for it to connect', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19945,7 +19985,7 @@ Use the attached image as context.
 
 		test('backgroundMcpServerStartup preserves blocking when the SDK has no waiting turn to release', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -19980,8 +20020,8 @@ Use the attached image as context.
 		});
 
 		test('backgroundMcpServerStartup updates all pending servers after the session-wide SDK request succeeds', async () => {
-			const first = { name: 'db', id: 'mcp-top-level:copilot:test-session-1:db' };
-			const second = { name: 'docs', id: 'mcp-top-level:copilot:test-session-1:docs' };
+			const first = { name: 'db', id: 'mcp-top-level:copilotcli:test-session-1:db' };
+			const second = { name: 'docs', id: 'mcp-top-level:copilotcli:test-session-1:docs' };
 			const { session } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [first, second].map(server => ({
 					type: CustomizationType.McpServer,
@@ -20004,7 +20044,7 @@ Use the attached image as context.
 
 		test('backgroundMcpServerStartup preserves blocking state when the SDK rejects', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -20031,7 +20071,7 @@ Use the attached image as context.
 		for (const status of ['connected', 'failed', 'restart'] as const) {
 			test(`backgroundMcpServerStartup does not overwrite ${status} while awaiting the SDK`, async () => {
 				const serverName = 'db';
-				const id = 'mcp-top-level:copilot:test-session-1:db';
+				const id = 'mcp-top-level:copilotcli:test-session-1:db';
 				const gate = new DeferredPromise<void>();
 				const { session, mockSession } = await createAgentSession(disposables, {
 					configureMockSession: mock => {
@@ -20078,7 +20118,7 @@ Use the attached image as context.
 
 		test('startMcpServer reports Starting only once the SDK reports the reconnect', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -20116,7 +20156,7 @@ Use the attached image as context.
 
 		test('stopMcpServer uses the SDK lifecycle method', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -20143,7 +20183,7 @@ Use the attached image as context.
 
 		test('retries current inventory after stopping during an in-flight inventory refresh', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
 					type: CustomizationType.McpServer,
@@ -20190,7 +20230,7 @@ Use the attached image as context.
 
 		test('startMcpServer waits for an in-flight stop of the same server', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const stopGate = new DeferredPromise<void>();
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
@@ -20238,7 +20278,7 @@ Use the attached image as context.
 
 		test('cancels a queued Start without waiting for the preceding Stop or issuing an SDK Start', async () => {
 			const serverName = 'db';
-			const id = 'mcp-top-level:copilot:test-session-1:db';
+			const id = 'mcp-top-level:copilotcli:test-session-1:db';
 			const gate = new DeferredPromise<void>();
 			const source = disposables.add(new CancellationTokenSource());
 			const { session, mockSession } = await createAgentSession(disposables, {
@@ -20265,7 +20305,7 @@ Use the attached image as context.
 			const parentSessionUri = AgentSession.uri('copilot', 'parent-session');
 			const peerChatUri = URI.parse(buildChatUri(parentSessionUri, 'peer-1'));
 			const serverName = 'slack';
-			const id = 'mcp-top-level:copilot:test-session-1:slack';
+			const id = 'mcp-top-level:copilotcli:test-session-1:slack';
 			const { session, mockSession } = await createAgentSession(disposables, {
 				sessionUri: parentSessionUri,
 				chatChannelUri: peerChatUri,
@@ -20885,7 +20925,7 @@ Use the attached image as context.
 
 		test('disabling an MCP server cancels its pending authentication before awaiting the SDK', async () => {
 			const serverName = 'slack';
-			const id = 'mcp-top-level:copilot:test-session-1:slack';
+			const id = 'mcp-top-level:copilotcli:test-session-1:slack';
 			let desiredEnabled = true;
 			const { session, mockSession, runtime } = await createAgentSession(disposables, {
 				sessionCustomizations: () => [{
@@ -21150,8 +21190,8 @@ Use the attached image as context.
 
 			assert.deepStrictEqual(action.customization, {
 				type: 'mcpServer',
-				id: 'mcp-top-level:copilot:test-session-1:github',
-				uri: 'mcp-top-level:copilot:test-session-1:github',
+				id: 'mcp-top-level:copilotcli:test-session-1:github',
+				uri: 'mcp-top-level:copilotcli:test-session-1:github',
 				name: 'github',
 				state: {
 					kind: McpServerStatus.AuthRequired,
@@ -21253,36 +21293,80 @@ Use the attached image as context.
 			assert.deepStrictEqual(names, ['alpha', 'beta']);
 		});
 
-		test('publishes SDK configuration sources for host-only MCP servers and retains them across status updates', async () => {
+		test('publishes SDK configuration sources and plugins for host-only MCP servers, but not runtime display titles, and retains them across status updates', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				configureMockSession: m => {
 					m.mcpListResult = {
 						servers: [
 							{ name: 'local-memory', status: 'connected', source: 'user' },
 							{ name: 'github', status: 'failed', source: 'user' },
-							{ name: 'workspace-server', status: 'connected', source: 'workspace' },
-							{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+							// The runtime falls back to a server's advertised title; only connector catalog names are display names.
+							{ name: 'workspace-server', status: 'connected', source: 'workspace', displayName: 'Everything Reference Server' },
+							{ name: 'plugin-server', status: 'connected', source: 'plugin', sourcePlugin: 'acme' },
 							{ name: 'github-mcp-server', status: 'connected', source: 'builtin' },
+							{ name: 'computer-use', status: 'connected', source: 'builtin', sourcePlugin: 'computer-use' },
+							{ name: 'github-copilot-connector-1', status: 'connected', source: 'managed' },
 						]
 					};
 				},
 			});
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
 			const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
-				name: server.name, source: readMcpServerSource(server),
+				name: server.name, source: readMcpServerSource(server), displayName: readMcpServerDisplayName(server), sourcePlugin: readMcpServerSourcePlugin(server),
 			}));
 			const initial = snapshot();
 
 			mockSession.fire('session.mcp_server_status_changed', { serverName: 'local-memory', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'computer-use', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-copilot-connector-1', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-mcp-server', status: 'stopped' });
 
 			const expected = [
-				{ name: 'local-memory', source: 'user' },
-				{ name: 'github', source: 'user' },
-				{ name: 'workspace-server', source: 'workspace' },
-				{ name: 'plugin-server', source: 'plugin' },
-				{ name: 'github-mcp-server', source: 'builtin' },
+				{ name: 'local-memory', source: 'user', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'github', source: 'user', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'workspace-server', source: 'workspace', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'plugin-server', source: 'plugin', displayName: undefined, sourcePlugin: 'acme' },
+				{ name: 'github-mcp-server', source: 'builtin', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'computer-use', source: 'builtin', displayName: undefined, sourcePlugin: 'computer-use' },
+				{ name: 'github-copilot-connector-1', source: 'managed', displayName: undefined, sourcePlugin: undefined },
 			];
 			assert.deepStrictEqual({ initial, afterStatusChange: snapshot() }, { initial: expected, afterStatusChange: expected });
+		});
+
+		test('declares the GitHub MCP setting only for the runtime\'s own GitHub server, not a configured server of the same name', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'github-mcp-server', status: 'connected', source: 'builtin' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const setting = () => readMcpServerControllingSetting(session.topLevelMcpCustomizations().find(server => server.name === 'github-mcp-server'));
+			const builtin = setting();
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-mcp-server', status: 'stopped' });
+			const afterStatusChange = setting();
+
+			const configured: Record<string, string | undefined> = {};
+			for (const [kind, server] of [
+				['user', { name: 'github-mcp-server', status: 'connected', source: 'user', sourcePlugin: undefined }],
+				['plugin', { name: 'github-mcp-server', status: 'connected', source: 'plugin', sourcePlugin: 'acme' }],
+				['builtinPlugin', { name: 'github-mcp-server', status: 'connected', source: 'builtin', sourcePlugin: 'acme' }],
+			] as const) {
+				const published = (signal: AgentSignal) => isAction(signal, ActionType.SessionCustomizationUpdated)
+					&& signal.action.type === ActionType.SessionCustomizationUpdated
+					&& signal.action.customization.type === CustomizationType.McpServer
+					&& readMcpServerSource(signal.action.customization) === server.source
+					&& readMcpServerSourcePlugin(signal.action.customization) === server.sourcePlugin;
+				mockSession.mcpListResult = { servers: [server] };
+				mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+				await waitForSignal(published);
+				configured[kind] = setting();
+			}
+
+			assert.deepStrictEqual({ builtin, afterStatusChange, configured }, {
+				builtin: 'chat.agentHost.githubMcpServer.enabled',
+				afterStatusChange: 'chat.agentHost.githubMcpServer.enabled',
+				configured: { user: undefined, plugin: undefined, builtinPlugin: undefined },
+			});
 		});
 
 		test('resolves omitted SDK sources from user configuration without reclassifying explicit or unknown sources', async () => {
@@ -21350,7 +21434,7 @@ Use the attached image as context.
 
 					const userUri = URI.file(join(copilotHome ?? join('/mock-home', '.copilot'), 'mcp-config.json')).toString();
 					const expected = ['explicit-user', 'inferred-user', 'workspace-server', 'plugin-server', 'builtin-server', 'unknown-server'].map(name => {
-						const id = `mcp-top-level:copilot:test-session-1:${name}`;
+						const id = `mcp-top-level:copilotcli:test-session-1:${name}`;
 						return { id, uri: name.endsWith('-user') ? userUri : id };
 					});
 					assert.deepStrictEqual({ initial, afterLifecycle: snapshot() }, { initial: expected, afterLifecycle: expected });

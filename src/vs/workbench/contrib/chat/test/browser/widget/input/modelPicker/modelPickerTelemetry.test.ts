@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../../../base/browser/dom.js';
+import { EventType as TouchEventType } from '../../../../../../../../base/browser/touch.js';
 import { mainWindow } from '../../../../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
@@ -540,6 +541,22 @@ suite('ModelPickerTelemetry', () => {
 				opened: { wholeChipActive: true, configExpanded: 'true' },
 				closed: { wholeChipActive: false, configExpanded: 'false' },
 			});
+		});
+	}
+
+	for (const target of ['name', 'config']) {
+		test(`a touch tap on the model ${target} opens the picker`, () => {
+			const result = createPicker(false);
+			result.picker.render(result.container);
+			result.hide();
+			const trigger = result.container.querySelector<HTMLElement>(`.model-picker-${target}`)!;
+			trigger.dispatchEvent(new CustomEvent(TouchEventType.Tap, { bubbles: true, cancelable: true }));
+			const opened = {
+				wholeChipActive: result.picker.domNode!.classList.contains('model-picker-active'),
+				expanded: trigger.getAttribute('aria-expanded'),
+			};
+			result.hide();
+			assert.deepStrictEqual(opened, { wholeChipActive: true, expanded: 'true' });
 		});
 	}
 

@@ -21,9 +21,10 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -291,11 +292,16 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
-				requestSessionWorkspaceUpdate: () => { },
+				supportsChatIsolation: () => false,
+				canIsolateChat: () => false,
+				requestChatIsolation: () => { },
+				restoreChatIsolation: async () => { },
+				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
+				isConversionTurn: () => false,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
-			}],
+			} satisfies ISessionWorkspaceConversionService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -368,9 +374,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, chat);
 		}
 		const expected = [
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'free', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 60 },
-			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40, chatgptFiveHourQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'free', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 60, chatgptFiveHourQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 		];
 		const sent = [defaultChatUri, peerChat, secondChat].map(chat => {
 			const context = sends.getCalls().find(call => call.args[0].toString() === chat)?.args[7];
@@ -394,9 +400,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		codex.chatgptPlanTier = 'pro';
 		codex.chatgptWeeklyQuotaState = 'available';
 		codex.chatgptWeeklyUsedPercentBucket = 100;
+		codex.chatgptFiveHourQuotaState = 'available';
+		codex.chatgptFiveHourUsedPercentBucket = 100;
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
 		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing', chatgptFiveHourQuotaState: 'missing' },
 		]);
 	});
 
@@ -1564,6 +1572,52 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('uses the resolved usage model while preserving HydraFusion selection', () => {
+		sinon.stub(agent, 'id').value(COPILOT_CLI_AGENT_PROVIDER_ID);
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MODEL_ID, name: 'HydraFusion', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		startTurn('turn-explicit', 'hello', COPILOT_HYDRA_FUSION_MODEL_ID);
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-explicit', usage: { model: 'gpt-5.5' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-explicit', duration: 1000 });
+
+		agent.chatModel = { id: COPILOT_HYDRA_FUSION_MODEL_ID };
+		startTurn('turn-default');
+		fire({ type: ActionType.ChatError, turnId: 'turn-default', duration: 1000, part: createErrorResponsePart({ errorType: 'query', message: 'failed before routing' }) });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				model: capturedModel(data),
+				modelSelectionKind: data.modelSelectionKind,
+				result: data.result,
+			};
+		}), [
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusion', result: 'success' },
+			{ model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID }, modelSelectionKind: 'hydrafusion', result: 'error' },
+		]);
+	});
+
+	test('does not classify another provider model named HydraFusion as the routing mode', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MODEL_ID, name: 'HydraFusion', supportsVision: false },
+		]);
+		startTurn('turn-explicit', 'hello', COPILOT_HYDRA_FUSION_MODEL_ID);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-explicit', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: capturedModel(data),
+			modelSelectionKind: data.modelSelectionKind,
+		}, {
+			model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID },
+			modelSelectionKind: 'explicit',
+		});
+	});
+
 	test('uses the concrete provider default across turn outcomes while preserving Default selection', () => {
 		setupSession();
 		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
@@ -1590,7 +1644,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
-	test('does not treat an Auto provider default as the effective model', () => {
+	test('preserves inherited Auto selection without reporting it as the observed model', () => {
 		setupSession();
 		agent.setModels([
 			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
@@ -1607,7 +1661,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			modelSelectionKind: data.modelSelectionKind,
 		}, {
 			model: undefined,
-			modelSelectionKind: 'default',
+			modelSelectionKind: 'auto',
 		});
 	});
 
@@ -2284,8 +2338,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		account = { usageSource: 'openai', status: 'error' };
 		fire({ type: ActionType.ChatTurnComplete, turnId: queuedTurnId, duration: 1 });
 		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
-			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing', chatgptFiveHourQuotaState: 'missing' },
 		]);
 	});
 

@@ -490,8 +490,8 @@ suite('synthesizeByokSessionConfig', () => {
 	test('synthesizes deduped providers and per-model config from the active bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const registration = registry.register('client-1', connectionOf([
-			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
-			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined },
+			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, supportsVision: true },
+			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined, supportsVision: false },
 			{ vendor: 'globex', id: 'llama', name: 'Globex Llama' },
 		]));
 		const proxy = countingProxy();
@@ -506,8 +506,8 @@ suite('synthesizeByokSessionConfig', () => {
 				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
-				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
-				{ id: 'gpt', provider: 'acme' },
+				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, capabilities: { supports: { vision: true } } },
+				{ id: 'gpt', provider: 'acme', capabilities: { supports: { vision: false } } },
 				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
 			],
 		});
@@ -713,101 +713,104 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		}
 	});
 
-	test('reconciles connector MCP servers through the Copilot runtime before launch completes', async () => {
-		const connectorCalls: string[] = [];
-		let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
-		let featureFlags: Record<string, boolean> | undefined;
-		const session = {
-			sessionId: 'connector-session',
-			on: () => () => { },
-			disconnect: async () => { },
-			rpc: {
-				options: { update: async () => ({ success: true }) },
-				gitHubAuth: {
-					getStatus: async () => {
-						connectorCalls.push('auth');
-						return { isAuthenticated: true, authType: 'token-provider' as const, host: 'github.com', login: 'octocat' };
+	for (const authInfo of [
+		{ type: 'token-provider' as const, host: 'https://github.com', registrationId: 'registration-1', copilotUser: { login: 'octocat' } },
+		{ type: 'account' as const, host: 'https://github.com', login: 'octocat' },
+	]) {
+		test(`reconciles connector MCP servers through the Copilot runtime before launch completes (${authInfo.type})`, async () => {
+			const connectorCalls: string[] = [];
+			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
+			let featureFlags: Record<string, boolean> | undefined;
+			const session = {
+				sessionId: 'connector-session',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: {
+					options: { update: async () => ({ success: true }) },
+					gitHubAuth: {
+						getStatus: async () => {
+							connectorCalls.push('auth');
+							return { isAuthenticated: true, authType: authInfo.type, host: 'github.com', login: 'octocat' };
+						},
+					},
+					connectors: {
+						getCapabilities: async () => {
+							connectorCalls.push('capabilities');
+							return { availability: 'enabled' as const };
+						},
+						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
+							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
+							return {
+								apiVersion: 1,
+								availability: 'enabled' as const,
+								catalog: {
+									revision: 1,
+									refreshedAtMs: 1,
+									connectors: [{ name: 'mail', displayName: 'Work IQ Mail', status: 'connected' as const, runtimeServerIds: ['connector-mail'] }],
+								},
+								runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
+								pendingConnections: 0,
+							};
+						},
 					},
 				},
-				connectors: {
-					getCapabilities: async () => {
-						connectorCalls.push('capabilities');
-						return { availability: 'enabled' as const };
-					},
-					reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
-						connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
-						return {
-							apiVersion: 1,
-							availability: 'enabled' as const,
-							catalog: {
-								revision: 1,
-								refreshedAtMs: 1,
-								connectors: [{ name: 'mail', displayName: 'Work IQ Mail', status: 'connected' as const, runtimeServerIds: ['connector-mail'] }],
-							},
-							runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
-							pendingConnections: 0,
-						};
+			} as unknown as CopilotSession;
+			const client = {
+				rpc: {
+					account: {
+						getAllUsers: async () => {
+							connectorCalls.push('accounts');
+							return [{
+								authInfo: { ...authInfo, login: 'another-user', copilotUser: { login: 'another-user' } },
+								selectionId: 'another-account',
+							}, {
+								authInfo,
+								selectionId: 'account-1',
+							}];
+						},
 					},
 				},
-			},
-		} as unknown as CopilotSession;
-		const client = {
-			rpc: {
-				account: {
-					getAllUsers: async () => {
-						connectorCalls.push('accounts');
-						return [{
-							authInfo: {
-								type: 'token-provider' as const,
-								host: 'https://github.com',
-								registrationId: 'registration-1',
-								copilotUser: { login: 'octocat' },
-							},
-							selectionId: 'account-1',
-						}];
-					},
+				createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+					reportManagedSettings(config);
+					featureFlags = config.featureFlags;
+					return session;
 				},
-			},
-			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
-				reportManagedSettings(config);
-				featureFlags = config.featureFlags;
-				return session;
-			},
-			resumeSession: async () => { throw new Error('Unexpected resume'); },
-		} as unknown as CopilotClient;
-		const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
-		const plan: CopilotSessionLaunchPlan = {
-			kind: 'create',
-			client,
-			extensionSdkPath: '/copilot-sdk',
-			sessionId: 'connector-session',
-			workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(),
-			shellManager: undefined,
-			githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
-			model: undefined,
-		};
+				resumeSession: async () => { throw new Error('Unexpected resume'); },
+			} as unknown as CopilotClient;
+			const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+			const plan: CopilotSessionLaunchPlan = {
+				kind: 'create',
+				client,
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'connector-session',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
+				model: undefined,
+			};
 
-		const launched = await launcher.launch(plan, {
-			...testRuntime,
-			setMcpServerDisplayNames: displayNames => connectorDisplayNames = new Map(displayNames),
-		});
-		try {
-			assert.deepStrictEqual({
-				featureFlags,
-				connectorCalls,
-				connectorDisplayName: connectorDisplayNames.get('connector-mail'),
-			}, {
-				featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
-				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
-				connectorDisplayName: 'Work IQ Mail',
+			const launched = await launcher.launch(plan, {
+				...testRuntime,
+				setMcpServerDisplayNames: displayNames => connectorDisplayNames = new Map(displayNames),
 			});
-		} finally {
-			launched.dispose();
-		}
-	});
+			try {
+				assert.deepStrictEqual({
+					featureFlags,
+					connectorCalls,
+					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
+				}, {
+					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
+					connectorDisplayName: 'Work IQ Mail',
+				});
+			} finally {
+				launched.dispose();
+			}
+		});
+	}
 
 });
 

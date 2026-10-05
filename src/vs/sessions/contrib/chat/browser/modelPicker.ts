@@ -84,6 +84,10 @@ export class ModelPicker extends Disposable {
 			},
 			getModels: () => [...this._selectionModel.state.get().models],
 			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
+			getSessionType: () => {
+				const state = this._selectionModel.state.get();
+				return (state.currentModel ?? state.models[0])?.metadata.targetChatSessionType;
+			},
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,

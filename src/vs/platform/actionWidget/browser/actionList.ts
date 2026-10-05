@@ -2030,6 +2030,16 @@ export class ActionListWidget<T> extends Disposable {
 		this._hideSubmenu();
 	}
 
+	/** Update an open searchable list without closing its owning picker. */
+	setFilter(value: string, focusItemId?: string): void {
+		if (!this._filterInput) { return; }
+		this._filterInput.value = value;
+		this._filterText = value;
+		this._applyOrUpdateFilter();
+		if (focusItemId) { this.focusItemById(focusItemId); }
+		this._filterInput.focus();
+	}
+
 	clearFilter(): boolean {
 		if (this._filterInput && this._filterText) {
 			this._filterInput.value = '';
@@ -3438,6 +3448,10 @@ export class ActionList<T> extends Disposable {
 		if (hideContextView) {
 			this._contextViewService.hideContextView();
 		}
+	}
+
+	setFilter(value: string, focusItemId?: string): void {
+		this._widget.setFilter(value, focusItemId);
 	}
 
 	clearFilter(): boolean {

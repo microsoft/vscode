@@ -18,6 +18,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { hasKey } from '../../../../../../base/common/types.js';
 import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -101,7 +103,7 @@ import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
-import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
@@ -235,7 +237,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	/** Declares what the host reported at `initialize`, for version- and scheme-gated behaviour. */
 	setInitializeResult(result: Partial<InitializeResult>): void {
-		this._initializeResult.set({ ...this._initializeResult.get(), ...result } as InitializeResult, undefined);
+		this._initializeResult.set({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true }, ...this._initializeResult.get(), ...result }, undefined);
 	}
 
 	setHostProtocolVersion(protocolVersion: string): void {
@@ -311,7 +313,34 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public nextResolvedWorkingDirectory?: URI;
 
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()];
+		const sessions = new Map([...this._sessions.values()].map(metadata => [metadata.session.toString(), metadata]));
+		for (const [resource, state] of this.sessionStates) {
+			if (sessions.has(resource) || isAhpChatChannel(resource)) {
+				continue;
+			}
+			sessions.set(resource, {
+				session: URI.parse(resource),
+				provider: AgentSession.provider(resource) ?? state.provider,
+				summary: state.title,
+				startTime: 0,
+				modifiedTime: 0,
+				status: state.status,
+			});
+		}
+		for (const resource of this.failNextSubscriptionFor) {
+			if (!sessions.has(resource) && !isAhpChatChannel(resource)) {
+				sessions.set(resource, { session: URI.parse(resource), provider: AgentSession.provider(resource), startTime: 0, modifiedTime: 0 });
+			}
+		}
+		return [...sessions.values()];
+	}
+
+	seedSessionMetadata(session: URI, provider = AgentSession.provider(session)): void {
+		const rawId = AgentSession.id(session);
+		if ([...this._sessions.keys(), ...this.sessionStates.keys(), ...this.failNextSubscriptionFor].some(resource => AgentSession.id(resource) === rawId)) {
+			return;
+		}
+		this._sessions.set(session.toString(), { session, provider, startTime: 0, modifiedTime: 0 });
 	}
 
 	override async resolveSessionConfig(request: Parameters<IAgentHostService['resolveSessionConfig']>[0]) {
@@ -815,6 +844,12 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	};
 
 	instantiationService.stub(IAgentHostService, agentHostService);
+	instantiationService.stub(IAgentHostConnectionsService, disposables.add(new AgentHostConnectionsService(
+		agentHostService,
+		new NullRemoteAgentHostService(),
+		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
+		new NullLogService(),
+	)));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -1158,7 +1193,15 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}
 
 	const listController = createSessionListController(disposables, instantiationService, agentHostService);
-	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+	class TestSessionHandler extends AgentHostSessionHandler {
+		override provideChatSessionContent(resource: URI, token: CancellationToken): Promise<IChatSession> {
+			if (!resource.path.substring(1).startsWith('new-') && !listController.isNewSession(resource)) {
+				agentHostService.seedSessionMetadata(AgentSession.uri(opts?.provider ?? 'copilot', AgentSession.id(resource)));
+			}
+			return super.provideChatSessionContent(resource, token);
+		}
+	}
+	const sessionHandler = disposables.add(instantiationService.createInstance(TestSessionHandler, {
 		provider: opts?.provider ?? 'copilot',
 		agentId: 'agent-host-copilot',
 		sessionType: 'agent-host-copilot',
@@ -1281,6 +1324,9 @@ async function startTurn(
 ) {
 	const agentId = overrides?.agentId ?? 'agent-host-copilot';
 	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/new-turntest' });
+	if (!sessionResource.path.substring(1).startsWith('new-')) {
+		agentHostService.seedSessionMetadata(AgentSession.uri('copilot', AgentSession.id(sessionResource)));
+	}
 	const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 	ds.add(toDisposable(() => chatSession.dispose()));
 
@@ -1449,6 +1495,8 @@ suite('AgentHostChatContribution', () => {
 			}));
 			const sessionResource = URI.parse('agent-host-copilot:/session-from-host');
 			const backendSession = AgentSession.uri('copilot', 'session-from-host');
+			instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
+				.registerSessionResource(backendSession, undefined, 'copilot');
 			const chatUri = 'ahp-chat:/host-assigned-conversation-73';
 			const summary = { resource: chatUri, title: 'Remote chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z' };
 			const sessionSubscribe = peer.nextRequest('subscribe');
@@ -5394,6 +5442,40 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(rebindCalls, 0);
 		}));
 
+		for (const rebound of [URI.parse('ahp-session:/fresh-final'), undefined]) {
+			test(`final allocation is selected before exposing the item after rebind (${!!rebound})`, async () => {
+				const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
+				const untitled = URI.parse('agent-host-copilot:/untitled-final-selection');
+				const latestDirectory = URI.file('/latest-folder');
+				newSessionFolderService.setFolder(untitled, latestDirectory);
+				let candidate: URI | undefined;
+				const metadataResources: string[] = [];
+				instantiationService.stub(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+					override async tryRebind(_old: URI, requested: URI): Promise<URI | undefined> { candidate = requested; return rebound; }
+					override getProvisionalWorkingDirectories(): readonly URI[] { return [latestDirectory]; }
+					override setSessionCreationMetadata(resource: URI): void { metadataResources.push(resource.toString()); }
+				}());
+				const controller = createSessionListController(disposables, instantiationService, agentHostService);
+				const item = await controller.newChatSessionItem({ prompt: 'Hello', untitledResource: untitled, _meta: { 'test.creation': true } }, CancellationToken.None);
+				assert.ok(candidate && item);
+				assert.deepStrictEqual({
+					changed: item.resource.path !== candidate.path,
+					final: rebound ? item.resource.path : undefined,
+					oldPending: controller.isNewSession(candidate),
+					newPending: controller.isNewSession(item.resource),
+					folder: newSessionFolderService.getFolder(item.resource)?.toString(),
+					metadata: metadataResources,
+				}, {
+					changed: true,
+					final: rebound?.path,
+					oldPending: false,
+					newPending: true,
+					folder: latestDirectory.toString(),
+					metadata: [candidate.toString(), item.resource.toString()],
+				});
+			});
+		}
+
 		test('newChatSessionItem routes the store-selected folder as the working directory in multi-root windows', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables);
 
@@ -5481,6 +5563,71 @@ suite('AgentHostChatContribution', () => {
 	// ---- Session ID resolution in _invokeAgent --------------------------
 
 	suite('session ID resolution', () => {
+
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			for (const scheme of [provider, 'ahp-session', 'session-store']) {
+				test(`cold ${provider} content waits for the advertised ${scheme} identity`, async () => {
+					const { instantiationService, agentHostService } = createTestServices(disposables);
+					const backend = URI.from({ scheme, path: '/cold-restored', ...(scheme === 'session-store' ? { authority: 'tenant', query: 'revision=2' } : {}) });
+					const resource = backend.with({ scheme: `agent-host-${provider}` });
+					const summary = {
+						resource: backend.toString(), provider, title: 'Restored',
+						status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+					};
+					agentHostService.sessionStates.set(backend.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready, activeClients: [] });
+					const listed = new DeferredPromise<void>();
+					let listCalls = 0;
+					agentHostService.listSessions = async () => {
+						listCalls++;
+						await listed.p;
+						return [{ session: backend, provider, summary: 'Restored', startTime: 0, modifiedTime: 0 }];
+					};
+					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider, agentId: resource.scheme, sessionType: resource.scheme,
+						fullName: provider, description: 'test', connection: agentHostService, connectionAuthority: 'local',
+					}));
+
+					const opening = handler.provideChatSessionContent(resource, CancellationToken.None);
+					await timeout(0);
+					const before = { listCalls, subscribed: agentHostService.hasLiveSubscription(backend.toString()) };
+					await listed.complete();
+					disposables.add(await opening);
+					const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
+
+					assert.deepStrictEqual({
+						before,
+						backend: connections.resolveSessionResourceIdentity(resource)?.backendSession.toString(),
+						subscribed: agentHostService.hasLiveSubscription(backend.toString()),
+					}, { before: { listCalls: 1, subscribed: false }, backend: backend.toString(), subscribed: true });
+				});
+			}
+		}
+
+		test('missing advertised identities do not probe a guessed legacy address', async () => {
+			const { instantiationService, agentHostService } = createTestServices(disposables);
+			agentHostService.listSessions = async () => [];
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'codex', agentId: 'agent-host-codex', sessionType: 'agent-host-codex',
+				fullName: 'Codex', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+			}));
+			await assert.rejects(handler.provideChatSessionContent(URI.parse('agent-host-codex:/unknown'), CancellationToken.None), /not advertised/);
+			assert.strictEqual(agentHostService.hasLiveSubscription('codex:/unknown'), false);
+		});
+
+		for (const unknown of ['agent-host-codex://tenant/shared?revision=2', 'session-store:/shared']) {
+			test(`a neighboring legacy ID cannot claim complete unadvertised resource ${unknown}`, async () => {
+				const { instantiationService, agentHostService } = createTestServices(disposables);
+				const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
+				connections.registerSessionResource(URI.parse('codex:/shared'), undefined, 'codex');
+				agentHostService.listSessions = async () => [];
+				const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+					provider: 'codex', agentId: 'agent-host-codex', sessionType: 'agent-host-codex',
+					fullName: 'Codex', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+				}));
+				await assert.rejects(handler.provideChatSessionContent(URI.parse(unknown), CancellationToken.None), /not advertised/);
+				assert.strictEqual(agentHostService.hasLiveSubscription('codex:/shared'), false);
+			});
+		}
 
 		for (const isSystemInitiated of [true, false, undefined]) {
 			test(`preserves request origin for isSystemInitiated=${isSystemInitiated}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -11522,6 +11669,7 @@ suite('AgentHostChatContribution', () => {
 					const { instantiationService, agentHostService, chatAgentService, chatWidgetService, modelService, workingCopyService } = createTestServices(disposables);
 					const sessionType = 'remote-cloudsandbox_environment-one-copilot';
 					const sessionResource = URI.from({ scheme: sessionType, path: '/session-one' });
+					agentHostService.seedSessionMetadata(AgentSession.uri('ahp-session', 'session-one'), 'copilot');
 					const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 						provider: 'copilot',
 						backendSessionScheme: 'ahp-session',
