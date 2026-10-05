@@ -1822,6 +1822,7 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased02:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02Unified:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagerness:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:

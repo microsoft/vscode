@@ -12,11 +12,30 @@ import { AgentMergeConfiguration, AgentMergeSettingId, defaultAgentMergeConfigur
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IAgentMergeClientState, isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../services/sessions/browser/sessionsProvidersService.js';
-import { ISession } from '../services/sessions/common/session.js';
+import { IChat, ISession } from '../services/sessions/common/session.js';
 
 const noAgentMergeConfiguration = constObservable<ISessionAgentMergeConfiguration | undefined>(undefined);
-const agentMergeSessionStateBySession = new WeakMap<ISession, IObservable<IAgentMergeClientState | undefined>>();
-const agentMergeConfigurationBySession = new WeakMap<ISession, IObservable<ISessionAgentMergeConfiguration | undefined>>();
+/** Cached per session, then per chat (`''` for the session folder). */
+const agentMergeSessionStateBySession = new WeakMap<ISession, Map<string, IObservable<IAgentMergeClientState | undefined>>>();
+const agentMergeConfigurationBySession = new WeakMap<ISession, Map<string, IObservable<ISessionAgentMergeConfiguration | undefined>>>();
+
+function getCached<T>(cache: WeakMap<ISession, Map<string, T>>, session: ISession, chat: IChat | undefined): T | undefined {
+	return cache.get(session)?.get(chatCacheKey(session, chat));
+}
+
+function setCached<T>(cache: WeakMap<ISession, Map<string, T>>, session: ISession, chat: IChat | undefined, value: T): void {
+	let byChat = cache.get(session);
+	if (!byChat) {
+		byChat = new Map();
+		cache.set(session, byChat);
+	}
+	byChat.set(chatCacheKey(session, chat), value);
+}
+
+/** The main chat works in the session folder, so it shares the session folder's cache entry. */
+function chatCacheKey(session: ISession, chat: IChat | undefined): string {
+	return !chat || chat === session.mainChat.get() ? '' : chat.resource.toString();
+}
 const openPullRequestIcon = { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
 
 /** Effective Agent Merge state used by client presentation. */
@@ -25,9 +44,14 @@ export interface ISessionAgentMergeConfiguration {
 	readonly actions: AgentMergeConfiguration;
 }
 
-/** Returns the Agent Merge state observable for a session. */
-export function getSessionAgentMergeStateObservable(session: ISession, sessionsProvidersService: ISessionsProvidersService): IObservable<IAgentMergeClientState | undefined> {
-	const cached = agentMergeSessionStateBySession.get(session);
+/**
+ * Returns the Agent Merge state observable of a session's folder. Each folder a
+ * chat works in has its own Agent Merge: pass `chat` for the folder it works
+ * in, or omit it for the session folder (the main chat's), which session-wide
+ * surfaces use alongside the session folder's pull request.
+ */
+export function getSessionAgentMergeStateObservable(session: ISession, sessionsProvidersService: ISessionsProvidersService, chat?: IChat): IObservable<IAgentMergeClientState | undefined> {
+	const cached = getCached(agentMergeSessionStateBySession, session, chat);
 	if (cached) {
 		return cached;
 	}
@@ -35,14 +59,14 @@ export function getSessionAgentMergeStateObservable(session: ISession, sessionsP
 	if (!provider || !isAgentHostProvider(provider)) {
 		return constObservable(undefined);
 	}
-	const observable = provider.getAgentMergeClientStateObservable(session.sessionId);
-	agentMergeSessionStateBySession.set(session, observable);
+	const observable = provider.getAgentMergeClientStateObservable(session.sessionId, chatCacheKey(session, chat) ? chat?.resource : undefined);
+	setCached(agentMergeSessionStateBySession, session, chat, observable);
 	return observable;
 }
 
-/** Returns effective Agent Merge actions for a session. */
-export function getSessionAgentMergeConfigurationObservable(session: ISession, sessionsProvidersService: ISessionsProvidersService, configurationService: IConfigurationService): IObservable<ISessionAgentMergeConfiguration | undefined> {
-	const cached = agentMergeConfigurationBySession.get(session);
+/** Returns effective Agent Merge actions of a session's folder; see {@link getSessionAgentMergeStateObservable}. */
+export function getSessionAgentMergeConfigurationObservable(session: ISession, sessionsProvidersService: ISessionsProvidersService, configurationService: IConfigurationService, chat?: IChat): IObservable<ISessionAgentMergeConfiguration | undefined> {
+	const cached = getCached(agentMergeConfigurationBySession, session, chat);
 	if (cached) {
 		return cached;
 	}
@@ -50,7 +74,7 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 	if (!provider || !isAgentHostProvider(provider)) {
 		return noAgentMergeConfiguration;
 	}
-	const state = getSessionAgentMergeStateObservable(session, sessionsProvidersService);
+	const state = getSessionAgentMergeStateObservable(session, sessionsProvidersService, chat);
 	const globalConfiguration = observableFromEvent(
 		Event.filter(configurationService.onDidChangeConfiguration, event => Object.values(AgentMergeSettingId).some(settingId => event.affectsConfiguration(settingId))),
 		() => getGlobalAgentMergeConfiguration(configurationService));
@@ -64,7 +88,7 @@ export function getSessionAgentMergeConfigurationObservable(session: ISession, s
 			actions: resolveAgentMergeConfiguration(globalConfiguration.read(reader), sessionState?.overrides),
 		};
 	});
-	agentMergeConfigurationBySession.set(session, observable);
+	setCached(agentMergeConfigurationBySession, session, chat, observable);
 	return observable;
 }
 

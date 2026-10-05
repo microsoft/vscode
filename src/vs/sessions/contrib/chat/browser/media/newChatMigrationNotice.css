@@ -1,0 +1,27 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-customization-migration-notice.new-chat-migration-notice {
+	/* Keep the composer centered independently of the notice's height. */
+	position: absolute;
+	top: 100%;
+	left: 0;
+	right: 0;
+	width: auto;
+	margin-top: var(--vscode-spacing-size160);
+	/* The composer floats over the chat background wallpaper, which the shared
+		notice's translucent fill lets read straight through. Composite the same
+		tint over the opaque session background so the notice stays a legible chip. */
+	background-color: color-mix(in srgb, var(--vscode-foreground) 3%, var(--session-view-background, var(--vscode-editor-background)));
+}
+
+.hc-black .chat-customization-migration-notice.new-chat-migration-notice,
+.hc-light .chat-customization-migration-notice.new-chat-migration-notice {
+	background-color: var(--vscode-editor-background);
+}
+
+.new-chat-migration-notice .chat-customization-migration-notice-content {
+	text-wrap: wrap;
+}

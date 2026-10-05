@@ -48,9 +48,9 @@ the right sidebar on the Policies page. It provides per-platform commands
 (macOS, Windows PowerShell, Linux) that write the current response body to
 `managed-settings.json` at its documented location. Copy one, run it on the
 client device, and restart the client. On macOS and Linux the command uses
-`sudo` so the file is the root-owned, non-writable regular file Copilot CLI
-requires. Each platform section also provides a removal command to unset the
-file-based policy.
+`sudo` and explicitly sets root ownership and mode `0644`, as required by the
+Copilot SDK/runtime. Each platform section also provides a removal command to
+unset the file-based policy.
 
 | Operating system | `managed-settings.json` location |
 | --- | --- |
@@ -216,6 +216,7 @@ request does not appear in **Live Requests**.
 | `POST` | `/api/state` | Apply and persist one update or an atomic endpoint array |
 | `POST` | `/api/reset` | Restore and persist default endpoint state |
 | `GET` | `/api/schema` | Read the managed-settings schema |
+| `POST` | `/api/schema` | Change and reload the schema source for the current server process (loopback URL only) |
 | `GET` | `/api/file-deployment` | Generate file install and removal commands |
 | `GET`, `DELETE` | `/api/log` | Read or clear the request log |
 | `DELETE` | `/api/cache` | Clear the managed-settings disk cache |
@@ -225,7 +226,11 @@ request does not appear in **Live Requests**.
 The server auto-detects
 `copilot-agent-runtime/schema/managed-settings-schema.json` beside the primary
 VS Code checkout, including from a Git worktree. Override it at startup with
-`--schema` or `MANAGED_SETTINGS_SCHEMA`.
+`--schema` or `MANAGED_SETTINGS_SCHEMA`, or edit **Schema source** in the GUI
+and select **Load Schema**. GUI changes apply to the current server process and
+reset to the startup source when the server restarts. Changing the schema source
+is restricted to requests made through a loopback URL because the source can be
+a local file path or remote URL.
 
 ```sh
 npm run mock-policy-server -- --upstream https://api.ghe.example.com

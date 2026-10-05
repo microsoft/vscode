@@ -11,6 +11,7 @@ import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
+import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
@@ -41,6 +42,7 @@ suite('AgentHostConfigurationSync', () => {
 		id: 'testAgentHostSync',
 		type: 'object' as const,
 		properties: {
+			...artifactToolsConfigurationProperties,
 			[ALL_HOSTS_SETTING]: {
 				type: 'boolean' as const,
 				default: true,
@@ -202,10 +204,16 @@ suite('AgentHostConfigurationSync', () => {
 			local: getAgentHostConfigurationSyncTarget(LOCAL_AGENT_HOST_RESOURCE_IDENTITY),
 			remoteExtensionHost: getAgentHostConfigurationSyncTarget('vscode-remote://ssh-remote+host'),
 			remote: getAgentHostConfigurationSyncTarget('ssh://host'),
+			sshCredentials: getAgentHostConfigurationSyncTarget('user@127.0.0.1:2222'),
+			ipv6: getAgentHostConfigurationSyncTarget('[::1]:8080'),
+			tunnel: getAgentHostConfigurationSyncTarget('tunnel:host'),
 		}, {
 			local: AgentHostConfigurationSyncTarget.Local,
 			remoteExtensionHost: AgentHostConfigurationSyncTarget.RemoteExtensionHost,
 			remote: AgentHostConfigurationSyncTarget.Remote,
+			sshCredentials: AgentHostConfigurationSyncTarget.Remote,
+			ipv6: AgentHostConfigurationSyncTarget.Remote,
+			tunnel: AgentHostConfigurationSyncTarget.Remote,
 		});
 	});
 
@@ -306,6 +314,25 @@ suite('AgentHostConfigurationSync', () => {
 			visible: true,
 			mirrored: true,
 		});
+	});
+
+	test('default overrides leave non-experimental hidden settings unchanged', () => {
+		const configurationService = createConfigurationService({});
+		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
+		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
+		try {
+			registry.registerDefaultConfigurations([first]);
+			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+			registry.registerDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([first]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			assert.deepStrictEqual(values, [false, false, false, false]);
+		} finally {
+			registry.deregisterDefaultConfigurations([first, second]);
+		}
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

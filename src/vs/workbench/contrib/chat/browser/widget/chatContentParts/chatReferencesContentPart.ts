@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { IListOptions } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
@@ -40,14 +41,16 @@ import { SETTINGS_AUTHORITY } from '../../../../../services/preferences/common/p
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../../files/common/files.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../../common/chatService/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../../common/model/chatViewModel.js';
-import { ChatTreeItem, IChatWidgetService } from '../../chat.js';
+import { ChatTreeItem, IChatWidgetService, isChatContextMenuActionContext } from '../../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
 
@@ -75,12 +78,17 @@ export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(labelOverride ?? (data.length > 1 ?
 			localize('usedReferencesPlural', "Used {0} references", data.length) :
 			localize('usedReferencesSingular', "Used {0} reference", 1)), context, hoverMessage,
-			hoverService, configurationService);
+			hoverService, configurationService, telemetryService);
 		this.icon = Codicon.check;
+	}
+
+	protected override get collapsibleKind(): string {
+		return 'references';
 	}
 
 	protected override initContent(): HTMLElement {
@@ -165,8 +173,9 @@ export class ChatUsedReferencesListContentPart extends ChatCollapsibleListConten
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService hoverService: IHoverService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService, configurationService);
+		super(data, labelOverride, context, contentReferencesListPool, undefined, openerService, menuService, instantiationService, contextMenuService, hoverService, configurationService, telemetryService);
 		if (data.length === 0) {
 			dom.hide(this.domNode);
 		}
@@ -555,28 +564,42 @@ registerAction2(class AddToChatAction extends Action2 {
 	}
 });
 
-registerAction2(class OpenChatReferenceLinkAction extends Action2 {
+registerAction2(class CopyChatReferenceLinkAction extends Action2 {
 
 	static readonly id = 'workbench.action.chat.copyLink';
 
 	constructor() {
 		super({
-			id: OpenChatReferenceLinkAction.id,
+			id: CopyChatReferenceLinkAction.id,
 			title: {
 				...localize2('copyLink', "Copy Link"),
 			},
 			f1: false,
-			menu: [{
-				id: MenuId.ChatAttachmentsContext,
-				group: 'chat',
-				order: 0,
-				when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.http), ResourceContextKey.Scheme.isEqualTo(Schemas.https)),
-			}]
+			menu: [
+				{
+					id: MenuId.ChatAttachmentsContext,
+					group: 'chat',
+					order: 0,
+					when: ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.http), ResourceContextKey.Scheme.isEqualTo(Schemas.https)),
+				},
+				{
+					id: MenuId.ChatContext,
+					group: '0_link',
+					order: 2,
+					when: ChatContextKeys.contextMenuHasLink,
+				},
+			]
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
-		await accessor.get(IClipboardService).writeResources([resource]);
+	override async run(accessor: ServicesAccessor, context: unknown): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+		if (URI.isUri(context)) {
+			await clipboardService.writeResources([context]);
+		} else if (isChatContextMenuActionContext(context) && context.linkTarget) {
+			await clipboardService.writeText(context.linkTarget);
+			status(localize('chat.copyLink.status', "Link copied to clipboard"));
+		}
 	}
 });
 

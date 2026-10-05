@@ -17,14 +17,15 @@ import { AgentHostAutoReplyEnabledConfigKey } from '../../../../common/agentHost
 import { buildUncommittedChangesetUri } from '../../../../common/changesetUri.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { CompletionItemKind, type CompletionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
+import { McpServerStatus } from '../../../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallContentChangedAction, type ChatToolCallReadyAction, type ChatToolCallStartAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallStatus, ToolResultContentType, type ChangesetState, type SessionState } from '../../../../common/state/sessionState.js';
 import type { TerminalCommandPart, TerminalState } from '../../../../common/state/protocol/channels-terminal/state.js';
-import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
+import { assertToolCallCompleteText, createRealSession, dispatchTurn, driveChatTurnToCompletion, driveTurnToCompletion, getMarkdownResponseText, initTestGitRepo, resolveGitHubToken, terminalResourceFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { expandShellToolName } from '../harness/shellToolNames.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
-import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -40,6 +41,51 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		return;
 	}
 	const { config, createdSessions, tempDirs } = context;
+
+	providerHostOnlyTest(context, 'runtime compaction: an empty conversation returns to idle without a model request', async function () {
+		const { sessionUri } = await createWorkspaceSession('compact-empty');
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'compact-empty', '/compact', 1);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: result.responseText.trim(),
+			active: state.activeTurn,
+			states: state.turns.map(turn => turn.state),
+			requests: context.observedModelRequestBodies.length,
+		}, { response: 'Compaction completed', active: undefined, states: ['complete'], requests: 0 });
+	});
+
+	test('runtime compaction: explicit compaction retains conversation facts and permits followup', async function () {
+		this.timeout(240_000);
+		const { sessionUri } = await createWorkspaceSession('compact-context');
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-memory',
+			'Remember COMPACT_ORCHID as the exact project code word for this conversation. Reply exactly "remembered".', 1);
+		const compacted = await driveTurnToCompletion(context.client, sessionUri, 'compact-request', '/compact', 100);
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'compact-followup',
+			'What exact project code word did I ask you to remember? Reply with only that word.', 200);
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			compacted: compacted.responseText.trim(),
+			followup: followup.responseText.trim(),
+			active: state.activeTurn,
+			finalState: state.turns.at(-1)?.state,
+		}, { compacted: 'Compaction completed', followup: 'COMPACT_ORCHID', active: undefined, finalState: 'complete' });
+	});
+
+	// Windows currently restores the original transcript instead of the compacted context.
+	(!context.isWindows || context.runKnownIssueTests ? test : test.skip)('runtime compaction: a compacted conversation retains context after host restart', async function () {
+		this.timeout(240_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('compact-restart');
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-memory',
+			'Remember PERSISTED_COMPACTION as the exact project code word. Reply exactly "remembered".', 1);
+		await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-request', '/compact', 100);
+		await context.restartServer();
+		await initialize('compact-restored', workspace);
+		await context.client.call('subscribe', { channel: sessionUri });
+		await context.client.call('subscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const response = await driveTurnToCompletion(context.client, sessionUri, 'compact-persist-followup',
+			'What exact project code word did I ask you to remember? Reply with only that word.', 1);
+		assert.strictEqual(response.responseText.trim(), 'PERSISTED_COMPACTION');
+	});
 
 	async function initialize(clientId: string, workingDirectory: string): Promise<void> {
 		context.client.setWorkingDirectory(workingDirectory);
@@ -288,8 +334,23 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					},
 				},
 			}, 100);
+			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
+			const chatUri = buildChatUri(sessionUri, 'root-mcp');
+			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
+			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			await context.client.waitForNotification(n => {
+				if (n.method !== 'action') {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === sessionUri
+					&& action.type === ActionType.SessionCustomizationUpdated
+					&& action.customization.type === CustomizationType.McpServer
+					&& action.customization.name === 'root_probe_server'
+					&& action.customization.state.kind === McpServerStatus.Ready;
+			}, 30_000);
 			const turnId = 'turn-root-mcp';
-			await driveTurnToCompletion(context.client, sessionUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
+			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			const completion = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.turnId === turnId);
@@ -486,6 +547,56 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		});
 	});
 
+	test('shell full output is readable through its historical terminal resource', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('shell-full-output');
+		const turnId = 'turn-shell-full-output';
+		const command = `node -e "process.stdout.write('FULL_OUTPUT_BEGIN\\n' + 'x'.repeat(131072) + '\\nFULL_OUTPUT_MIDDLE\\n' + 'y'.repeat(131072) + '\\nFULL_OUTPUT_END\\n')"`;
+		const expected = `FULL_OUTPUT_BEGIN\n${'x'.repeat(131072)}\nFULL_OUTPUT_MIDDLE\n${'y'.repeat(131072)}\nFULL_OUTPUT_END\n`;
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			`Run exactly \`${command}\` synchronously with your shell tool. Do not read the saved output file or call other tools. Then reply exactly "done".`, 1);
+		const shellStart = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallStartAction)
+			.find(action => action.turnId === turnId && action.toolName === expandShellToolName('${shell}'));
+		const completion = shellStart && context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
+			.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
+			.find(action => action.toolCallId === shellStart.toolCallId);
+		const terminalContent = completion?.result.content?.find(content => content.type === ToolResultContentType.Terminal);
+		assert.ok(terminalContent);
+		const output = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const outputState = output.snapshot!.state as TerminalState;
+		const outputText = outputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.strictEqual(outputText, expected);
+		context.client.notify('unsubscribe', { channel: buildDefaultChatUri(sessionUri) });
+		const snapshot = await fetchSessionWithChat(context.client, sessionUri);
+		const restoredCall = snapshot.turns.flatMap(turn => turn.responseParts)
+			.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === shellStart?.toolCallId);
+		const restoredTerminal = restoredCall?.kind === ResponsePartKind.ToolCall && restoredCall.toolCall.status === ToolCallStatus.Completed
+			? restoredCall.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal)
+			: undefined;
+		assert.ok(restoredTerminal);
+		await context.restartServer();
+		await initialize('full-output-restored', workspace);
+		const coldOutput = await context.client.call<SubscribeResult>('subscribe', { channel: terminalContent.resource });
+		const coldOutputState = coldOutput.snapshot!.state as TerminalState;
+		const coldOutputText = coldOutputState.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		assert.deepStrictEqual({
+			exitCode: terminalContent.result?.exitCode,
+			truncated: terminalContent.result?.truncated,
+			firstResource: terminalContent.resource,
+			restoredResource: restoredTerminal.resource,
+			firstOutput: outputText,
+			coldOutput: coldOutputText,
+		}, {
+			exitCode: 0,
+			truncated: true,
+			firstResource: terminalContent.resource,
+			restoredResource: terminalContent.resource,
+			firstOutput: expected,
+			coldOutput: expected,
+		});
+	});
+
 	(context.runRecordOnlyTests ? test : test.skip)('managed shell can be read and stopped after asynchronous execution', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('managed-shell-read-stop');
@@ -494,6 +605,43 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 		const toolNames = startedToolNames(context, turnId);
 
 		assert.ok(toolNames.includes('bash') && toolNames.includes('read_bash') && toolNames.includes('stop_bash'));
+	});
+
+	test('stopping an asynchronous shell allows a follow-up turn', async function () {
+		this.timeout(180_000);
+		const { sessionUri } = await createWorkspaceSession('stopped-shell-followup');
+		const shellTool = expandShellToolName('${shell}');
+		const turnId = 'turn-stop-shell';
+		const stopped = await driveTurnToCompletion(context.client, sessionUri, turnId,
+			'Use your shell tool to run exactly `node -e "setInterval(() => {}, 1000)"` with mode "async" and shellId "e2e-stopped-shell". ' +
+			'Then immediately call your stop-shell tool with shellId "e2e-stopped-shell". Do not leave the process running. Reply exactly "STOPPED".', 1);
+		const toolNames = startedToolNames(context, turnId);
+		const followup = await driveTurnToCompletion(context.client, sessionUri, 'turn-after-stop-shell', 'Reply exactly "FOLLOWUP_DONE".', 2);
+		assert.deepStrictEqual({
+			tools: toolNames,
+			stopped: stopped.responseText.trim(),
+			followup: followup.responseText.trim(),
+		}, {
+			tools: [shellTool, expandShellToolName('${stop_shell}')],
+			stopped: 'STOPPED',
+			followup: 'FOLLOWUP_DONE',
+		});
+	});
+
+	test('shell output preserves public GitHub MCP metadata', async function () {
+		this.timeout(180_000);
+		const { sessionUri, workspace } = await createWorkspaceSession('public-mcp-metadata');
+		const turnId = 'turn-public-mcp-metadata';
+		await driveTurnToCompletion(context.client, sessionUri, turnId,
+			'Run exactly `node -e "console.log(\'https://github.com/github/copilot-sdk/pull/1\')"` with your shell tool. Then reply exactly "DONE".', 1);
+		assertToolCallCompleteText(context.client, {
+			channel: buildDefaultChatUri(sessionUri),
+			turnId,
+			toolNames: [config.shellToolName],
+			workspace,
+			expected: [/https:\/\/github\.com\/github\/copilot-sdk\/pull\/1/],
+			success: true,
+		});
 	});
 
 	(context.runRecordOnlyTests ? test : test.skip)('managed shell sessions can be listed after asynchronous execution', async function () {

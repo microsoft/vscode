@@ -18,6 +18,7 @@ $cloneExtensions = $false
 $full = $false
 $skipPreLaunch = $false
 $disableWorkspaceTrust = $false
+$sessionTitle = ''
 if ($null -eq $cliArgs) {
 	$cliArgs = @()
 }
@@ -279,103 +280,6 @@ function Test-SourceHasGitHubAuthenticationSecret([string]$node, [string]$source
 	return $false
 }
 
-function Get-JsoncCodeMask([string]$text) {
-	# Returns a same-length copy of $text with every comment span blanked out.
-	# Offsets are preserved so a match found in the mask can be applied to the
-	# original. String contents are respected, so a `//` inside a value (a URL,
-	# say) is not mistaken for a comment.
-	$chars = $text.ToCharArray()
-	$masked = [char[]]::new($chars.Length)
-	[Array]::Copy($chars, $masked, $chars.Length)
-
-	$inString = $false
-	$inLineComment = $false
-	$inBlockComment = $false
-	$escaped = $false
-
-	for ($i = 0; $i -lt $chars.Length; $i++) {
-		$current = $chars[$i]
-		$next = if ($i + 1 -lt $chars.Length) { $chars[$i + 1] } else { [char]0 }
-
-		if ($inLineComment) {
-			if ($current -eq "`n") { $inLineComment = $false } else { $masked[$i] = ' ' }
-			continue
-		}
-		if ($inBlockComment) {
-			if ($current -eq '*' -and $next -eq '/') {
-				$masked[$i] = ' '
-				$masked[$i + 1] = ' '
-				$i++
-				$inBlockComment = $false
-			} elseif ($current -ne "`n") {
-				$masked[$i] = ' '
-			}
-			continue
-		}
-		if ($inString) {
-			if ($escaped) { $escaped = $false }
-			elseif ($current -eq '\') { $escaped = $true }
-			elseif ($current -eq '"') { $inString = $false }
-			continue
-		}
-
-		if ($current -eq '"') { $inString = $true }
-		elseif ($current -eq '/' -and $next -eq '/') { $masked[$i] = ' '; $inLineComment = $true }
-		elseif ($current -eq '/' -and $next -eq '*') { $masked[$i] = ' '; $masked[$i + 1] = ' '; $i++; $inBlockComment = $true }
-	}
-
-	return (-join $masked)
-}
-
-function Ensure-SimpleDialogSetting([string]$settingsFile) {
-	$key = 'files.simpleDialog.enable'
-	$settingsDirectory = Split-Path -Parent $settingsFile
-	New-Item -ItemType Directory -Force -Path $settingsDirectory | Out-Null
-
-	if (Test-Path -LiteralPath $settingsFile -PathType Leaf) {
-		$text = [IO.File]::ReadAllText($settingsFile)
-	} else {
-		$text = ''
-	}
-
-	if ([string]::IsNullOrWhiteSpace($text)) {
-		[IO.File]::WriteAllText($settingsFile, "{`n  `"$key`": true`n}`n", [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	# Match against a comment-masked copy so a commented-out occurrence such as
-	# `// "files.simpleDialog.enable": false` is not mistaken for the real
-	# setting. Offsets line up with the original, so the value is rewritten in
-	# place without disturbing comments.
-	$maskedText = Get-JsoncCodeMask $text
-	$keyPattern = [regex]::Escape($key)
-	$keyValueRegex = [regex]::new("(`"$keyPattern`"\s*:\s*)(true|false|null|`"[^`"`r`n]*`"|-?\d+(?:\.\d+)?)")
-	$keyMatch = $keyValueRegex.Match($maskedText)
-	if ($keyMatch.Success) {
-		$valueGroup = $keyMatch.Groups[2]
-		$updated = $text.Substring(0, $valueGroup.Index) + 'true' + $text.Substring($valueGroup.Index + $valueGroup.Length)
-		[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
-		return
-	}
-
-	$lastBrace = $maskedText.LastIndexOf('}')
-	if ($lastBrace -eq -1) {
-		throw "settings.json has no closing brace - refusing to clobber it: $settingsFile"
-	}
-	$firstBrace = $maskedText.IndexOf('{')
-	if ($firstBrace -eq -1 -or $firstBrace -ge $lastBrace) {
-		throw "settings.json has no opening brace - refusing to clobber it: $settingsFile"
-	}
-
-	# Whether a leading comma is needed depends only on real content, so decide
-	# it from the masked copy too.
-	$between = $maskedText.Substring($firstBrace + 1, $lastBrace - $firstBrace - 1).Trim()
-	$separator = if ($between.Length -eq 0 -or $between.EndsWith(',')) { '' } else { ',' }
-	$insertion = "$separator`n  `"$key`": true`n"
-	$updated = $text.Substring(0, $lastBrace) + $insertion + $text.Substring($lastBrace)
-	[IO.File]::WriteAllText($settingsFile, $updated, [Text.UTF8Encoding]::new($false))
-}
-
 function Write-LogTail([string]$logFile) {
 	if (Test-Path -LiteralPath $logFile) {
 		Get-Content -LiteralPath $logFile -Tail 80 | ForEach-Object { [Console]::Error.WriteLine($_) }
@@ -424,6 +328,8 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	# Core only, and `powershell.exe` is still the built-in Windows shell.
 	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
 	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
 
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $processInfo
@@ -440,6 +346,13 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 	switch ($argument) {
 		'--agents' {
 			$agents = $true
+			continue
+		}
+		'--session-title' {
+			if ($index + 1 -ge $cliArgs.Count) {
+				Exit-Usage 'Missing value for --session-title.'
+			}
+			$sessionTitle = $cliArgs[++$index]
 			continue
 		}
 		'--source-user-data-dir' {
@@ -513,10 +426,11 @@ try {
 			Join-Path $env:USERPROFILE '.vscode-oss-dev'
 		}
 	}
-	if (-not (Test-Path -LiteralPath $sourceUserDataDir -PathType Container)) {
-		Exit-Usage "Source user-data-dir does not exist: $sourceUserDataDir`nPass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR."
+	$sourceUserDataDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($sourceUserDataDir)
+	$sourceProfileExists = Test-Path -LiteralPath $sourceUserDataDir -PathType Container
+	if (-not $sourceProfileExists) {
+		Write-LaunchError "[launch.ps1] no source profile at $sourceUserDataDir; launching with an empty isolated profile so the user can sign in."
 	}
-	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
 
 	$node = Get-UsableNode $repo
 	Write-LaunchError "[launch.ps1] using Node: $node"
@@ -549,38 +463,63 @@ try {
 		# below decide whether a sign-in is actually coming.
 		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; nothing to seed"
 	}
-	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	$hasGitHubAuthenticationSecret = if ($sourceProfileExists) {
+		Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	} else {
+		$false
+	}
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
-		Write-LaunchError 'To fix once and for all, launch Code OSS directly against the source profile (no copy), sign in, then close it:'
-		Write-LaunchError "  .\scripts\code.bat --user-data-dir=$sourceUserDataDir"
+		Write-LaunchError 'To pre-authenticate future launches, use .agents\skills\launch\scripts\bootstrap\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
 		Write-LaunchError 'Every future launch copies that profile and inherits the session.'
 	}
 
-	if ($full) {
+	if (-not $sourceProfileExists) {
+		New-Item -ItemType Directory -Force -Path $destinationUdd | Out-Null
+	} elseif ($full) {
 		Write-LaunchError "[launch.ps1] full copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $false
 	} else {
 		Write-LaunchError "[launch.ps1] slim copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $true
 	}
-	Assert-AuthCriticalProfileFiles $destinationUdd
+	if ($sourceProfileExists -and $hasGitHubAuthenticationSecret -ne $false) {
+		Assert-AuthCriticalProfileFiles $destinationUdd
+	}
 
 	New-Item -ItemType Directory -Force -Path $extensionsDir | Out-Null
-	if (-not $full -and $cloneExtensions) {
+	if (-not $full -and $cloneExtensions -and $sourceProfileExists) {
 		$sourceExtensions = Join-Path $sourceUserDataDir 'extensions'
 		Write-LaunchError "[launch.ps1] copying extensions: $sourceExtensions -> $extensionsDir"
 		Copy-ProfileDirectory $sourceExtensions $extensionsDir $false
 	}
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
-	Ensure-SimpleDialogSetting $settingsFile
+	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
+	New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsFile) | Out-Null
+	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
+	$settingsSessionTitle = if ($agents) { '' } else { $sessionTitle }
+	& $node $settingsScript $settingsFile $settingsSessionTitle $sourceSettingsFile
+	if ($LASTEXITCODE -ne 0) {
+		throw "Failed to update launch settings in $settingsFile"
+	}
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
+	if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+		if ($agents) {
+			Write-LaunchError "[launch.ps1] set Agents command center title for session: $sessionTitle"
+		} else {
+			Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		}
+	}
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
 		$launchArgs.Add('--agents')
+		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+			$sessionTitleBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionTitle)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+			$launchArgs.Add("--session-title-base64=$sessionTitleBase64")
+		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")
