@@ -67,9 +67,9 @@ suite('Product test checkpoints', () => {
 				TEST_CHECKPOINT_UNIT_ELECTRON_HIT: 'true',
 				TEST_CHECKPOINT_UNIT_ELECTRON_READY: 'false',
 				...Object.fromEntries([
-					'UNIT_NODE', 'UNIT_BROWSER_CHROMIUM',
-					'INTEGRATION_ELECTRON', 'INTEGRATION_BROWSER_CHROMIUM', 'INTEGRATION_BROWSER_FIREFOX', 'INTEGRATION_REMOTE',
-					'SMOKE_ELECTRON', 'SMOKE_BROWSER_CHROMIUM', 'SMOKE_REMOTE',
+					'UNIT_NODE', 'UNIT_BROWSER_CHROMIUM', 'UNIT_BROWSER_WEBKIT',
+					'INTEGRATION_ELECTRON', 'INTEGRATION_BROWSER_CHROMIUM', 'INTEGRATION_BROWSER_FIREFOX', 'INTEGRATION_BROWSER_WEBKIT', 'INTEGRATION_REMOTE',
+					'SMOKE_ELECTRON', 'SMOKE_AGENTS_PAC_PROXY', 'SMOKE_AGENTS_KERBEROS_PAC_PROXY', 'SMOKE_BROWSER_CHROMIUM', 'SMOKE_REMOTE',
 					'COPILOT_EXTENSION', 'COPILOT_COMPLETIONS_CORE', 'COPILOT_SANITY',
 				].flatMap(id => [`TEST_CHECKPOINT_${id}_HIT`, `TEST_CHECKPOINT_${id}_READY`].map(name => [name, 'false']))),
 			},
@@ -128,7 +128,7 @@ suite('Product test checkpoints', () => {
 
 	test('validates commands, supported targets and identity before accessing the API', async () => {
 		const request: typeof fetch = async () => { throw new Error('Unexpected network access'); };
-		for (const args of [[], ['restore', 'extra'], ['record', '../escape'], ['record', 'unit-electron', 'extra'], ['record', 'unit-browser-webkit']]) {
+		for (const args of [[], ['restore', 'extra'], ['record', '../escape'], ['record', 'unit-electron', 'extra'], ['record', 'unknown-test']]) {
 			await assert.rejects(testCheckpoint(args, environment, request), /Usage:/);
 		}
 		for (const overrides of [
@@ -169,6 +169,34 @@ suite('Product test checkpoints', () => {
 			ready: state[`${prefix}_READY`],
 			hits,
 		}, { target: 'win32-x64', testId: id, artifact: artifactName(id), ready: 'true', hits: ['false', 'true'] });
+	});
+
+	test('supports arm64 macOS checkpoints', async t => {
+		const directory = mkdtempSync(path.join(os.tmpdir(), 'test-checkpoint-darwin-'));
+		t.after(() => rmSync(directory, { recursive: true, force: true }));
+		const env: NodeJS.ProcessEnv = {
+			...environment,
+			AGENT_OS: 'Darwin',
+			VSCODE_ARCH: 'arm64',
+			SYSTEM_STAGENAME: 'macOSARM64',
+			SYSTEM_JOBNAME: 'macOS_arm64_Test',
+			AGENT_TEMPDIRECTORY: directory,
+		};
+		const messages: string[] = [];
+		await testCheckpoint(['record', 'unit-browser-webkit'], env, fetch, message => messages.push(message));
+		const state = variables(messages);
+		const metadata: Record<string, unknown> = JSON.parse(readFileSync(state.TEST_CHECKPOINT_UNIT_BROWSER_WEBKIT_FILE, 'utf8'));
+		assert.deepStrictEqual({
+			target: metadata.target,
+			testId: metadata.testId,
+			artifact: state.TEST_CHECKPOINT_UNIT_BROWSER_WEBKIT_ARTIFACT,
+			ready: state.TEST_CHECKPOINT_UNIT_BROWSER_WEBKIT_READY,
+		}, {
+			target: 'darwin-arm64',
+			testId: 'unit-browser-webkit',
+			artifact: 'test-pass-macOSARM64-macOS_arm64_Test-darwin-arm64-unit-browser-webkit',
+			ready: 'true',
+		});
 	});
 
 	test('records metadata without a token and ignores local files during restore', async t => {

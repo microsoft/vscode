@@ -95,26 +95,38 @@ steps:
             VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
   - ${{ if eq(parameters.OS, 'darwin') }}:
-    - script: npm run test:extension
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot extension tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-extension
+        testStep:
+          script: npm run test:extension
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot extension tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - script: npm run test:completions-core
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot completions core tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-completions-core
+        testStep:
+          script: npm run test:completions-core
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot completions core tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
-    - script: npm run test:sanity
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: 🧪 Run Copilot sanity tests
-      timeoutInMinutes: 15
-      env:
-        VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
+    - template: ../common/run-test-with-checkpoint.yml@self
+      parameters:
+        testId: copilot-sanity
+        testStep:
+          script: npm run test:sanity
+          workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+          displayName: 🧪 Run Copilot sanity tests
+          timeoutInMinutes: 15
+          env:
+            VSCODE_UNDER_TEST: $(VSCODE_UNDER_TEST)
 
   # The Windows test tasks use the same checkpoints with PowerShell commands.
   - ${{ if eq(parameters.OS, 'win32') }}:

@@ -66,11 +66,11 @@ start. Pair these markers by **host ID, provider, and attempt**, not just name.
 The handle also protects against overlapping requests, stale completions, and
 unbounded retries; callers do not manage timestamps or correlation tokens.
 
-Keep workload aggregation and payload construction in focused helpers, invoked
-only for an observed operation or a pending first-list milestone with collection
-enabled. This keeps the measured control flow readable and skips telemetry-only
-counting afterward. Helpers reuse existing snapshots and results, rather than
-repeating enumeration or database work.
+Keep operation bookkeeping, workload aggregation and payload construction in
+focused helpers, leaving the measured control flow to name boundaries and
+outcomes. Aggregate only for an observed operation or a pending first milestone
+with collection enabled; skip telemetry-only counting afterward. Helpers reuse
+existing snapshots and results, rather than repeating enumeration or database work.
 
 ## Boundaries
 
@@ -90,9 +90,12 @@ repeating enumeration or database work.
 | `sessionMigration` | Provider catalog import, including enumeration when needed, synchronization, and publication. |
 | `sessionMigrationScan` | Provider enumeration for migration, before filtering to migratable sessions. |
 | `sessionDiscoveryScan` | Provider enumeration for external-chat discovery, before visibility/subagent filtering. |
+| `firstSessionDiscoveryResult` | Node performance time origin until the first provider discovery pass finishes processing its result and synchronously emitting its candidate batches. Also records a processed zero-candidate result when no event is emitted. Does not wait for host registration or imply exhaustive/error-free enumeration. |
+| `sessionDiscoveryRegistration` | One received discovery batch's host registration processing: registry snapshots, host filtering, accepted registry writes, catalog synchronization, and existing post-processing. Starts when the batch reaches registration, after its queue wait and any forced migration. Ends after scheduling, **not awaiting**, external-session publication reconciliation. |
+| `firstSessionDiscoveryRegistration` | Node performance time origin until the first discovery registration batch completes without an observed registration/post-processing failure or pending catalog synchronization. Includes that batch's counts, independently of operation sampling. Not completion of all batches or all providers. |
 | `sessionMetadataScan` | Copilot bulk enumeration used to prewarm metadata on catalog fallback. |
 
-The five `session*` operations also emit corresponding `*Start` markers.
+The six `session*` operations also emit corresponding `*Start` markers.
 `bootstrap`, `hostReady`, `firstSessionList`, and `startupSettled` are cumulative
 milestones, not additive phases. The latter two are independent of the operation
 retry cap. They have no `outcome` field; a failed listing cannot emit them.
@@ -103,6 +106,13 @@ can be deferred until after the first listing, and Codex can defer enumeration
 until explicit use. An observed scan is not necessarily on the startup critical
 path: use its start marker and the host milestones to distinguish those cases.
 Collection never activates or downloads a provider solely to obtain counts.
+
+The two `firstSessionDiscovery*` milestones are also cumulative, once per
+provider, and have no `outcome` field. A provider result can contain only a
+subset of its catalog (for example, a truncated Codex scan or Copilot
+classification failures). A successful registration is about the received
+batch, not the completeness of its source scan. Neither milestone means that
+an external row has been published to clients or rendered.
 
 ## Startup graph
 
@@ -225,16 +235,67 @@ External-chat discovery (early or deferred)
         v
     [sessionDiscoveryScan] + scannedSessionCount
         |
-        | Filter and publish discovered chats outside the scan interval
+        | Map, classify, filter and synchronously emit candidate batches
         v
-    Discovered chats registered with the host
+    [firstSessionDiscoveryResult]         since: processStart, including empty
+
+Each emitted batch independently enters the existing per-provider host queue
+        |
+        | Wait for earlier batches and any required forced migration
+        v
+    [sessionDiscoveryRegistrationStart]
+        |
+        | Host filtering, registration, catalog sync and post-processing
+        | Schedule external publication reconciliation without awaiting it
+        v
+    [sessionDiscoveryRegistration] + counts and outcome
+        |
+        +-- First successful batch, even after the observation cap:
+                [firstSessionDiscoveryRegistration]  since: processStart
+
+Coalesced session-list reconciliation and deferred title work run separately
 ```
+
+Provider processing and host registration can overlap: Copilot emits multiple
+batches during one pass, so the first registration can finish before
+`firstSessionDiscoveryResult`. Conversely, a provider can finish emitting all
+batches before registration starts. Codex can share an enumeration with
+migration, so a discovery result need not have a `sessionDiscoveryScan` marker.
+Do not pair scans and registration batches by attempt, proximity, or the latest
+successful scan. Only pair each operation with its own `*Start` within the same
+host, provider, and attempt.
+
+The result milestone observes the first normally completed processing pass,
+including zero candidates after filtering or deduplication. Copilot and Codex
+do not emit empty candidate events; their result milestone can therefore exist
+without a registration operation. Claude's existing empty event still takes
+the existing host path. A deferred/unavailable provider, thrown processing
+failure, or shutdown-abandoned result does not record this milestone. Later
+readiness/discovery can record it, even after scan sampling stops. Provider
+restarts do not reset either first-discovery milestone within the host lifetime.
 
 Migration and discovery scans exist for Copilot, Claude and Codex; metadata
 prewarming is Copilot-only. Codex scan end markers also include `pageCount` and
 `truncated`. Legacy migration or catalog backfill can start discovery before
 the startup-settled barrier. Providers may defer scanning until later use, so
 not every startup produces every marker.
+
+Copilot background discovery coalesces changes and paces SDK catalog listings by
+candidate. A session folder created while discovery observes the root, or a session
+first seen without `events.jsonl` that later gains one, may trigger up to four
+listings at least five seconds apart, so new external sessions appear promptly.
+Every other listing (history that was already ready when first observed, sessions
+that exhausted their fast budget, and retries) waits at least one minute after the
+preceding successful scan; due retries join any listing that runs. Candidates
+that cannot be classified until their metadata changes (an incomplete marker, or
+`workspace.yaml` without `cwd` or `client_name`) wait for a file change instead of
+retrying. Unwatched candidates park only when their readiness fingerprint was
+unchanged across the listing, so they may need one confirming listing first. Other
+unresolved candidates back off to an hourly retry. Shallow watchers
+and bounded, rotating readiness probes cover both watched candidates and overflow
+beyond the 32-watcher cap, so readiness that depends on an overflow probe can take
+longer. Discovery still needs a bulk listing: the SDK's exact `getSessionMetadata`
+API does not retain the `clientName` required for provenance filtering.
 
 ### Marker locations
 
@@ -249,6 +310,8 @@ not every startup produces every marker.
 | `sessionListStart`, `sessionList` | Around `_computeSessions` in [the agent service](node/agentService.ts). |
 | `sessionMigrationStart`, `sessionMigration` | Around provider catalog import in [the agent service](node/agentService.ts). |
 | `sessionMigrationScanStart`, `sessionMigrationScan`, `sessionDiscoveryScanStart`, `sessionDiscoveryScan` | Around enumeration in [Copilot](node/copilot/copilotAgent.ts), [Claude](node/claude/claudeAgent.ts) and [Codex](node/codex/codexAgent.ts). |
+| `firstSessionDiscoveryResult` | After result processing and candidate emission in [Copilot](node/copilot/copilotAgent.ts), [Claude](node/claude/claudeAgent.ts) and [Codex](node/codex/codexAgent.ts), including normally completed empty results. |
+| `sessionDiscoveryRegistrationStart`, `sessionDiscoveryRegistration`, `firstSessionDiscoveryRegistration` | In `_registerDiscoveredChatsWithStartupTelemetry`, wrapping registration after the existing queued migration in [the agent service](node/agentService.ts). |
 | `sessionMetadataScanStart`, `sessionMetadataScan` | In the SDK enumeration wrapper used by `prewarmSessionMetadata` in [Copilot](node/copilot/copilotAgent.ts). |
 
 ## Workload counts
@@ -279,6 +342,59 @@ observations, not complete catalog-size measurements.
 Migration records include synchronized, already-current, excluded, incomplete,
 and failed candidate counts. `incompleteSessionCount` includes stale exclusions.
 A deferred or unavailable catalog has no scan count, not a synthetic zero.
+
+### Discovery counts
+
+`firstSessionDiscoveryResult` records `candidateSessionCount` and
+`externalSessionCount`: candidates actually emitted by that processing pass,
+and the subset the provider classified as external. Copilot aggregates all
+of its emitted batches after deduplication. Claude counts its unknown chats;
+Codex counts new/changed chats, which can include known internal chats.
+These are not catalog totals or host registrations.
+
+Copilot also records `filteredSessionCount` (enumerated entries deliberately
+not emitted, including known, suppressed, stale and duplicate entries) and
+`failedSessionCount` (entries skipped after a caught classification failure).
+Claude records its known-chat filtering count. Codex omits filtering counts
+because native-subagent filtering happens inside the shared listing path;
+Claude and Codex omit failure counts rather than claiming their lower-level
+metadata recovery paths were error-free. Missing counts are unknown, not zero.
+A zero-candidate result only describes the observed result, not an empty
+provider-wide catalog. In particular, retain Copilot's failed count and Codex's
+separately observed scan truncation when interpreting coverage.
+
+`sessionDiscoveryRegistration` and `firstSessionDiscoveryRegistration` use
+counts from **one received batch**, not accumulated provider totals:
+
+- `candidateSessionCount`: entries in that event.
+- `externalSessionCount`: entries the provider marked external, before host
+  provenance corrections and visibility filtering.
+- `registeredSessionCount`: accepted registry writes, even if later processing
+  of that entry fails. This does not count published/visible rows.
+- `filteredSessionCount`: entries deliberately skipped without a new
+  registration (already registered, subagent/backing, stale, or tombstoned).
+- `failedSessionCount`: entries whose processing threw into the registration
+  loop's existing per-candidate error handler.
+- `incompleteSessionCount`: entries whose catalog synchronization returned
+  `pending`.
+
+Counts need not partition the batch: an accepted write can precede a failure
+or pending synchronization. Batch-level errors do not invent per-candidate
+failures, and cancellation only retains progress actually collected.
+An observed per-entry failure, pending synchronization, or caught
+post-processing write failure yields `partial`, not `success`, even though
+product error handling still logs and continues. An escaping batch error
+yields `error`; cancellation or a no-longer-current provider yields `cancelled`.
+Recovered failures internal to metadata helpers are not an exhaustive error
+count. Publication reconciliation can later fail independently of a successful
+registration observation.
+
+For first registration latency, use
+`firstSessionDiscoveryRegistration.durationMs`, grouped by provider. It includes
+the time before that batch, unlike the sampled registration operation duration.
+Keep result-only, partial, missing and late observations separate; do not
+manufacture an all-providers-complete timestamp or label either boundary
+"visible". The first successful batch may itself be empty or entirely filtered.
 
 For a graph of listing latency by Copilot volume, filter successful
 `sessionList` records and group `durationMs` by `copilotSessionCount < 100`,
@@ -343,11 +459,14 @@ double-counted. Unknown providers collapse to `other` before keys or telemetry
 are retained. Each attempt emits at most two markers; milestones and provider
 context snapshots emit once per key. There are no per-session events, timers, performance observers,
 additional filesystem reads, SDK calls, or telemetry-triggered background work.
-The only additional session iteration counts an already-loaded registry snapshot
-for an observed listing or a computation competing to be the first successful
-listing. Metrics are not aggregated when collection is disabled. Later
-listings/scans do not allocate timing handles or read the clock once their
-observation and the first-list milestone are complete.
+Additional counting uses only already-loaded registry snapshots and discovery
+candidate arrays, for an observed operation or a pending first milestone.
+`isPending` checks the same normalized milestone keys without reading a clock;
+combine it with `isEnabled` before telemetry-only aggregation. Disabled
+completions still consume their milestones without payload aggregation, so they
+are not replayed after opt-in. Later listings/scans/registrations do not allocate
+timing handles or read the clock once their observations and first milestones
+are complete.
 
 Markers use the existing telemetry transport without awaiting a flush
 on the startup path. Telemetry sink exceptions are logged and cannot fail the
@@ -360,7 +479,9 @@ Outcomes are `success`, `error`, `unavailable`, `deferred`, `partial`, and
 `cancelled`. Open observations are cancelled on runtime disposal. Failed or
 partial attempts keep only measurements actually observed. After three
 unsuccessful attempts there are no further operation markers for that key;
-`firstSessionList` and `startupSettled` still report a later first success.
+`firstSessionList`, `startupSettled`, and `firstSessionDiscoveryRegistration`
+still report a later first success. `firstSessionDiscoveryResult` similarly
+does not depend on a sampled scan handle.
 A start without
 an end can indicate in-flight work, a crash, a consent change, or delivery loss;
 it is not a successful zero-duration operation. Hard process
@@ -372,6 +493,7 @@ The implementation is in
 [`node/agentHostStartupPerformance.ts`](node/agentHostStartupPerformance.ts).
 Bootstrap records named milestones and publishes them only after
 composition has applied the host telemetry configuration. Providers report at
-their existing enumeration boundaries; the orchestrator reports at its existing
-listing and migration boundaries. Startup telemetry does not use chat lifecycle
+their existing enumeration and processed-result boundaries; the orchestrator
+reports at its existing listing, migration and discovery registration boundaries.
+Startup telemetry does not use chat lifecycle
 contributions, since no turn or hydration hook owns these operations.

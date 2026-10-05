@@ -411,6 +411,19 @@ describe('Copilot session provenance', () => {
 		]);
 	});
 
+	test('a token minted for an account the user switched away from on the same issuer is not published', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.pendingToken = new DeferredPromise<Response>();
+		tokenStore.githubEnterpriseUri = URI.parse('https://second.ghe.com');
+		const rejected = expect(createTokenManager(fetcher).getCopilotToken()).rejects.toThrow('account changed');
+		await vi.waitFor(() => expect(fetcher.requests).toHaveLength(2));
+		const next = { ...api.selected!, account: { id: 'account-other', label: 'other-login' }, accessToken: 'github-other' };
+		api.sessions.splice(0, api.sessions.length, next);
+		api.selected = next;
+		await fetcher.pendingToken.complete(createFakeResponse(200, createTestExtendedTokenInfo({ token: 'stale-second' })));
+		await rejected;
+	});
+
 	test.each([undefined, 'https://first.ghe.com'])('does not send credentials before authentication publishes the matching URI (%s)', async storedUri => {
 		tokenStore.githubEnterpriseUri = storedUri ? URI.parse(storedUri) : undefined;
 		const fetcher = new TestFetcherService();

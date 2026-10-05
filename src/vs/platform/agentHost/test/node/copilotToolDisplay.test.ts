@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import type { PermissionRequest } from '@github/copilot-sdk';
+import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
@@ -13,7 +14,7 @@ type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' 
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
 type CopilotWorkflowPermissionRequest = Extract<PermissionRequest, { kind: 'workflow' }>;
 
-function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean, requestSandboxPermissive?: boolean): CopilotShellPermissionRequest {
 	return {
 		kind: 'shell',
 		canOfferSessionApproval: false,
@@ -24,6 +25,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 		possiblePaths: [],
 		possibleUrls: [],
 		requestSandboxBypass,
+		requestSandboxPermissive,
 	};
 }
 
@@ -162,7 +164,7 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 	});
 
 	test('getToolMarkdownContent returns the task_complete summary when present', () => {
-		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:** All tests pass.');
+		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: 'All tests pass.' }), '\n\n**Task completed:**\n\nAll tests pass.');
 	});
 
 	test('getTaskCompleteMarkdown prefers the input summary over truncated tool output', () => {
@@ -171,10 +173,31 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 			withSummary: getTaskCompleteMarkdown({ summary: 'Completed the requested work.' }, truncatedOutput),
 			withoutSummary: getTaskCompleteMarkdown({}, 'Fallback summary.'),
 		}, {
-			withSummary: '\n\n**Task completed:** Completed the requested work.',
-			withoutSummary: '\n\n**Task completed:** Fallback summary.',
+			withSummary: '\n\n**Task completed:**\n\nCompleted the requested work.',
+			withoutSummary: '\n\n**Task completed:**\n\nFallback summary.',
 		});
 	});
+
+	const markdownCases: Array<[name: string, summary: string, expectedHtml: string]> = [
+		['headings', '## Summary\n\nAll tests pass.', '<h2>Summary</h2>\n<p>All tests pass.</p>\n'],
+		['setext headings', 'Summary\n-------', '<h2>Summary</h2>\n'],
+		['lists', '- Fixed the bug\n- Added tests', '<ul>\n<li>Fixed the bug</li>\n<li>Added tests</li>\n</ul>\n'],
+		['fenced code blocks', '```ts\nconst done = true;\n```', '<pre><code class="language-ts">const done = true;\n</code></pre>\n'],
+		['indented code blocks', '    const done = true;', '<pre><code>const done = true;\n</code></pre>\n'],
+		['block quotes', '> All tests pass.', '<blockquote>\n<p>All tests pass.</p>\n</blockquote>\n'],
+		['plain text', 'All tests pass.', '<p>All tests pass.</p>\n'],
+		['inline markdown', 'Updated **tests** and `code`.', '<p>Updated <strong>tests</strong> and <code>code</code>.</p>\n'],
+	];
+
+	for (const [name, summary, expectedHtml] of markdownCases) {
+		test(`getTaskCompleteMarkdown preserves ${name} after the completion label`, () => {
+			for (const parameters of [{ summary }, undefined]) {
+				const markdown = getTaskCompleteMarkdown(parameters, summary);
+				assert.ok(markdown);
+				assert.strictEqual(marked.parser(marked.lexer(markdown)), `<p><strong>Task completed:</strong></p>\n${expectedHtml}`);
+			}
+		});
+	}
 
 	test('getToolMarkdownContent returns undefined for empty, missing, or non-string summaries', () => {
 		assert.strictEqual(getToolMarkdownContent('task_complete', { summary: '' }), undefined);
@@ -348,12 +371,16 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
-	test('confirmation title reflects sandbox bypass for shell requests', () => {
-		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
-		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
-
-		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
-		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	test('confirmation title reflects sandbox escalation for shell requests', () => {
+		assert.deepStrictEqual({
+			sandboxed: getPermissionDisplay(shellPermissionRequest('npm test'), wd).confirmationTitle,
+			bypass: getPermissionDisplay(shellPermissionRequest('npm test', true), wd).confirmationTitle,
+			permissive: getPermissionDisplay(shellPermissionRequest('npm test', true, true), wd).confirmationTitle,
+		}, {
+			sandboxed: 'Run in terminal?',
+			bypass: 'Run in terminal outside the sandbox?',
+			permissive: 'Retry by allowing filesystem access inside the sandbox?',
+		});
 	});
 
 });

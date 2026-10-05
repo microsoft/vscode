@@ -435,11 +435,15 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 		const { sessionUri } = await createSession('runtime-gpt-defaults');
 		const result = await driveTurnWithModelToCompletion(context.client, sessionUri, 'turn-runtime-gpt-defaults', 'Reply exactly DEFAULTS_READY.', 'gpt-5.6-sol', 1);
 		assert.strictEqual(context.observedModelRequestBodies.length, 1);
-		const request: { model: string; reasoning?: { summary?: string }; instructions?: string } = JSON.parse(context.observedModelRequestBodies[0]);
+		const request: { model: string; reasoning?: { summary?: string }; instructions?: string; input?: { type: string; role?: string; content?: { text?: string }[] }[] } = JSON.parse(context.observedModelRequestBodies[0]);
+		const system = [
+			request.instructions,
+			...request.input?.filter(item => item.type === 'message' && item.role === 'system').flatMap(item => item.content?.map(part => part.text) ?? []) ?? [],
+		].join('\n');
 		assert.deepStrictEqual({
 			model: request.model,
 			reasoningSummary: request.reasoning?.summary,
-			continuationGuidance: request.instructions?.includes('If the user asks a side question while a task is in progress, answer it briefly and then continue the unfinished task unless they ask you to stop, pause, or change direction.'),
+			continuationGuidance: system.includes('If the user asks a side question while a task is in progress, answer it briefly and then continue the unfinished task unless they ask you to stop, pause, or change direction.'),
 			response: result.responseText.trim(),
 		}, {
 			model: 'gpt-5.6-sol',

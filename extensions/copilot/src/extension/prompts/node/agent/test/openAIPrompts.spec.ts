@@ -77,6 +77,7 @@ suite('OpenAI prompt fallback', () => {
 		['gpt-5.6', 'Gpt56Prompt'],
 		['gpt-6', 'Gpt6Prompt'],
 		['vscModelE-preview', 'VSCModelPromptE'],
+		['vscModelF-preview', 'VSCModelPromptF'],
 	])('preserves the explicit prompt for %s', async (family, expected) => {
 		expect((await resolve(createEndpoint(family, 'OpenAI'))).SystemPrompt.name).toBe(expected);
 	});

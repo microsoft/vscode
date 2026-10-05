@@ -273,6 +273,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
+		hostPluginsPath: URI.file('/plugins/.host'),
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
@@ -299,7 +300,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();

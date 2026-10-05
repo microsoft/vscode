@@ -37,10 +37,6 @@
 	padding-left: var(--vscode-spacing-size240);
 }
 
-.interactive-session .interactive-response .value .chat-codeblock-pill-container.chat-tool-call-with-icon {
-	--chat-chain-icon-top: calc(50% - var(--vscode-codiconFontSize-compact) / 2);
-}
-
 .interactive-session .interactive-response .value .chat-tool-call-with-icon > .chat-tool-call-icon,
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) > .chat-thinking-icon {
 	position: absolute;
@@ -301,6 +297,9 @@
 	> .chat-working-progress {
 		gap: 0;
 		line-height: 1.5em;
+		min-height: var(--chat-response-footer-height);
+		/* Reserve the footer gap even without content; otherwise collapse with the preceding margin. */
+		margin-top: var(--chat-persistent-item-gap);
 	}
 
 	.chat-tool-call-with-icon .progress-container {

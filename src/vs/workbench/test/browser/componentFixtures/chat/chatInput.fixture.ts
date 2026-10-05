@@ -87,6 +87,31 @@ const sampleModels: ILanguageModelChatMetadataAndIdentifier[] = [
 	},
 ];
 
+// A short name beside its thinking effort / context readout. The name must keep its
+// own width rather than being padded out to the picker's minimum label width.
+export const shortNameModels: ILanguageModelChatMetadataAndIdentifier[] = [
+	{
+		identifier: 'xai-grok-4.7',
+		metadata: {
+			extension: new ExtensionIdentifier('fixture.extension'),
+			id: 'grok-4.7',
+			name: 'Grok 4.7',
+			vendor: 'xai',
+			family: 'grok',
+			version: '1',
+			maxInputTokens: 256000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			configurationSchema: {
+				properties: {
+					reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'], default: 'high' },
+					contextSize: { type: 'number', group: 'tokens', enum: [128000, 256000], enumItemLabels: ['128K', '256K'], default: 256000 },
+				},
+			},
+		},
+	},
+];
+
 const sampleNotification: IChatInputNotification = {
 	id: 'fixture.notification',
 	severity: ChatInputNotificationSeverity.Info,
@@ -141,7 +166,8 @@ const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { 
 const combinedPickerOptions: ChatInputFixtureOptions = {
 	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
 	combinedModePermissionsPicker: true,
-	models: copilotHarnessModels,
+	tabbedModelPicker: true,
+	models: shortNameModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } })),
 };
 
 const copilotIntroductionOptions: ChatInputFixtureOptions = {
@@ -185,6 +211,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
+	WithShortModelName: defineComponentFixture({ render: context => renderChatInput(context, { models: shortNameModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The editor chat input shows compact picker controls as 12-pixel codicons centered with equal padding inside matching 22-pixel square controls, aligned with the expanded toolbar height.'],
@@ -197,6 +224,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	}),
 	CopilotHarnessCombinedPickers: defineComponentFixture({
 		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderChatInput(context, combinedPickerOptions),
 	}),
 	CopilotHarnessCombinedCompactPickers: defineComponentFixture({

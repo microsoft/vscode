@@ -12,6 +12,7 @@ import { CancellationError, isCancellationError } from '../../../base/common/err
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { autorun, derived, IObservable, observableValue } from '../../../base/common/observable.js';
+import { OperatingSystem } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -47,12 +48,13 @@ import { computeReconnectDelay, hasExhaustedReconnectAttempts } from '../common/
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../common/state/sessionTransport.js';
 import { AgentHostProtocolClient, InitialAuthenticationError } from './agentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
-import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
+import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
 
@@ -74,6 +76,9 @@ interface IConnectionEntry {
 	connected: boolean;
 	/** Current connection status for UI display. */
 	status: RemoteAgentHostConnectionStatus;
+	operatingSystemResolved?: boolean;
+	operatingSystemRequest?: Promise<void>;
+	operatingSystemRetryRequested?: boolean;
 }
 
 interface IPendingConnectionAttempt {
@@ -187,6 +192,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	readonly onDidChangeConfiguredEntries = Event.fromObservableLight(this._configuredEntries);
 	/** In-flight connection attempts, keyed by normalized address. */
 	private readonly _pendingConnects = new Map<string, IPendingConnectionAttempt>();
+	/**
+	 * Protocol clients held alive while an explicit reconnect acquires their
+	 * replacement. This prevents an SSH/WSL relay release from tearing down
+	 * shared bootstrap state in the gap before the replacement lease exists.
+	 */
+	private readonly _retainedReconnectEntries = new Map<string, IConnectionEntry>();
 
 	get pendingConnections(): readonly IRemoteAgentHostPendingConnection[] {
 		if (this._store.isDisposed || !this._remoteAgentHostsEnabled.get()) {
@@ -197,6 +208,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	}
 	private readonly _names = new Map<string, string>();
 	private readonly _tokens = new Map<string, string | undefined>();
+	private readonly _operatingSystems = new Map<string, OperatingSystem>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
 	/** Errors from reconnects that could not start a dial. */
 	private readonly _failedReconnects = new Map<string, Error>();
@@ -298,12 +310,14 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	get connections(): readonly IRemoteAgentHostConnectionInfo[] {
 		const result: IRemoteAgentHostConnectionInfo[] = [];
 		for (const [address, entry] of this._entries) {
+			const operatingSystem = this._operatingSystems.get(address);
 			result.push({
 				address,
 				name: this.getDisplayNameOverride(address) ?? this._names.get(address) ?? address,
 				clientId: entry.client?.clientId,
 				defaultDirectory: entry.client?.defaultDirectory,
 				status: entry.status,
+				...(operatingSystem === undefined ? {} : { operatingSystem }),
 			});
 		}
 		return result;
@@ -425,10 +439,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (entry.connected) {
 				entry.observer?.('disposed');
 			}
-			entry.store.dispose();
-			if (!entry.reconnectTransfersTransportOwnership) {
-				entry.transportDisposable?.dispose();
-			}
+			this._retainedReconnectEntries.set(normalized, entry);
 			this._onDidChangeConnections.fire();
 		}
 
@@ -500,6 +511,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// (the config change listener will reconcile, but this is instant).
 		this._names.delete(normalized);
 		this._tokens.delete(normalized);
+		this._operatingSystems.delete(normalized);
 		this._failedReconnects.delete(normalized);
 		this._clearHostLabelFormatter(normalized);
 		this._cancelReconnect(normalized);
@@ -522,6 +534,19 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
 			this._onDidChangeConnections.fire();
+		}
+		this._disposeRetainedReconnectEntry(address, true);
+	}
+
+	private _disposeRetainedReconnectEntry(address: string, disposeTransport: boolean): void {
+		const entry = this._retainedReconnectEntries.get(address);
+		if (!entry) {
+			return;
+		}
+		this._retainedReconnectEntries.delete(address);
+		entry.store.dispose();
+		if (disposeTransport || !entry.reconnectTransfersTransportOwnership) {
+			entry.transportDisposable?.dispose();
 		}
 	}
 
@@ -559,6 +584,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._names.clear();
 			this._tokens.clear();
+			this._operatingSystems.clear();
 			this._reconnectAttempts.clear();
 			// Drop label formatters for entries no longer represented by an active connection.
 			for (const address of [...this._labelFormatters.keys()]) {
@@ -597,6 +623,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Drop formatters for addresses that are no longer configured.
 		for (const address of [...this._labelFormatters.keys()]) {
 			if (!desired.has(address)) {
+				this._operatingSystems.delete(address);
 				this._clearHostLabelFormatter(address);
 			}
 		}
@@ -681,8 +708,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return;
 		}
 
-		// Dispose any existing entry for this address before creating a new one
-		// to avoid leaking disposables on reconnect.
+		// Automatic recovery and entry changes can still race a reconnect. An
+		// explicit reconnect keeps its old entry in `_retainedReconnectEntries`
+		// until this factory has acquired a replacement lease.
 		const existingEntry = this._entries.get(address);
 		if (existingEntry) {
 			this._entries.delete(address);
@@ -701,6 +729,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (this._pendingConnects.get(address) !== attempt) {
 				return;
 			}
+			this._disposeRetainedReconnectEntry(address, true);
 			this._logService.error(`[RemoteAgentHost] Failed to create a connection to ${address}. Verify address and connectionToken`, err);
 			// A factory can fail before any client exists — a stopped WSL distro is
 			// rejected by its precondition check, never reaching the handshake below.
@@ -744,11 +773,17 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			|| this._entries.has(address)
 		) {
 			observer?.('disposed');
+			this._disposeRetainedReconnectEntry(address, true);
 			createdConnection.connection.dispose();
 			createdConnection.transportDisposable?.dispose();
 			this._rejectPendingConnectionWait(address, new Error(`Connection attempt for ${address} was discarded because it is no longer active.`));
 			return;
 		}
+
+		// The factory has acquired the replacement transport/lease. Releasing
+		// the old protocol client now is safe: SSH and WSL still retain their
+		// shared session/bootstrap through the new logical lease.
+		this._disposeRetainedReconnectEntry(address, false);
 
 		const store = new DisposableStore();
 		const client = store.add(createdConnection.connection);
@@ -815,6 +850,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					break;
 				case 'connected':
 					observer?.('connected');
+					this._resolveHostOperatingSystem(address, entry, client, true);
 					entry.connected = true;
 					entry.status = RemoteAgentHostConnectionStatus.connected;
 					// A soft reconnect that restores the transport settles any
@@ -849,6 +885,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			this._logService.info(`[RemoteAgentHost] Connected to ${address}`);
 			observer?.('connected');
+			this._resolveHostOperatingSystem(address, entry, client);
 			entry.connected = true;
 			entry.status = RemoteAgentHostConnectionStatus.connected;
 			this._reconnectAttempts.delete(address);
@@ -1043,16 +1080,55 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	 */
 	private _updateHostLabelFormatter(address: string, name: string): void {
 		this._clearHostLabelFormatter(address);
+		const authority = agentHostAuthority(address);
+		const operatingSystem = this._operatingSystems.get(address);
+		const pathFormatting = operatingSystem === undefined
+			? AGENT_HOST_LABEL_FORMATTER.formatting
+			: agentHostLabelFormatter(authority, operatingSystem).formatting;
 		const handle = this._labelService.registerFormatter({
 			scheme: AGENT_HOST_SCHEME,
-			authority: agentHostAuthority(address),
+			authority,
 			priority: true,
 			formatting: {
-				...AGENT_HOST_LABEL_FORMATTER.formatting,
+				...pathFormatting,
 				workspaceSuffix: this.getDisplayNameOverride(address) ?? name,
 			},
 		});
 		this._labelFormatters.set(address, handle);
+	}
+
+	private _resolveHostOperatingSystem(address: string, entry: IConnectionEntry, connection: IAgentConnection, retryIfPending = false): void {
+		if (entry.operatingSystemResolved) {
+			return;
+		}
+		if (entry.operatingSystemRequest) {
+			entry.operatingSystemRetryRequested ||= retryIfPending;
+			return;
+		}
+
+		const request = getAgentHostOperatingSystem(connection).then(operatingSystem => {
+			if (this._entries.get(address) !== entry) {
+				return;
+			}
+			entry.operatingSystemResolved = true;
+			this._operatingSystems.set(address, operatingSystem);
+			this._updateHostLabelFormatter(address, this._names.get(address) ?? address);
+			this._onDidChangeConnections.fire();
+		}, error => {
+			if (this._entries.get(address) === entry) {
+				this._logService.error(`[RemoteAgentHost] Failed to resolve the operating system for ${address}`, error);
+			}
+		}).finally(() => {
+			if (entry.operatingSystemRequest === request) {
+				entry.operatingSystemRequest = undefined;
+				const retry = entry.operatingSystemRetryRequested;
+				entry.operatingSystemRetryRequested = false;
+				if (retry && !entry.operatingSystemResolved && this._entries.get(address) === entry) {
+					this._resolveHostOperatingSystem(address, entry, connection);
+				}
+			}
+		});
+		entry.operatingSystemRequest = request;
 	}
 
 	private _clearHostLabelFormatter(address: string): void {
@@ -1083,6 +1159,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			disposeEntry(entry);
 		}
 		this._entries.clear();
+		for (const entry of this._retainedReconnectEntries.values()) {
+			entry.observer?.('disposed');
+			disposeEntry(entry);
+		}
+		this._retainedReconnectEntries.clear();
+		this._operatingSystems.clear();
 		for (const handle of this._labelFormatters.values()) {
 			handle.dispose();
 		}

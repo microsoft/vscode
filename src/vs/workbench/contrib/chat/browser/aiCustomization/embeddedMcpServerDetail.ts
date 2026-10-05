@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { findNodeAtLocation, parseTree } from '../../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
@@ -24,12 +25,16 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { CustomizationMarketplaceIcon } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { mcpServerIcon } from './aiCustomizationIcons.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 const $ = DOM.$;
 
@@ -38,6 +43,7 @@ export interface IMcpServerDetailInput {
 	readonly name: string;
 	readonly label: string;
 	readonly installState: McpServerInstallState;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly config?: IMcpServerConfiguration;
 	/** Identifier used by the active harness's compatibility provider. */
 	readonly compatibilityId?: string;
@@ -61,6 +67,7 @@ export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer)
 		name: server.name,
 		label: server.label,
 		installState: server.installState,
+		icon: server.icon ? { light: URI.parse(server.icon.light), dark: URI.parse(server.icon.dark) } : undefined,
 		config: server.config,
 		compatibilityId: server.id,
 		source: server.local?.mcpResource ? { uri: server.local.mcpResource } : undefined,
@@ -84,9 +91,13 @@ type McpDetailCompatibilityState =
  */
 export class EmbeddedMcpServerDetail extends Disposable {
 
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
+	private readonly iconEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly pathEl: HTMLAnchorElement;
 	private readonly editConfigurationButton: Button;
@@ -100,6 +111,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private definitionEditor: CodeEditorWidget | undefined;
 	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
 	private readonly diagnosticDisposables = this._register(new DisposableStore());
+	private readonly iconDisposables = this._register(new DisposableStore());
 	private readonly migrationLinkListener = this._register(new MutableDisposable());
 	private readonly emptyEl: HTMLElement;
 
@@ -122,13 +134,15 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
-		this.root = DOM.append(parent, $('.editor-content-container.ai-customization-embedded-detail.embedded-mcp-detail'));
+		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-mcp-detail'));
 
 		this.headerEl = DOM.append(this.root, $('.editor-header.mcp-detail-header'));
 		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
+		this.iconEl = DOM.append(this.headerEl, $('.editor-item-icon'));
 		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
 		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
 		this.pathEl = DOM.append(headerText, $('a.editor-item-path')) as HTMLAnchorElement;
@@ -175,17 +189,18 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// Refresh when the underlying server changes (install state, enablement, etc.).
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (this.current && server && server.id === this.current.id) {
-				const { error, compatibilityId, migratable } = this.current;
-				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable };
+				const { error, compatibilityId, migratable, icon } = this.current;
+				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable, icon };
 				this.bindDiagnostics();
 				this.renderItem();
 			}
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled)) {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
 				this.bindDiagnostics();
 			}
 		}));
+		this._register(this.themeService.onDidColorThemeChange(() => this.renderIcon()));
 
 		this.renderItem();
 	}
@@ -242,6 +257,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.emptyEl.style.display = hasItem ? 'none' : '';
 		this.bodyEl.style.display = hasItem ? '' : 'none';
 		this.root.classList.toggle('is-empty', !hasItem);
+		this.renderIcon();
 		if (!server) {
 			this.nameEl.textContent = '';
 			this.pathEl.textContent = '';
@@ -276,6 +292,15 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			void this.loadSourceDefinition(server, server.source, renderGeneration);
 		} else {
 			this.setDefinition(undefined);
+		}
+	}
+
+	private renderIcon(): void {
+		const icon = this.current?.icon;
+		this.iconDisposables.clear();
+		this.iconEl.style.display = icon ? '' : 'none';
+		if (icon) {
+			renderCustomizationMarketplaceIcon(this.iconEl, mcpServerIcon, icon, this.themeService.getColorTheme().type, this.iconDisposables);
 		}
 	}
 
@@ -347,7 +372,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.customizationHarnessService.availableHarnesses.read(reader);
 			const descriptor = this.customizationHarnessService.getActiveDescriptor();
 			this.harnessLabel = descriptor.label || localize('currentHarness', "the current harness");
-			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled) !== true) {
+			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true) {
 				this.compatibilityState = { kind: 'unavailable', details: [] };
 				this.renderCompatibility();
 				return;
@@ -476,6 +501,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			|| this.compatibilitySection.section.style.display !== 'none'
 			|| this.migrationSection.section.style.display !== 'none';
 		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
+		this._onDidChangeContent.fire();
 	}
 
 	private updateDiagnosticSection(section: IMcpDiagnosticSection, kind: 'warning' | 'error' | 'neutral', icon: ThemeIcon, summary: string, details: readonly string[]): void {
@@ -519,6 +545,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.definitionEmptyEl.textContent = emptyMessage;
 
 		if (this.currentDefinition === definition) {
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -527,6 +554,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!hasDefinition) {
 			this.definitionEditor?.setModel(null);
 			this.definitionModel.clear();
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -537,6 +565,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const model = this.modelService.createModel(definition, this.languageService.createById('jsonc'), undefined, true);
 		definitionEditor.setModel(model);
 		this.definitionModel.value = model;
+		this._onDidChangeContent.fire();
 	}
 
 	private ensureDefinitionEditor(): CodeEditorWidget {

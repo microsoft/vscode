@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
-import { parseGitHubIssueUrl } from '../../../../platform/agentHost/common/githubIssueReferences.js';
+import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { linkKey } from '../../../common/sessionLinks.js';
 import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
-import { parseGitHubPullRequestUrl } from './utils.js';
 
 export interface ISessionGitHubReferences {
 	readonly pullRequests: readonly IGitHubPullRequestRef[];
@@ -29,11 +29,11 @@ export function parseGitHubArtifactLink(artifact: ISessionArtifact): Pick<IGitHu
 	return artifact.kind === SessionArtifactKind.Issue ? parseGitHubIssueUrl(link) : undefined;
 }
 
-/** Drops associations repeated across folders, keeping distinct recorded entries for the same link. */
-function dedupeByLink<T extends { readonly uri: URI; readonly recordedReferenceId?: string }>(refs: readonly T[]): readonly T[] {
+/** Drops entries repeated across folders or chats, keeping the first entry for each link. */
+function dedupeByLink<T extends { readonly uri: URI }>(refs: readonly T[]): readonly T[] {
 	const seen = new Set<string>();
 	return refs.filter(ref => {
-		const key = `${linkKey(ref.uri.toString())}\u0001${ref.recordedReferenceId ?? ''}`;
+		const key = linkKey(ref.uri.toString());
 		if (seen.has(key)) {
 			return false;
 		}
@@ -47,11 +47,12 @@ function isSameRepository(first: { readonly owner: string; readonly repo: string
 }
 
 function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[], associated: readonly T[], merge: (recorded: T, associated: T) => T): readonly T[] {
-	const recordedLinks = new Set(recorded.map(ref => linkKey(ref.uri.toString())));
+	const uniqueRecorded = dedupeByLink(recorded);
+	const recordedLinks = new Set(uniqueRecorded.map(ref => linkKey(ref.uri.toString())));
 	return [
-		...recorded.map(ref => {
+		...uniqueRecorded.map(ref => {
 			const match = associated.find(candidate => candidate.recordedReferenceId === ref.recordedReferenceId)
-				?? associated.find(candidate => !candidate.recordedReferenceId && linkKey(candidate.uri.toString()) === linkKey(ref.uri.toString()));
+				?? associated.find(candidate => linkKey(candidate.uri.toString()) === linkKey(ref.uri.toString()));
 			return match ? merge(ref, match) : ref;
 		}),
 		...associated.filter(ref => !recordedLinks.has(linkKey(ref.uri.toString()))),
@@ -74,7 +75,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 		: [];
 	const gitHubInfo = chatWorkspace ? folderGitHubInfos[0] : session?.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader);
 	const chatRepositories = chatWorkspace && folderGitHubInfos.length > 0 ? folderGitHubInfos : undefined;
-	const artifacts = session?.artifacts?.read(reader) ?? [];
+	const artifacts = (session?.artifacts?.read(reader) ?? []).filter(artifact => !chat || !artifact.chat || isEqual(artifact.chat, chat.resource));
 	// Providers may echo recorded references into their associations; those stay out of the dedicated pills too.
 	const recordedReferenceIds = new Set(artifacts.filter(artifact => !artifact.isArtifact).map(artifact => artifact.id));
 	const isRecordedReference = (ref: { readonly recordedReferenceId?: string }) => !!ref.recordedReferenceId && recordedReferenceIds.has(ref.recordedReferenceId);

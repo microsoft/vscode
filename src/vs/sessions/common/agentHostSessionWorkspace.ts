@@ -160,6 +160,8 @@ function withFolderGitState(folder: ISessionFolder, gitState: ISessionGitState):
 			hasGitRemote: gitState.hasGitRemote,
 			hasGitHubRemote: gitState.hasGitHubRemote,
 			upstreamBranchName: gitState.upstreamBranchName,
+			defaultBranchName: gitState.defaultBranchName,
+			defaultRemoteBranchName: gitState.defaultRemoteBranchName,
 			incomingChanges: gitState.incomingChanges,
 			outgoingChanges: gitState.outgoingChanges,
 			uncommittedChanges: gitState.uncommittedChanges,
@@ -185,11 +187,13 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	const hasGitRemote = gitState?.hasGitRemote;
 	const hasGitHubRemote = gitState?.hasGitHubRemote;
 	const upstreamBranchName = gitState?.upstreamBranchName;
+	const defaultBranchName = gitState?.defaultBranchName;
+	const defaultRemoteBranchName = gitState?.defaultRemoteBranchName;
 	const incomingChanges = gitState?.incomingChanges;
 	const outgoingChanges = gitState?.outgoingChanges;
 	const uncommittedChanges = gitState?.uncommittedChanges;
 	const branchName = gitState?.branchName;
-	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
+	const gitFields = { branchName, baseBranchName, baseBranchProtected, hasGitRemote, hasGitHubRemote, upstreamBranchName, defaultBranchName, defaultRemoteBranchName, incomingChanges, outgoingChanges, uncommittedChanges };
 
 	// The primary (index 0) is the session's process root; it carries the git
 	// state / project association. Additional directories carry no per-folder

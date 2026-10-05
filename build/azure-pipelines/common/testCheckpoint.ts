@@ -9,18 +9,21 @@ import path from 'node:path';
 import { retry } from './retry.ts';
 
 /**
- * Test tasks of the product x64 test jobs that record a checkpoint once they
- * pass.
+ * Product test tasks that record a checkpoint once they pass.
  */
 export const testIds = [
 	'unit-electron',
 	'unit-node',
 	'unit-browser-chromium',
+	'unit-browser-webkit',
 	'integration-electron',
 	'integration-browser-chromium',
 	'integration-browser-firefox',
+	'integration-browser-webkit',
 	'integration-remote',
 	'smoke-electron',
+	'smoke-agents-pac-proxy',
+	'smoke-agents-kerberos-pac-proxy',
 	'smoke-browser-chromium',
 	'smoke-remote',
 	'copilot-extension',
@@ -73,15 +76,16 @@ function setVariable(log: (message: string) => void, name: string, value: string
 }
 
 function checkpointTarget(env: NodeJS.ProcessEnv): string {
-	if (env.VSCODE_ARCH !== 'x64') {
-		throw new Error('Test checkpoints require x64');
+	if (env.AGENT_OS === 'Darwin' && env.VSCODE_ARCH === 'arm64') {
+		return 'darwin-arm64';
 	}
-
-	switch (env.AGENT_OS) {
-		case 'Windows_NT': return 'win32-x64';
-		case 'Linux': return 'linux-x64';
-		default: throw new Error('Test checkpoints require Windows or Linux');
+	if (env.VSCODE_ARCH === 'x64') {
+		switch (env.AGENT_OS) {
+			case 'Windows_NT': return 'win32-x64';
+			case 'Linux': return 'linux-x64';
+		}
 	}
+	throw new Error('Test checkpoints require Windows x64, Linux x64, or macOS arm64');
 }
 
 /**

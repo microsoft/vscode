@@ -5,11 +5,15 @@ parameters:
       - unit-electron
       - unit-node
       - unit-browser-chromium
+      - unit-browser-webkit
       - integration-electron
       - integration-browser-chromium
       - integration-browser-firefox
+      - integration-browser-webkit
       - integration-remote
       - smoke-electron
+      - smoke-agents-pac-proxy
+      - smoke-agents-kerberos-pac-proxy
       - smoke-browser-chromium
       - smoke-remote
       - copilot-extension

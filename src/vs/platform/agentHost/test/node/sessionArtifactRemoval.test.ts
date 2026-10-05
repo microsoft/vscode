@@ -15,7 +15,7 @@ import { SessionArtifactCollection } from '../../common/sessionArtifactCollectio
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
-import { buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { SessionArtifacts } from '../../node/shared/sessionArtifacts.js';
@@ -33,6 +33,17 @@ suite('Session Artifact Removal', () => {
 		{ id: 'file', type: SessionArtifactType.File, label: 'Report', isArtifact: true, uri: 'file:///report.md' },
 		{ id: 'reference', type: SessionArtifactType.Website, label: 'Docs', isArtifact: false, link: 'https://example.com' },
 	];
+	const withChat = (entries: readonly ISessionArtifact[], chat: string) => entries.map(artifact => ({
+		id: artifact.id,
+		chat,
+		type: artifact.type,
+		label: artifact.label,
+		isArtifact: artifact.isArtifact,
+		...(artifact.link ? { link: artifact.link } : {}),
+		...(artifact.uri ? { uri: artifact.uri } : {}),
+		...(artifact.commitHash ? { commitHash: artifact.commitHash } : {}),
+		...(artifact.isGitHub !== undefined ? { isGitHub: artifact.isGitHub } : {}),
+	}));
 
 	async function createFixture(database: ISessionDatabase, logService = new NullLogService()) {
 		const sessionDataService = createSessionDataService(database);
@@ -87,7 +98,8 @@ suite('Session Artifact Removal', () => {
 
 		await service.removeSessionArtifact(session, 'pr');
 
-		const expectedMeta = withSessionArtifacts(meta, artifacts.slice(1));
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		const expectedMeta = withSessionArtifacts(meta, remaining);
 		assert.deepStrictEqual({
 			meta: stateManager.getSessionState(session.toString())?._meta,
 			metadata: await database.getMetadataObject({ [SESSION_ARTIFACTS_KEY]: undefined, unrelated: undefined }),
@@ -96,20 +108,25 @@ suite('Session Artifact Removal', () => {
 			centralArtifacts: await readCentralArtifacts(),
 		}, {
 			meta: expectedMeta,
-			metadata: { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts.slice(1)), unrelated: 'preserved' },
+			metadata: { [SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(remaining), unrelated: 'preserved' },
 			actions: [{ channel: session.toString(), action: { type: ActionType.SessionMetaChanged, _meta: expectedMeta } }],
 			modelCalls: [],
-			centralArtifacts: artifacts.slice(1),
+			centralArtifacts: withChat(artifacts.slice(1), buildDefaultChatUri(session)),
 		});
 	});
 
 	test('removing a recorded PR cancels its pending folder association', async () => {
 		const database = store.add(await SessionDatabase.open(':memory:'));
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([{
-			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
-			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
-		}]));
 		const { service, session } = await createFixture(database);
+		const peerChat = buildChatUri(session, 'peer');
+		const peerPending = {
+			chat: peerChat, folderKey: 'file:///work', workingDirectory: 'file:///work',
+			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
+		};
+		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([
+			{ ...peerPending, chat: buildDefaultChatUri(session) },
+			peerPending,
+		]));
 
 		await service.removeSessionArtifact(session, 'pr');
 
@@ -117,7 +134,7 @@ suite('Session Artifact Removal', () => {
 			pending: await database.getMetadata(META_PENDING_RECORDED_PULL_REQUESTS),
 			artifacts: readSessionArtifacts(getTestAgentStateManager(service).getSessionState(session.toString())?._meta).map(artifact => artifact.id),
 		}, {
-			pending: undefined,
+			pending: JSON.stringify([peerPending]),
 			artifacts: ['file', 'reference'],
 		});
 	});
@@ -142,7 +159,7 @@ suite('Session Artifact Removal', () => {
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
 		}]);
 		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, pending);
-		const replacement = new SessionArtifacts(stateManager, session.toString(), artifactAccessor.persist).mutate(collection =>
+		const replacement = new SessionArtifacts(stateManager, session.toString(), buildDefaultChatUri(session), artifactAccessor.persist).mutate(collection =>
 			new SessionArtifactCollection(collection.remove('pr').artifacts).add({
 				type: SessionArtifactType.PullRequest, label: 'Replacement', isArtifact: true, link: artifacts[0].link,
 			}, () => 'replacement'));
@@ -175,10 +192,11 @@ suite('Session Artifact Removal', () => {
 		}
 		const database = new FailingCleanupDatabase();
 		const { service, session, stateManager } = await createFixture(database, new TestLogService());
-		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([{
-			chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
+		const pending = {
+			chat: buildDefaultChatUri(session), folderKey: 'file:///work', workingDirectory: 'file:///work',
 			url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
-		}]));
+		};
+		await database.setMetadata(META_PENDING_RECORDED_PULL_REQUESTS, JSON.stringify([pending]));
 
 		await service.removeSessionArtifact(session, 'pr');
 
@@ -188,10 +206,7 @@ suite('Session Artifact Removal', () => {
 			warnings,
 		}, {
 			artifacts: ['file', 'reference'],
-			pending: JSON.stringify([{
-				chat: 'recording-chat', folderKey: 'file:///work', workingDirectory: 'file:///work',
-				url: artifacts[0].link, owner: 'microsoft', repo: 'vscode', branchName: 'feature',
-			}]),
+			pending: JSON.stringify([pending]),
 			warnings: ['[AgentService] Failed to remove pending pull request association'],
 		});
 	});
@@ -335,7 +350,7 @@ suite('Session Artifact Removal', () => {
 		}, {
 			errors: ['[AgentService] Failed to persist session artifacts'],
 			afterFailure: { meta, persisted: stringifySessionArtifacts(artifacts) },
-			persisted: stringifySessionArtifacts(artifacts.slice(1)),
+			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
 		});
 	});
 
@@ -350,8 +365,8 @@ suite('Session Artifact Removal', () => {
 			meta: stateManager.getSessionState(session.toString())?._meta,
 			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
 		}, {
-			meta: withSessionArtifacts(meta, artifacts.slice(2)),
-			persisted: stringifySessionArtifacts(artifacts.slice(2)),
+			meta: withSessionArtifacts(meta, withChat(artifacts.slice(2), buildDefaultChatUri(session))),
+			persisted: stringifySessionArtifacts(withChat(artifacts.slice(2), buildDefaultChatUri(session))),
 		});
 	});
 
@@ -368,9 +383,9 @@ suite('Session Artifact Removal', () => {
 			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
 		}, {
 			meta: afterFirstRemoval,
-			persisted: stringifySessionArtifacts(artifacts.slice(1)),
+			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
 		});
-		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, artifacts.slice(1)));
+		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, withChat(artifacts.slice(1), buildDefaultChatUri(session))));
 	});
 
 	test('rejects empty ids without changing metadata', async () => {

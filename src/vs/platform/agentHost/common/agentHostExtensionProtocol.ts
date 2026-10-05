@@ -7,6 +7,7 @@ import { vBoolean, vEnum, vObj, vOptionalProp, vString, type ValidatorType } fro
 import type { IDevContainerAgentHostConnectResult } from './devContainerAgentHost.js';
 import type { AgentHostDebugLogsArtifactKind, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from './agentService.js';
 import type { InitializeResult } from './state/protocol/common/commands.js';
+import type { McpAuthRequirement } from './state/protocol/channels-session/state.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from './meta/agentHostArtifactRemovalMeta.js';
 import { AgentHostSessionImportCapabilityMetaKey } from './meta/agentHostSessionImportMeta.js';
 import { AgentHostDevContainersCapabilityMetaKey } from './meta/agentHostDevContainersMeta.js';
@@ -50,11 +51,11 @@ export const ReconcileAgentHostDetachedWorktreesExtensionMethod = 'vscode/reconc
 export const ReadAgentHostDebugLogsChunkExtensionMethod = 'vscode/readAgentHostDebugLogsChunk';
 export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAgentHostDetachedWorktreeArchived';
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
+export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
-
 const AgentHostChatStateFileCapabilityMetaKey = 'vscode.getAgentHostSessionStateFile.chat';
 const AgentHostDetachedWorktreeCapabilityMetaKey = 'vscode.detachedWorktrees';
 
@@ -179,9 +180,24 @@ export interface IAgentHostWorkspaceTrustRequest {
 	readonly trustedParent?: string;
 }
 
+/**
+ * Asks a client to silently supply a token for an MCP server challenge raised
+ * in a session no client is attending, such as an automation run. Clients
+ * MUST NOT prompt; they push any token they already hold through the regular
+ * `authenticate` command before responding.
+ */
+export interface IAgentHostMcpAuthenticationRequest {
+	readonly serverName: string;
+	readonly auth: McpAuthRequirement;
+}
+
 export interface IAgentHostExtensionServerCommandMap {
 	[RequestAgentHostWorkspaceTrustExtensionMethod]: {
 		params: IAgentHostWorkspaceTrustRequest;
 		result: { trusted: boolean };
+	};
+	[RequestAgentHostMcpAuthenticationExtensionMethod]: {
+		params: IAgentHostMcpAuthenticationRequest;
+		result: { authenticated: boolean };
 	};
 }

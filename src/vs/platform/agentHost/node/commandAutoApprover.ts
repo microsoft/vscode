@@ -79,7 +79,12 @@ function classifyFileRedirect(redirectText: string, isPowerShell?: boolean): Fil
 	if (!destMatch) {
 		return { kind: 'unsafeWrite', dest: undefined };
 	}
-	const rawDest = destMatch[1].trim();
+	let rawDest = destMatch[1].trim();
+	// `>& word` sends stdout and stderr to `word` unless it names a file descriptor.
+	const combinedRedirect = /^&(?![0-9]+-?$|-$)\s*(.+)$/.exec(rawDest);
+	if (combinedRedirect) {
+		rawDest = combinedRedirect[1];
+	}
 	if (isSafeRedirectDestination(rawDest, isPowerShell)) {
 		return { kind: 'safeWrite' };
 	}
