@@ -7215,7 +7215,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return action.type === ActionType.AutomationRunCancelRequested;
 	}
 
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void {
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContextOrType: IAgentHostClientTelemetryContext | AgentHostClientType = AgentHostClientType.Unknown): void | Promise<void> {
 		const clientContext = typeof clientContextOrType === 'string'
 			? createUnknownAgentHostClientTelemetryContext(clientContextOrType)
 			: clientContextOrType;
@@ -7227,12 +7227,11 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 
-			void this._dispatchAutomationAction(action, clientId).catch(error => {
+			return this._dispatchAutomationAction(action, clientId).catch(error => {
 				const message = toErrorMessage(error);
 				this._logService.error(`[AgentService] automation action failed: ${message}`);
 				this._stateManager.rejectClientAction(channel, action, origin, message);
 			});
-			return;
 		}
 		if (this._isAutomationRunAction(action)) {
 			const origin = { clientId, clientSeq };
@@ -7240,12 +7239,11 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.rejectClientAction(channel, action, origin, 'Automation run actions require an automation-run channel.');
 				return;
 			}
-			void this._automationService.handleCancel(channel, action).catch(error => {
+			return this._automationService.handleCancel(channel, action).catch(error => {
 				const message = toErrorMessage(error);
 				this._logService.error(`[AgentService] automation run action failed: ${message}`);
 				this._stateManager.rejectClientAction(channel, action, origin, message);
 			});
-			return;
 		}
 
 		// Clients dispatch chat (chat) actions against a chat channel
@@ -7341,6 +7339,7 @@ export class AgentService extends Disposable implements IAgentService {
 		});
 
 		this._clientDispatchQueues.set(clientId, next);
+		return next;
 	}
 
 	private async _dispatchAutomationAction(action: ClientAutomationAction, clientId: string): Promise<void> {

@@ -86,13 +86,14 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
-	override readonly initializeResult = constObservable<InitializeResult>({
+	readonly handshakeState = observableValue<InitializeResult>(this, {
 		protocolVersion: PROTOCOL_VERSION,
 		serverSeq: 0,
 		snapshots: [],
-		_meta: { 'vscode.agentHost': true },
+		_meta: { 'vscode.agentHost': true } as Record<string, unknown>,
 		automations: { create: {}, schedules: {}, runCancellation: {} },
 	});
+	override readonly initializeResult: IAgentConnection['initializeResult'] = this.handshakeState;
 
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -465,6 +466,45 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const protocolVersion of ['0.9.0', '0.10.0']) {
+		test(`marks the default chat read with protocol ${protocolVersion}`, async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), protocolVersion }, undefined);
+			const backend = URI.parse('ahp-session://tenant/read-state');
+			const chat = URI.parse('conversation://tenant/main-read');
+			connection.addSession({
+				...createSession('read-state', { status: ProtocolSessionStatus.Idle }),
+				session: backend,
+				provider: 'copilotcli',
+				chats: [{ chat, kind: 'default', isRead: false }],
+			});
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId);
+			connection.setChannelState(backend, upcastPartial<SessionState>({
+				provider: 'copilotcli',
+				title: 'Read state',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				defaultChat: chat.toString(),
+				chats: [{ resource: chat.toString(), title: 'Default', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+			}));
+			const before = session.mainChat.get().isRead.get();
+			const accepted = await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+			assert.deepStrictEqual({
+				before, accepted, read: session.mainChat.get().isRead.get(),
+				actions: connection.dispatchedActions.map(action => ({ channel: action.channel, type: action.action.type })),
+			}, {
+				before: false, accepted: true, read: true,
+				actions: [{
+					channel: protocolVersion === '0.9.0' ? backend.toString() : chat.toString(),
+					type: protocolVersion === '0.9.0' ? ActionType.SessionIsReadChanged : ActionType.ChatIsReadChanged
+				}],
+			});
+		});
+	}
+
 	// ---- Provider identity -------
 
 	test('derives id and label from config, and session types from rootState agents', () => {
@@ -825,6 +865,18 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('relay passive metadata keeps chats read-only and updates when the handshake changes', () => {
+		const provider = createProvider(disposables, connection);
+		provider.seedSessions([createSession('passive-session')]);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		const chat = provider.getSessions()[0].mainChat.get();
+		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.Full);
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { 'copilot.passive': true } }, undefined);
+		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.ReadOnly);
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { 'copilot.passive': false } }, undefined);
+		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.Full);
+	});
+
 	test('keeps initial connections read-only but permits self-healing reconnects', () => {
 		const provider = createProvider(disposables, connection, { readOnlyWhenDisconnected: true });
 		provider.seedSessions([createSession('sandbox-session')]);
@@ -964,7 +1016,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		await timeout(0); // let the eager createSession promise resolve
 
 		const rawId = session.resource.path.substring(1);
-		const expectedBackendUri = AgentSession.uri(provider.sessionTypes[0].id, rawId);
+		const expectedBackendUri = URI.from({ scheme: provider.sessionTypes[0].id, path: `/${rawId}` });
 		assert.deepStrictEqual(
 			connection.createdSessionUris.map(u => u.toString()),
 			[expectedBackendUri.toString()],
@@ -4934,8 +4986,8 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 			archived: true,
 			unarchived: false,
 			actions: [
-				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } },
-				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
+				{ channel: AgentSession.uri('copilotcli', 'remote-session').toString(), action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } },
+				{ channel: AgentSession.uri('copilotcli', 'remote-session').toString(), action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
 			],
 		});
 	}));

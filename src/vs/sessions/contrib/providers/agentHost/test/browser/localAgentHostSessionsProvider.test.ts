@@ -4093,7 +4093,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					automation: 'ahp-automation:/automation',
 					origin: { kind: AutomationRunOriginKind.Manual },
 					lifecycle: { status: AutomationRunStatus.Running, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z' },
-					primarySession: AgentSession.uri('copilotcli', 'automation-1').toString(),
+					primarySession: createSession('automation-1').session.toString(),
 					sessionCount: 1,
 				}],
 			}],
@@ -9339,6 +9339,58 @@ suite('LocalAgentHostSessionsProvider', () => {
 				});
 			});
 		}
+
+		test('default chat read state uses the legacy session action before a protocol upgrade', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-read-retry');
+			const sessionUri = AgentSession.uri('copilotcli', 'chat-read-retry').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('chat-read-retry', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			const main = session.mainChat.get();
+
+			const legacyAccepted = await provider.setChatReadState(session.sessionId, main.resource, true);
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: PROTOCOL_VERSION }, undefined);
+			const accepted = await provider.setChatReadState(session.sessionId, main.resource, true);
+
+			assert.deepStrictEqual({
+				legacyAccepted,
+				accepted,
+				isRead: main.isRead.get(),
+				actions: agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged).length,
+				legacyActions: agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionIsReadChanged).length,
+			}, {
+				legacyAccepted: true,
+				accepted: true,
+				isRead: true,
+				actions: 1,
+				legacyActions: 1,
+			});
+		});
+
+		test('legacy peer read state uses the host-supported session aggregate', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.9.0' }, undefined);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'legacy-peer-read');
+			const sessionUri = AgentSession.uri('copilotcli', 'legacy-peer-read').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			agentHost.setSessionState('legacy-peer-read', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+			const peer = session.chats.get()[1];
+			const accepted = await provider.setChatReadState(session.sessionId, peer.resource, true);
+			assert.deepStrictEqual({
+				accepted, sessionRead: session.isRead.get(), mainRead: session.mainChat.get().isRead.get(), peerRead: peer.isRead.get(),
+				actions: agentHost.dispatchedActions.map(dispatch => ({ channel: dispatch.channel, type: dispatch.action.type })),
+			}, {
+				accepted: true, sessionRead: true, mainRead: true, peerRead: true,
+				actions: [{ channel: sessionUri, type: ActionType.SessionIsReadChanged }],
+			});
+		});
 
 		test('single default chat read state updates optimistically and dispatches to the host', async () => {
 			const provider = createProvider(disposables, agentHost);

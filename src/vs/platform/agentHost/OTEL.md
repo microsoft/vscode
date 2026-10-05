@@ -8,6 +8,10 @@ Product startup telemetry and its host-lifetime correlation ID are documented in
 [`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
 not the OTel exporter or its configuration.
 
+Host-wide diagnostic logs can be subscribed to over local Agent Host ingress, but are not advertised on Mission Control relay connections. Those logs must not contend with session operations on the bounded relay publisher. This is separate from provider-native OTel logs and their configured exporter destinations.
+
+<!-- (Written by Copilot) -->
+
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
 | Process | Separate utility process (`src/vs/platform/agentHost/node/`) | Extension host |
