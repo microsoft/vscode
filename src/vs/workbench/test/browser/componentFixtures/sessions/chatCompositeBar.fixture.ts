@@ -300,6 +300,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	OverflowingTabs: defineComponentFixture({
+		deferPaint: true,
 		render: ctx => {
 			const chats = Array.from({ length: 5 }, (_, index) => createMockChat({ title: `Investigate issue ${index + 1}` }));
 			renderBar(ctx, chats, chats[4], { width: 280 });
