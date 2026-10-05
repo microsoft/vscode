@@ -13,13 +13,13 @@ import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { readSessionGitHubState, readSessionGitState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type ISessionWithDefaultChat, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostPullRequestAssociationResolver } from '../../node/agentHostPullRequestAssociationResolver.js';
-import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { GitHubPullRequestLookup, GitHubPullRequestLookupOptions, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
-import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
+import { createTestAgentHostGitHubService, createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 
 const SESSION = 'mock:/session-1';
@@ -148,7 +148,7 @@ suite('AgentHostPullRequestAssociationResolver', () => {
 			}();
 			const requests: string[] = [];
 			const url = 'https://github.com/microsoft/vscode/pull/7';
-			const gitHubService = disposables.add(new AgentHostGitHubService({
+			const gitHubService = disposables.add(createTestAgentHostGitHubService({
 				fetch: async (input, init) => {
 					const path = new URL(String(input)).pathname;
 					requests.push(`${init?.method}:${path}:${new Headers(init?.headers).get('Authorization')}`);

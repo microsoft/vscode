@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
-import { Event } from '../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -252,13 +252,15 @@ suite('AgentHostGitStateService', () => {
 			_serviceBrand: undefined,
 			onDidChangeAuthToken: Event.None,
 			getAuthAccount: () => undefined,
-			getAuthToken: () => 'token',
+			getAuthToken: () => authToken,
 		};
+		let authToken: string | undefined = 'token';
+		const repositoryChanged = disposables.add(new Emitter<void>());
 
 		const service = disposables.add(new AgentHostGitStateService(
 			stateManager,
 			gitService,
-			createTestGitHubService(createTestGitHubClient({ query: options?.query ?? query })),
+			createTestGitHubService(createTestGitHubClient({ query: options?.query ?? query }), repositoryChanged.event),
 			options?.authenticationService ?? authenticationService,
 			createTestGitHubEndpointService(options?.enterpriseUri),
 			new NullLogService(),
@@ -291,6 +293,7 @@ suite('AgentHostGitStateService', () => {
 			setPullRequest: (branch: string, pullRequest: GitHubPullRequestLookup) => { pullRequestsByBranch.set(branch, pullRequest); },
 			setPullRequestForSha: (sha: string, pullRequest: GitHubPullRequestLookup) => { pullRequestsBySha.set(sha, pullRequest); },
 			setOnPullRequestLookup: (fn: (branch: string) => Promise<void>) => { onPullRequestLookup = fn; },
+			setAuthToken: (token: string | undefined) => { authToken = token; repositoryChanged.fire(); },
 		};
 	}
 
@@ -328,6 +331,90 @@ suite('AgentHostGitStateService', () => {
 			stateManager.setSessionMeta(SESSION, withSessionArtifacts(stateManager.getSessionState(SESSION)?._meta, options.artifacts));
 		}
 	}
+
+	for (const autoAttachPullRequests of [false, true]) {
+		test(`resumes ${autoAttachPullRequests ? 'automatic' : 'restricted'} PR detection after rejected authentication`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const h = createHarness({ autoAttachPullRequests });
+			const gitState = { branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' };
+			seedSession(h.stateManager, {
+				workingDirectory: WORKING_DIRECTORY, gitState, gitHubState: { owner: 'microsoft', repo: 'vscode' },
+				artifacts: [pullRequestArtifact(1)],
+			});
+			h.setGitResult(gitState);
+			h.setPullRequest('feature', createTestPullRequest(1));
+			h.setOnPullRequestLookup(async () => {
+				h.setAuthToken(undefined);
+				throw new Error('Client was invalidated after a 401');
+			});
+			await h.service.attachSessionGitHubPullRequest(SESSION, undefined);
+			await h.service.attachSessionGitHubPullRequest(SESSION, undefined);
+			const callsWhileRejected = [...h.pullRequestCalls];
+			h.setOnPullRequestLookup(async () => { });
+			const resumed = new DeferredPromise<void>();
+			disposables.add(h.service.onDidChangeSessionGitHubState(() => {
+				if (h.service.getGitHubState(SESSION)?.pullRequestUrls?.includes(pullRequestArtifact(1).link)) {
+					resumed.complete();
+				}
+			}));
+			h.setAuthToken('replacement');
+			await resumed.p;
+			assert.deepStrictEqual({ callsWhileRejected, calls: h.pullRequestCalls, urls: h.service.getGitHubState(SESSION)?.pullRequestUrls }, {
+				callsWhileRejected: ['feature'], calls: ['feature', 'feature'], urls: [pullRequestArtifact(1).link],
+			});
+		}));
+	}
+
+	test('a replacement arriving before a failed lookup settles still resumes that lookup', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const gitState = { branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' };
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+		h.setGitResult(gitState);
+		h.setPullRequest('feature', createTestPullRequest(1));
+		const started = new DeferredPromise<void>();
+		const failed = new DeferredPromise<void>();
+		let first = true;
+		h.setOnPullRequestLookup(async () => {
+			if (first) {
+				first = false;
+				await started.complete();
+				await failed.p;
+				throw new Error('Late failure');
+			}
+		});
+		const lookup = h.service.attachSessionGitHubPullRequest(SESSION, undefined);
+		await started.p;
+		const resumed = new DeferredPromise<void>();
+		disposables.add(h.service.onDidChangeSessionGitHubState(() => {
+			if (h.service.getGitHubState(SESSION)?.pullRequestUrls?.length) {
+				resumed.complete();
+			}
+		}));
+		h.setAuthToken(undefined);
+		h.setAuthToken('replacement');
+		await failed.complete();
+		await lookup;
+		await resumed.p;
+		assert.deepStrictEqual(h.pullRequestCalls, ['feature', 'feature']);
+	}));
+
+	test('removed sessions and disposed services are not retried after authentication changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		for (const removed of [true, false]) {
+			const h = createHarness();
+			const gitState = { branchName: 'feature', githubOwner: 'microsoft', githubRepo: 'vscode' };
+			seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY, gitState, gitHubState: { owner: 'microsoft', repo: 'vscode' } });
+			h.setGitResult(gitState);
+			h.setAuthToken(undefined);
+			await h.service.attachSessionGitHubPullRequest(SESSION, undefined);
+			if (removed) {
+				h.stateManager.removeSession(SESSION);
+			} else {
+				h.service.dispose();
+			}
+			h.setAuthToken('replacement');
+			await timeout(0);
+			assert.deepStrictEqual(h.pullRequestCalls, []);
+		}
+	}));
 
 	test('seeds the materialized worktree branch while preserving known git state', () => {
 		const h = createHarness();
@@ -657,6 +744,61 @@ suite('AgentHostGitStateService', () => {
 				pullRequestUrls: ['https://github.com/contoso/tools/pull/9'],
 				pullRequestBranchName: 'peer-feature',
 			},
+		});
+	}));
+
+	test('resumes an unauthenticated peer-folder lookup without attaching it to the session folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		const peer = buildChatUri(SESSION, 'peer');
+		const peerFolder = 'file:///peer';
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY, gitState: { branchName: 'session-feature', baseBranchName: 'main' },
+			gitHubState: { owner: 'microsoft', repo: 'vscode' },
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [peerFolder] });
+		h.setGitResult({ branchName: 'peer-feature', baseBranchName: 'main', githubOwner: 'contoso', githubRepo: 'tools' });
+		h.setPullRequest('peer-feature', createTestPullRequest(9, { url: 'https://github.com/contoso/tools/pull/9' }));
+		h.setAuthToken(undefined);
+		await h.service.attachSessionGitHubPullRequest(peer, URI.parse(peerFolder));
+		assert.deepStrictEqual(h.pullRequestCalls, []);
+		const resumed = new DeferredPromise<void>();
+		disposables.add(h.service.onDidChangeSessionGitHubState(() => {
+			if (h.service.getGitHubState(peer)?.pullRequestUrls?.length) {
+				resumed.complete();
+			}
+		}));
+		h.setAuthToken('replacement');
+		await resumed.p;
+		assert.deepStrictEqual({
+			calls: h.pullRequestCalls, peer: h.service.getGitHubState(peer)?.pullRequestUrls,
+			session: h.service.getGitHubState(SESSION)?.pullRequestUrls,
+		}, { calls: ['peer-feature'], peer: ['https://github.com/contoso/tools/pull/9'], session: undefined });
+	}));
+
+	test('resumes a pending recorded association after repository authentication is accepted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness({ autoAttachPullRequests: false });
+		const peer = buildChatUri(SESSION, 'peer');
+		const url = pullRequestArtifact(1).link;
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY, gitHubState: { owner: 'contoso', repo: 'main' },
+			artifacts: [pullRequestArtifactForChat(1, peer)],
+		});
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: ['file:///peer'] });
+		await h.service.setSessionGitHubState(peer, { owner: 'microsoft', repo: 'vscode' });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main', githubOwner: 'microsoft', githubRepo: 'vscode' });
+		h.setPullRequest('feature', createTestPullRequest(1));
+		h.setAuthToken(undefined);
+		const pending = await h.service.associateRecordedPullRequests(peer, [url]);
+		const resumed = new DeferredPromise<void>();
+		disposables.add(h.service.onDidChangeSessionGitHubState(() => {
+			if (h.service.getGitHubState(peer)?.associatedPullRequestUrls?.includes(url)) {
+				resumed.complete();
+			}
+		}));
+		h.setAuthToken('replacement');
+		await resumed.p;
+		assert.deepStrictEqual({ pending: pending.pending, calls: h.pullRequestCalls, urls: h.service.getGitHubState(peer)?.associatedPullRequestUrls }, {
+			pending: [url], calls: ['feature'], urls: [url],
 		});
 	}));
 

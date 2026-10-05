@@ -11,7 +11,29 @@ import { GitHubPullRequestLookup } from '../../../github/common/githubQueryServi
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
-import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostGitHubService, IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
+import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { GitHubServiceOptions } from '../../../github/common/githubTypes.js';
+import { ILogService } from '../../../log/common/log.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+
+export function createTestAgentHostGitHubService(
+	options: Omit<GitHubServiceOptions, 'credentialProvider'>,
+	authentication: IAgentHostAuthenticationService,
+	endpoint: IAgentHostGitHubEndpointService,
+	logService: ILogService,
+	telemetryService: ITelemetryService,
+	stateManager: AgentHostStateManager = new class extends mock<AgentHostStateManager>() {
+		override emitAuthRequired(): void { }
+	}(),
+): AgentHostGitHubService {
+	const controller = authentication instanceof AgentHostAuthenticationService ? authentication : new class extends mock<IAgentHostAuthenticationController>() {
+		override rejectToken(): boolean { return false; }
+	}();
+	return new AgentHostGitHubService(options, authentication, endpoint, logService, telemetryService, controller, stateManager);
+}
 
 export function createTestGitHubService(client: IGitHubClient = new class extends mock<IGitHubClient>() { }(), onDidChange: Event<void> = Event.None): IAgentHostGitHubService {
 	return new class extends mock<IAgentHostGitHubService>() {
