@@ -7,9 +7,11 @@ import { Result } from '../../../../util/common/result';
 import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { CancelablePromise, DeferredPromise, createCancelablePromise, raceCancellationError, raceTimeout, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { isCancellationError } from '../../../../util/vs/base/common/errors';
+import { CancellationError, isCancellationError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable, IDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { authenticationSessionIdentityEquals } from '../../../authentication/common/enterprise';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
 import { AdoRepoId, GithubRepoId, ResolvedRepoRemoteInfo } from '../../../git/common/gitService';
 import { measureExecTime } from '../../../log/common/logExecTime';
@@ -492,15 +494,82 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 }
 
 export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
+	private _authGeneration = 0;
+	private _latestStatusRequest: { readonly authGeneration: number; readonly promise: Promise<RemoteCodeSearchState> } | undefined;
+
 	constructor(
 		repoInfo: RepoInfo,
 		private readonly _adoRepoId: AdoRepoId,
 		remoteInfo: ResolvedRepoRemoteInfo,
 		@ILogService logService: ILogService,
 		@IAdoCodeSearchService private readonly _adoCodeSearchService: IAdoCodeSearchService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(repoInfo, remoteInfo, logService, telemetryService);
+
+		let lastSession = this._authenticationService.anyAdoSession;
+		this._register(this._authenticationService.onDidAdoAuthenticationChange(() => {
+			const session = this._authenticationService.anyAdoSession;
+			const identityChanged = session?.id !== lastSession?.id || !authenticationSessionIdentityEquals(session, lastSession);
+			const tokenChanged = session?.accessToken !== lastSession?.accessToken;
+			lastSession = session;
+			if (!identityChanged && !tokenChanged) {
+				return;
+			}
+
+			this._authGeneration++;
+			if (identityChanged) {
+				this.refreshAuthorizationStatus();
+			} else {
+				this.retryStatusWithNewCredentials();
+			}
+		}));
+	}
+
+	protected override fetchRemoteIndexState(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<RemoteCodeSearchState> {
+		if (this._store.isDisposed || token.isCancellationRequested) {
+			return Promise.reject(new CancellationError());
+		}
+
+		const authGeneration = this._authGeneration;
+		const promise: Promise<RemoteCodeSearchState> = super.fetchRemoteIndexState(telemetryInfo, token).catch((error): RemoteCodeSearchState => {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			this._logService.error(error instanceof Error ? error : String(error), 'Failed to fetch ADO repository index status');
+			return { status: CodeSearchRepoStatus.CouldNotCheckIndexStatus };
+		}).then(state => {
+			// Older responses must not overwrite a newer status request.
+			const latest = this._latestStatusRequest;
+			return latest && latest.promise !== promise ? latest.promise : state;
+		});
+		this._latestStatusRequest = { authGeneration, promise };
+		return promise;
+	}
+
+	protected override updateState(newState: RemoteCodeSearchState): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		super.updateState(newState);
+		// A credential change can precede the failure of an in-flight request.
+		this.retryStatusWithNewCredentials();
+	}
+
+	private retryStatusWithNewCredentials(): void {
+		if ((this.status === CodeSearchRepoStatus.NotAuthorized || this.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus)
+			&& this._latestStatusRequest?.authGeneration !== this._authGeneration) {
+			this.refreshAuthorizationStatus();
+		}
+	}
+
+	private refreshAuthorizationStatus(): void {
+		void this.refreshStatusFromEndpoint(true, new TelemetryCorrelationId('AdoCodeSearchRepo::refreshAuthorizationStatus'), CancellationToken.None).catch(error => {
+			if (!isCancellationError(error)) {
+				this._logService.error(error instanceof Error ? error : String(error), 'Failed to refresh ADO repository authorization');
+			}
+		});
 	}
 
 	public searchRepo(authOptions: { silent: boolean }, _embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult> {
