@@ -239,6 +239,8 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 	// ever announced in the subscribe snapshot, which the mirror never sees, so its later
 	// `session/chatUpdated` frames name a chat the folded catalogue lacks and the reducer drops
 	// them. Such a mention still attests that the host has the chat; only a removal rules it out.
+	// `removed` outlives the catalogue too: a removal whose addition predates the mirror leaves
+	// the folded catalogue untouched.
 	const mentioned = new Set<string>();
 	const removed = new Set<string>();
 
@@ -276,16 +278,20 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	// With no announced default, a sole recorded chat is the conversation unless the catalogue
-	// says it is not the main one: it was removed, it is a peer chat, or another chat is
-	// advertised or named beside it.
-	const [recordedChat] = chats.keys();
-	const unambiguousChat = chats.size === 1
-		&& !removed.has(recordedChat)
-		&& state.chats.every(chat =>
-			chat.resource === recordedChat && (!chat.origin || chat.origin.kind === ChatOriginKind.User))
-		&& [...mentioned].every(chat => chat === recordedChat)
-		? recordedChat : undefined;
+	// With no announced default, the main chat is the one recorded chat that the catalogue does
+	// not describe as a peer. A peer chat — a fork, a side chat, or a tool-spawned subagent — is
+	// announced with `chatAdded` and carries an origin naming the chat it came from, so it can be
+	// set aside; the main chat itself is never announced (it travels in the subscribe snapshot
+	// the mirror does not see). A removed chat, or a user chat advertised or named beside the
+	// candidate, leaves the choice ambiguous.
+	const isPeer = (chat: string) => state.chats.some(summary =>
+		summary.resource === chat && !!summary.origin && summary.origin.kind !== ChatOriginKind.User);
+	const candidates = [...chats.keys()].filter(chat => !removed.has(chat) && !isPeer(chat));
+	const [candidate] = candidates;
+	const unambiguousChat = candidates.length === 1
+		&& state.chats.every(chat => chat.resource === candidate || isPeer(chat.resource))
+		&& [...mentioned].every(chat => chat === candidate || isPeer(chat))
+		? candidate : undefined;
 	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
 	if (!chats.has(defaultChat)) {
 		chats.set(defaultChat, seedChatState(defaultChat, entry.modifiedAt));
