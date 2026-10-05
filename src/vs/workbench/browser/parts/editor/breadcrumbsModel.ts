@@ -18,6 +18,7 @@ import { BreadcrumbsConfig } from './breadcrumbs.js';
 import { IEditorPane } from '../../../common/editor.js';
 import { IOutline, IOutlineService, OutlineTarget } from '../../../services/outline/browser/outline.js';
 import { IWorkspaceFolderLabelService } from '../../../services/workspaces/common/workspaceFolderLabelService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export class FileElement {
 	constructor(
@@ -62,6 +63,7 @@ export class BreadcrumbsModel {
 		@IWorkspaceFolderLabelService private readonly _workspaceFolderLabelService: IWorkspaceFolderLabelService,
 		@IOutlineService private readonly _outlineService: IOutlineService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(configurationService);
@@ -144,7 +146,7 @@ export class BreadcrumbsModel {
 
 		let uriPrefix: URI | null = uri;
 		while (uriPrefix && uriPrefix.path !== '/') {
-			if ((info.folder && isEqual(info.folder.uri, uriPrefix)) || (info.home && isEqual(info.home, uriPrefix.with({ query: null, fragment: null })))) {
+			if ((info.folder && isEqual(info.folder.uri, uriPrefix)) || (info.home && this._uriIdentityService.extUri.isEqual(info.home, uriPrefix.with({ query: null, fragment: null })))) {
 				break;
 			}
 			info.path.unshift(new FileElement(uriPrefix, info.path.length === 0 ? FileKind.FILE : FileKind.FOLDER));

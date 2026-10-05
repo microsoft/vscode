@@ -215,8 +215,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			const filePath = this.toFilePath(resource);
+			const fd = await this.openFileForRead(filePath);
 
-			return await promises.readFile(filePath);
+			try {
+				return await Promises.readFile(fd);
+			} finally {
+				await Promises.close(fd);
+			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
@@ -348,6 +353,30 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		DiskFileSystemProvider.canFlush = enabled;
 	}
 
+	private async openFileForRead(filePath: string): Promise<number> {
+		const fd = await Promises.open(filePath, isWindows ? 'r' : constants.O_RDONLY | constants.O_NONBLOCK);
+
+		try {
+			const stat = await Promises.fstat(fd);
+			if (stat.isDirectory()) {
+				throw createFileSystemProviderError(localize('fileIsDirectory', "File is a directory"), FileSystemProviderErrorCode.FileIsADirectory);
+			}
+			if (!stat.isFile()) {
+				throw createFileSystemProviderError(localize('fileNotRegular', "File is not a regular file"), FileSystemProviderErrorCode.Unavailable);
+			}
+
+			return fd;
+		} catch (error) {
+			try {
+				await Promises.close(fd);
+			} catch (closeError) {
+				this.logService.trace(closeError);
+			}
+
+			throw error;
+		}
+	}
+
 	async open(resource: URI, opts: IFileOpenOptions, disableWriteLock?: boolean): Promise<number> {
 		const filePath = this.toFilePath(resource);
 
@@ -410,17 +439,15 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			if (typeof fd !== 'number') {
-				fd = await Promises.open(filePath, isFileOpenForWriteOptions(opts) ?
+				if (isFileOpenForWriteOptions(opts)) {
 					// We take `opts.create` as a hint that the file is opened for writing
 					// as such we use 'w' to truncate an existing or create the
 					// file otherwise. we do not allow reading.
 					// If `opts.append` is true, use 'a' to append to the file.
-					(opts.append ? 'a' : 'w') :
-					// Otherwise we assume the file is opened for reading
-					// as such we use 'r' to neither truncate, nor create
-					// the file.
-					'r'
-				);
+					fd = await Promises.open(filePath, opts.append ? 'a' : 'w');
+				} else {
+					fd = await this.openFileForRead(filePath);
+				}
 			}
 
 		} catch (error) {

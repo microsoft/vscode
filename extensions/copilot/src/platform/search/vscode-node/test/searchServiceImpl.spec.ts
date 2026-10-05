@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { expect, suite, test } from 'vitest';
+import { afterEach, beforeEach, expect, MockInstance, suite, test, vi } from 'vitest';
 import type * as vscode from 'vscode';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IIgnoreService } from '../../../ignore/common/ignoreService';
-import { excludeIgnoredTextSearchResults } from '../searchServiceImpl';
+import { TestLogService } from '../../../testing/common/testLogService';
+import { BaseSearchServiceImpl } from '../../vscode/baseSearchServiceImpl';
+import { excludeIgnoredTextSearchResults, SearchServiceImpl } from '../searchServiceImpl';
 
 /** An ignore service that excludes an explicit set of files, as a content exclusion rule would. */
 function ignoreServiceExcluding(...excluded: URI[]): IIgnoreService {
@@ -151,5 +154,59 @@ suite('excludeIgnoredTextSearchResults', () => {
 		}
 
 		expect(unhandled).toEqual([]);
+	});
+});
+
+suite('SearchServiceImpl', () => {
+	const excludedFile = URI.file('/workspace/repo/secrets/keys.ts');
+	const allowedFile = URI.file('/workspace/repo/index.ts');
+	/** Stands in for the workspace search that the service wraps. */
+	let search: MockInstance<BaseSearchServiceImpl['findFiles']>;
+
+	/** An ignore service with a glob rule for the search and a record of every file it was asked about. */
+	function ignoreServiceRecording(checked: string[], ...excluded: URI[]): IIgnoreService {
+		const service = ignoreServiceExcluding(...excluded);
+		return {
+			...service,
+			asMinimatchPattern: () => Promise.resolve('**/secrets/**'),
+			isCopilotIgnored: (file: URI) => {
+				checked.push(file.toString());
+				return service.isCopilotIgnored(file);
+			}
+		};
+	}
+
+	beforeEach(() => {
+		search = vi.spyOn(BaseSearchServiceImpl.prototype, 'findFiles');
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	test('findFilesWithDefaultExcludes narrows the search and checks each result once', async () => {
+		// A second pass over the results doubled the cost of filtering a whole-workspace search.
+		search.mockResolvedValue([excludedFile, allowedFile]);
+		const checked: string[] = [];
+		const service = new SearchServiceImpl(ignoreServiceRecording(checked, excludedFile), new TestLogService());
+
+		const results = await service.findFilesWithDefaultExcludes('**/*', 100, CancellationToken.None);
+
+		expect({
+			results: results.map(uri => uri.toString()),
+			checked,
+			searches: search.mock.calls.map(([, options]) => ({ exclude: options?.exclude, maxResults: options?.maxResults }))
+		}).toEqual({
+			results: [allowedFile.toString()],
+			checked: [excludedFile.toString(), allowedFile.toString()],
+			searches: [{ exclude: ['**/secrets/**'], maxResults: 100 }]
+		});
+	});
+
+	test('findFilesWithDefaultExcludes withholds a single result that is excluded', async () => {
+		search.mockResolvedValue([excludedFile]);
+		const service = new SearchServiceImpl(ignoreServiceRecording([], excludedFile), new TestLogService());
+
+		expect(await service.findFilesWithDefaultExcludes('**/*', 1, CancellationToken.None)).toBeUndefined();
 	});
 });

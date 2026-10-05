@@ -579,10 +579,13 @@ export class AgentHostEditMarkerService extends Disposable implements IAgentHost
 			const source = firstSource && sources.every(candidate =>
 				candidate !== undefined &&
 				candidate.modelId === firstSource.modelId &&
+				(firstSource.chatSessionId === undefined || candidate.conversationId === firstSource.conversationId) &&
+				candidate.chatSessionId === firstSource.chatSessionId &&
 				candidate.harness === firstSource.harness
 			) ? EditSources.agentHostChatApplyEdits({
 				modelId: firstSource.modelId,
 				sessionId: firstSource.conversationId,
+				chatSessionId: firstSource.chatSessionId,
 				requestId: firstSource.requestId,
 				harness: firstSource.harness,
 			}) : undefined;

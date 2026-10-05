@@ -23,6 +23,17 @@ suite('filterSupportedBetas', () => {
 		assert.strictEqual(filterSupportedBetas('advanced-tool-use-2025-11-20'), 'advanced-tool-use-2025-11-20');
 	});
 
+	test('allows prefix match for per-turn-control', () => {
+		assert.strictEqual(filterSupportedBetas('per-turn-control-2026-07-01'), 'per-turn-control-2026-07-01');
+	});
+
+	test('forwards SDK per-turn control without adding a compatibility beta', () => {
+		assert.strictEqual(
+			filterSupportedBetas('interleaved-thinking-2025-05-14,per-turn-control-2026-07-01'),
+			'interleaved-thinking-2025-05-14,per-turn-control-2026-07-01',
+		);
+	});
+
 	test('filters out unsupported betas', () => {
 		assert.strictEqual(filterSupportedBetas('unsupported-beta-123'), undefined);
 	});
@@ -41,15 +52,18 @@ suite('filterSupportedBetas', () => {
 		);
 	});
 
-	test('returns undefined when all betas are unsupported', () => {
+	test('returns undefined when all supplied betas are unsupported', () => {
 		assert.strictEqual(filterSupportedBetas('foo,bar,baz'), undefined);
 	});
 
-	test('returns undefined for empty string', () => {
+	test('returns undefined for an empty header', () => {
 		assert.strictEqual(filterSupportedBetas(''), undefined);
 	});
 
 	test('rejects supported family without date suffix (date-suffix discipline)', () => {
-		assert.strictEqual(filterSupportedBetas('interleaved-thinking'), undefined);
+		assert.deepStrictEqual(
+			['interleaved-thinking', 'per-turn-control'].map(filterSupportedBetas),
+			[undefined, undefined],
+		);
 	});
 });

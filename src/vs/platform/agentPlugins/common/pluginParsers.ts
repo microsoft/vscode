@@ -6,6 +6,7 @@
 import { parse as parseJSONC } from '../../../base/common/json.js';
 import { cloneAndChange, equals as objectEquals } from '../../../base/common/objects.js';
 import { isAbsolute } from '../../../base/common/path.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { basename, extname, isEqualOrParent, joinPath, normalizePath, isEqual as isURLEquals, dirname } from '../../../base/common/resources.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { hasKey, Mutable } from '../../../base/common/types.js';
@@ -107,13 +108,19 @@ export interface IAgentPluginResource extends INamedPluginResource {
 	readonly disableUserInvocation?: boolean;
 }
 
+/** A parsed skill resource with normalized invocation metadata. */
+interface ISkillPluginResource extends INamedPluginResource {
+	readonly disableModelInvocation?: boolean;
+	readonly disableUserInvocation?: boolean;
+}
+
 /** A parsed agent paired with its protocol-level child customization. */
 export interface IParsedAgent extends IAgentPluginResource {
 	readonly customization: AgentCustomization;
 }
 
 /** A parsed skill paired with its protocol-level child customization. */
-export interface IParsedSkill extends INamedPluginResource {
+export interface IParsedSkill extends ISkillPluginResource {
 	readonly customization: SkillCustomization;
 }
 
@@ -143,6 +150,12 @@ export const enum PluginFormat {
 	AgentPlugin,
 }
 
+/** A plugin-root token and its matching subprocess environment variable. */
+export interface IPluginRootInterpolation {
+	readonly token: string;
+	readonly envVar: string;
+}
+
 export interface IPluginFormatConfig {
 	readonly format: PluginFormat;
 	readonly manifestPath: string;
@@ -152,20 +165,29 @@ export interface IPluginFormatConfig {
 	readonly requiresManifest?: boolean;
 	readonly pluginRootTokens: readonly string[];
 	readonly pluginRootEnvVars: readonly string[];
+	/** The canonical plugin-root variable exposed to hook commands. */
+	readonly hookPluginRoot?: IPluginRootInterpolation;
 	/** Parses hooks from a JSON object using the format's conventions. */
 	parseHooks(hookUri: URI, json: unknown, pluginUri: URI, workspaceRoot: URI | undefined, userHome: URI): IParsedHookGroup[];
 }
 
-export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers';
+export type PluginComponent = 'commands' | 'skills' | 'agents' | 'rules' | 'hooks' | 'mcpServers' | 'automations';
+
+const PLUGIN_ROOT: IPluginRootInterpolation = { token: '${PLUGIN_ROOT}', envVar: 'PLUGIN_ROOT' };
+const CLAUDE_PLUGIN_ROOT: IPluginRootInterpolation = { token: '${CLAUDE_PLUGIN_ROOT}', envVar: 'CLAUDE_PLUGIN_ROOT' };
+const LEGACY_PLUGIN_ROOTS = [PLUGIN_ROOT, CLAUDE_PLUGIN_ROOT];
+const LEGACY_PLUGIN_ROOT_TOKENS = LEGACY_PLUGIN_ROOTS.map(root => root.token);
+const LEGACY_PLUGIN_ROOT_ENV_VARS = LEGACY_PLUGIN_ROOTS.map(root => root.envVar);
 
 const COPILOT_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Copilot,
 	manifestPath: 'plugin.json',
 	hookConfigPath: 'hooks.json',
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -173,10 +195,11 @@ const CLAUDE_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.Claude,
 	manifestPath: '.claude-plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: CLAUDE_PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
-		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${CLAUDE_PLUGIN_ROOT}', 'CLAUDE_PLUGIN_ROOT');
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, CLAUDE_PLUGIN_ROOT);
 	},
 };
 
@@ -184,10 +207,11 @@ const OPEN_PLUGIN_FORMAT: IPluginFormatConfig = {
 	format: PluginFormat.OpenPlugin,
 	manifestPath: '.plugin/plugin.json',
 	hookConfigPath: 'hooks/hooks.json',
-	pluginRootTokens: ['${PLUGIN_ROOT}', '${CLAUDE_PLUGIN_ROOT}'],
-	pluginRootEnvVars: ['PLUGIN_ROOT', 'CLAUDE_PLUGIN_ROOT'],
+	pluginRootTokens: LEGACY_PLUGIN_ROOT_TOKENS,
+	pluginRootEnvVars: LEGACY_PLUGIN_ROOT_ENV_VARS,
+	hookPluginRoot: PLUGIN_ROOT,
 	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
-		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, '${PLUGIN_ROOT}', 'PLUGIN_ROOT');
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
 };
 
@@ -204,14 +228,23 @@ const AGENT_PLUGIN_FORMAT: IPluginFormatConfig = {
 		rules: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/rules`,
 		hooks: `${AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE}/hooks/hooks.json`,
 		mcpServers: 'mcp.json',
+		automations: 'automations',
 	},
 	manifestExtensionNamespace: AGENT_PLUGIN_COPILOT_EXTENSION_NAMESPACE,
 	requiresManifest: true,
 	pluginRootTokens: [],
 	pluginRootEnvVars: [],
-	parseHooks(hookUri, json, _pluginUri, workspaceRoot, userHome) {
-		return parseHooksJson(hookUri, json, workspaceRoot, userHome);
+	hookPluginRoot: PLUGIN_ROOT,
+	parseHooks(hookUri, json, pluginUri, workspaceRoot, userHome) {
+		return interpolateHookPluginRoot(hookUri, json, pluginUri, workspaceRoot, userHome, PLUGIN_ROOT);
 	},
+};
+
+const PLUGIN_FORMAT_CONFIGS: Readonly<Record<PluginFormat, IPluginFormatConfig>> = {
+	[PluginFormat.Copilot]: COPILOT_FORMAT,
+	[PluginFormat.Claude]: CLAUDE_FORMAT,
+	[PluginFormat.OpenPlugin]: OPEN_PLUGIN_FORMAT,
+	[PluginFormat.AgentPlugin]: AGENT_PLUGIN_FORMAT,
 };
 
 export async function detectPluginFormat(pluginUri: URI, fileService: IFileService): Promise<IPluginFormatConfig> {
@@ -323,7 +356,7 @@ function makeAgentCustomization(resource: IAgentPluginResource): AgentCustomizat
 	};
 }
 
-function makeSkillCustomization(resource: INamedPluginResource): SkillCustomization {
+function makeSkillCustomization(resource: ISkillPluginResource): SkillCustomization {
 	const uri = resource.uri.toString();
 	return {
 		type: CustomizationType.Skill,
@@ -331,6 +364,8 @@ function makeSkillCustomization(resource: INamedPluginResource): SkillCustomizat
 		uri,
 		name: resource.name,
 		...(resource.description ? { description: resource.description } : {}),
+		...(resource.disableModelInvocation ? { disableModelInvocation: true } : {}),
+		...(resource.disableUserInvocation ? { disableUserInvocation: true } : {}),
 	};
 }
 
@@ -492,6 +527,10 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 			.filter(([, value]) => typeof value === 'string')
 			.map(([key, value]) => [key, value as string]))
 		: undefined;
+	const rawOAuth = candidate['oauth'] && typeof candidate['oauth'] === 'object' ? candidate['oauth'] as Record<string, unknown> : undefined;
+	const oauthClientId = (typeof rawOAuth?.['clientId'] === 'string' ? rawOAuth['clientId'] : undefined)
+		?? (typeof candidate['oauthClientId'] === 'string' ? candidate['oauthClientId'] : undefined);
+	const oauth = oauthClientId ? { clientId: oauthClientId } : undefined;
 	const dev = candidate['dev'] && typeof candidate['dev'] === 'object' ? candidate['dev'] as IMcpStdioServerConfiguration['dev'] : undefined;
 
 	if (type === 'ws') {
@@ -509,44 +548,66 @@ export function normalizeMcpServerConfiguration(rawConfig: unknown): IMcpServerC
 		if (!url) {
 			return undefined;
 		}
-		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, dev };
+		return { type: McpServerType.REMOTE, ...(type === 'sse' || transport === 'sse' ? { transport: 'sse' as const } : {}), url, headers, ...(oauth ? { oauth } : {}), dev };
 	}
 
 	return undefined;
 }
 
-/**
- * Characters in a file path that require shell quoting to prevent
- * word splitting or interpretation by common shells.
- */
-const shellUnsafeChars = /[\s&|<>()^;!`"']/;
+const posixShellSafePath = /^[a-zA-Z0-9_./:-]+$/;
+const powerShellSafePath = /^[a-zA-Z0-9_./\\:-]+$/;
 
 /**
  * Replaces a plugin-root token in a shell command string with the
  * given fsPath, shell-quoting if the path contains special characters.
  */
-export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string) {
+export function shellQuotePluginRootInCommand(command: string, fsPath: string, token: string, shell: 'posix' | 'powershell' = 'posix') {
 	if (!command.includes(token)) {
 		return command;
 	}
 
-	if (!shellUnsafeChars.test(fsPath)) {
+	const safePath = shell === 'powershell' ? powerShellSafePath : posixShellSafePath;
+	if (safePath.test(fsPath)) {
 		return command.replaceAll(token, fsPath);
 	}
 
 	const escapedToken = escapeRegExpCharacters(token);
 	const pattern = new RegExp(
-		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)`,
+		`(["']?)` + escapedToken + `([\\w./\\\\~:-]*)\\1`,
 		'g',
 	);
 
-	return command.replace(pattern, (_match, leadingQuote: string, suffix: string) => {
+	return command.replace(pattern, (_match, _leadingQuote: string, suffix: string) => {
 		const fullPath = fsPath + suffix;
-		if (leadingQuote) {
-			return leadingQuote + fullPath;
+		if (shell === 'powershell') {
+			return `'${fullPath.replace(/'/g, '\'\'')}'`;
 		}
-		return '"' + fullPath.replace(/"/g, '\\"') + '"';
+		return `'${fullPath.replace(/'/g, `'\\''`)}'`;
 	});
+}
+
+/**
+ * Applies the plugin-root convention for a plugin hook command.
+ */
+export function interpolateHookCommandPluginRoot(hook: Record<string, unknown>, pluginUri: URI, format: PluginFormat): Record<string, unknown> {
+	const root = PLUGIN_FORMAT_CONFIGS[format].hookPluginRoot;
+	return root ? interpolateHookCommandRoot(hook, pluginUri, root) : hook;
+}
+
+function interpolateHookCommandRoot(hook: Record<string, unknown>, pluginUri: URI, root: IPluginRootInterpolation): Record<string, unknown> {
+	const fsPath = pluginUri.fsPath;
+	const result = cloneAndChange(hook, value => typeof value === 'string' ? value.replaceAll(root.token, fsPath) : undefined) as Record<string, unknown>;
+	for (const field of ['command', 'windows', 'linux', 'osx', 'bash', 'powershell'] as const) {
+		if (typeof hook[field] === 'string') {
+			const shell = field === 'windows' || field === 'powershell' || (field === 'command' && isWindows) ? 'powershell' : 'posix';
+			result[field] = shellQuotePluginRootInCommand(hook[field], fsPath, root.token, shell);
+		}
+	}
+	result.env = {
+		...(result.env && typeof result.env === 'object' && !Array.isArray(result.env) ? result.env : {}),
+		[root.envVar]: fsPath,
+	};
+	return result;
 }
 
 /**
@@ -598,6 +659,42 @@ export function interpolateMcpPluginRoot(
 	}
 
 	return { ...def, configuration: interpolated };
+}
+
+/**
+ * Applies Agent Plugins v1 MCP path semantics, which intentionally differ from legacy plugin interpolation.
+ * Only stdio args, env values, and cwd expand `PLUGIN_ROOT`; `./` commands resolve against the plugin root and remote fields remain literal.
+ */
+function interpolateAgentPluginMcpRoot(def: IMcpServerDefinition, pluginRoot: URI): IMcpServerDefinition | undefined {
+	const config = def.configuration;
+	if (config.type !== McpServerType.LOCAL) {
+		return def;
+	}
+
+	const replace = (value: string) => value.replaceAll(PLUGIN_ROOT.token, pluginRoot.fsPath);
+	const local: Mutable<IMcpStdioServerConfiguration> = { ...config };
+	if (local.command.startsWith('./')) {
+		const commandUri = normalizePath(joinPath(pluginRoot, local.command));
+		if (!isEqualOrParent(commandUri, pluginRoot)) {
+			return undefined;
+		}
+		local.command = commandUri.fsPath;
+	}
+	if (local.args) {
+		local.args = local.args.map(replace);
+	}
+	if (local.cwd) {
+		local.cwd = replace(local.cwd);
+	}
+	local.env = { ...local.env };
+	for (const [key, value] of Object.entries(local.env)) {
+		if (typeof value === 'string') {
+			local.env[key] = replace(value);
+		}
+	}
+	local.env[PLUGIN_ROOT.envVar] = pluginRoot.fsPath;
+
+	return { ...def, configuration: local };
 }
 
 /**
@@ -814,8 +911,7 @@ export function parseHooksJson(
 }
 
 /**
- * Applies plugin-root token interpolation to hook commands for
- * Claude and OpenPlugin formats.
+ * Applies plugin-root token interpolation to hook commands.
  */
 export function interpolateHookPluginRoot(
 	hookUri: URI,
@@ -823,23 +919,12 @@ export function interpolateHookPluginRoot(
 	pluginUri: URI,
 	workspaceRoot: URI | undefined,
 	userHome: URI,
-	token: string,
-	envVar: string,
+	root: IPluginRootInterpolation,
 ): IParsedHookGroup[] {
-	const fsPath = pluginUri.fsPath;
 	const typedJson = json as { hooks?: Record<string, unknown[]> };
 
 	const mutateHookCommand = (hook: Record<string, unknown>): void => {
-		for (const field of ['command', 'windows', 'linux', 'osx'] as const) {
-			if (typeof hook[field] === 'string') {
-				hook[field] = shellQuotePluginRootInCommand(hook[field] as string, fsPath, token);
-			}
-		}
-
-		if (!hook.env || typeof hook.env !== 'object') {
-			hook.env = {};
-		}
-		(hook.env as Record<string, string>)[envVar] = fsPath;
+		Object.assign(hook, interpolateHookCommandRoot(hook, pluginUri, root));
 	};
 
 	for (const lifecycle of Object.values(typedJson.hooks ?? {})) {
@@ -863,7 +948,7 @@ export function interpolateHookPluginRoot(
 
 	const replacer = (v: unknown): unknown => {
 		return typeof v === 'string'
-			? v.replaceAll(token, pluginUri.fsPath)
+			? v.replaceAll(root.token, pluginUri.fsPath)
 			: undefined;
 	};
 
@@ -904,28 +989,30 @@ export async function readSkills(
 	pluginRoot: URI,
 	dirs: readonly URI[],
 	fileService: IFileService,
-	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI },
-): Promise<readonly INamedPluginResource[]> {
+	options?: { readonly childDirectoriesOnly?: boolean; readonly containmentRoot?: URI; readonly deduplicateByName?: boolean },
+): Promise<readonly ISkillPluginResource[]> {
 	const seen = new Set<string>();
-	const skills: INamedPluginResource[] = [];
+	const skills: ISkillPluginResource[] = [];
 
 	const addSkill = async (name: string, skillMd: URI) => {
 		if (options?.containmentRoot && !await isResolvedWithin(options.containmentRoot, skillMd, fileService)) {
 			return;
 		}
 		let description: string | undefined;
+		let invocationFlags: ReturnType<typeof toSkillInvocationFlags> = {};
 		try {
 			const parsedInfo = await parseSkillFile(skillMd, fileService);
 			description = parsedInfo.description;
 			name = parsedInfo.name || name;
+			invocationFlags = toSkillInvocationFlags(parsedInfo.userInvocable, parsedInfo.disableModelInvocation);
 		} catch {
 			// Keep the existing best-effort discovery behavior for malformed skills.
 		}
-		if (seen.has(name)) {
+		if (options?.deduplicateByName !== false && seen.has(name)) {
 			return;
 		}
 		seen.add(name);
-		skills.push({ uri: skillMd, name, ...(description ? { description } : {}) });
+		skills.push({ uri: skillMd, name, ...(description ? { description } : {}), ...invocationFlags });
 	};
 
 	await Promise.all(dirs.map(async dir => {
@@ -967,7 +1054,7 @@ export async function readSkills(
 	return skills;
 }
 
-export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly INamedPluginResource[]> {
+export async function readPluginSkills(pluginRoot: URI, dirs: readonly URI[], format: IPluginFormatConfig, fileService: IFileService): Promise<readonly ISkillPluginResource[]> {
 	return readSkills(pluginRoot, dirs, fileService, format.format === PluginFormat.AgentPlugin
 		? { childDirectoriesOnly: true, containmentRoot: pluginRoot }
 		: undefined);
@@ -1172,17 +1259,26 @@ export function resolveAgentDisableModelInvocation(infer: boolean | undefined, d
 	return infer !== undefined ? !infer : (disableModelInvocation ?? fallback);
 }
 
-export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvokable?: boolean }> {
+export async function parseSkillFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; userInvocable?: boolean; disableModelInvocation?: boolean }> {
 	try {
 		const content = await fileService.readFile(uri);
 		const frontmatter = parseFrontMatter(content.value.toString());
 		const name = frontmatter?.getStringValue('name')?.trim() || basename(dirname(uri));
 		const description = frontmatter?.getStringValue('description')?.trim();
-		const userInvokable = frontmatter?.getBooleanValue('user-invocable');
-		return { name, description, userInvokable };
+		const userInvocable = frontmatter?.getBooleanValue('user-invocable');
+		const disableModelInvocation = frontmatter?.getBooleanValue('disable-model-invocation');
+		return { name, description, userInvocable, disableModelInvocation };
 	} catch {
 		return { name: basename(dirname(uri)) };
 	}
+}
+
+/** Maps SKILL.md invocation metadata onto the restrictive protocol flags. */
+export function toSkillInvocationFlags(userInvocable: boolean | undefined, disableModelInvocation: boolean | undefined): { readonly disableUserInvocation?: boolean; readonly disableModelInvocation?: boolean } {
+	return {
+		...(userInvocable === false ? { disableUserInvocation: true } : {}),
+		...(disableModelInvocation === true ? { disableModelInvocation: true } : {}),
+	};
 }
 
 export async function parseRuleFile(uri: URI, fileService: IFileService): Promise<{ name: string; description?: string; globs?: string[]; alwaysApply?: boolean }> {
@@ -1274,12 +1370,18 @@ export function parseMcpServerDefinitionMap(
 		let def: IMcpServerDefinition = {
 			name,
 			configuration,
-			...(formatConfig.format !== PluginFormat.AgentPlugin && { defaultCwd: pluginRoot }),
+			defaultCwd: pluginRoot,
 			uri: definitionURI,
 			customization: makeMcpServerCustomization(definitionURI, name),
 		};
-		def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
-		if (formatConfig.format !== PluginFormat.AgentPlugin) {
+		if (formatConfig.format === PluginFormat.AgentPlugin) {
+			const interpolated = interpolateAgentPluginMcpRoot(def, pluginRoot);
+			if (!interpolated) {
+				continue;
+			}
+			def = interpolated;
+		} else {
+			def = interpolateMcpPluginRoot(def, pluginFsPath, formatConfig.pluginRootTokens, formatConfig.pluginRootEnvVars);
 			def = convertBareEnvVarsToVsCodeSyntax(def);
 		}
 		definitions.push(def);
@@ -1369,8 +1471,8 @@ export function toParsedAgent(resource: IAgentPluginResource): IParsedAgent {
 	return { ...resource, customization: makeAgentCustomization(resource) };
 }
 
-/** Pairs a skill {@link INamedPluginResource} with its protocol-level {@link SkillCustomization}. */
-export function toParsedSkill(resource: INamedPluginResource): IParsedSkill {
+/** Pairs a skill {@link ISkillPluginResource} with its protocol-level {@link SkillCustomization}. */
+export function toParsedSkill(resource: ISkillPluginResource): IParsedSkill {
 	return { ...resource, customization: makeSkillCustomization(resource) };
 }
 

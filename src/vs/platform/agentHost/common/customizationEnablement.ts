@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CustomizationEnablementKind, type CustomizationEnablement } from './state/protocol/state.js';
+import { CustomizationEnablementKind, type CustomizationEnablement, type SkillCustomization } from './state/protocol/state.js';
 
 /**
  * Effective enablement when no explicit decision exists at any scope. It is
@@ -40,6 +40,11 @@ export function getCustomizationEnablementDecision(customization: { readonly ena
  */
 export function isCustomizationEnabled(customization: { readonly enablement?: readonly CustomizationEnablement[] }): boolean {
 	return getCustomizationEnablementDecision(customization)?.enabled ?? DEFAULT_CUSTOMIZATION_ENABLED;
+}
+
+/** Returns whether a skill should be offered for direct user invocation. */
+export function isSkillEligibleForUserInvocation(skill: SkillCustomization): boolean {
+	return skill.enabled !== false && skill.disableUserInvocation !== true;
 }
 
 export interface ICustomizationScopeEnablement {

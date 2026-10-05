@@ -15,6 +15,11 @@ export const IHoverService = createDecorator<IHoverService>('hoverService');
 
 export interface IHoverService extends IHoverDelegate2 {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Returns the visible sticky hover for the given target element, excluding passive previews.
+	 */
+	getStickyHover(targetElement: HTMLElement): IHoverWidget | undefined;
 }
 
 export interface IHoverDelayOptions {

@@ -8,7 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationType, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, type Customization, type ResponsePart } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionCustomizationKind } from '../../../../../services/sessions/common/session.js';
-import { createIncrementalChatCustomizationRefsParser, CustomizationIndex, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../browser/agentHostSessionCustomizations.js';
+import { createIncrementalChatCustomizationRefsParser, CustomizationIndex, CustomizationRefKind, parseTurnCustomizationRefs, resolveChatCustomizations } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 
 suite('Agent Host Session Customizations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -33,7 +33,7 @@ import { IVoicePlaybackService } from '../../common/voicePlaybackService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { AgentSessionStatus } from '../agentSessions/agentSessionsModel.js';
 import { toAgentHostBackendSessionUri } from '../agentSessions/agentHost/agentHostSessionUri.js';
-import { ChatSendResult, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
+import { ChatSendResult, ConfirmedReason, IChatConfirmation, IChatElicitationRequest, IChatPlanReview, IChatQuestionCarousel, IChatService, IChatToolInvocation, ToolConfirmKind, IChatModelReference } from '../../common/chatService/chatService.js';
 import { getDisplayedQuestionText, getOptionsWithDefaultsFirst } from '../../common/chatService/chatQuestionCarouselHelpers.js';
 import { formatQuestionPrompt } from '../../common/voiceClient/voicePendingNarration.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
@@ -59,10 +59,12 @@ import {
 	VoiceReconnectClassification, VoiceReconnectEvent,
 	VoiceLatencyClassification, VoiceLatencyEvent,
 	VoiceNarrationDeferredClassification, VoiceNarrationDeferredEvent,
-	VoiceNarrationDroppedClassification, VoiceNarrationDroppedEvent,
+	VoiceNarrationDroppedClassification, VoiceNarrationDroppedEvent, toVoiceNarrationRejectionReason,
 } from './voiceTelemetry.js';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'error';
+
+const voiceAutoApprovalReason: ConfirmedReason = { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' };
 
 export function isVoiceEntitled(chatEntitlementService: IChatEntitlementService): boolean {
 	return isProUser(chatEntitlementService.entitlement)
@@ -319,6 +321,19 @@ export interface IVoiceSessionController {
 }
 
 export const IVoiceSessionController = createDecorator<IVoiceSessionController>('voiceSessionController');
+
+export type VoiceNewSessionPreparationResult = 'prepared' | 'sent' | 'failed';
+
+/** Whether a chat input owns the current Voice Mode session. */
+export function isVoiceSessionActiveForInput(inputFocused: boolean, targetSession: URI | undefined, hasDraftTarget: boolean, sessionResource: URI | undefined): boolean {
+	if (hasDraftTarget) {
+		return false;
+	}
+	if (targetSession) {
+		return !!sessionResource && isEqual(targetSession, sessionResource);
+	}
+	return inputFocused;
+}
 
 export class VoiceSessionController extends Disposable implements IVoiceSessionController {
 
@@ -752,6 +767,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private readonly _voiceProgressListeners = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _voiceProgressSessionByResponse = new Map<string, string>();
 	private readonly _lastSpokenAtBySession = new Map<string, number>();
+	private static readonly _SESSION_REF_RELEASE_TIMEOUT_MS = 5 * 60 * 1000;
+	private readonly _sessionRefReleaseWatchers = this._register(new DisposableMap<string, DisposableStore>());
+	private readonly _floatingResponseWatchers = this._register(new DisposableMap<string, DisposableStore>());
 
 	/**
 	 * Narrations the backend bounced (`narration_ack` `busy`) or cancelled
@@ -908,7 +926,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._autoApprovedSessions.add(s.resource.toString());
 					const model = this.chatService.getSession(s.resource);
 					if (model) {
-						this._autoApprovePendingTools(model);
+						this._autoApprovePendingTools(model, { type: ToolConfirmKind.UserAction });
 					}
 				}
 			},
@@ -980,7 +998,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 								if (lastReq.response) {
 									for (const part of lastReq.response.response.value) {
 										if (part.kind === 'toolInvocation') {
-											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, source: 'user' });
 										}
 									}
 								}
@@ -1026,7 +1044,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction });
 										},
 										deny: () => {
-											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied });
+											IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.Denied, source: 'user' });
 										},
 									});
 									break;
@@ -1417,7 +1435,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 							if (pending && confirmationType === 'tool' && this._autoApprovedSessions.has(sessionId)) {
 								for (const part of lastReq.response.response.value) {
 									if (part.kind === 'toolInvocation') {
-										if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.UserAction })) {
+										if (IChatToolInvocation.confirmWith(part as IChatToolInvocation, voiceAutoApprovalReason)) {
 											needsRecheck = true;
 										}
 									}
@@ -2019,15 +2037,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				if (text !== rawText && e.args) {
 					e.args['text'] = text;
 				}
-				if (e.args?.['new_session'] === true) {
-					// Pin this submission to the new target so it outranks any
-					// stale focus-change pin.
-					this._setPinnedSubmitSession(undefined);
-					this.newSessionAsTarget();
-					if (text.trim()) {
-						this._setPinnedSubmitSession(this._targetSession.get());
-					}
-				}
+				const createNewSession = e.args?.['new_session'] === true;
 				this._statusText.set(VoiceToolDispatchService.getActionLabel(e.name), undefined);
 				this._persistEntry('agent_tool_call', this._renderToolCallSummary(e.name, e.args), {
 					toolName: e.name,
@@ -2043,9 +2053,15 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					this._sendContext();
 					this.voiceClientService.sendToolResult(e.callId, result);
 				};
-				const sendPromise = shouldSend
-					? this._sendTranscriptionToChat(text)
-					: Promise.resolve(false);
+				const sendPromise = this._prepareNewSessionTarget(createNewSession, text).then(result => {
+					if (result === 'failed') {
+						return false;
+					}
+					if (result === 'sent' || !shouldSend) {
+						return true;
+					}
+					return this._sendTranscriptionToChat(text);
+				});
 				sendPromise.then(sent => {
 					if (!sent) {
 						this._clearAwaitingReply();
@@ -2360,6 +2376,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		this._pendingNarrationRetries.clear();
 		this._voiceProgressListeners.clearAndDisposeAll();
 		this._voiceProgressSessionByResponse.clear();
+		this._sessionRefReleaseWatchers.clearAndDisposeAll();
+		this._floatingResponseWatchers.clearAndDisposeAll();
 		this._lastSpokenAtBySession.clear();
 		for (const [narrationId, pending] of this._pendingSolicitedNarrations) {
 			this._clearPendingSolicitedNarration(narrationId, pending);
@@ -3628,12 +3646,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					if (model) {
 						const lastReq = model.getRequests().at(-1);
 						if (lastReq?.response && !lastReq.response.isComplete && !lastReq.response.isCanceled) {
-							const responseDisposable = lastReq.response.onDidChange(() => {
-								if (lastReq.response!.isComplete || lastReq.response!.isCanceled) {
-									responseDisposable.dispose();
-									ref.dispose();
-								}
-							});
+							this._holdSessionRefUntilResponseStops(lastReq.response, ref);
 						} else {
 							ref.dispose();
 						}
@@ -3688,6 +3701,44 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
+	private _holdSessionRefUntilResponseStops(response: IChatResponseModel, ref: IChatModelReference): void {
+		const disposables = new DisposableStore();
+		const releaseRef = () => this._sessionRefReleaseWatchers.deleteAndDispose(response.id);
+		const releaseWhenSettled = () => {
+			if (response.isComplete || response.isCanceled) {
+				releaseRef();
+			}
+		};
+
+		disposables.add(response.onDidChange(releaseWhenSettled));
+		disposables.add(disposableTimeout(releaseRef, VoiceSessionController._SESSION_REF_RELEASE_TIMEOUT_MS));
+		disposables.add({ dispose: () => ref.dispose() });
+		this._sessionRefReleaseWatchers.set(response.id, disposables);
+		releaseWhenSettled();
+	}
+
+	private async _prepareNewSessionTarget(createNewSession: boolean, text: string): Promise<VoiceNewSessionPreparationResult> {
+		if (!createNewSession) {
+			return 'prepared';
+		}
+
+		this._setPinnedSubmitSession(undefined);
+		if (CommandsRegistry.getCommand('_chat.voice.prepareNewSession')) {
+			try {
+				return await this.commandService.executeCommand<VoiceNewSessionPreparationResult>('_chat.voice.prepareNewSession', text) ?? 'failed';
+			} catch (error) {
+				this.logService.error('Failed to prepare a host session for Voice Mode:', error);
+				return 'failed';
+			}
+		}
+
+		this.newSessionAsTarget();
+		if (text.trim()) {
+			this._setPinnedSubmitSession(this._targetSession.get());
+		}
+		return 'prepared';
+	}
+
 	/**
 	 * Watch a session's latest response and surface it in the floating window
 	 * transcript. Called when voice sends to a non-visible session so the user
@@ -3698,6 +3749,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		if (!model) {
 			return;
 		}
+		const sessionKey = sessionResource.toString();
 
 		// Seed the state cache so the delta mechanism sees thinking→idle as a transition
 		// and includes last_response_summary in the patch.
@@ -3706,6 +3758,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 
 		const disposables = new DisposableStore();
 		let lastText = '';
+		const disposeWatcher = () => this._floatingResponseWatchers.deleteAndDispose(sessionKey);
 
 		const updateFromResponse = () => {
 			const lastReq = model.lastRequest;
@@ -3729,7 +3782,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				this._prevSessionStates.set(sessionResource.toString(), { state: 'idle', detail: '', pendingId: '', lastResponseSummary: '' });
 				this._sendContext();
 				this.voiceClientService.flushSessionContext();
-				disposables.dispose();
+				disposeWatcher();
 			}
 		};
 
@@ -3748,10 +3801,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 				checkResponse();
 			}
 		}));
+		this._floatingResponseWatchers.set(sessionKey, disposables);
 		checkResponse();
 
 		// Safety: dispose after 5 minutes in case the response never completes
-		const timeout = setTimeout(() => disposables.dispose(), 5 * 60 * 1000);
+		const timeout = setTimeout(disposeWatcher, 5 * 60 * 1000);
 		disposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
@@ -4582,7 +4636,11 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this.logService.trace(`[voice] narration_ack ${e.disposition} id=${e.narrationId.slice(0, 8)} reason=${e.reason ?? '<none>'}; dropping`);
 			this._clearDeferred(key);
 			if (solicited) {
-				this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', { kind: solicited.kind, reason: e.disposition });
+				this.telemetryService.publicLog2<VoiceNarrationDroppedEvent, VoiceNarrationDroppedClassification>('voiceNarrationDropped', {
+					kind: solicited.kind,
+					reason: e.disposition,
+					...(e.disposition === 'invalid' && solicited.kind === 'confirmation' ? { rejectionReason: toVoiceNarrationRejectionReason(e.reason) } : {}),
+				});
 			}
 			return;
 		}
@@ -6478,17 +6536,6 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 					: s.status === AgentSessionStatus.NeedsInput ? 'waiting_for_confirmation'
 						: s.status === AgentSessionStatus.Completed ? 'idle'
 							: 'unknown';
-				// If this idle transition is deferred until the model loads, keep
-				// reporting the prior state so the backend doesn't narrate a
-				// premature, summary-less completion. See _pendingIdleNarration.
-				// If we already cached a summary while the model was resident we
-				// can narrate now, so don't hold in that case.
-				if (fallbackState === 'idle' && this._pendingIdleNarration.has(sessionIdStr) && !this._lastResponseSummaryById.has(sessionIdStr)) {
-					const prev = this._prevSessionStates.get(sessionIdStr);
-					if (prev?.state) {
-						fallbackState = prev.state;
-					}
-				}
 				// A confirmation whose model isn't resident has no detail yet; report `thinking` (and load the model) so the backend's state tracking doesn't briefly show a detail-less confirmation. Narration follows once the detail renders.
 				if (fallbackState === 'waiting_for_confirmation') {
 					this._ensureModelLoaded(s.resource);
@@ -7272,7 +7319,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		}
 	}
 
-	private _autoApprovePendingTools(model: IChatModel): void {
+	private _autoApprovePendingTools(model: IChatModel, reason: ConfirmedReason = voiceAutoApprovalReason): void {
 		for (const request of model.getRequests()) {
 			const response = request.response;
 			if (!response?.isPendingConfirmation.get() || getVoiceConfirmationType(response.response.value) !== 'tool') {
@@ -7280,7 +7327,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			}
 			for (const part of response.response.value) {
 				if (part.kind === 'toolInvocation') {
-					IChatToolInvocation.confirmWith(part, { type: ToolConfirmKind.UserAction });
+					IChatToolInvocation.confirmWith(part, reason);
 				}
 			}
 		}

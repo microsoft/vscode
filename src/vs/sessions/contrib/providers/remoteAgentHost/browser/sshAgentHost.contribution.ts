@@ -59,10 +59,6 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 
 	protected readonly _entryType = RemoteAgentHostEntryType.SSH;
 
-	protected override get _clearConnectionOnRemoval(): boolean {
-		return true;
-	}
-
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
 		@ISSHRemoteAgentHostService private readonly _sshService: ISSHRemoteAgentHostService,

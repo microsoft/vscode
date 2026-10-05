@@ -108,13 +108,13 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 		// workspace-level allowlist when no working directory is specified.
 		if (ref.workingDirectory) {
 			if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, ref.workingDirectory)) {
-				return { type: ToolConfirmKind.UserAction };
+				return { type: ToolConfirmKind.ConfirmationNotNeeded };
 			}
 		} else {
 			const workspaceFolders = this._getWorkspaceFolders();
 			for (const folderUri of workspaceFolders) {
 				if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
-					return { type: ToolConfirmKind.UserAction };
+					return { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
 				}
 			}
 		}
@@ -125,7 +125,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 			if (sessionFolders) {
 				for (const folderUri of sessionFolders) {
 					if (extUriBiasedIgnorePathCase.isEqualOrParent(pathUri, folderUri)) {
-						return { type: ToolConfirmKind.UserAction };
+						return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
 					}
 				}
 			}

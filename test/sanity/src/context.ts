@@ -896,9 +896,9 @@ export class TestContext {
 	private getWindowsInstallDir(type: 'user' | 'system'): string {
 		let parentDir: string;
 		if (type === 'system') {
-			parentDir = process.env['ProgramW6432'] || process.env['PROGRAMFILES'] || '';
+			parentDir = process.env.ProgramW6432 || process.env.PROGRAMFILES || '';
 		} else {
-			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
+			parentDir = path.join(process.env.LOCALAPPDATA || '', 'Programs');
 		}
 
 		switch (this.options.quality) {
@@ -1284,13 +1284,13 @@ export class TestContext {
 				return await webkit.launch({ headless });
 			}
 			case 'win32': {
-				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+				const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({ headless, executablePath });
 			}
 			case 'linux':
 			default: {
-				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
+				const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({
 					headless,

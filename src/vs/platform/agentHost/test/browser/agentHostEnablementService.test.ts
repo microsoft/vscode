@@ -12,7 +12,7 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../common/agentHostEnablement
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationOverrides } from '../../../configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../chat/common/chatSettings.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../policy/common/copilotManagedSettings.js';
 import { MockContextKeyService } from '../../../keybinding/test/common/mockKeybindingService.js';
 
 class AgentHostTestConfigurationService extends TestConfigurationService {
@@ -109,6 +109,31 @@ suite('AgentHostEnablementService', () => {
 			enabled: true,
 			contextKey: true,
 			changes: [true, false, true],
+		});
+	});
+
+	test('tracks bypass-only policy changes without changing the managed sandbox floor', () => {
+		let allowBypass: boolean | undefined;
+		const managedSettingsEmitter = disposables.add(new Emitter<void>());
+		const managedSettingsService: IManagedSettingsService = {
+			_serviceBrand: undefined,
+			onDidChangeManagedSettings: managedSettingsEmitter.event,
+			getManagedSettingValue: key => key === COPILOT_SANDBOX_ENABLED_KEY ? true : key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+		};
+		const { service } = createService(false, true, managedSettingsService);
+		const enforcedChanges: boolean[] = [];
+		const bypassChanges: boolean[] = [];
+		disposables.add(autorun(reader => enforcedChanges.push(service.managedSandboxEnforced.read(reader))));
+		disposables.add(autorun(reader => bypassChanges.push(service.managedSandboxAllowsBypass.read(reader))));
+
+		for (const value of [false, true, true, false, undefined]) {
+			allowBypass = value;
+			managedSettingsEmitter.fire();
+		}
+
+		assert.deepStrictEqual({ enforcedChanges, bypassChanges }, {
+			enforcedChanges: [true],
+			bypassChanges: [false, true, false],
 		});
 	});
 

@@ -151,7 +151,7 @@ suite('AgentHostByokLmHandler', () => {
 			disabledModels: [],
 			disabledResult: { output: [], error: 'BYOK models are disabled by policy.' },
 			enabledModels: [
-				{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, supportsVision: false },
+				{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
 			],
 			requestSent: false,
 		});
@@ -160,7 +160,7 @@ suite('AgentHostByokLmHandler', () => {
 	test('listModels enumerates renderer BYOK models and excludes agent-host copies', async () => {
 		const service = new TestLanguageModelsService(
 			new Map<string, ILanguageModelChatMetadata>([
-				['id-acme', byokModel('acme', 'claude', { vision: true })],
+				['id-acme', { ...byokModel('acme', 'claude', { vision: true }), maxInputTokens: 100_000, maxOutputTokens: 20_000, maxContextWindowTokens: 100_000 }],
 				['id-copy', { ...byokModel('acme', 'claude'), targetChatSessionType: 'copilotcli' }],
 				['id-capi', { ...byokModel('copilot', 'gpt-4'), isBYOK: false }],
 			]),
@@ -171,7 +171,7 @@ suite('AgentHostByokLmHandler', () => {
 		const models = await handler.listModels(CancellationToken.None);
 
 		assert.deepStrictEqual(models, [
-			{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 2000, supportsVision: true },
+			{ vendor: 'acme', id: 'claude', name: 'acme claude', modelIdentifier: 'id-acme', maxContextWindowTokens: 100_000, maxPromptTokens: 100_000, maxOutputTokens: 20_000, supportsVision: true },
 		]);
 	});
 
@@ -192,8 +192,8 @@ suite('AgentHostByokLmHandler', () => {
 		const models = await handler.listModels(CancellationToken.None);
 
 		assert.deepStrictEqual(models, [
-			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, supportsVision: false },
-			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, supportsVision: false },
+			{ vendor: 'openrouter', id: 'ai21/jamba-large-1.7', name: 'openrouter ai21/jamba-large-1.7', modelIdentifier: groupedId, maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
+			{ vendor: 'openrouter', id: 'gpt-4', name: 'openrouter gpt-4', modelIdentifier: 'openrouter/gpt-4', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
 		]);
 	});
 
@@ -238,6 +238,8 @@ suite('AgentHostByokLmHandler', () => {
 				name: 'openrouter ai21/jamba-large-1.7',
 				modelIdentifier: sourceIdentifier,
 				maxContextWindowTokens: 2000,
+				maxPromptTokens: 1000,
+				maxOutputTokens: 1000,
 				supportsVision: false,
 			}],
 			sourceHiddenModels: [],
@@ -248,6 +250,8 @@ suite('AgentHostByokLmHandler', () => {
 				name: 'openrouter ai21/jamba-large-1.7',
 				modelIdentifier: sourceIdentifier,
 				maxContextWindowTokens: 2000,
+				maxPromptTokens: 1000,
+				maxOutputTokens: 1000,
 				supportsVision: false,
 			}],
 		});
@@ -295,12 +299,14 @@ suite('AgentHostByokLmHandler', () => {
 				name: 'acme reasoning',
 				modelIdentifier: 'id-reasoning',
 				maxContextWindowTokens: 2000,
+				maxPromptTokens: 1000,
+				maxOutputTokens: 1000,
 				supportsVision: false,
 				supportedReasoningEfforts: ['minimal', 'low', 'high'],
 				defaultReasoningEffort: 'high',
 			},
-			{ vendor: 'acme', id: 'malformed', name: 'acme malformed', modelIdentifier: 'id-malformed', maxContextWindowTokens: 2000, supportsVision: false },
-			{ vendor: 'acme', id: 'plain', name: 'acme plain', modelIdentifier: 'id-plain', maxContextWindowTokens: 2000, supportsVision: false },
+			{ vendor: 'acme', id: 'malformed', name: 'acme malformed', modelIdentifier: 'id-malformed', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
+			{ vendor: 'acme', id: 'plain', name: 'acme plain', modelIdentifier: 'id-plain', maxContextWindowTokens: 2000, maxPromptTokens: 1000, maxOutputTokens: 1000, supportsVision: false },
 		]);
 	});
 
@@ -504,6 +510,37 @@ suite('AgentHostByokLmHandler', () => {
 				],
 			},
 		});
+	});
+
+	test('keeps omitted-file notes distinct when merging adjacent text parts', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+
+		// Mirrors what the node proxy produces for a prompt with two PDF attachments.
+		await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [{
+				type: 'message', role: 'user', content: [
+					{ type: 'text', text: 'summarize these' },
+					{ type: 'text', text: 'Document file "a.pdf" at path "/work/a.pdf"' },
+					{ type: 'text', text: '\n[a.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+					{ type: 'text', text: 'Document file "b.pdf" at path "/work/b.pdf"' },
+					{ type: 'text', text: '\n[b.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+				]
+			}],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(service.captured?.messages, [{
+			role: ChatMessageRole.User,
+			content: [{
+				type: 'text',
+				value: 'summarize theseDocument file "a.pdf" at path "/work/a.pdf"\n[a.pdf (application/pdf) omitted: this model does not accept file inputs]\nDocument file "b.pdf" at path "/work/b.pdf"\n[b.pdf (application/pdf) omitted: this model does not accept file inputs]\n',
+			}],
+		}]);
 	});
 
 	test('returns an error result when no BYOK model matches', async () => {
