@@ -35,37 +35,7 @@ import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExte
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
-import {
-	AgentHostAhpJsonlLoggingSettingId,
-	type AgentHostDebugLogsArtifactKind,
-	AgentHostIpcChannels,
-	AgentHostOTelPolicyIpcChannel,
-	AgentHostRestartIpcChannel,
-	AgentHostWillRestartIpcChannel,
-	AgentSession,
-	IAgentCreateChatRequestOptions,
-	IAgentCreateSessionConfig,
-	IAgentHostInspectInfo,
-	type IAgentHostDebugLogsArtifact,
-	type IAgentHostCanvases,
-	IAgentHostManagementService,
-	IAgentHostManagedSettingsDiagnostics,
-	IAgentHostNetworkDiagnosticsInfo,
-	IAgentHostNetworkFetchResult,
-	type IAgentHostOTelSettings,
-	type IAgentHostOTelPolicyReadiness,
-	IAgentHostService,
-	IAgentHostSocketInfo,
-	IAgentPluginUninstallRequest,
-	IAgentResolveSessionConfigParams,
-	IAgentSessionConfigCompletionsParams,
-	IAgentSessionMetadata,
-	AuthenticateParams,
-	AuthenticateResult,
-	IMcpNotification,
-	readAgentHostOTelPolicySettings,
-	type IAgentHostDebugLogsChunk,
-} from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, type AgentHostDebugLogsArtifactKind, AgentHostIpcChannels, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, type IAgentHostDebugLogsArtifact, IAgentHostManagementService, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type IAgentHostOTelSettings, type IAgentHostOTelPolicyReadiness, IAgentHostService, IAgentHostSocketInfo, IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, readAgentHostOTelPolicySettings, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -154,7 +124,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readonly clientId = generateUuid();
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
-	get canvases(): IAgentHostCanvases | undefined { return this._protocolClient?.canvases; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());

@@ -94,7 +94,7 @@ export function buildModelPickerItems(options: IBuildModelPickerItemsOptions): I
 		: buildFlatModelItems(pickerOptions);
 }
 
-export function getModelPickerAccessibilityProvider(isSearch = false) {
+export function getModelPickerAccessibilityProvider(isSearch = false, multiple = false) {
 	return {
 		getAriaLabel(element: IActionListItem<IActionWidgetDropdownAction>) {
 			if (element.kind !== ActionListItemKind.Action) {
@@ -103,7 +103,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 					: null;
 			}
 			const description = element.ariaDescription ?? (typeof element.description === 'string' ? element.description : element.description?.value);
-			const currentModel = isSearch && element.item?.checked ? localize('chat.modelPicker.currentModel', "Current model") : undefined;
+			const currentModel = isSearch && element.item?.checked ? (multiple ? localize('chat.modelPicker.selectedModel', "Selected") : localize('chat.modelPicker.currentModel', "Current model")) : undefined;
 			return [element.label, element.badge, ...(element.additionalBadges?.map(badge => badge.label) ?? []), description, currentModel].filter((part): part is string => !!part).join(', ');
 		},
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
@@ -124,7 +124,7 @@ export function getModelPickerAccessibilityProvider(isSearch = false) {
 			}
 			switch (element.kind) {
 				case ActionListItemKind.Action:
-					return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : 'menuitemradio';
+					return element.item?.id && PICKER_COMMAND_ACTION_IDS.has(element.item.id) ? 'menuitem' : multiple ? 'menuitemcheckbox' : 'menuitemradio';
 				case ActionListItemKind.Separator:
 				default:
 					return 'separator';

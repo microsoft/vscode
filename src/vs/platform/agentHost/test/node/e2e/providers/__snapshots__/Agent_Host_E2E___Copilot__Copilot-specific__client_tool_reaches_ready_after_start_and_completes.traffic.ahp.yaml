@@ -66,6 +66,9 @@ rounds:
           type: session/ready
       - channel: ${session_0}
         action:
+          type: session/serverToolsChanged
+      - channel: ${session_0}
+        action:
           type: session/changesetsChanged
       - channel: ${chat_0}
         action:

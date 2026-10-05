@@ -187,4 +187,49 @@ suite('Session GitHub References', () => {
 			'https://github.com/contoso/tools/pull/7',
 		]);
 	});
+
+	test('restricts shared-folder pull requests to their creating chat only when automatic association is disabled', () => {
+		const mainResource = URI.parse('custom-chat://host/main');
+		const peerResource = URI.parse('custom-chat://host/peer');
+		const link = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
+		const entries: readonly ISessionArtifact[] = [
+			{ id: 'main', chat: mainResource, kind: SessionArtifactKind.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: link(1) },
+			{ id: 'peer', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link(2) },
+			{ id: 'legacy', kind: SessionArtifactKind.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: link(3) },
+			{ id: 'reference', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Reference', isArtifact: false, isGitHub: true, link: link(4) },
+		];
+		const baseSession = createSession(entries, {
+			owner: 'owner', repo: 'repo',
+			pullRequests: [1, 2, 3, 4, 5].map(number => ({ owner: 'owner', repo: 'repo', number, uri: link(number), title: `Live ${number}`, createdByThisSession: true })),
+		});
+		const workspace = baseSession.workspace;
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace });
+		const peer = upcastPartial<IChat>({ resource: peerResource, workspace });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+		const snapshot = (chat: IChat | undefined, automatic: boolean) => getSessionGitHubReferences(session, undefined, chat, automatic).pullRequests.map(ref => [ref.number, ref.title]);
+
+		assert.deepStrictEqual({
+			restrictedMain: snapshot(main, false),
+			restrictedPeer: snapshot(peer, false),
+			automaticMain: snapshot(main, true),
+			automaticPeer: snapshot(peer, true),
+			session: snapshot(undefined, false),
+		}, {
+			restrictedMain: [[1, 'Live 1'], [3, 'Live 3']],
+			restrictedPeer: [[2, 'Live 2']],
+			automaticMain: [[1, 'Live 1'], [3, 'Live 3'], [2, 'Live 2'], [4, 'Live 4'], [5, 'Live 5']],
+			automaticPeer: [[2, 'Live 2'], [3, 'Live 3'], [1, 'Live 1'], [4, 'Live 4'], [5, 'Live 5']],
+			session: [[1, 'Live 1'], [2, 'Live 2'], [3, 'Live 3'], [4, 'Live 4'], [5, 'Live 5']],
+		});
+	});
+
+	test('keeps a chat-owned PR without a workspace and leaves unknown ownership out of restricted peer pills', () => {
+		const resource = URI.parse('custom-chat://host/peer');
+		const session = createSession([
+			{ id: 'own', chat: resource, kind: SessionArtifactKind.PullRequest, label: 'Own PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
+			{ id: 'legacy', kind: SessionArtifactKind.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/2') },
+		]);
+		const chat = upcastPartial<IChat>({ resource, workspace: constObservable(undefined) });
+		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat, false).pullRequests.map(ref => ref.number), [1]);
+	});
 });

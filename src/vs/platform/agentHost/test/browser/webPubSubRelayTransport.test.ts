@@ -18,7 +18,8 @@ import { JsonRpcRequest, ProtocolMessage } from '../../common/state/sessionProto
 import { ChunkEnvelope, DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_SEGMENTS_PER_GROUP, chunk } from '../../common/webPubSub/chunking.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 
 const BROADCAST = 'user.u1.env.e1.client.c1.broadcast';
 const TO_CLIENT = 'user.u1.env.e1.client.c1.to-client';
@@ -107,8 +108,11 @@ suite('WebPubSubRelayTransport', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createTransport(fake: FakeWebSocket, options: Partial<IWebPubSubRelayTransportOptions> = {}): WebPubSubRelayTransport {
-		return store.add(new WebPubSubRelayTransport({
+	function createTransport(fake: FakeWebSocket, options: Partial<IWebPubSubRelayTransportOptions> = {}, logService: ILogService = new NullLogService()): WebPubSubRelayTransport {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, logService);
+		return store.add(instantiationService.createInstance(WebPubSubRelayTransport, {
+			clientId: 'c1',
 			url: 'wss://wps.example/client/hubs/h?access_token=tok&clientId=c1',
 			toHostGroup: TO_HOST,
 			joinGroups: [BROADCAST, TO_CLIENT],
@@ -126,6 +130,70 @@ suite('WebPubSubRelayTransport', () => {
 		}
 		await connected;
 	}
+
+	test('logs connection milestones and a closing summary, not every frame or payload', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const infos: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void { infos.push(message); }
+		}();
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake, {}, logService);
+		await connectHandshake(transport, fake);
+		for (let i = 0; i < 100; i++) {
+			transport.send({ jsonrpc: '2.0', id: i, method: 'initialize', params: { private: 'secret-payload' } });
+			const publish = fake.sentOfType('sendToGroup').at(-1);
+			assert.ok(publish);
+			fake.emit({ type: 'ack', ackId: publish['ackId'], success: true });
+			fake.emitGroupMessage(i + 1, { kind: 'message', data: { jsonrpc: '2.0', id: i, result: 'secret-payload' } });
+		}
+		await timeout(10);
+		transport.dispose();
+		assert.deepStrictEqual(infos, [
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 first publish acknowledged; ackId=3',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 first host frame received',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=10 closing; relayReady=true publishAcknowledged=true pendingJoins=0 pendingPublishes=0 hostFrames=100 hostMessages=100 hostSilenceMs=10 protocolErrors=0 expiredAssemblies=0',
+		]);
+	}));
+
+	test('bounds malformed-frame warnings and excludes parser input', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const warnings: string[] = [];
+		let errors = 0;
+		const logService = new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}();
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake, { onProtocolError: () => errors++ }, logService);
+		await connectHandshake(transport, fake);
+		for (let i = 0; i < 100; i++) {
+			fake.onmessage?.({ data: '{"secret-token": invalid' });
+		}
+		transport.dispose();
+		assert.deepStrictEqual({ errors, warnings }, {
+			errors: 100,
+			warnings: ['[WebPubSubRelayTransport] clientId=c1 durationMs=0 protocol error; kind=invalid JSON'],
+		});
+	}));
+
+	test('logs a publish acknowledgement timeout even after a recoverable protocol error', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const messages: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void { messages.push(message); }
+			override warn(message: string): void { messages.push(message); }
+		}();
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake, {}, logService);
+		await connectHandshake(transport, fake);
+		fake.onmessage?.({ data: '{"secret-token": invalid' });
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		await timeout(30_001);
+		assert.deepStrictEqual(messages, [
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 protocol error; kind=invalid JSON',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 protocol error; kind=publish acknowledgement timed out',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 closing; relayReady=true publishAcknowledged=false pendingJoins=0 pendingPublishes=1 hostFrames=0 hostMessages=0 hostSilenceMs=none protocolErrors=2 expiredAssemblies=0',
+		]);
+	}));
 
 	test('completes the handshake by joining broadcast + to_client and awaiting acks', async () => {
 		const fake = new FakeWebSocket();
@@ -818,14 +886,14 @@ suite('WebPubSubRelayTransport', () => {
 		const fake = new FakeWebSocket();
 		let frames = 0;
 		const errors: unknown[] = [];
-		const transport = store.add(new WebPubSubRelayTransport({
+		const transport = createTransport(fake, {
 			url: 'wss://wps.example',
 			toHostGroup: TO_HOST,
 			joinGroups: [BROADCAST, TO_CLIENT],
 			webSocketFactory: () => fake,
 			onDidReceiveFrame: () => frames++,
 			onProtocolError: error => errors.push(error),
-		}));
+		});
 		const connecting = transport.connect();
 		fake.onmessage?.({ data: '{invalid' });
 		fake.emit({ type: 'system', event: 'connected' });
