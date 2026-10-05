@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from '../../common/githubResponse.js';
+import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredId, requiredInteger, requiredNumber, requiredSha, requiredString, stringProperty } from '../../common/githubResponse.js';
 import { GitHubRequestError } from '../../common/githubTransport.js';
 
 suite('GitHub response helpers', () => {
@@ -129,9 +129,17 @@ suite('GitHub response helpers', () => {
 		{ name: 'a missing required string', read: () => requiredString({}, 'title'), message: 'GitHub response property title was not a string' },
 		{ name: 'a null required string', read: () => requiredString({ title: null }, 'title'), message: 'GitHub response property title was not a string' },
 		{ name: 'a non-string property', read: () => requiredString({ title: 7 }, 'title'), message: 'GitHub response property title was not a string' },
+		{ name: 'a missing required SHA', read: () => requiredSha({}, 'sha'), message: 'GitHub response property sha was not a string' },
+		{ name: 'a non-string SHA', read: () => requiredSha({ sha: 7 }, 'sha'), message: 'GitHub response property sha was not a string' },
 		{ name: 'a missing required number', read: () => requiredNumber({}, 'number'), message: 'GitHub response property number was not a number' },
 		{ name: 'a non-number property', read: () => requiredNumber({ number: '7' }, 'number'), message: 'GitHub response property number was not a number' },
 		{ name: 'a non-finite number', read: () => requiredNumber({ number: Infinity }, 'number'), message: 'GitHub response property number was not a number' },
+		{ name: 'a missing required integer', read: () => requiredInteger({}, 'size', 0, 10), message: 'GitHub response property size was not a safe integer between 0 and 10' },
+		{ name: 'a null integer', read: () => requiredInteger({ size: null }, 'size', 0, 10), message: 'GitHub response property size was not a safe integer between 0 and 10' },
+		{ name: 'a boolean integer', read: () => requiredInteger({ size: true }, 'size', 0, 10), message: 'GitHub response property size was not a safe integer between 0 and 10' },
+		{ name: 'a non-number integer', read: () => requiredInteger({ size: '7' }, 'size', 0, 10), message: 'GitHub response property size was not a safe integer between 0 and 10' },
+		{ name: 'a non-finite integer', read: () => requiredInteger({ size: Infinity }, 'size', 0, 10), message: 'GitHub response property size was not a safe integer between 0 and 10' },
+		{ name: 'a NaN integer', read: () => requiredInteger({ size: NaN }, 'size', 0, 10), message: 'GitHub response property size was not a safe integer between 0 and 10' },
 		{ name: 'missing or empty IDs', read: () => requiredId({ databaseId: '', id: null }, 'databaseId', 'id'), message: 'GitHub response did not contain databaseId or id' },
 	]) {
 		test(`reports malformedResponse for ${name}`, () => {
@@ -166,6 +174,24 @@ suite('GitHub response helpers', () => {
 		});
 	});
 
+	test('requiredSha preserves lowercase hexadecimal SHAs', () => {
+		const values = ['0'.repeat(40), 'f'.repeat(40), '0123456789abcdef0123456789abcdef01234567'];
+		assert.deepStrictEqual(values.map(sha => requiredSha({ sha }, 'sha')), values);
+	});
+
+	for (const [name, sha] of [
+		['empty', ''],
+		['short', 'a'.repeat(39)],
+		['long', 'a'.repeat(41)],
+		['non-hexadecimal', 'g'.repeat(40)],
+		['uppercase', 'A'.repeat(40)],
+		['newline-suffixed', `${'a'.repeat(40)}\n`],
+	] as const) {
+		test(`requiredSha rejects ${name} values`, () => {
+			assertMalformedResponse(() => requiredSha({ sha }, 'sha'), 'GitHub response property sha was not a valid SHA');
+		});
+	}
+
 	test('number readers accept finite values without coercion', () => {
 		const values = [0, -7, 1.5, undefined, null, '7', true, NaN, Infinity, -Infinity];
 		assert.deepStrictEqual({
@@ -178,6 +204,34 @@ suite('GitHub response helpers', () => {
 			requiredFraction: 1.5,
 		});
 	});
+
+	test('requiredInteger accepts safe integers within inclusive bounds', () => {
+		const limits = [Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
+		assert.deepStrictEqual({
+			bounded: [-7, 0, 7].map(value => requiredInteger({ value }, 'value', -7, 7)),
+			exact: requiredInteger({ value: 7 }, 'value', 7, 7),
+			limits: limits.map(value => requiredInteger({ value }, 'value', Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER)),
+		}, {
+			bounded: [-7, 0, 7],
+			exact: 7,
+			limits,
+		});
+	});
+
+	for (const [name, value, min, max] of [
+		['fractional', 1.5, 0, 10],
+		['below minimum', -1, 0, 10],
+		['above maximum', 11, 0, 10],
+		['unsafe positive', Number.MAX_SAFE_INTEGER + 1, 0, Number.MAX_SAFE_INTEGER + 1],
+		['unsafe negative', Number.MIN_SAFE_INTEGER - 1, Number.MIN_SAFE_INTEGER - 1, 0],
+	] as const) {
+		test(`requiredInteger rejects ${name} values`, () => {
+			assertMalformedResponse(
+				() => requiredInteger({ value }, 'value', min, max),
+				`GitHub response property value was not a safe integer between ${min} and ${max}`,
+			);
+		});
+	}
 
 	test('boolean readers preserve false without coercion', () => {
 		const values = [true, false, undefined, null, 'true', 0, 1];

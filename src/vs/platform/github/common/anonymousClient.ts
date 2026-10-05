@@ -3,37 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { GitHubCancellation, toAbortSignal } from './cancellation.js';
 import { resolveReadApiUrl } from './githubEndpoints.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
-import { asObject, requiredNumber, requiredString } from './githubResponse.js';
+import { asObject, requiredInteger, requiredSha, requiredString } from './githubResponse.js';
 import { GitHubAnonymousReadOptions, GitHubRestResponse, GitHubTransport } from './githubTransport.js';
 import { GitHubRequestError, GitHubServiceOptions } from './githubTypes.js';
+import { encodePathSegments } from './githubUrls.js';
 import { RequestQueue } from './requestQueue.js';
 import { AnonymousAccount } from './types.js';
 
+/** Decoded repository file content paired with the commit SHA it was read from. */
 export interface IGitHubRepositoryFile {
 	readonly commitSha: string;
 	readonly content: string;
 }
 
-/** Credential-free public JSON reads confined to an approved API base. */
+/** Read-only access to public GitHub resources without authentication. */
 export interface IGitHubAnonymousClient {
 	readonly authorization: { readonly kind: 'anonymous' };
 	readonly apiBaseUri: string;
+	/** Reads JSON from an API-relative path. */
 	get<T>(path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
-	/** Reads a file at the resolved repository HEAD using the owning client's API endpoint. */
+	/** Reads a file at the resolved repository HEAD. */
 	readFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<IGitHubRepositoryFile>;
 }
 
-/** Reference-counted public reader with no access to credential providers or private caches. */
+/** Fetches public GitHub API data and repository files without authentication. */
 export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient {
 	readonly authorization = Object.freeze({ kind: 'anonymous' as const });
 	references = 0;
@@ -49,8 +51,8 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 		logService: ILogService,
 	) {
 		super();
-		const endpoint = new URL(apiBaseUri);
-		this._account = { kind: 'anonymous', host: endpoint.host, origin: endpoint.origin };
+		const { host, origin } = new URL(apiBaseUri);
+		this._account = { kind: 'anonymous', host, origin };
 		this._transport = this._register(new GitHubTransport(options.fetch, undefined, false, logService, {
 			coordination: { queue, rateLimits },
 			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, {
@@ -66,6 +68,7 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 		try {
 			const abortSignal = toAbortSignal(signal, lifetime);
 			abortSignal.throwIfAborted();
+
 			const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
 			return await this._transport.anonymousGet<T>(this._account, apiBasePath, { ...options, url: url.href }, abortSignal);
 		} finally {
@@ -78,30 +81,28 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 		try {
 			const abortSignal = toAbortSignal(signal, lifetime);
 			abortSignal.throwIfAborted();
+
 			const requestOptions: GitHubAnonymousReadOptions = { ...options, deadline: options.deadline ?? Date.now() + 5 * 60_000 };
 			const repositoryPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+
 			const commitResponse = await this.get<unknown>(`${repositoryPath}/commits/HEAD`, abortSignal, requestOptions);
 			abortSignal.throwIfAborted();
-			const invalidCommit = localize('githubRepository.invalidCommit', "GitHub returned an invalid repository revision.");
-			const commitSha = requiredString(asObject(commitResponse.data, invalidCommit), 'sha');
-			if (!/^[a-f0-9]{40}$/.test(commitSha)) {
-				throw new GitHubRequestError(invalidCommit, 'malformedResponse');
-			}
-			const fileResponse = await this.get<unknown>(`${repositoryPath}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${commitSha}`, abortSignal, requestOptions);
+			const commitSha = requiredSha(asObject(commitResponse.data, 'GitHub returned an invalid repository revision.'), 'sha');
+
+			const fileResponse = await this.get<unknown>(`${repositoryPath}/contents/${encodePathSegments(path)}?ref=${commitSha}`, abortSignal, requestOptions);
 			abortSignal.throwIfAborted();
-			const file = asObject(fileResponse.data, localize('githubRepository.invalidFile', "GitHub returned an invalid repository file."));
+			const file = asObject(fileResponse.data, 'GitHub returned an invalid repository file.');
 			if (requiredString(file, 'type') !== 'file' || requiredString(file, 'encoding') !== 'base64') {
-				throw new GitHubRequestError(localize('githubRepository.unsupportedFile', "GitHub did not return a base64-encoded repository file."), 'malformedResponse');
+				throw new GitHubRequestError('GitHub did not return a base64-encoded repository file.', 'malformedResponse');
 			}
-			const size = requiredNumber(file, 'size');
-			if (!Number.isSafeInteger(size) || size < 0 || size > 1024 * 1024) {
-				throw new GitHubRequestError(localize('githubRepository.invalidSize', "GitHub returned an invalid repository file size. Files must not exceed 1 MiB."), 'malformedResponse');
-			}
-			const encoded = requiredString(file, 'content').replace(/[\r\n]/g, '');
-			const invalidContent = localize('githubRepository.invalidContent', "GitHub returned invalid base64 repository file contents.");
+
+			const size = requiredInteger(file, 'size', 0, 1024 * 1024);
+			const encoded = requiredString(file, 'content').replace(/\s/g, '');
+			const invalidContent = 'GitHub returned invalid base64 repository file contents.';
 			if (encoded.length !== Math.ceil(size / 3) * 4) {
 				throw new GitHubRequestError(invalidContent, 'malformedResponse');
 			}
+
 			let decoded: VSBuffer;
 			try {
 				decoded = decodeBase64(encoded);
@@ -111,9 +112,11 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 				}
 				throw new GitHubRequestError(invalidContent, 'malformedResponse');
 			}
-			if (decoded.byteLength !== size || encodeBase64(decoded) !== encoded) {
+
+			if (decoded.byteLength !== size) {
 				throw new GitHubRequestError(invalidContent, 'malformedResponse');
 			}
+
 			return { commitSha, content: decoded.toString() };
 		} finally {
 			lifetime.dispose();

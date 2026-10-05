@@ -584,7 +584,7 @@ suite('GitHub public repository files', () => {
 				return new Response(JSON.stringify({ sha: commitSha }));
 			}
 			const response = file(content);
-			response.content = `${response.content.slice(0, 60)}\r\n${response.content.slice(60)}\n`;
+			response.content = ` \t${response.content.slice(0, 60)}\r\n \t${response.content.slice(60)}\n\u00a0`;
 			return new Response(JSON.stringify(response));
 		});
 		try {
@@ -606,6 +606,16 @@ suite('GitHub public repository files', () => {
 			service.dispose();
 		}
 	}));
+
+	test('encodes file path segments without changing the ref query', async () => {
+		const service = create(async input => new Response(JSON.stringify(String(input).endsWith('/commits/HEAD') ? { sha: commitSha } : file(content))));
+		const client = store.add(service.acquireAnonymousClient()).object;
+		const result = await client.readFile('microsoft', 'sample', 'docs/a #?%.md', CancellationToken.None);
+		assert.deepStrictEqual({ result, paths: service.reads.map(read => read.path) }, {
+			result: { commitSha, content },
+			paths: [paths[0], `/repos/microsoft/sample/contents/docs/a%20%23%3F%25.md?ref=${commitSha}`],
+		});
+	});
 
 	test('readFile forwards caller-selected options and a shared deadline without mutating them', async () => {
 		const options = Object.freeze({
@@ -633,6 +643,7 @@ suite('GitHub public repository files', () => {
 		['missing', undefined], ['null', null], ['array', []], ['missing SHA', {}],
 		['non-string SHA', { sha: 123 }], ['short SHA', { sha: 'a'.repeat(39) }],
 		['non-hex SHA', { sha: 'z'.repeat(40) }],
+		['newline-suffixed SHA', { sha: `${commitSha}\n` }],
 	] as const) {
 		test(`rejects ${name} commit responses before requesting contents`, async () => {
 			const service = create(async () => new Response(JSON.stringify(response)));
@@ -656,7 +667,6 @@ suite('GitHub public repository files', () => {
 		['non-string content', { ...validFile, content: [] }],
 		['truncated content', { ...validFile, content: '' }],
 		['invalid base64', { ...validFile, size: 1, content: '!!!!' }],
-		['noncanonical padding', { ...validFile, size: 1, content: 'YR==' }],
 		['content after padding', { ...validFile, size: 3, content: 'YQ=A' }],
 		['decoded size mismatch', { ...validFile, size: 2, content: 'YQ==' }],
 	] as const) {
@@ -668,6 +678,12 @@ suite('GitHub public repository files', () => {
 			}, { paths, released: 1, aborted: [false, false] });
 		});
 	}
+
+	test('accepts decodable base64 with noncanonical padding bits', async () => {
+		const response = { ...file('a'), content: 'YR==' };
+		const service = create(async input => new Response(JSON.stringify(String(input).endsWith('/commits/HEAD') ? { sha: commitSha } : response)));
+		assert.deepStrictEqual(await read(service), { commitSha, content: 'a' });
+	});
 
 	for (const size of [0, 1024 * 1024]) {
 		test(`accepts a file of exactly ${size} bytes`, async () => {
