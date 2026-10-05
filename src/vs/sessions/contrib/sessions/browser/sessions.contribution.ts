@@ -21,7 +21,6 @@ import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT } from './automationsNewBadge.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../platform/chat/common/sessionArchiveActions.js';
@@ -113,19 +112,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: true,
 			experiment: { mode: 'auto' }
 			// https://github.com/microsoft/vscode/issues/335801
-		},
-		[AUTOMATIONS_NEW_BADGE_STYLE_SETTING]: {
-			type: 'string',
-			enum: ['accent', 'soft', 'outline', 'unread'],
-			default: 'outline',
-			scope: ConfigurationScope.APPLICATION,
-			included: false,
-			tags: ['experimental'],
-			experiment: {
-				mode: 'auto',
-				name: AUTOMATIONS_NEW_BADGE_STYLE_TREATMENT,
-			},
-			description: localize('sessions.automations.newBadgeStyle', "Controls the visual style of the Automations first-use badge."),
 		},
 		[NEW_SESSION_BUTTON_STYLE_SETTING]: {
 			type: 'string',
