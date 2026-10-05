@@ -518,7 +518,10 @@
             },
             "type": "boolean",
             "default": true,
-            "included": true
+            "included": true,
+            "agentHost": {
+                "status": "enforced"
+            }
         },
         {
             "key": "chat.customizations.strictPluginOnlyCustomization",
