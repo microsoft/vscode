@@ -14,6 +14,16 @@ import { IProgressService, Progress } from '../../../../../platform/progress/com
 import { TimelinePane } from '../../browser/timelinePane.js';
 import { ITimelineService, Timeline, TimelineRequest } from '../../common/timeline.js';
 
+interface TestTimelinePane {
+	clear: TimelinePane['clear'];
+	loadTimelineForSource: TimelinePane['loadTimelineForSource'];
+	onProvidersChanged: TimelinePane['onProvidersChanged'];
+	loadMore: TimelinePane['loadMore'];
+	refresh: TimelinePane['refresh'];
+	pendingRequests: TimelinePane['pendingRequests'];
+	timelinesBySource: TimelinePane['timelinesBySource'];
+}
+
 suite('TimelinePane', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const uri = URI.file('/timeline.txt');
@@ -22,7 +32,7 @@ suite('TimelinePane', () => {
 		const results = new Map<string, Promise<Timeline | undefined>>();
 		const requests: TimelineRequest[] = [];
 		let children: Parameters<TimelinePane['tree']['setChildren']>[1] = [];
-		const pane: TimelinePane = Object.assign(Object.create(TimelinePane.prototype), {
+		const pane: TestTimelinePane = Object.assign(Object.create(TimelinePane.prototype), {
 			uri,
 			pendingRequests: new Map(),
 			timelinesBySource: new Map(),
@@ -52,7 +62,7 @@ suite('TimelinePane', () => {
 				},
 			}),
 		});
-		store.add({ dispose: () => pane['clear'](true) });
+		store.add({ dispose: () => pane.clear(true) });
 		return {
 			pane, results, requests,
 			getLoadMore: () => {
@@ -62,13 +72,13 @@ suite('TimelinePane', () => {
 		};
 	}
 
-	async function addPageableProvider(pane: TimelinePane, results: Map<string, Promise<Timeline | undefined>>) {
+	async function addPageableProvider(pane: TestTimelinePane, results: Map<string, Promise<Timeline | undefined>>) {
 		results.set('B', Promise.resolve({
 			source: 'B',
 			items: [{ handle: 'B|first', source: 'B', label: 'First item', timestamp: 1 }],
 			paging: { cursor: 'next' },
 		}));
-		pane['loadTimelineForSource']('B', uri, true);
+		pane.loadTimelineForSource('B', uri, true);
 		await timeout(0);
 	}
 
@@ -77,11 +87,11 @@ suite('TimelinePane', () => {
 		await addPageableProvider(pane, results);
 		const deferred = new DeferredPromise<Timeline | undefined>();
 		results.set('A', deferred.p);
-		pane['loadTimelineForSource']('A', uri, true);
+		pane.loadTimelineForSource('A', uri, true);
 		const removedRequest = requests[requests.length - 1];
 
 		results.delete('A');
-		pane['onProvidersChanged']({ removed: ['A'] });
+		pane.onProvidersChanged({ removed: ['A'] });
 		assert.strictEqual(getLoadMore().loading, false);
 		// The extension host discards results from a disposed provider.
 		await deferred.complete(undefined);
@@ -91,7 +101,7 @@ suite('TimelinePane', () => {
 		assert.strictEqual(loadMore.loading, false);
 		assert.strictEqual(removedRequest.tokenSource.token.isCancellationRequested, true);
 		results.set('B', new DeferredPromise<Timeline | undefined>().p);
-		pane['loadMore'](loadMore);
+		pane.loadMore(loadMore);
 		assert.deepStrictEqual(requests.map(request => [request.source, request.options.cursor]), [['B', undefined], ['A', undefined], ['B', 'next']]);
 	});
 
@@ -101,28 +111,28 @@ suite('TimelinePane', () => {
 			await addPageableProvider(pane, results);
 			const oldResult = new DeferredPromise<Timeline | undefined>();
 			results.set('A', oldResult.p);
-			pane['loadTimelineForSource']('A', uri, true);
-			pane['onProvidersChanged']({ removed: ['A'] });
+			pane.loadTimelineForSource('A', uri, true);
+			pane.onProvidersChanged({ removed: ['A'] });
 
 			const replacementResult = new DeferredPromise<Timeline | undefined>();
 			results.set('A', replacementResult.p);
-			pane['onProvidersChanged']({ added: ['A'] });
+			pane.onProvidersChanged({ added: ['A'] });
 			const replacementRequest = requests[requests.length - 1];
-			pane['refresh']();
+			pane.refresh();
 			await oldResult.complete(hasStaleItems ? {
 				source: 'A', items: [{ handle: 'A|stale', source: 'A', label: 'Stale item', timestamp: 3 }],
 			} : undefined);
 			await timeout(0);
 
-			assert.strictEqual(pane['pendingRequests'].get('A')?.request, replacementRequest);
-			assert.strictEqual(pane['timelinesBySource'].has('A'), false);
+			assert.strictEqual(pane.pendingRequests.get('A')?.request, replacementRequest);
+			assert.strictEqual(pane.timelinesBySource.has('A'), false);
 			assert.strictEqual(getLoadMore().loading, true);
 
 			await replacementResult.complete({
 				source: 'A', items: [{ handle: 'A|replacement', source: 'A', label: 'Replacement item', timestamp: 2 }],
 			});
 			await timeout(0);
-			assert.deepStrictEqual(pane['timelinesBySource'].get('A')?.items.map(item => item.handle), ['A|replacement']);
+			assert.deepStrictEqual(pane.timelinesBySource.get('A')?.items.map(item => item.handle), ['A|replacement']);
 			assert.strictEqual(getLoadMore().loading, false);
 		});
 	}
