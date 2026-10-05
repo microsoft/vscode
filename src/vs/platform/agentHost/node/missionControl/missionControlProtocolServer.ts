@@ -24,7 +24,8 @@ export interface IMissionControlSocket {
 	send(data: string): void;
 	close(): void;
 	on(event: 'message', listener: (data: Buffer | string) => void): void;
-	on(event: 'close' | 'error', listener: () => void): void;
+	on(event: 'close', listener: (code: number) => void): void;
+	on(event: 'error', listener: (error: Error) => void): void;
 }
 
 export interface IMissionControlBootstrap {
@@ -195,8 +196,18 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		url.searchParams.set('access_token', this._bootstrap.access_token);
 		this._socket = this._socketFactory(url.toString(), RELIABLE_JSON_SUBPROTOCOL);
 		this._socket.on('message', data => this._receive(data));
-		this._socket.on('close', () => this.dispose());
-		this._socket.on('error', () => this.dispose());
+		this._socket.on('close', code => {
+			if (!this._closed) {
+				this.dispose();
+				this._onError(new Error(`Mission Control WPS socket closed (code ${code})`));
+			}
+		});
+		this._socket.on('error', error => {
+			if (!this._closed) {
+				this.dispose();
+				this._onError(error);
+			}
+		});
 		this._sweep.cancelAndSet(() => {
 			this._reassembler.sweepExpired();
 			for (const [id, lane] of this._lanes) {

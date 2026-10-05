@@ -163,6 +163,62 @@ suite('Mission Control WPS', () => {
 		});
 	});
 
+	test('reports an unexpected socket close without logging its untrusted reason', async () => {
+		const { key } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const errors: Error[] = [];
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => errors.push(error),
+		));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.emit('close', 1008, Buffer.from('untrusted closure text'));
+		socket.emit('close', 1008, Buffer.from('duplicate'));
+		assert.deepStrictEqual({ closed: socket.closed, errors: errors.map(error => error.message) }, {
+			closed: true, errors: ['Mission Control WPS socket closed (code 1008)'],
+		});
+	});
+
+	test('reports a socket error once', async () => {
+		const { key } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const errors: Error[] = [];
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => errors.push(error),
+		));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		const failure = new Error('Socket connection failed');
+		socket.emit('error', failure);
+		socket.emit('close', 1006);
+		server.dispose();
+		assert.deepStrictEqual({ closed: socket.closed, errors }, { closed: true, errors: [failure] });
+	});
+
+	test('does not report socket events after intentional disposal', async () => {
+		const { key } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const errors: Error[] = [];
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => errors.push(error),
+		));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		server.dispose();
+		socket.emit('close', 1000);
+		socket.emit('error', new Error('After disposal'));
+		assert.deepStrictEqual({ closed: socket.closed, errors }, { closed: true, errors: [] });
+	});
+
 	test('signing-key rotation revokes the removed key without resetting replay protection', () => {
 		const original = signingFixture();
 		const rotated = signingFixture('rotated-key');
@@ -437,6 +493,7 @@ suite('Mission Control WPS', () => {
 		try {
 			const { key } = signingFixture();
 			const sockets: FakeWpsSocket[] = [];
+			const errors: string[] = [];
 			const requests: { path: string; bearer: boolean; body: Record<string, unknown> | undefined }[] = [];
 			const environment = {
 				id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
@@ -457,7 +514,7 @@ suite('Mission Control WPS', () => {
 				name: 'VS Code OSS',
 				fetch: fakeFetch,
 				attach: () => ({ dispose() { } }),
-				onError: () => { throw new Error('Unexpected WPS failure'); },
+				onError: error => errors.push(error instanceof Error ? error.message : String(error)),
 				socketFactory: () => {
 					const socket = new FakeWpsSocket();
 					sockets.push(socket);
@@ -469,7 +526,7 @@ suite('Mission Control WPS', () => {
 			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] };
 			await service.configure(options);
 			await clock.tickAsync(60_000);
-			sockets[0].emit('close');
+			sockets[0].emit('close', 1006);
 			await clock.tickAsync(60_000);
 			const persisted = (JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')) as { id: string }).id;
 			const rebind = await service.configure({ ...options, accountId: 'other' }).then(() => 'accepted', () => 'rejected');
@@ -481,6 +538,7 @@ suite('Mission Control WPS', () => {
 				controlJoined: sockets.flatMap(socket => socket.joins),
 				offline: requests.at(-1)?.body?.status,
 				closed: sockets.every(socket => socket.closed),
+				errors,
 			}, {
 				requests: [
 					['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
@@ -495,6 +553,7 @@ suite('Mission Control WPS', () => {
 				controlJoined: [`${prefix}.control`, `${prefix}.control`],
 				offline: 'offline',
 				closed: true,
+				errors: ['Mission Control WPS socket closed (code 1006)'],
 			});
 			service.dispose();
 		} finally {
@@ -662,7 +721,7 @@ suite('Mission Control WPS', () => {
 				const startup = snapshot();
 				await clock.tickAsync(60_000);
 				const periodic = snapshot();
-				sockets[0].emit('close');
+				sockets[0].emit('close', 1006);
 				await clock.tickAsync(1000);
 				const recovery = snapshot();
 				await service.configure(undefined);
@@ -731,7 +790,7 @@ suite('Mission Control WPS', () => {
 
 		test('relay recovery does not bypass the heartbeat delay for its online update', async () => {
 			await withEnvironment([{ retryAfter: '240' }], async ({ clock, heartbeats, errors, sockets }) => {
-				sockets[0].emit('close');
+				sockets[0].emit('close', 1006);
 				await clock.tickAsync(500);
 				const socketsAfterRecovery = sockets.length;
 				await clock.tickAsync(239_499);
@@ -741,7 +800,7 @@ suite('Mission Control WPS', () => {
 					socketsAfterRecovery: 2,
 					beforeDeadline: 1,
 					heartbeats: [{ time: 0, status: 'online' }, { time: 240_000, status: 'online' }],
-					errors: [],
+					errors: ['Mission Control WPS socket closed (code 1006)'],
 				});
 			});
 		});

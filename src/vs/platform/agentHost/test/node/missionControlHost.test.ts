@@ -30,9 +30,10 @@ suite('Mission Control host integration', () => {
 		['stable', 'Visual Studio Code', 'VS Code'],
 		['insider', 'Visual Studio Code - Insiders', 'VS Code Insiders'],
 		[undefined, 'Code - OSS', 'VS Code OSS'],
+		[undefined, 'Code - OSS Dev', 'VS Code OSS'],
 		['exploration', 'Code - Exploration', 'Code - Exploration'],
 	] as const) {
-		test(`uses the product display name for ${quality ?? 'OSS'}`, () => {
+		test(`uses the product display name for ${nameShort}`, () => {
 			const product = new class extends mock<IProductService>() {
 				override readonly quality = quality;
 				override readonly nameShort = nameShort;

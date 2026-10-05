@@ -42,7 +42,7 @@ export function getMissionControlEnvironmentName(product: IProductService): stri
 	if (product.quality === 'insider') {
 		return 'VS Code Insiders';
 	}
-	return product.nameShort === 'Code - OSS' ? 'VS Code OSS' : product.nameShort;
+	return product.nameShort === 'Code - OSS' || product.nameShort === 'Code - OSS Dev' ? 'VS Code OSS' : product.nameShort;
 }
 
 /** Entry-owned adapter from the native runtime graph to the registration lifecycle. */
