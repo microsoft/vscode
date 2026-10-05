@@ -17,7 +17,7 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
@@ -222,16 +222,35 @@ export function convertProtocolPlanReviewResult(planReview: IAgentHostPlanReview
 	};
 }
 
+function getInputQuestionText(question: ChatInputQuestion): { readonly title: string; readonly message: string } {
+	if (question.title) {
+		return { title: question.title, message: question.message };
+	}
+	const endOfLine = question.message.indexOf('\n');
+	return endOfLine === -1
+		? { title: question.message, message: '' }
+		: { title: question.message.substring(0, endOfLine).trim(), message: question.message.substring(endOfLine + 1).trim() };
+}
+
+/** Wraps Agent Host link targets while preserving labels used for plain-text and accessible question text. */
+function rewriteQuestionMarkdownLinks(markdown: string, connectionAuthority: string): string {
+	return rewriteMarkdownSource(markdown, {
+		rewriteLink: token => {
+			const href = rewriteAgentHostLinkTarget(token.href, connectionAuthority);
+			if (href === token.href) {
+				return undefined;
+			}
+			const prefix = token.type === 'image' ? '![' : '[';
+			return `${prefix}${escapeMarkdownLinkLabel(token.text ?? '')}](${href})`;
+		},
+	});
+}
+
 export function createInputRequestCarousel(inputReq: ChatInputRequest, connectionAuthority: string): ChatQuestionCarouselData {
 	const questions: IChatQuestion[] = (inputReq.questions ?? []).map((question): IChatQuestion => {
-		let title = question.title;
-		let message = question.message;
-		if (!title) {
-			const endOfLine = question.message.indexOf('\n');
-			title = endOfLine === -1 ? question.message : question.message.substring(0, endOfLine).trim();
-			message = endOfLine === -1 ? '' : question.message.substring(endOfLine + 1).trim();
-		}
-		const detailedMessage = new MarkdownString(message, { isTrusted: false });
+		const questionText = getInputQuestionText(question);
+		const title = rewriteQuestionMarkdownLinks(questionText.title, connectionAuthority);
+		const detailedMessage = new MarkdownString(rewriteQuestionMarkdownLinks(questionText.message, connectionAuthority), { isTrusted: false });
 
 		switch (question.kind) {
 			case ChatInputQuestionKind.SingleSelect:
@@ -292,15 +311,17 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 		questions.push({
 			id: 'answer',
 			type: 'text',
-			title: inputReq.message ?? '',
+			title: rewriteQuestionMarkdownLinks(inputReq.message ?? '', connectionAuthority),
 			required: true,
 		});
 	}
 
 	const message = inputReq.message;
+	const firstQuestion = inputReq.questions?.[0];
 	const carouselMessage = message
-		&& message.trim() !== questions[0].title.trim()
-		&& message.trim() !== inputReq.questions?.[0]?.message.trim()
+		&& firstQuestion
+		&& message.trim() !== getInputQuestionText(firstQuestion).title.trim()
+		&& message.trim() !== firstQuestion.message.trim()
 		? rawMarkdownToString(message, connectionAuthority)
 		: undefined;
 	const carousel = new ChatQuestionCarouselData(

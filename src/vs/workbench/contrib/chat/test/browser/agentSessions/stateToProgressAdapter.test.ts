@@ -1882,6 +1882,36 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('rewrites remote file links in retained question text', () => {
+			const message = 'Use [config](file:///workspace/config.json)?';
+			const repeated = createInputRequestCarousel({
+				id: 'repeated',
+				message,
+				questions: [{
+					id: 'q1',
+					kind: ChatInputQuestionKind.Text,
+					message: `${message}\nSee [notes](file:///workspace/notes.md).`,
+					required: true,
+				}],
+			}, 'my-host');
+			const messageOnly = createInputRequestCarousel({ id: 'message-only', message }, 'my-host');
+			const detailedMessage = repeated.questions[0].detailedMessage;
+
+			assert.deepStrictEqual({
+				repeatedMessage: repeated.message,
+				repeatedTitle: repeated.questions[0].title,
+				repeatedDetail: typeof detailedMessage === 'string' ? detailedMessage : detailedMessage?.value,
+				messageOnlyMessage: messageOnly.message,
+				messageOnlyTitle: messageOnly.questions[0].title,
+			}, {
+				repeatedMessage: undefined,
+				repeatedTitle: `Use [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})?`,
+				repeatedDetail: `See [notes](${rewriteAgentHostLinkTarget('file:///workspace/notes.md', 'my-host')}).`,
+				messageOnlyMessage: undefined,
+				messageOnlyTitle: `Use [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})?`,
+			});
+		});
+
 		test('attaches automation result data to live and restored configureAutomation calls', () => {
 			const content: ToolResultContent[] = [{
 				type: ToolResultContentType.Text,
