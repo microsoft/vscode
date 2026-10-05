@@ -161,16 +161,21 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			&& !!provider.setChatWorkingDirectory;
 	}
 
-	canIsolateChat(chat: URI): boolean {
+	/**
+	 * Whether the chat can move into a new worktree. A chat already in a worktree can still move to a worktree of
+	 * a different {@link workspaceFolder}, but a chat with its own isolated worktree only when it replaces the session workspace.
+	 */
+	canIsolateChat(chat: URI, workspaceFolder?: URI): boolean {
 		const parsed = parseChatUri(chat);
 		const state = parsed && this._stateManager.getSessionState(parsed.session);
 		const directories = state?.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories
 			?? (parsed ? this._stateManager.getSessionSummary(parsed.session)?.workingDirectories : undefined);
+		const movesElsewhere = !!workspaceFolder && !!directories?.length && !isEqual(workspaceFolder, URI.parse(directories[0]));
 		return this._canChangeChatWorkspace(chat) && !!state && this._worktreeIsolation.supported
 			&& !readSessionWorkspaceless(state._meta)
-			&& !(state.config?.values[SessionConfigKey.Isolation] === 'worktree'
+			&& !(!movesElsewhere && state.config?.values[SessionConfigKey.Isolation] === 'worktree'
 				&& directories?.[0] === this._stateManager.getSessionSummary(parsed!.session)?.workingDirectories?.[0])
-			&& !this._isolatedChats.has(chat.toString());
+			&& (!this._isolatedChats.has(chat.toString()) || (movesElsewhere && hasSingleUserChat(state.chats)));
 	}
 
 	private _canChangeChatWorkspace(chat: URI): boolean {
@@ -254,8 +259,11 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const state = session ? this._stateManager.getSessionState(session) : undefined;
 		const chatOnly = !!state && !readSessionWorkspaceless(state._meta);
 		if (chatOnly) {
-			if (!this._canChangeChatWorkspace(chat) || (isolation && !this.canIsolateChat(chat))) {
+			if (!this._canChangeChatWorkspace(chat)) {
 				throw new Error(localize('agentHost.chatWorkspaceUnavailable', "This chat's workspace cannot be changed."));
+			}
+			if (isolation && !this.canIsolateChat(chat, workspaceFolder)) {
+				throw new Error(localize('agentHost.chatWorkspaceIsolationUnavailable', "This chat's workspace cannot be changed to a new worktree of {0}. The chat already uses a worktree of it, or worktrees are not available for it.", workspaceFolder.fsPath));
 			}
 			if (workspaceFolder.scheme !== Schemas.file || !workspaceFolder.path.startsWith('/') || workspaceFolder.query || workspaceFolder.fragment) {
 				throw new Error(localize('agentHost.chatWorkspaceInvalid', "Select an existing folder on the chat's host."));
@@ -387,6 +395,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				|| this._providerService.getProviderForSession(session) !== provider
 				|| this._pending.get(chat.toString()) !== pending || this._quarantinedChats.has(chat.toString())
 				|| (!workspaceFinalized && pending.isolation && state.config?.values[SessionConfigKey.Isolation] === 'worktree'
+					&& isEqual(workspaceFolder, pending.previousWorkingDirectory)
 					&& directories?.[0] === this._stateManager.getSessionSummary(session.toString())?.workingDirectories?.[0])
 				|| (pending.replaceSessionWorkspace ? !hasSingleUserChat(state.chats) : !provider.getDescriptor().capabilities?.multipleWorkingDirectories)
 				|| directories?.length !== 1 || !isEqual(URI.parse(directories[0]), expected)
@@ -421,6 +430,13 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		let workspaceMetadata: Readonly<Record<string, string>> | undefined;
 		try {
 			if (pending.replaceSessionWorkspace) {
+				const sessionDirectory = this._stateManager.getSessionSummary(session.toString())?.workingDirectories?.[0];
+				if (pending.isolation && pending.previousWorkingDirectory && sessionDirectory && isEqual(pending.previousWorkingDirectory, URI.parse(sessionDirectory))
+					&& this._stateManager.getSessionState(session.toString())?.config?.values[SessionConfigKey.Isolation] === 'worktree') {
+					// The session's current worktree is kept on disk; the new worktree takes over the session's worktree ownership.
+					await this._worktreeIsolation.retainSessionWorktree(session, AgentSession.id(session));
+					assertWorkspace();
+				}
 				workspace = await this._resolveWorkspace(session, chat, workspaceFolder, pending.isolation, trustRequired, initiatingClientId, pending.prompt, this._stateManager.getSessionState(session.toString())?.config?.values);
 				if (!pending.isolation) {
 					const externalWorktree = await this._worktreeIsolation.resolveExternalWorktreeProject(workspaceFolder);

@@ -1397,6 +1397,37 @@ suite('SessionWorkspaceConversionService', () => {
 		}, { retained: [harness.session.toString()], removed: [], directory: [URI.file('/destination').toString()] });
 	});
 
+	test('workspace tool moves a chat in a session worktree to a new worktree of another folder and retains the old one', async () => {
+		const worktrees = new TestWorktreeIsolation(URI.file('/new-worktree'));
+		const harness = createHarness(worktrees);
+		makeFolderSession(harness);
+		setSessionConfig(harness, { [SessionConfigKey.Isolation]: 'worktree' });
+		const provider: IAgent = harness.agent;
+		provider.setChatWorkingDirectory = async () => { };
+		startTurn(harness.stateManager, harness.chat);
+		const current = URI.parse(harness.stateManager.getSessionSummary(harness.session.toString())!.workingDirectories![0]);
+		const rejectedSameFolder = (() => {
+			try {
+				harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', current, true, 'client-1');
+				return undefined;
+			} catch (error) {
+				return (error as Error).message;
+			}
+		})();
+		harness.service.requestSessionWorkspaceUpdate(harness.chat, 'turn-1', URI.file('/destination'), true, 'client-1');
+		completeTurn(harness.stateManager, harness.chat);
+		await updateSessionWorkspace(harness);
+		assert.deepStrictEqual({
+			rejectedSameFolder,
+			retained: worktrees.retainedSessions, removed: worktrees.removedWorktrees,
+			directory: harness.stateManager.getSessionSummary(harness.session.toString())?.workingDirectories,
+		}, {
+			rejectedSameFolder: `This chat's workspace cannot be changed to a new worktree of ${current.fsPath}. The chat already uses a worktree of it, or worktrees are not available for it.`,
+			retained: [harness.session.toString()], removed: [],
+			directory: [URI.file('/new-worktree').toString()],
+		});
+	});
+
 	test('workspace tool revalidates existing chats and cancels without changing workspace', async () => {
 		const harness = createHarness();
 		makeFolderSession(harness);
