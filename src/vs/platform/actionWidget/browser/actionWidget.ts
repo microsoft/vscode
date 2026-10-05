@@ -61,6 +61,7 @@ export interface IActionWidgetService {
 	 * rebuilding the list.
 	 */
 	focusItemById(itemId: string): void;
+	setFilter(value: string, focusItemId?: string): void;
 
 	hide(didCancel?: boolean): void;
 
@@ -143,6 +144,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 
 	toggleSection(): boolean {
 		return this._list?.value?.toggleFocusedSection() ?? false;
+	}
+
+	setFilter(value: string, focusItemId?: string): void {
+		this._list.value?.setFilter(value, focusItemId);
 	}
 
 	clearFilter(): boolean {
