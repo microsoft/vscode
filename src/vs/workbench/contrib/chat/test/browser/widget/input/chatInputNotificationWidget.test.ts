@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
-import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -17,8 +18,11 @@ import { SyncDescriptor } from '../../../../../../../platform/instantiation/comm
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { ServiceCollection } from '../../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IOpenerService, OpenOptions } from '../../../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotification, IChatInputNotificationBody, IChatInputNotificationContext, IChatInputNotificationModelState, IChatInputNotificationService, matchesModelIdentifier } from '../../../../browser/widget/input/chatInputNotificationService.js';
 import { ChatInputPart } from '../../../../browser/widget/input/chatInputPart.js';
@@ -27,6 +31,7 @@ import { isByokModel } from '../../../../common/chatSelectedModel.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../common/languageModels.js';
 import { localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
+import { getCopilotHarnessIntroductionContent } from '../../../../browser/agentSessions/copilotHarnessIntroduction.js';
 
 class TestCommandService implements ICommandService {
 	declare readonly _serviceBrand: undefined;
@@ -390,6 +395,64 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
+	test('escaped diagnostic text is selectable and support links open with mouse and keyboard', () => {
+		const notificationService = createNotificationService();
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, notificationService);
+		instantiationService.stub(ICommandService, new TestCommandService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		const opened: { link: string; allowCommands: boolean | readonly string[] | undefined }[] = [];
+		instantiationService.stub(IOpenerService, {
+			open: async (link: URI | string, options?: OpenOptions) => {
+				opened.push({ link: link.toString(), allowCommands: options?.allowCommands });
+				return true;
+			},
+		});
+
+		const container = dom.append(document.body, dom.$('.monaco-workbench'));
+		instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
+		store.add(toDisposable(() => container.remove()));
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, undefined));
+		container.appendChild(widget.domNode);
+		const url = 'https://aka.ms/ghcp-sandbox-os-support';
+		const reason = `Update Windows: ${url} [not a command](command:evil) <b>literal</b>`;
+		notificationService.setNotification({
+			id: 'sandbox-diagnostic',
+			severity: ChatInputNotificationSeverity.Warning,
+			message: 'Sandboxing is unavailable in this environment',
+			description: new MarkdownString().appendText('Update Windows: ').appendLink(url, url).appendText(' [not a command](command:evil) <b>literal</b>'),
+			actions: [],
+			dismissible: true,
+			autoDismissOnMessage: false,
+		});
+
+		const title = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-title');
+		const description = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-description');
+		const link = description?.querySelector('a');
+		assert.ok(title && description && link);
+		link.click();
+		link.focus();
+		const focused = document.activeElement === link;
+		link.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const titleStyle = dom.getWindow(title).getComputedStyle(title);
+		const descriptionStyle = dom.getWindow(description).getComputedStyle(description);
+		assert.deepStrictEqual({
+			text: description.textContent?.replace(/\u00a0/g, ' '),
+			links: description.querySelectorAll('a').length,
+			titleSelection: titleStyle.userSelect || titleStyle.getPropertyValue('-webkit-user-select'),
+			descriptionSelection: descriptionStyle.userSelect || descriptionStyle.getPropertyValue('-webkit-user-select'),
+			focused,
+			opened,
+		}, {
+			text: reason,
+			links: 1,
+			titleSelection: 'text',
+			descriptionSelection: 'text',
+			focused: true,
+			opened: [{ link: url, allowCommands: false }, { link: url, allowCommands: false }],
+		});
+	});
+
 	test('auto-dismiss on message only applies to the sending session', () => {
 		const firstSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-1');
 		const secondSession = URI.parse('vscode-chat-session://agent-host-copilotcli/session-2');
@@ -615,11 +678,12 @@ suite('ChatInputNotificationWidget', () => {
 		assert.deepStrictEqual(buttons.map(button => ({
 			label: button.textContent,
 			secondary: button.classList.contains('secondary'),
+			background: button.style.backgroundColor,
 			tabIndex: button.tabIndex,
 			description: button.getAttribute('aria-description'),
 		})), [
-			{ label: 'Open Agents Window', secondary: false, tabIndex: 0, description: null },
-			{ label: 'Ignore', secondary: true, tabIndex: 0, description: 'Don\'t Show Again' },
+			{ label: 'Open Agents Window', secondary: false, background: defaultButtonStyles.buttonBackground, tabIndex: 0, description: null },
+			{ label: 'Ignore', secondary: true, background: '', tabIndex: 0, description: 'Don\'t Show Again' },
 		]);
 		assert.ok(widget.domNode.querySelector('.chat-input-notification-dismiss'));
 	});
@@ -654,41 +718,91 @@ suite('ChatInputNotificationWidget', () => {
 		});
 	});
 
-	test('splits a leading outlined action from trailing feedback actions', () => {
+	for (const leading of [false, true]) {
+		test(`renders ${leading ? 'split' : 'grouped'} filled actions with a header dismiss button`, () => {
+			const { notificationService, widget } = createWidget();
+			showNotification(notificationService, {
+				id: 'feedback',
+				message: 'Copilot preview',
+				actions: [{
+					kind: ChatInputNotificationActionKind.Command,
+					label: 'Learn More',
+					commandId: 'test.learnMore',
+					primary: false,
+					leading,
+					filled: true,
+				}, {
+					kind: ChatInputNotificationActionKind.Command,
+					label: '$(thumbsup) Got it!',
+					ariaLabel: 'Got it!',
+					commandId: 'test.gotIt',
+					primary: true,
+				}],
+			});
+			const actions = widget.domNode.querySelector('.chat-input-notification-actions');
+			const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
+			const dismiss = widget.domNode.querySelector<HTMLElement>('.chat-input-notification-header .chat-input-notification-dismiss');
+			buttons[0].dispatchEvent(new MouseEvent('mouseover'));
+			const hoverBackground = buttons[0].style.backgroundColor;
+			buttons[0].dispatchEvent(new MouseEvent('mouseout'));
+
+			assert.deepStrictEqual({
+				split: actions?.classList.contains('split'),
+				buttons: buttons.map(button => ({
+					label: button.textContent,
+					leading: button.classList.contains('leading'),
+					filled: button.classList.contains('filled'),
+					secondary: button.classList.contains('secondary'),
+					background: button.style.backgroundColor,
+					foreground: button.style.color,
+					ariaLabel: button.ariaLabel,
+					tabIndex: button.tabIndex,
+				})),
+				hoverBackground,
+				dismiss: { ariaLabel: dismiss?.ariaLabel, tabIndex: dismiss?.tabIndex },
+			}, {
+				split: leading,
+				buttons: [
+					{ label: 'Learn More', leading, filled: true, secondary: true, background: defaultButtonStyles.buttonSecondaryBackground, foreground: defaultButtonStyles.buttonSecondaryForeground, ariaLabel: 'Copilot preview Learn More', tabIndex: 0 },
+					{ label: 'Got it!', leading: false, filled: false, secondary: false, background: defaultButtonStyles.buttonBackground, foreground: defaultButtonStyles.buttonForeground, ariaLabel: 'Copilot preview Got it!', tabIndex: 0 },
+				],
+				hoverBackground: defaultButtonStyles.buttonSecondaryHoverBackground,
+				dismiss: { ariaLabel: 'Dismiss notification', tabIndex: 0 },
+			});
+		});
+	}
+
+	test('renders the original feedback layout with a leading outlined action and no header dismiss', () => {
 		const { notificationService, widget } = createWidget();
+		const content = getCopilotHarnessIntroductionContent('current', 'feedback');
 		showNotification(notificationService, {
 			id: 'feedback',
-			message: 'Copilot preview',
-			actions: [{
-				kind: ChatInputNotificationActionKind.Command,
-				label: 'Learn More',
-				commandId: 'test.learnMore',
-				primary: false,
-				leading: true,
-				outlined: true,
-			}, {
-				kind: ChatInputNotificationActionKind.Command,
-				label: '$(thumbsup) Got it!',
-				commandId: 'test.gotIt',
-				primary: true,
-			}],
+			message: content.title,
+			actions: content.actions,
+			dismissible: content.dismissible,
 		});
 		const actions = widget.domNode.querySelector('.chat-input-notification-actions');
-		const buttons = [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')];
-
 		assert.deepStrictEqual({
 			split: actions?.classList.contains('split'),
-			buttons: buttons.map(button => ({
+			compact: actions?.classList.contains('compact'),
+			dismiss: !!widget.domNode.querySelector('.chat-input-notification-dismiss'),
+			buttons: [...widget.domNode.querySelectorAll<HTMLElement>('.chat-input-notification-action-button')].map(button => ({
 				label: button.textContent,
 				leading: button.classList.contains('leading'),
 				outlined: button.classList.contains('outlined'),
-				secondary: button.classList.contains('secondary'),
+				filled: button.classList.contains('filled'),
+				iconOnly: button.classList.contains('icon-only'),
+				ariaLabel: button.ariaLabel,
+				tabIndex: button.tabIndex,
 			})),
 		}, {
 			split: true,
+			compact: true,
+			dismiss: false,
 			buttons: [
-				{ label: 'Learn More', leading: true, outlined: true, secondary: true },
-				{ label: 'Got it!', leading: false, outlined: false, secondary: false },
+				{ label: 'Learn More', leading: true, outlined: true, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Learn More', tabIndex: 0 },
+				{ label: 'Got it!', leading: false, outlined: false, filled: false, iconOnly: false, ariaLabel: 'You\'re using a new Copilot experience Got it!', tabIndex: 0 },
+				{ label: '', leading: false, outlined: false, filled: false, iconOnly: true, ariaLabel: 'You\'re using a new Copilot experience Not Helpful', tabIndex: 0 },
 			],
 		});
 	});

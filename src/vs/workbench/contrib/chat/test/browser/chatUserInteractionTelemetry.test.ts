@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
 import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
@@ -113,18 +114,27 @@ suite('ChatUserInteractionTelemetry', () => {
 			requestPhase: 'first', firstProgressKind: 'text',
 			requestId: 'request-id', chatSessionId: 'agent-host-copilotcli:/session',
 			agent: 'agent-id', agentExtensionId: 'publisher.extension', location: ChatAgentLocation.Chat,
-			model: 'model-id', permissionLevel: ChatPermissionLevel.AutoApprove, chatMode: 'agent',
+			model: new TelemetryTrustedValue('model-id'), permissionLevel: ChatPermissionLevel.AutoApprove, chatMode: 'agent',
 			sessionType: 'agent-host-copilotcli', harness: undefined, windowVisible: true, windowFocused: false,
 		};
 		assert.deepStrictEqual({ events: h.events, logs: h.logs, finished, observing: response.hasListeners() }, {
 			events: [{ name: 'chat.userPerceivedTimeToFirstProgress', data }],
 			logs: [
-				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn' }] },
-				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data }] },
+				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn', epochMs: performance.timeOrigin + 100 }] },
+				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data, epochMs: performance.timeOrigin + 350 }] },
 			],
 			finished: 1, observing: false,
 		});
 		h.assertFinished('success');
+	});
+
+	test('reports only built-in model identifiers as trusted values', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		for (const model of ['model-id', 'user-model', 'missing-model']) {
+			h.createInteraction({ context: { model } }).cancel('queued');
+		}
+		h.createInteraction().cancel('queued');
+		assert.deepStrictEqual(h.events.map(event => event.data.model), [new TelemetryTrustedValue('model-id'), 'unknown', 'unknown', undefined]);
 	});
 
 	for (const [part, kind] of [

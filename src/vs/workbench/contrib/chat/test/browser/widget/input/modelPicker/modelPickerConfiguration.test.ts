@@ -11,7 +11,7 @@ import { IActionWidgetService } from '../../../../../../../../platform/actionWid
 import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
 import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
-import { getModelConfigChoices, IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigChoices, getModelConfigProperty, IModelConfigurationAccess, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 
@@ -156,6 +156,52 @@ function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: R
 suite('ModelPickerConfiguration', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('alias selection is independent of object order and preserves original writes', async () => {
+		const model = createTierModel();
+		const writes: Record<string, unknown>[] = [];
+		const properties = {
+			reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'high'] },
+			autoTier: { type: 'string', group: 'navigation', enum: ['default', 'efficiency', 'balance', 'intelligence', 'fast'] },
+			tier: { type: 'string', group: 'navigation', enum: ['efficiency', 'balance', 'intelligence'] },
+			contextTier: { type: 'string', group: 'tokens', enum: ['default', 'long_context'] },
+			contextSize: { type: 'number', group: 'tokens', enum: [32000, 64000] },
+		} satisfies NonNullable<ILanguageModelConfigurationSchema['properties']>;
+		const snapshots = [];
+		for (const entries of [Object.entries(properties), Object.entries(properties).reverse()]) {
+			const access: IModelConfigurationAccess = {
+				getModelConfigurationSchema: () => ({ properties: Object.fromEntries(entries) }),
+				getModelConfiguration: () => ({ autoTier: 'fast', tier: 'efficiency' }),
+				setModelConfiguration: async (_id, values) => { writes.push(values); },
+				getModelConfigurationActions: () => [],
+			};
+			snapshots.push(['navigation', 'tokens'].map(group => getModelConfigProperty(model, access, group)?.key));
+			await setModelConfigValues(model, access, { tier: 'intelligence' });
+		}
+		assert.deepStrictEqual({ snapshots, writes }, {
+			snapshots: [['tier', 'contextSize'], ['tier', 'contextSize']],
+			writes: [{ tier: 'intelligence' }, { tier: 'intelligence' }],
+		});
+	});
+
+	test('native autoTier keeps fast and omission distinct, without balance or null reset', async () => {
+		const model = createTierModel();
+		const writes: Record<string, unknown>[] = [];
+		let configuration: Record<string, unknown> = {};
+		const access: IModelConfigurationAccess = {
+			getModelConfigurationSchema: () => ({ properties: { autoTier: { type: 'string', group: 'navigation', enum: ['default', 'efficiency', 'balance', 'intelligence', 'fast'] } } }),
+			getModelConfiguration: () => configuration,
+			setModelConfiguration: async (_id, values) => { writes.push(values); configuration = { ...configuration, ...values }; },
+			getModelConfigurationActions: () => [],
+		};
+		const omitted = getModelConfigProperty(model, access, 'navigation')?.value;
+		await setModelConfigValues(model, access, { autoTier: 'fast' });
+		const fast = getModelConfigProperty(model, access, 'navigation')?.value;
+		await setModelConfigValues(model, access, { autoTier: 'default' });
+		assert.deepStrictEqual({ omitted, fast, reset: getModelConfigProperty(model, access, 'navigation')?.value, writes }, {
+			omitted: undefined, fast: 'fast', reset: 'default', writes: [{ autoTier: 'fast' }, { autoTier: 'default' }],
+		});
+	});
 
 	test('choice metadata consistently describes values, descriptions, defaults, selection, and read-only state', () => {
 		assert.deepStrictEqual(getModelConfigChoices({

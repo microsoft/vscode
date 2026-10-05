@@ -8,11 +8,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { readSlashCommandResource, toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
@@ -38,8 +41,104 @@ suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('validates MCP configuration sources and merges them into open metadata', () => {
-		const read = (meta: Record<string, unknown> | undefined) => readMcpServerSource({
+	test('Copilot network restrictions round trip and reject malformed or absent metadata', () => {
+		const restrictions = { sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: [] };
+		const key = 'vscode.copilotSandboxNetworkRestrictions';
+		assert.deepStrictEqual([
+			readToolCallMeta(toolCall(toToolCallMeta({ [key]: restrictions })))[key],
+			readToolCallMeta(toolCall(undefined))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, sandboxEnabled: 'true' } }))[key],
+			readToolCallMeta(toolCall({ [key]: { ...restrictions, deniedDomains: [5] } }))[key],
+		], [restrictions, undefined, undefined, undefined]);
+	});
+
+	test('validates slash command resource metadata', () => {
+		const resource = URI.parse('agenthost-content:///reports/sandbox-policy.md');
+		assert.deepStrictEqual([
+			readSlashCommandResource({ _meta: toSlashCommandResourceMeta(resource, true) }),
+			...[undefined, null, [], {}, { resource: 1, preview: true }, { resource: resource.toString(), preview: 'true' }, { resource: '/reports/policy.md', preview: true }]
+				.map(value => readSlashCommandResource({ _meta: { 'vscode.slashCommandResource': value } })),
+			readSlashCommandResource({}),
+		].map(value => value ? { resource: value.resource.toString(), preview: value.preview } : undefined), [
+			{ resource: resource.toString(), preview: true },
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+			undefined,
+		]);
+	});
+
+	suite('session sandbox policy', () => {
+		const policies = [
+			undefined,
+			{ enabled: false },
+			{ enabled: true, allowBypass: false, allowOutbound: true, allowLocalNetwork: false, allowDevToolAccess: false, sandboxMcpServers: true, sandboxLspServers: true, failClosed: true },
+		];
+
+		test('removes legacy metadata when replacing or clearing the resolved policy', () => {
+			const meta = Object.freeze({
+				unrelated: true,
+				'vscode.sandboxPolicy': { enabled: true, allowOutbound: false },
+				'vscode.resolvedSandboxPolicy': { enabled: true, allowBypass: true },
+			});
+			assert.deepStrictEqual(
+				policies.map(policy => withSessionSandboxPolicy(meta, policy)),
+				policies.map(policy => ({ unrelated: true, 'vscode.resolvedSandboxPolicy': policy })),
+			);
+		});
+
+		test('round trips policies without existing metadata', () => {
+			assert.deepStrictEqual(
+				policies.map(policy => readSessionSandboxPolicy({ _meta: withSessionSandboxPolicy(undefined, policy) })),
+				policies,
+			);
+		});
+	});
+
+	suite('chat input state', () => {
+		test('validates restrictions and optional error fields', () => {
+			const states = [undefined, null, [], {}, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 1, message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', stack: 1 } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', _meta: [] } }];
+			assert.deepStrictEqual(states.map(state => readChatInputState({ _meta: { 'vscode.chatInputState': { chat: state } } }, 'chat')), [
+				undefined, undefined, undefined, undefined, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } }, undefined, undefined, undefined,
+			]);
+		});
+
+		test('clearing one chat preserves its sibling and unrelated metadata', () => {
+			const first = withChatInputState({ _meta: { unrelated: true } }, 'first', { kind: 'checking' });
+			const second = withChatInputState({ _meta: first }, 'second', { kind: 'checking' });
+			assert.deepStrictEqual(withChatInputState({ _meta: second }, 'first', undefined), {
+				unrelated: true, 'vscode.chatInputState': { second: { kind: 'checking' } },
+			});
+		});
+	});
+
+	test('reads bounded session comparison metadata', () => {
+		assert.deepStrictEqual(readSessionComparisonMetadata(withSessionComparisonMetadata(undefined, {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		})), {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		});
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': { id: 'comparison', role: 'attempt', attemptIndex: 3, attemptCount: 3 },
+		}), undefined);
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': {
+				id: 'comparison',
+				role: 'judge',
+				attemptCount: 3,
+			},
+		})?.role, 'judge');
+	});
+
+	test('validates MCP presentation metadata and preserves opaque entries', () => {
+		const server = (meta: Record<string, unknown> | undefined) => ({
 			type: CustomizationType.McpServer,
 			id: 'server',
 			uri: 'mcp-top-level:server',
@@ -48,18 +147,21 @@ suite('Agent host _meta readers', () => {
 			_meta: meta,
 		} satisfies McpServerCustomization);
 		const opaque = { 'test.opaque': 'kept' };
+		const merged = withMcpServerDisplayNameMeta(withMcpServerSourceMeta(opaque, 'user'), ' Mail ');
 
 		assert.deepStrictEqual({
 			sources: [
-				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => read(withMcpServerSourceMeta(undefined, source))),
-				...[undefined, 'unknown', 1, {}, ['user']].map(source => read({ 'agentHost.mcpServerSource': source })),
-				read(undefined),
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
+				readMcpServerSource(server(undefined)),
 			],
-			replaced: withMcpServerSourceMeta(withMcpServerSourceMeta(opaque, 'user'), 'workspace'),
+			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
+			merged,
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
 		}, {
 			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
-			replaced: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' },
+			displayNames: ['Mail', undefined, undefined, undefined],
+			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
 			unchanged: true,
 		});
 	});
@@ -159,6 +261,18 @@ suite('Agent host _meta readers', () => {
 			}, {
 				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
 				invalid: invalid.map(() => empty),
+			});
+		});
+
+		test('round trips the namespaced Fusion description and drops malformed values', () => {
+			assert.deepStrictEqual({
+				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
+				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
+				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+			}, {
+				valid: 'Workflow description.',
+				empty: '',
+				invalid: undefined,
 			});
 		});
 	});

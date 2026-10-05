@@ -16,22 +16,44 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
-### Copilot managed-settings diagnostics cannot return an account snapshot
+### Codex Linux startup races in shared empty workspaces
 
-A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
+Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.
 
-- Test: `managed settings diagnostics expose the provider snapshot`.
-- Scope: Copilot on all platforms, in strict replay.
-- Expected: `getManagedSettingsDiagnostics` returns a provider snapshot with a valid source and an array of managed keys.
-- Observed: the provider reports an error because the bundled runtime SDK does not expose the account-scoped `getManagedSettings()` function.
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
-- Reproduce:
+- Affected coverage: the shared-workspace scenarios in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), including `server tool: list_sessions status filter combines active and archived sessions`.
+- Observed: `CodexMaterializeFailed` with `bwrap: Can't find source path <workspace>/.agents: No such file or directory` while loading workspace instructions.
+- Fixture mitigation: create `.git`, `.agents`, and `.codex` in the disposable workspace before starting any Codex chat on Linux. The directories then belong to the fixture and survive sandbox cleanup. All scenarios, assertions, replay checks, and provider permissions remain enabled and unchanged.
+- Runtime status: the bundled Codex defect remains; this only stabilizes test setup. After an SDK update, remove the setup workaround and repeatedly run the shared-workspace scenarios before considering the gap closed.
+- Platform scope: the [0.153.0 Linux sandbox entry point](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/linux-sandbox/src/lib.rs) compiles bubblewrap and its temporary-mount cleanup only on Linux. [Sandbox selection](https://github.com/openai/codex/blob/rust-v0.153.0/codex-rs/sandboxing/src/manager.rs) routes native macOS to Seatbelt and native Windows to its Windows sandbox; neither uses this cleanup path. Linux execution environments, including remote Linux and WSL2, remain affected regardless of the client's OS. This does not rule out unrelated startup races on other platforms.
+- Reproduce: remove the protected-directory setup in [serverToolsSuite.ts](./suites/serverToolsSuite.ts), then repeatedly run on Linux:
 
   ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "managed settings diagnostics expose the provider snapshot"
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "server tool: list_sessions.*archived"
   ```
+
+### Codex context and model-selection flakes
+
+Responses are correct, but session notifications intermittently differ from the snapshot and the observed model is `gpt-5.3-codex` instead of `gpt-5.6-terra`. Both tests pass on unchanged retries; see [#338152](https://github.com/microsoft/vscode/issues/338152).
+
+- `retains context across consecutive turns`: skipped for Codex on Linux/macOS.
+- `client-selected model is used for the turn`: skipped for Codex on Linux.
+- Gates: `coreSuite.ts`. Remove only these gates to reproduce in strict replay; re-enable after repeated clean runs on affected platforms.
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+  --grep "retains context across consecutive turns|client-selected model is used for the turn"
+```
+
+### Codex changeset aggregation flake on Windows
+
+The session's combined changes sometimes omit edits from one of its two chats, failing `session changeset aggregates provider edits from default and peer chats`. Unchanged retries pass; this does not establish lost files. See [#338153](https://github.com/microsoft/vscode/issues/338153).
+
+- Gate: Codex/Windows only in `changesetSuite.ts`. Remove it to reproduce in strict replay; re-enable after repeated clean Windows runs include both chats' edits.
+
+```bat
+scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
+```
 
 ### Binary writes to client-hosted files are corrupted
 
@@ -543,17 +565,6 @@ A client can synchronize a question's answer while the user edits it, then submi
 - Observed: Claude and Copilot do not forward the selected Banana answer to the model; Codex asks for input again instead of finishing the turn.
 - Gate: `context.runKnownIssueTests`. Explicit final-answer replacement and cancellation remain enabled.
 - Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'input drafts: submitting uses'`.
-
-### Workspace-less sessions cannot offer their workspace attachment tool
-
-A user can start a conversation without a workspace and later ask to attach a project folder. Copilot and Codex support workspace conversion, but the new session does not advertise the `set_workspace` tool, even after completing a normal turn. The agent therefore cannot start the attachment workflow.
-
-- Test: `workspace conversion: a workspaceless session advertises its attachment tool`.
-- Scope: observed on macOS with Copilot and Codex; gated on all platforms. Claude does not support workspace conversion.
-- Expected: the materialized workspace-less session advertises `set_workspace`.
-- Observed: `serverTools` omits the tool; a recording asking Copilot to attach a folder confirms that the model does not have it.
-- Gate: `context.runKnownIssueTests`.
-- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'workspace conversion: a workspaceless session advertises'`.
 
 ### Workspace membership changes are lost after a host restart
 

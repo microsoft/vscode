@@ -6,7 +6,8 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -158,8 +159,8 @@ export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
 	isActive?: boolean;
-	/** Whether a change to this content is worth announcing to screen readers, e.g. a blocking state rather than a rotating phrase. */
-	announce?: boolean;
+	/** Announces changed content immediately for blocking states, or politely for background activity. */
+	announce?: boolean | 'polite';
 	/** Changes when new response activity should be reflected in the generic working phrase. */
 	progressStep?: number;
 	/** Whether prolonged response inactivity should replace the current phrase with the delayed-progress message. */
@@ -273,6 +274,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	readonly onDidChangeEditing = this._onDidChangeEditing.event;
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
+	private readonly _responseDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
@@ -317,28 +319,24 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._register(_model.onDidChangePendingRequests(() => this._onDidChange.fire(null)));
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
+				if (e.replacedRequest) {
+					this.removeRequest(e.replacedRequest.id, e.replacedRequest.response?.id);
+				}
+				const nextRequest = e.index === undefined ? undefined : _model.getRequests()[e.index + 1];
+				const index = nextRequest ? this._items.findIndex(item => isRequestVM(item) && item.id === nextRequest.id) : this._items.length;
+				if (index < 0) {
+					throw new BugIndicatingError('Chat request insertion anchor is missing from the view');
+				}
 				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
-				this._items.push(requestModel);
+				this._items.splice(index, 0, requestModel);
 
 				if (e.request.response) {
-					this.onAddResponse(e.request.response);
+					this.onAddResponse(e.request.response, index + 1);
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
 			} else if (e.kind === 'removeRequest') {
-				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.id === e.requestId);
-				if (requestIdx >= 0) {
-					this._items.splice(requestIdx, 1);
-				}
-
-				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.id === e.responseId);
-				if (typeof responseIdx === 'number' && responseIdx >= 0) {
-					const items = this._items.splice(responseIdx, 1);
-					const item = items[0];
-					if (item instanceof ChatResponseViewModel) {
-						item.dispose();
-					}
-				}
+				this.removeRequest(e.requestId, e.responseId);
 			}
 
 			const modelEventToVmEvent: IChatViewModelChangeEvent =
@@ -350,12 +348,28 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}));
 	}
 
-	private onAddResponse(responseModel: IChatResponseModel) {
-		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this);
-		this._register(response.onDidChange(() => {
+	private removeRequest(requestId: string, responseId: string | undefined): void {
+		const requestIndex = this._items.findIndex(item => isRequestVM(item) && item.id === requestId);
+		if (requestIndex >= 0) {
+			this._items.splice(requestIndex, 1);
+		}
+		if (responseId !== undefined) {
+			const responseIndex = this._items.findIndex(item => isResponseVM(item) && item.id === responseId);
+			if (responseIndex >= 0) {
+				this._items.splice(responseIndex, 1);
+				this._responseDisposables.deleteAndDispose(responseId);
+			}
+		}
+	}
+
+	private onAddResponse(responseModel: IChatResponseModel, index = this._items.length) {
+		const store = new DisposableStore();
+		this._responseDisposables.set(responseModel.id, store);
+		const response = store.add(this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this));
+		store.add(response.onDidChange(() => {
 			return this._onDidChange.fire(null);
 		}));
-		this._items.push(response);
+		this._items.splice(index, 0, response);
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
@@ -415,7 +429,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	override dispose() {
 		super.dispose();
-		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
 		this._items.length = 0;
 	}
 }
@@ -429,7 +442,7 @@ class ChatRequestViewModel implements IChatRequestViewModel {
 	 * An ID that changes when the request should be re-rendered.
 	 */
 	get dataId() {
-		return `${this.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
+		return `${this.id}_${this._model.response?.id}_${this._model.version + (this._model.response?.isComplete ? 1 : 0)}`;
 	}
 
 	get sessionResource() {

@@ -283,7 +283,8 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 			reviewedOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, chat.resource).ownerUri);
 		}
 		const reviewedRefs = new Set([...reviewedOwners].map(owner => buildReviewedRefName(this._sanitizedOwnerId(owner))));
-		const sessionOwnerPrefix = `refs/agents/${this._sanitizedOwnerId(containingSession)}-`;
+		const sessionRefPrefix = `refs/agents/${this._sanitizedOwnerId(containingSession)}`;
+		const sessionOwnerPrefix = `${sessionRefPrefix}-`;
 
 		for (const workingDirectory of workingDirectories) {
 			try {
@@ -293,16 +294,23 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 					continue;
 				}
 
+				let refsToDelete = [...reviewedRefs];
 				if (this._gitService.listRefNamesWithOids) {
-					for (const { ref } of await this._gitService.listRefNamesWithOids(repositoryRootUri, `${sessionOwnerPrefix}*/reviewed`)) {
-						if (ref.startsWith(sessionOwnerPrefix) && ref.endsWith('/reviewed')) {
-							reviewedRefs.add(ref);
-						}
+					try {
+						const existingRefs = await this._gitService.listRefNamesWithOids(repositoryRootUri, `${sessionRefPrefix}*/reviewed`, { throwOnError: true });
+						refsToDelete = existingRefs
+							.filter(({ ref }) => reviewedRefs.has(ref) || ref.startsWith(sessionOwnerPrefix) && ref.endsWith('/reviewed'))
+							.map(({ ref }) => ref);
+					} catch (err) {
+						this._logService.warn(`[AgentHostReview][_disposeSessionData] Git ref enumeration failed; cleanup is limited to known reviewed refs for ${session}`, err);
 					}
 				} else {
 					this._logService.warn(`[AgentHostReview][_disposeSessionData] Git ref enumeration is unavailable; cleanup is limited to known reviewed refs for ${session}`);
 				}
-				await this._gitService.deleteRefs(repositoryRootUri, [...reviewedRefs]);
+				if (refsToDelete.length === 0) {
+					continue;
+				}
+				await this._gitService.deleteRefs(repositoryRootUri, refsToDelete);
 				this._logService.trace(`[AgentHostReview][_disposeSessionData] Deleted reviewed ref for ${session} in working directory ${workingDirectory}`);
 			} catch (err) {
 				this._logService.warn(`[AgentHostReview][_disposeSessionData] Failed to dispose reviewed ref for ${session} in working directory ${workingDirectory}`, err);

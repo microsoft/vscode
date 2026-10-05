@@ -32,12 +32,6 @@
 	}
 }
 
-.chat-logo-motion-eyebrow {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
-	letter-spacing: 0.08em;
-}
-
 .chat-logo-motion-grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -63,11 +57,6 @@
 		font-size: var(--vscode-fontSize-heading3);
 		font-weight: var(--vscode-fontWeight-semiBold);
 	}
-}
-
-.chat-logo-motion-character {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
 }
 
 .chat-logo-motion-stage {
@@ -124,11 +113,6 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.chat-logo-motion-cycle {
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label3);
-}
-
 .chat-logo-motion-footer {
 	margin: var(--vscode-spacing-size200) 0 0;
 	color: var(--vscode-descriptionForeground);
@@ -141,39 +125,6 @@
 
 	.chat-logo-motion-stage {
 		height: 160px;
-	}
-}
-
-.chat-logo-motion-favorites {
-	.chat-logo-motion-grid {
-		grid-template-columns: minmax(0, 1fr);
-	}
-
-	.chat-logo-motion-card {
-		display: grid;
-		grid-template-columns: 112px minmax(0, 1fr);
-		column-gap: var(--vscode-spacing-size240);
-		row-gap: var(--vscode-spacing-size80);
-	}
-
-	.chat-logo-motion-card-header {
-		grid-column: 1 / -1;
-	}
-
-	.chat-logo-motion-stage {
-		grid-column: 1;
-		grid-row: 2 / 6;
-		align-self: center;
-		height: 112px;
-	}
-
-	.chat-logo-motion-description,
-	.chat-logo-motion-samples,
-	.chat-logo-motion-note,
-	.chat-logo-motion-cycle {
-		grid-column: 2;
-		min-height: 0;
-		margin: 0;
 	}
 }
 

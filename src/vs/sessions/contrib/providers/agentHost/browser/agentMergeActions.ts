@@ -22,7 +22,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, SinglePaneChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, DesktopChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
 import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -143,7 +143,7 @@ class AgentMergeContextContribution extends Disposable implements IWorkbenchCont
 		const actionKeys = new Map(agentMergeRepairActions.map(action => [action, AgentMergeSessionActionContexts[action].bindTo(contextKeyService)]));
 		const mergePullRequestKey = AgentMergeSessionMergePullRequestContext.bindTo(contextKeyService);
 		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
-			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastLogged: string | undefined;
 		this._register(autorun(reader => {
 			if (changesEditorTransitionObs.read(reader)

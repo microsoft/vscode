@@ -7,7 +7,9 @@ import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { formatSessionDetails } from '../../browser/sessionDetailsAction.js';
 import { createTestSession } from './sessionsListTestUtils.js';
@@ -17,6 +19,7 @@ suite('Session Details', () => {
 
 	test('lists exact working directories for non-archived user sessions', () => {
 		const localWorkingDirectory = URI.file('/repo.worktrees/feature');
+		const remoteWorkingDirectory = URI.parse('vscode-agent-host://host/c:/Code/repo');
 		const workspace: ISessionWorkspace = {
 			uri: URI.file('/repo'),
 			label: 'repo',
@@ -29,8 +32,8 @@ suite('Session Details', () => {
 					description: undefined,
 				},
 				{
-					root: URI.parse('vscode-agent-host://host/home/user/repo'),
-					workingDirectory: URI.parse('vscode-agent-host://host/home/user/repo'),
+					root: remoteWorkingDirectory,
+					workingDirectory: remoteWorkingDirectory,
 					name: 'remote-repo',
 					description: undefined,
 				},
@@ -48,13 +51,19 @@ suite('Session Details', () => {
 			...createTestSession('Automation').session,
 			isAutomation: constObservable(true),
 		};
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string {
+				assert.strictEqual(resource, remoteWorkingDirectory);
+				return 'C:\\Code\\repo';
+			}
+		};
 
-		assert.strictEqual(formatSessionDetails([working, archived, automation, quickChat]), [
+		assert.strictEqual(formatSessionDetails([working, archived, automation, quickChat], labelService), [
 			'Session Details',
 			'',
 			'Session: Working',
 			`Working directory: ${localWorkingDirectory.fsPath}`,
-			'Working directory: vscode-agent-host://host/home/user/repo',
+			'Working directory: C:\\Code\\repo',
 			'Resource: test-session://working',
 			'',
 			'Session: Quick Chat',
@@ -71,7 +80,7 @@ suite('Session Details', () => {
 			isAutomation: constObservable(true),
 		};
 
-		assert.strictEqual(formatSessionDetails([archived, automation]), [
+		assert.strictEqual(formatSessionDetails([archived, automation], new class extends mock<ILabelService>() { }), [
 			'Session Details',
 			'',
 			'No non-archived user sessions.',

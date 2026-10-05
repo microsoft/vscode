@@ -3,19 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from '@xterm/xterm';
+import type { IDecoration, IDecorationOptions, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../../base/common/platform.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
+import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
@@ -28,6 +32,7 @@ import { registerColors, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_C
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestLifecycleService } from '../../../../../test/common/workbenchTestServices.js';
 import { TestWebglAddon, TestXtermAddonImporter } from './xtermTestUtils.js';
+import { stub } from 'sinon';
 
 registerColors();
 
@@ -52,14 +57,20 @@ export class TestViewDescriptorService implements Partial<IViewDescriptorService
 }
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
+	enableImages: false,
 	fontFamily: 'monospace',
+	fontRendering: 'inherit',
 	fontWeight: 'normal',
 	fontWeightBold: 'normal',
 	gpuAcceleration: 'off',
 	scrollback: 10,
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
-	unicodeVersion: '6'
+	unicodeVersion: '6',
+	shellIntegration: {
+		enabled: true,
+		decorationsEnabled: 'both'
+	}
 };
 
 function listenerCount<T>(emitter: Emitter<T>): number {
@@ -74,6 +85,7 @@ suite('XtermTerminal', () => {
 	let themeService: TestThemeService;
 	let xterm: XtermTerminal;
 	let XTermBaseCtor: typeof Terminal;
+	let capabilityStore: TerminalCapabilityStore;
 	let onWillShutdown: Emitter<unknown>;
 	let lifecycleListenerCountBeforeXterm: number;
 
@@ -105,7 +117,7 @@ suite('XtermTerminal', () => {
 
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		const capabilityStore = store.add(new TerminalCapabilityStore());
+		capabilityStore = store.add(new TerminalCapabilityStore());
 		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
 			cols: 80,
 			rows: 30,
@@ -123,6 +135,250 @@ suite('XtermTerminal', () => {
 	test('should use fallback dimensions of 80x30', () => {
 		strictEqual(xterm.raw.cols, 80);
 		strictEqual(xterm.raw.rows, 30);
+	});
+
+	for (const buffer of ['normal', 'alternate'] as const) {
+		test(`clearBuffer should ${buffer === 'normal' ? 'clear rich and partial command history including scrollback' : 'preserve normal-buffer command history and decorations when clearing the alternate buffer'}`, async () => {
+			class TestTerminal extends XTermBaseCtor {
+				override registerDecoration(options: IDecorationOptions): IDecoration | undefined {
+					const disposeListeners = new Set<() => unknown>();
+					let isDisposed = false;
+					return {
+						marker: options.marker,
+						options,
+						get isDisposed() { return isDisposed; },
+						dispose: () => {
+							isDisposed = true;
+							for (const listener of disposeListeners) {
+								listener();
+							}
+							disposeListeners.clear();
+						},
+						onDispose: (listener: () => unknown) => {
+							disposeListeners.add(listener);
+							return { dispose: () => disposeListeners.delete(listener) };
+						},
+						onRender: (listener: (element: HTMLElement) => unknown) => {
+							listener(document.createElement('div'));
+							return { dispose() { } };
+						}
+					} as unknown as IDecoration;
+				}
+			}
+			capabilityStore = store.add(new TerminalCapabilityStore());
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, TestTerminal, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+			}, undefined));
+			const commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, xterm.raw));
+			const onDidExecuteText = store.add(new Emitter<void>());
+			const partialCommandDetection = store.add(new PartialCommandDetectionCapability(xterm.raw, onDidExecuteText.event));
+			capabilityStore.add(TerminalCapability.CommandDetection, commandDetection);
+			capabilityStore.add(TerminalCapability.PartialCommandDetection, partialCommandDetection);
+
+			xterm.raw.registerMarker(0);
+			commandDetection.handlePromptStart();
+			await write('$ ');
+			commandDetection.handleCommandStart();
+			await write('echo test');
+			commandDetection.handleCommandExecuted();
+			await write('\r\noutput\r\n');
+			commandDetection.handleCommandFinished(0);
+
+			await write('partial');
+			xterm.raw.input('\r');
+			await write('\r\n');
+			await write('line\r\n'.repeat(xterm.raw.rows));
+			commandDetection.handlePromptStart();
+			await write('$ ');
+			commandDetection.handleCommandStart();
+
+			strictEqual(xterm.raw.buffer.active.baseY > 0, true);
+			strictEqual(commandDetection.commands.length, 1);
+			strictEqual(partialCommandDetection.commands.length, 1);
+			const decorations = (xterm.decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
+			const clearedCommandMarkerId = commandDetection.commands[0].marker!.id;
+			strictEqual(decorations.has(clearedCommandMarkerId), true);
+			const invalidatedCommands: ITerminalCommand[] = [];
+			store.add(commandDetection.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+
+			const command = commandDetection.commands[0];
+			const partialMarker = partialCommandDetection.commands[0];
+			const decoration = decorations.get(clearedCommandMarkerId);
+			const normalBufferLines = Array.from({ length: xterm.raw.buffer.normal.length }, (_, i) => xterm.raw.buffer.normal.getLine(i)!.translateToString());
+			const currentCommandStartMarker = commandDetection.currentCommand.commandStartMarker;
+			ok(currentCommandStartMarker);
+			if (buffer === 'alternate') {
+				await write('\x1b[?1049h');
+				await write('alternate output\r\n');
+				strictEqual(xterm.raw.buffer.active.type, 'alternate');
+			}
+
+			xterm.clearBuffer();
+
+			if (buffer === 'alternate') {
+				strictEqual(xterm.raw.buffer.active.cursorY, 0);
+				await write('\x1b[?1049l');
+				strictEqual(xterm.raw.buffer.active.type, 'normal');
+				deepStrictEqual(Array.from({ length: xterm.raw.buffer.normal.length }, (_, i) => xterm.raw.buffer.normal.getLine(i)!.translateToString()), normalBufferLines);
+				strictEqual(commandDetection.commands.length, 1);
+				strictEqual(commandDetection.commands[0], command);
+				strictEqual(partialCommandDetection.commands.length, 1);
+				strictEqual(partialCommandDetection.commands[0], partialMarker);
+				deepStrictEqual(invalidatedCommands, []);
+				strictEqual(command.marker!.isDisposed, false);
+				strictEqual(partialMarker.isDisposed, false);
+				strictEqual(decorations.get(clearedCommandMarkerId), decoration);
+				strictEqual(commandDetection.currentCommand.commandStartMarker, currentCommandStartMarker);
+				return;
+			}
+
+			deepStrictEqual(commandDetection.commands, []);
+			deepStrictEqual(partialCommandDetection.commands, []);
+			deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo test']);
+			strictEqual(decorations.has(clearedCommandMarkerId), false);
+		});
+	}
+
+	suite('fontRendering', () => {
+		async function setTerminalConfiguration(configuration: Partial<ITerminalConfiguration>): Promise<void> {
+			await configurationService.setUserConfiguration('terminal.integrated', {
+				...defaultTerminalConfig,
+				...configuration
+			});
+			configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+				override affectsConfiguration(section: string): boolean {
+					return section.startsWith('terminal.integrated');
+				}
+			});
+		}
+
+		function setFontRendering(fontRendering: ITerminalConfiguration['fontRendering']): Promise<void> {
+			return setTerminalConfiguration({ fontRendering });
+		}
+
+		function attach(terminal: XtermTerminal = xterm): HTMLElement {
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			terminal.attachToElement(container, { enableGpu: false });
+			return container;
+		}
+
+		test('inherits the workbench font policy by default', () => {
+			attach();
+			deepStrictEqual({
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
+
+		test('applies the configured policy when the terminal is opened', async () => {
+			await setFontRendering('grayscale');
+			attach();
+			deepStrictEqual({
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				grayscaleClass: isMacintosh,
+				allowTransparency: false
+			});
+		});
+
+		test('restores the inherited policy when the optional setting is unset', async () => {
+			await setFontRendering('grayscale');
+			attach();
+			const initiallyGrayscale = xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale');
+			await setFontRendering(undefined);
+			deepStrictEqual({
+				initiallyGrayscale,
+				grayscaleClass: xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: xterm.raw.options.allowTransparency
+			}, {
+				initiallyGrayscale: isMacintosh,
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
+
+		test('updates the CSS class and clears glyph bitmaps without changing font options', async () => {
+			attach();
+			const initialOptions = {
+				fontFamily: xterm.raw.options.fontFamily,
+				fontSize: xterm.raw.options.fontSize,
+				fontWeight: xterm.raw.options.fontWeight,
+				theme: xterm.raw.options.theme
+			};
+			const statesAtRedraw: boolean[] = [];
+			const listener = stub(xterm.raw, 'clearTextureAtlas').callsFake(() => {
+				statesAtRedraw.push(xterm.raw.element!.classList.contains('terminal-font-rendering-grayscale'));
+			});
+			store.add(toDisposable(() => listener.restore()));
+			await setFontRendering('grayscale');
+			await setFontRendering('grayscale');
+			await setFontRendering('inherit');
+			deepStrictEqual({
+				statesAtRedraw,
+				allowTransparency: xterm.raw.options.allowTransparency,
+				fontFamily: xterm.raw.options.fontFamily,
+				fontSize: xterm.raw.options.fontSize,
+				fontWeight: xterm.raw.options.fontWeight,
+				theme: xterm.raw.options.theme
+			}, {
+				statesAtRedraw: isMacintosh ? [true, false] : [],
+				allowTransparency: false,
+				...initialOptions
+			});
+		});
+
+		test('keeps transparency controlled by images rather than font rendering', async () => {
+			const transparencyStates: (boolean | undefined)[] = [];
+			for (const enableImages of [false, true]) {
+				for (const fontRendering of ['grayscale', 'inherit'] as const) {
+					await setTerminalConfiguration({ enableImages, fontRendering });
+					transparencyStates.push(xterm.raw.options.allowTransparency);
+				}
+			}
+			deepStrictEqual(transparencyStates, [false, false, true, true]);
+		});
+
+		test('applies configuration changes when a detached terminal is updated', async () => {
+			const terminal = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: store.add(new TerminalCapabilityStore()),
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+				detached: true
+			}, undefined));
+			attach(terminal);
+			await setFontRendering('grayscale');
+			terminal.updateConfig();
+			deepStrictEqual({
+				grayscaleClass: terminal.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: terminal.raw.options.allowTransparency
+			}, {
+				grayscaleClass: isMacintosh,
+				allowTransparency: false
+			});
+			await setFontRendering('inherit');
+			terminal.updateConfig();
+			deepStrictEqual({
+				grayscaleClass: terminal.raw.element!.classList.contains('terminal-font-rendering-grayscale'),
+				allowTransparency: terminal.raw.options.allowTransparency
+			}, {
+				grayscaleClass: false,
+				allowTransparency: false
+			});
+		});
 	});
 
 	test('detached terminals do not register decoration shutdown listeners', () => {

@@ -7,10 +7,11 @@ import {
 	GitHubFragmentError,
 	PullRequestComment,
 	PullRequestInlineComment,
+	PullRequestMergeMethod,
 	PullRequestRef,
 	PullRequestSnapshot,
 } from './githubPullRequestService.js';
-import { GitHubRepositoryRef } from './githubQueryService.js';
+import { GitHubPullRequestLookup, GitHubRepositoryRef } from './githubQueryService.js';
 
 export type GitHubMutationOutcome = 'succeeded' | 'reconciled' | 'indeterminate';
 
@@ -31,16 +32,13 @@ export interface CreatePullRequestOptions {
 	readonly draft: boolean;
 }
 
-export interface CreatedPullRequest {
-	readonly ref: PullRequestRef;
-	readonly id?: string;
-	readonly url: string;
-	readonly createdAt?: string;
+export interface CreatedPullRequest extends GitHubPullRequestLookup {
+	readonly title: string;
 }
 
 export interface EnablePullRequestAutoMergeOptions {
 	readonly pullRequestId: string;
-	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly method: PullRequestMergeMethod;
 }
 
 export interface PullRequestNodeOptions {
@@ -60,8 +58,13 @@ export interface PullRequestReplyAndResolveOptions extends PullRequestReplyOptio
 	readonly resolve: boolean;
 }
 
+/** Only succeeded/reconciled replies are confirmed published; pending and indeterminate replies must not trigger resolution. */
+export type PullRequestReplyResult =
+	| { readonly outcome: 'succeeded' | 'reconciled' | 'pending'; readonly value: PullRequestInlineComment }
+	| { readonly outcome: 'indeterminate'; readonly value?: PullRequestInlineComment };
+
 export interface PullRequestReplyAndResolveResult {
-	readonly reply: PullRequestMutationResult<PullRequestInlineComment>;
+	readonly reply: PullRequestReplyResult;
 	readonly resolved: boolean;
 	readonly resolveError?: GitHubFragmentError;
 }
@@ -146,7 +149,7 @@ export interface PullRequestMergeAuthorization {
 }
 
 export interface PullRequestMergeOptions {
-	readonly method: 'MERGE' | 'SQUASH' | 'REBASE';
+	readonly method: PullRequestMergeMethod;
 	readonly title?: string;
 	readonly message?: string;
 	readonly authorization: PullRequestMergeAuthorization;
@@ -169,7 +172,7 @@ export interface PullRequestMutationApi {
 	disableAutoMerge(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	markReadyForReview(ref: PullRequestRef, options: PullRequestNodeOptions, signal: AbortSignal): Promise<void>;
 	addComment(ref: PullRequestRef, options: PullRequestCommentOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestComment>>;
-	replyToThread(ref: PullRequestRef, options: PullRequestReplyOptions, signal: AbortSignal): Promise<PullRequestMutationResult<PullRequestInlineComment>>;
+	replyToThread(ref: PullRequestRef, options: PullRequestReplyOptions, signal: AbortSignal): Promise<PullRequestReplyResult>;
 	resolveThread(ref: PullRequestRef, threadId: string, signal: AbortSignal): Promise<void>;
 	replyAndResolveThread(ref: PullRequestRef, options: PullRequestReplyAndResolveOptions, signal: AbortSignal): Promise<PullRequestReplyAndResolveResult>;
 	listWorkflowRuns(ref: PullRequestRef, headSha: string, signal: AbortSignal): Promise<readonly GitHubWorkflowRun[]>;

@@ -50,6 +50,7 @@ import { isNumber } from '../../../../../base/common/types.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { LayoutSettings } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { updateTerminalFontRendering } from './terminalFontRendering.js';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -505,6 +506,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.open(container);
 		}
 
+		updateTerminalFontRendering(this.raw, this._terminalConfigurationService.config.fontRendering);
+
 		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
@@ -611,6 +614,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
 		this.raw.options.allowTransparency = config.enableImages;
+		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
 			win32InputMode: config.enableWin32InputMode,
@@ -781,11 +785,20 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	clearBuffer(): void {
+		const isNormalBuffer = this.raw.buffer.active.type === 'normal';
+		// Clearing the alternate buffer leaves the normal buffer's output and markers intact.
+		if (isNormalBuffer) {
+			this._decorationAddon.clearDecorations();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommands();
+			this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommands();
+		}
 		this.raw.clear();
-		// xterm.js does not clear the first prompt, so trigger these to simulate
-		// the prompt being written
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		if (isNormalBuffer) {
+			// xterm.js does not clear the first prompt, so trigger these to simulate
+			// the prompt being written
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 

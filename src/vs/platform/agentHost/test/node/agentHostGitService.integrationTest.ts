@@ -28,7 +28,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { CheckoutBlockedByLocalChangesError, GitRefType } from '../../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -118,6 +119,21 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 
 		assert.strictEqual(await svc!.getCurrentBranchName(directory), undefined);
 		await assert.rejects(() => svc!.getCurrentBranchName(directory, { throwOnError: true }), /not a git repository/);
+	});
+
+	(hasGit ? test : test.skip)('listRefNamesWithOids returns an empty result for a successful strict lookup without matches', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-'));
+		cp.execFileSync('git', ['init', '-q'], { cwd: tmpRoot, stdio: 'pipe' });
+
+		assert.deepStrictEqual(await svc!.listRefNamesWithOids(URI.file(tmpRoot), 'refs/agents/session*/reviewed', { throwOnError: true }), []);
+	});
+
+	(hasGit ? test : test.skip)('listRefNamesWithOids throws on failed strict lookup without changing best-effort callers', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-nongit-'));
+		const directory = URI.file(tmpRoot);
+
+		assert.deepStrictEqual(await svc!.listRefNamesWithOids(directory, 'refs/agents/session*/reviewed'), []);
+		await assert.rejects(() => svc!.listRefNamesWithOids(directory, 'refs/agents/session*/reviewed', { throwOnError: true }), /not a git repository/);
 	});
 
 	(hasGit ? test : test.skip)('reports branch, github remote and clean state for a fresh repo', async () => {
@@ -212,6 +228,31 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
 			name: 'main',
 			startPoint: 'main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+		run('branch', 'release');
+		run('update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
+		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
+			baseBranchName: state?.baseBranchName,
+			defaultBranchName: state?.defaultBranchName,
+			defaultRemoteBranchName: state?.defaultRemoteBranchName,
+		});
+
+		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		// `origin/HEAD` outlives its target when the remote renames its default branch.
+		run('update-ref', '-d', 'refs/remotes/origin/main');
+		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+
+		assert.deepStrictEqual({ detected, configured, dangling }, {
+			detected: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			dangling: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});
 
@@ -513,6 +554,120 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 			.sort();
 
 		assert.deepStrictEqual(treePaths, ['fresh.txt', 'new.txt']);
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree returns the HEAD tree for a clean working tree and the repository empty tree for a clean unborn repo', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		const unbornTree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		await fs.writeFile(join(dir, 'tracked.txt'), 'one\n');
+		run('add', '.');
+		run('-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'init');
+
+		assert.deepStrictEqual({
+			unbornTree,
+			cleanTree: await svc!.captureWorkingTreeAsTree(URI.file(dir)),
+		}, {
+			unbornTree: EMPTY_TREE_OBJECT,
+			cleanTree: run('rev-parse', 'HEAD^{tree}').toString().trim(),
+		});
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree returns the repository-native empty tree for a clean unborn SHA-256 repo', async () => {
+		const dir = mkdtempSync(join(tmpdir(), 'agent-host-diff-sha256-'));
+		tmpRoot = dir;
+		try {
+			cp.execFileSync('git', ['init', '-q', '--object-format=sha256'], { cwd: dir, stdio: 'pipe' });
+		} catch {
+			return; // git predates SHA-256 repositories (added in 2.29)
+		}
+		const expected = cp.execFileSync('git', ['hash-object', '-t', 'tree', '--stdin'], { cwd: dir, input: '', encoding: 'utf8' }).trim();
+
+		assert.deepStrictEqual({ tree: await svc!.captureWorkingTreeAsTree(URI.file(dir)), isSha256: expected.length === 64 }, { tree: expected, isSha256: true });
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree captures working tree content when the index differs from HEAD, including in linked worktrees', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		await fs.writeFile(join(dir, 'staged-then-edited.txt'), 'one\n');
+		await fs.writeFile(join(dir, 'deleted.txt'), 'delete me\n');
+		await fs.writeFile(join(dir, 'untouched.txt'), 'same\n');
+		run('add', '.');
+		run('-c', 'commit.gpgSign=false', 'commit', '-q', '-m', 'init');
+
+		const worktreeRoot = mkdtempSync(join(tmpdir(), 'agent-host-diff-worktree-'));
+		const worktreeDir = join(worktreeRoot, 'linked');
+		run('worktree', 'add', '-q', worktreeDir);
+		await fs.writeFile(join(worktreeDir, 'untouched.txt'), 'linked\n');
+
+		const snapshot = async (repo: string) => {
+			const tree = await svc!.captureWorkingTreeAsTree(URI.file(repo));
+			assert.ok(tree, 'expected tree object');
+			const paths = cp.execFileSync('git', ['ls-tree', '-r', '--name-only', tree], { cwd: repo, encoding: 'utf8' }).trim().split(/\r?\n/g).filter(Boolean).sort();
+			return Object.fromEntries(paths.map(p => [p, cp.execFileSync('git', ['show', `${tree}:${p}`], { cwd: repo, encoding: 'utf8' })]));
+		};
+		try {
+			// Statuses restaged onto a copy of the index: MM, AM, ' D', and untracked.
+			await fs.writeFile(join(dir, 'staged-then-edited.txt'), 'two\n');
+			run('add', 'staged-then-edited.txt');
+			await fs.writeFile(join(dir, 'staged-then-edited.txt'), 'three\n');
+			await fs.writeFile(join(dir, 'staged-new.txt'), 'staged\n');
+			run('add', 'staged-new.txt');
+			await fs.writeFile(join(dir, 'staged-new.txt'), 'edited\n');
+			await fs.rm(join(dir, 'deleted.txt'));
+			await fs.writeFile(join(dir, 'untracked.txt'), 'new\n');
+			const indexCopy = await snapshot(dir);
+			const linked = await snapshot(worktreeDir);
+
+			// Statuses that fall back to seeding from HEAD: 'D ' kept on disk and AD.
+			run('rm', '-q', '--cached', 'untouched.txt');
+			await fs.writeFile(join(dir, 'added-then-removed.txt'), 'gone\n');
+			run('add', 'added-then-removed.txt');
+			await fs.rm(join(dir, 'added-then-removed.txt'));
+			const fallback = await snapshot(dir);
+
+			assert.deepStrictEqual({ indexCopy, linked, fallback }, {
+				indexCopy: { 'staged-new.txt': 'edited\n', 'staged-then-edited.txt': 'three\n', 'untouched.txt': 'same\n', 'untracked.txt': 'new\n' },
+				linked: { 'deleted.txt': 'delete me\n', 'staged-then-edited.txt': 'one\n', 'untouched.txt': 'linked\n' },
+				fallback: { 'staged-new.txt': 'edited\n', 'staged-then-edited.txt': 'three\n', 'untouched.txt': 'same\n', 'untracked.txt': 'new\n' },
+			});
+		} finally {
+			run('worktree', 'remove', '--force', worktreeDir);
+			await rmDirWithRetry(worktreeRoot);
+		}
+	});
+
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree captures racily clean same-size edits without changing the real index', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		run('config', 'core.checkStat', 'minimal');
+		run('config', 'core.trustctime', 'false');
+		const trackedFile = join(dir, 'tracked.txt');
+		const indexFile = join(dir, '.git', 'index');
+		const timestamp = new Date('2000-01-01T00:00:00.000Z');
+		await fs.writeFile(trackedFile, 'one\n');
+		await fs.utimes(trackedFile, timestamp, timestamp);
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+
+		// Matching file/index timestamps force Git's racy-clean content check without sleeps.
+		await fs.writeFile(trackedFile, 'two\n');
+		await fs.utimes(trackedFile, timestamp, timestamp);
+		await fs.utimes(indexFile, timestamp, timestamp);
+		const indexBefore = await fs.readFile(indexFile);
+		assert.strictEqual(run('--no-optional-locks', 'status', '--porcelain=v1').toString(), ' M tracked.txt\n');
+
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree, 'expected a working-tree snapshot');
+		assert.deepStrictEqual({
+			content: run('show', `${tree}:tracked.txt`).toString(),
+			indexUnchanged: indexBefore.equals(await fs.readFile(indexFile)),
+			indexMtime: (await fs.stat(indexFile)).mtime.toISOString(),
+		}, {
+			content: 'two\n',
+			indexUnchanged: true,
+			indexMtime: timestamp.toISOString(),
+		});
 	});
 
 	(hasGit ? test : test.skip)('computes bounded per-file patches from an immutable working-tree snapshot', async () => {
@@ -971,6 +1126,65 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
+	(hasGit ? test : test.skip)('fetch updates the selected remote branch with a narrowed fetch refspec', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+		const remotePath = join(dir, 'remote.git');
+		const remoteName = 'team/origin';
+		const publisherPath = join(dir, 'publisher');
+		cp.execFileSync('git', ['init', '--bare', '-q', remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['remote', 'add', remoteName, remotePath], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['branch', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', remoteName, 'main', 'release'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['fetch', '-q', remoteName, `refs/heads/main:refs/remotes/${remoteName}/main`], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['config', '--replace-all', `remote.${remoteName}.fetch`, `+refs/heads/release:refs/remotes/${remoteName}/release`], { cwd: dir, env, stdio: 'pipe' });
+		const staleRemoteCommit = cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim();
+
+		cp.execFileSync('git', ['clone', '-q', '--branch', 'main', remotePath, publisherPath], { cwd: dir, env, stdio: 'pipe' });
+		await fs.writeFile(join(publisherPath, 'remote-latest.txt'), 'latest');
+		cp.execFileSync('git', ['add', 'remote-latest.txt'], { cwd: publisherPath, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'remote latest'], { cwd: publisherPath, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['push', '-q', 'origin', 'main'], { cwd: publisherPath, env, stdio: 'pipe' });
+		const latestRemoteCommit = cp.execFileSync('git', ['--git-dir', remotePath, 'rev-parse', 'refs/heads/main'], { cwd: dir, env, encoding: 'utf8' }).trim();
+		const branch = await svc!.getBranch(URI.file(dir), `${remoteName}/main`);
+		if (branch?.kind !== GitRefType.RemoteHead) {
+			throw new Error(`Expected ${remoteName}/main to resolve to a remote branch`);
+		}
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.fetch(URI.file(dir), branch);
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: `${remoteName}/main`,
+				newBranchName: 'agents/test-remote-start-point',
+				track: false,
+			});
+
+			assert.deepStrictEqual({
+				resolvedBranch: branch,
+				remoteWasAhead: staleRemoteCommit !== latestRemoteCommit,
+				fetchedRemoteCommit: cp.execFileSync('git', ['rev-parse', `${remoteName}/main`], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				worktreeCommit: cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: wtPath, env, encoding: 'utf8' }).trim(),
+				hasLatestFile: existsSync(join(wtPath, 'remote-latest.txt')),
+			}, {
+				resolvedBranch: {
+					ref: `refs/remotes/${remoteName}/main`,
+					name: `${remoteName}/main`,
+					remote: remoteName,
+					kind: GitRefType.RemoteHead,
+				},
+				remoteWasAhead: true,
+				fetchedRemoteCommit: latestRemoteCommit,
+				worktreeCommit: latestRemoteCommit,
+				hasLatestFile: true,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+		}
+	});
+
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -1078,10 +1292,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	// Residual case of #329982: git can de-register a worktree (drop its
-	// `.git/worktrees/<id>` admin entry) while its directory still remains on
-	// disk. A later removal must still succeed because git no longer tracks the path.
-	(hasGit ? test : test.skip)('removeWorktree succeeds when git no longer tracks a still-present worktree directory', async () => {
+	// Residual case of #329982: git can de-register a worktree while leaving its directory behind.
+	(hasGit ? test : test.skip)('removeWorktree deletes a de-registered residual directory only when forced', async () => {
 		const dir = initRepo();
 		const suffix = `wt-orphan-${Date.now()}`;
 		const wtPath = join(dir, '..', suffix);
@@ -1107,8 +1319,24 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 				stillRegistered: false,
 			});
 
-			// Removal must treat an already-de-registered worktree as success.
+			let unforcedRemovalFailed = false;
+			try {
+				await svc!.removeWorktree(URI.file(dir), URI.file(wtPath));
+			} catch {
+				unforcedRemovalFailed = true;
+			}
+			const existsAfterUnforcedRemoval = existsSync(wtPath);
 			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true });
+
+			assert.deepStrictEqual({
+				unforcedRemovalFailed,
+				existsAfterUnforcedRemoval,
+				existsAfterForcedRemoval: existsSync(wtPath),
+			}, {
+				unforcedRemovalFailed: true,
+				existsAfterUnforcedRemoval: true,
+				existsAfterForcedRemoval: false,
+			});
 		} finally {
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/orphan-worktree'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
@@ -1242,6 +1470,92 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
 			await rmDirWithRetry(wtPath);
 			try { cp.execFileSync('git', ['branch', '-D', 'agents/include-files'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
+		}
+	});
+
+	(hasGit ? test : test.skip)('symlinkWorktreeFolders symlinks only matching wholly-ignored folders', async () => {
+		const dir = initRepo();
+		const fs = await import('fs/promises');
+
+		await fs.writeFile(join(dir, '.gitignore'), 'node_modules/\ncache/\n.cache/\nshared/\ntracked-cache/\npartial-cache/*\n!partial-cache/keep/\n!partial-cache/keep/data\n');
+		await fs.mkdir(join(dir, 'node_modules', 'a'), { recursive: true });
+		await fs.writeFile(join(dir, 'node_modules', 'a', 'index.js'), 'module');
+		await fs.mkdir(join(dir, 'packages', 'a', 'cache'), { recursive: true });
+		await fs.writeFile(join(dir, 'packages', 'a', 'cache', 'data'), 'cache');
+		await fs.mkdir(join(dir, 'generated'), { recursive: true });
+		await fs.writeFile(join(dir, 'generated', 'data'), 'generated');
+		await fs.mkdir(join(dir, 'shared'), { recursive: true });
+		await fs.writeFile(join(dir, 'shared', 'data'), 'shared');
+		await fs.mkdir(join(dir, '.cache', 'deps'), { recursive: true });
+		await fs.writeFile(join(dir, '.cache', 'deps', 'package'), 'dependency');
+		await fs.writeFile(join(dir, '.cache', 'config.json'), 'config');
+		await fs.mkdir(join(dir, 'tracked-cache'), { recursive: true });
+		await fs.writeFile(join(dir, 'tracked-cache', 'tracked'), 'tracked');
+		await fs.writeFile(join(dir, 'tracked-cache', 'ignored'), 'ignored');
+		await fs.mkdir(join(dir, 'partial-cache', 'drop'), { recursive: true });
+		await fs.writeFile(join(dir, 'partial-cache', 'drop', 'data'), 'drop');
+		await fs.mkdir(join(dir, 'partial-cache', 'keep'), { recursive: true });
+		await fs.writeFile(join(dir, 'partial-cache', 'keep', 'data'), 'keep');
+		cp.execFileSync('git', ['add', '.gitignore'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['add', '-f', 'tracked-cache/tracked'], { cwd: dir, env, stdio: 'pipe' });
+		cp.execFileSync('git', ['commit', '-q', '-m', 'add ignore rules'], { cwd: dir, env, stdio: 'pipe' });
+
+		const wtPath = join(dir, '..', `wt-${Date.now()}`);
+		try {
+			await svc!.addWorktree(URI.file(dir), {
+				path: URI.file(wtPath),
+				commitish: 'main',
+				newBranchName: 'agents/symlink-folders',
+				track: false,
+			});
+			const symlinkedFolders = await svc!.symlinkWorktreeFolders(URI.file(dir), URI.file(wtPath), [
+				'node_modules/**',
+				'packages/**',
+				'.cache/deps/**',
+				'generated/**',
+				'shared/**',
+				'tracked-cache/**',
+				'partial-cache/**',
+			], 'symlink-folders-session');
+			await svc!.copyWorktreeIncludeFiles(URI.file(dir), URI.file(wtPath), ['shared/**', '.cache/**'], 'symlink-folders-include-session', undefined, symlinkedFolders);
+
+			const nodeModules = join(wtPath, 'node_modules');
+			const packageCache = join(wtPath, 'packages', 'a', 'cache');
+			const shared = join(wtPath, 'shared');
+			const nestedCache = join(wtPath, '.cache', 'deps');
+			assert.deepStrictEqual({
+				nodeModulesIsSymlink: (await fs.lstat(nodeModules)).isSymbolicLink(),
+				nodeModulesTarget: await fs.realpath(nodeModules),
+				packageCacheIsSymlink: (await fs.lstat(packageCache)).isSymbolicLink(),
+				packageCacheTarget: await fs.realpath(packageCache),
+				nestedCacheIsSymlink: (await fs.lstat(nestedCache)).isSymbolicLink(),
+				nestedCacheTarget: await fs.realpath(nestedCache),
+				cacheConfig: await fs.readFile(join(wtPath, '.cache', 'config.json'), 'utf8'),
+				sharedIsSymlinkAfterIncludeCopy: (await fs.lstat(shared)).isSymbolicLink(),
+				generatedExists: existsSync(join(wtPath, 'generated')),
+				trackedCacheIsSymlink: (await fs.lstat(join(wtPath, 'tracked-cache'))).isSymbolicLink(),
+				partialCacheIsSymlink: (await fs.lstat(join(wtPath, 'partial-cache'))).isSymbolicLink(),
+				partialCacheDropIsSymlink: (await fs.lstat(join(wtPath, 'partial-cache', 'drop'))).isSymbolicLink(),
+				partialCacheKeepExists: existsSync(join(wtPath, 'partial-cache', 'keep')),
+			}, {
+				nodeModulesIsSymlink: true,
+				nodeModulesTarget: await fs.realpath(join(dir, 'node_modules')),
+				packageCacheIsSymlink: true,
+				packageCacheTarget: await fs.realpath(join(dir, 'packages', 'a', 'cache')),
+				nestedCacheIsSymlink: true,
+				nestedCacheTarget: await fs.realpath(join(dir, '.cache', 'deps')),
+				cacheConfig: 'config',
+				sharedIsSymlinkAfterIncludeCopy: true,
+				generatedExists: false,
+				trackedCacheIsSymlink: false,
+				partialCacheIsSymlink: false,
+				partialCacheDropIsSymlink: true,
+				partialCacheKeepExists: false,
+			});
+		} finally {
+			try { await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true }); } catch { /* best-effort cleanup */ }
+			await rmDirWithRetry(wtPath);
+			try { cp.execFileSync('git', ['branch', '-D', 'agents/symlink-folders'], { cwd: dir, env, stdio: 'ignore' }); } catch { /* best-effort cleanup */ }
 		}
 	});
 
@@ -1441,8 +1755,8 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 		const { dir } = await initRepoWithFiles({ 'a.txt': 'a-v1\n', 'b.txt': 'b-v1\n' });
 		const base = headTree(dir);
 
-		// Working tree modifies a.txt only; capture it as the source tree.
-		await fs.writeFile(join(dir, 'a.txt'), 'a-v2\n');
+		// Change the size too so Git detects the edit even when filesystem timestamps collide.
+		await fs.writeFile(join(dir, 'a.txt'), 'a-v2-modified\n');
 		const source = await svc!.captureWorkingTreeAsTree(URI.file(dir));
 		assert.ok(source, 'expected a working-tree snapshot');
 
@@ -1457,7 +1771,7 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 			},
 			{
 				files: ['a.txt', 'b.txt'],
-				aContent: 'a-v2\n', // overlaid from the source tree
+				aContent: 'a-v2-modified\n', // overlaid from the source tree
 				bContent: 'b-v1\n', // copied verbatim from the base tree
 			});
 	});

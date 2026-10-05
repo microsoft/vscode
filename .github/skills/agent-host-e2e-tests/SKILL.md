@@ -11,28 +11,41 @@ These tests run the whole agent host end-to-end (real server, real bundled provi
 
 It documents the mental model, the fixture format, every config flag, and a symptom→cause→fix troubleshooting table. This skill is only the *workflows*; the README is the source of truth for *how it works*.
 
-## Non-negotiable rules
+When validating an upstream provider/runtime fix, use [ci-artifact-testing](../ci-artifact-testing/SKILL.md) to check for a compatible CI artifact before building locally. Run the same strict replay against the bundled baseline and candidate; preserve the test assertions and existing cross-platform validation requirements.
 
-1. **Replay is default and strict.** No env var → serves committed fixtures, no token, no network. An unrecorded request is a hard cache miss that fails the run.
-2. **A model-backed fixture's filename is derived from the test title** (`${provider}-${slug}.yaml`). Renaming such a test orphans its fixture — re-record after any rename. Tests explicitly registered with `hostOnlyTest(...)` share `captures/empty.yaml`.
-3. **Recording needs a real token** (`GITHUB_TOKEN` or `gh auth token`) and talks to real CAPI. Only run it intentionally, with trivial/read-only prompts in temp dirs.
-4. **Never hand-write or hand-edit fixture contents** (especially not secrets/paths). Fixtures are always produced by recording; normalization/redaction is the proxy's job.
-5. **Gate, don't fight.** If a behavior can't replay deterministically, gate the test (see Workflow C) instead of loosening timeouts or the strict check.
-6. **Track every disabled variant.** Keep `e2e/KNOWN_ISSUES.md` current with the test title, scope, expected and observed behavior, and a focused reproduction command. For suspected product bugs, begin with a self-contained explanation in complete sentences of what the user is trying to do, what fails, and the likely user impact; define feature-specific terms instead of relying on test names or implementation details. Record symptoms, not speculative root causes.
-7. **Always verify new end-to-end tests in Azure DevOps.** Every new Agent Host E2E or real-provider integration test must pass a focused build from VS Code pipeline definition `111` before merge. Local runs and GitHub pull-request CI are useful signals, but neither substitutes for the Azure build because its packaged Electron path and runner environments differ.
+## Core invariants
 
-## Workflow A — Add a cross-provider test
+1. **Replay is default and strict.** No env var serves committed fixtures without a token or network. An unrecorded request is a hard cache miss.
+2. **Fixture names derive from test titles.** Renaming a model-backed test orphans `${provider}-${slug}.yaml`; re-record after a rename. Tests explicitly registered with `hostOnlyTest(...)` share `captures/empty.yaml`.
+3. **Recording is intentional and credentialed.** `AGENT_HOST_REPLAY_RECORD=1` talks to real CAPI and needs `GITHUB_TOKEN` or `gh auth token`. Keep prompts trivial and read-only in temporary directories.
+4. **Fixtures are generated, never hand-edited.** Fix normalization or redaction and re-record if a capture contains unstable or sensitive data.
+5. **Disabled variants stay accountable.** Record every gate in `e2e/KNOWN_ISSUES.md` with its scope, expected and observed behavior, and focused reproduction command.
+6. **Azure validation is required.** Every new Agent Host E2E or real-provider integration test must pass a focused build from VS Code pipeline definition `111` before merge.
 
-1. Add a test to the closest module under `e2e/suites/`, or create and register a focused suite module when the behavior is distinct. Use `hostOnlyTest(context, ...)` when crossing the model boundary would be a bug; otherwise use `test(...)`. Drive turns with `dispatchTurn(...)` + `context.client.waitForNotification(...)`; assert on AHP notifications, never on wall-clock timing.
-2. Keep the prompt minimal and deterministic (fewer model turns → smaller, more robust fixtures).
-3. Record fixtures for every enabled provider (Workflow B). Host-only tests need no per-test recording: the shared empty fixture remains strict and fails on any model request.
-4. **Review the diff** (Workflow B step 3), then run the test in plain replay mode to confirm it's green, then commit the test + fixtures together.
-5. Run the full deterministic suite and coverage workflow described in the E2E README.
-6. Open or update a draft PR, then complete the cross-platform Azure validation in Workflow D before considering the tests ready to merge.
+## Basic workflow: write and evaluate an E2E test
 
-Provider-specific assertions go in that provider's `*.integrationTest.ts` after the `defineAgentHostE2ETests(config)` call.
+1. **Choose the boundary and tier.** Put provider-invariant AHP behavior in conformance, provider behavior in parity, and use `providerHostOnlyTest(...)` only when provider-specific behavior must not cross the model boundary.
+2. **Add the test to the closest suite.** Create and register a focused suite module only when the behavior is distinct. Keep provider-specific assertions in the provider's `*.integrationTest.ts`.
+3. **Implement the smallest deterministic scenario.** Keep prompts minimal, drive behavior over AHP, wait for the exact prerequisite and completion states, and drain every model-backed turn.
+4. **Assert the contract's primary observable result.** Check the real protocol result or external side effect; snapshot additional traffic only when ordering, routing, or lifecycle is part of the contract.
+5. **Record every enabled provider fixture.** Host-only tests use the shared strict empty fixture. Follow the recording workflow below for model-backed tests.
+6. **Review generated artifacts.** Check fixture and snapshot diffs for the intended behavior, normalized paths, no credentials or usernames, and no unintended model or request changes.
+7. **Evaluate locally.** Run the focused test in strict replay, run adjacent tests when helpers or shared state changed, repeat timing- or lifecycle-sensitive scenarios, then run the full deterministic suite and required coverage, type-check, hygiene, and layer checks from the E2E README.
+8. **Evaluate in CI.** Open or update a draft PR and complete the cross-platform Azure validation below. Timing, process-lifecycle, filesystem-watching, reconnect, restart, and worktree tests require two clean executions on every supported platform.
 
-## Workflow B — Record / re-record fixtures
+## General best practices and mistakes to avoid
+
+Keep this section curated. Add or refine a principle only when root-cause analysis reveals a pattern likely to improve other tests; keep failure-specific commands, logs, and mechanics in the E2E README or investigation report.
+
+- **Wait for the contract state, not a proxy.** Existence, discovery, or an emitted intermediate action may not mean a dependency is operational. For example, wait for the target chat's MCP server to report `Ready`, not merely for its plugin child to appear.
+- **Assert primary outcomes before secondary effects.** A hook, notification, assistant response, or persisted record can be downstream of the behavior under test. First prove the actual tool result or external side effect succeeded.
+- **Do not confuse replay success with execution success.** Replay controls model traffic; live tools, MCP servers, hooks, commands, and filesystem operations can still fail. Recorded assistant text is not an oracle for those operations.
+- **Synchronize on observable state, never elapsed time.** Use protocol notifications or exact state polling instead of sleeps, timeout increases, or existence-only checks.
+- **Respect scope and lifecycle.** Readiness can belong to a specific chat, session, provider process, or workspace. Materialize and observe the same scope the operation will use, drain work before teardown, and clean up owned resources.
+- **Centralize recurring lifecycle barriers.** If several tests need the same multi-step prerequisite, encode it in a shared helper so tests cannot choose a weaker intermediate condition.
+- **Gate genuine nondeterminism narrowly.** Use record-only or provider/platform gates only for behavior that cannot replay deterministically or is unsupported; never use a gate to hide an unexplained failure.
+
+## Record or re-record fixtures
 
 Re-record when you add a test, or when a bundled SDK/CLI bump changes its wire behavior (new endpoint, different turn count, changed tool schema).
 
@@ -48,7 +61,7 @@ Re-record when you add a test, or when a bundled SDK/CLI bump changes its wire b
 
 If an SDK now hits a new **ancillary/bootstrap** endpoint (a probe, not a real model turn), add it to `capiStubs.ts` (served, not recorded) instead of recording it — see how `/models/session` is handled.
 
-## Workflow C — When a test can't replay deterministically
+## Gate a variant that cannot replay deterministically
 
 Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell tools, `pwd`, git worktrees) don't replay reliably. Gate them precisely so you keep coverage where it works:
 
@@ -59,7 +72,7 @@ Real-time streaming, mid-turn aborts, and POSIX-specific local execution (shell 
 
 Always add a comment explaining *why* the gate exists. Also add or update the corresponding entry in `e2e/KNOWN_ISSUES.md`. When the variant is enabled again, remove or update the entry in the same change.
 
-## Workflow D — Cross-platform Azure validation
+## Cross-platform Azure validation
 
 New Agent Host E2E and real-provider integration tests are not ready to merge after local or GitHub pull-request CI alone. Push the branch, open or update a draft PR, then use the `azure-pipelines` skill to validate the real packaged Electron integration-test path.
 
@@ -69,8 +82,6 @@ New Agent Host E2E and real-provider integration tests are not ready to merge af
 4. Rerun an apparently unrelated or pre-existing failure in isolation before attributing it to the PR.
 5. After a platform-specific fix, rerun at least that platform. Rerun all three platforms when the fix can affect shared behavior, provider fixtures, process lifecycle, or cross-platform paths.
 6. Cancel obsolete builds after pushing a replacement commit.
-
-For additions involving timing, filesystem watching, process lifecycle, worktrees, reconnect/restart, or other known flake surfaces, require **two clean executions of every new test on each supported platform** before merge. A full three-platform build plus a targeted second build is sufficient when the second build runs the relevant tests on all affected platforms.
 
 ## Verifying & troubleshooting
 

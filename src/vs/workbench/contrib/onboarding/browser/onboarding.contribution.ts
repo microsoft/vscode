@@ -39,7 +39,7 @@ function buildDeveloperModeConfigurationNode(): IConfigurationNode {
 	const defaultValue: IStringDictionary<boolean> = {};
 	const variationProperties: IStringDictionary<IConfigurationPropertySchema> = {};
 	const variationDefaultValue: IStringDictionary<string> = {};
-	for (const scenario of [...onboardingScenarioRegistry.getScenarios()].sort((a, b) => a.id.localeCompare(b.id))) {
+	for (const scenario of [...onboardingScenarioRegistry.getScenarioDescriptors()].sort((a, b) => a.id.localeCompare(b.id))) {
 		if (scenario.tryout) {
 			continue;
 		}

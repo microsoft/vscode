@@ -147,7 +147,7 @@ class ToolsEmptyRowRenderer implements IListRenderer<IToolsEmptyRowEntry, HTMLEl
 
 interface IToolsSetRowTemplateData {
 	readonly container: HTMLElement;
-	readonly checkbox: CustomizationToggle;
+	readonly toggle: CustomizationToggle;
 	readonly label: HighlightedLabel;
 	readonly subtext: HTMLElement;
 	readonly count: HTMLElement;
@@ -159,7 +159,7 @@ interface IToolsSetRowTemplateData {
 	currentSetId: string | undefined;
 }
 
-/** Renders a tool-set header row: checkbox/tri-state, name + detail, enabled count, more actions, chevron. */
+/** Renders a tool-set header row: toggle, name + detail, enabled count, more actions, chevron. */
 class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetRowTemplateData> {
 	readonly templateId = TOOLS_SET_ROW_TEMPLATE_ID;
 	private readonly _templates = new Set<IToolsSetRowTemplateData>();
@@ -179,10 +179,10 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		container.classList.add('tools-list-setrow');
 		const templateDisposables = new DisposableStore();
 
-		const checkbox = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false, triState: true }));
-		checkbox.setTabIndex(-1);
-		container.appendChild(checkbox.domNode);
-		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(checkbox.domNode, event => DOM.EventHelper.stop(event, true)));
+		const toggle = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false }));
+		toggle.setTabIndex(-1);
+		container.appendChild(toggle.domNode);
+		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 
 		const main = DOM.append(container, $('.tools-list-row-main'));
 		const text = DOM.append(main, $('.tools-list-row-text'));
@@ -203,7 +203,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		const chevron = DOM.append(container, $('a.tools-list-chevron.codicon')) as HTMLAnchorElement;
 		chevron.setAttribute('aria-hidden', 'true');
 
-		const template = { container, checkbox, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentSetId: undefined };
+		const template = { container, toggle, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentSetId: undefined };
 		this._templates.add(template);
 		return template;
 	}
@@ -220,13 +220,13 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		data.subtext.style.display = vm.detail ? '' : 'none';
 		data.subtext.textContent = vm.detail ?? '';
 		data.alwaysAvailable.style.display = 'none';
-		data.checkbox.domNode.style.display = '';
-		data.checkbox.domNode.style.visibility = vm.readOnly ? 'hidden' : '';
+		data.toggle.domNode.style.display = '';
+		data.toggle.domNode.style.visibility = vm.readOnly ? 'hidden' : '';
 
 		if (!vm.readOnly) {
-			data.checkbox.setAriaLabel(localize('toolsSetCheckbox', "Enable {0}", setName));
-			data.elementDisposables.add(data.checkbox.onChange(() => {
-				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, data.checkbox.checked === true);
+			data.toggle.setAriaLabel(localize('toolsSetToggle', "Enable {0}", setName));
+			data.elementDisposables.add(data.toggle.onChange(() => {
+				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, data.toggle.checked === true);
 			}));
 		}
 
@@ -235,7 +235,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 			const state = this._enablementService.observe(this._sessionType).read(reader);
 			const triState = getToolSetTriState(state, ts.id, vm.allToolIds);
 			if (!vm.readOnly) {
-				data.checkbox.checked = triState;
+				data.toggle.checked = triState;
 				data.container.setAttribute('aria-checked', triState === 'mixed' ? 'mixed' : String(triState));
 			} else {
 				data.container.removeAttribute('aria-checked');
@@ -265,9 +265,9 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 			}));
 		}
 
-		// Clicking the row body (not the checkbox/more-actions button) toggles expand/collapse.
+		// Clicking the row body (not the toggle/more-actions button) toggles expand/collapse.
 		data.elementDisposables.add(DOM.addDisposableListener(data.container, 'click', e => {
-			if (data.checkbox.domNode.contains(e.target as Node) || data.moreButton.contains(e.target as Node)) {
+			if (data.toggle.domNode.contains(e.target as Node) || data.moreButton.contains(e.target as Node)) {
 				return;
 			}
 			this._toggleExpand(ts.id);
@@ -289,7 +289,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 
 interface IToolsToolRowTemplateData {
 	readonly container: HTMLElement;
-	readonly checkbox: CustomizationToggle;
+	readonly toggle: CustomizationToggle;
 	readonly label: HighlightedLabel;
 	readonly subtext: HTMLElement;
 	readonly alwaysAvailable: HTMLElement;
@@ -311,10 +311,10 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		container.classList.add('tools-list-toolrow');
 		const templateDisposables = new DisposableStore();
 
-		const checkbox = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false }));
-		checkbox.setTabIndex(-1);
-		container.appendChild(checkbox.domNode);
-		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(checkbox.domNode, event => DOM.EventHelper.stop(event, true)));
+		const toggle = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false }));
+		toggle.setTabIndex(-1);
+		container.appendChild(toggle.domNode);
+		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 
 		const text = DOM.append(container, $('.tools-list-row-text'));
 		const labelEl = DOM.append(text, $('span.tools-list-row-label'));
@@ -324,7 +324,7 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		const alwaysAvailable = DOM.append(container, $('span.tools-list-always-available'));
 		alwaysAvailable.textContent = localize('toolsAlwaysAvailable', "Always Available");
 
-		return { container, checkbox, label, subtext, alwaysAvailable, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
+		return { container, toggle, label, subtext, alwaysAvailable, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
 	}
 
 	renderElement(entry: IToolsToolRowEntry, _index: number, data: IToolsToolRowTemplateData): void {
@@ -340,23 +340,23 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		data.subtext.style.display = description ? '' : 'none';
 		data.subtext.textContent = description ?? '';
 		data.alwaysAvailable.style.display = setVm.readOnly ? '' : 'none';
-		data.checkbox.domNode.style.display = setVm.readOnly ? 'none' : '';
+		data.toggle.domNode.style.display = setVm.readOnly ? 'none' : '';
 
 		if (!setVm.readOnly) {
-			data.checkbox.setAriaLabel(localize('toolsToolCheckbox', "Enable {0}", toolName));
-			data.elementDisposables.add(data.checkbox.onChange(() => {
-				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, data.checkbox.checked === true);
+			data.toggle.setAriaLabel(localize('toolsToolToggle', "Enable {0}", toolName));
+			data.elementDisposables.add(data.toggle.onChange(() => {
+				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, data.toggle.checked === true);
 			}));
 			data.elementDisposables.add(autorun(reader => {
 				const enabled = isToolEnabledInSet(this._enablementService.observe(this._sessionType).read(reader), setVm.toolSet.id, tool.id);
-				data.checkbox.checked = enabled;
+				data.toggle.checked = enabled;
 				data.container.setAttribute('aria-checked', String(enabled));
 			}));
 			data.elementDisposables.add(DOM.addDisposableListener(data.container, 'click', e => {
-				if (data.checkbox.domNode.contains(e.target as Node)) {
+				if (data.toggle.domNode.contains(e.target as Node)) {
 					return;
 				}
-				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, !data.checkbox.checked);
+				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, !data.toggle.checked);
 			}));
 		} else {
 			data.container.removeAttribute('aria-checked');
@@ -1059,7 +1059,7 @@ export class ToolsListWidget extends Disposable {
 	 * Space always toggles enablement (no-op for read-only rows). Enter toggles enablement too, except
 	 * on a read-only *set* row, where it expands/collapses instead (a read-only tool row does nothing).
 	 * This mirrors the original mouse-vs-keyboard asymmetry, where clicking the row body (not its
-	 * checkbox) toggles expand/collapse but Space/Enter on a focused row toggle its checkbox.
+	 * toggle) toggles expand/collapse but Space/Enter on a focused row changes its enablement.
 	 */
 	private _activateToolEntry(entry: IToolsRowEntry, viaEnter: boolean): void {
 		const readOnly = entry.type === 'set' ? entry.vm.readOnly : entry.setVm.readOnly;

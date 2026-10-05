@@ -40,7 +40,9 @@ All three VS Code channels converge in `AccountPolicyService.getPolicyData()`.
 
 **Precedence: native MDM managed settings win over the server-delivered channel, which in turn wins over the file-based channel** (`pickManagedSettings` in `copilotManagedSettings.ts`). Precedence is resolved **per key**: for each key the highest-precedence channel that supplies it wins, but a key that the higher channels leave unset is still filled in by a lower channel. A value an admin locks via native MDM therefore cannot be overwritten by the server or a file, while keys the higher channels never set remain available to lower ones. Rationale for the order: the server is harder to bypass than local MDM, and a local file is the most easily tampered with. The merged bag is then projected onto the declared schema (see below). Client-side merging still happens *within* a channel's value (e.g. `enabledPlugins`, `extraKnownMarketplaces`).
 
-**Sandbox routing exception:** `sandbox.enabled` follows the runtime's `force-on-wins` contract: `true` from any managed channel wins over `false` from another channel. The shared resolver supplies this result to harness selection, permissions UI, and Policy Diagnostics; runtime enforcement remains authoritative. Other keys retain their existing delivery-channel precedence.
+**Sandbox presentation exceptions:** `sandbox.enabled` follows the runtime's `force-on-wins` contract: `true` from any managed channel wins over `false` from another channel. `sandbox.allowBypass` and `sandbox.userPolicy.network.allowOutbound` are `deny-wins`: `false` from any managed channel wins. The shared resolver supplies these results to UI consumers and Policy Diagnostics; runtime enforcement remains authoritative. Other keys retain their existing delivery-channel precedence.
+
+The Settings editor presents managed outbound denial as `chat.agent.sandbox.network.allowNetwork: false` and managed bypass denial as `chat.agent.sandbox.allowUnsandboxedCommands: false`, using the existing disabled control and organization-managed indicator. Managed `true` leaves these controls editable so users can restrict access locally. Requiring sandboxing without explicitly permitting bypass also locks bypass off. `SandboxSettingsResolutionHelper` shares these toggle rules with the Agent Host's effective configuration, which uses the runtime-resolved session policy before sending SDK updates or supplying custom terminal settings. These are not VS Code configuration policies: stored preferences are unchanged and reappear when restrictions are removed. Filesystem settings display and forward local values, without managed intersection or union in the helper.
 
 ## Schema source of truth
 
@@ -208,7 +210,7 @@ The **file-based** channel is wired the same way (`src/vs/code/electron-main/mai
 
 It then shows per-key channel precedence, the merged normalized bag, and the final bag delivered to VS Code policy callbacks. Runtime-owned settings can therefore remain visible in a raw source even when VS Code has no corresponding policy declaration and the projected bag is empty.
 
-The report separately queries capable Agent Host providers for their own effective managed-settings snapshot. Copilot uses the platform runtime package's public `sdk/index.js#getManagedSettings()` API, which returns the same payload as `session.managed_settings_resolved` without requiring an active session. This runtime snapshot is not treated as another VS Code delivery channel because the runtime owns its schema and authority resolution independently.
+The report separately queries capable Agent Host providers for their own managed-settings snapshot. Copilot uses `client.rpc.managedSettings.resolve()` through the host's configured SDK client, passing the current GitHub token and `vscode-agent-host` client identity without creating a session. The report retains the resolved snapshot, account, channel layers, and diagnostics, including source failures and cached-policy fallback warnings. This sessionless resolution does not include session-local client contributions or execute policy helpers, and a returned snapshot does not prove a successful live server fetch. This runtime snapshot is not treated as another VS Code delivery channel because the runtime owns its schema and authority resolution independently.
 
 ## Projecting a managed-settings key into VS Code (checklist)
 
@@ -224,10 +226,13 @@ Follow this checklist only after the root [SKILL.md](./SKILL.md) routes the cont
 
 `forceRemoteSettingsRefresh` is not a user configuration setting. It controls whether the server-managed-settings cache may satisfy startup, so VS Code preserves it in the cached raw server bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves the control across native MDM, cached server, and managed-file delivery before using the server cache. When the result is `true`, only a fresh successful server response for the current account, authentication provider, and endpoint satisfies the requirement. A failed refresh may retain cached restrictions and the flag itself, but the Account Policy gate keeps AI features disabled until a retry succeeds. Authentication remains available so users can recover from missing or expired credentials.
 
+Once satisfied in the current window, the gate remains satisfied while subsequent refreshes for the same scope are in flight, including forced refreshes and refreshes after cache expiry. The last accepted policy stays active until the response arrives; a failure or timeout closes the gate, and retrying does not reopen it before success. Startup and scope changes still require a successful response before AI use. This does not change the polling interval or introduce a hard maximum policy age.
+
 Reference tests:
 - `src/vs/platform/policy/test/common/copilotManagedSettings.test.ts`
 - `src/vs/platform/policy/test/node/nativeManagedSettingsService.test.ts`
 - `src/vs/workbench/services/policies/test/browser/accountPolicyService.test.ts`
+- `src/vs/workbench/services/accounts/test/browser/defaultAccount.test.ts`
 - `src/vs/workbench/services/accounts/test/browser/managedSettings.test.ts` (includes an end-to-end equivalence test: a server JSON string and a native MDM JSON string resolve to the **identical** typed object).
 - `src/vs/platform/policy/test/common/fileManagedSettingsService.test.ts` (covers `normalizeManagedSettings` and the file-based channel reader).
 
