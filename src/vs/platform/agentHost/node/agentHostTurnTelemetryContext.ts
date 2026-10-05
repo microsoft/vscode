@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IAgent, IAgentChatContext } from '../common/agent.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, type IAgent, type IAgentChatContext } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import type { IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
@@ -44,15 +44,15 @@ export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, contex
 	const permissionLevel = typeof permissionValue === 'string' ? permissionValue : undefined;
 	const interactionMode = getConfiguredSessionMode(state?.config);
 	const effectiveModelId = modelId ?? agent.chats.getModel?.(URI.parse(chat), context)?.id;
-	const modelSelectionKind = getModelSelectionKind(modelId, effectiveModelId);
+	const modelSelectionKind = getModelSelectionKind(agent.id, modelId, effectiveModelId);
 	const modelContext = effectiveModelId === undefined || (modelId === undefined && effectiveModelId === 'auto')
 		? { model: undefined, modelTelemetryKind: undefined }
 		: getModelTelemetryContext(agent, effectiveModelId);
 	return { ...modelContext, modelSelectionKind, permissionLevel, interactionMode };
 }
 
-function getModelSelectionKind(modelId: string | undefined, effectiveModelId = modelId): AgentHostModelSelectionKind {
-	if (effectiveModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
+function getModelSelectionKind(provider: string, modelId: string | undefined, effectiveModelId = modelId): AgentHostModelSelectionKind {
+	if (provider === COPILOT_CLI_AGENT_PROVIDER_ID && effectiveModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
 		return 'hydrafusion';
 	}
 	if (effectiveModelId === 'auto') {
