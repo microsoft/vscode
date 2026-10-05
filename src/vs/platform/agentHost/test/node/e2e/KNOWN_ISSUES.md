@@ -566,17 +566,6 @@ A client can synchronize a question's answer while the user edits it, then submi
 - Gate: `context.runKnownIssueTests`. Explicit final-answer replacement and cancellation remain enabled.
 - Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'input drafts: submitting uses'`.
 
-### Workspace-less sessions cannot offer their workspace attachment tool
-
-A user can start a conversation without a workspace and later ask to attach a project folder. Copilot and Codex support workspace conversion, but the new session does not advertise the `set_workspace` tool, even after completing a normal turn. The agent therefore cannot start the attachment workflow.
-
-- Test: `workspace conversion: a workspaceless session advertises its attachment tool`.
-- Scope: observed on macOS with Copilot and Codex; gated on all platforms. Claude does not support workspace conversion.
-- Expected: the materialized workspace-less session advertises `set_workspace`.
-- Observed: `serverTools` omits the tool; a recording asking Copilot to attach a folder confirms that the model does not have it.
-- Gate: `context.runKnownIssueTests`.
-- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'workspace conversion: a workspaceless session advertises'`.
-
 ### Workspace membership changes are lost after a host restart
 
 A user can add or remove a folder in an Editor Window multi-root session. The host accepts the change, but restarting it restores the original folder set. Added folders disappear and removed folders return, so file completions and subsequent chats can use a different workspace than the user selected.
