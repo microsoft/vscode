@@ -828,7 +828,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!account) {
 				const sessionHost = auth.host?.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
 				const matchingAccounts = accounts.filter(candidate => {
-					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli'
+					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli' || candidate.authInfo.type === 'account'
 						? candidate.authInfo.login
 						: candidate.authInfo.copilotUser?.login;
 					const accountHost = candidate.authInfo.host.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
