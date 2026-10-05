@@ -226,7 +226,7 @@ function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocu
 
 registerModelAndPositionCommand('_executeDocumentHighlights', async (accessor, model, position) => {
 	const languageFeaturesService = accessor.get(ILanguageFeaturesService);
-	const mergeProviders = accessor.get(IConfigurationService).getValue<boolean>('editor.occurrencesHighlightFromAllProviders');
+	const mergeProviders = accessor.get(IConfigurationService).getValue<boolean>('editor.occurrencesHighlightFromAllProviders', { resource: model.uri, overrideIdentifier: model.getLanguageId() });
 	const map = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, position, CancellationToken.None, mergeProviders);
 	return map?.get(model.uri);
 });
