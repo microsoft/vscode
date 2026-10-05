@@ -35,6 +35,7 @@ import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationSer
 import { RemoteAgentHostLogForwarder } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostLogForwarder.js';
 import { CloudSandboxApiService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxApiService.js';
 import { CloudSandboxAgentHostService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxAgentHostService.js';
+import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
@@ -179,6 +180,192 @@ suite('RemoteAgentHost connection authentication readiness', () => {
 
 suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('renews repeated sandbox expiry without prompting for an unchanged GitHub session', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		let prompts = 0;
+		h.contribution._instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				prompts++;
+				return { success: undefined } as R;
+			},
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override getSealedGitHubToken(): string {
+				return 'copilot-sealed.v1.key.cached';
+			}
+			override async refreshSealedGitHubToken(): Promise<string> {
+				return `copilot-sealed.v1.key.renewed-${++renewals}`;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		await h.contribution._authenticateWithConnection(h.address, connection, [{ ...h.agents[0], protectedResources: [notification.resource] }]);
+		for (let i = 0; i < 3; i++) {
+			h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ forwarded, prompts, renewals }, {
+			forwarded: ['copilot-sealed.v1.key.cached', 'copilot-sealed.v1.key.renewed-1', 'copilot-sealed.v1.key.renewed-2', 'copilot-sealed.v1.key.renewed-3'],
+			prompts: 0,
+			renewals: 3,
+		});
+	});
+
+	test('shares sandbox renewal through authentication completion without resolving GitHub sessions', async () => {
+		const h = createAuthenticationHarness(store);
+		let sessionLookups = 0;
+		h.contribution._instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => {
+				sessionLookups++;
+				throw new Error('Sandbox renewal must not resolve a user session');
+			},
+		});
+		const renewed = new DeferredPromise<string>();
+		const authenticated = new DeferredPromise<{ authenticated: true }>();
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return authenticated.p;
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override refreshSealedGitHubToken(): Promise<string> {
+				renewals++;
+				return renewed.p;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await renewed.complete('copilot-sealed.v1.key.renewed');
+		await timeout(0);
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await authenticated.complete({ authenticated: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({ forwarded, renewals, sessionLookups }, {
+			forwarded: ['copilot-sealed.v1.key.renewed'],
+			renewals: 1,
+			sessionLookups: 0,
+		});
+	});
+
+	test('logs failed sandbox renewal without forwarding stale credentials or prompting and allows a later retry', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const errors: string[] = [];
+		h.contribution._logService = new class extends NullLogService {
+			override error(message: string): void {
+				errors.push(message);
+			}
+		}();
+		let prompts = 0;
+		h.contribution._instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				prompts++;
+				return { success: undefined } as R;
+			},
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override getSealedGitHubToken(): string {
+				throw new Error('Must not fall back to cached credentials');
+			}
+			override async refreshSealedGitHubToken(): Promise<string> {
+				if (++renewals === 1) {
+					throw new Error('renewal unavailable');
+				}
+				return 'copilot-sealed.v1.key.renewed';
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+		const forwardedAfterFailure = [...forwarded];
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+
+		assert.deepStrictEqual({ forwardedAfterFailure, forwarded, prompts, renewals, errors }, {
+			forwardedAfterFailure: [],
+			forwarded: ['copilot-sealed.v1.key.renewed'],
+			prompts: 0,
+			renewals: 2,
+			errors: ['[RemoteAgentHost] Failed to authenticate notified resource https://api.github.com'],
+		});
+	});
+
+	test('does not forward renewed sandbox credentials after the connection is replaced', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const renewed = new DeferredPromise<string>();
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override refreshSealedGitHubToken(): Promise<string> {
+				return renewed.p;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => ({ ...createCloudSandboxConnectionCustomization(address, sandboxService), createSessionPreparation: undefined }),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+		h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		await renewed.complete('copilot-sealed.v1.key.renewed');
+		await timeout(0);
+
+		assert.deepStrictEqual(forwarded, []);
+	});
 
 	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
 		const instantiationService = createAuthenticationInstantiationService(store);
