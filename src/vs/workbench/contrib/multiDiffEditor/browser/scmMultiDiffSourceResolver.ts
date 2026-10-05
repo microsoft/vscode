@@ -177,7 +177,7 @@ class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
 	) {
 		this._resources = observableFromEvent<MultiDiffEditorItem[]>(
 			this._group.onDidChangeResources,
-			() => /** @description resources */ [...this._group.resources]
+			() => /** @description resources */[...this._group.resources]
 				.sort((a, b) => comparePaths(a.sourceUri.fsPath, b.sourceUri.fsPath))
 				.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
 		);
