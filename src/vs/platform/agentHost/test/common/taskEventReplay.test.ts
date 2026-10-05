@@ -422,6 +422,61 @@ suite('Task event replay', () => {
 		}, { defaultChat: chat, turns: ['t1'] });
 	});
 
+	test('uses the sole recorded chat whose addition predates the mirror but is updated in it', () => {
+		// A chat created with its session is announced only in the subscribe snapshot, so the mirror
+		// holds its title and read-state updates but never its addition.
+		const chat = 'ahp-chat:/efe1067798025ce69f332c535acc56c5';
+		const history = replayTaskAhpEvents([
+			...completedTurn(SESSION_A, 0, chat, 't1', 'Are you able to see this screenshot?'),
+			event(SESSION_A, 2, SESSION_A, { type: 'session/chatUpdated', chat, changes: { title: 'Screenshot check' } }),
+			event(SESSION_A, 3, SESSION_A, { type: 'session/chatsReordered', chats: [chat] }),
+		]);
+		const session = history?.sessions[0];
+
+		assert.deepStrictEqual({
+			defaultChat: session?.defaultChat,
+			chats: [...(session?.chats.keys() ?? [])],
+			turns: session?.chats.get(session.defaultChat)?.turns.map(turn => turn.id),
+		}, { defaultChat: chat, chats: [chat], turns: ['t1'] });
+	});
+
+	test('does not infer a default when the catalogue updates or orders another chat', () => {
+		const recorded = 'ahp-chat:/recorded';
+		const other = 'ahp-chat:/other';
+		const results = [
+			{ type: 'session/chatUpdated', chat: other, changes: { title: 'Other' } },
+			{ type: 'session/chatsReordered', chats: [other, recorded] },
+		].map(catalogueAction => {
+			const history = replayTaskAhpEvents([
+				...completedTurn(SESSION_A, 0, recorded, 't1', 'recorded conversation'),
+				event(SESSION_A, 2, SESSION_A, catalogueAction),
+			]);
+			const session = history?.sessions[0];
+			return { defaultChat: session?.defaultChat, turns: session?.chats.get(session.defaultChat)?.turns };
+		});
+
+		assert.deepStrictEqual(results, [
+			{ defaultChat: defaultChat(SESSION_A), turns: [] },
+			{ defaultChat: defaultChat(SESSION_A), turns: [] },
+		]);
+	});
+
+	test('a removed chat no longer counts against the sole recorded chat', () => {
+		const recorded = 'ahp-chat:/recorded';
+		const removedPeer = 'ahp-chat:/peer';
+		const history = replayTaskAhpEvents([
+			event(SESSION_A, 0, SESSION_A, { type: 'session/chatUpdated', chat: removedPeer, changes: { title: 'Peer' } }),
+			...completedTurn(SESSION_A, 1, recorded, 't1', 'recorded conversation'),
+			event(SESSION_A, 3, SESSION_A, { type: 'session/chatRemoved', chat: removedPeer }),
+		]);
+		const session = history?.sessions[0];
+
+		assert.deepStrictEqual({
+			defaultChat: session?.defaultChat,
+			turns: session?.chats.get(session.defaultChat)?.turns.map(turn => turn.id),
+		}, { defaultChat: recorded, turns: ['t1'] });
+	});
+
 	test('does not replace an announced empty default with a peer chat', () => {
 		const announced = 'ahp-chat:/main';
 		const peer = 'ahp-chat:/peer';
