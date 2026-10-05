@@ -308,6 +308,7 @@ export interface IPreparedChatWorkingDirectory {
 /** AgentService-owned operations used by the session server-tool group. */
 export interface IAgentServiceSessionServerToolAccessor {
 	readonly getAutomaticTitleGenerationStrategy: (session?: ProtocolURI) => AutomaticTitleGenerationStrategy;
+	readonly isWorkspaceless: (session: URI) => boolean;
 	readonly canConvertWorkspace: (session: URI) => boolean;
 	/**
 	 * Whether the session's provider supports multiple working directories, so a
@@ -1839,6 +1840,9 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 			return toolName !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'utility';
 		},
 		getDefinitionForSession(definition, sessionUri): IAgentServerToolDefinition {
+			if (definition.name === SessionServerToolName.SetWorkspace && accessor?.isWorkspaceless(URI.parse(sessionUri)) === true) {
+				return { ...definition, deferLoading: false };
+			}
 			if (definition.name === SessionServerToolName.CreateSession) {
 				// Without multi-root support a current-session chat cannot get its own folder.
 				return accessor?.supportsChatWorkingDirectories(URI.parse(sessionUri)) === false

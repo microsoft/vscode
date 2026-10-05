@@ -1493,10 +1493,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * to this service so the group stays decoupled from the concrete host.
 	 */
 	private _createSessionServerToolAccessor(): IAgentServiceSessionServerToolAccessor {
+		const isWorkspaceless = (session: URI) => readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta);
 		return {
 			getAutomaticTitleGenerationStrategy: session => this._titleController.getAutomaticTitleGenerationStrategy(session),
+			isWorkspaceless,
 			canConvertWorkspace: session => this._providerService.getProviderForSession(session)?.agentHostCapabilities.workspaceConversion === true
-				&& readSessionWorkspaceless(this._stateManager.getSessionState(session.toString())?._meta),
+				&& isWorkspaceless(session),
 			supportsChatWorkingDirectories: session => !!this._providerService.getProviderForSession(session)?.getDescriptor().capabilities?.multipleWorkingDirectories,
 			listSessions: () => this.listSessions(),
 			getSession: session => this._getSessionMetadata(session),
