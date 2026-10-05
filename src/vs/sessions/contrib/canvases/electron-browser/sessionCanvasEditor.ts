@@ -37,8 +37,7 @@ export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCa
 
 type CanvasLoadEvent = {
 	schemaVersion: number;
-	outcome: 'loaded' | 'error' | 'cancelled' | 'superseded' | 'ownerInactive' | 'disposed';
-	failureStage?: 'browserCreate' | 'navigation';
+	outcome: 'loaded' | 'error' | 'cancelled' | 'interrupted';
 	durationMs: number;
 };
 
@@ -46,8 +45,7 @@ type CanvasLoadClassification = {
 	owner: 'jruales';
 	comment: 'Measures completed canvas load attempts, not first paint or application readiness. Crashes may leave no completion.';
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas load event schema version.' };
-	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the load completed, failed, was cancelled, became stale, lost its owner, or the editor was disposed.' };
-	failureStage?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Browser creation or initial navigation, present only when a failure occurred in that stage.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the load completed, failed, was cancelled, or became irrelevant after an input, owner, or editor lifetime change.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds from starting browser creation through the load attempt completion.' };
 };
 
@@ -157,36 +155,24 @@ export class SessionCanvasEditor extends EditorPane {
 		this.loadingKey = key;
 		const stopwatch = StopWatch.create();
 		let outcome: CanvasLoadEvent['outcome'] = 'error';
-		let failureStage: CanvasLoadEvent['failureStage'] = 'browserCreate';
 		try {
 			const source = canvas.source;
-			const model = await this.browserViewService.createExternalBrowserView(undefined, 'canvas');
-			const interrupted = this._loadInterruption(input, source, sequence);
-			if (interrupted) {
-				outcome = interrupted;
+			const model = await this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas');
+			if (!this._isCurrent(input, source, sequence)) {
+				outcome = 'interrupted';
 				model.dispose();
 				return;
 			}
-			this.browserModel.value = model;
-			failureStage = 'navigation';
-			await model.loadURL(source.toString(true));
-			const interruptedAfterNavigation = this._loadInterruption(input, source, sequence);
-			if (interruptedAfterNavigation) {
-				outcome = interruptedAfterNavigation;
-				return;
-			}
-			if (!model.error) {
-				failureStage = undefined;
-			}
 			this._setModel(model);
+			this.browserModel.value = model;
 			this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
 			this.loadedKey = key;
 			this.message.textContent = model.error ? localize('canvas.pageFailed', "The canvas page failed to load.") : '';
 			outcome = model.error ? 'error' : 'loaded';
 		} catch (error) {
-			const interrupted = this._loadInterruption(input, canvas.source, sequence);
-			outcome = interrupted ?? (isCancellationError(error) ? 'cancelled' : 'error');
-			if (!interrupted) {
+			const current = this._isCurrent(input, canvas.source, sequence);
+			outcome = !current ? 'interrupted' : isCancellationError(error) ? 'cancelled' : 'error';
+			if (current) {
 				this._detach(localize('canvas.loadFailed', "The canvas could not be loaded."));
 				this.logService.error('[SessionCanvasEditor] Failed to load canvas');
 			}
@@ -197,23 +183,17 @@ export class SessionCanvasEditor extends EditorPane {
 			this.telemetryService.publicLog2<CanvasLoadEvent, CanvasLoadClassification>('agentCanvas.loadCompleted', {
 				schemaVersion: 1,
 				outcome,
-				...(outcome === 'error' && failureStage ? { failureStage } : {}),
 				durationMs: stopwatch.elapsed(),
 			});
 		}
 	}
 
-	private _loadInterruption(input: SessionCanvasInput, source: URI, sequence: number): CanvasLoadEvent['outcome'] | undefined {
-		if (this._store.isDisposed) {
-			return 'disposed';
-		}
-		if (!this.canvasService.isActiveOwner(input.reference)) {
-			return 'ownerInactive';
-		}
-		if (sequence !== this.loadSequence || this.currentInput.get() !== input || !isEqual(input.canvas.get()?.source, source)) {
-			return 'superseded';
-		}
-		return undefined;
+	private _isCurrent(input: SessionCanvasInput, source: URI, sequence: number): boolean {
+		return !this._store.isDisposed
+			&& sequence === this.loadSequence
+			&& this.currentInput.get() === input
+			&& isEqual(input.canvas.get()?.source, source)
+			&& this.canvasService.isActiveOwner(input.reference);
 	}
 
 	private _setModel(model: IBrowserViewModel | undefined): void {

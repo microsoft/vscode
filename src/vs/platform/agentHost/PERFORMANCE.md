@@ -505,7 +505,7 @@ Canvas product telemetry uses existing usage consent, independently of OTel.
 | Event | Boundary and dashboard use |
 | --- | --- |
 | `agentHost.canvasOpened` | Live `session.canvas.recorded` events identify first opens, excluding repeated opens, updates, and recovery. History reads do not dispatch these callbacks. Count opens or distinct `agentSessionId` values; group by discovery-derived `extensionSource` (`project`, `user`, `plugin`, `session`, `unknown`). |
-| `agentCanvas.loadCompleted` | Browser creation through initial navigation. Outcomes: `loaded`, `error`, `cancelled`, `superseded`, `ownerInactive`, `disposed`. Errors include a known `failureStage`: `browserCreate` or `navigation`. |
+| `agentCanvas.loadCompleted` | Browser creation through initial navigation. Outcomes: `loaded`, `error`, `cancelled`, `interrupted`. Input, owner, and editor lifetime changes share the `interrupted` outcome. |
 | `agentHost.canvasExtensionsReady` | Extension listing, bounded readiness wait, and canvas listing. `launchKind`: `create` or `resume`. Outcomes: `alreadySettled`, `settled`, `timeout`, `error`, `cancelled`. `extensionCount` and `failedExtensionCount` use the latest observed snapshot; missing counts are not zero. |
 | `integratedBrowser.open` with `source=canvas` | Backing-view creation, not a logical open. Exclude these rows from ordinary browser-tab usage. |
 

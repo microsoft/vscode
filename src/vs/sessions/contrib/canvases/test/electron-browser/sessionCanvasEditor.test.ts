@@ -27,18 +27,14 @@ suite('SessionCanvasEditor telemetry', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createHarness(options: {
-		createGate?: Promise<void>;
-		createError?: Error;
-		navigationGate?: Promise<void>;
-		navigationError?: Error;
+		loadGate?: Promise<void>;
+		loadError?: Error;
 		pageError?: IBrowserViewLoadError;
 	} = {}) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const completed = new DeferredPromise<void>();
-		const navigationStarted = new DeferredPromise<void>();
 		const events: ITelemetryData[] = [];
 		const createRequests: Parameters<IBrowserViewWorkbenchService['createExternalBrowserView']>[] = [];
-		const navigations: string[] = [];
 		const attached: IBrowserViewModel[] = [];
 		const active = observableValue('activeCanvasOwner', true);
 		const canvas: ISessionCanvas = {
@@ -61,14 +57,6 @@ suite('SessionCanvasEditor telemetry', () => {
 			onDidChangeLoadingState: Event.None,
 			onDidNavigate: Event.None,
 			onWillDispose: onWillDispose.event,
-			loadURL: async url => {
-				navigations.push(url);
-				navigationStarted.complete();
-				await options.navigationGate;
-				if (options.navigationError) {
-					throw options.navigationError;
-				}
-			},
 			layout: async () => { },
 			dispose: () => {
 				if (!modelDisposed) {
@@ -93,9 +81,9 @@ suite('SessionCanvasEditor telemetry', () => {
 		instantiationService.stub(IBrowserViewWorkbenchService, {
 			createExternalBrowserView: async (...args) => {
 				createRequests.push(args);
-				await options.createGate;
-				if (options.createError) {
-					throw options.createError;
+				await options.loadGate;
+				if (options.loadError) {
+					throw options.loadError;
 				}
 				return model;
 			},
@@ -116,38 +104,34 @@ suite('SessionCanvasEditor telemetry', () => {
 			...data,
 			hasDuration: typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0,
 		}));
-		return { editor, input, canvas, active, open, completed, navigationStarted, events, telemetry, createRequests, navigations, attached, isModelDisposed: () => modelDisposed };
+		return { editor, input, canvas, active, open, completed, events, telemetry, createRequests, attached, isModelDisposed: () => modelDisposed };
 	}
 
 	test('waits for navigation and records one content-free successful load', async () => {
-		const navigation = new DeferredPromise<void>();
-		const harness = createHarness({ navigationGate: navigation.p });
+		const load = new DeferredPromise<void>();
+		const harness = createHarness({ loadGate: load.p });
 		await harness.open();
-		await harness.navigationStarted.p;
 		assert.deepStrictEqual(harness.events, []);
-		navigation.complete();
+		load.complete();
 		await harness.completed.p;
 		harness.input.setCanvas({ ...harness.canvas, title: 'Updated title' });
 
 		assert.deepStrictEqual({
 			telemetry: harness.telemetry(),
 			createRequests: harness.createRequests,
-			navigations: harness.navigations,
 			attached: harness.attached.length,
 		}, {
 			telemetry: [{ schemaVersion: 1, outcome: 'loaded', hasDuration: true }],
-			createRequests: [[undefined, 'canvas']],
-			navigations: ['https://example.test/private-source'],
+			createRequests: [['https://example.test/private-source', 'canvas']],
 			attached: 1,
 		});
 	});
 
-	test('classifies creation, navigation, and reported page failures without error content', async () => {
+	test('reports rejected loads and page failures without error content', async () => {
 		const privateError = new Error('Private URL, path, and content');
 		const results = [];
 		for (const options of [
-			{ createError: privateError },
-			{ navigationError: privateError },
+			{ loadError: privateError },
 			{ pageError: { errorCode: -105, errorDescription: 'Private error', url: 'https://example.test/private' } },
 		]) {
 			const harness = createHarness(options);
@@ -156,46 +140,42 @@ suite('SessionCanvasEditor telemetry', () => {
 			results.push(...harness.telemetry());
 			harness.editor.dispose();
 		}
-		assert.deepStrictEqual(results, ['browserCreate', 'navigation', 'navigation'].map(failureStage => ({
-			schemaVersion: 1, outcome: 'error', failureStage, hasDuration: true,
-		})));
+		assert.deepStrictEqual(results, [
+			{ schemaVersion: 1, outcome: 'error', hasDuration: true },
+			{ schemaVersion: 1, outcome: 'error', hasDuration: true },
+		]);
 	});
 
-	test('records cancellation separately from a navigation failure', async () => {
-		const harness = createHarness({ navigationError: new CancellationError() });
+	test('records cancellation separately from a load failure', async () => {
+		const harness = createHarness({ loadError: new CancellationError() });
 		await harness.open();
 		await harness.completed.p;
 		assert.deepStrictEqual({
-			telemetry: harness.telemetry(), disposed: harness.isModelDisposed(), attached: harness.attached.length,
+			telemetry: harness.telemetry(), attached: harness.attached.length,
 		}, {
-			telemetry: [{ schemaVersion: 1, outcome: 'cancelled', hasDuration: true }], disposed: true, attached: 0,
+			telemetry: [{ schemaVersion: 1, outcome: 'cancelled', hasDuration: true }], attached: 0,
 		});
 	});
 
 	for (const interruption of ['superseded', 'ownerInactive', 'disposed'] as const) {
-		for (const phase of ['creation', 'navigation'] as const) {
-			test(`records ${interruption} during ${phase} and disposes the unattached view`, async () => {
-				const gate = new DeferredPromise<void>();
-				const harness = createHarness(phase === 'creation' ? { createGate: gate.p } : { navigationGate: gate.p });
-				await harness.open();
-				if (phase === 'navigation') {
-					await harness.navigationStarted.p;
-				}
-				if (interruption === 'disposed') {
-					harness.editor.dispose();
-				} else if (interruption === 'ownerInactive') {
-					harness.active.set(false, undefined);
-				} else {
-					harness.editor.clearInput();
-				}
-				gate.complete();
-				await harness.completed.p;
-				assert.deepStrictEqual({
-					telemetry: harness.telemetry(), disposed: harness.isModelDisposed(), attached: harness.attached.length,
-				}, {
-					telemetry: [{ schemaVersion: 1, outcome: interruption, hasDuration: true }], disposed: true, attached: 0,
-				});
+		test(`treats ${interruption} loads as interrupted and disposes the unattached view`, async () => {
+			const gate = new DeferredPromise<void>();
+			const harness = createHarness({ loadGate: gate.p });
+			await harness.open();
+			if (interruption === 'disposed') {
+				harness.editor.dispose();
+			} else if (interruption === 'ownerInactive') {
+				harness.active.set(false, undefined);
+			} else {
+				harness.editor.clearInput();
+			}
+			gate.complete();
+			await harness.completed.p;
+			assert.deepStrictEqual({
+				telemetry: harness.telemetry(), disposed: harness.isModelDisposed(), attached: harness.attached.length,
+			}, {
+				telemetry: [{ schemaVersion: 1, outcome: 'interrupted', hasDuration: true }], disposed: true, attached: 0,
 			});
-		}
+		});
 	}
 });

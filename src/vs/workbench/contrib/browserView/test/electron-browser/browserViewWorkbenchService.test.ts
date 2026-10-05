@@ -146,7 +146,7 @@ suite('BrowserViewWorkbenchService', () => {
 		const [restoredSerialized, restoredScreenshot] = serializeBrowserViewInfo(restored);
 		events.fire([{ type: 'snapshot', windowId: 1, views: [restoredSerialized] }, [restoredScreenshot]]);
 
-		const externalModel = await service.createExternalBrowserView('https://example.test/preview');
+		const externalModel = await service.createExternalBrowserView('https://example.test/preview', 'canvas');
 		const [childSerialized, childScreenshot] = serializeBrowserViewInfo(info('external-child', BrowserViewPresentation.Unlisted));
 		events.fire([{ type: 'created', windowId: 1, data: { info: childSerialized } }, [childScreenshot]]);
 		const [listedSerialized, listedScreenshot] = serializeBrowserViewInfo(info('listed-page'));
@@ -158,11 +158,13 @@ suite('BrowserViewWorkbenchService', () => {
 			assert.deepStrictEqual({
 				creationPresentations: creationOptions.map(options => options.presentation),
 				creationUrls: creationOptions.map(options => options.initialUrl),
+				openSources: creationOptions.map(options => options.openSource),
 				loadedUrls,
 				knownIds: [...service.getKnownBrowserViews().keys()],
 			}, {
 				creationPresentations: [BrowserViewPresentation.Unlisted],
 				creationUrls: [undefined],
+				openSources: ['canvas'],
 				loadedUrls: [{ id: externalModel.id, url: 'https://example.test/preview' }],
 				knownIds: ['listed-page'],
 			});
@@ -170,23 +172,5 @@ suite('BrowserViewWorkbenchService', () => {
 			listedInput.dispose();
 			externalModel.dispose();
 		}
-	});
-
-	test('attributes canvas backing views without navigating until the caller requests it', async () => {
-		const { service, creationOptions, loadedUrls } = createService();
-		const model = store.add(await service.createExternalBrowserView(undefined, 'canvas'));
-		const urlsBeforeNavigation = [...loadedUrls];
-		await model.loadURL('https://example.test/canvas');
-		assert.deepStrictEqual({
-			openSources: creationOptions.map(options => options.openSource),
-			urlsBeforeNavigation,
-			loadedUrls,
-			knownIds: [...service.getKnownBrowserViews().keys()],
-		}, {
-			openSources: ['canvas'],
-			urlsBeforeNavigation: [],
-			loadedUrls: [{ id: model.id, url: 'https://example.test/canvas' }],
-			knownIds: [],
-		});
 	});
 });

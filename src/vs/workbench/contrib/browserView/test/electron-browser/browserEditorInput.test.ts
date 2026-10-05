@@ -64,7 +64,7 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		throw new Error('Not implemented for this test.');
 	}
 
-	async createExternalBrowserView(_initialUrl?: string): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(_initialUrl: string): Promise<IBrowserViewModel> {
 		throw new Error('Not implemented for this test.');
 	}
 
