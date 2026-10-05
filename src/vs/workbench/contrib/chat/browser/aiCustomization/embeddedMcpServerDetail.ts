@@ -124,6 +124,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly iconEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
 	private readonly pathEl: HTMLAnchorElement;
+	private readonly titleActionsEl: HTMLElement;
 	private readonly editConfigurationButton: Button;
 	private readonly bodyEl: HTMLElement;
 	private readonly diagnosticsEmpty: HTMLElement;
@@ -172,9 +173,9 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
 		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
 		this.pathEl = DOM.append(headerText, $('a.editor-item-path')) as HTMLAnchorElement;
-		const headerActions = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
+		this.titleActionsEl = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
 		const editConfigurationLabel = localize('editMcpConfiguration', "Edit Configuration");
-		this.editConfigurationButton = this._register(new Button(headerActions, {
+		this.editConfigurationButton = this._register(new Button(this.titleActionsEl, {
 			...defaultButtonStyles,
 			secondary: true,
 			ariaLabel: editConfigurationLabel,
@@ -247,6 +248,10 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	 */
 	get leadingSlot(): HTMLElement {
 		return this.leadingSlotEl;
+	}
+
+	get titleActions(): HTMLElement {
+		return this.titleActionsEl;
 	}
 
 	setInput(server: IMcpServerDetailInput): void {
