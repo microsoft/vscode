@@ -4283,7 +4283,7 @@ suite('CodexAgent prewarm eviction', () => {
 				success: response.result?.success,
 				approvalPending: entry.pendingCommandApprovals.has('tool-1'),
 			}, {
-				confirmations: scenario.requiresConfirmation ? ['Continue in app?'] : [],
+				confirmations: scenario.requiresConfirmation ? ['Change Workspace to app?'] : [],
 				executionsBeforeApproval: scenario.requiresConfirmation ? [0] : [],
 				executions: scenario.approved === false ? [] : [{ chatUri: defaultChatOf(session).toString(), toolName: tool.name }],
 				success: scenario.approved !== false,
