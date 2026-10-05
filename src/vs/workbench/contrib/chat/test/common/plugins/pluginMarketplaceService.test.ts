@@ -139,6 +139,29 @@ suite('PluginMarketplaceService', () => {
 		});
 	}
 
+	for (const [kind, source] of [
+		['shorthand', 'owner/repo'],
+		['host-only URL', 'https://example.com'],
+		['GitHub URL', 'https://github.com/owner/repo.git'],
+		['Git URL', 'https://example.com/owner/repo.git'],
+		['SSH URL', 'ssh://git@example.com/owner/repo.git'],
+	]) {
+		(isWindows && !isWeb ? test : test.skip)(`validates Windows marketplace ref cache segments for ${kind}`, () => {
+			const invalidRefs = ['branch.', 'r'.repeat(252), 'r'.repeat(256), `${'r'.repeat(249)}/`];
+			const allowedRefs = ['release/v1', 'r'.repeat(251), `${'r'.repeat(248)}/`];
+			assert.deepStrictEqual({
+				invalid: invalidRefs.map(ref => parseMarketplaceReference(`${source}#${ref}`)?.ref),
+				allowed: allowedRefs.map(ref => {
+					const parsed = parseMarketplaceReference(`${source}#${ref}`);
+					return parsed && basename(getPluginCacheUri(URI.file('/cache/agentPlugins'), parsed.cacheSegments));
+				}),
+			}, {
+				invalid: invalidRefs.map(() => undefined),
+				allowed: allowedRefs.map(ref => `ref_${encodeURIComponent(ref)}`),
+			});
+		});
+	}
+
 	test('workspace marketplace traversal cannot replace an allowed clone target', async () => {
 		const allowed = 'https://github.com/microsoft/vscode.git';
 		const workspaceReference = parseMarketplaceObjectEntry({

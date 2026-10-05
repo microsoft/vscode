@@ -220,7 +220,7 @@ export function parseMarketplaceReference(value: string): IMarketplaceReference 
 		const owner = shorthandMatch[1];
 		const repo = shorthandMatch[2];
 		const ref = shorthandMatch[3];
-		if (!isValidCacheSegments([owner, repo])) {
+		if (!isValidCacheSegments([owner, repo, ...getRefCacheSegments(ref)])) {
 			return undefined;
 		}
 		return {
@@ -274,7 +274,7 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	const ref = uri.fragment || undefined;
 	const cloneUri = uri.fragment ? uri.with({ fragment: '' }) : uri;
 	const sanitizedAuthority = sanitizePathSegment(uri.authority.toLowerCase());
-	if (!isValidCacheSegments([sanitizedAuthority])) {
+	if (!isValidCacheSegments([sanitizedAuthority, ...getRefCacheSegments(ref)])) {
 		return undefined;
 	}
 	const trimmedPath = uri.path.replace(/\/+/g, '/').replace(/\/+$/g, '').replace(/^\/+/, '');
