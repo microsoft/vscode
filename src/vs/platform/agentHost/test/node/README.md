@@ -12,6 +12,13 @@ Tests that launch a real provider process isolate its home, configuration, logs,
 
 The protocol and E2E folders contain their own running and authoring instructions.
 
+## WSL launcher lifecycle
+
+`wslRemoteAgentHostService.test.ts` verifies that a successful launcher exit after
+printing the ready URL leaves the detached host session and its relay leases alive,
+including while a relay is being acquired. Exits before readiness, nonzero exits,
+signals, process errors, and WebSocket open failures still trigger failure recovery.
+
 ## Peer-chat membership recovery (#339409)
 
 `agentHostPeerChatStore.test.ts` covers a corrupted empty legacy mirror being imported
