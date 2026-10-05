@@ -55,4 +55,39 @@ suite('LanguageModelToolsContribution', () => {
 			after: { read: ['copilot_readFile', 'copilot_getErrors'], edit: ['core_rename', 'copilot_createFile'] },
 		});
 	});
+
+	test('adds a member tool set that is created later without any tool registration', () => {
+		const toolsService = createToolsService();
+		store.add(toolsService.registerToolData(makeTool('readFile', 'copilot_readFile')));
+		toolsService.flushToolUpdates();
+		const aggregate = store.add(toolsService.createToolSet(ToolDataSource.Internal, 'aggregate', 'aggregate'));
+		store.add(addContributedToolSetMembers(toolsService, aggregate, ['lateSet']));
+		const membersBefore = Array.from(aggregate.getTools(), tool => tool.id);
+
+		const lateSet = store.add(toolsService.createToolSet(ToolDataSource.Internal, 'late-set', 'lateSet'));
+		store.add(lateSet.addTool(toolsService.getTool('copilot_readFile')!));
+
+		assert.deepStrictEqual({ before: membersBefore, after: Array.from(aggregate.getTools(), tool => tool.id) }, {
+			before: [],
+			after: ['copilot_readFile'],
+		});
+	});
+
+	test('does not create a cycle between tool sets that reference each other', () => {
+		const toolsService = createToolsService();
+		const setA = store.add(toolsService.createToolSet(ToolDataSource.Internal, 'set-a', 'setA'));
+		store.add(addContributedToolSetMembers(toolsService, setA, ['setB']));
+		const setB = store.add(toolsService.createToolSet(ToolDataSource.Internal, 'set-b', 'setB'));
+		store.add(addContributedToolSetMembers(toolsService, setB, ['setA', 'readFile']));
+		store.add(toolsService.registerToolData(makeTool('readFile', 'copilot_readFile')));
+		toolsService.flushToolUpdates();
+
+		assert.deepStrictEqual({
+			a: Array.from(setA.getTools(), tool => tool.id),
+			b: Array.from(setB.getTools(), tool => tool.id),
+		}, {
+			a: ['copilot_readFile'],
+			b: ['copilot_readFile'],
+		});
+	});
 });

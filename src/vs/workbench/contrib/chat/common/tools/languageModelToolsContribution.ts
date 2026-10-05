@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { transaction } from '../../../../../base/common/observable.js';
+import { runOnChange, transaction } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -231,12 +231,16 @@ export function addContributedToolSetMembers(languageModelToolsService: ILanguag
 
 	resolvePending();
 	if (pending.size > 0) {
-		const listener = store.add(languageModelToolsService.onDidChangeTools(() => {
+		const onDidChange = () => {
 			resolvePending();
 			if (pending.size === 0) {
-				store.delete(listener);
+				listeners.dispose();
 			}
-		}));
+		};
+		const listeners = store.add(new DisposableStore());
+		listeners.add(languageModelToolsService.onDidChangeTools(onDidChange));
+		// Tool set registration does not fire `onDidChangeTools`, so watch tool sets separately.
+		listeners.add(runOnChange(languageModelToolsService.toolSets, onDidChange));
 	}
 	return store;
 }
