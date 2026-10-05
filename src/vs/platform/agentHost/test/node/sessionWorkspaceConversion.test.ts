@@ -593,7 +593,7 @@ suite('SessionWorkspaceConversionService', () => {
 				active: 'continuation-1', otherActive: target === 'single' ? undefined : 'other-turn',
 				continue: [chat.toString()], persisted: worktree.toString(),
 				transition: serializeAgentWorkspaceTransition({
-					content: 'Workspace changed to a new worktree',
+					content: 'Workspace changed to a new worktree of workspace-less',
 					workspaceKind: AgentSystemNotificationWorkspaceKind.Worktree,
 					workspaceName: 'workspace-less',
 				}),
@@ -982,7 +982,7 @@ suite('SessionWorkspaceConversionService', () => {
 			},
 			mainTurnIds: ['turn-0', 'turn-1'],
 			continuations: [harness.chat.toString()],
-			transition: ['Workspace changed to a new worktree'],
+			transition: ['Workspace changed to a new worktree of workspace-less'],
 			providerCalls: [worktree.toString()],
 			gitRefreshes: [],
 			worktreeConfig: {
@@ -1284,7 +1284,7 @@ suite('SessionWorkspaceConversionService', () => {
 					siblingTurn: target === 'single' ? undefined : 'sibling-turn',
 					continuations: [chat.toString()],
 					transition: serializeAgentWorkspaceTransition({
-						content: isolation ? 'Workspace changed to a new worktree' : 'Workspace changed to destination',
+						content: isolation ? 'Workspace changed to a new worktree of destination' : 'Workspace changed to destination',
 						workspaceKind: isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 						workspaceName: 'destination',
 					}),
@@ -2033,7 +2033,7 @@ suite('SessionWorkspaceConversionService', () => {
 				[SessionConfigKey.Branch]: 'main',
 			},
 			outcomeNotifications: [{
-				content: 'Workspace changed to a new worktree',
+				content: 'Workspace changed to a new worktree of project',
 				meta: {
 					kind: AgentSystemNotificationKind.WorkspaceTransition,
 					severity: undefined,

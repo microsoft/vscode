@@ -932,7 +932,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const workspaceName = basename(pending.workspaceFolder) || pending.workspaceFolder.path;
 		return {
 			content: pending.isolation
-				? localize('agentHost.chatIsolationTransitionLabel', "Workspace changed to a new worktree")
+				? localize('agentHost.chatIsolationTransitionLabel', "Workspace changed to a new worktree of {0}", workspaceName)
 				: localize('agentHost.workspaceTransitionLabel', "Workspace changed to {0}", workspaceName),
 			workspaceKind: pending.isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 			workspaceName,
