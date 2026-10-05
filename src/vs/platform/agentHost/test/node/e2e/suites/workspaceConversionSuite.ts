@@ -83,7 +83,7 @@ export function defineWorkspaceConversionTests(context: IAgentHostE2ETestContext
 			context.client,
 			chat,
 			turnId,
-			`First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "${workspaceUri} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn's final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".`,
+			`First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "${workspaceUri} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn's final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".`,
 			2,
 		);
 		await context.client.waitForNotification(notification => {

@@ -6,7 +6,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
     response:
       content:
         - type: tool_use
@@ -22,7 +22,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
         - role: assistant
           content:
             - type: thinking
@@ -51,7 +51,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
         - role: assistant
           content:
             - type: thinking
@@ -86,7 +86,7 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
         - role: assistant
           content:
             - type: thinking
@@ -118,5 +118,5 @@ exchanges:
         - role: user
           content: The current session is now attached to ${workdir}. Continue the user's original task in this workspace. Do not request another session or workspace conversion.
     response:
-      content: Workspace conversion complete — this session is now attached to the target workspace. Let me know what you'd like to work on next.
+      content: I've attached the session to the workspace at [ahp-workspace-conversion-bthroQ](${workdir}). However, I don't see an original task described yet beyond the workspace setup itself — could you let me know what you'd like me to work on in this workspace?
       stopReason: end_turn

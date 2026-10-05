@@ -6,11 +6,11 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
     response:
       content:
         - type: text
-          text: Got it — I’ll ask that single workspace setup question now.
+          text: Got it — I’ll ask that single workspace-choice question now.
         - type: tool_use
           id: toolcall_0
           name: request_user_input
@@ -21,16 +21,16 @@ exchanges:
                 question: Which workspace setup should I use?
                 options:
                   - label: file://${workdir} directly without isolation
-                    description: Attach this exact workspace folder with isolation disabled.
+                    description: Attach that exact folder directly with isolation disabled.
       stopReason: tool_use
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
         - role: assistant
-          content: Got it — I’ll ask that single workspace setup question now.
+          content: Got it — I’ll ask that single workspace-choice question now.
         - role: assistant
           content:
             - type: tool_use
@@ -42,7 +42,7 @@ exchanges:
                     question: Which workspace setup should I use?
                     options:
                       - label: file://${workdir} directly without isolation
-                        description: Attach this exact workspace folder with isolation disabled.
+                        description: Attach that exact folder directly with isolation disabled.
         - role: user
           content:
             - type: tool_result
@@ -51,7 +51,7 @@ exchanges:
     response:
       content:
         - type: text
-          text: Thanks — I’ll attach that workspace now exactly as requested.
+          text: Thanks — attaching that exact workspace now with isolation disabled.
         - type: tool_use
           id: toolcall_1
           name: set_workspace
@@ -64,9 +64,9 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
         - role: assistant
-          content: Got it — I’ll ask that single workspace setup question now.
+          content: Got it — I’ll ask that single workspace-choice question now.
         - role: assistant
           content:
             - type: tool_use
@@ -78,14 +78,14 @@ exchanges:
                     question: Which workspace setup should I use?
                     options:
                       - label: file://${workdir} directly without isolation
-                        description: Attach this exact workspace folder with isolation disabled.
+                        description: Attach that exact folder directly with isolation disabled.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: '{"answers":{"workspace_setup":{"answers":["file://${workdir} directly without isolation"]}}}'
         - role: assistant
-          content: Thanks — I’ll attach that workspace now exactly as requested.
+          content: Thanks — attaching that exact workspace now with isolation disabled.
         - role: assistant
           content:
             - type: tool_use
@@ -99,16 +99,16 @@ exchanges:
               tool_use_id: toolcall_1
               content: Workspace will be set to file://${workdir} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.
     response:
-      content: converted
+      content: []
       stopReason: end_turn
   - request:
       model: gpt-5.3-codex
       system: ${system}
       messages:
         - role: user
-          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. After the workspace is attached, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
+          content: 'First use the available user-input tool exactly once to ask which workspace setup to use, with one choice: "file://${workdir} directly without isolation". After I answer, call set_workspace with that workspace and isolation false as the turn''s final tool call. Never run a shell command. When the host automatically continues after attaching the workspace, do not inspect, read, or modify it and do not call another tool; reply exactly "converted".'
         - role: assistant
-          content: Got it — I’ll ask that single workspace setup question now.
+          content: Got it — I’ll ask that single workspace-choice question now.
         - role: assistant
           content:
             - type: tool_use
@@ -120,14 +120,14 @@ exchanges:
                     question: Which workspace setup should I use?
                     options:
                       - label: file://${workdir} directly without isolation
-                        description: Attach this exact workspace folder with isolation disabled.
+                        description: Attach that exact folder directly with isolation disabled.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
               content: '{"answers":{"workspace_setup":{"answers":["file://${workdir} directly without isolation"]}}}'
         - role: assistant
-          content: Thanks — I’ll attach that workspace now exactly as requested.
+          content: Thanks — attaching that exact workspace now with isolation disabled.
         - role: assistant
           content:
             - type: tool_use
@@ -140,8 +140,6 @@ exchanges:
             - type: tool_result
               tool_use_id: toolcall_1
               content: Workspace will be set to file://${workdir} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.
-        - role: assistant
-          content: converted
         - role: user
           content: The current session is now attached to ${workdir}. Continue the user's original task in this workspace. Do not request another session or workspace conversion.
     response:
