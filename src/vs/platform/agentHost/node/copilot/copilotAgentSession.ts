@@ -7402,6 +7402,13 @@ export class CopilotAgentSession extends Disposable {
 			// subagent call counts toward the turn under its own model without
 			// being counted twice by the parent and subagent emits below.
 			turn?.addTokenTotals(eventContext.model, eventContext);
+			// The wrapper drops provisional HydraFusion `assistant.message` copies, so only the committed
+			// phase's replayed messages reach `onMessage`; discarded, cancelled, and review phases never
+			// report their model calls there. Each phase call still bills an attributed `assistant.usage`
+			// carrying the same `apiCallId`, so the turn's call set dedupes the committed replay.
+			if (turn && !e.agentId && !parentToolCallId && e.data.fusion?.phaseId && e.data.apiCallId && e.data.interactionType !== 'conversation-compaction') {
+				this._emitModelCallCompleted(turn.id, e.data.apiCallId);
+			}
 			const directUsage = isUnmappedSubagent ? undefined : this._directUsageFor(parentToolCallId, true);
 			directUsage?.add(eventContext.model, eventContext, copilotUsage?.totalNanoAiu);
 			const isChildUsage = e.data.interactionType === 'conversation-subagent' || e.data.initiator === 'sub-agent';
