@@ -7,7 +7,9 @@
 .session-comparison-result {
 	box-sizing: border-box;
 	container-type: inline-size;
-	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	/* Horizontal margin is 0 so this stays flush with the chat input beside it;
+		both are inset only by their shared parent's own padding. */
+	margin: var(--vscode-spacing-size80) 0;
 	overflow: hidden;
 	border: var(--vscode-strokeThickness) solid var(--vscode-agentsChatInput-border);
 	border-radius: var(--vscode-cornerRadius-large);

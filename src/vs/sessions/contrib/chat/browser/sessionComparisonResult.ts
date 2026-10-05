@@ -34,7 +34,6 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessConfigurationLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonParticipant, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
@@ -123,10 +122,13 @@ export class SessionComparisonResult extends Disposable {
 	}
 
 	layout(availableWidth: number): void {
-		const centeredContentWidth = Math.min(availableWidth, AGENTS_CENTERED_CONTENT_MAX_WIDTH);
-		this.domNode.style.width = `calc(${availableWidth}px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))`;
-		this.domNode.style.marginLeft = `${(centeredContentWidth - availableWidth) / 2}px`;
-		this.domNode.style.marginRight = '0';
+		// Intentionally a no-op: this node renders as a direct sibling of the chat
+		// input inside `.interactive-input-part`, which already centers and caps
+		// itself at `AGENTS_CENTERED_CONTENT_MAX_WIDTH` via CSS. Re-centering here
+		// against the uncapped pane width double-applied that inset, bleeding the
+		// card past the input's edges on both sides. The stylesheet's own margin
+		// keeps this flush with the input, and `container-type: inline-size`
+		// drives the `@container` breakpoint below without any manual sizing.
 	}
 
 	private render(comparison: ISessionComparison | undefined): void {
