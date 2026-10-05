@@ -176,13 +176,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 		const attachment = item.attachment;
 		switch (attachment.kind) {
 			case 'text':
-				return {
-					label: item.label ?? item.insertText,
-					insertText: item.insertText,
-					filterText: item.label ?? item.insertText,
-					range: replaceRange,
-					kind: CompletionItemKind.Text,
-				};
+				return AgentHostInputCompletions.buildTextCompletionItem(position, item);
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
