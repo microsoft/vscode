@@ -73,7 +73,11 @@ const workspaceAndModelPayload: ISpotlightPayload = {
 };
 
 /** Builds the interactive new-session view tour. */
-export function createNewSessionViewV2Tour(signal: IObservable<boolean>, resolveVariation?: () => Promise<NewSessionViewV2Variation>): IOnboardingScenario<ISpotlightPayload> {
+export function createNewSessionViewV2Tour(
+	signal: IObservable<boolean>,
+	resolveVariation?: () => Promise<NewSessionViewV2Variation>,
+	options: { enabledByDefault?: boolean } = {},
+): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: NEW_SESSION_VIEW_V2_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
@@ -81,7 +85,7 @@ export function createNewSessionViewV2Tour(signal: IObservable<boolean>, resolve
 		when: createNewSessionViewRecentTourWhen(),
 		trigger: { kind: 'observable', signal },
 		priority: 110,
-		experiment: NEW_SESSION_VIEW_V2_EXPERIMENT,
+		experiment: options.enabledByDefault ? undefined : NEW_SESSION_VIEW_V2_EXPERIMENT,
 		presentation: {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			payload: {

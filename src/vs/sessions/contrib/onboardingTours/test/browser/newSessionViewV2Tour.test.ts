@@ -96,6 +96,12 @@ suite('NewSessionViewV2Tour', () => {
 		);
 	});
 
+	test('can be enabled by default without experiment gating', () => {
+		const trigger = observableValue<boolean>(disposables, false);
+
+		assert.strictEqual(createNewSessionViewV2Tour(trigger, undefined, { enabledByDefault: true }).experiment, undefined);
+	});
+
 	test('resolves the workspace-and-model variation without changing the default flow', async () => {
 		const trigger = observableValue<boolean>(disposables, false);
 		const scenario = createNewSessionViewV2Tour(trigger, async () => 'workspaceAndModel');
@@ -134,13 +140,14 @@ suite('NewSessionViewV2Tour', () => {
 
 	test('selects the V2 variation from the experiment or an enabled developer override', async () => {
 		const cases = [
-			{ treatment: undefined, developerMode: false, override: undefined, expected: 'default', warnings: 0 },
-			{ treatment: 'workspaceAndModel', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0 },
-			{ treatment: 'default', developerMode: true, override: 'workspaceAndModel', expected: 'workspaceAndModel', warnings: 0 },
-			{ treatment: 'workspaceAndModel', developerMode: true, override: 'default', expected: 'default', warnings: 0 },
-			{ treatment: 'default', developerMode: false, override: 'workspaceAndModel', expected: 'default', warnings: 0 },
-			{ treatment: 'workspaceAndModel', developerMode: true, override: '', expected: 'workspaceAndModel', warnings: 0 },
-			{ treatment: 'unsupported', developerMode: false, override: undefined, expected: 'default', warnings: 1 },
+			{ treatment: undefined, developerMode: false, override: undefined, expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'workspaceAndModel', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: true, override: 'workspaceAndModel', expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'workspaceAndModel', developerMode: true, override: 'default', expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: false, override: 'workspaceAndModel', expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'workspaceAndModel', developerMode: true, override: '', expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'unsupported', developerMode: false, override: undefined, expected: 'default', warnings: 1, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0, defaultVariation: 'workspaceAndModel' as const, useTreatment: false },
 		];
 		const results = [];
 		for (const entry of cases) {
@@ -160,7 +167,10 @@ suite('NewSessionViewV2Tour', () => {
 				override warn(): void { warnings++; }
 			}());
 			results.push({
-				variation: await resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService),
+				variation: await resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService, {
+					defaultVariation: entry.defaultVariation,
+					useTreatment: entry.useTreatment,
+				}),
 				warnings,
 				requestedTreatments,
 			});
@@ -168,7 +178,7 @@ suite('NewSessionViewV2Tour', () => {
 		assert.deepStrictEqual(results, cases.map(entry => ({
 			variation: entry.expected,
 			warnings: entry.warnings,
-			requestedTreatments: entry.developerMode && entry.override ? [] : ['onb.newSessionViewV2.variation'],
+			requestedTreatments: entry.developerMode && entry.override || entry.useTreatment === false ? [] : ['onb.newSessionViewV2.variation'],
 		})));
 	});
 
