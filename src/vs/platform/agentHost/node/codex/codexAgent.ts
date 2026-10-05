@@ -1450,7 +1450,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	captureTurnTelemetryContext(): IAgentProviderTurnTelemetryContext {
-		return { codex: getCodexAccountTelemetryContext(this._openAIAccountState, this._openAIAccountRateLimit, this._openAIAccountRateLimitUpdatedAt) };
+		return { codex: getCodexAccountTelemetryContext(this._openAIAccountState, this._openAIAccountRateLimit, this._openAIAccountRateLimitUpdatedAt, Date.now(), this._openAIAccountRateLimits) };
 	}
 
 	private _publishAccountInfo(account: ICodexAccountInfo): void {

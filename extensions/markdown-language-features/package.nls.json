@@ -324,55 +324,6 @@
 		],
 		"$generated": true
 	},
-	"markdown.editor.copyLinesUp.title": {
-		"message": "Copy Line Up",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
-	"markdown.editor.copyLinesDown.title": {
-		"message": "Copy Line Down",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
-	"markdown.editor.moveLinesUp.title": {
-		"message": "Move Line Up",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
-	"markdown.editor.moveLinesDown.title": {
-		"message": "Move Line Down",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
-	"markdown.editor.deleteLines.title": {
-		"message": "Delete Line",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
-	"markdown.editor.joinLines.title": {
-		"message": "Join Lines",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
-	"markdown.editor.toggleLocked.title": {
-		"message": "Toggle Editing/Locked Mode",
-		"comment": [
-			"Generated from @vscode/markdown-editor/commands. Do not edit manually."
-		],
-		"$generated": true
-	},
 	"markdown.editor.undo.title": {
 		"message": "Undo",
 		"comment": [
