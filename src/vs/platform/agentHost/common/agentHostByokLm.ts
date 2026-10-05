@@ -59,7 +59,14 @@ export interface IByokLmFunctionCallItem {
 export interface IByokLmFunctionCallOutputItem {
 	readonly type: 'function_call_output';
 	readonly callId: string;
+	/** Text of the tool result. */
 	readonly output: string;
+	/**
+	 * Images returned by the tool (e.g. the `view` tool reading an image file).
+	 * Kept separate from {@link output} so a renderer that predates this field
+	 * still receives the text result.
+	 */
+	readonly images?: IByokLmImagePart[];
 }
 
 export interface IByokLmCustomToolCallItem {
@@ -72,7 +79,10 @@ export interface IByokLmCustomToolCallItem {
 export interface IByokLmCustomToolCallOutputItem {
 	readonly type: 'custom_tool_call_output';
 	readonly callId: string;
+	/** Text of the tool result. */
 	readonly output: string;
+	/** Images returned by the tool; see {@link IByokLmFunctionCallOutputItem.images}. */
+	readonly images?: IByokLmImagePart[];
 }
 
 export type IByokLmInputItem =

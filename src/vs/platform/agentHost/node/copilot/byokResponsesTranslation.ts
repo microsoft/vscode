@@ -9,6 +9,7 @@ import {
 	IByokLmChatRequest,
 	IByokLmChatResult,
 	IByokLmContentPart,
+	IByokLmImagePart,
 	IByokLmInputItem,
 	IByokLmOutputItem,
 	IByokLmTool,
@@ -18,6 +19,7 @@ interface IResponsesContentPart {
 	readonly type?: string;
 	readonly text?: string;
 	readonly image_url?: string;
+	readonly detail?: string;
 	readonly filename?: string;
 	readonly file_data?: string;
 	readonly file_id?: string;
@@ -52,7 +54,7 @@ interface IResponsesInputItem {
 	readonly name?: string;
 	readonly arguments?: string;
 	readonly input?: string;
-	readonly output?: string;
+	readonly output?: string | IResponsesContentPart[];
 }
 
 interface IResponsesTool {
@@ -105,7 +107,7 @@ function omittedFileText(part: IResponsesContentPart): string {
 	return `\n[${name}${mimeType ? ` (${mimeType})` : ''} omitted: this model does not accept file inputs]\n`;
 }
 
-function toContentParts(content: string | IResponsesContentPart[] | undefined, itemIndex: number): IByokLmContentPart[] {
+function toContentParts(content: string | IResponsesContentPart[] | undefined, path: string): IByokLmContentPart[] {
 	if (typeof content === 'string') {
 		return content ? [{ type: 'text', text: content }] : [];
 	}
@@ -113,6 +115,7 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, i
 		return [];
 	}
 	return content.map((part, contentIndex) => {
+		const partPath = `${path}[${contentIndex}]`;
 		if ((part.type === 'input_text' || part.type === 'output_text' || part.type === 'text') && typeof part.text === 'string') {
 			return { type: 'text' as const, text: part.text };
 		}
@@ -120,12 +123,12 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, i
 			const match = /^data:(?<mimeType>image\/[^;,]+)(?:;[^,]*)?;base64,(?<data>.*)$/.exec(part.image_url);
 			if (match?.groups) {
 				if (!isSupportedImageMimeType(match.groups.mimeType)) {
-					throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}].image_url MIME type '${match.groups.mimeType}'`);
+					throw new ResponsesTranslationError(`Unsupported ${partPath}.image_url MIME type '${match.groups.mimeType}'`);
 				}
 				try {
 					decodeBase64(match.groups.data);
 				} catch {
-					throw new ResponsesTranslationError(`Invalid input[${itemIndex}].content[${contentIndex}].image_url`);
+					throw new ResponsesTranslationError(`Invalid ${partPath}.image_url`);
 				}
 				return {
 					type: 'image' as const,
@@ -133,13 +136,35 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, i
 					data: match.groups.data,
 				};
 			}
-			throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}].image_url`);
+			throw new ResponsesTranslationError(`Unsupported ${partPath}.image_url`);
 		}
 		if (part.type === 'input_file') {
 			return { type: 'text' as const, text: omittedFileText(part) };
 		}
-		throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}] type '${part.type ?? ''}'`);
+		throw new ResponsesTranslationError(`Unsupported ${partPath} type '${part.type ?? ''}'`);
 	});
+}
+
+/**
+ * Splits a Responses tool output into the bridge's text `output` and `images`.
+ * The Copilot runtime sends a content-part array (`input_text` /
+ * `input_image`) instead of a string when a tool result carries images and the
+ * model declares vision support.
+ */
+function toToolOutput(output: string | IResponsesContentPart[] | undefined, path: string): { output: string; images?: IByokLmImagePart[] } {
+	if (!Array.isArray(output)) {
+		return { output: output ?? '' };
+	}
+	let text = '';
+	const images: IByokLmImagePart[] = [];
+	for (const part of toContentParts(output, path)) {
+		if (part.type === 'text') {
+			text += part.text;
+		} else {
+			images.push(part);
+		}
+	}
+	return images.length ? { output: text, images } : { output: text };
 }
 
 function requiredString(value: string | undefined, path: string): string {
@@ -155,7 +180,7 @@ function toBridgeInputItem(item: IResponsesInputItem, index: number): IByokLmInp
 			return {
 				type: 'message',
 				role: toBridgeRole(item.role),
-				content: toContentParts(item.content, index),
+				content: toContentParts(item.content, `input[${index}].content`),
 			};
 		case 'reasoning':
 			return {
@@ -180,7 +205,7 @@ function toBridgeInputItem(item: IResponsesInputItem, index: number): IByokLmInp
 			return {
 				type: 'function_call_output',
 				callId: requiredString(item.call_id, `input[${index}].call_id`),
-				output: item.output ?? '',
+				...toToolOutput(item.output, `input[${index}].output`),
 			};
 		case 'custom_tool_call':
 			return {
@@ -193,7 +218,7 @@ function toBridgeInputItem(item: IResponsesInputItem, index: number): IByokLmInp
 			return {
 				type: 'custom_tool_call_output',
 				callId: requiredString(item.call_id, `input[${index}].call_id`),
-				output: item.output ?? '',
+				...toToolOutput(item.output, `input[${index}].output`),
 			};
 		default:
 			throw new ResponsesTranslationError(`Unsupported input[${index}] type '${item.type ?? ''}'`);

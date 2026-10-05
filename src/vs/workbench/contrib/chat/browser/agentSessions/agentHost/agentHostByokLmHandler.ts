@@ -293,7 +293,10 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 					content: [{
 						type: 'tool_result',
 						toolCallId: item.callId,
-						value: [{ type: 'text', value: item.output }],
+						value: [
+							{ type: 'text', value: item.output },
+							...(item.images ?? []).map(image => ({ type: 'data' as const, mimeType: image.mimeType, data: decodeBase64(image.data) })),
+						],
 					}],
 				};
 		}

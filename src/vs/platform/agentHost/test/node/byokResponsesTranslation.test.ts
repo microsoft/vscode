@@ -100,6 +100,27 @@ suite('byokResponsesTranslation', () => {
 		]);
 	});
 
+	test('splits array tool outputs into text and images', () => {
+		// Shape the Copilot runtime sends when a tool result carries an image for a vision-capable model.
+		const body: IResponsesRequest = {
+			model: 'm',
+			input: [
+				{
+					type: 'function_call_output', call_id: 'call_1', output: [
+						{ type: 'input_text', text: 'Viewed image file successfully.' },
+						{ type: 'input_image', detail: 'auto', image_url: 'data:image/png;base64,aW1hZ2U=' },
+					]
+				},
+				{ type: 'custom_tool_call_output', call_id: 'call_2', output: [{ type: 'input_text', text: 'a' }, { type: 'input_text', text: 'b' }] },
+			],
+		};
+
+		assert.deepStrictEqual(responsesRequestToBridge('acme', body).input, [
+			{ type: 'function_call_output', callId: 'call_1', output: 'Viewed image file successfully.', images: [{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2U=' }] },
+			{ type: 'custom_tool_call_output', callId: 'call_2', output: 'ab' },
+		]);
+	});
+
 	suite('capBridgeTools', () => {
 		const toolNames = (request: IByokLmChatRequest) => request.tools?.map(tool => tool.name);
 		const requestWithTools = (count: number, input: IByokLmChatRequest['input'] = []): IByokLmChatRequest => ({
