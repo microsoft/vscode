@@ -16,9 +16,9 @@ No code-design decision from the maintainer is currently blocking these items. M
 
 | Remaining gap | Current limitation | Help needed from the maintainer |
 | --- | --- | --- |
-| Authoritative credential expiry and live authorization lapse | GitHub's expiration header is not consumed; authenticated lanes do not lose observation/steering/MCP authorization at that deadline, and no integrated targeted lapse notification exists. Caller-provided expiry and relay-ticket renewal are not substitutes. | Scope decision: whether this is required for the continuing-development merge or explicitly deferred with the shared credential work. Security S33. |
-| Durable per-session mirror opt-out | Sharing is enabled for the entire host; there is no persisted per-session choice suppressing AHP/SDK/lifecycle publication after cold resume. | Product decision: whether host-wide consent is sufficient for this increment or per-session opt-out must precede merge. Security S34. |
-| Enterprise endpoint coherence and disclosure | MC independently defaults to dotcom rather than the configured GitHub identity origin; deliberate cross-host content residency and identity provenance are not explicitly surfaced. | Scope decision on enterprise support for this increment; supported topology/endpoint access is needed for deployment validation. Security S35. |
+| Authoritative credential expiry and live authorization lapse | GitHub's expiration header is not consumed; authenticated lanes do not lose observation/steering/MCP authorization at that deadline, and no integrated targeted lapse notification exists. Caller-provided expiry and relay-ticket renewal are not substitutes. | Scope decision: whether this is required for the continuing-development merge or explicitly deferred with the shared credential work. Security S04. |
+| Durable per-session mirror opt-out | Sharing is enabled for the entire host; there is no persisted per-session choice suppressing AHP/SDK/lifecycle publication after cold resume. | Product decision: whether host-wide consent is sufficient for this increment or per-session opt-out must precede merge. Security S20. |
+| Enterprise endpoint coherence and disclosure | MC independently defaults to dotcom rather than the configured GitHub identity origin; deliberate cross-host content residency and identity provenance are not explicitly surfaced. | Scope decision on enterprise support for this increment; supported topology/endpoint access is needed for deployment validation. Security S15. |
 
 ## Deferred validation
 
@@ -40,10 +40,10 @@ These limitations remain intentionally outside this increment rather than prereq
 
 | Deferred gap | Current limitation | Reference |
 | --- | --- | --- |
-| Mandatory connection binding | Default mode accepts unbound sealed tokens, which remain replayable. Omitted MCP resource context can permit retargeting within a purpose. | [Authentication](./missionControlAuthentication.ts), security S16. |
-| Credential sponsorship | Credentials are shared by resource/scopes rather than pinned to client/generation/session drivers; lineage-aware sign-out, lease expiry and driver handoff are not enforced. Ordinary transport disconnect alone need not revoke a valid session lease. | [Native store](../agentHostAuthenticationService.ts), security S17/S18/S24. |
-| OS containment/general native hardening | No claim of OS confinement, atomic filesystem isolation, or comprehensive native provider/logging/export credential isolation. | [Relay authorization](../protocolServerHandler.ts), security S23/S24. |
-| Durable AHP restart/history baseline | AHP stream epochs/counters/spools and a complete pre-registration history baseline are not durable across process restart. | [Mirror](./missionControlSessionMirror.ts), [SDK source](./missionControlSdkEventSource.ts), security S28. |
-| Response-part ID continuity | Reconstructed Copilot markdown/reasoning IDs can differ from live IDs, causing a client to reject a recovery snapshot as omitting displayed content. | [History mapping](../copilot/mapSessionEvents.ts), security S30. |
+| Mandatory connection binding | Default mode accepts unbound sealed tokens, which remain replayable. Omitted MCP resource context can permit retargeting within a purpose. | [Authentication](./missionControlAuthentication.ts), security S07. |
+| Credential sponsorship | Credentials are shared by resource/scopes rather than pinned to client/generation/session drivers; lineage-aware sign-out, lease expiry and driver handoff are not enforced. Ordinary transport disconnect alone need not revoke a valid session lease. | [Native store](../agentHostAuthenticationService.ts), security S01/S03/S08. |
+| OS containment/general native hardening | No claim of OS confinement, atomic filesystem isolation, or comprehensive native provider/logging/export credential isolation. | [Relay authorization](../protocolServerHandler.ts), security S08/S30. |
+| Durable AHP restart/history baseline | AHP stream epochs/counters/spools and a complete pre-registration history baseline are not durable across process restart. | [Mirror](./missionControlSessionMirror.ts), [SDK source](./missionControlSdkEventSource.ts), security S33. |
+| Response-part ID continuity | Reconstructed Copilot markdown/reasoning IDs can differ from live IDs, causing a client to reject a recovery snapshot as omitting displayed content. | [History mapping](../copilot/mapSessionEvents.ts), security S35. |
 
 (Written by Copilot)
