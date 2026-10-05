@@ -16526,6 +16526,40 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('changeModel restarts a live SDK session when a prompt experiment is on and the switch crosses the Claude Opus boundary', async () => {
+			const context = createTestAgentContext(disposables);
+			const agent = context.agent;
+			try {
+				const session = AgentSession.uri('copilotcli', 'prompt-experiment-model-change');
+				const chatUri = URI.parse(buildChatUri(session, 'peer-a'));
+				const internals = agent as unknown as ChatInternals;
+				const chatSession = makeFakeChatSession(session, 'sdk-a');
+				setPeerChatStub(agent, chatUri, chatSession.fake);
+				internals._chatBackings.set(chatUri.toString(), { sdkSessionId: 'sdk-a', model: { id: 'claude-opus-5.5' } });
+				const change = async (id: string) => {
+					await agent.chats.changeModel(chatUri, { id }, exactChatContext(session, chatUri));
+					return chatSession.rec.modelRestartRequests;
+				};
+
+				// Experiments off: the prompt does not depend on the model family.
+				const offOpusToHaiku = await change('claude-haiku-4.5');
+				const offHaikuToOpus = await change('claude-opus-5.5');
+
+				context.configurationService.updateRootConfig({ [CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider' });
+				const onOpusToOpus = await change('claude-opus-5');
+				const onOpusToHaiku = await change('claude-haiku-4.5');
+				const onHaikuToSonnet = await change('claude-sonnet-5.5');
+				const onSonnetToOpus = await change('claude-opus-5.5');
+
+				assert.deepStrictEqual(
+					{ offOpusToHaiku, offHaikuToOpus, onOpusToOpus, onOpusToHaiku, onHaikuToSonnet, onSonnetToOpus },
+					{ offOpusToHaiku: 0, offHaikuToOpus: 0, onOpusToOpus: 0, onOpusToHaiku: 1, onHaikuToSonnet: 1, onSonnetToOpus: 2 }
+				);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('sendMessage refreshes the SDK backing after switching to HydraFusion', async () => {
 			const agent = createTestAgent(disposables, { sessionDataService: disposables.add(new TestSessionDataService()) });
 			try {

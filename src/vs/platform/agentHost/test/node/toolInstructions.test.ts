@@ -134,7 +134,8 @@ suite('toolInstructions', () => {
 		test('appends the rendered lines after a transform override\'s output', async () => {
 			const composed = resolveToolInstructionsOverride(hasTools('a'), { action: (s: string) => s.toUpperCase() }, [lineFor('a')]);
 			assert.ok(composed && typeof composed.action === 'function');
-			assert.strictEqual(await composed.action('foundation'), 'FOUNDATION\nuse a');
+			assert.strictEqual(await composed.action('foundation'), 'FOUNDATION\n\nuse a');
+			assert.strictEqual(await composed.action('foundation\n\n'), 'FOUNDATION\n\nuse a');
 		});
 	});
 

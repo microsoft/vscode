@@ -79,6 +79,12 @@ const HARNESS_DEFAULTS_RULE_WITHOUT_MODEL = '* For a subagent\'s `reasoning_effo
  * `tool_instructions`) to the two parameters model guidance leaves alone, so
  * the prompt does not tell the agent both to choose a model and to leave it
  * unset.
+ *
+ * This also drops the rule's last sentence, "The runtime resolves `/subagents`
+ * preferences when these fields are omitted; do not copy them merely because
+ * they appear in `<subagent_model_preferences>`". It is about the model
+ * preference, which the guidance now overrides; the `task` tool's parameter
+ * descriptions still carry it for the other two parameters.
  */
 export function narrowSubagentHarnessDefaultsRule(content: string): string {
 	return content.replace(HARNESS_DEFAULTS_RULE, HARNESS_DEFAULTS_RULE_WITHOUT_MODEL);

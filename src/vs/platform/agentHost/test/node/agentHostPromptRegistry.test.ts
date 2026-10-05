@@ -218,6 +218,7 @@ suite('AgentHostPromptRegistry', () => {
 					'* For a subagent\'s `reasoning_effort` and `context_tier`, trust the harness defaults. Specify a value only when the user\'s current request or applicable persistent custom instructions (including global instructions) explicitly require that value for the subagent. Do not reuse values from earlier requests or infer unspecified values from the parent configuration.',
 					'* Give a bounded objective/stop.',
 					'</task>',
+					'',
 					COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION,
 					subagentModelGuidanceLines('sameProvider', opusModel.id),
 				].join('\n')
@@ -236,7 +237,8 @@ suite('AgentHostPromptRegistry', () => {
 				codeChangeRules: await applyTransform(config.sections?.code_change_rules, '<rules_for_code_changes>\n* Update directly related documentation.\n* Validate that your changes preserve existing behavior</rules_for_code_changes>'),
 				lastInstructions: await applyTransform(config.sections?.last_instructions, 'Don\'t settle for partial fixes. Verify your changes actually work before considering the task done.\n\n<task_completion>\n* A task is not complete until the expected outcome is verified and persistent\n* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)\n</task_completion>'),
 			}, {
-				codeChangeRules: '<rules_for_code_changes>\n* Update directly related documentation.</rules_for_code_changes>',
+				// Padded so the runtime's XML wrapper keeps a newline inside each tag.
+				codeChangeRules: '\n<rules_for_code_changes>\n* Update directly related documentation.</rules_for_code_changes>\n',
 				lastInstructions: 'Don\'t settle for partial fixes.\n\n<task_completion>\n* After starting a background process, verify it is running and responsive (e.g., test with `curl`, check process status)\n</task_completion>',
 			});
 		});

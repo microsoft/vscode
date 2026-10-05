@@ -44,6 +44,7 @@ import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { isClaudeOpusModelId } from './prompts/promptExperiments.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
@@ -3980,7 +3981,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const refreshReason = entry.requiresRestartAfterWorkingDirectoryChange
 				? 'workingDirectoryChanged'
 				: entry.requiresRestartAfterModelChange
-					? 'hydraFusionModelChanged'
+					? entry.modelChangeRestartReason ?? 'hydraFusionModelChanged'
 					: activeClient && currentSnapshot
 						? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, current.chatKey, currentSnapshot), token)
 						: undefined;
@@ -4774,7 +4775,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			[...new Set(currentDisabledRootMcpServers)].sort(),
 		);
 		const refreshReason = (entry.requiresRestartAfterWorkingDirectoryChange ? 'workingDirectoryChanged' : undefined)
-			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
+			?? (entry.requiresRestartAfterModelChange ? entry.modelChangeRestartReason ?? 'hydraFusionModelChanged' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
@@ -5795,6 +5796,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await entry?.setModel(model.id, resolveCopilotReasoningEffort(model, this._configurationService, this._logService, current.configurationId), getCopilotContextTier(model, longContextWindow, freeLongContext), autoTier);
 				if (entry && previousModelId !== model.id && (previousModelId === COPILOT_HYDRA_FUSION_MODEL_ID || model.id === COPILOT_HYDRA_FUSION_MODEL_ID)) {
 					entry.markModelChangeRequiresRestart();
+				} else if (entry && this._modelChangeAltersSystemPrompt(previousModelId, model.id)) {
+					entry.markModelChangeRequiresRestart('promptExperimentModelChanged');
 				}
 				// Keep the session-scope metadata in step for resumes that fall back
 				// to it; chat leaves persist through their backing instead.
@@ -5809,6 +5812,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._onDidChangeChatData.fire({ chat, providerData: encodeProviderData(updated) });
 			}
 		});
+	}
+
+	/**
+	 * Whether switching a live session between these models changes its system
+	 * prompt. The prompt is resolved once at launch, and the opt-in Claude Opus
+	 * prompt experiments apply to Opus sessions only, so a switch into or out
+	 * of Opus with one of them on leaves a prompt written for the other model:
+	 * guidance to delegate to "lighter" models that are heavier than a Haiku
+	 * session's own, or no experiment at all for a session that became Opus.
+	 */
+	private _modelChangeAltersSystemPrompt(previousModelId: string | undefined, nextModelId: string): boolean {
+		const subagentModelGuidance = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentModelGuidance);
+		const experimentOn = (subagentModelGuidance !== undefined && subagentModelGuidance !== 'off')
+			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.OmitVerificationInstructions) === true;
+		if (!experimentOn) {
+			return false;
+		}
+		// Same resolution the launcher uses to pick the prompt contributor: a
+		// `family` alias stands in for the model id.
+		const capabilityOverrides = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ModelCapabilityOverrides);
+		const isOpus = (modelId: string | undefined) => isClaudeOpusModelId(modelId === undefined
+			? undefined
+			: resolveModelCapabilityOverrideField(capabilityOverrides, modelId, 'family', (value): value is string => normalizeModelFamilyAlias(value) !== undefined) ?? modelId);
+		return isOpus(previousModelId) !== isOpus(nextModelId);
 	}
 
 	private async _changeAgent(chat: URI, agent: AgentSelection | undefined, operationContext: URI | IAgentChatContext): Promise<void> {

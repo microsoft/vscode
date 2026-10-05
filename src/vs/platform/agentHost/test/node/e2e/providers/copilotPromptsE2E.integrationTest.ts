@@ -30,7 +30,9 @@ import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
-import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, type SubagentModelGuidanceSetting } from '../../../../common/copilotCliConfig.js';
+import { narrowSubagentHarnessDefaultsRule, omitCodeChangeVerification, omitLastInstructionsVerification, subagentModelGuidanceLines } from '../../../../node/copilot/prompts/promptExperiments.js';
+import { COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../../../node/copilot/prompts/toolInstructions.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
@@ -222,7 +224,100 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			configured25000Budget: { skills: 40, descriptions: 24 },
 		});
 	});
+
+	// The prompt experiments edit sentences the SDK owns, through section
+	// transforms the SDK applies. This is the only place that sees the result:
+	// it fails if an edit lands in the wrong section, changes more than its own
+	// sentence, or stops matching because the foundation prompt was reworded.
+	(process.platform === 'win32' ? test.skip : test)('prompt experiments change only their own sentences in the Claude Opus prompt', async function () {
+		this.timeout(180_000);
+
+		const model = 'claude-opus-5.5';
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-prompt-experiments-`);
+		tempDirs.push(workspaceDir);
+		const lastSystemPrompt = () => {
+			const body = lease!.observedModelRequestBodies.at(-1);
+			assert.ok(body, 'no model request body was captured');
+			return normalizeVolatile(readSystemPrompt(JSON.parse(body) as IWireRequest));
+		};
+
+		const defaultSessionUri = await createRealSession(client, COPILOT_CONFIG, 'prompt-experiments-off', createdSessions, URI.file(workspaceDir));
+		await driveTurnWithModel(client, defaultSessionUri, model);
+		const defaultPrompt = lastSystemPrompt();
+
+		const peer = await lease!.connectClient();
+		let experimentPrompt: string;
+		try {
+			const experimentSessionUri = await createRealSession(
+				peer,
+				COPILOT_CONFIG,
+				'prompt-experiments-on',
+				createdSessions,
+				URI.file(workspaceDir),
+				undefined,
+				async () => setPromptExperiments(peer, 'sameProvider', true, 10_100),
+			);
+			await driveTurnWithModel(peer, experimentSessionUri, model);
+			experimentPrompt = lastSystemPrompt();
+		} finally {
+			// The host is shared with the other tests in this file.
+			setPromptExperiments(client, 'off', false, 10_101);
+			peer.close();
+		}
+
+		const guidance = subagentModelGuidanceLines('sameProvider', model);
+		assert.ok(guidance);
+		const toolsIntro = 'You have access to several tools. Below are additional guidelines on how to use some of them effectively:';
+		const edits: readonly [name: string, edit: (prompt: string) => string][] = [
+			// Not an edit the experiments ask for: when the `tool_instructions`
+			// group is transformed, the runtime renders the group's intro sentence
+			// inside `<tools>` instead of before it. A transform cannot avoid
+			// that, so it is pinned here as the one known side effect.
+			['runtime moves the tools intro inside the tag', prompt => prompt.replace(`${toolsIntro}\n<tools>\n`, `<tools>${toolsIntro}\n\n`)],
+			['narrows the harness-defaults rule', narrowSubagentHarnessDefaultsRule],
+			['replaces the host model lines', prompt => prompt.replace(COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, guidance)],
+			['drops the code-change verification bullet', omitCodeChangeVerification],
+			['drops the closing verification mandates', omitLastInstructionsVerification],
+		];
+		let expected = defaultPrompt;
+		const found: Record<string, boolean> = {};
+		for (const [name, edit] of edits) {
+			const next = edit(expected);
+			found[name] = next !== expected;
+			expected = next;
+		}
+
+		assert.deepStrictEqual(
+			{ found, onlyThoseEdits: experimentPrompt === expected },
+			{ found: Object.fromEntries(edits.map(([name]) => [name, true])), onlyThoseEdits: true },
+			experimentPrompt === expected ? undefined : firstDifference(experimentPrompt, expected),
+		);
+	});
 });
+
+function setPromptExperiments(c: TestProtocolClient, subagentModelGuidance: SubagentModelGuidanceSetting, omitVerificationInstructions: boolean, clientSeq: number): void {
+	c.dispatch({
+		channel: ROOT_STATE_URI,
+		clientSeq,
+		action: {
+			type: ActionType.RootConfigChanged,
+			config: {
+				[CopilotCliConfigKey.SubagentModelGuidance]: subagentModelGuidance,
+				[CopilotCliConfigKey.OmitVerificationInstructions]: omitVerificationInstructions,
+			},
+		},
+	});
+}
+
+/** Where two prompts first diverge, with a little context, for a readable failure. */
+function firstDifference(actual: string, expected: string): string {
+	let index = 0;
+	while (index < actual.length && actual[index] === expected[index]) {
+		index++;
+	}
+	const around = (text: string) => JSON.stringify(text.slice(Math.max(0, index - 60), index + 120));
+	return `prompts diverge at character ${index}\n  actual:   ${around(actual)}\n  expected: ${around(expected)}`;
+}
 
 function setSkillCharBudget(c: TestProtocolClient, budget: number, clientSeq: number): void {
 	c.dispatch({

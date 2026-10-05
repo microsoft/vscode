@@ -143,9 +143,11 @@ function composeToolInstructions(existing: SectionOverride | undefined, content:
 	}
 	// A transform rewrites the foundation section; run it, then append our lines
 	// to its result so host plumbing survives whatever the contributor changed.
+	// A blank line separates them, as it does when the lines are appended to the
+	// untransformed section.
 	if (typeof existing.action === 'function') {
 		const transform = existing.action;
-		return { action: async current => `${await transform(current)}\n${content}` };
+		return { action: async current => `${(await transform(current)).replace(/\n+$/, '')}\n\n${content}` };
 	}
 	// Fold our lines into the contributor's content (preserve it, don't clobber),
 	// then pad relative to the foundation by where this action places the content:

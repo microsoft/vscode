@@ -1226,6 +1226,7 @@ export class CopilotAgentSession extends Disposable {
 	private _workingDirectoryMutationInProgress = false;
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private _requiresRestartAfterModelChange = false;
+	private _modelChangeRestartReason: string | undefined;
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -2658,8 +2659,14 @@ export class CopilotAgentSession extends Disposable {
 		return this._requiresRestartAfterModelChange;
 	}
 
-	markModelChangeRequiresRestart(): void {
+	/** Why the last model change needs a restart, for the refresh log line. */
+	get modelChangeRestartReason(): string | undefined {
+		return this._modelChangeRestartReason;
+	}
+
+	markModelChangeRequiresRestart(reason = 'hydraFusionModelChanged'): void {
 		this._requiresRestartAfterModelChange = true;
+		this._modelChangeRestartReason = reason;
 	}
 
 	get requiresMcpLaunchConfigurationRefresh(): boolean {

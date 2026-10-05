@@ -37,7 +37,10 @@ class ClaudeOpusPromptResolver implements IAgentHostPrompt {
 			overrides.tool_instructions = { action: narrowSubagentHarnessDefaultsRule };
 		}
 		if (context.getSetting(CopilotCliConfigKey.OmitVerificationInstructions) === true) {
-			overrides.code_change_rules = { action: omitCodeChangeVerification };
+			// The runtime wraps a transformed XML section's output in its tags as is,
+			// where the untransformed section has a newline inside each tag. Put
+			// them back so the edit removes its sentence and changes nothing else.
+			overrides.code_change_rules = { action: content => `\n${omitCodeChangeVerification(content)}\n` };
 			overrides.last_instructions = { action: omitLastInstructionsVerification };
 		}
 		return Object.keys(overrides).length > 0 ? overrides : undefined;
