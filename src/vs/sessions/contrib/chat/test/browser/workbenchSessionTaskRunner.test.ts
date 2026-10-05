@@ -18,7 +18,7 @@ import { ITaskService } from '../../../../../workbench/contrib/tasks/common/task
 import { IChat, ISession, ISessionFolder, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ITaskEntry } from '../../browser/sessionsTasksService.js';
 import { WorkbenchSessionTaskRunner } from '../../browser/workbenchSessionTaskRunner.js';
-import { ChatLayoutPresentation, SESSIONS_LAYOUT_MODE_SETTING } from '../../../../common/chatLayout.js';
+import { ChatLayoutPresentation, SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -128,7 +128,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 			}
 		});
 		phone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'session' }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'session' }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});
@@ -154,7 +154,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 	}
 
 	function enableChatOwnership(mode: 'chat' | 'chat-shared' = 'chat'): void {
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: mode }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});

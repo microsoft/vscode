@@ -15,7 +15,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { SESSIONS_LAYOUT_MODE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 
 suite('Sessions chat layout configuration', () => {
@@ -23,15 +23,15 @@ suite('Sessions chat layout configuration', () => {
 	teardown(() => sinon.restore());
 
 	test('registers a session-default experimental window enum with descriptions', () => {
-		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[SESSIONS_LAYOUT_MODE_SETTING];
-		assert.deepStrictEqual({ type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
-			type: 'string', default: 'session', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session', 'chat', 'chat-shared'], descriptions: 3,
+		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[SESSIONS_LAYOUT_SCOPE_SETTING];
+		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
+			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session', 'chat', 'chat-shared'], descriptions: 3,
 		});
 	});
 
-	test('does not register the unreleased former setting', () => {
+	test('does not register the unreleased former settings', () => {
 		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		assert.strictEqual(properties['sessions.experimental.chatSpecificLayout'], undefined);
+		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => properties[key]), [undefined, undefined]);
 	});
 
 	test('keeps effective presentation unchanged until reload without listening for configuration changes', async () => {
@@ -44,12 +44,12 @@ suite('Sessions chat layout configuration', () => {
 		store.add(new SessionsLayoutContribution(instantiation, upcastPartial<IAgentWorkbenchLayoutService>({
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, chatLayoutPresentation: presentation,
 		})));
-		const change = upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LAYOUT_MODE_SETTING });
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat');
+		const change = upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === SESSIONS_LAYOUT_SCOPE_SETTING });
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'chat');
 		configuration.onDidChangeConfigurationEmitter.fire(change);
 		const activeAfterEnable = presentation.state.get().active;
 		const reloadedPresentation = store.add(new ChatLayoutPresentation(configuration, true, constObservable(false)));
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'session');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'session');
 		configuration.onDidChangeConfigurationEmitter.fire(change);
 		assert.deepStrictEqual({
 			configurationListeners: configurationListener.callCount,

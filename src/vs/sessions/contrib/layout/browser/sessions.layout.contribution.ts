@@ -12,7 +12,7 @@ import { DesktopLayoutController } from './desktopLayoutController.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { SESSIONS_LAYOUT_MODE_SETTING } from '../../../common/chatLayout.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../common/chatLayout.js';
 
 export class SessionsLayoutContribution extends Disposable implements IWorkbenchContribution {
 
@@ -39,18 +39,18 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	id: 'sessions',
 	title: localize('sessionsConfigurationTitle', "Sessions"),
 	properties: {
-		[SESSIONS_LAYOUT_MODE_SETTING]: {
+		[SESSIONS_LAYOUT_SCOPE_SETTING]: {
 			type: 'string',
 			enum: ['session', 'chat', 'chat-shared'],
 			enumDescriptions: [
-				localize('sessionsLayoutMode.session', "Use the existing session layout and terminal behavior."),
-				localize('sessionsLayoutMode.chat', "Keep editors, Editor and Details composition, bottom-panel visibility, selected panel views, and terminals separate for each chat."),
-				localize('sessionsLayoutMode.chatShared', "Keep editors, selected panel views, and terminals separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
+				localize('sessionsLayoutScope.session', "Use the existing session layout and terminal behavior."),
+				localize('sessionsLayoutScope.chat', "Keep editors, Editor and Details composition, bottom-panel visibility, selected panel views, and terminals separate for each chat."),
+				localize('sessionsLayoutScope.chatShared', "Keep editors, selected panel views, and terminals separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
 			],
 			default: 'session',
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
-			description: localize('sessionsLayoutMode.description', "Choose layout ownership in non-phone Agents windows. Pane sizes remain shared. Changes take effect after manually reloading the window."),
+			description: localize('sessionsLayoutScope.description', "Choose whether layout state and terminals belong to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Changes take effect after manually reloading the window."),
 		},
 	},
 });

@@ -9,7 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
-import { SESSIONS_LAYOUT_MODE_SETTING, ChatLayoutContext, ChatLayoutPresentation, getChatLayoutOwnerAfterReplacement } from '../../common/chatLayout.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutContext, ChatLayoutPresentation, getChatLayoutOwnerAfterReplacement } from '../../common/chatLayout.js';
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 
@@ -32,11 +32,11 @@ suite('Chat layout contract', () => {
 		const configuration = new TestConfigurationService();
 		const phone = observableValue('phone', false);
 		const initial = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'chat');
 		const enabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat-shared');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'chat-shared');
 		const shared = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'session');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'session');
 		const disabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		assert.deepStrictEqual([initial, enabled, shared, disabled].map(presentation => ({
 			mode: presentation.state.get().mode, active: presentation.state.get().active, frozen: Object.isFrozen(presentation.state.get()),
@@ -51,13 +51,16 @@ suite('Chat layout contract', () => {
 	test('booleans, former modes and invalid enum values never enable ownership', () => {
 		const values = [true, false, 'disabled', 'shared', 'per-chat', 'enabled', null];
 		assert.deepStrictEqual(values.map(value => {
-			const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: value }), true, constObservable(false)));
+			const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: value }), true, constObservable(false)));
 			return { mode: presentation.state.get().mode, enabled: presentation.enabled };
 		}), values.map(() => ({ mode: 'session', enabled: false })));
 	});
 
-	test('the unreleased former setting does not enable ownership', () => {
-		const configuration = new TestConfigurationService({ 'sessions.experimental.chatSpecificLayout': 'per-chat' });
+	test('the unreleased former settings do not enable ownership', () => {
+		const configuration = new TestConfigurationService({
+			'sessions.experimental.chatSpecificLayout': 'per-chat',
+			'sessions.layout.mode': 'chat',
+		});
 		const presentation = store.add(new ChatLayoutPresentation(configuration, true, constObservable(false)));
 		assert.deepStrictEqual({ mode: presentation.configured, enabled: presentation.enabled }, {
 			mode: 'session', enabled: false,
@@ -65,7 +68,7 @@ suite('Chat layout contract', () => {
 	});
 
 	test('phone startup remains legacy even after returning to desktop', () => {
-		const configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'chat' });
+		const configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'chat' });
 		const phone = observableValue('phone', true);
 		const presentation = store.add(new ChatLayoutPresentation(configuration, false, phone));
 		phone.set(false, undefined);
@@ -76,7 +79,7 @@ suite('Chat layout contract', () => {
 
 	test('runtime suspension invalidates queued work and resumes the focused owner without changing captured ownership', () => {
 		const phone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'chat' }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'chat' }), true, phone));
 		const main = chat('opaque-main:/one');
 		const peer = chat('different-peer:/two');
 		const activeChat = observableValue('activeChat', main);
@@ -103,7 +106,7 @@ suite('Chat layout contract', () => {
 
 	test('same-session, cross-session, and A/B/A focus changes invalidate snapshots; no session has no owner', () => {
 		const localPhone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'chat' }), true, localPhone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'chat' }), true, localPhone));
 		const main = chat('chat:/main');
 		const peer = chat('chat:/peer');
 		const activeChat = observableValue('activeChat', main);

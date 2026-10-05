@@ -20,7 +20,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
-import { ChatLayoutPresentation, SESSIONS_LAYOUT_MODE_SETTING } from '../../../../common/chatLayout.js';
+import { ChatLayoutPresentation, SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -468,7 +468,7 @@ suite('SessionsTerminalContribution', () => {
 			override isViewVisible(): boolean { return false; }
 			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
 		});
-		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'session' });
+		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'session' });
 		phone = observableValue('phone', false);
 		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
@@ -496,7 +496,7 @@ suite('SessionsTerminalContribution', () => {
 	function enableChatOwnership(mode: 'chat' | 'chat-shared' = 'chat'): void {
 		contribution.dispose();
 		layoutPresentation.dispose();
-		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: mode });
+		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode });
 		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = layoutPresentation;
@@ -810,7 +810,7 @@ suite('SessionsTerminalContribution', () => {
 		const peer = addPeer(session, 'peer');
 		activeSessionObs.set(session, undefined);
 		await tick();
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, 'chat');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'chat');
 		session.activeChat.set(peer, undefined);
 		await tick();
 		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], enabled: layoutPresentation.enabled }, { ids: [1], enabled: false });

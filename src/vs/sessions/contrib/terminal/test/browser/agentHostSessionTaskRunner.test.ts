@@ -27,7 +27,7 @@ import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/w
 import { ITaskEntry, ISessionsTasksService, ISessionTaskWithTarget } from '../../../chat/browser/sessionsTasksService.js';
 import { osToTaskTargetOS } from '../../../chat/browser/taskCommand.js';
 import { AgentHostSessionTaskRunner } from '../../browser/agentHostSessionTaskRunner.js';
-import { ChatLayoutPresentation, SESSIONS_LAYOUT_MODE_SETTING } from '../../../../common/chatLayout.js';
+import { ChatLayoutPresentation, SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -216,7 +216,7 @@ suite('AgentHostSessionTaskRunner', () => {
 			}
 		});
 
-		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: 'session' });
+		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'session' });
 		phone = observableValue('phone', false);
 		const presentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
@@ -244,7 +244,7 @@ suite('AgentHostSessionTaskRunner', () => {
 	}
 
 	function enableChatOwnership(mode: 'chat' | 'chat-shared' = 'chat'): void {
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_MODE_SETTING]: mode }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});

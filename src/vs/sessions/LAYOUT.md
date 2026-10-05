@@ -15,7 +15,7 @@ non-phone window, and `MobileWorkbench` for mobile web windows below the phone
 breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
-`sessions.layout.mode` is an experimental window setting
+`sessions.experimental.layoutScope` is an experimental window setting
 with modes `session` (default), `chat-shared`, and `chat`. Both enabled modes
 keep ordinary editors, the selected bottom-panel view, and terminals owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel

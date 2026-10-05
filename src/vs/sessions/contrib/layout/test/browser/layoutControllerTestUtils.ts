@@ -31,7 +31,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SESSIONS_LAYOUT_MODE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -316,7 +316,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
-	configService.setUserConfiguration(SESSIONS_LAYOUT_MODE_SETTING, options.chatLayoutMode ?? 'session');
+	configService.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, options.chatLayoutMode ?? 'session');
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
