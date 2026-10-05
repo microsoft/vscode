@@ -13,12 +13,15 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionResolutionPolicy, type IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -28,8 +31,7 @@ import { AgentHostTransportFailureReason } from '../../../../../../platform/agen
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -84,17 +86,18 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
-	override readonly initializeResult = constObservable({
+	override readonly initializeResult = constObservable<InitializeResult>({
 		protocolVersion: PROTOCOL_VERSION,
 		serverSeq: 0,
 		snapshots: [],
+		_meta: { 'vscode.agentHost': true },
 		automations: { create: {}, schedules: {}, runCancellation: {} },
 	});
 
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { channel: string; action: ChatAction | SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public echoDispatchedActions = false;
 	public dispatchedActionRejectionReason: string | undefined;
@@ -149,11 +152,11 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		return { items: [] };
 	}
 
-	dispatchAction(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
+	dispatchAction(channel: string, action: ChatAction | SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ channel, action, clientId, clientSeq });
 	}
 
-	override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	override dispatch(channel: string, action: ChatAction | SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		if (this.echoDispatchedActions) {
 			queueMicrotask(() => this.fireAction({ channel, action, serverSeq: this._nextSeq++, origin: undefined, rejectionReason: this.dispatchedActionRejectionReason } as ActionEnvelope));
@@ -264,9 +267,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { session?: URI; provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	return {
-		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
+		session: opts?.session ?? AgentSession.uri(opts?.provider ?? 'copilotcli', id),
+		...(opts?.session ? { provider: opts.provider ?? 'copilotcli' } : {}),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
@@ -313,7 +317,20 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
 	instantiationService.stub(IAgentHostService, overrides?.localAgentHostService ?? new class extends mock<IAgentHostService>() { }());
 	instantiationService.stub(IRemoteAgentHostService, overrides?.remoteAgentHostService ?? new NullRemoteAgentHostService());
+	const sessionResources = new ResourceMap<URI>();
+	const sessionResourcesChanged = disposables.add(new Emitter<void>());
 	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+		findSessionResource: backend => sessionResources.get(backend),
+		onDidChangeSessionResolution: sessionResourcesChanged.event,
+		registerSessionResource: (backend, authority, provider) => {
+			const resource = backend.with({ scheme: `remote-${authority}-${provider ?? backend.scheme}` });
+			if (!sessionResources.has(backend)) {
+				sessionResources.set(backend, resource);
+				sessionResourcesChanged.fire();
+			}
+			return resource;
+		},
+		getSessionResource: backend => sessionResources.get(backend),
 		registerSessionResolutionPolicy: (authority, policy) => {
 			overrides?.sessionResolutionPolicies?.push({ authority, policy });
 			return Disposable.None;
@@ -395,9 +412,9 @@ async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, s
 	});
 }
 
-function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; createdAt?: string; modifiedAt?: string; metadata?: Record<string, unknown>; status?: ProtocolSessionStatus }): void {
+function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { session?: URI; provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; createdAt?: string; modifiedAt?: string; metadata?: Record<string, unknown>; status?: ProtocolSessionStatus }): void {
 	const provider = opts?.provider ?? 'copilotcli';
-	const sessionUri = AgentSession.uri(provider, rawId);
+	const sessionUri = opts?.session ?? AgentSession.uri(provider, rawId);
 	connection.fireNotification({
 		channel: 'ahp-root://',
 		type: NotificationType.SessionAdded,
@@ -1226,6 +1243,63 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Session actions -------
 
+	test('opaque advertised default and peer chat mutations use host resources without native reconstruction', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const disposed: string[] = [];
+		const created: { session: string; forkSource?: string; sideChatSource?: string }[] = [];
+		const backend = URI.parse('session-store://tenant/opaque/session?generation%3D2');
+		const defaultChat = URI.parse('conversation://tenant/default?revision%3D3#entry');
+		const peer = URI.parse('conversation://tenant/peer?revision%3D4#entry');
+		let state: SessionState = {
+			provider: 'copilot', title: 'Opaque', status: ProtocolSessionStatus.Idle, lifecycle: SessionLifecycle.Ready, activeClients: [],
+			defaultChat: defaultChat.toString(),
+			chats: [defaultChat, peer].map(resource => createChatState({ resource: resource.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() })),
+		};
+		const peerConnection = new class extends MockAgentConnection {
+			override readonly initializeResult = constObservable<InitializeResult>({ protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] });
+			override async disposeChat(resource: URI): Promise<void> { disposed.push(resource.toString()); }
+			override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+				created.push({ session: session.toString(), forkSource: options?.fork?.source.toString(), sideChatSource: options?.sideChat?.source.toString() });
+				state = { ...state, chats: [...state.chats, createChatState({ resource: chat.toString(), title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(2000).toISOString() })] };
+				this.setChannelState(session, state);
+			}
+		}();
+		disposables.add(toDisposable(() => peerConnection.dispose()));
+		peerConnection.setAgents([{ provider: 'copilot', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, sideChat: true } } } as AgentInfo]);
+		peerConnection.addSession({
+			session: backend, provider: 'copilot', startTime: 1000, modifiedTime: 2000, summary: 'Opaque',
+			chats: [{ chat: defaultChat, kind: 'default', summary: 'Default' }, { chat: peer, kind: 'peer', summary: 'Peer' }],
+		});
+		peerConnection.setChannelState(backend, state);
+		const provider = createProvider(disposables, peerConnection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		const peerResource = session.resource.with({ fragment: peer.toString() });
+		await provider.forkChat(session.sessionId, session.resource, 'source-turn');
+		await provider.createSideChat(session.sessionId, peerResource, 'source-turn');
+		await provider.renameChat(session.sessionId, session.resource, 'Renamed default');
+		await provider.renameChat(session.sessionId, peerResource, 'Renamed peer');
+		await provider.archiveChat(session.sessionId, peerResource);
+		await assert.rejects(provider.forkChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
+		await assert.rejects(provider.createSideChat(session.sessionId, session.resource.with({ fragment: 'unknown-peer' }), 'source-turn'), /The chat could not be found/);
+		await provider.deleteChat(session.sessionId, peerResource, { skipConfirmation: true });
+		assert.deepStrictEqual({
+			titles: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionTitleChanged).map(entry => entry.channel),
+			archives: peerConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatIsArchivedChanged).map(entry => entry.channel),
+			disposed,
+			created,
+			resource: session.resource.toString(),
+		}, {
+			titles: [defaultChat.toString(), peer.toString()],
+			archives: [peer.toString()],
+			disposed: [peer.toString()],
+			created: [
+				{ session: backend.toString(), forkSource: defaultChat.toString(), sideChatSource: undefined },
+				{ session: backend.toString(), forkSource: undefined, sideChatSource: peer.toString() },
+			],
+			resource: backend.with({ scheme: 'remote-localhost__4321-copilot' }).toString(),
+		});
+	}));
+
 	test('deleteSession calls disposeSession with backend agent URI and removes from cache', async () => {
 		const provider = createProvider(disposables, connection);
 		fireSessionAdded(connection, 'del-sess', { title: 'To Delete' });
@@ -1307,7 +1381,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 					_meta: getAgentHostExtensionInitializeResultMeta(),
 				});
 				override async createDetachedWorktree(session: URI, prompt: string) {
-					events.push(`create:${AgentSession.provider(session)}:${prompt}`);
+					events.push(`create:${session.scheme}:${prompt}`);
 					return { handle, worktree: URI.file('/worktrees/prepared') };
 				}
 				override async claimDetachedWorktree(actualHandle: string): Promise<void> { events.push(`claim:${actualHandle}`); }
@@ -1397,7 +1471,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				replacement: replacement.sessionId, available: false, enabled: false,
 				events: [
 					`requestTrust:${workspace.toString()}`,
-					...useWorktree ? ['create:copilotcli:Fix it', `trust:${worktreeUri.toString()}`] : [],
+					...useWorktree ? ['create:ahp-session:Fix it', `trust:${worktreeUri.toString()}`] : [],
 					`connect:${(useWorktree ? worktreeUri : workspace).toString()}`,
 					`trust:${targetWorkspace.toString()}`,
 					`metadata:${useWorktree ? JSON.stringify({ 'vscode.devContainerWorktree': { version: 1, handle } }) : undefined}`,
@@ -2695,6 +2769,58 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(loading, [false, true, true, false, false, true]);
 	});
 
+	test('mixed remote cache reloads preserve frontend identities and route same raw IDs to their owning providers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		let listed: IAgentSessionMetadata[] = [
+			{ ...createSession('shared', { summary: 'Codex', status: ProtocolSessionStatus.IsRead }), session: URI.parse('codex:/shared'), provider: 'codex' },
+			{ ...createSession('shared', { summary: 'Claude' }), session: URI.parse('claude:/shared'), provider: 'claude' },
+			{ ...createSession('standard', { summary: 'Standard Copilot' }), session: URI.parse('ahp-session:/standard'), provider: 'copilotcli' },
+			{ ...createSession('legacy', { summary: 'Legacy Copilot' }), provider: 'copilotcli' },
+		];
+		const createConnection = () => new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> { return listed; }
+			override async disposeSession(resource: URI): Promise<void> {
+				this.disposedSessions.push(resource);
+				listed = listed.filter(metadata => !extUri.isEqual(metadata.session, resource));
+			}
+		}();
+		const firstConnection = createConnection();
+		disposables.add(toDisposable(() => firstConnection.dispose()));
+		const first = createProvider(disposables, firstConnection, { storageService });
+		await timeout(0);
+		const snapshot = (provider: RemoteAgentHostSessionsProvider) => provider.getSessions().map(session => ({
+			resource: session.resource.toString(), sessionId: session.sessionId, isRead: session.isRead.get(),
+		})).sort((a, b) => a.resource.localeCompare(b.resource));
+		const before = snapshot(first);
+		await storageService.flush();
+		const nextConnection = createConnection();
+		disposables.add(toDisposable(() => nextConnection.dispose()));
+		const restored = createProvider(disposables, nextConnection, { storageService, noConnection: true });
+		const after = snapshot(restored);
+		restored.setConnection(nextConnection);
+		await timeout(0);
+		const codex = restored.getSessions().find(session => session.sessionType === 'codex');
+		const claude = restored.getSessions().find(session => session.sessionType === 'claude');
+		const standard = restored.getSessions().find(session => session.title.get() === 'Standard Copilot');
+		const legacy = restored.getSessions().find(session => session.title.get() === 'Legacy Copilot');
+		assert.ok(codex && claude && standard && legacy);
+		await restored.archiveSession(codex.sessionId);
+		await restored.archiveSession(standard.sessionId);
+		await restored.archiveSession(legacy.sessionId);
+		await restored.deleteSessions([claude.sessionId]);
+		assert.deepStrictEqual({
+			reloaded: after,
+			archived: nextConnection.dispatchedActions.filter(entry => entry.action.type === ActionType.SessionIsArchivedChanged).map(entry => entry.channel),
+			deleted: nextConnection.disposedSessions.map(resource => resource.toString()),
+			survivingCodex: restored.getSessions().find(session => session.sessionId === codex.sessionId)?.resource.toString(),
+		}, {
+			reloaded: before,
+			archived: ['codex:/shared', 'ahp-session:/standard', 'copilotcli:/legacy'],
+			deleted: ['claude:/shared'],
+			survivingCodex: codex.resource.toString(),
+		});
+	}));
+
 	test('unpublishCachedSessions hides sessions but retains persisted cache', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		connection.addSession(createSession('keep-me', { summary: 'Keep Me' }));
@@ -3509,6 +3635,48 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 });
 
 suite('CloudSandboxSessionsProvider discovery metadata', () => {
+	for (const sandbox of [false, true]) {
+		test(`older sandbox addresses in current caches are normalized only by the sandbox provider (${sandbox})`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			storageService.store('remoteAgentHost.cachedSessions.v4.localhost__4321', JSON.stringify([{
+				session: 'copilot:/cached-address',
+				provider: 'copilot',
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Cached',
+			}]), StorageScope.APPLICATION, StorageTarget.USER);
+			const connection = disposables.add(new MockAgentConnection());
+			const provider = createProvider(disposables, connection, {
+				noConnection: true,
+				storageService,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				ctor: sandbox ? CloudSandboxSessionsProvider : RemoteAgentHostSessionsProvider,
+			});
+			const resource = URI.parse('remote-localhost__4321-copilot:/cached-address');
+			const cached = provider.getSessionByResource(resource);
+			assert.ok(cached instanceof AgentHostSessionAdapter);
+			const expectedBackend = sandbox ? 'ahp-session:/cached-address' : 'copilot:/cached-address';
+			provider.seedSessions([{
+				session: URI.parse(expectedBackend),
+				provider: 'copilot',
+				startTime: 1000,
+				modifiedTime: 3000,
+				summary: 'Discovered',
+			}]);
+			assert.deepStrictEqual({
+				backend: cached.backendUri.toString(),
+				sameAdapter: provider.getSessionByResource(resource) === cached,
+				title: cached.title.get(),
+				resources: provider.getSessions().map(session => session.resource.toString()),
+			}, {
+				backend: expectedBackend,
+				sameAdapter: true,
+				title: 'Cached',
+				resources: [resource.toString()],
+			});
+		});
+	}
+
 	const disposables = new DisposableStore();
 	const originalProject = { uri: URI.parse('https://github.com/owner/original'), displayName: 'owner/original' };
 	const metadata = createSession('discovered-session', {
@@ -3996,12 +4164,16 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 
 	test('fresh discovery replaces a cached activity placeholder without changing user flags', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		const metadata = createSession('discovered', {
-			summary: 'Cached title',
-			modifiedTime: 1_000,
-			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
-			workingDirectory: URI.file('/remote/project'),
-		});
+		const metadata = {
+			...createSession('discovered', {
+				summary: 'Cached title',
+				modifiedTime: 1_000,
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+				workingDirectory: URI.file('/remote/project'),
+			}),
+			session: AgentSession.uri('ahp-session', 'discovered'),
+			provider: 'copilot',
+		};
 		const first = sandbox(storage);
 		assert.ok(first instanceof CloudSandboxSessionsProvider);
 		first.setTaskArchiveHandler('discovered', async () => { });
@@ -4099,8 +4271,8 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 
 suite('CloudSandboxSessionsProvider renaming', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Old title' });
-	const backendUri = metadata.session.with({ scheme: 'ahp-session' });
+	const backendUri = AgentSession.uri('ahp-session', 'sandbox-session');
+	const metadata = { ...createSession('sandbox-session', { provider: 'copilot', summary: 'Old title' }), session: backendUri, provider: 'copilot' };
 
 	class TestSandboxProvider extends CloudSandboxSessionsProvider {
 		refresh(): Promise<void> { return this._refreshSessions(); }
@@ -4121,6 +4293,40 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 			provider.seedSessions([metadata], { updateExisting: true });
 		}
 		return { provider, connection, renamed };
+	}
+
+	for (const nativeProvider of ['copilotcli', 'codex', 'claude']) {
+		test(`task rename and removal retain a colliding ${nativeProvider} session`, async () => {
+			const connection = store.add(new MockAgentConnection());
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:rename-test', ctor: TestSandboxProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' }, noConnection: true,
+			}) as TestSandboxProvider;
+			const renamed: string[] = [];
+			provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
+			provider.seedSessions([createSession('sandbox-session', { provider: nativeProvider }), metadata]);
+			const other = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === nativeProvider);
+			const task = provider.getCachedSession('sandbox-session');
+			assert.ok(other && task);
+			const otherTitle = other.title.get();
+
+			await assert.rejects(provider.renameSession(other.sessionId, 'Other title'), /Connect to the environment/);
+			provider.removeDeletedSession('sandbox-session');
+
+			assert.deepStrictEqual({
+				taskBackend: task instanceof AgentHostSessionAdapter ? task.backendUri.toString() : undefined,
+				renamed,
+				cachedTask: provider.getCachedSession('sandbox-session'),
+				remaining: provider.getSessions().map(session => session.sessionId),
+				otherTitleUnchanged: other.title.get() === otherTitle,
+			}, {
+				taskBackend: backendUri.toString(),
+				renamed: [],
+				cachedTask: undefined,
+				remaining: [other.sessionId],
+				otherTitleUnchanged: true,
+			});
+		});
 	}
 
 	test('renames a disconnected task and its default chat without connecting', async () => {
@@ -4230,6 +4436,30 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 suite('CloudSandboxSessionsProvider deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const targetProvider of ['codex', 'claude']) {
+		test(`owner-managed deletion retains provider identity for colliding raw IDs (${targetProvider})`, async () => {
+			const metadata = ['codex', 'claude'].map(provider => createSession('shared', { provider }));
+			const connection = store.add(new class extends MockAgentConnection {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> { return metadata; }
+			}());
+			const ownerDeleted: string[] = [];
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				deleteSessionsOnDemand: {
+					ownsSession: session => session.toString() === 'codex:/shared',
+					deleteSessions: async sessions => { ownerDeleted.push(...sessions.map(session => session.toString())); },
+				},
+			});
+			await timeout(0);
+			const session = provider.getSessions().find(session => session.resource.scheme.endsWith(`-${targetProvider}`));
+			assert.ok(session);
+			await provider.deleteSession(session.sessionId);
+			assert.deepStrictEqual({
+				ownerDeleted,
+				hostDeleted: connection.disposedSessions.map(session => session.toString()),
+			}, targetProvider === 'codex' ? { ownerDeleted: ['codex:/shared'], hostDeleted: [] } : { ownerDeleted: [], hostDeleted: ['claude:/shared'] });
+		});
+	}
+
 	for (const targets of [['additional-session'], ['sandbox-session', 'additional-session'], ['additional-session', 'sandbox-session']]) {
 		test(`routes mixed catalogs to their deletion owners: ${targets.join(', ')}`, async () => {
 			const operations: string[] = [];
@@ -4249,11 +4479,11 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				noConnection: true,
 				deleteSessionsOnDemand: {
-					ownsSession: id => id === 'sandbox-session',
+					ownsSession: session => session.toString() === 'ahp-session:/sandbox-session',
 					deleteSessions: async ids => {
-						operations.push(`missionControl:${ids.join(',')}`);
+						operations.push(`missionControl:${ids.map(session => AgentSession.id(session)).join(',')}`);
 						for (const id of ids) {
-							sandbox.removeDeletedSession(id);
+							sandbox.removeDeletedSession(AgentSession.id(id));
 						}
 						provider.clearConnection();
 					},
@@ -4291,8 +4521,8 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
 			ctor: CloudSandboxSessionsProvider,
 			deleteSessionsOnDemand: {
-				ownsSession: id => id === 'sandbox-session',
-				deleteSessions: async ids => { owned.push(...ids); },
+				ownsSession: session => session.toString() === 'copilotcli:/sandbox-session',
+				deleteSessions: async ids => { owned.push(...ids.map(session => session.toString())); },
 			},
 		});
 		provider.seedSessions(metadata);
@@ -4317,11 +4547,11 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 				readOnlyWhenDisconnected: true,
 				connectOnDemand: async () => { connects++; },
 				deleteSessionsOnDemand: {
-					ownsSession: id => id === 'sandbox-session',
+					ownsSession: session => session.toString() === 'ahp-session:/sandbox-session',
 					deleteSessions: async ids => {
-						deleted.push([...ids]);
+						deleted.push(ids.map(session => AgentSession.id(session)));
 						for (const id of ids) {
-							sandbox.removeDeletedSession(id);
+							sandbox.removeDeletedSession(AgentSession.id(id));
 						}
 					},
 				},
@@ -4353,7 +4583,7 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
 			ctor: CloudSandboxSessionsProvider, noConnection: true,
 			deleteSessionsOnDemand: {
-				ownsSession: id => id === 'sandbox-session',
+				ownsSession: session => session.toString() === 'copilotcli:/sandbox-session',
 				deleteSessions: async () => { throw new Error('Mission Control rejected deletion'); },
 			},
 		});
@@ -4366,8 +4596,12 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 
 suite('CloudSandboxSessionsProvider archiving', () => {
 	const disposables = new DisposableStore();
-	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' });
 	const backendResource = AgentSession.uri('ahp-session', 'sandbox-session');
+	const metadata = {
+		...createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' }),
+		session: backendResource,
+		provider: 'copilot',
+	};
 	let connection: MockAgentConnection;
 
 	setup(() => {
@@ -4391,6 +4625,30 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 		assert.ok(provider instanceof CloudSandboxSessionsProvider);
 		provider.setTaskArchiveHandler('sandbox-session', overrides?.setArchived ?? (async () => { }));
 		return provider;
+	}
+
+	for (const nativeProvider of ['copilotcli', 'codex', 'claude']) {
+		test(`task archive ownership does not claim a colliding ${nativeProvider} session`, async () => {
+			const taskArchives: boolean[] = [];
+			const provider = createSandboxProvider({ setArchived: async archived => { taskArchives.push(archived); } });
+			provider.seedSessions([metadata, createSession('sandbox-session', { provider: nativeProvider })]);
+			const other = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === nativeProvider);
+			const task = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === 'copilot');
+			assert.ok(other && task);
+
+			await assert.rejects(provider.archiveSession(other.sessionId), /Connect to the environment/);
+			await provider.archiveSession(task.sessionId);
+			const archived = task.isArchived.get();
+			provider.setSessionArchived('sandbox-session', false);
+
+			assert.deepStrictEqual({
+				taskArchives,
+				archived,
+				unarchived: task.isArchived.get(),
+				otherArchived: other.isArchived.get(),
+				hostActions: connection.dispatchedActions,
+			}, { taskArchives: [true], archived: true, unarchived: false, otherArchived: false, hostActions: [] });
+		});
 	}
 
 	test('archives and unarchives the owning task without connecting or dispatching host actions', async () => {
@@ -4782,14 +5040,14 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 
 	test('a newer rename replaces the queued initial title before host creation', async () => {
 		const provider = createSandboxProvider(disposables, connection, { noConnection: true });
-		provider.seedProvisionalSession(createSession('renamed-before-create'));
+		provider.seedProvisionalSession(createSession('renamed-before-create', { session: AgentSession.uri('ahp-session', 'renamed-before-create') }));
 		const session = provider.getCachedSession('renamed-before-create')!;
 
 		await provider.renameSession(session.sessionId, 'First prompt');
 		await provider.renameSession(session.sessionId, 'My chosen title');
 		provider.setConnection(connection);
 		await timeout(0);
-		fireSessionAdded(connection, 'renamed-before-create', { title: 'main' });
+		fireSessionAdded(connection, 'renamed-before-create', { session: AgentSession.uri('ahp-session', 'renamed-before-create'), title: 'main' });
 
 		assert.deepStrictEqual({
 			title: session.title.get(),
@@ -4803,7 +5061,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	for (const removal of ['local deletion', 'host removal'] as const) {
 		test(`a queued title is discarded on ${removal}`, async () => {
 			const provider = createSandboxProvider(disposables, connection, { noConnection: true });
-			const metadata = createSession('removed-before-create');
+			const metadata = createSession('removed-before-create', { session: AgentSession.uri('ahp-session', 'removed-before-create') });
 			provider.seedProvisionalSession(metadata);
 			const session = provider.getCachedSession('removed-before-create')!;
 			await provider.renameSession(session.sessionId, 'First prompt');
@@ -4813,10 +5071,10 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 			if (removal === 'local deletion') {
 				provider.removeDeletedSession('removed-before-create');
 			} else {
-				fireSessionRemoved(connection, 'removed-before-create');
+				fireSessionRemoved(connection, 'removed-before-create', 'ahp-session');
 			}
 			provider.seedSessions([metadata]);
-			fireSessionAdded(connection, 'removed-before-create', { title: 'main' });
+			fireSessionAdded(connection, 'removed-before-create', { session: AgentSession.uri('ahp-session', 'removed-before-create'), title: 'main' });
 
 			assert.deepStrictEqual({
 				title: provider.getCachedSession('removed-before-create')?.title.get(),
@@ -4833,7 +5091,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createSandboxProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'provisional-1'),
+			session: AgentSession.uri('ahp-session', 'provisional-1'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Just provisioned',
@@ -4844,7 +5103,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		const survivedUnknown = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		// Once the host knows it, it reconciles like any other session.
-		connection.addSession(createSession('provisional-1', { summary: 'Just provisioned' }));
+		connection.addSession({ ...createSession('provisional-1', { summary: 'Just provisioned' }), session: AgentSession.uri('ahp-session', 'provisional-1'), provider: 'copilotcli' });
 		await refreshViaTurnComplete(connection, 'other-1');
 		const afterHostKnows = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
@@ -4858,7 +5117,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createSandboxProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'never-listed'),
+			session: AgentSession.uri('ahp-session', 'never-listed'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Never materialized',
@@ -4893,7 +5153,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		// the sandbox is awake.
 		const provider = createSandboxProvider(disposables, connection, { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'slow-wake'),
+			session: AgentSession.uri('ahp-session', 'slow-wake'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Slow to wake',
@@ -4913,7 +5174,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		disposables.add(provider.onDidChangeSessions(e => announced.push(e.added.map(s => s.sessionId))));
 
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'withheld-1'),
+			session: AgentSession.uri('ahp-session', 'withheld-1'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Withheld Session',
@@ -4943,7 +5205,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	test('publishing with announce:false lists the session without firing its own event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createSandboxProvider(disposables, new MockAgentConnection(), { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'withheld-2'),
+			session: AgentSession.uri('ahp-session', 'withheld-2'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Withheld Session',

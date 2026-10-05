@@ -172,8 +172,7 @@ interface ICreateAgentOptions {
 }
 
 /**
- * Per-session durable storage, keyed by session URI exactly like the real
- * service. Restore tests depend on this: a runtime's metadata overlay (its
+ * Per-URI isolated storage for the fixture. A runtime's metadata overlay (its
  * codex thread id) is stored under the session URI it was persisted with, so a
  * blob that names the wrong id must not accidentally find someone else's
  * overlay.
@@ -4602,9 +4601,9 @@ suite('CodexAgent chat backing durability', () => {
 		});
 	});
 
-	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {
+	['codex', 'ahp-session'].forEach(scheme => test(`the materialize receipt keeps ${scheme} sessions addressable after a cold provider restart`, async () => {
 		const sessionStore = createTestSessionStore();
-		const session = AgentSession.uri('codex', 'host-session');
+		const session = AgentSession.uri(scheme, 'host-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/durable');
 		const first = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
@@ -4680,6 +4679,7 @@ suite('CodexAgent chat backing durability', () => {
 				backingSession: receipt.result?.backingSession?.toString(),
 				restoredThreadId: restored?.threadId,
 				restoredSessionUri: restored?.sessionUri.toString(),
+				restoredConfigurationResource: restored?.configurationResource.toString(),
 				restoredChatChannel: restored?.chatChannel?.toString(),
 				hasAmbientRuntime: second['_sessions'].has('codex-thread'),
 				ambientUnsubscribe: { method: ambientUnsubscribe.method, threadId: ambientUnsubscribe.params.threadId },
@@ -4698,7 +4698,8 @@ suite('CodexAgent chat backing durability', () => {
 				backingSessionId: 'host-session',
 				backingSession: AgentSession.uri('codex', 'codex-thread').toString(),
 				restoredThreadId: 'codex-thread',
-				restoredSessionUri: session.toString(),
+				restoredSessionUri: AgentSession.uri('codex', 'host-session').toString(),
+				restoredConfigurationResource: session.toString(),
 				restoredChatChannel: chat.toString(),
 				hasAmbientRuntime: false,
 				ambientUnsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },
@@ -4716,7 +4717,7 @@ suite('CodexAgent chat backing durability', () => {
 			firstPeer.dispose();
 			secondPeer?.dispose();
 		}
-	});
+	}));
 
 	test('a restored runtime is addressed by the id its backing names, never by the session that asked for it', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });

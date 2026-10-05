@@ -50,6 +50,7 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 };
 
 export interface IAgentEditAttribution {
+	readonly provider?: string;
 	readonly sessionUri: string;
 	/** Originating chat channel, when known; separate from the owning session. */
 	readonly chatUri?: string;

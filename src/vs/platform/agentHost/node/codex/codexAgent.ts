@@ -8273,6 +8273,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		if (!session.mcpController) {
 			session.mcpController = this._instantiationService.createInstance(McpCustomizationController, {
+				provider: this.id,
 				chatUri: session.chatChannel,
 				emit: action => this._emitMcpCustomizationAction(session, action),
 				capabilities: CODEX_MCP_APP_CAPABILITIES,

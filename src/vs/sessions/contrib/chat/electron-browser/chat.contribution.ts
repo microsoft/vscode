@@ -12,7 +12,7 @@ import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IAgentHostByokLmHandler } from '../../../../platform/agentHost/common/agentHostByokLm.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
+import { buildExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../../../platform/agentHost/common/openSessionLink.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { AgentHostByokLmHandler } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostByokLmHandler.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -219,7 +219,8 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 	}
 
 	private async resolveAndOpenSessionLink(sessionLink: URI, backendSession: URI, token: CancellationToken): Promise<void> {
-		const session = await this.waitForSessionLinkAvailable(backendSession, token);
+		const authority = parseOpenSessionLinkConnectionAuthority(sessionLink);
+		const session = await this.waitForSessionLinkAvailable(backendSession, token, undefined, authority);
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -230,6 +231,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				backendSession,
 				parseOpenSessionLinkChatId(sessionLink),
 				parseOpenSessionLinkTurnId(sessionLink),
+				authority,
 			);
 			this.notificationService.error(localize('agentsHandoff.sessionNotFound', "The linked session could not be found: {0}", externalLink));
 			return;
@@ -254,11 +256,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		await this.sessionsService.openChat(session, chatResource, { source: 'link' });
 	}
 
-	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
+	private waitForSessionLinkAvailable(backendSession: URI, token: CancellationToken, timeoutMs = 15_000, connectionAuthority?: string): Promise<ReturnType<typeof findSessionForOpenSessionLink>> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(undefined);
 		}
-		const findSession = () => findSessionForOpenSessionLink(backendSession, this.sessionsManagementService, this.agentHostConnectionsService);
+		const findSession = () => findSessionForOpenSessionLink(backendSession, this.sessionsManagementService, this.agentHostConnectionsService, connectionAuthority);
 		const existing = findSession();
 		if (existing) {
 			return Promise.resolve(existing);

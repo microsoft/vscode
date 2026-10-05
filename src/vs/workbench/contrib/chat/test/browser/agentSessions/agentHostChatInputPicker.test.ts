@@ -22,7 +22,7 @@ import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostS
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -198,16 +198,22 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 		});
 		const sessionResolutions = new Map<string, IAgentHostSessionResolution>();
+		const resolveIdentity = (sessionResource: URI) => {
+			const known = sessionResolutions.get(sessionResource.toString());
+			const provider = getLocalAgentHostSessionProvider(sessionResource);
+			return known ?? (provider ? { backendSession: sessionResource.with({ scheme: provider, fragment: '' }), connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined);
+		};
 		instantiationService.stub(IAgentHostConnectionsService, {
 			ambientConnection: connection,
 			onDidChangeSessionResolution: Event.None,
+			resolveSessionResourceIdentity: resolveIdentity,
 			resolveSessionResource: sessionResource => {
 				const resolution = sessionResolutions.get(sessionResource.toString());
 				if (resolution) {
 					return resolution;
 				}
-				const backendSession = toAgentHostBackendSessionUri(sessionResource);
-				return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+				const identity = resolveIdentity(sessionResource);
+				return identity ? { ...identity, connection } : undefined;
 			},
 		});
 		instantiationService.set(IActionWidgetService, actionWidget);
@@ -524,7 +530,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const bypassAllowed = read();
 		managedSandboxAllowsBypass.set(false, undefined);
 		const resource = widget.viewModel!.sessionResource;
-		const state = setSession(resource, toAgentHostBackendSessionUri(resource)!, instantiationService.get(IAgentHostService));
+		const state = setSession(resource, toAgentHostBackendSessionUri(resource, instantiationService.get(IAgentHostConnectionsService))!, instantiationService.get(IAgentHostService));
 		const running = read();
 		await permissionPicker['_showPicker'](dom.$('div'));
 		const toggle = actionWidget.items.find(item => item.standaloneToggle)!.standaloneToggle!;
@@ -582,7 +588,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		const { permissionPicker, sandboxReady, setSession, config, configuration, widget, instantiationService } = setup(false);
 		await sandboxReady();
 		const resource = widget.viewModel!.sessionResource;
-		const state = setSession(resource, toAgentHostBackendSessionUri(resource)!, instantiationService.get(IAgentHostService));
+		const state = setSession(resource, toAgentHostBackendSessionUri(resource, instantiationService.get(IAgentHostConnectionsService))!, instantiationService.get(IAgentHostService));
 		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'off');
 		delete config.values[SessionConfigKey.SandboxEnabled];
 		state._meta = withSessionSandboxState(undefined, { enabled: true });
@@ -1418,9 +1424,13 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 				override readonly onDidChangeSessionResolution = Event.None;
+				override resolveSessionResourceIdentity(sessionResource: URI) {
+					const provider = getLocalAgentHostSessionProvider(sessionResource);
+					return provider ? { backendSession: sessionResource.with({ scheme: provider, fragment: '' }), connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+				}
 				override resolveSessionResource(sessionResource: URI) {
-					const backendSession = toAgentHostBackendSessionUri(sessionResource);
-					return backendSession ? { connection, backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY } : undefined;
+					const identity = this.resolveSessionResourceIdentity(sessionResource);
+					return identity ? { ...identity, connection } : undefined;
 				}
 			}(),
 			new class extends mock<IWorkbenchEnvironmentService>() {
