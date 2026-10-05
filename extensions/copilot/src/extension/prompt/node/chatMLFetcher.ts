@@ -8,6 +8,7 @@ import type { OpenAI } from 'openai';
 import type { CancellationToken } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { CopilotToken } from '../../../platform/authentication/common/copilotToken';
+import { QuotaTokenRefreshRequest } from '../../../platform/authentication/common/quotaTokenRefresh';
 import { FetchStreamRecorder, IChatMLFetcher, IFetchMLOptions, Source } from '../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../platform/chat/common/chatQuotaService';
 import { ChatFetchError, ChatFetchResponseType, ChatFetchRetriableError, ChatLocation, ChatResponse, ChatResponses, RESPONSE_CONTAINED_NO_CHOICES } from '../../../platform/chat/common/commonTypes';
@@ -1099,6 +1100,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				};
 			}
 
+			const quotaRequest = new QuotaTokenRefreshRequest(
+				JSON.stringify(['chat', stringifyUrlOrRequestMetadata(chatEndpointInfo.urlOrRequestMetadata), chatEndpointInfo.model]),
+				this._authenticationService,
+			);
+
 			// WebSocket path: use persistent WebSocket connection for Responses API endpoints
 			if (useWebSocket && turnId && conversationId) {
 				const wsResult = await this._doFetchViaWebSocket(
@@ -1119,6 +1125,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					interactionTypeOverride,
 					summarizedAtRoundId,
 					modeChanged,
+					quotaRequest,
 				);
 				return { ...wsResult, otelSpan };
 			}
@@ -1138,6 +1145,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				useFetcher,
 				canRetryOnce,
 				interactionTypeOverride,
+				quotaRequest,
 			);
 			return { ...httpResult, otelSpan };
 
@@ -1179,6 +1187,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		interactionTypeOverride: InteractionTypeOverride | undefined,
 		summarizedAtRoundId: string | undefined,
 		modeChanged: boolean | undefined,
+		quotaRequest: QuotaTokenRefreshRequest,
 	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; modelCallId?: string }> {
 		const intent = locationToIntent(location);
 		const agentInteractionType = interactionTypeOverride ?? intent;
@@ -1350,13 +1359,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			telemetryData.properties.error = `${firstEvent.error.message} (${firstEvent.error.code})`;
 			this._logService.debug(`request.error: [websocket capi error], took ${totalTimeMs} ms`);
 			this._telemetryService.sendGHTelemetryEvent('request.error', telemetryData.properties, telemetryData.measurements);
-			return { result: await this._handleWebSocketCAPIError(firstEvent, modelRequestId) };
+			return { result: await this._handleWebSocketCAPIError(firstEvent, modelRequestId, quotaRequest) };
 		}
 
-		// Clear stale quota-exceeded state if the server accepted the request.
-		if (this._authenticationService.copilotToken?.isFreeUser && this._authenticationService.copilotToken?.isChatQuotaExceeded) {
-			this._authenticationService.resetCopilotToken();
-		}
+		quotaRequest.onSuccess();
 
 		return {
 			result: {
@@ -1382,6 +1388,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		useFetcher: FetcherId | undefined,
 		canRetryOnce: boolean | undefined,
 		interactionTypeOverride: InteractionTypeOverride | undefined,
+		quotaRequest: QuotaTokenRefreshRequest,
 	): Promise<{ result: ChatResults | ChatRequestFailed | ChatRequestCanceled; fetcher?: FetcherId; bytesReceived?: number; statusCode?: number; modelCallId?: string }> {
 		// Generate unique ID to link input and output messages
 		const modelCallId = generateUuid();
@@ -1416,20 +1423,18 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			};
 		}
 
-		if (response.status === 200 && this._authenticationService.copilotToken?.isFreeUser && this._authenticationService.copilotToken?.isChatQuotaExceeded) {
-			this._authenticationService.resetCopilotToken();
-		}
-
 		if (response.status !== 200) {
 			const telemetryData = createTelemetryData(chatEndpointInfo, location, ourRequestId);
 			this._logService.info('Request ID for failed request: ' + ourRequestId);
 			return {
-				result: await this._handleError(telemetryData, response, ourRequestId),
+				result: await this._handleError(telemetryData, response, ourRequestId, quotaRequest),
 				fetcher: response.fetcher,
 				bytesReceived: response.bytesReceived,
 				statusCode: response.status
 			};
 		}
+
+		quotaRequest.onSuccess();
 
 		// Extend baseTelemetryData with modelCallId for output messages
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
@@ -1637,7 +1642,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 	private async _handleError(
 		telemetryData: TelemetryData,
 		response: Response,
-		requestId: string
+		requestId: string,
+		quotaRequest: QuotaTokenRefreshRequest,
 	): Promise<ChatRequestFailed> {
 		const modelRequestIdObj = getRequestId(response.headers);
 		requestId = modelRequestIdObj.headerRequestId || requestId;
@@ -1707,12 +1713,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			}
 
 			if (response.status === 402) {
-				// When we receive a 402, we have exceed a quota
-				// This is stored on the token so let's refresh it
-				if (!this._authenticationService.copilotToken?.isChatQuotaExceeded) {
-					this._authenticationService.resetCopilotToken(response.status);
-					await this._authenticationService.getCopilotToken();
-				}
+				await quotaRequest.onQuotaExceeded(this._authenticationService.copilotToken?.isChatQuotaExceeded ?? false);
 
 				const retryAfter = response.headers.get('retry-after');
 
@@ -2234,7 +2235,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		}
 	}
 
-	private async _handleWebSocketCAPIError(event: CAPIWebSocketErrorEvent, modelRequestId: RequestId): Promise<ChatRequestFailed> {
+	private async _handleWebSocketCAPIError(event: CAPIWebSocketErrorEvent, modelRequestId: RequestId, quotaRequest: QuotaTokenRefreshRequest): Promise<ChatRequestFailed> {
 		const { code, message } = event.error;
 		const capiError = { code, message };
 		const codePrefix = code.split(':')[0];
@@ -2251,12 +2252,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			};
 		}
 		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
-			// Refresh the copilot token so isChatQuotaExceeded reflects the new state,
-			// matching the HTTP 402 handler behavior.
-			if (!this._authenticationService.copilotToken?.isChatQuotaExceeded) {
-				this._authenticationService.resetCopilotToken(402);
-				await this._authenticationService.getCopilotToken();
-			}
+			await quotaRequest.onQuotaExceeded(this._authenticationService.copilotToken?.isChatQuotaExceeded ?? false);
 			return {
 				type: FetchResponseKind.Failed,
 				modelRequestId,

@@ -108,6 +108,26 @@ Most callers just need a valid CAPI token. `getCopilotToken()` handles refresh a
 const token = await authService.getCopilotToken();
 ```
 
+For quota rejections (HTTP 402 or CAPI quota errors), create a
+`QuotaTokenRefreshRequest` before sending the request, using a stable endpoint/model
+scope shared by HTTP and WebSocket. Call `onQuotaExceeded` with the applicable
+legacy quota flag and `onSuccess` when the server accepts a request. The helper
+preserves known-exhausted guards, coalesces concurrent attempts, and refreshes only
+once per quota episode. Success rearms only that scope; a five-minute backstop
+bounds failed refreshes and rapid success/failure cycles. Account changes start
+independent state, and late responses cannot refresh another account's token.
+Request ordering ensures an older success cannot discard a newer quota failure
+or rearm its latch. Token identity is checked even for static GitHub sessions
+that share a placeholder account ID.
+Legacy quota fields do not cover every NES or paid-plan quota, so neither a token
+rotation nor elapsed time alone clears the latch. Successful inference must not
+reset the token based on an unrelated legacy quota field. Normal token expiry
+and explicit authentication resets are unaffected.
+
+The user-invoked `github.copilot.refreshToken` command forces a token refresh to
+pick up plan changes even when the cached token is still valid. Background
+context inspection continues to use the cache.
+
 ## Minimal Mode
 
 When `authService.isMinimalMode` is `true`, the service will not fetch permissive tokens:
