@@ -22,6 +22,8 @@ export function getSessionApplication(name: string, title?: string): ISessionApp
 			return { id: name, label: localize('application.claude', "Claude") };
 		case 'codex':
 			return { id: name, label: localize('application.codex', "Codex") };
+		case 'issues_agent_assignment':
+			return { id: name, label: localize('application.issuesAssignment', "Issues Assignment") };
 		case 'slack':
 			return { id: name, label: localize('application.slack', "Slack") };
 		case 'teams':
