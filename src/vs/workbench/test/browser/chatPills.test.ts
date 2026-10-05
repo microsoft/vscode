@@ -27,7 +27,7 @@ import { IFileContent, IFileService } from '../../../platform/files/common/files
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -77,6 +77,56 @@ suite('ChatPills', () => {
 			{ preferred: AnchorPosition.ABOVE, fixed: undefined },
 			{ preferred: AnchorPosition.BELOW, fixed: undefined },
 		]);
+	});
+
+	test('prefetches at most five entries on open and exposes deferred prefetch for virtualized rows', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const prefetched: string[] = [];
+		let items: readonly IActionListItem<IChatPillEntry>[] = [];
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_user, _preview, shownItems) => { items = shownItems as readonly IActionListItem<IChatPillEntry>[]; },
+			hide: () => { },
+		});
+		const action = store.add(new Action('references', 'References'));
+		const entries = Array.from({ length: 8 }, (_, index): IChatPillEntry => ({
+			id: `reference-${index}`,
+			label: `Reference ${index}`,
+			prefetch: () => prefetched.push(`reference-${index}`),
+			open: () => { },
+		}));
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable([{
+			title: 'References',
+			entries,
+		}]), {
+			widgetId: 'references',
+			icon: Codicon.references,
+			title: 'References',
+			summaryLabel: count => `${count} References`,
+			summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+		container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+		const initial = [...prefetched];
+		for (let scroll = 0; scroll < 2; scroll++) {
+			for (const item of items) {
+				item.onDidBecomeVisible?.();
+			}
+		}
+
+		assert.deepStrictEqual({ initial, prefetched }, {
+			initial: [
+				'reference-0',
+				'reference-1',
+				'reference-2',
+				'reference-3',
+				'reference-4',
+			], prefetched: entries.map(entry => entry.id)
+		});
 	});
 
 	test('shell-style dropdowns prefer opening upward and route row activation to live details', () => {
@@ -364,7 +414,7 @@ suite('ChatPills', () => {
 		});
 	});
 
-	test('disposes a rebuilt image preview candidate with the same entry id', () => {
+	test('preserves image content through metadata updates and disposes changed or removed resources', () => {
 		const tokens: CancellationToken[] = [];
 		const fileService = upcastPartial<IFileService>({
 			readFile: (_resource, _options, token) => {
@@ -400,20 +450,74 @@ suite('ChatPills', () => {
 		const replacementHover = getDropdownPillItems.call(viewItem)[1].hover!;
 		const replacementContent = typeof replacementHover.content === 'function' ? replacementHover.content() : undefined;
 
-		if (replacementContent instanceof HTMLElement) {
-			replacementHover.disposeContent?.(replacementContent);
-		}
-
-		assert.deepStrictEqual({
-			contentRebuilt: replacementContent !== firstContent,
-			firstCancelled: tokens[0]?.isCancellationRequested,
-			replacementCancelled: tokens[1]?.isCancellationRequested,
-		}, {
-			contentRebuilt: true,
-			firstCancelled: false,
-			replacementCancelled: true,
+		const preserved = { sameContent: replacementContent === firstContent, reads: tokens.length, canceled: tokens[0]?.isCancellationRequested };
+		const nextResource = URI.file('/repo/updated.png');
+		sections.set([{ title: 'Images', entries: [{ ...createEntry(), imagePreview: { resource: nextResource, mimeType: 'image/png' } }] }], undefined);
+		const nextHover = getDropdownPillItems.call(viewItem)[1].hover!;
+		const nextContent = typeof nextHover.content === 'function' ? nextHover.content() : undefined;
+		const changed = { sameContent: nextContent === firstContent, reads: tokens.length, canceled: tokens.map(token => token.isCancellationRequested) };
+		const container = mainWindow.document.createElement('div');
+		viewItem.render(container);
+		sections.set([], undefined);
+		assert.deepStrictEqual({ preserved, changed, removed: tokens.map(token => token.isCancellationRequested) }, {
+			preserved: { sameContent: true, reads: 1, canceled: false },
+			changed: { sameContent: false, reads: 2, canceled: [true, false] },
+			removed: [true, true],
 		});
-		firstHover.disposable?.dispose();
+	});
+
+	test('preserves location content but refreshes actions and changed paths', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const copied: string[] = [];
+		const entry = (path: string, value: string): IChatPillEntry => ({
+			id: 'file', label: 'plan.md', ariaDescription: path, hover: getChatPillLocationHover(path),
+			hoverActions: [store.add(new Action('copy', 'Copy Path', undefined, true, () => { copied.push(value); }))],
+			open: () => { },
+		});
+		const sections = observableValue<readonly IChatPillSection[]>('locations', [{ title: 'Files', entries: [entry('/repo/plan.md', 'old')] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('references', 'References')), {}, sections, {
+			widgetId: 'references', icon: Codicon.references, title: 'References',
+			summaryLabel: count => `${count} References`, summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const first = getDropdownPillItems.call(viewItem)[1].hover!;
+		sections.set([{ title: 'Files', entries: [entry('/repo/plan.md', 'new')] }], undefined);
+		const replacement = getDropdownPillItems.call(viewItem)[1].hover!;
+		await replacement.actions?.[0].run(mainWindow.document.createElement('div'));
+		sections.set([{ title: 'Files', entries: [entry('/elsewhere/plan.md', 'changed')] }], undefined);
+		const changed = getDropdownPillItems.call(viewItem)[1].hover!;
+		assert.deepStrictEqual({
+			preserved: first.content === replacement.content,
+			changed: first.content !== changed.content,
+			copied,
+		}, { preserved: true, changed: true, copied: ['new'] });
+	});
+
+	test('keeps hover content an updated entry still owns and releases it when the entry is removed', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let released = 0;
+		// The entry's source keeps this content alive across updates, like the live output of a background shell.
+		const release = { dispose: () => { released++; } };
+		const entry = (elapsed: string): IChatPillEntry => ({
+			id: 'shell', label: 'Run tests', ariaDescription: elapsed,
+			hover: { ...getChatPillLocationHover('npm test'), disposable: release },
+			open: () => { },
+		});
+		const sections = observableValue<readonly IChatPillSection[]>('shells', [{ title: 'Shells', entries: [entry('1s')] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('shells', 'Background Shells')), {}, sections, {
+			widgetId: 'shells', icon: Codicon.terminal, title: 'Background Shells',
+			summaryLabel: count => `${count} Background Shells`, summaryAriaLabel: count => `Show ${count} background shells`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		viewItem.render(mainWindow.document.createElement('div'));
+		getDropdownPillItems.call(viewItem);
+		sections.set([{ title: 'Shells', entries: [entry('2s')] }], undefined);
+		getDropdownPillItems.call(viewItem);
+		// Nothing rebuilds the dropdown's items after this update, as when the dropdown is closed.
+		sections.set([{ title: 'Shells', entries: [entry('3s')] }], undefined);
+		const afterUpdates = released;
+		sections.set([], undefined);
+		assert.deepStrictEqual({ afterUpdates, afterRemoval: released }, { afterUpdates: 0, afterRemoval: 1 });
 	});
 
 	test('uses the main DOM realm and target auxiliary window', () => {
@@ -851,6 +955,7 @@ suite('ChatPills', () => {
 		let shownAriaLabels: readonly (string | null)[] = [];
 		let updatedLabels: readonly (string | undefined)[] = [];
 		let updatePreserveHover: boolean | undefined;
+		let updatePreserveScrollPosition: boolean | undefined;
 		let hideCount = 0;
 		const dropdownFocus = mainWindow.document.createElement('button');
 		mainWindow.document.body.appendChild(dropdownFocus);
@@ -867,9 +972,10 @@ suite('ChatPills', () => {
 				onHide = delegate.onHide;
 				dropdownFocus.focus();
 			}
-			override updateItems<T>(items: readonly IActionListItem<T>[], _focusItemId?: string, options?: { readonly preserveHover?: boolean }): void {
+			override updateItems<T>(items: readonly IActionListItem<T>[], _focusItemId?: string, options?: { readonly preserveHover?: boolean; readonly preserveScrollPosition?: boolean }): void {
 				updatedLabels = items.map(item => item.label);
 				updatePreserveHover = options?.preserveHover;
+				updatePreserveScrollPosition = options?.preserveScrollPosition;
 			}
 			override hide(didCancel?: boolean): void {
 				hideCount++;
@@ -912,7 +1018,7 @@ suite('ChatPills', () => {
 			title: 'Pull Requests',
 			entries: [entry('2'), entry('3')],
 		}], undefined);
-		const focusPreservedOnRefresh = { updatePreserveHover };
+		const focusPreservedOnRefresh = { updatePreserveHover, updatePreserveScrollPosition };
 		includeSibling.set(true, undefined);
 		const expandedAfterUpdate = button.getAttribute('aria-expanded');
 		const dropdownFocusPreserved = mainWindow.document.activeElement === dropdownFocus;
@@ -942,7 +1048,7 @@ suite('ChatPills', () => {
 				'Open Pull Request #2, open. Checks passed. https://github.com/microsoft/vscode/pull/2',
 				'Open Pull Request #3, open. Checks passed. https://github.com/microsoft/vscode/pull/3',
 			],
-			focusPreservedOnRefresh: { updatePreserveHover: true },
+			focusPreservedOnRefresh: { updatePreserveHover: true, updatePreserveScrollPosition: true },
 			updatedLabels: ['Pull Requests', 'Pull Request #2', 'Pull Request #3'],
 			expandedAfterUpdate: 'true',
 			dropdownFocusPreserved: true,

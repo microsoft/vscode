@@ -10,8 +10,11 @@ import { join } from '../../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../common/agent.js';
 import type { IAgentHostManagedSettingsDiagnostics } from '../../../../common/agentService.js';
+import type { ListSessionsResult } from '../../../../common/state/protocol/commands.js';
+import { ActionType } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
+import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { AgentHostE2EServerLease, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
@@ -37,10 +40,20 @@ suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 				protocolVersions: [PROTOCOL_VERSION],
 				clientId: 'server-policy-diagnostics',
 			});
+			await client.call('subscribe', { channel: ROOT_STATE_URI });
 			await client.call('authenticate', {
 				channel: ROOT_STATE_URI,
 				resource: GITHUB_COPILOT_PROTECTED_RESOURCE.resource,
 				token: resolveGitHubToken(),
+			});
+			// Authentication schedules runtime startup; the model catalog confirms a completed sessionless RPC.
+			await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.RootAgentsChanged)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action;
+				return action.type === ActionType.RootAgentsChanged
+					&& action.agents.some(agent => agent.provider === COPILOT_CONFIG.provider && agent.models.length > 0);
 			});
 			const previousRequests = server.capiReplay.managedSettingsRequestCount;
 			const diagnostics = await client.call<readonly IAgentHostManagedSettingsDiagnostics[]>('getManagedSettingsDiagnostics');
@@ -60,6 +73,11 @@ suite('Agent Host E2E — Copilot managed-settings diagnostics', function () {
 			assert.deepStrictEqual(snapshot.diagnostics, []);
 			assert.ok(server.capiReplay.managedSettingsRequestCount > previousRequests, 'The diagnostic must fetch server policy, not just report an injected client setting');
 			assert.deepStrictEqual(server.capiReplay.observedModelRequestBodies, []);
+			const sessions = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
+			assert.deepStrictEqual(sessions.items, []);
+		} catch (error) {
+			lease.dumpRuntimeLogsOnFailure(this.test!.title);
+			throw error;
 		} finally {
 			try {
 				await lease.release([], this.test?.state === 'failed');

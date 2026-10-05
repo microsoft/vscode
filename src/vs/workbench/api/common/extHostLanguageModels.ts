@@ -458,7 +458,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (userSelectedModelId) {
 			const model = await this.getLanguageModelByIdentifier(extension, userSelectedModelId);
 			if (!model) {
-				throw new Error(localize('selectedModelUnavailable', "The selected model '{0}' is not available. Select a different model and try again.", userSelectedModelId));
+				throw extHostTypes.LanguageModelError.NotFound(localize('selectedModelUnavailable', "The selected model '{0}' is not available. Select a different model and try again.", userSelectedModelId));
 			}
 			return model;
 		}

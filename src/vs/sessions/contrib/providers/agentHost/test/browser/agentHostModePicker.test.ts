@@ -112,7 +112,6 @@ suite('AgentHostModePicker', () => {
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: enabled,
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);

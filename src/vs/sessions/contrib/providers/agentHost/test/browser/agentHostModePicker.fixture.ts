@@ -83,7 +83,6 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		}
 	}({
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
-		[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 		[AgentSandboxSettingId.AgentSandboxEnabled]: sandboxed ? 'on' : 'off',
 	});
 	disposableStore.add(configuration.onDidChangeConfigurationEmitter);

@@ -3,28 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryService, TelemetryLevel, telemetryLevelEnabled } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatWidgetService } from '../chat.js';
 import type { ChatInputPart } from '../widget/input/chatInputPart.js';
 import { IChatQuestion, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../common/chatService/chatService.js';
 import { ChatConfiguration, CopilotHarnessIntroductionMode } from '../../common/constants.js';
-import { CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID, ChatHarnessSwitchFeedbackSurveyEventKind, IChatHarnessSwitchFeedbackSurveyTelemetryEvent } from '../../common/feedbackSurvey/chatHarnessSwitchFeedbackSurveyTelemetry.js';
 
 const FEEDBACK_ENABLED_CONFIG = 'telemetry.feedback.enabled';
 const SURVEY_ID = 'copilot-local-switch-v1';
 const PROMPTED_STORAGE_KEY = `chat.harnessSwitchFeedbackSurvey.${SURVEY_ID}.prompted`;
-const STEP_COUNT = 2;
-const MAX_COMMENT_LENGTH = 1000;
+const STEP_COUNT = 1;
 
 const REASON_IDS = new Set([
 	'preferLocal',
@@ -50,8 +47,38 @@ interface IChatHarnessSwitchFeedbackSurveyState {
 	draftAnswers?: ReadonlyMap<string, IChatQuestionAnswerValue>;
 	submitted: boolean;
 	reportedReason?: string;
-	reportedComment?: string;
 }
+
+type ChatHarnessSwitchFeedbackSurveyEvent = IChatHarnessSwitchFeedbackSurveyContext & {
+	kind: 'shown' | 'step' | 'submitted' | 'dismissed';
+	surveyId: string;
+	surveyInstanceId: string;
+	stepCount: number;
+	stepId: 'reason' | undefined;
+	stepIndex: number | undefined;
+	answerId: string | undefined;
+	fromHarness: 'copilot';
+	toHarness: 'local';
+};
+
+type ChatHarnessSwitchFeedbackSurveyClassification = {
+	kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the survey was shown, answered, submitted, or dismissed.' };
+	surveyId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The fixed identifier of the harness switch survey.' };
+	surveyInstanceId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random identifier linking events for one survey instance.' };
+	stepCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of questions in the survey.' };
+	stepId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The fixed identifier of the answered question.' };
+	stepIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The zero-based index of the answered question.' };
+	answerId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected predefined reason identifier. Never contains free text.' };
+	mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective Copilot harness introduction experiment mode.' };
+	fromHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The harness selected before the switch.' };
+	toHarness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The harness selected after the switch.' };
+	surface: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the harness picker was in the sidebar or editor.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The random identifier of the chat session represented by the picker, when available.' };
+	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat session type represented by the picker, when available.' };
+	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The underlying Agent Host harness represented by the picker, when applicable.' };
+	owner: 'justschen';
+	comment: 'Tracks the Copilot-to-Local exit survey lifecycle and predefined switch reasons.';
+};
 
 export const IChatHarnessSwitchFeedbackSurveyService = createDecorator<IChatHarnessSwitchFeedbackSurveyService>('chatHarnessSwitchFeedbackSurveyService');
 
@@ -72,8 +99,6 @@ export class ChatHarnessSwitchFeedbackSurveyService extends Disposable implement
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ILogService private readonly logService: ILogService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -119,6 +144,7 @@ export class ChatHarnessSwitchFeedbackSurveyService extends Disposable implement
 			dismissLabel: localize('chat.harnessSwitchFeedbackSurvey.dismiss', "Dismiss Survey"),
 			submissionAcknowledgement: {
 				message: localize('chat.harnessSwitchFeedbackSurvey.acknowledgement', "Thanks, your feedback has been recorded."),
+				description: new MarkdownString(localize('chat.harnessSwitchFeedbackSurvey.feedbackLink', "Have specific feedback? [Share it on GitHub]({0}).", 'https://github.com/microsoft/vscode/issues')),
 				dismissLabel: localize('chat.harnessSwitchFeedbackSurvey.dismissAcknowledgement', "Dismiss Feedback Acknowledgement"),
 				onDidDismiss: () => this.dismissAcknowledgement(instanceId),
 			},
@@ -150,19 +176,12 @@ export class ChatHarnessSwitchFeedbackSurveyService extends Disposable implement
 			],
 			allowFreeformInput: false,
 			required: true,
-		}, {
-			id: 'feedback',
-			type: 'text',
-			title: localize('chat.harnessSwitchFeedbackSurvey.feedback', "Any feedback?"),
-			description: localize('chat.harnessSwitchFeedbackSurvey.feedbackDescription', "Share any additional feedback (optional)."),
-			required: false,
-			validation: { maxLength: MAX_COMMENT_LENGTH },
 		}];
 	}
 
 	private submit(instanceId: string, answers: ReadonlyMap<string, IChatQuestionAnswerValue>): void {
 		const state = this.getState(instanceId);
-		if (!state) {
+		if (!state || state.submitted) {
 			return;
 		}
 
@@ -199,22 +218,6 @@ export class ChatHarnessSwitchFeedbackSurveyService extends Disposable implement
 			state.reportedReason = answerId;
 			this.report(state, 'step', { stepId: 'reason', stepIndex: 0, answerId });
 		}
-
-		const feedback = answers.get('feedback');
-		if (typeof feedback === 'string') {
-			this.reportCommentOnce(state, feedback);
-		}
-	}
-
-	private reportCommentOnce(state: IChatHarnessSwitchFeedbackSurveyState, comment: string): void {
-		const trimmed = comment.trim();
-		if (!trimmed || trimmed === state.reportedComment) {
-			return;
-		}
-
-		const clamped = trimmed.slice(0, MAX_COMMENT_LENGTH);
-		state.reportedComment = clamped;
-		this.report(state, 'step', { stepId: 'feedback', stepIndex: 1, comment: clamped });
 	}
 
 	private finish(state: IChatHarnessSwitchFeedbackSurveyState): void {
@@ -231,29 +234,33 @@ export class ChatHarnessSwitchFeedbackSurveyService extends Disposable implement
 
 	private isFeedbackUiEnabled(): boolean {
 		return this.configurationService.getValue<boolean>(FEEDBACK_ENABLED_CONFIG) !== false
-			&& this.telemetryService.telemetryLevel !== TelemetryLevel.NONE;
+			&& telemetryLevelEnabled(this.telemetryService, TelemetryLevel.USAGE);
 	}
 
 	private report(
 		state: IChatHarnessSwitchFeedbackSurveyState,
-		kind: ChatHarnessSwitchFeedbackSurveyEventKind,
-		details: Pick<IChatHarnessSwitchFeedbackSurveyTelemetryEvent, 'stepId' | 'stepIndex' | 'answerId' | 'comment'> = {},
+		kind: ChatHarnessSwitchFeedbackSurveyEvent['kind'],
+		details: Partial<Pick<ChatHarnessSwitchFeedbackSurveyEvent, 'stepId' | 'stepIndex' | 'answerId'>> = {},
 	): void {
 		if (!this.isFeedbackUiEnabled()) {
 			return;
 		}
 
-		const event: IChatHarnessSwitchFeedbackSurveyTelemetryEvent = {
+		this.telemetryService.publicLog2<ChatHarnessSwitchFeedbackSurveyEvent, ChatHarnessSwitchFeedbackSurveyClassification>('chatHarnessSwitchFeedbackSurvey', {
 			kind,
 			surveyId: SURVEY_ID,
 			surveyInstanceId: state.instanceId,
 			stepCount: STEP_COUNT,
-			...details,
-			...state.dimensions,
+			stepId: details.stepId,
+			stepIndex: details.stepIndex,
+			answerId: details.answerId,
+			mode: state.dimensions.mode,
+			surface: state.dimensions.surface,
+			chatSessionId: state.dimensions.chatSessionId,
+			sessionType: state.dimensions.sessionType,
+			harness: state.dimensions.harness,
 			fromHarness: 'copilot',
 			toHarness: 'local',
-		};
-		this.commandService.executeCommand(CHAT_HARNESS_SWITCH_FEEDBACK_SURVEY_TELEMETRY_COMMAND_ID, event)
-			.catch(error => this.logService.trace(`[chatHarnessSwitchFeedbackSurvey] failed to report '${kind}': ${error}`));
+		});
 	}
 }
