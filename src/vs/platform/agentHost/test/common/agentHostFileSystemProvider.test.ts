@@ -144,6 +144,23 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		assert.strictEqual(unwrapped.path, '/snap/before');
 	});
 
+	test('round-trips an opaque URI with a rootless path', () => {
+		const original = URI.from({ scheme: 'untitled', path: 'Untitled-1' });
+		const wrapped = toAgentHostUri(original, 'remote-host');
+
+		assert.deepStrictEqual({
+			scheme: wrapped.scheme,
+			authority: wrapped.authority,
+			wrappedPath: wrapped.path,
+			unwrapped: fromAgentHostUri(wrapped).toString(),
+		}, {
+			scheme: AGENT_HOST_SCHEME,
+			authority: 'remote-host',
+			wrappedPath: '/Untitled-1',
+			unwrapped: original.toString(),
+		});
+	});
+
 	test('round-trips query and fragment for synthetic content URIs', () => {
 		const original = URI.from({
 			scheme: 'git-blob',
