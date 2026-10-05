@@ -44,6 +44,7 @@ import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../comm
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
+import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
@@ -4670,7 +4671,7 @@ suite('CopilotAgentSession', () => {
 				content: 'Sandbox is disabled.',
 			},
 		] satisfies { name: string; result: MockCopilotSession['commandInvokeResult']; content: string }[]) {
-			test(`links to a Markdown file containing ${name} without a model turn`, async () => {
+			test(`provides a Markdown file to open containing ${name} without a model turn`, async () => {
 				const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
 				mockSession.commandInvokeResult = result;
 
@@ -4678,7 +4679,7 @@ suite('CopilotAgentSession', () => {
 
 				const actions = getActions(signals);
 				const [resource] = storedFileContents.keys();
-				assert.match(resource, /^inmemory:\/session-data\/test-session-1\/diagnostics\/[\da-f-]+\/sandbox-policy\.md$/);
+				assert.strictEqual(resource, 'inmemory:/session-data/test-session-1/diagnostics/sandbox-policy.md');
 				assert.deepStrictEqual({
 					commandListCalls: mockSession.commandListCalls,
 					commandInvokeCalls: mockSession.commandInvokeCalls,
@@ -4686,7 +4687,10 @@ suite('CopilotAgentSession', () => {
 					files: [...storedFileContents],
 					responseParts: actions
 						.filter(a => a.type === ActionType.ChatResponsePart)
-						.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+						.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part.content : a.part.kind),
+					responseMetadata: actions
+						.filter(a => a.type === ActionType.ChatResponsePart)
+						.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part._meta : undefined),
 					turnComplete: actions
 						.filter(a => a.type === ActionType.ChatTurnComplete)
 						.map(a => a.turnId),
@@ -4696,14 +4700,15 @@ suite('CopilotAgentSession', () => {
 					commandInvokeCalls: [{ name: 'sandbox', input: 'policy' }],
 					sendRequests: [],
 					files: [[resource, content]],
-					responseParts: [`[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`],
+					responseParts: [{ markdown: `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)` }],
+					responseMetadata: [toSlashCommandResourceMeta(URI.parse(resource), true)],
 					turnComplete: ['turn-policy'],
 					hasActiveTurn: false,
 				});
 			});
 		}
 
-		test('preserves previous policy snapshots across invocations and session disposal', async () => {
+		test('keeps only the latest policy in the same file across invocations and session disposal', async () => {
 			const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
 			mockSession.commandInvokeResult = { kind: 'text', text: '# First policy', markdown: true };
 			await session.send('/sandbox policy', undefined, 'turn-policy-1');
@@ -4711,15 +4716,15 @@ suite('CopilotAgentSession', () => {
 			await session.send('/sandbox policy', undefined, 'turn-policy-2');
 			session.dispose();
 
-			const resources = [...storedFileContents.keys()];
+			const resource = 'inmemory:/session-data/test-session-1/diagnostics/sandbox-policy.md';
 			assert.deepStrictEqual({
-				contents: [...storedFileContents.values()],
+				files: [...storedFileContents],
 				responseParts: getActions(signals)
 					.filter(a => a.type === ActionType.ChatResponsePart)
-					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+					.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part.content : a.part.kind),
 			}, {
-				contents: ['# First policy', '# Second policy'],
-				responseParts: resources.map(resource => `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`),
+				files: [[resource, '# Second policy']],
+				responseParts: [1, 2].map(() => ({ markdown: `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)` })),
 			});
 		});
 
@@ -4815,11 +4820,11 @@ suite('CopilotAgentSession', () => {
 				contents: [...storedFileContents.values()],
 				responseParts: getActions(signals)
 					.filter(a => a.type === ActionType.ChatResponsePart)
-					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+					.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part.content : a.part.kind),
 			}, {
 				commandInvokeCalls: [{ name: 'sandbox', input: 'policy   ' }],
 				contents: ['Sandbox is disabled.'],
-				responseParts: [...storedFileContents.keys()].map(resource => `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`),
+				responseParts: [...storedFileContents.keys()].map(resource => ({ markdown: `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)` })),
 			});
 		});
 
@@ -10076,10 +10081,12 @@ suite('CopilotAgentSession', () => {
 				[AgentHostSandboxKey.SandboxLspServers, true],
 				[AgentHostSandboxKey.AllowDevToolAccess, false],
 				[AgentHostSandboxKey.AllowLocalNetwork, false],
+				[AgentHostSandboxKey.AuthenticateGit, false],
+				[AgentHostSandboxKey.AuthenticateGh, false],
 			] as const) {
 				test(`per-request sandbox: enforces ${key} and restores local choices on ${platform}`, async () => {
 					for (const local of [false, true]) {
-						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean } = { enabled: true };
+						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean; authenticateGit?: boolean; authenticateGh?: boolean } = { enabled: true };
 						const { session, mockSession } = await createAgentSession(disposables, {
 							platform,
 							sandboxPolicy,
@@ -10095,7 +10102,9 @@ suite('CopilotAgentSession', () => {
 							sandboxPolicy[key] = managed;
 							await session.send('hello', undefined, `turn-${index}`);
 							const applied = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
-							values.push(key === AgentHostSandboxKey.AllowLocalNetwork ? applied.userPolicy?.network?.allowLocalNetwork : applied[key]);
+							values.push(key === AgentHostSandboxKey.AuthenticateGit ? applied.auth?.git
+								: key === AgentHostSandboxKey.AuthenticateGh ? applied.auth?.gh
+									: key === AgentHostSandboxKey.AllowLocalNetwork ? applied.userPolicy?.network?.allowLocalNetwork : applied[key]);
 						}
 						assert.deepStrictEqual(values, [managedValue, local, local]);
 					}

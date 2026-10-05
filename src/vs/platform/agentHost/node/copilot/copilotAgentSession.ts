@@ -114,6 +114,7 @@ import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, type ICopilotMcpRout
 import { getCopilotCustomizationCommandHandler } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
+import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { createCopilotFailureCorrelation, reportCopilotModelCallFailure, reportCopilotSdkSessionError } from './copilotFailureTelemetry.js';
 import { reportCopilotTodoStoreOperation } from './copilotTodoStoreTelemetry.js';
 import { ModelCallTurnCorrelation } from './modelCallTurnCorrelation.js';
@@ -2598,6 +2599,19 @@ export class CopilotAgentSession extends Disposable {
 		}, parentToolCallId, trustedRootTurn);
 	}
 
+	private _emitSlashCommandOutput(content: string, meta?: Record<string, unknown>): void {
+		const turn = this._currentTurn.value;
+		if (!meta || !turn) {
+			this._emitMarkdownDelta(content, undefined, true);
+			return;
+		}
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: turn.id,
+			part: { kind: ResponsePartKind.SystemNotification, content: { markdown: content }, _meta: meta },
+		}, undefined, true);
+	}
+
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
 	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
 		if (parentToolCallId === undefined && this._shouldDropLateRootTurnEvent('assistant.reasoning_delta')) {
@@ -3828,14 +3842,17 @@ export class CopilotAgentSession extends Disposable {
 				}
 				const output = await runtimeSlashCommand.getOutput?.(slashCommand.rest, result);
 				const renderedOutput = output ? renderCopilotSlashCommandOutput(output) : undefined;
+				const outputMeta = output?.kind === 'link' && output.openInEditor
+					? toSlashCommandResourceMeta(output.resource, output.preview === true)
+					: undefined;
 				switch (result.kind) {
 					case 'text':
-						this._emitMarkdownDelta(renderedOutput ?? (result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text)), undefined, true);
+						this._emitSlashCommandOutput(renderedOutput ?? (result.markdown === true ? result.text : escapeMarkdownSyntaxTokens(result.text)), outputMeta);
 						break;
 					case 'completed': {
 						const message = renderedOutput ?? result.message;
 						if (message) {
-							this._emitMarkdownDelta(message, undefined, true);
+							this._emitSlashCommandOutput(message, outputMeta);
 						}
 						break;
 					}

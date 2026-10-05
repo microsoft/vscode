@@ -253,7 +253,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					label: 'sandbox policy',
 					_meta: {
 						command: 'sandbox',
-						description: 'Show the effective sandbox policy for this session',
+						description: 'Open the latest effective sandbox policy for this session in the editor',
 					},
 				},
 			}]);
@@ -294,7 +294,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
 			assert.deepStrictEqual((await commands.getSlashCommands()).map(command => ({
 				name: command.name, input: command.input,
-			})), [{ name: 'sandbox', input: { hint: '', choices: [{ name: 'policy', description: 'Show the effective sandbox policy for this session' }] } }]);
+			})), [{ name: 'sandbox', input: { hint: '', choices: [{ name: 'policy', description: 'Open the latest effective sandbox policy for this session in the editor' }] } }]);
 		});
 
 		test('offers only policy even when the SDK only advertises configuration choices', async () => {
