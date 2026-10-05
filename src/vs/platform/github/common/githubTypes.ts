@@ -110,6 +110,8 @@ export interface GitHubClientOptions {
 /** Trusted API base for public reads; callers cannot override authentication or network execution. */
 export interface GitHubAnonymousClientOptions {
 	readonly apiBaseUri: string;
+	/** Raw-content base; GitHub.com has a default, while other hosts must supply it for file reads. */
+	readonly rawBaseUri?: string;
 }
 
 /** Internal, read-only bootstrap capability; account provenance affects quota accounting, not authorization. */

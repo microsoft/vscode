@@ -1105,6 +1105,24 @@ type ThemedFixtures = ReturnType<typeof defineFixtureVariants>;
 // Permanent logging layer that detects real timer API usage.
 // Includes handler source for identification since bundled stack traces are not useful.
 const realTimeApi = captureGlobalTimeApi();
+
+/** Waits for browser-owned readiness without advancing the fixture's virtual clock. */
+export async function waitForFixtureCondition(condition: () => boolean, message: string): Promise<void> {
+	const requestAnimationFrame = realTimeApi.requestAnimationFrame;
+	if (!requestAnimationFrame) {
+		throw new Error('Fixture readiness requires browser animation frames');
+	}
+	let stableFrames = 0;
+	for (let frame = 0; frame < 120; frame++) {
+		await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+		stableFrames = condition() ? stableFrames + 1 : 0;
+		if (stableFrames === 3) {
+			return;
+		}
+	}
+	throw new Error(message);
+}
+
 const logOutsideTime = false;
 if (logOutsideTime) {
 	const loggingTimeApi = createLoggingTimeApi(realTimeApi, (name, stack, handler) => {
