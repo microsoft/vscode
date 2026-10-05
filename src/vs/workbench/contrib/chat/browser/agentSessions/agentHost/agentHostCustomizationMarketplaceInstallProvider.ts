@@ -11,6 +11,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -26,6 +27,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	constructor(
 		private readonly providerId: string,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -59,7 +61,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (!this.agentHostService.listCustomizationInstallations) {
 			return this.getPluginInstallations();
 		}
-		const installations = await this.agentHostService.listCustomizationInstallations(this.providerId, sessionResource);
+		const installations = await this.agentHostService.listCustomizationInstallations(this.providerId, this.getBackendSession(sessionResource));
 		this.throwIfCancelled(token);
 		return [
 			...installations.map(installation => this.toRecordedInstallation(sessionResource, installation)),
@@ -105,7 +107,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (!installation.installationId || !this.agentHostService.recoverCustomizationInstallations) {
 			throw new Error(localize('agentHost.customizationInstall.repairUnavailable', "The selected agent cannot repair this SDK installation."));
 		}
-		const recovered = await this.agentHostService.recoverCustomizationInstallations(this.providerId, sessionResource);
+		const recovered = await this.agentHostService.recoverCustomizationInstallations(this.providerId, this.getBackendSession(sessionResource));
 		this.throwIfCancelled(token);
 		const current = recovered.find(candidate => candidate.installationId === installation.installationId);
 		if (!current || current.state !== 'installed') {
@@ -145,7 +147,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (!this.agentHostService.prepareCustomizationInstallation) {
 			throw new Error(localize('agentHost.customizationInstall.prepareUnavailable', "The selected agent does not support SDK installation review."));
 		}
-		const review = await this.agentHostService.prepareCustomizationInstallation(this.providerId, sessionResource, request);
+		const review = await this.agentHostService.prepareCustomizationInstallation(this.providerId, this.getBackendSession(sessionResource), request);
 		this.throwIfCancelled(token);
 		return review;
 	}
@@ -257,6 +259,14 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
+	}
+
+	private getBackendSession(sessionResource: URI): URI {
+		const identity = this.agentHostConnectionsService.resolveSessionResourceIdentity(sessionResource);
+		if (!identity || identity.connectionAuthority !== AMBIENT_AGENT_HOST_AUTHORITY) {
+			throw new Error(localize('agentHost.customizationInstall.sessionUnavailable', "The selected local Agent Host session is unavailable."));
+		}
+		return identity.backendSession;
 	}
 }
 
