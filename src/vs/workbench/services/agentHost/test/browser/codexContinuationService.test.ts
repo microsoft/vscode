@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
@@ -17,6 +17,7 @@ import { ICodexAccountInfo } from '../../../../../platform/agentHost/common/code
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { INotification, NotificationType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { ROOT_STATE_URI, RootState, SessionModelInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryData } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -25,7 +26,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../chat/common/c
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IHostService } from '../../../host/browser/host.js';
 import { ICodexAccountService } from '../../browser/codexAccountService.js';
-import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_STORAGE_KEY, CodexContinuationService } from '../../browser/codexContinuationService.js';
+import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_STORAGE_KEY, CODEX_CONTINUATION_THRESHOLD_SETTING, CodexContinuationService } from '../../browser/codexContinuationService.js';
 
 suite('Codex continuation coordination', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -52,8 +53,9 @@ suite('Codex continuation coordination', () => {
 			override ambientConnection = agent;
 			override getSessionResource(): URI | undefined { return canMapSession ? URI.parse('agent-host-codex:/existing') : undefined; }
 		}();
+		const accountChanged = store.add(new Emitter<ICodexAccountInfo>());
 		const account = new class extends mock<ICodexAccountService>() {
-			override onDidChangeAccount = Event.None;
+			override onDidChangeAccount = accountChanged.event;
 			override account: ICodexAccountInfo = { status: 'signedIn', planType: 'plus', observedAt: Date.now(), rateLimits: [{ usedPercent: 95, windowDurationMins: 300 }] };
 		}();
 		const quotaChanged = store.add(new Emitter<void>());
@@ -85,8 +87,77 @@ suite('Codex continuation coordination', () => {
 
 		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, config, environment));
 		service.setSelectableModels([{ id: target.id, vendor: 'agent-host-codex' }]);
-		return { service, order, telemetry, config, host, account, entitlement, session, activity, notifications, quotaChanged };
+		return { service, order, telemetry, config, host, account, accountChanged, entitlement, session, activity, notifications, quotaChanged };
 	}
+
+	test('changing the threshold setting re-evaluates an existing quota observation', () => runWithFakedTimers({}, async () => {
+		const { service, config, account, activity } = create(store.add(new InMemoryStorageService()));
+		account.account = { ...account.account, rateLimits: [{ usedPercent: 85, windowDurationMins: 300 }] };
+		await timeout(101);
+		assert.deepStrictEqual({ candidate: service.candidate.get(), listSessions: activity.listSessions }, { candidate: undefined, listSessions: 0 });
+		const eligible: boolean[] = [];
+		for (const threshold of [80, 90, 85]) {
+			await config.setUserConfiguration(CODEX_CONTINUATION_THRESHOLD_SETTING, threshold);
+			config.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: () => true }));
+			await timeout(101);
+			eligible.push(!!service.candidate.get() && await service.wouldShow('agentsWindow'));
+		}
+		assert.deepStrictEqual(eligible, [true, false, true]);
+	}));
+
+	for (const threshold of [undefined, null, -1, 101, NaN, Infinity, '80']) {
+		test(`invalid or missing threshold falls back to 90 percent: ${String(threshold)}`, () => runWithFakedTimers({}, async () => {
+			const { service, config, account } = create(store.add(new InMemoryStorageService()));
+			await config.setUserConfiguration(CODEX_CONTINUATION_THRESHOLD_SETTING, threshold);
+			account.account = { ...account.account, rateLimits: [{ usedPercent: 89.99, windowDurationMins: 300 }] };
+			const below = await service.resolve();
+			account.account = { ...account.account, rateLimits: [{ usedPercent: 90, windowDurationMins: 300 }] };
+			assert.deepStrictEqual({ below: !!below, atDefault: !!await service.resolve() }, { below: false, atDefault: true });
+		}));
+	}
+
+	test('fresh usage above a lowered threshold keeps an already-shown episode suppressed', () => runWithFakedTimers({}, async () => {
+		const { service, config, account, accountChanged } = create(store.add(new InMemoryStorageService()));
+		await config.setUserConfiguration(CODEX_CONTINUATION_THRESHOLD_SETTING, 80);
+		account.account = { ...account.account, rateLimits: [{ usedPercent: 85, windowDurationMins: 300 }] };
+		await timeout(101);
+		await service.wouldShow('agentsWindow');
+		await service.reservePresentation();
+		assert.strictEqual(await service.markVisible('agentsWindow', service.candidate.get()!), true);
+		service.dismiss('agentsWindow');
+		await service.releasePresentation();
+		const outcomes: boolean[] = [];
+		for (const usedPercent of [85, 79, 85]) {
+			await timeout(1000);
+			account.account = { ...account.account, observedAt: Date.now(), rateLimits: [{ usedPercent, windowDurationMins: 300 }] };
+			accountChanged.fire(account.account);
+			await timeout(101);
+			outcomes.push(await service.wouldShow('agentsWindow'));
+		}
+		assert.deepStrictEqual(outcomes, [false, false, true]);
+	}));
+
+	test('a window with a higher threshold cannot clear another window\'s suppression', () => runWithFakedTimers({}, async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const lower = create(storage);
+		const higher = create(storage);
+		await lower.config.setUserConfiguration(CODEX_CONTINUATION_THRESHOLD_SETTING, 80);
+		lower.account.account = { ...lower.account.account, rateLimits: [{ usedPercent: 85, windowDurationMins: 300 }] };
+		await timeout(101);
+		await higher.service.wouldShow('editorWindow');
+		await lower.service.wouldShow('agentsWindow');
+		await lower.service.reservePresentation();
+		assert.strictEqual(await lower.service.markVisible('agentsWindow', lower.service.candidate.get()!), true);
+		lower.service.dismiss('agentsWindow');
+		await lower.service.releasePresentation();
+		await timeout(1000);
+		higher.account.account = { ...higher.account.account, observedAt: Date.now(), rateLimits: [{ usedPercent: 85, windowDurationMins: 300 }] };
+		higher.accountChanged.fire(higher.account.account);
+		await timeout(101);
+		assert.deepStrictEqual({
+			higher: await higher.service.wouldShow('editorWindow'), lower: await lower.service.wouldShow('agentsWindow'),
+		}, { higher: false, lower: false });
+	}));
 
 	for (const treatment of [false, true]) {
 		test(`does not suggest a session whose exact identity cannot be mapped in arm ${treatment}`, () => runWithFakedTimers({}, async () => {

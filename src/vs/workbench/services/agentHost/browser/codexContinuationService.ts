@@ -25,9 +25,10 @@ import { hasUsableCopilotPremiumQuota, IChatEntitlementService } from '../../cha
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IHostService } from '../../host/browser/host.js';
 import { ICodexAccountService, shouldShowCodexAccount } from './codexAccountService.js';
-import { CODEX_CONTINUATION_MAX_AGE, CodexContinuationSurface, getCodexContinuationCandidates, getCodexTriggeringLimits, ICodexContinuationCandidate, ICodexContinuationEpisode, updateCodexEpisode } from './codexContinuation.js';
+import { CODEX_CONTINUATION_DEFAULT_THRESHOLD, CODEX_CONTINUATION_MAX_AGE, CodexContinuationSurface, getCodexContinuationCandidates, getCodexTriggeringLimits, ICodexContinuationCandidate, ICodexContinuationEpisode, updateCodexEpisode } from './codexContinuation.js';
 
 export const CODEX_CONTINUATION_SETTING = 'chat.experimental.codexContinuation.enabled';
+export const CODEX_CONTINUATION_THRESHOLD_SETTING = 'chat.experimental.codexContinuation.thresholdPercent';
 export const CODEX_CONTINUATION_STORAGE_KEY = 'agentHost.codexContinuation';
 export type CodexContinuationAction = 'shown' | 'continueClicked' | 'dismissed' | 'dontShowAgain' | 'guideShown' | 'guideCompleted' | 'guideCancelled' | 'guideUnavailable';
 interface IStoredContinuation {
@@ -187,13 +188,18 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		return !!this._preview || this._configuration.getValue<boolean>(CODEX_CONTINUATION_SETTING) === true;
 	}
 
+	private _thresholdPercent(): number {
+		const value = this._configuration.getValue<number>(CODEX_CONTINUATION_THRESHOLD_SETTING);
+		return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100 ? value : CODEX_CONTINUATION_DEFAULT_THRESHOLD;
+	}
+
 	private _enabled(): boolean {
 		return shouldShowCodexAccount(this._configuration, this._environment.isSessionsWindow)
 			&& !this._entitlement.sentiment.hidden && !this._entitlement.sentiment.disabledInWorkspace;
 	}
 
 	private _baseEligible(): boolean {
-		return this._enabled() && (!!this._preview || getCodexTriggeringLimits(this._account.account, Date.now()).length > 0)
+		return this._enabled() && (!!this._preview || getCodexTriggeringLimits(this._account.account, Date.now(), this._thresholdPercent()).length > 0)
 			&& hasUsableCopilotPremiumQuota(this._entitlement.entitlement, this._entitlement.quotas)
 			&& [this._entitlement.quotas.sessionRateLimit, this._entitlement.quotas.weeklyRateLimit].every(limit =>
 				!limit || limit.unlimited || (Number.isFinite(limit.percentRemaining) && limit.percentRemaining > 10 && limit.percentRemaining <= 100));
@@ -228,7 +234,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		if (this._store.isDisposed || generation !== this._generation) { return; }
 		this._candidate.set(candidate, undefined);
 		const now = Date.now();
-		const deadlines = [...getCodexTriggeringLimits(this._account.account, now), ...(this._triggered ? this._state.episode?.limits ?? [] : [])].map(limit => limit.until);
+		const deadlines = [...getCodexTriggeringLimits(this._account.account, now, this._thresholdPercent()), ...(this._triggered ? this._state.episode?.limits ?? [] : [])].map(limit => limit.until);
 		if (this._state.reservation) { deadlines.push(this._state.reservation.until); }
 		if (this._account.account.observedAt !== undefined) { deadlines.push(this._account.account.observedAt + CODEX_CONTINUATION_MAX_AGE + 1); }
 		const next = deadlines.filter(deadline => deadline > now).sort((a, b) => a - b)[0];
@@ -272,7 +278,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 		const state = await this._mutate(state => {
 			claimed = canClaim() && state.reservation?.owner === this._owner && !state.permanent && !state.episode;
 			return !claimed ? state : {
-				episode: { owner: this._owner, surface, limits: getCodexTriggeringLimits(this._account.account, Date.now()) },
+				episode: { owner: this._owner, surface, limits: getCodexTriggeringLimits(this._account.account, Date.now(), this._thresholdPercent()) },
 			};
 		});
 		const shown = claimed && state.episode?.owner === this._owner;
@@ -305,7 +311,8 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 					|| (value.episode.surface !== 'agentsWindow' && value.episode.surface !== 'editorWindow')
 					|| !Array.isArray(value.episode.limits) || value.episode.limits.length > 2
 					|| !value.episode.limits.every(limit => limit && (limit.duration === 300 || limit.duration === 10080)
-						&& Number.isFinite(limit.until) && Number.isFinite(limit.observedAt) && typeof limit.reliable === 'boolean')))) {
+						&& Number.isFinite(limit.until) && Number.isFinite(limit.observedAt) && typeof limit.reliable === 'boolean'
+						&& (limit.thresholdPercent === undefined || (Number.isFinite(limit.thresholdPercent) && limit.thresholdPercent >= 0 && limit.thresholdPercent <= 100)))))) {
 				return {};
 			}
 			return { permanent: value.permanent, reservation: value.reservation, episode: value.episode };
@@ -324,7 +331,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 				const state = this._parse(raw);
 				const next = change({
 					...state,
-					episode: updateCodexEpisode(state.episode, this._account.account, Date.now()),
+					episode: updateCodexEpisode(state.episode, this._account.account, Date.now(), this._thresholdPercent()),
 					reservation: state.reservation && state.reservation.until > Date.now() ? state.reservation : undefined,
 				});
 				const value = JSON.stringify(next);
@@ -341,7 +348,7 @@ export class CodexContinuationService extends Disposable implements ICodexContin
 
 	log(action: CodexContinuationAction, surface: CodexContinuationSurface): void {
 		if (this._preview) { return; }
-		const limits = getCodexTriggeringLimits(this._account.account, Date.now());
+		const limits = getCodexTriggeringLimits(this._account.account, Date.now(), this._thresholdPercent());
 		this._telemetry.publicLog2<InteractionEvent, InteractionClassification>('agentHost.codexContinuation', {
 			action, surface, limitKind: limits.length > 1 ? 'both' : limits[0]?.duration === 300 ? 'fiveHour' : 'weekly',
 		});
