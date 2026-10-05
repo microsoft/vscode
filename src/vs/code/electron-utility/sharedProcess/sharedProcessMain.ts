@@ -363,7 +363,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appenders));
 		services.set(ITelemetryService, telemetryService);
-		services.set(IGitHubService, this._register(new SharedProcessGitHubService(undefined, configurationService, productService, logService, telemetryService)));
+		services.set(IGitHubService, this._register(new SharedProcessGitHubService(nativeHostService, configurationService, environmentService, productService, logService, telemetryService)));
 
 		// Custom Endpoint Telemetry
 		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);

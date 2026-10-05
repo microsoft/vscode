@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 
@@ -47,16 +46,6 @@ export interface ISpotlightStep {
 	/** Localized primary button label, replacing the default Next or Done. */
 	readonly nextButtonLabel?: string;
 
-	/**
-	 * Explicit action offered instead of Next or Done. Only runs on a button
-	 * click; advancing still requires target selection or `advanceWhen`.
-	 * The token is cancelled when the step ends or its target is replaced.
-	 */
-	readonly primaryAction?: {
-		readonly label: string;
-		readonly run: (token: CancellationToken) => Promise<void> | void;
-	};
-
 	/** Preferred placement of the callout. Defaults to `'auto'`. */
 	readonly placement?: SpotlightPlacement;
 
@@ -78,7 +67,7 @@ export interface ISpotlightStep {
 	/** Advances when the target reports a selection, without hiding Next. */
 	readonly advanceOnTargetSelection?: boolean;
 
-	/** Overrides hiding Next when advancing on target clicks. `primaryAction` always stays visible. */
+	/** Overrides hiding Next when advancing on target clicks. `advanceWhen` always hides Next. */
 	readonly hideNext?: boolean;
 
 	/** Hides Next and advances once this context expression becomes satisfied. */
@@ -92,9 +81,6 @@ export interface ISpotlightStep {
 	 * that hosts the target. Awaited before the target is resolved.
 	 */
 	readonly onBeforeShow?: () => Promise<void> | void;
-
-	/** Called after the spotlight is visible, for presentation-only effects. */
-	readonly onDidShow?: () => void;
 }
 
 /**

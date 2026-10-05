@@ -1187,3 +1187,26 @@
 .chat-model-card-description p {
 	margin: 0;
 }
+
+.model-picker-workflow-footer {
+	padding: var(--vscode-spacing-size80);
+}
+
+.model-picker-workflow-count,
+.model-picker-workflow-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.model-picker-workflow-count {
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.model-picker-workflow-count > span {
+	flex-shrink: 0;
+}
+
+.model-picker-workflow .action-list-header-text {
+	white-space: pre-line;
+}

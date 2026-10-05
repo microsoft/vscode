@@ -68,6 +68,7 @@ import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
@@ -94,6 +95,21 @@ export function isExperimentalRunningSessionComposerLayoutEnabled(configurationS
 
 export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean): boolean {
 	return !usesExperimentalComposerLayout;
+}
+
+export function getSessionComparisonRequestSummary(comparisons: readonly ISessionComparison[], sessionResource: URI | undefined, chatResource: URI | undefined, mainChatResource: URI | undefined): string | undefined {
+	if (!sessionResource || !chatResource || !isEqual(chatResource, mainChatResource)) {
+		return undefined;
+	}
+	const participant = comparisons.flatMap(comparison => comparison.participants).find(participant => isEqual(participant.sessionResource, sessionResource));
+	switch (participant?.role) {
+		case SessionComparisonParticipantRole.Judge:
+			return localize('sessionComparison.judgeInstructions', "Judge Instructions");
+		case SessionComparisonParticipantRole.Synthesis:
+			return localize('sessionComparison.synthesisInstructions', "Synthesis Instructions");
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -294,6 +310,7 @@ export class ChatView extends AbstractChatView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -322,6 +339,15 @@ export class ChatView extends AbstractChatView {
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: true,
+				firstRequestSummary: derived(this, reader => {
+					const session = this._currentSessionObs.read(reader);
+					return getSessionComparisonRequestSummary(
+						this.comparisonService.comparisons.read(reader),
+						session?.resource,
+						this._currentChatResourceObs.read(reader),
+						session?.mainChat.read(reader).resource,
+					);
+				}),
 				supportsFileReferences: true,
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,

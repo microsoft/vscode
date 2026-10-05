@@ -9,6 +9,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { IProtocolTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
@@ -78,10 +79,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	private readonly _surface: CloudSandboxConnectionSurface;
 
 	constructor(
-		private readonly _instantiationService: IInstantiationService,
-		private readonly _configurationService: IConfigurationService,
-		private readonly _environmentService: IWorkbenchEnvironmentService,
-		private readonly _telemetryService: ICloudSandboxTelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
 	) {
 		super();
 		this.entries = this._entries;
@@ -221,7 +222,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				}
 			}));
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-			const transportFactory = (): IProtocolTransport => new WebPubSubRelayTransport({
+			const transportFactory = (): IProtocolTransport => this._instantiationService.createInstance(WebPubSubRelayTransport, {
+				clientId: staged.clientId,
 				url: buildWpsUrl(staged.creds.token),
 				toHostGroup: staged.creds.token.groups.to_host,
 				joinGroups: [staged.creds.token.groups.broadcast, staged.creds.token.groups.to_client],
@@ -304,17 +306,10 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		@ICloudSandboxApiService private readonly _apiService: ICloudSandboxApiService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
-		@ICloudSandboxTelemetryService telemetryService: ICloudSandboxTelemetryService,
 	) {
 		super();
-		this._connectionFactory = this._register(new CloudSandboxConnectionFactory(
-			this._instantiationService,
-			this._configurationService,
-			this._environmentService,
-			telemetryService,
-		));
+		this._connectionFactory = this._register(this._instantiationService.createInstance(CloudSandboxConnectionFactory));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 	}
 
@@ -349,7 +344,8 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			return address;
 		}
 
-		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}`);
+		const watch = StopWatch.create(false);
+		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}; sessionId=${options.sessionId ?? 'none'}`);
 
 		const telemetry = this._connectionFactory.beginConnect(address, options.connectionSource);
 		const operation = new DisposableStore();
@@ -365,6 +361,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			this._connectionFactory.releaseTelemetry(address, telemetry);
 		}));
 		let establishing = false;
+		let clientId: string | undefined;
 		try {
 			// Asked once: Mission Control blocks on the compute resume before replying, so its answer
 			// already reflects that attempt and re-asking only repeats the wait. `202 waking` is the one
@@ -380,11 +377,20 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 			// minutes ago still has a fresh heartbeat, so one is minted for a host that is already gone.
 			// The handshake's liveness watchdog settles that case.
 			establishing = true;
+			clientId = clientToken.client_id;
+			this._logService.info(`${LOG_PREFIX} Credentials ready: environmentId=${options.environmentId} sessionId=${options.sessionId ?? 'none'} clientId=${clientId} durationMs=${watch.elapsed()}`);
 			requestTelemetry?.setConnectStage('connection');
 			const result = await this._establish(options, address, clientToken, source.token);
 			telemetry?.completeConnect(token.isCancellationRequested ? 'cancelled' : 'success');
 			return result;
 		} catch (error) {
+			const outcome = timedOut ? 'timeout' : isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failed';
+			const message = `${LOG_PREFIX} Connection ${outcome}: environmentId=${options.environmentId} sessionId=${options.sessionId ?? 'none'} clientId=${clientId ?? 'none'} stage=${establishing ? 'connection' : 'credentials'} durationMs=${watch.elapsed()}`;
+			if (outcome === 'cancelled') {
+				this._logService.debug(message);
+			} else {
+				this._logService.warn(message);
+			}
 			telemetry?.completeConnect(!timedOut && (isCancellationError(error) || token.isCancellationRequested) ? 'cancelled' : 'failure');
 			if (!establishing) {
 				this._connectionFactory.releaseTelemetry(address, telemetry);

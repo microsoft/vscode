@@ -13,6 +13,7 @@ import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -22,10 +23,10 @@ import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessi
 import { isSessionConfigWritable } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { getSessionConfigProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { type ISessionConfigProvider, type ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
 import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
@@ -130,10 +131,11 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
 		for (const provider of providers) {
-			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
+			const configProvider = getSessionConfigProvider(provider);
+			if (!configProvider || this._providerListeners.has(provider.id)) {
 				continue;
 			}
-			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._updateTrigger()));
+			this._providerListeners.set(provider.id, configProvider.onDidChangeSessionConfig(() => this._updateTrigger()));
 		}
 	}
 
@@ -182,23 +184,25 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 			return false;
 		}
 		const provider = this._sessionsProvidersService.getProvider(session.providerId);
-		if (!provider || !isAgentHostProvider(provider)) {
+		const configProvider = provider && getSessionConfigProvider(provider);
+		if (!configProvider) {
 			return false;
 		}
-		return provider.isSessionConfigResolving(session.sessionId).get();
+		return configProvider.isSessionConfigResolving(session.sessionId).get();
 	}
 
 	showPicker(anchor: HTMLElement, onHide?: () => void): boolean {
 		return this._showPicker(anchor, onHide);
 	}
 
-	protected _getActiveContext(): { provider: IAgentHostSessionsProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
+	protected _getActiveContext(): { provider: ISessionConfigProvider; sessionId: string; currentValue: string; items: readonly IAgentHostSessionEnumPickerItem[]; tooltip: string } | undefined {
 		const session = this._session.get();
 		if (!session) {
 			return undefined;
 		}
-		const rawProvider = this._sessionsProvidersService.getProvider(session.providerId);
-		if (!rawProvider || !isAgentHostProvider(rawProvider)) {
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		const rawProvider = provider && getSessionConfigProvider(provider);
+		if (!rawProvider) {
 			return undefined;
 		}
 		const config = rawProvider.getSessionConfig(session.sessionId);
@@ -312,7 +316,7 @@ export abstract class AgentHostSessionEnumPicker extends Disposable {
 				});
 				ctx.provider.setSessionConfigValue(ctx.sessionId, this._property, item.value)
 					.then(() => this._onDidSelectValue(ctx.currentValue, item.value))
-					.catch(() => { /* best-effort */ });
+					.catch(onUnexpectedError);
 			},
 			onHide: () => {
 				this._pickerVisible = false;
@@ -389,8 +393,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
 				this._hidePicker();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
+			if (this._permissionDelegate.sandboxToggleConfigurationKeys.some(key => e.affectsConfiguration(key))) {
 				this._updateTrigger();
 			}
 		}));

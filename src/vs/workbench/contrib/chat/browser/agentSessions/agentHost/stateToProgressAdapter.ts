@@ -11,6 +11,7 @@ import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, M
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
+import { readSlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { Mimes } from '../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
@@ -548,6 +549,16 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	}
 	if (!content) {
 		return undefined;
+	}
+	if (readSlashCommandResource({ _meta }) && typeof content !== 'string') {
+		return {
+			kind: 'markdownContent',
+			content: new MarkdownString(rewriteMarkdownSource(content.markdown, {
+				rewriteLink: token => token.type === 'link'
+					? new MarkdownString().appendLink(rewriteAgentHostLinkTarget(token.href, connectionAuthority), token.text).value
+					: undefined,
+			})),
+		};
 	}
 	const value = stringOrMarkdownToString(content, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
@@ -2122,7 +2133,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
 		originMessage: toolCallOriginMessage(tc),
-		pastTenseMessage: isTerminal && (tc.status !== ToolCallStatus.Completed || presentation.pastTenseMessage === tc.pastTenseMessage) ? undefined : pastTenseMsg,
+		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: shouldHideAutomaticTitleRename(tc)
@@ -2530,7 +2541,7 @@ function addCommentReference(tc: ToolCallState, resourceUris: IAgentHostResource
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), mcpServerName?: string): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -2633,7 +2644,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
-		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
+		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority, mcpServerName));
 	}
 	applyToolCallProgress(invocation, tc);
 
@@ -2671,6 +2682,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 }
 
 export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationState, connectionAuthority: string): IToolConfirmationMessages {
+	const presentation = readToolCallPresentation(tc);
 	const riskAssessment = tc.riskAssessment;
 	let approvalReason: IToolConfirmationMessages['approvalReason'];
 	if (riskAssessment?.status === ToolCallRiskAssessmentStatus.Loading) {
@@ -2685,20 +2697,20 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 	return {
 		title: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
-			: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
+			: stringOrMarkdownToString(presentation.confirmationTitle ?? tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 		message: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
-			: stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority),
+			: stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority),
 		approvalReason,
 		...(tc.options ? { customOptions: tc.options } : {}),
 	};
 }
 
-export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string): IChatMcpAuthenticationRequiredServer {
+export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string, name?: string): IChatMcpAuthenticationRequiredServer {
 	const metadata = readToolCallMeta(tc);
 	return {
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
-		name: tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
+		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
 		oauthClient: tc.auth.oauthClient,
 		authorizationServers: tc.auth.resource.authorization_servers,
@@ -3006,11 +3018,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			terminalCommandState: getTerminalCommandState(tc, isCompleted && tc.success),
 		};
 	}
-	if (isCompleted) {
-		const presentation = readToolCallPresentation(tc);
-		if (!isTerminal || presentation.pastTenseMessage !== tc.pastTenseMessage) {
-			invocation.pastTenseMessage = stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority);
-		}
+	if (isCompleted && !isTerminal) {
+		invocation.pastTenseMessage = stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// past-tense text here. Add new per-tool cases alongside this branch.

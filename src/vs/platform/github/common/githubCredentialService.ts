@@ -219,6 +219,10 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 				promise: this._resolveIdentity(token, generation, bootstrapAccount, apiBaseUri, controller.signal)
 					.then(credential => {
 						current.credential = credential;
+						const cooldown = this._transport.rateLimits.preserveRestFallback(bootstrapAccount, credential.account);
+						if (this._bootstrapQuotaAccount) {
+							this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', cooldown);
+						}
 						// Deliberately does not clear the failure record: a working
 						// `/user` only proves identity resolution recovered, and when
 						// GitHub is refusing this credential for real requests every
@@ -240,7 +244,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 						// An invalidated generation was not refused by GitHub, so
 						// it must not count towards the delay the next one serves.
 						if (!controller.signal.aborted) {
-							const cooldown = this._transport.rateLimits.getDelay(bootstrapAccount, 'core');
+							const cooldown = this._transport.rateLimits.getRequestDelay(bootstrapAccount, 'core');
 							if (this._bootstrapQuotaAccount) {
 								this._transport.rateLimits.preserveCooldown(this._bootstrapQuotaAccount, 'core', cooldown);
 							}

@@ -159,48 +159,6 @@ suite('SpotlightOverlay', () => {
 		assert.deepStrictEqual(fired, ['skip', 'back', 'next']);
 	});
 
-	test('primary actions and cancellation remain clickable above an expanded picker', () => {
-		const container = createContainer();
-		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
-		const target = createTarget(container, 100, 100, 80, 30);
-		const pickerBlocker = $('div');
-		pickerBlocker.style.cssText = 'position: fixed; inset: 0; z-index: 2576;';
-		container.appendChild(pickerBlocker);
-		overlay.show(target, content({ isLastStep: true, nextButtonLabel: 'Use Copilot', showEndTour: true }), { targetOverlayVisible: true, allowTargetInteraction: true });
-
-		const buttons = getButtons(container);
-		const hitTest = (button: HTMLElement) => {
-			const rect = button.getBoundingClientRect();
-			return button.contains(mainWindow.document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
-		};
-		assert.deepStrictEqual({
-			labels: buttons.map(button => button.textContent),
-			clickable: buttons.map(hitTest),
-			pickerClickable: mainWindow.document.elementFromPoint(10, 10) === pickerBlocker,
-		}, {
-			labels: ['End Tour', 'Back', 'Use Copilot'],
-			clickable: [true, true, true],
-			pickerClickable: true,
-		});
-	});
-
-	test('disables a pending primary action and resets it for the next step', () => {
-		const container = createContainer();
-		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
-		const target = createTarget(container, 100, 100, 80, 30);
-		let actions = 0;
-		disposables.add(overlay.onDidClickNext(() => actions++));
-		overlay.show(target, content());
-		const [, , primary] = getButtons(container);
-		overlay.setPrimaryActionEnabled(false);
-		primary.click();
-		assert.deepStrictEqual({ actions, disabled: primary.getAttribute('aria-disabled') }, { actions: 0, disabled: 'true' });
-
-		overlay.show(target, content());
-		primary.click();
-		assert.deepStrictEqual({ actions, disabled: primary.getAttribute('aria-disabled') }, { actions: 1, disabled: 'false' });
-	});
-
 	test('advanceOnTargetClick hides Next and advances when the target is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));

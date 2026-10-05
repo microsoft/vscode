@@ -43,7 +43,7 @@ import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/co
 import { defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
-import { BranchPicker, IBranchPickerBranch } from '../../chat/browser/branchPicker.js';
+import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
 import { MobileSessionTypePicker } from '../../chat/browser/mobile/mobileSessionTypePicker.js';
 import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobilePickerSheet.js';
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
@@ -610,7 +610,7 @@ export class AutomationIsolationGroupActionViewItem extends BaseActionViewItem {
 				void this.reloadRepository(this.isolationModel.folderUri);
 			},
 			isolation: {
-				label: localize('automation.form.isolation.worktree', "New Worktree"),
+				label: NEW_WORKTREE_LABEL,
 				ariaLabel: localize('automation.form.isolation.checkboxAriaLabel', "Worktree isolation"),
 				onToggle: checked => {
 					this.isolationModel.selectIsolationMode(checked ? 'worktree' : 'workspace');
@@ -1850,7 +1850,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const items = super._buildItems();
 		const noWorkspace: IActionListItem<IWorkspacePickerItem> = {
 			kind: ActionListItemKind.Action,
-			label: localize('automation.form.noWorkspace', "No workspace"),
+			label: this._getNoWorkspaceLabel(),
 			description: localize('automation.form.noWorkspace.description', "Run without a backing workspace"),
 			group: { title: '', icon: Codicon.commentDiscussion },
 			item: {
@@ -1881,7 +1881,7 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		const workspace = this.selectedResolved?.workspace;
 		const noWorkspace = this.targetModel?.isQuickChat === true;
 		const label = noWorkspace
-			? localize('automation.form.noWorkspace', "No workspace")
+			? this._getNoWorkspaceLabel()
 			: workspace?.label ?? localize('automation.form.selectWorkspace', "Select workspace");
 		const icon = noWorkspace ? Codicon.commentDiscussion : workspace?.icon ?? Codicon.project;
 

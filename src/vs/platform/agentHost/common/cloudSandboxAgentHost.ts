@@ -17,6 +17,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
+import { SessionModelInfo } from './state/protocol/state.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -122,6 +123,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly updatedAt?: string;
 	/** Last reported activity; this does not establish environment availability or session flags. */
 	readonly status?: SessionStatus;
+	/** Mission Control's archive state, independent of the sandbox's AHP session flags. */
+	readonly isArchived?: boolean;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */
@@ -233,6 +236,11 @@ export interface ICloudSandboxConnectionRequest {
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
 
+export interface ICloudSandboxModelCatalog {
+	readonly models: readonly SessionModelInfo[];
+	readonly defaultModel?: string;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -242,6 +250,9 @@ export interface ICloudSandboxApiService {
 
 	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
 	getAccountKey(): Promise<string | undefined>;
+
+	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
+	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;
 
 	/**
 	 * Mint a fresh client Web PubSub connection token for a new logical connection. May resolve to a
@@ -276,6 +287,9 @@ export interface ICloudSandboxApiService {
 
 	/** Rename the Mission Control task without waking the sandbox. */
 	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
+
+	/** Archive or unarchive the Mission Control task without waking the sandbox. */
+	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
