@@ -1950,7 +1950,7 @@ export class AgentHostStateManager extends Disposable {
 				this.dispatchServerAction(aggregateChats[0].resource, { type: ActionType.ChatIsReadChanged, isRead: true });
 			}
 		}
-		let sessionToMarkUnread: URI | undefined;
+		let sessionReadStateToSynchronize: { readonly session: URI; readonly isRead: boolean } | undefined;
 		let singleChatToSynchronize: { readonly chat: URI; readonly isRead: boolean } | undefined;
 		// Apply to state
 		if (isRootAction(action)) {
@@ -2036,10 +2036,20 @@ export class AgentHostStateManager extends Disposable {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
 				}
 				this._onChatStateChanged(sessionKey, channel, chat, newChat);
-				if (chatAction.type === ActionType.ChatIsReadChanged && !chatAction.isRead && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
+				if (chatAction.type === ActionType.ChatIsReadChanged && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
 					const session = this._sessionStates.get(sessionKey)?.state;
-					if (session && isSessionStatusRead(session.status)) {
-						sessionToMarkUnread = sessionKey;
+					if (session) {
+						const sessionIsRead = isSessionStatusRead(session.status);
+						const chatWasRead = isSessionStatusRead(chat.status);
+						const chatIsRead = isSessionStatusRead(newChat.status);
+						if (!chatIsRead && sessionIsRead) {
+							sessionReadStateToSynchronize = { session: sessionKey, isRead: false };
+						} else if (chatIsRead && !chatWasRead && !sessionIsRead
+							&& session.chats
+								.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+								.every(chat => isSessionStatusRead(chat.status))) {
+							sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+						}
 					}
 				}
 				resultingState = newChat;
@@ -2129,8 +2139,11 @@ export class AgentHostStateManager extends Disposable {
 		if (singleChatToSynchronize) {
 			this.dispatchServerAction(singleChatToSynchronize.chat, { type: ActionType.ChatIsReadChanged, isRead: singleChatToSynchronize.isRead });
 		}
-		if (sessionToMarkUnread) {
-			this.dispatchServerAction(sessionToMarkUnread, { type: ActionType.SessionIsReadChanged, isRead: false });
+		if (sessionReadStateToSynchronize) {
+			this.dispatchServerAction(sessionReadStateToSynchronize.session, {
+				type: ActionType.SessionIsReadChanged,
+				isRead: sessionReadStateToSynchronize.isRead,
+			});
 		}
 
 		return resultingState;

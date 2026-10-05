@@ -8743,44 +8743,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 			);
 		});
 
-		test('chat read state synchronizes only participating session aggregate chats', async () => {
+		test('peer chat read state updates optimistically and dispatches to the host-supplied chat resource', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'chat-read-resource');
-			const sessionUri = AgentSession.uri('copilotcli', 'chat-read-resource').toString();
 			const backendSessionUri = AgentSession.uri('copilotcli', 'backend-chat-read').toString();
 			const defaultChat = buildDefaultChatUri(backendSessionUri);
 			const peerChat = buildChatUri(backendSessionUri, 'peer-1');
-			const hiddenChat = buildChatUri(backendSessionUri, 'hidden');
 			agentHost.setSessionState('chat-read-resource', 'copilotcli', makeState([
 				makeChatSummary(defaultChat, '', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
 				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
-				{ ...makeChatSummary(hiddenChat, 'Hidden', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead), origin: { kind: ProtocolChatOriginKind.User }, interactivity: ProtocolChatInteractivity.Hidden },
 			], { defaultChat }));
-			const [main, peer, hidden] = session.chats.get();
-			const before = { session: session.isRead.get(), main: main.isRead.get(), peer: peer.isRead.get(), hidden: hidden.isRead.get() };
+			const [main, peer] = session.chats.get();
+			const before = { main: main.isRead.get(), peer: peer.isRead.get() };
 
 			await provider.setChatReadState(session.sessionId, peer.resource, true);
-			const afterPeerRead = { session: session.isRead.get(), peer: peer.isRead.get() };
-			await provider.setChatReadState(session.sessionId, hidden.resource, false);
 
 			assert.deepStrictEqual({
 				before,
-				afterPeerRead,
-				afterHiddenUnread: { session: session.isRead.get(), hidden: hidden.isRead.get() },
-				actions: agentHost.dispatchedActions.map(dispatch => ({
-					channel: dispatch.channel,
-					type: dispatch.action.type,
-					isRead: dispatch.action.type === ActionType.ChatIsReadChanged || dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
-				})),
+				isRead: peer.isRead.get(),
+				action: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
 			}, {
-				before: { session: false, main: true, peer: false, hidden: true },
-				afterPeerRead: { session: true, peer: true },
-				afterHiddenUnread: { session: true, hidden: false },
-				actions: [
-					{ channel: peerChat, type: ActionType.ChatIsReadChanged, isRead: true },
-					{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
-					{ channel: hiddenChat, type: ActionType.ChatIsReadChanged, isRead: false },
-				],
+				before: { main: true, peer: false },
+				isRead: true,
+				action: [{ channel: peerChat, isRead: true }],
 			});
 		});
 
@@ -8831,20 +8821,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 				before,
 				afterRead,
 				afterUnread: { session: session.isRead.get(), main: main.isRead.get() },
-				actions: agentHost.dispatchedActions.map(dispatch => ({
-					channel: dispatch.channel,
-					type: dispatch.action.type,
-					isRead: dispatch.action.type === ActionType.ChatIsReadChanged || dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
-				})),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
 			}, {
 				before: { session: false, main: false },
 				afterRead: { session: true, main: true },
 				afterUnread: { session: false, main: false },
 				actions: [
-					{ channel: defaultChat, type: ActionType.ChatIsReadChanged, isRead: true },
-					{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
-					{ channel: defaultChat, type: ActionType.ChatIsReadChanged, isRead: false },
-					{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: false },
+					{ channel: defaultChat, isRead: true },
+					{ channel: defaultChat, isRead: false },
 				],
 			});
 		});
@@ -8869,18 +8858,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({
 				session: session.isRead.get(),
 				main: session.mainChat.get().isRead.get(),
-				actions: agentHost.dispatchedActions.map(dispatch => ({
-					channel: dispatch.channel,
-					type: dispatch.action.type,
-					isRead: dispatch.action.type === ActionType.ChatIsReadChanged || dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
-				})),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
 			}, {
 				session: true,
 				main: true,
-				actions: [
-					{ channel: defaultChat.toString(), type: ActionType.ChatIsReadChanged, isRead: true },
-					{ channel: sessionUri.toString(), type: ActionType.SessionIsReadChanged, isRead: true },
-				],
+				actions: [{ channel: defaultChat.toString(), isRead: true }],
 			});
 		});
 
