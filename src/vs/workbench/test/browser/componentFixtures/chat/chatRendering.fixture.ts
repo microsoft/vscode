@@ -15,7 +15,7 @@ import { ILanguageModelToolsConfirmationService } from '../../../../contrib/chat
 import { MockLanguageModelToolsConfirmationService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsConfirmationService.js';
 import { MockLanguageModelToolsService } from '../../../../contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
 import { MockChatEditingSession } from '../../../../contrib/chat/test/common/mockChatEditingSession.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { IFixtureMessage, renderChatWidget } from './chatWidget.fixture.js';
 import { TestFileService } from '../../../common/workbenchTestServices.js';
 
@@ -93,6 +93,44 @@ function renderTranscript(context: ComponentFixtureContext, width: number, progr
 		persistentProgressVerbosity: ChatProgressVerbosity.Verbose,
 		collapseCompletedResponses: false,
 	});
+}
+
+async function renderWrappedToolSummary(context: ComponentFixtureContext): Promise<void> {
+	const title = 'Searched for order_header_update and regex patterns';
+	await renderChatWidget(context, {
+		width: 280, height: 360, listHeight: 360, inputVisible: false,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
+		collapseCompletedResponses: false,
+		messages: [{
+			user: 'Check the endpoint',
+			responseComplete: false,
+			assistant: ['order_header_update', 'invoice_print_address'].map(pattern => ({
+				kind: 'tool', toolId: 'search', displayName: 'Search',
+				invocationMessage: `Searched for ${pattern}`, complete: true,
+			})),
+		}],
+		onRendered: ({ model }) => {
+			const request = model.getRequests()[0];
+			for (const part of request.response?.response.value ?? []) {
+				if (part.kind === 'toolInvocation') {
+					part.generatedTitle = title;
+				}
+			}
+			model.acceptResponseProgress(request, {
+				kind: 'thinking', id: 'reasoning',
+				value: '**Confirmed order_header_update endpoint accepted invoice_print_address**\nThe endpoint accepts the updated address.',
+			});
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The update is ready.') });
+			request.response?.complete();
+		},
+	});
+	await waitForFixtureCondition(() => {
+		const chain = context.container.querySelector('.chat-tool-chain-preview.chat-used-context-collapsed');
+		return chain?.querySelector('.monaco-button-mdlabel')?.textContent === title
+			&& !!context.container.querySelector('.chat-persistent-reasoning')
+			&& chain.getAnimations({ subtree: true }).every(animation => animation.playState === 'finished');
+	}, 'Wrapped tool summary did not finish collapsing');
 }
 
 function renderReadPills(context: ComponentFixtureContext, complete: boolean): Promise<void> {
@@ -174,6 +212,12 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	Narrow: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderTranscript(context, 280, ChatProgressAnimation.Draw),
+	}),
+	WrappedToolSummary: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		virtualTime: { enabled: false },
+		deferPaint: true,
+		render: renderWrappedToolSummary,
 	}),
 	Wide: defineComponentFixture({
 		render: context => renderTranscript(context, 720, ChatProgressAnimation.Draw),

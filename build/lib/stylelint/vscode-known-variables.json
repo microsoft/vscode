@@ -1047,6 +1047,7 @@
 		"--chat-persistent-nested-indent",
 		"--chat-persistent-rail-left",
 		"--chat-response-footer-height",
+		"--chat-response-height-rounding",
 		"--chat-smooth-delay",
 		"--chat-smooth-duration",
 		"--connected-tab-min-name-width",

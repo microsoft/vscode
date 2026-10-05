@@ -1373,6 +1373,113 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	suite('persistent progress streaming', () => {
+		for (const fontSize of [13, 14]) {
+			for (const incrementalRendering of [false, true]) {
+				test(`keeps the bottom progress position while paragraphs stream (font size: ${fontSize}, incremental: ${incrementalRendering})`, async () => {
+					const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+						configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Evaluating'] });
+					}, true);
+					disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
+					container.classList.add('interactive-list');
+					container.style.fontSize = `${fontSize}px`;
+					container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize}px`);
+					container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize - 1}px`);
+					container.style.setProperty('--vscode-spacing-size160', '16px');
+					container.style.setProperty('--vscode-spacing-size60', '6px');
+					const addRequest = () => model.addRequest({
+						text: 'test',
+						parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+					}, { variables: [] }, 0);
+					const previousRequest = addRequest();
+					model.acceptResponseProgress(previousRequest, {
+						kind: 'markdownContent',
+						content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+					});
+					previousRequest.response?.complete();
+					const request = addRequest();
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
+					widget.refresh();
+					widget.layout(300, 500);
+					await retry(async () => assert.ok(container.textContent?.includes('Starting response.')), 10, 100);
+					await waitForStableLayout(widget);
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const progress = container.querySelector<HTMLElement>('.chat-working-progress');
+					const label = progress?.querySelector<HTMLElement>('.progress-step');
+					const icon = progress?.querySelector<HTMLElement>('.chat-progress-icon');
+					assert.ok(progress && label && icon && widget.scrollTop > 0 && widget.isScrolledToBottom);
+					assert.ok(progress.getBoundingClientRect().height > 0 && label.textContent === 'Evaluating');
+					const measure = () => ({
+						progress: progress.getBoundingClientRect().top,
+						label: label.getBoundingClientRect().top,
+						icon: icon.getBoundingClientRect().top,
+					});
+					const before = measure();
+					const positions = [before];
+					for (let index = 0; index < 6; index++) {
+						const text = `Streamed paragraph ${index}.`;
+						model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`) });
+						widget.refresh();
+						for (let frame = 0; frame < 4; frame++) {
+							await nextFrame();
+							await timeout(0);
+							positions.push(measure());
+						}
+						await retry(async () => assert.ok(container.textContent?.includes(text)), 10, 100);
+						await waitForStableLayout(widget);
+						positions.push(measure());
+					}
+					widget.scrollTop -= 80;
+					await waitForStableLayout(widget);
+					const away = { scrollTop: widget.scrollTop, top: progress.getBoundingClientRect().top, height: progress.parentElement!.getBoundingClientRect().height };
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n\nStreamed while scrolled away.\n\n') });
+					widget.refresh();
+					await retry(async () => assert.ok(container.textContent?.includes('Streamed while scrolled away.')), 10, 100);
+					await waitForStableLayout(widget);
+					const scrolledAway = {
+						scrollTop: widget.scrollTop,
+						atBottom: widget.isScrolledToBottom,
+						movedWithContent: Math.abs(progress.getBoundingClientRect().top - away.top - (progress.parentElement!.getBoundingClientRect().height - away.height)) < 0.01,
+					};
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const returnedToBottom = measure();
+					const toolPositions = [];
+					for (const toolId of ['search', 'read_file']) {
+						const tool = new ChatToolInvocation(
+							{ invocationMessage: `Running ${toolId}` },
+							{ id: toolId, displayName: toolId, modelDescription: toolId, source: ToolDataSource.Internal },
+							toolId, undefined, {},
+						);
+						model.acceptResponseProgress(request, tool);
+						widget.refresh();
+						await waitForStableLayout(widget);
+						toolPositions.push(measure());
+					}
+					assert.deepStrictEqual({
+						positions,
+						scrolledAway,
+						returnedToBottom,
+						toolPositions,
+						atBottom: widget.isScrolledToBottom,
+						sameProgress: container.querySelector('.chat-working-progress') === progress,
+					}, {
+						positions: Array.from({ length: 31 }, () => ({ ...before })),
+						scrolledAway: { scrollTop: away.scrollTop, atBottom: false, movedWithContent: true },
+						returnedToBottom: before,
+						toolPositions: [{ ...before }, { ...before }],
+						atBottom: true,
+						sameProgress: true,
+					});
+				});
+			}
+		}
+	});
+
 	suite('persistent progress completion', () => {
 		for (const incrementalRendering of [false, true]) {
 			for (const atBottom of [false, true]) {

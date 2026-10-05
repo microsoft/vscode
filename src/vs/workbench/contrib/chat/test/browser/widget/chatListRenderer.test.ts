@@ -6239,6 +6239,78 @@ suite('ChatListRenderer', () => {
 				request.response?.complete();
 				renderer.renderElement(node, 0, template);
 			});
+
+			test(`compact tool summaries reserve their wrapped height after streaming and resizing (fontSize=${fontSize}, reducedMotion=${reducedMotion})`, async () => {
+				const { configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ progressVerbosity: ChatProgressVerbosity.Compact });
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingGenerateTitles, false);
+				configurePersistentProgressTypography(container, fontSize);
+				container.classList.toggle('monaco-reduce-motion', reducedMotion);
+				container.style.width = '260px';
+				renderer.layout(260);
+				const title = 'Searched for order_header_update and regex patterns';
+				for (const pattern of ['order_header_update', 'invoice_print_address']) {
+					const tool = new ChatToolInvocation(
+						{ invocationMessage: `Searching for ${pattern}`, pastTenseMessage: `Searched for ${pattern}` },
+						{ id: 'search', displayName: 'Search', modelDescription: 'Search', source: ToolDataSource.Internal },
+						pattern, undefined, {},
+					);
+					tool.generatedTitle = title;
+					await tool.didExecuteTool(undefined);
+					model.acceptResponseProgress(request, tool);
+				}
+				renderer.renderElement(node, 0, template);
+				const chain = template.value.querySelector<HTMLElement>('.chat-tool-chain-preview');
+				const button = chain?.querySelector<HTMLElement>(':scope > .chat-used-context-label .monaco-button');
+				const label = button?.querySelector<HTMLElement>('.monaco-button-mdlabel');
+				assert.ok(chain && button && label);
+
+				model.acceptResponseProgress(request, {
+					kind: 'thinking', id: 'reasoning',
+					value: '**Confirmed order_header_update endpoint accepted invoice_print_address**\nThe endpoint accepts the updated address.',
+				});
+				model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('The update is ready.') });
+				renderer.renderElement(node, 0, template);
+				for (const animation of chain.getAnimations({ subtree: true })) {
+					if (animation instanceof CSSTransition) {
+						animation.finish();
+					}
+				}
+				await timeout(0);
+				const reasoning = template.value.querySelector<HTMLElement>('.chat-persistent-reasoning');
+				assert.ok(reasoning);
+
+				const snapshot = () => ({
+					wrapped: label.getBoundingClientRect().height > fontSize * 1.5 + 0.1,
+					titleContained: label.getBoundingClientRect().bottom <= chain.getBoundingClientRect().bottom + 0.1,
+					noHorizontalOverflow: label.scrollWidth <= label.clientWidth,
+					nextItemGap: Math.round(reasoning.getBoundingClientRect().top - label.getBoundingClientRect().bottom),
+				});
+				const widths = [260, 720, 200, 260];
+				const resized = widths.map(width => {
+					container.style.width = `${width}px`;
+					renderer.layout(width);
+					return snapshot();
+				});
+				for (let toggle = 0; toggle < 2; toggle++) {
+					button.click();
+					for (const animation of chain.getAnimations({ subtree: true })) {
+						if (animation instanceof CSSTransition) {
+							animation.finish();
+						}
+					}
+				}
+				assert.deepStrictEqual({
+					title: label.textContent,
+					resized,
+					collapsedAgain: snapshot(),
+				}, {
+					title,
+					resized: widths.map(width => ({ wrapped: width !== 720, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 })),
+					collapsedAgain: { wrapped: true, titleContained: true, noHorizontalOverflow: true, nextItemGap: 16 },
+				});
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+			});
 		}
 	}
 

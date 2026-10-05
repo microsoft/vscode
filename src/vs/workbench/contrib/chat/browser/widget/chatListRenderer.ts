@@ -667,6 +667,7 @@ export interface IChatRendererDelegate {
 	getListLength(): number;
 	currentChatMode(): ChatModeKind;
 	isStickyScrollEnabled(): boolean;
+	isScrolledToBottom?(): boolean;
 	refreshStickyScroll(): void;
 	readonly stickyScrollTopPadding: number;
 	getEditingValue?(): string | undefined;
@@ -1030,6 +1031,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const normalizedHeight = Math.ceil(height);
 		const element = template.currentElement;
+		this.updateWorkingProgressRounding(template, height);
 		const update = reconcileChatItemHeight(
 			normalizedHeight,
 			element.currentRenderedHeight,
@@ -1057,6 +1059,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					this.fireItemHeightChange(template);
 				}
 			});
+		}
+	}
+
+	private updateWorkingProgressRounding(template: IChatListItemTemplate, measuredHeight?: number): void {
+		if (template.renderedPersistentProgress && template.currentElement && isResponseVM(template.currentElement) && !template.currentElement.isComplete && template.rowContainer.isConnected) {
+			const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
+			template.rowContainer.style.setProperty('--chat-response-height-rounding', `${Math.ceil(height) - height}px`);
 		}
 	}
 
@@ -1566,6 +1575,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._elementBeingRendered = node.element;
 		try {
 			this.renderChatTreeItem(node.element, index, templateData);
+			if (this.delegate.isScrolledToBottom?.() && templateData.rowContainer.classList.contains(mostRecentResponseClassName)) {
+				// Keep the anchor current before the list measures and scrolls the newly rendered row.
+				this.updateWorkingProgressRounding(templateData);
+			}
 		} finally {
 			this._elementBeingRendered = undefined;
 		}
