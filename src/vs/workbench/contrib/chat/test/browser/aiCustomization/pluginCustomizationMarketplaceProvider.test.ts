@@ -91,7 +91,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				score: 0,
 				priority: 1,
-				installation: { kind: 'configuredPlugin' },
+				installation: { kind: 'configuredPlugin', name: 'Review', marketplace: 'microsoft/plugins#stable' },
 			}],
 			total: undefined,
 			nextCursor: 'next',

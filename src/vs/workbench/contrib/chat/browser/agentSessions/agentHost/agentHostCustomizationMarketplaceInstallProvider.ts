@@ -21,13 +21,7 @@ import { IAgentHostCustomizationService } from './agentHostCustomizationService.
 
 export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = Event.any(
-		this._onDidChange.event,
-		this.agentHostCustomizationService.onDidChangeCustomizations,
-		Event.fromObservableLight(this.agentPluginService.plugins),
-		this.agentHostService.onAgentHostStart,
-		Event.map(this.agentHostService.onAgentHostExit, () => undefined),
-	);
+	readonly onDidChange: Event<void>;
 
 	constructor(
 		private readonly providerId: string,
@@ -37,6 +31,13 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
+		this.onDidChange = Event.any(
+			this._onDidChange.event,
+			this.agentHostCustomizationService.onDidChangeCustomizations,
+			Event.fromObservableLight(this.agentPluginService.plugins),
+			this.agentHostService.onAgentHostStart,
+			Event.map(this.agentHostService.onAgentHostExit, () => undefined),
+		);
 	}
 
 	getInstallUnavailableMessage(resource: ICustomizationMarketplaceResource): string | undefined {
