@@ -117,8 +117,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			for (const [id, cached] of this._resourceDropdownHovers) {
 				const entry = this._entries.find(entry => entry.id === id);
 				if (!entry || !sameResourceHover(cached.entry, entry)) {
-					cached.hover.disposable?.dispose();
-					this._resourceDropdownHovers.delete(id);
+					this._evictResourceHover(id, entry);
 				}
 			}
 			this._summaryIcon = ThemeIcon.isThemeIcon(this._pillOptions.icon) ? this._pillOptions.icon : this._pillOptions.icon.read(reader);
@@ -407,8 +406,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			return hover;
 		}
 		if (cached) {
-			cached.hover.disposable?.dispose();
-			this._resourceDropdownHovers.delete(entry.id);
+			this._evictResourceHover(entry.id, entry);
 		}
 		if (!entry.imagePreview) {
 			if (cacheable && baseHover) {
@@ -442,6 +440,25 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		};
 		this._resourceDropdownHovers.set(entry.id, { entry, hover });
 		return hover;
+	}
+
+	/**
+	 * Releases the hover cached for an entry that changed or was removed. An entry can
+	 * hand out the same hover disposable on every update, for content its source keeps
+	 * alive. That hover stays cached until the entry is removed or stops carrying the
+	 * disposable, so it is still released when the entry updates while the dropdown is closed.
+	 */
+	private _evictResourceHover(id: string, replacement: IChatPillEntry | undefined): void {
+		const cached = this._resourceDropdownHovers.get(id);
+		if (!cached) {
+			return;
+		}
+		const disposable = cached.hover.disposable;
+		if (disposable && disposable === replacement?.hover?.disposable) {
+			return;
+		}
+		disposable?.dispose();
+		this._resourceDropdownHovers.delete(id);
 	}
 
 	private _prefetchEntry(entry: IChatPillEntry): void {

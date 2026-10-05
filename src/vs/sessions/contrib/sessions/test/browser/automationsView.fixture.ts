@@ -149,6 +149,7 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				mainChat: constObservable(upcastPartial<IChat>({
 					updatedAt,
 					status,
+					isRead: constObservable(index !== 0),
 					changes: constObservable([]),
 					changesets: constObservable([]),
 				})),

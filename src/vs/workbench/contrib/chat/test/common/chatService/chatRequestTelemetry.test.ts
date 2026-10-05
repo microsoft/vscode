@@ -31,8 +31,9 @@ suite('ChatRequestTelemetry request context', () => {
 		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 			override getChatSessionContribution(sessionType: string) {
 				const provider = sessionType === 'agent-host-copilotcli' ? 'copilotcli'
-					: sessionType === 'agent-host-claude' ? 'claude'
-						: sessionType === 'agent-host-unresolved' ? 'unknown' : undefined;
+					: sessionType === 'remote-cloudsandbox_environment-one-copilot' ? 'copilot'
+						: sessionType === 'agent-host-claude' ? 'claude'
+							: sessionType === 'agent-host-unresolved' ? 'unknown' : undefined;
 				return provider ? {
 					type: sessionType, name: 'Test', displayName: 'Test', description: 'Test',
 					agentHostProviderId: provider,
@@ -114,6 +115,8 @@ suite('ChatRequestTelemetry request context', () => {
 		{ name: 'local Copilot', metadata: model, expected: 'copilot' },
 		{ name: 'local BYOK', metadata: { ...model, isBYOK: true }, expected: 'byok' },
 		{ name: 'host Copilot', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli' }, expected: 'copilot' },
+		{ name: 'sandbox Copilot', metadata: { ...model, vendor: 'host', targetChatSessionType: 'remote-cloudsandbox_environment-one-copilot' }, expected: 'copilot' },
+		{ name: 'sandbox BYOK bridge', metadata: { ...model, vendor: 'host', targetChatSessionType: 'remote-cloudsandbox_environment-one-copilot', byokModelIdentifier: 'private/model' }, expected: 'byok' },
 		{ name: 'known non-Copilot host provider', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-claude' }, expected: 'other' },
 		{ name: 'explicitly unknown host provider', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-unresolved' }, expected: 'unknown' },
 		{ name: 'host BYOK bridge', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli', byokModelIdentifier: 'private/model' }, expected: 'byok' },

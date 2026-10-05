@@ -403,6 +403,7 @@ suite('AgentHostTelemetryReporter', () => {
 				initiatorClientType: 'editor_window',
 				turnIndex: '3',
 				messageText: 'hello agent',
+				messageTextChunk: zlib.gzipSync(Buffer.from('hello agent', 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);
@@ -426,6 +427,7 @@ suite('AgentHostTelemetryReporter', () => {
 				turnIndex: '3',
 				headerRequestId: 'client-1',
 				messageText: 'sure, here you go',
+				messageTextChunk: zlib.gzipSync(Buffer.from('sure, here you go', 'utf8')).toString('base64'),
 			},
 		};
 		assert.deepStrictEqual(service.enhancedEvents, [expected]);

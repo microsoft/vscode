@@ -354,6 +354,8 @@ suite('AgentHostSandboxForwarder', () => {
 	for (const [key, hostKey] of [
 		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers],
 		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, AgentHostSandboxKey.AuthenticateGit],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, AgentHostSandboxKey.AuthenticateGh],
 		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentHostSandboxKey.AllowLocalNetwork],
 	]) {

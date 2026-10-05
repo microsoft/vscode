@@ -575,6 +575,8 @@
 }
 
 .interactive-item-container .completed-response-summary {
+	display: flex;
+	align-items: center;
 	width: fit-content;
 	max-width: 100%;
 	padding: 0;
@@ -583,6 +585,17 @@
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum";
 	list-style: none;
+
+	> .monaco-button.monaco-icon-button {
+		margin-left: 0;
+		padding-left: 0;
+	}
+
+	> .monaco-button .monaco-button-mdlabel {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 
 .interactive-item-container .completed-response-summary * {
@@ -3350,6 +3363,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	max-width: 100%;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.interactive-session .chat-used-context-label .monaco-button-mdlabel {
+	min-width: 0;
+	white-space: normal;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button {
@@ -3486,6 +3507,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.rendered-markdown.progress-step {
+		min-width: 0;
 		white-space: normal;
 
 		&.chat-progress-with-origin {

@@ -16,20 +16,30 @@ export interface ISessionSandboxPolicy {
 	readonly allowDevToolAccess?: boolean;
 	readonly sandboxMcpServers?: boolean;
 	readonly sandboxLspServers?: boolean;
+	readonly authenticateGit?: boolean;
+	readonly authenticateGh?: boolean;
 	readonly failClosed?: boolean;
 }
 
-/** Missing or unsupported metadata carries no assertion about the host's policy. */
+/** Reads trusted host policy metadata; missing or non-object metadata carries no policy assertion. */
 export function readSessionSandboxPolicy(source: { readonly _meta?: Record<string, unknown> } | undefined): ISessionSandboxPolicy | undefined {
 	const value = source?._meta?.[sandboxPolicyKey];
 	if (!isObject(value)) {
 		return undefined;
 	}
-	const { enabled, allowBypass, allowOutbound, allowLocalNetwork, allowDevToolAccess, sandboxMcpServers, sandboxLspServers, failClosed } = value as Record<string, unknown>;
-	if (typeof enabled !== 'boolean' || (allowBypass !== undefined && typeof allowBypass !== 'boolean') || (allowOutbound !== undefined && typeof allowOutbound !== 'boolean') || (allowLocalNetwork !== undefined && typeof allowLocalNetwork !== 'boolean') || (allowDevToolAccess !== undefined && typeof allowDevToolAccess !== 'boolean') || (sandboxMcpServers !== undefined && typeof sandboxMcpServers !== 'boolean') || (sandboxLspServers !== undefined && typeof sandboxLspServers !== 'boolean') || (failClosed !== undefined && typeof failClosed !== 'boolean')) {
-		return undefined;
-	}
-	return { enabled, ...(allowBypass !== undefined ? { allowBypass } : {}), ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}), ...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}), ...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}), ...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}), ...(failClosed !== undefined ? { failClosed } : {}) };
+	const { enabled, allowBypass, allowOutbound, allowLocalNetwork, allowDevToolAccess, sandboxMcpServers, sandboxLspServers, authenticateGit, authenticateGh, failClosed } = value as ISessionSandboxPolicy;
+	return {
+		enabled,
+		...(allowBypass !== undefined ? { allowBypass } : {}),
+		...(allowOutbound !== undefined ? { allowOutbound } : {}),
+		...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}),
+		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
+		...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}),
+		...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}),
+		...(authenticateGit !== undefined ? { authenticateGit } : {}),
+		...(authenticateGh !== undefined ? { authenticateGh } : {}),
+		...(failClosed !== undefined ? { failClosed } : {}),
+	};
 }
 
 export function withSessionSandboxPolicy(meta: Record<string, unknown> | undefined, policy: ISessionSandboxPolicy | undefined): Record<string, unknown> {
@@ -43,6 +53,8 @@ export function withSessionSandboxPolicy(meta: Record<string, unknown> | undefin
 			...(policy.allowDevToolAccess !== undefined ? { allowDevToolAccess: policy.allowDevToolAccess } : {}),
 			...(policy.sandboxMcpServers !== undefined ? { sandboxMcpServers: policy.sandboxMcpServers } : {}),
 			...(policy.sandboxLspServers !== undefined ? { sandboxLspServers: policy.sandboxLspServers } : {}),
+			...(policy.authenticateGit !== undefined ? { authenticateGit: policy.authenticateGit } : {}),
+			...(policy.authenticateGh !== undefined ? { authenticateGh: policy.authenticateGh } : {}),
 			...(policy.failClosed !== undefined ? { failClosed: policy.failClosed } : {}),
 		} : undefined,
 	};

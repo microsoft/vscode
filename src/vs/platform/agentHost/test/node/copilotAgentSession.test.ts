@@ -39,11 +39,12 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
+import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
 import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
@@ -792,6 +793,8 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	readonly firstSessionDate = 'firstSessionDate';
 	readonly events: Array<{ destination: 'enhanced' | 'internal'; eventName: string; properties: TelemetryProps | undefined; measurements?: TelemetryMeasurements }> = [];
 
+	constructor(private readonly onEvent?: () => void) { }
+
 	publicLog(): void { }
 	publicLog2(): void { }
 	publicLogError(): void { }
@@ -801,15 +804,17 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	sendGHTelemetryEvent(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
+		this.onEvent?.();
 	}
 	sendEnhancedGHTelemetryEventForContext(_context: IAgentHostRestrictedTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
+		this.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
 	}
 	sendInternalMSFTTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.events.push({ destination: 'internal', eventName, properties, ...(measurements ? { measurements } : {}) });
+		this.onEvent?.();
 	}
 	sendInternalMSFTTelemetryEventForContext(_context: IAgentHostInternalTelemetryContext, eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-		this.events.push({ destination: 'internal', eventName, properties, ...(measurements ? { measurements } : {}) });
+		this.sendInternalMSFTTelemetryEvent(eventName, properties, measurements);
 	}
 	setCopilotTrackingId(): void { }
 	setRestrictedTelemetryEndpoint(): void { }
@@ -1138,7 +1143,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
@@ -3099,6 +3104,28 @@ suite('CopilotAgentSession', () => {
 		);
 	});
 
+	test('logs indexed search events without sensitive error details', async () => {
+		const logService = new CapturingLogService();
+		const { mockSession } = await createAgentSession(disposables, { logService });
+
+		mockSession.fire('session.indexed_search', {
+			kind: 'startup',
+			outcome: 'failed',
+			startupDurationMs: 42,
+			forcedByEnv: false,
+			warmStart: true,
+			errorMessage: '/private/repository failed to index',
+		});
+
+		assert.deepStrictEqual({
+			indexedSearch: logService.traces.filter(t => t.message.includes('session.indexed_search')).map(t => t.message),
+			unhandled: logService.traces.filter(t => t.message.includes('Unhandled SDK event')).map(t => t.message),
+		}, {
+			indexedSearch: ['[Copilot:test-session-1] session.indexed_search: {"kind":"startup","outcome":"failed","startupDurationMs":42,"forcedByEnv":false,"warmStart":true}'],
+			unhandled: [],
+		});
+	});
+
 	test('logs only envelope metadata for unknown Fusion events', async () => {
 		const logService = new CapturingLogService();
 		const { mockSession, signals } = await createAgentSession(disposables, { logService });
@@ -4645,7 +4672,7 @@ suite('CopilotAgentSession', () => {
 				content: 'Sandbox is disabled.',
 			},
 		] satisfies { name: string; result: MockCopilotSession['commandInvokeResult']; content: string }[]) {
-			test(`links to a Markdown file containing ${name} without a model turn`, async () => {
+			test(`provides a Markdown file to open containing ${name} without a model turn`, async () => {
 				const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
 				mockSession.commandInvokeResult = result;
 
@@ -4653,7 +4680,7 @@ suite('CopilotAgentSession', () => {
 
 				const actions = getActions(signals);
 				const [resource] = storedFileContents.keys();
-				assert.match(resource, /^inmemory:\/session-data\/test-session-1\/diagnostics\/[\da-f-]+\/sandbox-policy\.md$/);
+				assert.strictEqual(resource, 'inmemory:/session-data/test-session-1/diagnostics/sandbox-policy.md');
 				assert.deepStrictEqual({
 					commandListCalls: mockSession.commandListCalls,
 					commandInvokeCalls: mockSession.commandInvokeCalls,
@@ -4661,7 +4688,10 @@ suite('CopilotAgentSession', () => {
 					files: [...storedFileContents],
 					responseParts: actions
 						.filter(a => a.type === ActionType.ChatResponsePart)
-						.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+						.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part.content : a.part.kind),
+					responseMetadata: actions
+						.filter(a => a.type === ActionType.ChatResponsePart)
+						.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part._meta : undefined),
 					turnComplete: actions
 						.filter(a => a.type === ActionType.ChatTurnComplete)
 						.map(a => a.turnId),
@@ -4671,14 +4701,15 @@ suite('CopilotAgentSession', () => {
 					commandInvokeCalls: [{ name: 'sandbox', input: 'policy' }],
 					sendRequests: [],
 					files: [[resource, content]],
-					responseParts: [`[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`],
+					responseParts: [{ markdown: `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)` }],
+					responseMetadata: [toSlashCommandResourceMeta(URI.parse(resource), true)],
 					turnComplete: ['turn-policy'],
 					hasActiveTurn: false,
 				});
 			});
 		}
 
-		test('preserves previous policy snapshots across invocations and session disposal', async () => {
+		test('keeps only the latest policy in the same file across invocations and session disposal', async () => {
 			const { session, mockSession, signals, storedFileContents } = await createSandboxSession();
 			mockSession.commandInvokeResult = { kind: 'text', text: '# First policy', markdown: true };
 			await session.send('/sandbox policy', undefined, 'turn-policy-1');
@@ -4686,15 +4717,15 @@ suite('CopilotAgentSession', () => {
 			await session.send('/sandbox policy', undefined, 'turn-policy-2');
 			session.dispose();
 
-			const resources = [...storedFileContents.keys()];
+			const resource = 'inmemory:/session-data/test-session-1/diagnostics/sandbox-policy.md';
 			assert.deepStrictEqual({
-				contents: [...storedFileContents.values()],
+				files: [...storedFileContents],
 				responseParts: getActions(signals)
 					.filter(a => a.type === ActionType.ChatResponsePart)
-					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+					.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part.content : a.part.kind),
 			}, {
-				contents: ['# First policy', '# Second policy'],
-				responseParts: resources.map(resource => `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`),
+				files: [[resource, '# Second policy']],
+				responseParts: [1, 2].map(() => ({ markdown: `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)` })),
 			});
 		});
 
@@ -4790,11 +4821,11 @@ suite('CopilotAgentSession', () => {
 				contents: [...storedFileContents.values()],
 				responseParts: getActions(signals)
 					.filter(a => a.type === ActionType.ChatResponsePart)
-					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+					.map(a => a.part.kind === ResponsePartKind.SystemNotification ? a.part.content : a.part.kind),
 			}, {
 				commandInvokeCalls: [{ name: 'sandbox', input: 'policy   ' }],
 				contents: ['Sandbox is disabled.'],
-				responseParts: [...storedFileContents.keys()].map(resource => `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)`),
+				responseParts: [...storedFileContents.keys()].map(resource => ({ markdown: `[Open Sandbox Policy](${resource}?vscodeLinkType%3Dmarkdown-preview)` })),
 			});
 		});
 
@@ -6568,6 +6599,172 @@ suite('CopilotAgentSession', () => {
 		]);
 	});
 
+	for (const eventType of ['subagent.completed', 'subagent.failed'] as const) {
+		test(`completes a taskless search subagent on ${eventType}`, async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-parent');
+			const identity = {
+				toolCallId: 'tc-search',
+				agentName: 'search_code_subagent',
+				agentDisplayName: 'Search code',
+			};
+			mockSession.fire('subagent.started', {
+				...identity,
+				agentDescription: 'Search the codebase',
+			}, { agentId: 'search-agent' });
+
+			if (eventType === 'subagent.completed') {
+				mockSession.fire(eventType, identity, { agentId: 'search-agent' });
+			} else {
+				mockSession.fire(eventType, { ...identity, error: 'Search failed', durationMs: 42 }, { agentId: 'search-agent' });
+			}
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				outcome: signals.flatMap<{ completed: string } | { error: unknown; duration: number; parentToolCallId: string | undefined }>(signal => signal.kind === 'subagent_completed'
+					? [{ completed: signal.toolCallId }]
+					: signal.kind === 'action' && signal.action.type === ActionType.ChatError
+						? [{ error: signal.action.part.error, duration: signal.action.duration, parentToolCallId: signal.parentToolCallId }]
+						: []),
+				taskListCalls: mockSession.backgroundTaskListCalls,
+			}, {
+				outcome: [
+					...(eventType === 'subagent.failed'
+						? [{ error: { errorType: 'subagentFailed', message: 'Search failed' }, duration: 42, parentToolCallId: 'tc-search' }]
+						: []),
+					{ completed: 'tc-search' },
+				],
+				taskListCalls: 1,
+			});
+		});
+	}
+
+	suite('subagent turn outcomes', () => {
+		const identity = { toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore' };
+		const agentTask = (status: 'idle' | 'failed' | 'cancelled', error?: string) => ({
+			type: 'agent' as const, id: 'agent-1', toolCallId: 'tc-subagent', description: 'Explore tests',
+			status, agentType: 'explore', prompt: 'Explore tests', startedAt: new Date(0).toISOString(),
+			activeTimeMs: 1500, ...(error ? { error } : {}),
+		} satisfies Extract<BackgroundTasks[number], { type: 'agent' }>);
+		const outcomes = (signals: readonly AgentSignal[]) => signals.flatMap<{ completed: string } | { type: ActionType; duration: number; error?: unknown; parentToolCallId: string | undefined }>(signal => {
+			if (signal.kind === 'subagent_completed') {
+				return [{ completed: signal.toolCallId }];
+			}
+			if (signal.kind === 'action' && (signal.action.type === ActionType.ChatError || signal.action.type === ActionType.ChatTurnCancelled)) {
+				return [{
+					type: signal.action.type,
+					duration: signal.action.duration,
+					...(signal.action.type === ActionType.ChatError ? { error: signal.action.part.error } : {}),
+					parentToolCallId: signal.parentToolCallId,
+				}];
+			}
+			return [];
+		});
+
+		async function startSubagent() {
+			const created = await createAgentSession(disposables);
+			created.session.resetTurnState('turn-parent');
+			created.mockSession.fire('subagent.started', { ...identity, agentDescription: 'Explore tests' }, { agentId: 'agent-1' });
+			return created;
+		}
+
+		test('ends a failed task subagent as an error using the task error', async () => {
+			const { mockSession, signals } = await startSubagent();
+			mockSession.backgroundTasks = [agentTask('failed', 'Model request failed')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(outcomes(signals), [
+				{ type: ActionType.ChatError, duration: 1500, error: { errorType: 'subagentFailed', message: 'Model request failed' }, parentToolCallId: 'tc-subagent' },
+				{ completed: 'tc-subagent' },
+			]);
+		});
+
+		test('prefers the subagent.failed details for a failed task subagent', async () => {
+			const { mockSession, signals } = await startSubagent();
+			mockSession.backgroundTasks = [agentTask('failed')];
+			mockSession.fire('subagent.failed', { ...identity, error: 'No response generated', durationMs: 42 }, { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual(outcomes(signals), [
+				{ type: ActionType.ChatError, duration: 42, error: { errorType: 'subagentFailed', message: 'No response generated' }, parentToolCallId: 'tc-subagent' },
+				{ completed: 'tc-subagent' },
+			]);
+		});
+
+		test('ends a cancelled task subagent as cancelled', async () => {
+			const { mockSession, signals } = await startSubagent();
+			mockSession.backgroundTasks = [agentTask('cancelled')];
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+
+			assert.deepStrictEqual(outcomes(signals), [
+				{ type: ActionType.ChatTurnCancelled, duration: 1500, parentToolCallId: 'tc-subagent' },
+				{ completed: 'tc-subagent' },
+			]);
+		});
+
+		test('ends a taskless subagent torn down by the runtime as cancelled', async () => {
+			const { mockSession, signals } = await startSubagent();
+			mockSession.fire('subagent.completed', { ...identity, cancelled: true, durationMs: 7 }, { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual(outcomes(signals), [
+				{ type: ActionType.ChatTurnCancelled, duration: 7, parentToolCallId: 'tc-subagent' },
+				{ completed: 'tc-subagent' },
+			]);
+		});
+
+		test('keeps an idle task subagent successful', async () => {
+			const { mockSession, signals } = await startSubagent();
+			mockSession.backgroundTasks = [agentTask('idle')];
+			mockSession.fire('subagent.completed', identity, { agentId: 'agent-1' });
+			await timeout(0);
+
+			assert.deepStrictEqual(outcomes(signals), [{ completed: 'tc-subagent' }]);
+		});
+	});
+
+	test('completes a taskless subagent only after the completion quiet period', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
+		mockSession.fire('subagent.started', { ...identity, agentDescription: 'Search the codebase' }, { agentId: 'search-agent' });
+		mockSession.fire('subagent.completed', identity, { agentId: 'search-agent' });
+		const completed = () => signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId);
+		const beforeQuietPeriod = completed();
+		await timeout(60);
+
+		assert.deepStrictEqual({ beforeQuietPeriod, afterQuietPeriod: completed() }, { beforeQuietPeriod: [], afterQuietPeriod: ['tc-search'] });
+	});
+
+	test('keeps a task-backed subagent active when its lifecycle completion races a running task', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		const identity = { toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore' };
+		mockSession.fire('subagent.started', { ...identity, agentDescription: 'Explore tests' }, { agentId: 'agent-1' });
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Explore tests',
+			status: 'running', agentType: 'explore', prompt: 'Explore tests', startedAt: new Date(0).toISOString(),
+		}];
+		mockSession.fire('subagent.completed', identity, { agentId: 'agent-1' });
+		await timeout(60);
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+	});
+
+	test('keeps a taskless subagent active when it starts another round before the quiet period ends', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
+		session.resetTurnState('turn-parent');
+		const identity = { toolCallId: 'tc-search', agentName: 'search_code_subagent', agentDisplayName: 'Search code' };
+		mockSession.fire('subagent.started', { ...identity, agentDescription: 'Search the codebase' }, { agentId: 'search-agent' });
+		mockSession.fire('subagent.completed', identity, { agentId: 'search-agent' });
+		mockSession.fire('assistant.turn_start', { turnId: 'next-round' }, { agentId: 'search-agent' });
+		await timeout(60);
+
+		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed'), []);
+	});
+
 	test('waits for subagent events to settle before completing an inactive task', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 50 });
 		session.resetTurnState('turn-parent');
@@ -7374,7 +7571,7 @@ suite('CopilotAgentSession', () => {
 		const data = { model: 'gpt-5.5', inputTokens: 5 } as SessionEventPayload<'assistant.usage'>['data'];
 		mockSession.fire('assistant.usage', data, { agentId: 'child', id: 'child-usage-1' });
 		const first = session.getTurnTokenUsage('child-turn-1', 'child-tool');
-		// Completion now flows through background-task reconciliation, not the subagent.completed event.
+		// Task-backed completion flows through background-task reconciliation.
 		mockSession.backgroundTasks = [{
 			type: 'agent', id: 'child', toolCallId: 'child-tool', description: 'Explore',
 			status: 'completed', agentType: 'explore', prompt: 'Explore', startedAt: new Date(0).toISOString(),
@@ -9885,10 +10082,12 @@ suite('CopilotAgentSession', () => {
 				[AgentHostSandboxKey.SandboxLspServers, true],
 				[AgentHostSandboxKey.AllowDevToolAccess, false],
 				[AgentHostSandboxKey.AllowLocalNetwork, false],
+				[AgentHostSandboxKey.AuthenticateGit, false],
+				[AgentHostSandboxKey.AuthenticateGh, false],
 			] as const) {
 				test(`per-request sandbox: enforces ${key} and restores local choices on ${platform}`, async () => {
 					for (const local of [false, true]) {
-						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean } = { enabled: true };
+						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean; authenticateGit?: boolean; authenticateGh?: boolean } = { enabled: true };
 						const { session, mockSession } = await createAgentSession(disposables, {
 							platform,
 							sandboxPolicy,
@@ -9904,7 +10103,9 @@ suite('CopilotAgentSession', () => {
 							sandboxPolicy[key] = managed;
 							await session.send('hello', undefined, `turn-${index}`);
 							const applied = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
-							values.push(key === AgentHostSandboxKey.AllowLocalNetwork ? applied.userPolicy?.network?.allowLocalNetwork : applied[key]);
+							values.push(key === AgentHostSandboxKey.AuthenticateGit ? applied.auth?.git
+								: key === AgentHostSandboxKey.AuthenticateGh ? applied.auth?.gh
+									: key === AgentHostSandboxKey.AllowLocalNetwork ? applied.userPolicy?.network?.allowLocalNetwork : applied[key]);
 						}
 						assert.deepStrictEqual(values, [managedValue, local, local]);
 					}
@@ -12421,6 +12622,22 @@ Use the attached image as context.
 			}]);
 		});
 
+		test('marks todo store telemetry from inside a Fusion phase as phase activity', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { telemetryService });
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-sql', toolName: 'sql', arguments: { query: 'SELECT * FROM todos' }, fusion });
+			mockSession.fire('tool.execution_complete', { toolCallId: 'tc-sql', success: true, fusion });
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete) && signal.parentToolCallId !== undefined);
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'todoStoreOperation').map(event => {
+				const data = event.data as Record<string, unknown>;
+				return { isSubagentSession: data.isSubagentSession, subagentKind: data.subagentKind };
+			}), [{ isSubagentSession: true, subagentKind: 'fusionPhase' }]);
+		});
+
 		test('does not emit todo store telemetry for failed or contributed SQL', async () => {
 			const telemetryService = new CapturingTelemetryService();
 			const { mockSession } = await createAgentSession(disposables, {
@@ -14552,6 +14769,18 @@ Use the attached image as context.
 				afterEdit: ['subagent_started', 'subagent_started'],
 				afterIdle: ['subagent_started', 'subagent_started', 'subagent_completed'],
 			});
+		});
+
+		test('a Fusion phase chat is announced as a phase chat running the model last reported for the phase', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			const fusion = { fusionId: 'fusion-1', phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade', commitId: 'commit-1' };
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, model: 'actual-model' });
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-bash', toolName: 'bash', arguments: { command: 'ls' }, fusion });
+			assert.deepStrictEqual(signals.flatMap(signal => signal.kind === 'subagent_started' ? [{ toolCallId: signal.toolCallId, subagentKind: signal.subagentKind, model: signal.model }] : []), [
+				{ toolCallId: 'fusion:fusion-1:phase-1', subagentKind: 'fusionPhase', model: 'actual-model' },
+			]);
 		});
 
 		test('Fusion tools stay at the root when their phase has no child chat', async () => {
@@ -20193,6 +20422,36 @@ Use the attached image as context.
 			assert.strictEqual(session.requiresMcpLaunchConfigurationRefresh, true);
 		});
 
+		test('republishes pending connector authentication when display names become available', async () => {
+			const runtimeServerId = 'github-copilot-connector-94d26095770df60673dd';
+			const resource = 'https://api.github.com';
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+
+			const authPromise = runtime.handleMcpAuthRequest({
+				requestId: 'auth-connector',
+				serverName: runtimeServerId,
+				serverUrl: resource,
+				reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			const beforeDisplayName = readMcpServerDisplayName(session.topLevelMcpCustomizations()[0]);
+			runtime.setMcpServerDisplayNames(new Map([[runtimeServerId, 'GitHub']]));
+			const [server] = session.topLevelMcpCustomizations();
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
+
+			assert.deepStrictEqual({
+				beforeDisplayName,
+				name: server.name,
+				displayName: readMcpServerDisplayName(server),
+				result: await authPromise,
+			}, {
+				beforeDisplayName: undefined,
+				name: runtimeServerId,
+				displayName: 'GitHub',
+				result: { kind: 'token', accessToken: 'connector-token' },
+			});
+		});
+
 		test('MCP authentication only clears auth-required after all matching server challenges resolve', async () => {
 			const { session, runtime, signals, mockSession } = await createAgentSession(disposables);
 			const firstAuth = runtime.handleMcpAuthRequest({
@@ -21377,15 +21636,12 @@ Use the attached image as context.
 				{ resource: sessionUri, chat: peer },
 			];
 			for (const { resource, chat } of cases) {
-				const requestOptionsSent = new DeferredPromise<void>();
-				const telemetryService = new class extends CapturingRestrictedTelemetryService {
-					override sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
-						super.sendEnhancedGHTelemetryEvent(eventName, properties, measurements);
-						if (eventName === 'request.options.tools') {
-							void requestOptionsSent.complete();
-						}
+				const telemetrySent = new DeferredPromise<void>();
+				const telemetryService = new CapturingRestrictedTelemetryService(() => {
+					if (telemetryService.events.length === 8) {
+						void telemetrySent.complete();
 					}
-				}();
+				});
 				const { session, mockSession } = await createAgentSession(disposables, {
 					sessionUri, resource, chatChannelUri: chat, telemetryService,
 					clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
@@ -21400,7 +21656,7 @@ Use the attached image as context.
 					chosenModel: 'model',
 				} as SessionEventPayload<'session.auto_mode_resolved'>['data']);
 				mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
-				await requestOptionsSent.p;
+				await telemetrySent.p;
 
 				const correlation = { conversationId: AgentSession.id(resource), chatSessionId: getTelemetryChatSessionId(chat) };
 				assert.deepStrictEqual(telemetryService.events.map(event => ({
@@ -21422,7 +21678,12 @@ Use the attached image as context.
 		});
 
 		test('uses the client request id for model conversation.messageText', async () => {
-			const telemetryService = new CapturingRestrictedTelemetryService();
+			const telemetrySent = new DeferredPromise<void>();
+			const telemetryService = new CapturingRestrictedTelemetryService(() => {
+				if (telemetryService.events.filter(event => event.eventName === 'conversation.messageText').length === 2) {
+					void telemetrySent.complete();
+				}
+			});
 			const { mockSession } = await createAgentSession(disposables, {
 				telemetryService,
 				restrictedTelemetryContext: {
@@ -21438,7 +21699,7 @@ Use the attached image as context.
 				clientRequestId: 'client-request-id',
 				serviceRequestId: 'service-request-id',
 			} as SessionEventPayload<'assistant.message'>['data']);
-			await timeout(0);
+			await telemetrySent.p;
 
 			assert.deepStrictEqual(telemetryService.events
 				.filter(event => event.eventName === 'conversation.messageText')
