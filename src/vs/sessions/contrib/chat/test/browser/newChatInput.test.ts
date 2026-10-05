@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IIconLabelValueOptions } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -54,6 +55,7 @@ const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_update
 const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
+const setSendButtonLabel = Reflect.get(NewChatInputWidget, '_setSendButtonLabel') as (sendButton: Button, label: string | undefined) => void;
 const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
 const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
 const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearInputOnSendStart') as (this: IClearInputOnSendStartHarness, rawQuery: string) => (() => void) | undefined;
@@ -569,6 +571,36 @@ suite('NewChatInputWidget', () => {
 			anchorPosition: 'below',
 		});
 		onDidHideEmitter.fire();
+	});
+
+	test('preserves icon-only Send rendering before and after comparison labels', () => {
+		const sendButton = disposables.add(new Button(document.createElement('div'), { secondary: true, supportIcons: true }));
+		sendButton.icon = Codicon.arrowUpCompact;
+		const readState = () => ({
+			classes: Array.from(sendButton.element.classList).sort(),
+			text: sendButton.element.textContent?.trim(),
+			inlineIcons: sendButton.element.querySelectorAll('.codicon-arrow-up-compact').length,
+		});
+		const iconOnlyState = readState();
+		const comparisonState = (text: string) => ({
+			classes: ['monaco-button', 'monaco-text-button', 'secondary'],
+			text,
+			inlineIcons: 1,
+		});
+
+		const states = [undefined, 'Run 2 Attempts', 'Run 3 Attempts', undefined, 'Run 2 Attempts', undefined].map(label => {
+			setSendButtonLabel(sendButton, label);
+			return readState();
+		});
+
+		assert.deepStrictEqual(states, [
+			iconOnlyState,
+			comparisonState('Run 2 Attempts'),
+			comparisonState('Run 3 Attempts'),
+			iconOnlyState,
+			comparisonState('Run 2 Attempts'),
+			iconOnlyState,
+		]);
 	});
 
 	test('shows loading in the send button slot', () => {

@@ -57,7 +57,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
-import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -76,7 +76,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ExtensionEditorTab, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getActiveSessionServerLabel, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServerMatchKeys, getUniqueMcpMatchKeys, isMcpServerInUse } from './mcpServerCount.js';
 import { getConnectorActionLabel } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnectorMcpServer } from './copilotConnectorsService.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
@@ -470,7 +470,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		if (element.type === 'session-server-item') {
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
-			templateData.name.textContent = formatDisplayName(getMcpEntryLabel(element));
+			templateData.name.textContent = formatDisplayName(getMcpServerDisplayLabel(element.server));
 			this.updateActiveSessionStatus(templateData, element);
 			return;
 		}
@@ -1101,7 +1101,7 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 
 function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
 	return element.type === 'session-server-item'
-		? getActiveSessionServerLabel(element.server)
+		? getMcpServerDisplayLabel(element.server)
 		: element.type === 'builtin-item'
 			? element.label
 			: element.server.label;
@@ -3164,7 +3164,7 @@ export class McpListWidget extends Disposable {
 					server.connector.description,
 					server.serverName,
 				].some(value => value.toLowerCase().includes(query)))
-				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.take([server.serverName])))
+				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.takeConnector([server.serverName], [server.connector.name, server.connector.displayName])))
 			: [];
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
 		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
@@ -3309,7 +3309,7 @@ export class McpListWidget extends Disposable {
 				case 'server-item':
 					return entry.server.label === serverName;
 				case 'session-server-item':
-					return entry.server.name === serverName;
+					return entry.server.name === serverName || entry.server.displayName === serverName;
 				case 'builtin-item':
 					return entry.label === serverName || entry.connector?.connector.displayName === serverName;
 				case 'group-header':

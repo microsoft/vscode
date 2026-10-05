@@ -11,15 +11,6 @@ import { IMcpServer } from '../../../mcp/common/mcpTypes.js';
 
 export type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
 
-/**
- * The name to show for a host-reported server. Managed catalog entries have opaque names, so they
- * use the host's display name; every other server keeps its configuration key, because the host's
- * display name can be the server's own advertised title, which the user never configured.
- */
-export function getActiveSessionServerLabel(server: AgentHostMcpServer): string {
-	return server.source === 'managed' && server.displayName ? server.displayName : server.name;
-}
-
 export function getUniqueMcpMatchKeys(values: readonly (string | undefined)[]): string[] {
 	const keys = new Set<string>();
 	for (const value of values) {
@@ -60,10 +51,22 @@ export class ActiveSessionMcpServerMatcher {
 		return undefined;
 	}
 
+	takeConnector(keys: readonly (string | undefined)[], displayNames: readonly (string | undefined)[]): AgentHostMcpServer | undefined {
+		const exactMatch = this.take(keys);
+		if (exactMatch) {
+			return exactMatch;
+		}
+		const names = new Set(getUniqueMcpMatchKeys(displayNames));
+		const matches = this.servers.filter(server => !this.matchedIds.has(server.id) && server.displayName !== undefined && names.has(server.displayName));
+		if (matches.length === 1) {
+			this.matchedIds.add(matches[0].id);
+			return matches[0];
+		}
+		return undefined;
+	}
+
 	unmatched(query: string): AgentHostMcpServer[] {
-		return this.servers.filter(server => !this.matchedIds.has(server.id) && (!query
-			|| server.name.toLowerCase().includes(query)
-			|| getActiveSessionServerLabel(server).toLowerCase().includes(query)));
+		return this.servers.filter(server => !this.matchedIds.has(server.id) && (!query || [server.name, server.displayName].some(value => value?.toLowerCase().includes(query))));
 	}
 }
 

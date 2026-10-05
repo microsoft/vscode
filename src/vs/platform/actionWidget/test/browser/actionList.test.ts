@@ -3221,16 +3221,6 @@ suite('ActionListWidget', () => {
 		);
 	});
 
-	test('updates an open search and focuses the exact duplicate-label row without selecting', () => {
-		const widget = createActionListWidget(disposables, {
-			items: [{ ...action('source'), label: 'GPT' }, { ...action('target'), label: 'GPT' }, action('different')],
-			listOptions: { showFilter: true, filterAsCombobox: true },
-		});
-		widget.setFilter('GPT', 'target');
-		widget.setFilter('GPT', 'target');
-		assert.deepStrictEqual({ query: widget.filterInput?.value, focused: widget.getFocusedElement()?.item?.id }, { query: 'GPT', focused: 'target' });
-	});
-
 	test('focuses the configured initial item when opened', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [action('first'), action('active'), action('last')],

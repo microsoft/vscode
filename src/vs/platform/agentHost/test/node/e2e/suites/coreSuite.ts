@@ -269,18 +269,25 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-switch-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `model-switch-${config.provider}`, createdSessions, URI.file(workspace));
+		const prompt = 'Reply exactly "model selected".';
+		const observedRequestCount = context.observedModelRequestBodies.length;
 
 		const result = await driveTurnWithModelToCompletion(
 			context.client,
 			sessionUri,
 			'turn-model-switch',
-			'Reply exactly "model selected".',
+			prompt,
 			modelSwitchTarget,
 			1,
 		);
+		const selectedModelRequest = context.observedModelRequestBodies
+			.slice(observedRequestCount)
+			.map(observedModelRequest)
+			.find(request => request.messages.some(message => modelContentText(message.content).includes(prompt)));
+		assert.ok(selectedModelRequest, 'Expected the selected-model turn to reach the provider');
 
 		assert.deepStrictEqual({
-			model: observedModelRequest(context.observedModelRequestBodies.at(-1)).model,
+			model: selectedModelRequest.model,
 			response: result.responseText.trim(),
 		}, {
 			model: modelSwitchWireTarget,

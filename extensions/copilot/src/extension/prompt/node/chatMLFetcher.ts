@@ -17,13 +17,13 @@ import { IInteractionService } from '../../../platform/chat/common/interactionSe
 import { ConfigKey, HARD_TOOL_LIMIT, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
-import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
+import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToTelemetryMessages, sendCompletionOutputTelemetry } from '../../../platform/endpoint/node/responsesApi';
 import { getImageTelemetryMeasurementsFromMessages, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
 import { collectSingleLineErrorMessage, ILogService } from '../../../platform/log/common/logService';
 import { FinishedCallback, getCopilotServiceRequestId, getGitHubCopilotRequestTe, getRequestId, gitHubCopilotRequestTeProperty, IResponseDelta, OptionalChatRequestParams, RequestId } from '../../../platform/networking/common/fetch';
 import { FetcherId, IFetcherService, Response } from '../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody, InteractionTypeOverride, postRequest, stringifyUrlOrRequestMetadata } from '../../../platform/networking/common/networking';
-import { CAPIChatMessage, ChatCompletion, FilterReason, FinishedCompletionReason, rawMessageToCAPI } from '../../../platform/networking/common/openai';
+import { CAPIChatMessage, ChatCompletion, FilterReason, FinishedCompletionReason } from '../../../platform/networking/common/openai';
 import { sendEngineMessagesTelemetry } from '../../../platform/networking/node/chatStream';
 import { CAPIWebSocketErrorEvent, IChatWebSocketManager, isCAPIWebSocketError } from '../../../platform/networking/node/chatWebSocketManager';
 import { sendCommunicationErrorTelemetry } from '../../../platform/networking/node/stream';
@@ -1324,8 +1324,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				let messagesToLog = request.messages;
 				if ((!messagesToLog || messagesToLog.length === 0) && (request as OpenAI.Responses.ResponseCreateParams).input) {
 					try {
-						const rawMessages = responseApiInputToRawMessagesForLogging(request as OpenAI.Responses.ResponseCreateParams);
-						messagesToLog = rawMessageToCAPI(rawMessages);
+						messagesToLog = responseApiInputToTelemetryMessages(request as OpenAI.Responses.ResponseCreateParams);
 					} catch (e) {
 						this._logService.error(`Failed to convert Response API input to messages for telemetry:`, e);
 						messagesToLog = [];
@@ -1624,8 +1623,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				// For Response API (has input but no messages), convert input to messages for logging
 				if ((!messagesToLog || messagesToLog.length === 0) && (request as OpenAI.Responses.ResponseCreateParams).input) {
 					try {
-						const rawMessages = responseApiInputToRawMessagesForLogging(request as OpenAI.Responses.ResponseCreateParams);
-						messagesToLog = rawMessageToCAPI(rawMessages);
+						messagesToLog = responseApiInputToTelemetryMessages(request as OpenAI.Responses.ResponseCreateParams);
 					} catch (e) {
 						this._logService.error(`Failed to convert Response API input to messages for telemetry:`, e);
 						messagesToLog = [];

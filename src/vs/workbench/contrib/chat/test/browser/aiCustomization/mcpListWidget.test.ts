@@ -81,7 +81,7 @@ import {
 	shouldLoadMcpGallerySnapshot,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
-import { ActiveSessionMcpServerMatcher, getActiveSessionServerLabel, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
@@ -699,6 +699,25 @@ suite('mcpListWidget', () => {
 		}, { matched: servers.slice(0, 2).map(server => server.id), rows: 13, enabled: 11 });
 	});
 
+	test('restricts display-name matching to connector rows', () => {
+		const connectorServer = createAgentHostServer({
+			id: 'session/github-copilot-connector-94d26095770df60673dd',
+			name: 'github-copilot-connector-94d26095770df60673dd',
+			displayName: 'GitHub',
+		});
+		const matcher = new ActiveSessionMcpServerMatcher([connectorServer]);
+
+		assert.deepStrictEqual({
+			genericMatch: matcher.take(['GitHub'])?.id,
+			connectorMatch: matcher.takeConnector(['github-mcp'], ['github', 'GitHub'])?.id,
+			unmatched: matcher.unmatched('').map(server => server.id),
+		}, {
+			genericMatch: undefined,
+			connectorMatch: connectorServer.id,
+			unmatched: [],
+		});
+	});
+
 	test('classifies active-session-only MCP servers as built-in entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });
 
@@ -818,20 +837,6 @@ suite('mcpListWidget', () => {
 		});
 	});
 
-	test('labels host-only MCP servers by display name only when their name is an opaque managed identifier', () => {
-		assert.deepStrictEqual([
-			getActiveSessionServerLabel(createAgentHostServer({ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear' })),
-			getActiveSessionServerLabel(createAgentHostServer({ name: 'github-copilot-connector-2', source: 'managed' })),
-			getActiveSessionServerLabel(createAgentHostServer({ name: 'migratable', source: 'workspace', displayName: 'Everything Reference Server' })),
-			getActiveSessionServerLabel(createAgentHostServer({ name: 'github-mcp-server', source: 'builtin', displayName: 'GitHub MCP Server' })),
-		], [
-			'Linear',
-			'github-copilot-connector-2',
-			'migratable',
-			'github-mcp-server',
-		]);
-	});
-
 	test('keeps the configuration key as the detail name when the host reports a display name', () => {
 		const provenance = { label: 'Managed by Copilot' };
 		const definitionUnavailable = { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' };
@@ -842,7 +847,7 @@ suite('mcpListWidget', () => {
 
 		assert.deepStrictEqual({ name: detail.name, label: detail.label, source: detail.source, provenance: detail.provenance, definitionUnavailable: detail.definitionUnavailable }, {
 			name: 'github-copilot-connector-1',
-			label: 'Linear',
+			label: 'Linear (Connector)',
 			source: undefined,
 			provenance,
 			definitionUnavailable,
@@ -2177,7 +2182,7 @@ suite('mcpListWidget', () => {
 				updated: {
 					id: 'session:server-7',
 					name: 'github-copilot-connector-1',
-					label: 'Linear',
+					label: 'Linear (Connector)',
 					provenance: { label: 'Managed by Copilot' },
 					definitionUnavailable: { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.', settingId: 'chat.example.enabled' },
 				},
@@ -2185,7 +2190,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		test('shows host display names on runtime-only rows and their runtime source in the detail', () => {
+		test('shows connector names on runtime-only rows and their runtime source in the detail', () => {
 			const server = createAgentHostServer({ name: 'github-copilot-connector-1', displayName: 'Linear', source: 'managed' });
 			const ctx = createRenderer(server, false);
 			disposables.add(ctx.store);
@@ -2199,12 +2204,12 @@ suite('mcpListWidget', () => {
 				ariaLabel: ctx.read().ariaLabel,
 				detail: { name: detail.name, label: detail.label, provenance: detail.provenance, definitionUnavailable: detail.definitionUnavailable },
 			}, {
-				name: 'Linear',
+				name: 'Linear (Connector)',
 				source: '',
-				ariaLabel: 'Linear, Running',
+				ariaLabel: 'Linear (Connector), Running',
 				detail: {
 					name: 'github-copilot-connector-1',
-					label: 'Linear',
+					label: 'Linear (Connector)',
 					provenance: { label: 'Managed by Copilot' },
 					definitionUnavailable: { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' },
 				},

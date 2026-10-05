@@ -9,6 +9,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -331,7 +332,7 @@ suite('stateToProgressAdapter', () => {
 		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([
@@ -1911,7 +1912,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend');
+			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -1927,7 +1928,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationMessages: undefined,
 				server: {
 					id: 'frontend/mcp-1',
-					name: 'Example MCP',
+					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {
 						clientId: 'configured-client-id',
@@ -2649,6 +2650,45 @@ suite('stateToProgressAdapter', () => {
 
 	suite('finalizeToolInvocation', () => {
 
+		for (const toolName of ['bash', 'powershell', 'local_shell']) {
+			for (const success of [true, false]) {
+				test(`omits duplicate terminal completion text for ${toolName} (${success ? 'success' : 'failure'}) in live and replayed tools`, () => {
+					for (const pastTenseMessage of [undefined, 'Tool finished', 'Ran Bash']) {
+						const running = createToolCallState({
+							toolName,
+							displayName: 'Bash',
+							invocationMessage: 'Running tool',
+							toolInput: JSON.stringify({ command: 'echo hi', description: 'Print greeting' }),
+						});
+						const completed = createCompletedToolCall({
+							...running,
+							status: ToolCallStatus.Completed,
+							pastTenseMessage,
+							success,
+							content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+						});
+						const invocation = toolCallStateToInvocation(running);
+						finalizeToolInvocation(invocation, completed);
+						const serialized = completedToolCallToSerialized(completed, undefined, URI.parse('cloud-session://host/session'), 'remote');
+						const expected = {
+							invocationMessage: `${success ? 'Running command' : 'Command failed'} \`Print greeting\``,
+							pastTenseMessage: undefined,
+							kind: 'terminal',
+							command: 'echo hi',
+							output: 'hi\r\n',
+						};
+						assert.deepStrictEqual([invocation, serialized].map(tool => ({
+							invocationMessage: typeof tool.invocationMessage === 'string' ? tool.invocationMessage : tool.invocationMessage.value,
+							pastTenseMessage: tool.pastTenseMessage,
+							kind: tool.toolSpecificData?.kind,
+							command: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.commandLine.original : undefined,
+							output: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.terminalCommandOutput?.text : undefined,
+						})), [expected, expected]);
+					}
+				});
+			}
+		}
+
 		test('rewrites markdown links in pastTenseMessage through the agent host scheme', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
 			const invocation = toolCallStateToInvocation(tc);
@@ -3048,6 +3088,39 @@ suite('stateToProgressAdapter', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState(), undefined);
 			assert.deepStrictEqual(result, []);
 		});
+
+		for (const { fileName, title, resource } of [
+			{ fileName: '/workspaces/server/index.js', title: 'Edit index.js', resource: 'file:///workspaces/server/index.js' },
+			{ fileName: 'C:\\workspace\\file.ts', title: 'Edit file.ts', resource: 'file:///c%3A/workspace/file.ts' },
+			{ fileName: '\\\\server\\share\\file.ts', title: 'Edit file.ts', resource: 'file://server/share/file.ts' },
+			{ fileName: '/workspace/a\\b.ts', title: 'Edit a\\b.ts', resource: 'file:///workspace/a%5Cb.ts' },
+			{ fileName: '/workspace/a\\', title: 'Edit a\\', resource: 'file:///workspace/a%5C' },
+		]) {
+			test(`restores a remote write approval with a file pill and a plain filename in its title for ${fileName}`, () => {
+				const result = activeTurnToProgress(URI.parse('provider:/session/from-host'), createActiveTurnState([{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'edit', displayName: 'Edit',
+						invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: fileName,
+						_meta: { promptRequest: { kind: 'write', fileName } },
+					},
+				}]), 'sandbox.example');
+				const invocation = result.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const confirmation = IChatToolInvocation.getConfirmationMessages(invocation);
+				assert.ok(confirmation?.message && typeof confirmation.message !== 'string');
+				const rendered = store.add(renderMarkdown(confirmation.message, getChatMarkdownRenderOptions()));
+				const target = rendered.element.querySelector('a')?.dataset.href;
+				assert.deepStrictEqual({
+					title: confirmation.title,
+					resource: target ? fromAgentHostUri(URI.parse(target)).toString() : undefined,
+					state: invocation.state.get().type,
+				}, {
+					title, resource,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				});
+			});
+		}
 
 		test('includes usage progress from active turn usage', () => {
 			const activeTurn = createActiveTurnState();

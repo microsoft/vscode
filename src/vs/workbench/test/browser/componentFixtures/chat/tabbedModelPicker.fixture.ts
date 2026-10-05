@@ -37,6 +37,7 @@ import { ModelPickerActionItem } from '../../../../contrib/chat/browser/widget/i
 import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerCard.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
+import { IModelPickerWorkflow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { IModelPickerProviderPlaceholder } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabs.js';
 import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { TestChatEntitlementService } from '../../../common/workbenchTestServices.js';
@@ -330,9 +331,10 @@ interface IPickerFixtureOptions {
 	readonly entitlement?: ChatEntitlement;
 	/** Settings to apply per model identifier, so rows can show what they were tuned to. */
 	readonly configured?: IStringDictionary<IStringDictionary<unknown>>;
+	readonly workflow?: IModelPickerWorkflow;
 }
 
-async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
+export async function renderPicker(context: ComponentFixtureContext, options: IPickerFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
 	setupContainer(container, 360);
 	if (options.anchored) {
@@ -411,6 +413,7 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 		void configurationAccess.setModelConfiguration(modelId, values);
 	}
 	let pickerContext: ITabbedModelPickerContext = {
+		workflow: options.workflow,
 		models: options.models ?? ALL_MODELS,
 		selectedModelId: options.selectedModelId ?? 'copilot/gpt-5-5',
 		recentModelIds: ['copilot/gpt-5-3-codex', 'copilot/gemini-3-5-flash'],

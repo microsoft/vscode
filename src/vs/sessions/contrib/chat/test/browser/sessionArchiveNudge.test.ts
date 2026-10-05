@@ -29,6 +29,8 @@ import { NullWorkbenchAssignmentService } from '../../../../../workbench/service
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestLifecycleService, TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { OnboardingScenarioService } from '../../../../../workbench/contrib/onboarding/browser/onboardingService.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightOverlay.js';
@@ -206,6 +208,26 @@ suite('SessionArchiveNudge', () => {
 			return viewAvailable ? view : null;
 		});
 		const viewsService = instantiationService.get(IViewsService);
+		const chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+		const chatRequests = new Map<string, ReturnType<typeof observableValue<IChatRequestModel | undefined>>>();
+		function setChatRequest(session: ISession, requestId: string | undefined, resource = session.mainChat.get().resource, timestamp = Date.now()) {
+			const key = resource.toString();
+			let lastRequest = chatRequests.get(key);
+			const request = requestId === undefined ? undefined : upcastPartial<IChatRequestModel>({ id: requestId, timestamp });
+			if (!lastRequest) {
+				lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', request);
+				chatRequests.set(key, lastRequest);
+				chatModels.set([...chatModels.get(), upcastPartial<IChatModel>({ sessionResource: resource, lastRequestObs: lastRequest })], undefined);
+			} else {
+				lastRequest.set(request, undefined);
+			}
+		}
+		for (const session of sessions) {
+			setChatRequest(session, 'turn-1', undefined, 1);
+		}
+		const chatService = new class extends mock<IChatService>() {
+			override readonly chatModels = chatModels;
+		}();
 		store.add(onboardingPresentationRegistry.register({
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			async run(scenario, runContext) {
@@ -236,7 +258,7 @@ suite('SessionArchiveNudge', () => {
 			new NullWorkbenchAssignmentService(),
 			NullTelemetryService,
 		));
-		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
+		let service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 		const current = observableValue<ISession | undefined>('current', sessions[0]);
 		function createNudge() {
 			const nudge = store.add(new SessionArchiveNudge(current, configuration, entitlement, github, service, commandService));
@@ -249,6 +271,7 @@ suite('SessionArchiveNudge', () => {
 			get service() { return service; },
 			get counts() { return { references, polling, refreshes }; },
 			createNudge,
+			setChatRequest,
 			onboarding: {
 				service: onboardingService,
 				events: onboardingEvents,
@@ -260,7 +283,7 @@ suite('SessionArchiveNudge', () => {
 			},
 			reloadService() {
 				service.dispose();
-				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService));
+				service = store.add(new SessionArchiveNudgeService(storage, management, telemetry, configuration, viewsService, onboardingService, chatService));
 			},
 			setArchiveError(error: Error) { archiveError = error; },
 			setArchiveNoop() { archiveNoop = true; },
@@ -571,6 +594,221 @@ suite('SessionArchiveNudge', () => {
 			states: [false, false, true, false], references: 0, polling: 0,
 		});
 	});
+
+	test('suppresses an exposed PR set after sending a new turn, not before exposure', () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const states = [!!nudge.options.get()];
+		context.setChatRequest(session, 'turn-2');
+		states.push(!!nudge.options.get());
+		nudge.markShown();
+		nudge.markShown();
+		context.setChatRequest(session, 'turn-3');
+		states.push(!!nudge.options.get());
+		session.status.set(SessionStatus.InProgress, undefined);
+		session.status.set(SessionStatus.Completed, undefined);
+		states.push(!!nudge.options.get());
+		nudge.markShown();
+		context.setChatRequest(session, 'turn-4');
+		states.push(!!nudge.options.get());
+
+		assert.deepStrictEqual({ states, live: context.counts.references, polling: context.counts.polling, impressions: context.events.length }, {
+			states: [true, true, false, false, false], live: 0, polling: 0, impressions: 1,
+		});
+	});
+
+	test('removing the latest request does not suppress the nudge', () => runWithFakedTimers({ startTime: 100 }, async () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setChatRequest(session, 'turn-2', undefined, 80);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		const states = [!!nudge.options.get()];
+		context.setChatRequest(session, 'turn-1', undefined, 40);
+		states.push(!!nudge.options.get());
+		context.setChatRequest(session, undefined);
+		states.push(!!nudge.options.get());
+		nudge.dispose();
+		context.reloadService();
+		const reloaded = context.createNudge();
+		states.push(!!reloaded.options.get());
+		context.setChatRequest(session, 'turn-3', undefined, 101);
+		states.push(!!reloaded.options.get());
+
+		assert.deepStrictEqual(states, [true, true, true, true, false]);
+	}));
+
+	test('remembers the shown turn across hidden views and reloads, and observes new turns without a view', () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		context.current.set(undefined, undefined);
+		nudge.dispose();
+		context.reloadService();
+		context.current.set(session, undefined);
+		const reloaded = context.createNudge();
+		const states = [!!reloaded.options.get()];
+		reloaded.markShown();
+		context.current.set(undefined, undefined);
+		reloaded.dispose();
+		context.setChatRequest(session, 'turn-2');
+		context.reloadService();
+		context.current.set(session, undefined);
+		const continued = context.createNudge();
+		states.push(!!continued.options.get());
+		context.setChatRequest(session, 'turn-1', undefined, 1);
+		states.push(!!continued.options.get());
+
+		assert.deepStrictEqual(states, [true, false, false]);
+	});
+
+	test('rearms only for a new PR, waits for its merge, and suppresses it again after the next turn', () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		context.setChatRequest(session, 'turn-2');
+		const states: (number | undefined)[] = [nudge.options.get()?.pullRequestCount];
+		session.artifacts.set([artifact(1, { label: 'Renamed', link: URI.parse('https://github.com/OWNER/REPO/pull/1/') }), artifact(2, { isArtifact: false })], undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setPullRequest(2, GitHubPullRequestState.Open);
+		session.artifacts.set([artifact(2), artifact(1)], undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		states.push(nudge.options.get()?.pullRequestCount);
+		nudge.markShown();
+		session.artifacts.set([artifact(1), artifact(2)], undefined);
+		nudge.markShown();
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setChatRequest(session, 'turn-3');
+		states.push(nudge.options.get()?.pullRequestCount);
+		session.artifacts.set([artifact(1)], undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		session.artifacts.set([artifact(1), artifact(2)], undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		context.setPullRequest(3, GitHubPullRequestState.Merged);
+		session.artifacts.set([artifact(1), artifact(3)], undefined);
+		states.push(nudge.options.get()?.pullRequestCount);
+		nudge.markShown();
+		context.setChatRequest(session, 'turn-4');
+		states.push(nudge.options.get()?.pullRequestCount);
+
+		assert.deepStrictEqual(states, [undefined, undefined, undefined, 2, 2, undefined, undefined, undefined, 2, undefined]);
+	});
+
+	test('detects a newer restored turn even if the service did not observe it being sent', () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		nudge.dispose();
+		context.service.dispose();
+		context.setChatRequest(session, 'turn-2');
+		context.reloadService();
+		const reloaded = context.createNudge();
+
+		assert.strictEqual(reloaded.options.get(), undefined);
+	});
+
+	test('rejects a stale archive action after the user sends a new turn', async () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		const action = nudge.options.get()!.onArchive;
+		nudge.markShown();
+		context.setChatRequest(session, 'turn-2');
+
+		await assert.rejects(action(), /suggestion is no longer available/);
+		assert.deepStrictEqual(context.archiveTargets, []);
+	});
+
+	test('remembers same-count PR replacements even when the suggestion stays visible', () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		store.add(autorun(reader => {
+			if (nudge.options.read(reader)) {
+				nudge.markShown();
+			}
+		}));
+		session.artifacts.set([artifact(2)], undefined);
+		context.setChatRequest(session, 'turn-2');
+		session.artifacts.set([artifact(1)], undefined);
+
+		assert.strictEqual(nudge.options.get(), undefined);
+	});
+
+	test('a new turn in a peer chat suppresses the session but loading older history does not', () => {
+		const session = createSession();
+		const peerResource = URI.from({ scheme: 'test-chat', path: '/peer' });
+		session.chats.set([upcastPartial<IChat>({
+			resource: peerResource,
+			status: observableValue('peerStatus', SessionStatus.Completed),
+		})], undefined);
+		const context = setup([session]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		context.setChatRequest(session, 'old-peer-turn', peerResource, 1);
+		const states = [!!nudge.options.get()];
+		context.setChatRequest(session, 'new-peer-turn', peerResource);
+		states.push(!!nudge.options.get());
+
+		assert.deepStrictEqual(states, [true, false]);
+	});
+
+	test('continuation is isolated per session and does not override explicit dismissal', () => {
+		const first = createSession('first');
+		const second = createSession('second');
+		const context = setup([first, second]);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		context.setChatRequest(first, 'turn-2');
+		const states = [!!nudge.options.get()];
+		context.current.set(second, undefined);
+		states.push(!!nudge.options.get());
+		nudge.markShown();
+		nudge.options.get()!.onDismiss();
+		context.setChatRequest(second, 'turn-2');
+		context.setPullRequest(2, GitHubPullRequestState.Merged);
+		second.artifacts.set([artifact(1), artifact(2)], undefined);
+		states.push(!!nudge.options.get());
+
+		assert.deepStrictEqual(states, [false, true, false]);
+	});
+
+	for (const lifecycle of ['archive', 'unarchive', 'delete', 'observedArchive'] as const) {
+		test(`clears the shown turn and PR set on ${lifecycle}`, () => {
+			const session = createSession();
+			const context = setup([session]);
+			context.setPullRequest(1, GitHubPullRequestState.Merged);
+			const nudge = context.createNudge();
+			nudge.markShown();
+			context.setChatRequest(session, 'turn-2');
+			if (lifecycle === 'observedArchive') {
+				session.isArchived.set(true, undefined);
+				session.isArchived.set(false, undefined);
+			} else {
+				({ archive: context.archived, unarchive: context.unarchived, delete: context.deleted })[lifecycle].fire(session);
+			}
+
+			assert.deepStrictEqual({
+				visible: !!nudge.options.get(),
+				keys: context.storage.keys(StorageScope.PROFILE, StorageTarget.MACHINE),
+			}, { visible: true, keys: [] });
+		});
+	}
 
 	test('describes actual worktrees without treating missing or virtual workspaces as worktrees', () => {
 		const session = createSession();

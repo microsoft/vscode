@@ -7,7 +7,7 @@ import assert from 'assert';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
@@ -15,6 +15,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -27,6 +29,7 @@ import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPill
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
@@ -1528,6 +1531,82 @@ suite('SessionChatInputToolbar', () => {
 				});
 			});
 		}
+	}
+
+	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
+		test(`PR pills follow chat ownership and react to automatic association on ${providerId}`, () => {
+			const { instantiationService } = createServices();
+			const onDidChangeRootConfig = store.add(new Emitter<void>());
+			const schema: RootConfigState['schema'] = {
+				type: 'object', properties: { [AgentHostAutoAttachPullRequestsConfigKey]: { type: 'boolean', title: 'Automatic Pull Request Association', default: true } },
+			};
+			let config: RootConfigState | undefined = {
+				schema,
+				values: { [AgentHostAutoAttachPullRequestsConfigKey]: false },
+			};
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: providerId,
+				onDidChangeRootConfig: onDidChangeRootConfig.event,
+				getRootConfig: () => config,
+				getAgentMergeClientStateObservable: () => constObservable(undefined),
+			});
+			instantiationService.stub(ISessionsProvidersService, 'getProvider', () => provider);
+			const ref = { owner: 'owner', repo: 'repo', number: 42, uri: URI.parse('https://github.com/owner/repo/pull/42'), createdByThisSession: true };
+			instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+				createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+			}));
+			const root = URI.file('/shared');
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root, workingDirectory: root, name: 'shared', description: undefined,
+					gitRepository: { uri: root, workTreeUri: undefined, baseBranchName: undefined, gitHubInfo: constObservable({ owner: ref.owner, repo: ref.repo, pullRequests: [ref] }) },
+				}],
+			}));
+			const chat = (id: string) => upcastPartial<IChat>({
+				resource: URI.parse(`custom-chat://host/${id}`), workspace, title: constObservable(id), status: constObservable(SessionStatus.Completed),
+				changesets: constObservable([]), changes: constObservable([]),
+			});
+			const main = chat('main');
+			const peer = chat('peer');
+			const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [{
+				id: 'peer-pr', chat: peer.resource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: ref.uri,
+			}]);
+			const session = upcastPartial<IActiveSession>({
+				providerId, sessionId: 'shared', resource: URI.parse('custom-session://host/shared'), workspace, artifacts,
+				mainChat: constObservable(main), chats: constObservable([main, peer]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const pill = () => toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
+			toolbar.setSession(session, main);
+			const restrictedMain = pill();
+			toolbar.setSession(session, peer);
+			const restrictedPeer = pill();
+			toolbar.setSession(session, main);
+			config = { schema, values: { [AgentHostAutoAttachPullRequestsConfigKey]: true } };
+			onDidChangeRootConfig.fire();
+			const automaticMain = pill();
+			config = { schema, values: { [AgentHostAutoAttachPullRequestsConfigKey]: false } };
+			onDidChangeRootConfig.fire();
+			const restrictedAgain = pill();
+			config = {
+				schema: { ...schema, properties: { [AgentHostAutoAttachPullRequestsConfigKey]: { type: 'boolean', title: 'Automatic Pull Request Association', default: false } } },
+				values: {},
+			};
+			onDidChangeRootConfig.fire();
+			const restrictedDefault = pill();
+			config = undefined;
+			onDidChangeRootConfig.fire();
+			const absentExtension = pill();
+			assert.deepStrictEqual({ restrictedMain, restrictedPeer, automaticMain, restrictedAgain, restrictedDefault, absentExtension }, {
+				restrictedMain: null,
+				restrictedPeer: 'Open Pull Request #42: Peer PR',
+				automaticMain: 'Open Pull Request #42',
+				restrictedAgain: null,
+				restrictedDefault: null,
+				absentExtension: 'Open Pull Request #42',
+			});
+		});
 	}
 
 	test('pull request artifact removal reacts to capabilities, targets the owning session, and reports errors without hiding data', async () => {

@@ -279,6 +279,37 @@ suite('ChatListWidget', () => {
 		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
 
+	test('updates a request summary after rendering without changing the request or resetting user expansion', async () => {
+		const { model, container, widget } = createWidget();
+		const text = 'Call #readAttemptComparison and review the complete implementation instructions.';
+		const request = model.addRequest({
+			text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+		}, { variables: [] }, 0);
+		request.response?.complete();
+		widget.refresh();
+		widget.layout(300, 500);
+		await waitForStableLayout(widget);
+		widget.updateRendererOptions({ firstRequestSummary: 'Judge Instructions' });
+		const details = container.querySelector('details.chat-request-disclosure');
+		assert.ok(details instanceof HTMLDetailsElement);
+		const collapsed = !details.open;
+		details.querySelector('summary')?.click();
+		const expanded = details.open;
+		widget.updateRendererOptions({ firstRequestSummary: 'Updated Instructions' });
+		const rerendered = container.querySelector('details.chat-request-disclosure');
+		const restored = rerendered instanceof HTMLDetailsElement && rerendered.open;
+		const label = rerendered?.querySelector('summary')?.textContent;
+		widget.updateRendererOptions({ firstRequestSummary: undefined });
+		assert.deepStrictEqual({
+			collapsed, expanded, restored, label,
+			removed: !container.querySelector('details.chat-request-disclosure'),
+			fullTextVisible: container.textContent?.includes(text), message: request.message.text,
+		}, {
+			collapsed: true, expanded: true, restored: true, label: 'Updated Instructions',
+			removed: true, fullTextVisible: true, message: text,
+		});
+	});
+
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {
 			configurationService.setUserConfiguration(PROMPT_TIMELINE_STICKY_SCROLL_SETTING, true);

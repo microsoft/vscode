@@ -6,7 +6,8 @@
 import type { McpServerCustomization } from '../../state/protocol/state.js';
 
 const sourceKey = 'agentHost.mcpServerSource';
-const displayNameKey = 'agentHost.mcpServerDisplayName';
+const displayNameKey = 'vscode.mcpServerDisplayName';
+const maxDisplayNameLength = 512;
 const sourcePluginKey = 'agentHost.mcpServerSourcePlugin';
 const controllingSettingKey = 'vscode.mcpServerControllingSetting';
 
@@ -40,20 +41,23 @@ export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefine
 	return { ...(meta ?? {}), [sourceKey]: source };
 }
 
-/**
- * Reads the human-readable name the runtime reports for a server: a configured display name, a
- * managed catalog's name for an opaque `name`, or the server's advertised title.
- */
+/** Reads an optional Connector catalog name without changing the MCP server's runtime identity. */
 export function readMcpServerDisplayName(customization: McpServerCustomization | undefined): string | undefined {
-	return readNonEmptyString(customization?._meta?.[displayNameKey]);
+	return normalizeMcpServerDisplayName(customization?._meta?.[displayNameKey]);
 }
 
-/**
- * Records the runtime-reported display name in an open metadata bag. An absent name removes a
- * previously recorded one, because it describes the current configuration; every other entry is preserved.
- */
+/** Records an optional Connector catalog name while preserving every other metadata entry. */
 export function withMcpServerDisplayNameMeta(meta: Record<string, unknown> | undefined, displayName: string | undefined): Record<string, unknown> | undefined {
-	return withMetaEntry(meta, displayNameKey, displayName);
+	const normalized = normalizeMcpServerDisplayName(displayName);
+	return normalized === undefined ? meta : { ...(meta ?? {}), [displayNameKey]: normalized };
+}
+
+function normalizeMcpServerDisplayName(value: unknown): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 && trimmed.length <= maxDisplayNameLength ? trimmed : undefined;
 }
 
 /**

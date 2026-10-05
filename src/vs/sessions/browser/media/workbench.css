@@ -201,6 +201,14 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench.nosidebar:not(.phone-layout) .part.panel {
+	margin-left: var(--agents-floating-panel-gap);
+}
+
+.agent-sessions-workbench.panel-alignment-center:not(.noeditorpane) .part.panel {
+	margin-right: var(--agents-floating-panel-gap);
+}
+
 /* Compact surfaces share a single separator without reserving space for card frames. */
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .agents-part-card,
 .monaco-workbench.agent-sessions-workbench.modern-ui-compact .part:is(.panel, .auxiliarybar),
@@ -256,11 +264,11 @@
 
 /*
  * SplitView centers each sash on its logical boundary, but the card margins put
- * the Sessions/Editor gap before that boundary and the Panel gap after it.
- * Grow the hit area to at least the visual gap, then shift it toward that gap
- * without moving the split itself. `max()` preserves larger configured sashes.
+ * the Sessions/side-pane gap before that boundary and the Panel gap after it.
+ * The layout marks the precise Sessions/side-pane sash because the centered
+ * topology nests Sessions below the panel and also has a sidebar sash.
  */
-.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child {
+.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider {
 	width: max(var(--vscode-sash-size), var(--agents-floating-panel-gap));
 	transform: translateX(calc((var(--vscode-sash-size) - max(var(--vscode-sash-size), var(--agents-floating-panel-gap)) - var(--agents-floating-panel-gap)) / 2));
 }
@@ -275,7 +283,7 @@
  * dot is the pseudo-element and box shadows draw the outer dots; hide all three
  * while the full hover/drag highlight communicates the active resize target.
  */
-.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after,
+.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	content: '';
 	position: absolute;
@@ -291,7 +299,7 @@
 	transform: translate(-50%, -50%);
 }
 
-.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after {
+.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after {
 	box-shadow: 0 calc(-1 * var(--agents-floating-panel-gap)) currentColor, 0 var(--agents-floating-panel-gap) currentColor;
 }
 
@@ -299,19 +307,19 @@
 	box-shadow: calc(-1 * var(--agents-floating-panel-gap)) 0 currentColor, var(--agents-floating-panel-gap) 0 currentColor;
 }
 
-.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:is(.hover, .active)::after,
+.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:is(.hover, .active)::after,
 .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:is(.hover, .active)::after {
 	opacity: 0;
 }
 
-.monaco-enable-motion .agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after,
+.monaco-enable-motion .agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 .monaco-enable-motion .agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 	transition: opacity 0.1s ease-out;
 }
 
 @media (forced-colors: active) {
 
-	.agent-sessions-workbench:not(.noeditorpane) .monaco-split-view2.horizontal:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.sessionspart) > .sash-container > .monaco-sash.vertical:first-child:not(.disabled)::after,
+	.agent-sessions-workbench:not(.noeditorpane) .monaco-sash.vertical.sessions-side-pane-divider:not(.disabled)::after,
 	.agent-sessions-workbench:not(.nopanel) .monaco-split-view2.vertical:has(> .monaco-scrollable-element > .split-view-container > .split-view-view > .part.panel) > .sash-container > .monaco-sash.horizontal:not(.disabled)::after {
 		background: CanvasText;
 		color: CanvasText;
@@ -347,11 +355,17 @@
 		border-bottom-left-radius: var(--agents-window-corner-radius);
 	}
 
+	&:not(.nopanel).nosidebar .part.panel {
+		border-bottom-left-radius: var(--agents-window-corner-radius);
+	}
+
 	&.nopanel.noeditorpane .agents-part-card,
 	&.nopanel.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part),
 	&.nopanel.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part),
 	&.nopanel:not(.dock-detail-panel) .part.auxiliarybar,
-	&:not(.nopanel) .part.panel {
+	&:not(.nopanel):not(.panel-alignment-center) .part.panel,
+	&:not(.nopanel).panel-alignment-center.noeditorpane .part.panel,
+	&:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) {
 		border-bottom-right-radius: var(--agents-window-corner-radius);
 	}
 

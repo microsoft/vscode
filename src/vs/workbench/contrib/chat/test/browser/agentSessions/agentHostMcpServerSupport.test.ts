@@ -57,10 +57,10 @@ suite('agentHostMcpServerSupport', () => {
 			dev: getMcpCompatibilityDetail(AgentHostMcpSupportReason.DevelopmentModeIgnored),
 			sandbox: getMcpCompatibilityDetail(AgentHostMcpSupportReason.SandboxConfigurationIgnored),
 		}, {
-			gallery: 'Gallery metadata is not supported in the destination MCP configuration.\nMigration can remove the gallery property. After migration, this MCP server will not receive automatic updates from the registry.',
-			version: 'Server version metadata is not supported in the destination MCP configuration.\nMigration can remove the version property after you confirm the loss of version metadata. Version pins in the command, arguments, or URL will not change.',
-			dev: 'MCP development mode is not supported by the Copilot harness.\nMigration can remove dev after you confirm the loss of development-mode auto-start, file-watch restarts, debugging, and logging.',
-			sandbox: 'Per-server sandbox settings are not supported by the Copilot harness.\nMigration can remove sandboxEnabled after you confirm that VS Code\'s per-server sandbox restrictions will no longer be applied.',
+			gallery: 'Gallery metadata isn\'t supported. Migrating removes it and stops registry updates.',
+			version: 'Version metadata isn\'t supported. Migrating removes it; version pins are kept.',
+			dev: 'Development mode isn\'t supported. Migrating removes dev.',
+			sandbox: 'Per-server sandboxing isn\'t supported. Migrating removes sandboxEnabled.',
 		});
 	});
 

@@ -6,7 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -14,7 +14,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer } from '../../../common/chatService/chatService.js';
 import { ChatTreeItem } from '../../chat.js';
 import { IChatRendererContent } from '../../../common/model/chatViewModel.js';
@@ -86,7 +86,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const dataServerIds = new Set(dataServers.map(server => server.id));
 		return this.agentHostCustomizationService.getMcpServers(sessionResource)
 			.filter(server => dataServerIds.has(server.id) && server.enabled && server.status === McpServerStatus.AuthRequired)
-			.map(server => ({ id: server.id, name: server.name }));
+			.map(server => ({ id: server.id, name: getMcpServerDisplayLabel(server) }));
 	}
 
 	private render(servers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {
@@ -98,7 +98,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		if (authenticating) {
 			this._renderMessage(
 				ThemeIcon.modify(Codicon.loading, 'spin'),
-				localize('mcp.auth.authenticating', 'Authenticating {0}...', '`' + escapeMarkdownSyntaxTokens(authenticating.name) + '`'),
+				localize('mcp.auth.authenticating', 'Authenticating {0}...', appendEscapedMarkdownInlineCode(authenticating.name)),
 			);
 			if (actionHadFocus) {
 				this.options.onDidRemoveFocusedAction?.();
@@ -114,7 +114,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		}
 
 		const links = servers
-			.map(server => '`' + escapeMarkdownSyntaxTokens(server.name) + '`')
+			.map(server => appendEscapedMarkdownInlineCode(server.name))
 			.join(', ');
 		const content = servers.length === 1
 			? localize('mcp.auth.single', 'The MCP server {0} requires authentication. [Authenticate](#authenticate)?', links)

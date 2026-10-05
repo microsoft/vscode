@@ -299,13 +299,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const attachment = item.attachment;
 		switch (attachment.kind) {
 			case 'text':
-				return {
-					label: item.label ?? item.insertText,
-					insertText: item.insertText,
-					filterText: item.label ?? item.insertText,
-					range: replaceRange,
-					kind: CompletionItemKind.Text,
-				};
+				return AgentHostInputCompletionHandler.buildTextCompletionItem(position, item);
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
