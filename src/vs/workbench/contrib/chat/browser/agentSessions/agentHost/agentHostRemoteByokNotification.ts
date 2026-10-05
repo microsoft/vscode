@@ -11,8 +11,6 @@ import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType, parseAgent
 import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { PersistentConnectionEventType } from '../../../../../../platform/remote/common/remoteAgentConnection.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -30,7 +28,6 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 	static readonly ID = 'workbench.contrib.agentHostRemoteByokNotification';
 
 	private _shownContext: IChatInputNotificationContext | undefined;
-	private _remoteWorkspaceConnected = false;
 
 	constructor(
 		@IChatInputNotificationService private readonly _notificationService: IChatInputNotificationService,
@@ -39,8 +36,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
-		@ILogService logService: ILogService,
+		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 	) {
 		super();
 
@@ -59,20 +55,9 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 			this._storageService.onDidChangeValue(StorageScope.PROFILE, REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, this._store),
 		)(() => this._refresh()));
 
-		const remoteConnection = remoteAgentService.getConnection();
+		const remoteConnection = this._remoteAgentService.getConnection();
 		if (this._environmentService.remoteAuthority && remoteConnection) {
-			let connectionStateReceived = false;
-			this._register(remoteConnection.onDidStateChange(event => {
-				connectionStateReceived = true;
-				this._remoteWorkspaceConnected = event.type === PersistentConnectionEventType.ConnectionGain;
-				this._refresh();
-			}));
-			remoteAgentService.getRawEnvironment().then(environment => {
-				if (!this._store.isDisposed && !connectionStateReceived) {
-					this._remoteWorkspaceConnected = environment !== null;
-					this._refresh();
-				}
-			}, error => logService.warn('[AgentHostRemoteByokNotification] Failed to resolve remote environment', error));
+			this._register(remoteConnection.onDidStateChange(() => this._refresh()));
 		}
 
 		this._notificationService.setNotification({
@@ -83,7 +68,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 			actions: [],
 			when: context => this._isEligible(context),
 			onDidShow: context => {
-				if (!this._shownContext && context) {
+				if (!this._shownContext) {
 					this._shownContext = context;
 					this._notificationService.refresh();
 				}
@@ -130,6 +115,6 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 			return this._remoteAgentHostService.connections.some(connection =>
 				agentHostAuthority(connection.address) === authority && RemoteAgentHostConnectionStatus.isConnected(connection.status));
 		}
-		return this._remoteWorkspaceConnected;
+		return !!this._environmentService.remoteAuthority && this._remoteAgentService.getConnection()?.isConnected === true;
 	}
 }

@@ -17,7 +17,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ConnectionGainEvent, ConnectionLostEvent, PersistentConnectionEvent, ReconnectionPermanentFailureEvent, ReconnectionRunningEvent } from '../../../../../../platform/remote/common/remoteAgentConnection.js';
+import { ConnectionGainEvent, ConnectionLostEvent, PersistentConnectionEvent, PersistentConnectionEventType, ReconnectionPermanentFailureEvent, ReconnectionRunningEvent } from '../../../../../../platform/remote/common/remoteAgentConnection.js';
 import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -70,6 +70,7 @@ suite('AgentHostRemoteByokNotification', () => {
 		vendors?: string[];
 		remoteAuthority?: string;
 		remoteEnvironment?: Promise<IRemoteAgentEnvironment | null>;
+		workspaceConnectionState?: PersistentConnectionEventType;
 		hasWorkspaceConnection?: boolean;
 		connections?: IRemoteAgentHostConnectionInfo[];
 		isSessionsWindow?: boolean;
@@ -82,6 +83,8 @@ suite('AgentHostRemoteByokNotification', () => {
 		const sentimentChanged = store.add(new Emitter<void>());
 		const connectionsChanged = store.add(new Emitter<void>());
 		const workspaceConnectionChanged = store.add(new Emitter<PersistentConnectionEvent>());
+		let workspaceConnectionState = options.workspaceConnectionState ?? PersistentConnectionEventType.ConnectionGain;
+		let environmentReads = 0;
 		let models = options.models ?? [];
 		let resolved = options.resolved ?? true;
 		let connections = options.connections ?? [{ address: 'host', name: 'Host', status: RemoteAgentHostConnectionStatus.connected }];
@@ -116,8 +119,12 @@ suite('AgentHostRemoteByokNotification', () => {
 		instantiationService.stub(IRemoteAgentService, {
 			getConnection: () => options.remoteAuthority && options.hasWorkspaceConnection !== false ? upcastPartial<IRemoteAgentConnection>({
 				onDidStateChange: workspaceConnectionChanged.event,
+				get isConnected() { return workspaceConnectionState === PersistentConnectionEventType.ConnectionGain; },
 			}) : null,
-			getRawEnvironment: () => options.remoteEnvironment ?? Promise.resolve(upcastPartial<IRemoteAgentEnvironment>({})),
+			getRawEnvironment: () => {
+				environmentReads++;
+				return options.remoteEnvironment ?? Promise.resolve(upcastPartial<IRemoteAgentEnvironment>({}));
+			},
 		});
 		const contribution = store.add(instantiationService.createInstance(AgentHostRemoteByokNotificationContribution));
 		const getNotification = (inputContext = context()) => notificationService.getActiveNotification(notification =>
@@ -126,6 +133,7 @@ suite('AgentHostRemoteByokNotification', () => {
 			contribution,
 			storageService,
 			notificationService,
+			get environmentReads() { return environmentReads; },
 			getNotification,
 			isVisible: (inputContext = context()) => !!getNotification(inputContext),
 			show(inputContext = context()) {
@@ -154,7 +162,10 @@ suite('AgentHostRemoteByokNotification', () => {
 				connections = value;
 				connectionsChanged.fire();
 			},
-			setWorkspaceConnection: (event: PersistentConnectionEvent) => workspaceConnectionChanged.fire(event),
+			setWorkspaceConnection: (event: PersistentConnectionEvent) => {
+				workspaceConnectionState = event.type;
+				workspaceConnectionChanged.fire(event);
+			},
 			setHidden(hidden: boolean) {
 				sentiment.hidden = hidden;
 				sentimentChanged.fire();
@@ -218,12 +229,11 @@ suite('AgentHostRemoteByokNotification', () => {
 	});
 
 	for (const remoteAuthority of ['ssh-remote+host', 'wsl+Ubuntu', 'dev-container+container', 'codespaces+space']) {
-		test(`waits for a connected ${remoteAuthority} workspace and hides on connection loss`, async () => {
-			const environment = new DeferredPromise<IRemoteAgentEnvironment | null>();
-			const fixture = createFixture({ models: [createModel()], remoteAuthority, remoteEnvironment: environment.p, connections: [] });
+		test(`waits for a connected ${remoteAuthority} workspace and hides on connection loss`, () => {
+			const fixture = createFixture({ models: [createModel()], remoteAuthority, workspaceConnectionState: PersistentConnectionEventType.ReconnectionRunning, connections: [] });
 			const input = context({ sessionType: 'agent-host-copilotcli' });
 			const visibility = [fixture.isVisible(input)];
-			await environment.complete(upcastPartial({}));
+			fixture.setWorkspaceConnection(new ConnectionGainEvent('test', 0, 0));
 			visibility.push(fixture.isVisible(input));
 			fixture.setWorkspaceConnection(new ConnectionLostEvent('test', 0));
 			visibility.push(fixture.isVisible(input));
@@ -234,6 +244,27 @@ suite('AgentHostRemoteByokNotification', () => {
 			fixture.setWorkspaceConnection(new ReconnectionPermanentFailureEvent('test', 0, 1, true));
 			visibility.push(fixture.isVisible(input));
 			assert.deepStrictEqual(visibility, [false, true, false, false, true, false]);
+		});
+	}
+
+	for (const state of [
+		PersistentConnectionEventType.ConnectionGain,
+		PersistentConnectionEventType.ConnectionLost,
+		PersistentConnectionEventType.ReconnectionRunning,
+		PersistentConnectionEventType.ReconnectionPermanentFailure,
+	]) {
+		test(`uses the current connection state at startup despite a cached environment (${state})`, async () => {
+			const fixture = createFixture({
+				models: [createModel()],
+				remoteAuthority: 'ssh-remote+host',
+				workspaceConnectionState: state,
+				remoteEnvironment: Promise.resolve(upcastPartial<IRemoteAgentEnvironment>({})),
+			});
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				visible: fixture.isVisible(context({ sessionType: 'agent-host-copilotcli' })),
+				environmentReads: fixture.environmentReads,
+			}, { visible: state === PersistentConnectionEventType.ConnectionGain, environmentReads: 0 });
 		});
 	}
 

@@ -41,7 +41,7 @@ import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatViewPane } from '../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionStatus, IAgentSession, IAgentSessionsModel } from '../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
-import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from '../../browser/widget/input/chatInputNotificationService.js';
+import { ChatInputNotificationActionKind, IChatInputNotification, IChatInputNotificationContext, IChatInputNotificationService, isChatInputNotificationApplicableToSession } from '../../browser/widget/input/chatInputNotificationService.js';
 import { reviveChatDraft } from '../../common/attachments/chatDraft.js';
 import { IChatRequestVariableEntry, toFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, CopilotHarnessIntroductionMode, DEFAULT_AGENTS_HANDOFF_TIP_DELAY_SECONDS, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
@@ -233,8 +233,18 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 				return undefined;
 			},
 		}));
+		const notificationContext = (sessionStarted = hasRequests): IChatInputNotificationContext => ({
+			inputUri,
+			sessionType: getChatSessionType(resource),
+			sessionResource: resource,
+			deferredNotificationsEnabled: true,
+			isTransientChat: false,
+			sessionStarted,
+			modelState: { currentModel: undefined, models: [] },
+		});
 		return {
 			instantiation, configuration, calls, warnings, focused, sessionsChanged, models, treatmentWarnings, treatmentNames, openedResources, telemetryEvents, widget, inputUri,
+			notificationContext,
 			triggers: telemetryService.triggers,
 			focusWidget: (value: IChatWidget | undefined) => { lastFocusedWidget = value; focused.fire(); },
 			sendMessage: (timestamp = Date.now(), isSystemInitiated = false) => {
@@ -276,15 +286,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			get notificationCount() { return notifications.size; },
 			notificationVisible: (sessionStarted = hasRequests) => {
 				const notification = [...notifications.values()].at(-1);
-				return !!notification && (notification.when?.({
-					inputUri,
-					sessionType: getChatSessionType(resource),
-					sessionResource: resource,
-					deferredNotificationsEnabled: true,
-					isTransientChat: false,
-					sessionStarted,
-					modelState: { currentModel: undefined, models: [] },
-				}) ?? true);
+				return !!notification && (notification.when?.(notificationContext(sessionStarted)) ?? true);
 			},
 			get posts() { return posts; },
 			set openReady(value: Promise<void>) { openReady = value; },
@@ -294,7 +296,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			},
 			showBanner: () => disposables.add(instantiation.createInstance(AgentsParallelWorkContribution)),
 			showGenericTip: () => disposables.add(instantiation.createInstance(AgentsHandoffInputTipContribution)),
-			showCurrentNotification: () => [...notifications.values()].at(-1)?.onDidShow?.(),
+			showCurrentNotification: () => [...notifications.values()].at(-1)?.onDidShow?.(notificationContext()),
 			commitSession: (original: URI, committed: URI) => sessionCommitted.fire({ original, committed }),
 			dismiss: () => {
 				const notification = [...notifications.values()].at(-1);
@@ -1106,7 +1108,7 @@ suite('Agents Window draft handoff and parallel invitation', () => {
 			await h.setIntroductionTreatments('current', 'feedback');
 			const notification = h.notification;
 			contribution.dispose();
-			notification?.onDidShow?.();
+			notification?.onDidShow?.(h.notificationContext());
 
 			assert.deepStrictEqual({ notification: h.notification, triggers: h.triggers }, {
 				notification: undefined, triggers: [],

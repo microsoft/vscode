@@ -91,6 +91,7 @@ Start a fresh instance before each independent connection case. Keep BYOK config
 - [ ] **4F — Wrong host connected:** with host A connected and host B disconnected, select a Copilot session belonging to B. **Expected:** no warning; A's connection must not qualify B.
 - [ ] **4G — Remote workspace versus another host:** in a connected remote editor workspace, select a disconnected session belonging to a separate host. **Expected:** no warning for that disconnected session.
 - [ ] **4H — Connection drops after display:** show the warning, then disconnect its host. **Expected:** the warning disappears and does not return on reconnect in that instance.
+- [ ] **4I — Connection lost during startup:** connect a remote workspace, then interrupt the connection before the editor finishes restoring. **Expected:** no warning while disconnected or reconnecting, even if remote environment data was already loaded.
 
 ### Remote workspace coverage
 
