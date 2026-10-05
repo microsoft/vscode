@@ -34,6 +34,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
 import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -92,7 +93,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -110,7 +111,7 @@ import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxP
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
@@ -125,7 +126,6 @@ import { IChatResponseFileChangesService } from '../../chatResponseFileChangesSe
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceAttachmentMeta, toSessionReferenceModelRepresentation } from './agentHostSessionReferenceAttachment.js';
 import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
-import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
@@ -2944,7 +2944,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** The workbench tool a runtime client-tool call maps to, or `undefined` when it is not installed. */
 	private _resolveClientTool(toolName: string): IToolData | undefined {
-		const isCopilotSession = isCopilotCliSessionType(this._config.sessionType);
+		const isCopilotSession = isCopilotAgentHostSessionType(this._config.sessionType);
 		if (isCopilotSession && toolName === SEMANTIC_SEARCH_TOOL_NAME) {
 			return this._toolsService.getTool(CLIENT_SEMANTIC_SEARCH_TOOL_ID);
 		}
@@ -3582,9 +3582,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
-			const backgroundActions = new Map(this._customizationService.getMcpServers(opts.sessionResource)
+			const sessionServers = this._customizationService.getMcpServers(opts.sessionResource);
+			const backgroundActions = new Map(sessionServers
 				.filter(server => server.background !== undefined)
 				.map(server => [server.id, server.background]));
+			const displayLabels = new Map(sessionServers.map(server => [server.id, getMcpServerDisplayLabel(server)]));
 			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
@@ -3594,7 +3596,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const id = opts.sessionResource.authority + '/' + server.id;
 					return {
 						id,
-						name: server.name,
+						name: displayLabels.get(id) ?? server.name,
 						blocking: server.state.kind === McpServerStatus.Starting && server.state.blocking === true,
 						background: backgroundActions.get(id),
 					};
@@ -4302,7 +4304,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				opts.sink([invocation]);
 			}
 		} else {
-			invocation = toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris);
+			const mcpServerName = initial.status === ToolCallStatus.AuthRequired ? this._toolAuthenticationServerName(initial, opts) : undefined;
+			invocation = toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris, mcpServerName);
 			if (!renderedBySnapshot) {
 				opts.sink([invocation]);
 			}
@@ -4363,7 +4366,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);
 			} else if (status === ToolCallStatus.AuthRequired) {
 				this._ensureLeftStreaming(invocation, tc, opts);
-				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority), () => {
+				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority, this._toolAuthenticationServerName(tc, opts)), () => {
 					this._dispatchAction(opts.backendSession, {
 						type: ActionType.ChatToolCallComplete,
 						turnId: opts.turnId,
@@ -4413,6 +4416,29 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.didExecuteTool(undefined);
 			}
 		}));
+		this._refreshToolAuthenticationServerName(invocation, opts.sessionResource);
+		store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
+	}
+
+	private _refreshToolAuthenticationServerName(invocation: ChatToolInvocation, sessionResource: URI): void {
+		const state = invocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return;
+		}
+		const server = this._customizationService.getMcpServers(sessionResource).find(candidate => candidate.id === state.server.id);
+		if (!server) {
+			return;
+		}
+		const name = getMcpServerDisplayLabel(server);
+		if (name !== state.server.name) {
+			invocation.setAuthenticationRequired({ ...state.server, name });
+		}
+	}
+
+	private _toolAuthenticationServerName(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, opts: IObserveTurnOptions): string | undefined {
+		const id = toolCallAuthenticationServer(tc, opts.sessionResource.authority).id;
+		const server = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === id);
+		return server ? getMcpServerDisplayLabel(server) : undefined;
 	}
 
 	/** Transitions an invocation from streaming once its AHP tool call is ready. */
@@ -6620,14 +6646,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return `${uri}#${start.line}:${start.character}-${end.line}:${end.character}`;
 	}
 
-	/**
-	 * Whether this backend reads referenced files from disk (rather than seeing the editor's
-	 * in-memory buffer) and therefore needs the live text of an unsaved / dirty editor inlined as
-	 * an embedded resource. Copilot CLI and Codex both run as separate processes with only disk
-	 * access, so a `@path` mention (or an `untitled:` URI) would give them stale or missing content.
-	 */
+	/** Backends that read files from disk need unsaved editor content embedded in attachments. */
 	private _backendInlinesUnsavedEditors(): boolean {
-		return this._config.provider === SessionType.CopilotCLI || this._config.provider === CODEX_AGENT_PROVIDER_ID;
+		return isCopilotAgentHostProvider(this._config.provider) || this._config.provider === CODEX_AGENT_PROVIDER_ID;
 	}
 
 	/** A resource is unsaved when it's untitled or a saved file with in-memory (dirty) changes. */
@@ -6717,7 +6738,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	private _convertVariableToAttachment(v: IChatRequestVariableEntry, sessionResource: URI, messageText: string | undefined, materializePastes = true): MessageAttachment | MessageAttachment[] | undefined {
 		const referenceRange = this._toAttachmentReferenceRange(messageText, v.range);
-		// Copilot CLI and Codex can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
+		// Copilot agents and Codex can't read unsaved content from disk, so inline the live buffer; drop unreadable schemes.
 		if ((v.kind === 'file' || v.kind === 'implicit') && this._backendInlinesUnsavedEditors()) {
 			const uri = isLocation(v.value) ? v.value.uri : (v.value instanceof URI ? v.value : undefined);
 			if (uri && this._isUnsavedResource(uri)) {

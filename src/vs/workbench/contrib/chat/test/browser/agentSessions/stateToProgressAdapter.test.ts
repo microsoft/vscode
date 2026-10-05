@@ -1912,7 +1912,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend');
+			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -1928,7 +1928,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationMessages: undefined,
 				server: {
 					id: 'frontend/mcp-1',
-					name: 'Example MCP',
+					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {
 						clientId: 'configured-client-id',

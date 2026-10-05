@@ -11436,6 +11436,56 @@ suite('AgentHostChatContribution', () => {
 
 	suite('attachment context', () => {
 
+		for (const implicit of [false, true]) {
+			for (const { name, uri, dirty, text, expected } of [
+				{ name: 'untitled editor', uri: URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' }), dirty: false, text: 'draft', expected: 'embedded' },
+				{ name: 'dirty saved editor', uri: URI.file('/workspace/test.ts'), dirty: true, text: 'edited but not saved', expected: 'embedded' },
+				{ name: 'clean saved editor', uri: URI.file('/workspace/test.ts'), dirty: false, text: 'saved', expected: 'resource' },
+				{ name: 'oversized untitled editor', uri: URI.from({ scheme: Schemas.untitled, path: '/Untitled-1' }), dirty: false, text: 'x'.repeat(1024 * 1024 + 1), expected: 'none' },
+				{ name: 'oversized dirty saved editor', uri: URI.file('/workspace/test.ts'), dirty: true, text: 'x'.repeat(1024 * 1024 + 1), expected: 'resource' },
+			]) {
+				test(`sandbox Copilot handles ${implicit ? 'implicit' : 'explicit'} ${name} attachments`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { instantiationService, agentHostService, chatAgentService, chatWidgetService, modelService, workingCopyService } = createTestServices(disposables);
+					const sessionType = 'remote-cloudsandbox_environment-one-copilot';
+					const sessionResource = URI.from({ scheme: sessionType, path: '/session-one' });
+					const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider: 'copilot',
+						backendSessionScheme: 'ahp-session',
+						agentId: 'agent-host-copilot',
+						sessionType,
+						fullName: 'Copilot [Sandbox session title]',
+						description: 'Sandbox Copilot',
+						connection: agentHostService,
+						connectionAuthority: 'cloudsandbox_environment-one',
+					}));
+					modelService.setModelContent(uri, text);
+					workingCopyService.setDirty(uri, dirty);
+					if (implicit) {
+						chatWidgetService.setWidgetForSession(sessionResource, [
+							{ kind: 'implicit', id: 'vscode.implicit.file', name: 'test', isSelection: false, uri, value: uri },
+						]);
+					}
+					const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+						message: 'check this file',
+						sessionResource,
+						variables: { variables: implicit ? [] : [{ kind: 'file', id: 'v-file', name: 'test', value: uri }] },
+					});
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+
+					const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+					assert.deepStrictEqual({ session, attachments: turnAction.message.attachments }, {
+						session: buildDefaultChatUri(AgentSession.uri('ahp-session', 'session-one').toString()),
+						attachments: expected === 'embedded'
+							? [{ type: MessageAttachmentKind.EmbeddedResource, label: 'test', displayKind: 'document', data: encodeBase64(VSBuffer.fromString(text)), contentType: 'text/plain' }]
+							: expected === 'resource'
+								? [{ type: MessageAttachmentKind.Resource, uri: uri.toString(), label: 'test', displayKind: 'document' }]
+								: undefined,
+					});
+				}));
+			}
+		}
+
 		test('file variable with file:// URI becomes file attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
@@ -12167,8 +12217,8 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('active editor implicit context is not forwarded for untitled editors on non-Copilot-CLI backends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables);
+		test('active editor implicit context is not forwarded for untitled editors on non-Copilot backends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatWidgetService } = createContribution(disposables, { provider: 'claude' });
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/new-implicit-untitled' });
 			const untitledUri = URI.from({ scheme: 'untitled', path: '/Untitled-1' });
 			chatWidgetService.setWidgetForSession(sessionResource, [
@@ -12327,7 +12377,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('non-file URI variables (e.g. untitled documents) are forwarded as attachments', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { provider: 'claude' });
 			const uri = URI.from({ scheme: 'untitled', path: '/foo' });
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
@@ -12447,29 +12497,30 @@ suite('AgentHostChatContribution', () => {
 			]);
 		}));
 
-		test('inlined unsaved attachment preserves _meta and selection for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });
-			const fileUri = URI.file('/workspace/foo.ts');
-			modelService.setModelContent(fileUri, 'first line\nsecond line\nthird line\nfourth line content');
-			workingCopyService.setDirty(fileUri, true);
+		for (const provider of ['copilotcli', 'copilot', 'codex']) {
+			test(`inlined unsaved attachment preserves _meta and selection for ${provider}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, modelService, workingCopyService } = createContribution(disposables, { provider });
+				const fileUri = URI.file('/workspace/foo.ts');
+				modelService.setModelContent(fileUri, 'first line\nsecond line\nthird line\nfourth line content');
+				workingCopyService.setDirty(fileUri, true);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
-				message: 'check this',
-				variables: {
-					variables: [
-						upcastPartial({ kind: 'file', id: 'v-file', name: 'foo.ts', value: { uri: fileUri, range: new Range(2, 1, 4, 10) }, _meta: { provider: 'fs', score: 0.42 } }),
-					],
-				},
-			});
-			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-			await turnPromise;
+				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: 'check this',
+					variables: {
+						variables: [
+							upcastPartial({ kind: 'file', id: 'v-file', name: 'foo.ts', value: { uri: fileUri, range: new Range(2, 1, 4, 10) }, _meta: { provider: 'fs', score: 0.42 } }),
+						],
+					},
+				});
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
 
-			assert.strictEqual(agentHostService.turnActions.length, 1);
-			const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
-			assert.deepStrictEqual(turnAction.message.attachments, [
-				{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
-			]);
-		}));
+				const turnAction = agentHostService.turnActions[0].action as ITurnStartedAction;
+				assert.deepStrictEqual(turnAction.message.attachments, [
+					{ type: MessageAttachmentKind.EmbeddedResource, label: 'foo.ts', displayKind: 'selection', data: encodeBase64(VSBuffer.fromString('second line\nthird line\nfourth li')), contentType: 'text/plain', selection: { range: { start: { line: 1, character: 0 }, end: { line: 3, character: 9 } } }, _meta: { provider: 'fs', score: 0.42 } },
+				]);
+			}));
+		}
 
 		test('dirty non-file resource that cannot be inlined is dropped for the Copilot CLI backend', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, workingCopyService } = createContribution(disposables, { provider: 'copilotcli' });

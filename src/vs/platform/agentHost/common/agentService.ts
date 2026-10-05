@@ -988,6 +988,7 @@ export interface IAgentService {
 	 * with {@link unsubscribe} when the subscription is released. When
 	 * provided, `isActive` is checked before registering the subscriber so a
 	 * request cancelled during asynchronous resolution cannot pin the resource.
+	 * Callers must distinguish lost subscription ownership from a missing resource.
 	 */
 	subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot>;
 

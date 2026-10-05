@@ -14,6 +14,7 @@
 // shape. The envelopes are folded by the same `sessionReducer` / `chatReducer` the live
 // subscriptions use, so a replayed session and a live one cannot drift.
 
+import { equals } from '../../../base/common/objects.js';
 import { ChunkEnvelope, Reassembler } from './webPubSub/chunking.js';
 import { ActionEnvelope, ActionType, StateAction } from './state/protocol/common/actions.js';
 import { chatReducer } from './state/protocol/channels-chat/reducer.js';
@@ -22,12 +23,7 @@ import { sessionReducer } from './state/protocol/channels-session/reducer.js';
 import { SessionLifecycle, SessionState, SessionStatus } from './state/protocol/channels-session/state.js';
 import { ChatAction, SessionAction } from './state/sessionActions.js';
 
-/**
- * Highest transport sequence number that may legitimately appear *below* the expected next
- * sequence. Mission Control re-hosts a dormant session on a fresh mirror process whose transport
- * sequence restarts at 0 or 1 while `/events` continues with only the new actions; anything
- * further back is a genuine gap.
- */
+/** Highest starting sequence allowed for a new mirror epoch after exact duplicates are removed. */
 const MAX_RESTART_EPOCH_INITIAL_SEQUENCE = 1;
 
 /** A persisted history that could not be decoded. Distinct from a transport/HTTP failure. */
@@ -71,6 +67,7 @@ export interface IReplayedTaskHistory {
 /** Per-session accumulator used while decoding the transport layer. */
 interface ISessionReplayState {
 	readonly envelopes: ActionEnvelope[];
+	readonly eventsBySeq: Map<number, Record<string, unknown>>;
 	modifiedAt: string;
 	nextSeq: number;
 	reassembler: Reassembler;
@@ -150,7 +147,8 @@ function seedChatState(chatChannel: string, modifiedAt: string): ChatState {
 }
 
 /**
- * Decode the persisted transport layer into ordered envelopes, grouped by session.
+ * Decode the persisted transport layer into ordered envelopes, grouped by session, ignoring exact
+ * duplicate records within each mirror epoch.
  *
  * Throws on a genuine sequence gap or a corrupt record — a history that cannot be trusted must
  * not be shown as if it were complete.
@@ -172,10 +170,13 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 
 		let entry = sessions.get(session);
 		if (!entry) {
-			entry = { envelopes: [], modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
+			entry = { envelopes: [], eventsBySeq: new Map(), modifiedAt: at, nextSeq: seq, reassembler: new Reassembler(), abandonedChunkGroup: false };
 			sessions.set(session, entry);
 		}
-		entry.modifiedAt = at;
+		// Persisted batches can overlap; never fold an already-seen delta or chunk twice.
+		if (equals(entry.eventsBySeq.get(seq), value)) {
+			continue;
+		}
 
 		const startsRestartEpoch = seq !== entry.nextSeq && seq < entry.nextSeq && seq <= MAX_RESTART_EPOCH_INITIAL_SEQUENCE;
 		if (seq !== entry.nextSeq && !startsRestartEpoch) {
@@ -188,9 +189,12 @@ function decodeEvents(events: readonly unknown[]): Map<string, ISessionReplaySta
 			// buffered at the restart is an action the previous epoch never finished emitting, so
 			// remember it — replacing the reassembler is what would otherwise lose that fact.
 			entry.abandonedChunkGroup ||= entry.reassembler.inFlightGroupCount > 0;
+			entry.eventsBySeq.clear();
 			entry.nextSeq = seq;
 			entry.reassembler = new Reassembler();
 		}
+		entry.eventsBySeq.set(seq, value);
+		entry.modifiedAt = at;
 		entry.nextSeq += 1;
 
 		let reassembled: unknown;
