@@ -18,7 +18,7 @@ import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../b
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
-import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../base/browser/ui/grid/grid.js';
+import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { IEditorGroupsService } from '../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -166,6 +166,8 @@ export const enum AgentWorkbenchLayout {
 	Mobile = 'mobile',
 	Desktop = 'desktop',
 }
+
+type AgentPanelAlignment = 'center' | 'justify';
 
 //#endregion
 
@@ -437,6 +439,9 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	private readonly mobileTopBarDisposables = this._register(new DisposableStore());
 
 	private _editorMaximized = false;
+	private _panelAlignment: AgentPanelAlignment = 'justify';
+	private _panelMaximizedEditorState: { width: number | undefined } | undefined;
+	private _maximumEditorDimensionsOverride: IDimension | undefined;
 	private _customViewVisibleKey!: IContextKey<boolean>;
 	/** Guards the grid updates that show/hide the custom view from feeding back into the desired part visibility. */
 	private _applyingCustomViewGridVisibility = false;
@@ -462,6 +467,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	private static readonly _PART_VISIBILITY_KEY = 'workbench.sessions.partVisibility';
 	private static readonly _PART_SIZES_KEY = 'workbench.sessions.partSizes';
+	private static readonly _PANEL_ALIGNMENT_KEY = 'workbench.sessions.panelAlignment';
 
 	//#region Services
 
@@ -786,6 +792,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			}
 		}
 		return {};
+	}
+
+	private _loadPanelAlignment(storageService: IStorageService): AgentPanelAlignment {
+		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && storageService.get(Workbench._PANEL_ALIGNMENT_KEY, StorageScope.PROFILE) === 'center') {
+			return 'center';
+		}
+		return 'justify';
 	}
 
 	/**
@@ -1217,6 +1230,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		this.customViewGridPartService = accessor.get(ICustomViewGridPartService);
 		this.instantiationService = accessor.get(IInstantiationService);
 		this.storageService = accessor.get(IStorageService);
+		this._panelAlignment = this._loadPanelAlignment(this.storageService);
 		accessor.get(ITitleService);
 
 		// Resolve the desktop layout mode once (reload to toggle).
@@ -1643,8 +1657,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	 * - Sidebar (left, spans full height from top to bottom)
 	 * - Right section (vertical):
 	 *   - Titlebar (top of right section)
-	 *   - Top right (horizontal): Chat Bar | Editor | Auxiliary Bar
-	 *   - Panel (below chat, editor, and auxiliary bar)
+	 *   - Chat Bar | Editor | Auxiliary Bar
+	 *   - Panel below either the Chat Bar or the entire main region
 	 */
 	private createGridDescriptor(): ISerializedGrid {
 		const { width, height } = this._mainContainerDimension;
@@ -1759,6 +1773,39 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			data: this._topRightSectionChildren(sessionsNode, editorNode, auxiliaryBarNode, customViewGridNode),
 			size: topRightHeight
 		};
+
+		if (this.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && this.getPanelAlignment() === 'center') {
+			const chatColumn: ISerializedNode = {
+				type: 'branch',
+				data: [
+					{ ...sessionsNode, size: topRightHeight },
+					panelNode,
+				],
+				size: sessionsWidth,
+				visible: sessionsNode.visible === false && panelNode.visible === false ? false : undefined,
+			};
+
+			return {
+				root: {
+					type: 'branch',
+					size: width,
+					data: [
+						titleBarNode,
+						{
+							type: 'branch',
+							data: [
+								sideBarNode,
+								...this._topRightSectionChildren(chatColumn, editorNode, auxiliaryBarNode, customViewGridNode),
+							],
+							size: contentHeight,
+						}
+					]
+				},
+				orientation: Orientation.VERTICAL,
+				width,
+				height
+			};
+		}
 
 		// Right section: Top Right | Panel (vertical)
 		const rightSection: ISerializedNode = {
@@ -1979,6 +2026,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			LayoutClasses.STATUSBAR_HIDDEN, // agents window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.layoutPolicy.viewportClass.get() === 'phone' ? LayoutClasses.PHONE_LAYOUT : undefined,
+			`panel-alignment-${this.getPanelAlignment()}`,
 		]);
 	}
 
@@ -2642,7 +2690,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 
 	//#endregion
 
-	//#region Position Methods (Fixed - Not Configurable)
+	//#region Position Methods
 
 	getSideBarPosition(): Position {
 		return Position.LEFT; // Always left in this layout
@@ -2657,11 +2705,84 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	getPanelAlignment(): PanelAlignment {
-		return 'justify'; // Full width panel
+		return this._panelAlignment;
 	}
 
-	setPanelAlignment(_alignment: PanelAlignment): void {
-		// No-op: Panel alignment is fixed in this layout
+	setPanelAlignment(alignment: PanelAlignment): void {
+		if (
+			this.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop
+			|| (alignment !== 'center' && alignment !== 'justify')
+			|| alignment === this._panelAlignment
+		) {
+			return;
+		}
+
+		const exitMaximizedPanel = alignment === 'justify' && this.isPanelMaximized();
+		const focusedPart = [Parts.PANEL_PART, Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART].find(part => this.hasFocus(part)) as SINGLE_WINDOW_PARTS | undefined;
+		const previousAlignment = this._panelAlignment;
+		const previousMaximumEditorDimensionsOverride = this._maximumEditorDimensionsOverride;
+		const maximizedEditorWidth = exitMaximizedPanel ? this._panelMaximizedEditorState?.width : undefined;
+		try {
+			this._runWithEditorResizeSyncSuspended(() => {
+				if (exitMaximizedPanel) {
+					this.workbenchGrid.exitMaximizedView();
+				}
+				this._maximumEditorDimensionsOverride ??= this.getMaximumEditorDimensions(this.mainContainer);
+				if (alignment === 'center') {
+					const panelSize = this._viewMoveSizing(this.panelPartView, 'height');
+					this.workbenchGrid.moveView(this.panelPartView, panelSize, this.sessionsPartView, Direction.Down);
+				} else {
+					const sessionsWidth = this.workbenchGrid.isViewVisible(this.sessionsPartView)
+						? this.workbenchGrid.getViewSize(this.sessionsPartView).width
+						: undefined;
+					const editorSize = maximizedEditorWidth ?? this._viewMoveSizing(this.editorPartView, 'width');
+					const customViewGridSize = this._viewMoveSizing(this.customViewGridPartView, 'width');
+					this.workbenchGrid.moveView(this.editorPartView, editorSize, this.sessionsPartView, Direction.Right);
+					this.workbenchGrid.moveView(this.customViewGridPartView, customViewGridSize, this.editorPartView, Direction.Right);
+					if (typeof sessionsWidth === 'number') {
+						this.workbenchGrid.resizeView(this.sessionsPartView, {
+							width: sessionsWidth,
+							height: this.workbenchGrid.getViewSize(this.sessionsPartView).height,
+						});
+					}
+					if (typeof editorSize === 'number') {
+						this.workbenchGrid.resizeView(this.editorPartView, {
+							width: editorSize,
+							height: this.workbenchGrid.getViewSize(this.editorPartView).height,
+						});
+					}
+				}
+				this.mainContainer.classList.toggle(`panel-alignment-${previousAlignment}`, false);
+				this.mainContainer.classList.toggle(`panel-alignment-${alignment}`, true);
+				this._layoutGrid();
+			});
+		} catch (error) {
+			this.mainContainer.classList.toggle(`panel-alignment-${alignment}`, false);
+			this.mainContainer.classList.toggle(`panel-alignment-${previousAlignment}`, true);
+			throw error;
+		} finally {
+			this._maximumEditorDimensionsOverride = previousMaximumEditorDimensionsOverride;
+			if (exitMaximizedPanel) {
+				this._panelMaximizedEditorState = undefined;
+			}
+		}
+
+		this._panelAlignment = alignment;
+		this.storageService.store(Workbench._PANEL_ALIGNMENT_KEY, alignment, StorageScope.PROFILE, StorageTarget.USER);
+		this._onDidChangePanelAlignment.fire(alignment);
+
+		if (focusedPart) {
+			this.focusPart(focusedPart);
+		}
+	}
+
+	private _viewMoveSizing(view: ISerializableView, dimension: 'width' | 'height'): number | Sizing {
+		if (this.workbenchGrid.isViewVisible(view)) {
+			return this.workbenchGrid.getViewSize(view)[dimension];
+		}
+
+		const currentSize = this.workbenchGrid.getViewSize(view)[dimension];
+		return Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(view) ?? currentSize);
 	}
 
 	//#endregion
@@ -2729,6 +2850,10 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	}
 
 	getMaximumEditorDimensions(_container: HTMLElement): IDimension {
+		if (this._maximumEditorDimensionsOverride) {
+			return this._maximumEditorDimensionsOverride;
+		}
+
 		// Return the available space for editor (excluding other parts)
 		const sidebarWidth = this.partVisibility.sidebar ? this.workbenchGrid.getViewSize(this.sideBarPartView).width : 0;
 		const auxiliaryBarWidth = this.partVisibility.auxiliaryBar
@@ -2753,9 +2878,27 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}
 
 		if (this.isPanelMaximized()) {
-			this.workbenchGrid.exitMaximizedView();
+			const editorWidth = this._panelMaximizedEditorState?.width;
+			this._runWithEditorResizeSyncSuspended(() => {
+				this.workbenchGrid.exitMaximizedView();
+				if (typeof editorWidth === 'number') {
+					this.workbenchGrid.resizeView(this.editorPartView, {
+						width: editorWidth,
+						height: this.workbenchGrid.getViewSize(this.editorPartView).height
+					});
+				}
+			});
+			this._panelMaximizedEditorState = undefined;
 		} else {
-			this.workbenchGrid.maximizeView(this.panelPartView, [this.titleBarPartView, this.sideBarPartView]);
+			const editorState = {
+				width: this.workbenchGrid.isViewVisible(this.editorPartView)
+					? this.workbenchGrid.getViewSize(this.editorPartView).width
+					: undefined
+			};
+			this._runWithEditorResizeSyncSuspended(() => {
+				this.workbenchGrid.maximizeView(this.panelPartView, [this.titleBarPartView, this.sideBarPartView]);
+			});
+			this._panelMaximizedEditorState = editorState;
 		}
 	}
 

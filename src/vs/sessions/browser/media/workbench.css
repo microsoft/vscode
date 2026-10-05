@@ -179,6 +179,14 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench.nosidebar:not(.phone-layout) .part.panel {
+	margin-left: var(--vscode-agents-layout-floatingPanelGap);
+}
+
+.agent-sessions-workbench.panel-alignment-center:not(.noeditorpane) .part.panel {
+	margin-right: var(--vscode-agents-layout-floatingPanelGap);
+}
+
 .monaco-workbench.vs.agent-sessions-workbench .agents-part-card {
 	border-color: var(--vscode-agentsCard-border, var(--vscode-agentsPanel-border, var(--vscode-widget-border, transparent)));
 }
@@ -292,11 +300,17 @@
 		border-bottom-left-radius: var(--agents-window-corner-radius);
 	}
 
+	&:not(.nopanel).nosidebar .part.panel {
+		border-bottom-left-radius: var(--agents-window-corner-radius);
+	}
+
 	&.nopanel.noeditorpane .agents-part-card,
 	&.nopanel.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part),
 	&.nopanel.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part),
 	&.nopanel:not(.dock-detail-panel) .part.auxiliarybar,
-	&:not(.nopanel) .part.panel {
+	&:not(.nopanel):not(.panel-alignment-center) .part.panel,
+	&:not(.nopanel).panel-alignment-center.noeditorpane .part.panel,
+	&:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) {
 		border-bottom-right-radius: var(--agents-window-corner-radius);
 	}
 

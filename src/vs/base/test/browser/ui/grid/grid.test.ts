@@ -295,6 +295,39 @@ suite('Grid', function () {
 		assert.deepStrictEqual(view4.size, [200, 600]);
 	});
 
+	test('branch demotion preserves hidden child visibility', function () {
+		const sessionsView = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(sessionsView));
+		container.appendChild(grid.element);
+		grid.layout(800, 600);
+
+		const panelView = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(panelView, 200, sessionsView, Direction.Down);
+
+		const editorView = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(editorView, 300, sessionsView, Direction.Right);
+
+		const customView = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(customView, 200, editorView, Direction.Right);
+		grid.setViewVisible(customView, false);
+
+		grid.moveView(panelView, 200, sessionsView, Direction.Down);
+
+		assert.deepStrictEqual({
+			sessionsVisible: grid.isViewVisible(sessionsView),
+			editorVisible: grid.isViewVisible(editorView),
+			customViewVisible: grid.isViewVisible(customView),
+			panelVisible: grid.isViewVisible(panelView),
+			customViewCachedVisibleSize: grid.getViewCachedVisibleSize(customView),
+		}, {
+			sessionsVisible: true,
+			editorVisible: true,
+			customViewVisible: false,
+			panelVisible: true,
+			customViewCachedVisibleSize: 200,
+		});
+	});
+
 	test('sizing should be correct after branch demotion #50675', function () {
 		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
 		const grid = store.add(new Grid(view1));
@@ -517,6 +550,71 @@ suite('Grid', function () {
 		assert.deepStrictEqual(view2.size, size2);
 		assert.deepStrictEqual(view3.size, size3);
 		assert.deepStrictEqual(view4.size, size4);
+	});
+
+	test('maximization preserves hidden view visibility', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Right);
+
+		const view4 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view4, Sizing.Distribute, view3, Direction.Right);
+
+		grid.setViewVisible(view3, false);
+		grid.setViewVisible(view4, false);
+		const cachedHiddenSizes = [grid.getViewCachedVisibleSize(view3), grid.getViewCachedVisibleSize(view4)];
+
+		grid.maximizeView(view1, [view4]);
+		grid.exitMaximizedView();
+
+		assert.deepStrictEqual({
+			visibility: [view1, view2, view3, view4].map(view => grid.isViewVisible(view)),
+			cachedHiddenSizes: [grid.getViewCachedVisibleSize(view3), grid.getViewCachedVisibleSize(view4)],
+		}, {
+			visibility: [true, true, false, false],
+			cachedHiddenSizes,
+		});
+	});
+
+	test('maximization preserves hidden branch visibility', function () {
+		const deserializer = new TestViewDeserializer(store);
+		const grid = store.add(SerializableGrid.deserialize({
+			orientation: Orientation.VERTICAL,
+			width: 800,
+			height: 600,
+			root: {
+				type: 'branch',
+				data: [
+					{ type: 'leaf', data: { name: 'view1' }, size: 400 },
+					{
+						type: 'branch',
+						data: [
+							{ type: 'leaf', data: { name: 'view2' }, size: 300 },
+							{ type: 'leaf', data: { name: 'view3' }, size: 300 },
+						],
+						size: 400,
+						visible: false,
+					},
+				],
+				size: 800,
+			},
+		}, deserializer));
+		grid.layout(800, 600);
+
+		const view1 = deserializer.getView('view1');
+		const initialRoot = grid.serialize().root;
+		grid.maximizeView(view1);
+		grid.exitMaximizedView();
+
+		assert.deepStrictEqual(grid.serialize().root, initialRoot);
 	});
 
 	test('hasMaximizedView', function () {

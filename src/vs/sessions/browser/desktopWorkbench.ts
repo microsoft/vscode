@@ -252,6 +252,9 @@ export class DesktopWorkbench extends Workbench {
 	}
 
 	protected override _onGridDidChange(): void {
+		if (this._syncingEditorVisibility) {
+			return;
+		}
 		const nodeWidth = this.workbenchGrid.getViewSize(this.editorPartView).width;
 		this._syncEditorVisibility(nodeWidth);
 	}
