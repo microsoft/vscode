@@ -8774,31 +8774,58 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('chat read state reports protocol rejection so callers can retry after initialization', async () => {
-			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
-			const provider = createProvider(disposables, agentHost);
-			const session = setupMultiChatSession(provider, 'chat-read-retry');
-			const sessionUri = AgentSession.uri('copilotcli', 'chat-read-retry').toString();
+		test('legacy hosts preserve client read state and use the session read action', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.9.0' }, undefined);
+			const sessionUri = AgentSession.uri('copilotcli', 'legacy-chat-read').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
-			agentHost.setSessionState('chat-read-retry', 'copilotcli', makeState([
-				makeChatSummary(defaultChat, ''),
-			], { defaultChat }));
-			const main = session.mainChat.get();
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.addSession(createSession('legacy-chat-read', {
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+				chats: [
+					{ chat: URI.parse(defaultChat), kind: 'default', summary: '' },
+					{ chat: URI.parse(peerChat), kind: 'peer', summary: 'Peer' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource) === 'legacy-chat-read');
+			assert.ok(session);
+			const initial = {
+				session: session.isRead.get(),
+				chats: session.chats.get().map(chat => chat.isRead.get()),
+			};
 
-			const rejected = await provider.setChatReadState(session.sessionId, main.resource, true);
-			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: PROTOCOL_VERSION }, undefined);
-			const accepted = await provider.setChatReadState(session.sessionId, main.resource, true);
+			const accepted = await provider.setChatReadState(session.sessionId, session.chats.get()[1].resource, true);
+			fireSessionSummaryChanged(agentHost, 'legacy-chat-read', {
+				chats: [
+					{ resource: defaultChat, title: '' },
+					{ resource: peerChat, title: 'Peer' },
+				],
+				defaultChat,
+			});
 
 			assert.deepStrictEqual({
-				rejected,
+				initial,
 				accepted,
-				isRead: main.isRead.get(),
-				actions: agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged).length,
+				afterRefresh: {
+					session: session.isRead.get(),
+					chats: session.chats.get().map(chat => chat.isRead.get()),
+				},
+				actions: agentHost.dispatchedActions.map(dispatch => ({
+					channel: dispatch.channel,
+					type: dispatch.action.type,
+					isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
+				})),
 			}, {
-				rejected: false,
+				initial: { session: false, chats: [false, false] },
 				accepted: true,
-				isRead: true,
-				actions: 1,
+				afterRefresh: { session: true, chats: [true, true] },
+				actions: [{
+					channel: sessionUri,
+					type: ActionType.SessionIsReadChanged,
+					isRead: true,
+				}],
 			});
 		});
 
