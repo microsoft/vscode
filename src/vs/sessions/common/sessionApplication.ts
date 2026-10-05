@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { uppercaseFirstLetter } from '../../base/common/strings.js';
 import { localize } from '../../nls.js';
 import type { ISessionApplication } from '../services/sessions/common/session.js';
 
@@ -26,6 +27,6 @@ export function getSessionApplication(name: string, title?: string): ISessionApp
 		case 'teams':
 			return { id: name, label: localize('application.teams', "Teams") };
 		default:
-			return { id: name, label: title || name.charAt(0).toUpperCase() + name.slice(1).toLowerCase() };
+			return { id: name, label: title || name.replace(/_/g, ' ').toLowerCase().split(' ').map(uppercaseFirstLetter).join(' ') };
 	}
 }
