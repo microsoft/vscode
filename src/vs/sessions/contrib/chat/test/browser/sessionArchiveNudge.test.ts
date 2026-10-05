@@ -619,6 +619,28 @@ suite('SessionArchiveNudge', () => {
 		});
 	});
 
+	test('removing the latest request does not suppress the nudge', () => runWithFakedTimers({ startTime: 100 }, async () => {
+		const session = createSession();
+		const context = setup([session]);
+		context.setChatRequest(session, 'turn-2', undefined, 80);
+		context.setPullRequest(1, GitHubPullRequestState.Merged);
+		const nudge = context.createNudge();
+		nudge.markShown();
+		const states = [!!nudge.options.get()];
+		context.setChatRequest(session, 'turn-1', undefined, 40);
+		states.push(!!nudge.options.get());
+		context.setChatRequest(session, undefined);
+		states.push(!!nudge.options.get());
+		nudge.dispose();
+		context.reloadService();
+		const reloaded = context.createNudge();
+		states.push(!!reloaded.options.get());
+		context.setChatRequest(session, 'turn-3', undefined, 101);
+		states.push(!!reloaded.options.get());
+
+		assert.deepStrictEqual(states, [true, true, true, true, false]);
+	}));
+
 	test('remembers the shown turn across hidden views and reloads, and observes new turns without a view', () => {
 		const session = createSession();
 		const context = setup([session]);

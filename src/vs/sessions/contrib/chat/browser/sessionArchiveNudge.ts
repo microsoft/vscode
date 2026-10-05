@@ -147,10 +147,9 @@ export class SessionArchiveNudgeService extends Disposable implements ISessionAr
 					const continued = this._getChatModels(session, reader).some(model => {
 						const request = model.lastRequestObs.read(reader);
 						const chatResource = getComparisonKey(model.sessionResource);
-						return !!request && (Object.hasOwn(impression.lastRequestIds, chatResource)
-							? request.id !== impression.lastRequestIds[chatResource]
-							// A newly loaded chat can contain history from before the suggestion.
-							: request.timestamp >= impression.shownAt);
+						// Ignore older history revealed by request removal or lazy chat loading.
+						return !!request && request.timestamp >= impression.shownAt
+							&& (!Object.hasOwn(impression.lastRequestIds, chatResource) || request.id !== impression.lastRequestIds[chatResource]);
 					});
 					if (continued) {
 						this._storageService.store(`${IMPRESSION_STORAGE_KEY_PREFIX}${session.sessionId}`, { ...impression, continued: true }, StorageScope.PROFILE, StorageTarget.MACHINE);
