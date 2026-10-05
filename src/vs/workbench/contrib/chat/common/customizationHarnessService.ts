@@ -25,6 +25,7 @@ import { type CustomizationDisabledReason } from '../../../../platform/agentHost
 import { isAgentBuiltinCustomizationUri } from '../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationEnablementKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import type { IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationResult, McpServerCustomizationMigration } from './promptSyntax/service/customizationMigrationService.js';
+import type { ICustomizationMarketplaceInstallProvider } from './customizationMarketplaceInstallService.js';
 
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -173,6 +174,8 @@ export interface IHarnessDescriptor {
 	 * Supplies harness-specific MCP server migration behavior.
 	 */
 	readonly mcpServerMigrationProvider?: ICustomizationMcpServerMigrationProvider;
+	/** Supplies authoritative installation inventory and mutations for this harness. */
+	readonly marketplaceInstallProvider?: ICustomizationMarketplaceInstallProvider;
 }
 
 /**

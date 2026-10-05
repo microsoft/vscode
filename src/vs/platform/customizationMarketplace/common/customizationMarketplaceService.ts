@@ -63,7 +63,7 @@ export function isCustomizationMarketplaceIconEqual(
 export type CustomizationMarketplaceInstallation =
 	| { readonly kind: 'skill'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
-	| { readonly kind: 'configuredPlugin' }
+	| { readonly kind: 'configuredPlugin'; readonly name?: string; readonly marketplace?: string }
 	| { readonly kind: 'mcp'; readonly name: string; readonly version: string }
 	| { readonly kind: 'mcpGallery'; readonly name: string; readonly registry: 'custom' | 'default'; readonly registryUrl: string }
 	| { readonly kind: 'copilotConnector'; readonly name: string };

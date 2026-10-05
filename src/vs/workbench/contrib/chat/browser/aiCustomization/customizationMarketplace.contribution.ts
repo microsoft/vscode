@@ -14,7 +14,9 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IPlatformCustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceIpc.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
@@ -22,6 +24,7 @@ import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR, CONTEXT_AI_CUSTOMIZATION_MA
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
 import { CopilotConnectorsService, ICopilotConnectorsService } from './copilotConnectorsService.js';
 import { CustomizationMarketplaceInstallService } from './customizationMarketplaceInstallService.js';
+import { removeLegacyCustomizationMarketplaceInstallationRecords } from './customizationMarketplaceInstallationAssociation.js';
 import { CustomizationMarketplaceWorkbenchService, PlatformCustomizationMarketplaceWorkbenchService } from './customizationMarketplaceWorkbenchService.js';
 
 if (isWeb) {
@@ -31,6 +34,20 @@ registerSingleton(ICustomizationMarketplaceService, CustomizationMarketplaceWork
 registerSingleton(ICopilotConnectorsService, CopilotConnectorsService, InstantiationType.Delayed);
 registerSingleton(ICopilotConnectorsRequestService, CopilotConnectorsRequestService, InstantiationType.Delayed);
 registerSingleton(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService, InstantiationType.Delayed);
+
+class CustomizationMarketplaceInstallationMigrationContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.customizationMarketplaceInstallationMigration';
+
+	constructor(@IStorageService storageService: IStorageService) {
+		removeLegacyCustomizationMarketplaceInstallationRecords(storageService);
+	}
+}
+
+registerWorkbenchContribution2(
+	CustomizationMarketplaceInstallationMigrationContribution.ID,
+	CustomizationMarketplaceInstallationMigrationContribution,
+	WorkbenchPhase.BlockStartup,
+);
 
 class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 110;
@@ -65,7 +82,7 @@ class CustomizationDiscoveryAccessibleView implements IAccessibleViewImplementat
 				localize('customizationDiscovery.help.browse', "Clear the search to browse. Show All on a section applies its type filter and moves to search results."),
 				localize('customizationDiscovery.help.sources', "Use the source picker to search all available marketplace feeds or one feed. Configure Marketplaces opens the related settings."),
 				localize('customizationDiscovery.help.navigation', "Use Tab and Shift+Tab between controls. In search results, use the arrow keys, Home, and End to navigate the list. Press Enter or Space on an available item to open its in-product details. Press Enter to open an installed item."),
-				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. For connectors, choose Connect, Reconnect, or Disconnect to manage the connection. VS Code records the exact installed target instead of associating same-name local items. If recorded skill files are missing, choose Repair to restore only those files without overwriting existing files. Installed marketplace items provide an Uninstall action. MCP servers that require unsupported local prerequisites provide View Setup to open the publisher's instructions instead. VS Code continues to apply destination, trust, policy, and compatibility checks."),
+				localize('customizationDiscovery.help.install', "Review an available item's source, then choose Install. For connectors, choose Connect, Reconnect, or Disconnect to manage the connection. When the selected agent provides SDK installation management, its inventory is authoritative and its exact review is shown before installation or removal. Repair asks the owning SDK or local implementation to recover missing content. Installed marketplace items provide an Uninstall action. MCP servers that require unsupported local prerequisites provide View Setup to open the publisher's instructions instead. VS Code continues to apply destination, trust, policy, and compatibility checks."),
 				localize('customizationDiscovery.help.links', "Available customization names no longer open external resources. Open an item's details to review its metadata, then use the explicitly labeled resource or repository actions for external navigation. Back or Escape returns to Discover and restores focus."),
 				localize('customizationDiscovery.help.paging', "Scrolling near the end of search results loads another page without removing loaded items. Retry repeats a failed marketplace request."),
 				localize('customizationDiscovery.help.sourceFailures', "Unavailable sources show a warning and Retry action above the results. Scrolling continues healthy sources. Retrying a source reloads all sources from the first page to restore relevance order."),

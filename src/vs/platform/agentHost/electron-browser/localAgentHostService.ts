@@ -35,7 +35,7 @@ import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExte
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
-import { AgentHostAhpJsonlLoggingSettingId, type AgentHostDebugLogsArtifactKind, AgentHostIpcChannels, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, type IAgentHostDebugLogsArtifact, IAgentHostManagementService, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type IAgentHostOTelSettings, type IAgentHostOTelPolicyReadiness, IAgentHostService, IAgentHostSocketInfo, IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, readAgentHostOTelPolicySettings, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, type AgentHostDebugLogsArtifactKind, AgentHostIpcChannels, AgentHostOTelPolicyIpcChannel, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentHostInspectInfo, type IAgentHostDebugLogsArtifact, IAgentHostManagementService, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type IAgentHostOTelSettings, type IAgentHostOTelPolicyReadiness, IAgentHostService, IAgentHostSocketInfo, IAgentPluginInstallRequest, IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, readAgentHostOTelPolicySettings, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -473,6 +473,26 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
 		return this._getManagementService().uninstallPlugin(provider, request);
+	}
+
+	installPlugin(provider: string, request: IAgentPluginInstallRequest): Promise<void> {
+		return this._getManagementService().installPlugin(provider, request);
+	}
+
+	listCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().listCustomizationInstallations(provider, session);
+	}
+
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
+	}
+
+	applyCustomizationInstallation(provider: string, operationId: string): Promise<void> {
+		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	}
+
+	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().recoverCustomizationInstallations(provider, session);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

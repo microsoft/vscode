@@ -1,0 +1,295 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
+import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+
+export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider {
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = Event.any(
+		this._onDidChange.event,
+		this.agentHostCustomizationService.onDidChangeCustomizations,
+		Event.fromObservableLight(this.agentPluginService.plugins),
+		this.agentHostService.onAgentHostStart,
+		Event.map(this.agentHostService.onAgentHostExit, () => undefined),
+	);
+
+	constructor(
+		private readonly providerId: string,
+		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
+		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IDialogService private readonly dialogService: IDialogService,
+	) {
+		super();
+	}
+
+	getInstallUnavailableMessage(resource: ICustomizationMarketplaceResource): string | undefined {
+		const installation = resource.installation;
+		if (installation?.kind === 'plugin') {
+			return localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.");
+		}
+		if (installation?.kind === 'configuredPlugin' && (!installation.name || !installation.marketplace)) {
+			return localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable.");
+		}
+		if ((installation?.kind === 'skill' || installation?.kind === 'mcp') && !resource.externalUrl && !resource.url) {
+			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the SDK catalog identity required for installation.");
+		}
+		return undefined;
+	}
+
+	async getInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
+		this.throwIfCancelled(token);
+		if (!this.agentHostService.listCustomizationInstallations) {
+			return this.getPluginInstallations();
+		}
+		const installations = await this.agentHostService.listCustomizationInstallations(this.providerId, sessionResource);
+		this.throwIfCancelled(token);
+		return [
+			...installations.map(installation => this.toRecordedInstallation(sessionResource, installation)),
+			...this.getPluginInstallations(),
+		];
+	}
+
+	async install(sessionResource: URI, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
+		this.throwIfCancelled(token);
+		const installation = resource.installation;
+		if (installation?.kind === 'configuredPlugin') {
+			if (!installation.name || !installation.marketplace) {
+				throw new Error(localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable."));
+			}
+			if (!this.agentHostService.installPlugin) {
+				throw new Error(localize('agentHost.customizationInstall.pluginUnavailable', "The selected agent does not support SDK plugin installation."));
+			}
+			await this.agentHostService.installPlugin(this.providerId, { source: `${installation.name}@${installation.marketplace}` });
+			this.throwIfCancelled(token);
+			this._onDidChange.fire();
+			return;
+		}
+		if (installation?.kind === 'plugin') {
+			throw new Error(this.getInstallUnavailableMessage(resource)!);
+		}
+		if (installation?.kind !== 'skill' && installation?.kind !== 'mcp') {
+			throw new Error(localize('agentHost.customizationInstall.unsupported', "The selected agent does not support installing this customization through its SDK."));
+		}
+		const review = await this.prepare(sessionResource, {
+			mediaType: resource.mediaType,
+			identifier: resource.identifier,
+			displayName: resource.displayName,
+			description: resource.description,
+			version: resource.version,
+			itemUrl: resource.externalUrl ?? resource.url?.toString(true),
+			installation: { kind: installation.kind },
+		}, token);
+		await this.confirmAndApply(review, token);
+	}
+
+	async repair(sessionResource: URI, installation: IRecordedCustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
+		this.throwIfCancelled(token);
+		if (!installation.installationId || !this.agentHostService.recoverCustomizationInstallations) {
+			throw new Error(localize('agentHost.customizationInstall.repairUnavailable', "The selected agent cannot repair this SDK installation."));
+		}
+		const recovered = await this.agentHostService.recoverCustomizationInstallations(this.providerId, sessionResource);
+		this.throwIfCancelled(token);
+		const current = recovered.find(candidate => candidate.installationId === installation.installationId);
+		if (!current || current.state !== 'installed') {
+			throw new Error(current?.errorMessage ?? localize('agentHost.customizationInstall.repairIncomplete', "The SDK could not repair this customization installation."));
+		}
+		this._onDidChange.fire();
+	}
+
+	async uninstall(sessionResource: URI, installation: IRecordedCustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
+		this.throwIfCancelled(token);
+		if (installation.state.target.kind === 'plugin') {
+			const target = installation.state.target;
+			const plugin = target.uri
+				? this.agentPluginService.plugins.get().find(candidate => candidate.uri.toString() === target.uri?.toString())
+				: undefined;
+			const identity = plugin?.copilotCliInstallation;
+			if (!identity || !this.agentHostService.uninstallPlugin) {
+				throw new Error(localize('agentHost.customizationInstall.pluginRemovalUnavailable', "The SDK plugin installation identity is unavailable."));
+			}
+			await this.agentHostService.uninstallPlugin(this.providerId, {
+				name: identity.name,
+				marketplace: identity.marketplace,
+				directSourceId: identity.directSourceId,
+			});
+			this.throwIfCancelled(token);
+			this._onDidChange.fire();
+			return;
+		}
+		if (!installation.installationId) {
+			throw new Error(localize('agentHost.customizationInstall.removalUnavailable', "The SDK installation identity is unavailable."));
+		}
+		const review = await this.prepare(sessionResource, { installationId: installation.installationId }, token);
+		await this.confirmAndApply(review, token);
+	}
+
+	private async prepare(sessionResource: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }, token: CancellationToken): Promise<IAgentCustomizationInstallationReview> {
+		if (!this.agentHostService.prepareCustomizationInstallation) {
+			throw new Error(localize('agentHost.customizationInstall.prepareUnavailable', "The selected agent does not support SDK installation review."));
+		}
+		const review = await this.agentHostService.prepareCustomizationInstallation(this.providerId, sessionResource, request);
+		this.throwIfCancelled(token);
+		return review;
+	}
+
+	private async confirmAndApply(review: IAgentCustomizationInstallationReview, token: CancellationToken): Promise<void> {
+		const confirmation = await this.dialogService.confirm({
+			type: 'question',
+			message: review.action === 'install'
+				? localize('agentHost.customizationInstall.confirmInstall', "Install '{0}'?", review.displayName)
+				: localize('agentHost.customizationInstall.confirmUninstall', "Uninstall '{0}'?", review.displayName),
+			detail: this.getReviewDetail(review),
+			primaryButton: review.action === 'install'
+				? localize('agentHost.customizationInstall.installButton', "Install")
+				: localize('agentHost.customizationInstall.uninstallButton', "Uninstall"),
+			custom: { icon: Codicon.shield },
+		});
+		this.throwIfCancelled(token);
+		if (!confirmation.confirmed) {
+			throw new CancellationError();
+		}
+		if (!this.agentHostService.applyCustomizationInstallation) {
+			throw new Error(localize('agentHost.customizationInstall.applyUnavailable', "The selected agent cannot apply this SDK installation."));
+		}
+		await this.agentHostService.applyCustomizationInstallation(this.providerId, review.operationId);
+		this.throwIfCancelled(token);
+		this._onDidChange.fire();
+	}
+
+	private getReviewDetail(review: IAgentCustomizationInstallationReview): string {
+		if (review.kind === 'skill') {
+			const modifiedDetail = review.filesModified
+				? localize('agentHost.customizationInstall.skillFilesModified', "\n\nThe installed files have been modified. The SDK will refuse removal if they changed after this review.")
+				: '';
+			return review.action === 'install'
+				? localize('agentHost.customizationInstall.skillInstallDetail', "Skills can supply instructions and scripts that an agent may run. Only install resources from sources you trust.\n\nSource: {0}\nDestination: {1}\nFiles: {2}\nSize: {3} bytes", review.source, review.target, review.fileCount, review.totalBytes)
+				: localize('agentHost.customizationInstall.skillUninstallDetail', "The SDK will remove {0} owned files ({1} bytes) from {2}.{3}", review.fileCount, review.totalBytes, review.target, modifiedDetail);
+		}
+		if (review.action === 'install') {
+			return localize('agentHost.customizationInstall.mcpInstallDetail', "MCP servers can run tools and access external services. Only install resources from sources you trust.\n\nServer: {0}\nDestination: {1}\nEndpoint: {2}\nConfiguration fields: {3}", review.serverName, review.target, review.endpoint ?? localize('agentHost.customizationInstall.notApplicable', "Not applicable"), review.configurationFields.join(', ') || localize('agentHost.customizationInstall.none', "None"));
+		}
+		return localize('agentHost.customizationInstall.mcpUninstallDetail', "Server: {0}\nRestores previous configuration: {1}\nShared authentication is preserved: {2}", review.serverName, review.restoresPreviousConfiguration ? localize('agentHost.customizationInstall.yes', "Yes") : localize('agentHost.customizationInstall.no', "No"), review.preservesSharedAuthentication ? localize('agentHost.customizationInstall.yes', "Yes") : localize('agentHost.customizationInstall.no', "No"));
+	}
+
+	private toRecordedInstallation(sessionResource: URI, installation: IAgentCustomizationInstallation): IRecordedCustomizationMarketplaceResource {
+		const resource = this.toMarketplaceResource(installation);
+		const state = installation.state === 'error'
+			? { kind: 'error' as const, message: installation.errorMessage ?? localize('agentHost.customizationInstall.inventoryError', "The SDK could not verify this installation."), target: this.getTarget(sessionResource, installation) }
+			: { kind: installation.state, target: this.getTarget(sessionResource, installation) };
+		return { installationId: installation.installationId, resource, state };
+	}
+
+	private toMarketplaceResource(installation: IAgentCustomizationInstallation): ICustomizationMarketplaceResource {
+		const catalogue = installation.catalogue;
+		return {
+			sourceId: this.getSourceId(catalogue?.source),
+			identifier: catalogue?.resourceId ?? catalogue?.itemUrl ?? installation.installationId,
+			displayName: catalogue?.displayName ?? (installation.kind === 'skill' ? installation.name : installation.serverName),
+			description: catalogue?.description ?? '',
+			mediaType: installation.mediaType,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			version: catalogue?.version,
+			externalUrl: catalogue?.itemUrl,
+			url: catalogue?.itemUrl ? URI.parse(catalogue.itemUrl) : undefined,
+			publisher: catalogue?.publisher,
+		};
+	}
+
+	private getTarget(sessionResource: URI, installation: IAgentCustomizationInstallation) {
+		if (installation.kind === 'mcp') {
+			const server = this.agentHostCustomizationService.getMcpServers(sessionResource).find(candidate => candidate.name === installation.serverName);
+			return { kind: 'mcp' as const, id: server?.id, name: installation.serverName };
+		}
+		return { kind: 'skill' as const, uri: installation.targetUri, name: installation.name };
+	}
+
+	private getPluginInstallations(): readonly IRecordedCustomizationMarketplaceResource[] {
+		const result: IRecordedCustomizationMarketplaceResource[] = [];
+		for (const plugin of this.agentPluginService.plugins.get()) {
+			const installation = plugin.copilotCliInstallation;
+			if (!installation) {
+				continue;
+			}
+			const resource = toPluginMarketplaceResource(plugin);
+			result.push({
+				installationId: getPluginInstallationId(installation),
+				resource,
+				state: { kind: 'installed', target: { kind: 'plugin', uri: plugin.uri, name: installation.name } },
+			});
+		}
+		return result;
+	}
+
+	private getSourceId(source: string | undefined): string {
+		if (!source) {
+			return CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
+		}
+		try {
+			return URI.parse(source).authority === 'agentfinder.github.com'
+				? CustomizationMarketplaceSources.AgentFinderPublicFeed.id
+				: source;
+		} catch {
+			return source;
+		}
+	}
+
+	private throwIfCancelled(token: CancellationToken): void {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+	}
+}
+
+function toPluginMarketplaceResource(plugin: IAgentPlugin): ICustomizationMarketplaceResource {
+	const installation = plugin.copilotCliInstallation!;
+	const version = plugin.version?.get();
+	const source = installation.source;
+	const configured = installation.marketplace
+		? { kind: 'configuredPlugin' as const, name: installation.name, marketplace: installation.marketplace }
+		: undefined;
+	const direct = source?.kind === 'github'
+		? {
+			kind: 'plugin' as const,
+			repository: source.repository,
+			ref: source.sha ?? source.ref ?? 'HEAD',
+			path: source.path ?? '',
+		}
+		: undefined;
+	return {
+		sourceId: configured ? CustomizationMarketplaceSources.PluginMarketplaces.id : CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+		identifier: configured ? JSON.stringify([installation.marketplace, installation.name]) : installation.directSourceId ?? plugin.uri.toString(),
+		displayName: plugin.label,
+		description: '',
+		mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+		tags: [],
+		capabilities: [],
+		representativeQueries: [],
+		version,
+		installation: configured ?? direct,
+	};
+}
+
+function getPluginInstallationId(installation: NonNullable<IAgentPlugin['copilotCliInstallation']>): string {
+	return installation.marketplace
+		? `plugin:${installation.marketplace}:${installation.name}`
+		: `plugin:direct:${installation.directSourceId ?? installation.name}`;
+}

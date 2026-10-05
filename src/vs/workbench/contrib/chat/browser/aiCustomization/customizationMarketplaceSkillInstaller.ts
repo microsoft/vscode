@@ -26,13 +26,13 @@ import { IMarketplacePlugin, IMarketplaceReference, MarketplaceReferenceKind, Ma
 import { SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationLocationPicker } from './customizationCreatorService.js';
-import { CustomizationMarketplaceInstallationRecordTarget, ICustomizationMarketplaceInstallationRecord } from './customizationMarketplaceInstallationRecordStore.js';
+import { CustomizationMarketplaceInstallationAssociationTarget, ICustomizationMarketplaceInstallationAssociation } from './customizationMarketplaceInstallationAssociation.js';
 
 const maxSkillEntries = 1000;
 const maxSkillBytes = 50 * 1024 * 1024;
 const maxSkillRecordPathCharacters = 1024 * 1024;
 
-type SkillInstallationTarget = Extract<CustomizationMarketplaceInstallationRecordTarget, { kind: 'skill' }>;
+type SkillInstallationTarget = Extract<CustomizationMarketplaceInstallationAssociationTarget, { kind: 'skill' }>;
 
 /** Installs and repairs complete skill packages without exposing staging or repository mechanics. */
 export class CustomizationMarketplaceSkillInstaller {
@@ -151,12 +151,12 @@ export class CustomizationMarketplaceSkillInstaller {
 		};
 	}
 
-	async repair(record: ICustomizationMarketplaceInstallationRecord, enabledToken: CancellationToken, isApplicable: () => boolean): Promise<void> {
-		if (record.target.kind !== 'skill' || record.installation.kind !== 'skill') {
+	async repair(association: ICustomizationMarketplaceInstallationAssociation, enabledToken: CancellationToken, isApplicable: () => boolean): Promise<void> {
+		if (association.target.kind !== 'skill' || association.installation?.kind !== 'skill') {
 			throw new Error(localize('customizationMarketplace.invalidSkillRecord', "The recorded skill installation is invalid."));
 		}
-		const target = record.target;
-		const installation = record.installation;
+		const target = association.target;
+		const installation = association.installation;
 		this.getSkillSource(installation);
 		const reference = parseMarketplaceReference(`${installation.repository}#${target.resolvedRevision}`);
 		if (!reference || reference.kind !== MarketplaceReferenceKind.GitHubShorthand) {
@@ -165,7 +165,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		const targetRoot = dirname(target.uri);
 		const confirmation = await this.dialogService.confirm({
 			type: 'question',
-			message: localize('customizationMarketplace.confirmSkillRepair', "Repair '{0}'?", record.displayName),
+			message: localize('customizationMarketplace.confirmSkillRepair', "Repair '{0}'?", association.displayName),
 			detail: localize('customizationMarketplace.confirmSkillRepairDetail', "Missing files will be restored without overwriting existing files.\n\nSource: {0}\nRevision: {1}\nDestination: {2}",
 				`${installation.repository}/${installation.path}`, target.resolvedRevision, this.labelService.getUriLabel(targetRoot)),
 			primaryButton: localize('customizationMarketplace.repairSkillButton', "Repair"),
@@ -178,7 +178,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		const session = this.harnessService.activeSessionResource.get();
 		const project = this.workspaceService.getActiveProjectRoot();
 		const checkContext = (token: CancellationToken = CancellationToken.None) => {
-			this.checkEnabled(record.sourceId, enabledToken);
+			this.checkEnabled(association.sourceId, enabledToken);
 			if (token.isCancellationRequested || harness !== this.harnessService.activeHarness.get() || !isEqual(session, this.harnessService.activeSessionResource.get()) || !isEqual(project, this.workspaceService.getActiveProjectRoot()) || !isApplicable()) {
 				throw new CancellationError();
 			}
@@ -189,7 +189,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
-				title: localize('customizationMarketplace.repairingSkill', "Repairing skill '{0}'", record.displayName),
+				title: localize('customizationMarketplace.repairingSkill', "Repairing skill '{0}'", association.displayName),
 				cancellable: true,
 			}, async () => {
 				const resolved = await this.resolvePinnedSkillSourceDirectory(reference, installation.path, target.resolvedRevision, () => checkContext(token), token);
