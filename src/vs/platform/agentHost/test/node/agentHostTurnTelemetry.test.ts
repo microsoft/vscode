@@ -373,9 +373,9 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			fire({ type: ActionType.ChatTurnComplete, turnId: 'shared-turn', duration: 1 }, chat);
 		}
 		const expected = [
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'free', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 60 },
-			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40, chatgptFiveHourQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'free', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 60, chatgptFiveHourQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 		];
 		const sent = [defaultChatUri, peerChat, secondChat].map(chat => {
 			const context = sends.getCalls().find(call => call.args[0].toString() === chat)?.args[7];
@@ -399,9 +399,11 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		codex.chatgptPlanTier = 'pro';
 		codex.chatgptWeeklyQuotaState = 'available';
 		codex.chatgptWeeklyUsedPercentBucket = 100;
+		codex.chatgptFiveHourQuotaState = 'available';
+		codex.chatgptFiveHourUsedPercentBucket = 100;
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
 		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing', chatgptFiveHourQuotaState: 'missing' },
 		]);
 	});
 
@@ -2289,8 +2291,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		account = { usageSource: 'openai', status: 'error' };
 		fire({ type: ActionType.ChatTurnComplete, turnId: queuedTurnId, duration: 1 });
 		assert.deepStrictEqual(completedEvents().map(event => Object.fromEntries(Object.entries(event.data as object).filter(([key]) => key.startsWith('chatgpt')))), [
-			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'missing', chatgptFiveHourQuotaState: 'missing' },
 		]);
 	});
 
