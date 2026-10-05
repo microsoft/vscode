@@ -466,6 +466,45 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const protocolVersion of ['0.9.0', '0.10.0']) {
+		test(`marks the default chat read with protocol ${protocolVersion}`, async () => {
+			connection.handshakeState.set({ ...connection.handshakeState.get(), protocolVersion }, undefined);
+			const backend = URI.parse('ahp-session://tenant/read-state');
+			const chat = URI.parse('conversation://tenant/main-read');
+			connection.addSession({
+				...createSession('read-state', { status: ProtocolSessionStatus.Idle }),
+				session: backend,
+				provider: 'copilotcli',
+				chats: [{ chat, kind: 'default', isRead: false }],
+			});
+			const provider = createProvider(disposables, connection);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId);
+			connection.setChannelState(backend, upcastPartial<SessionState>({
+				provider: 'copilotcli',
+				title: 'Read state',
+				status: ProtocolSessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				defaultChat: chat.toString(),
+				chats: [{ resource: chat.toString(), title: 'Default', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+			}));
+			const before = session.mainChat.get().isRead.get();
+			const accepted = await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+			assert.deepStrictEqual({
+				before, accepted, read: session.mainChat.get().isRead.get(),
+				actions: connection.dispatchedActions.map(action => ({ channel: action.channel, type: action.action.type })),
+			}, {
+				before: false, accepted: true, read: true,
+				actions: [{
+					channel: protocolVersion === '0.9.0' ? backend.toString() : chat.toString(),
+					type: protocolVersion === '0.9.0' ? ActionType.SessionIsReadChanged : ActionType.ChatIsReadChanged
+				}],
+			});
+		});
+	}
+
 	// ---- Provider identity -------
 
 	test('derives id and label from config, and session types from rootState agents', () => {

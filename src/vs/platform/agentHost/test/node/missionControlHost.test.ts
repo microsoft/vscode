@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
@@ -14,14 +16,15 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
 import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentService } from '../../common/agentService.js';
-import { OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '../../node/missionControl/missionControlEnvironment.js';
 import { getMissionControlEnvironmentName, MissionControlHost } from '../../node/missionControl/missionControlHost.js';
+import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
+import { ProtocolServerHandler, type IProtocolServerConfig } from '../../node/protocolServerHandler.js';
 
 suite('Mission Control host integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,10 +45,8 @@ suite('Mission Control host integration', () => {
 		});
 	}
 
-	test('constructs in a built product without starting registration before opt-in', async () => {
-		let requests = 0;
-		let handlers = 0;
-		const instantiation = store.add(new TestInstantiationService());
+	function createHost(instantiation = store.add(new TestInstantiationService())) {
+		const counts = { requests: 0, handlers: 0 };
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
 			override readonly isBuilt = true;
 			override readonly userDataPath = '/unused-mission-control-test-profile';
@@ -56,7 +57,7 @@ suite('Mission Control host integration', () => {
 		}());
 		instantiation.stub(IAgentHostProxyResolver, new class extends mock<IAgentHostProxyResolver>() {
 			override async fetch(): Promise<never> {
-				requests++;
+				counts.requests++;
 				throw new Error('Registration must not start before opt-in');
 			}
 		}());
@@ -72,19 +73,44 @@ suite('Mission Control host integration', () => {
 		const host = store.add(instantiation.createInstance(MissionControlHost, {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
 			clientFileSystemProvider: store.add(instantiation.createInstance(AgentHostClientFileSystemProvider)),
-			otlpLogEmitter: store.add(new OtlpLogEmitter()),
-			trackProtocolHandler: () => {
-				handlers++;
-				throw new Error('Relay ingress must not start before opt-in');
+			trackProtocolHandler: handler => {
+				counts.handlers++;
+				return toDisposable(() => handler.dispose());
 			},
 		}));
+		return { host, counts };
+	}
+
+	test('constructs in a built product without starting registration before opt-in', async () => {
+		const { host, counts } = createHost();
 		await host.environment.configure(undefined);
 		assert.deepStrictEqual({
 			constructed: host.environment instanceof MissionControlEnvironment,
 			enabled: host.environment.isEnabled,
 			environmentId: host.environment.environmentId,
-			requests,
-			handlers,
+			...counts,
 		}, { constructed: true, enabled: false, environmentId: undefined, requests: 0, handlers: 0 });
+	});
+
+	test('does not advertise or forward host-wide diagnostic logs on Mission Control ingress', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() {
+			override dispose(): void { }
+		}());
+		createHost(instantiation);
+		const environmentCreation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
+		assert.ok(environmentCreation);
+		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
+		const relay = new class extends mock<MissionControlProtocolServer>() { }();
+		store.add(options.attach(relay, [], () => []));
+		const handlerCreation = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler);
+		assert.ok(handlerCreation);
+		const config = handlerCreation.args[4] as IProtocolServerConfig;
+		assert.deepStrictEqual({
+			hostManagement: config.allowExtensionMethods,
+			diagnosticLogs: config.otlpLogEmitter,
+		}, { hostManagement: false, diagnosticLogs: undefined });
 	});
 });

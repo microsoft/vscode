@@ -137,7 +137,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 /** Validates a GitHub credential without retaining it or exposing response content. */
 export async function resolveMissionControlOwner(fetcher: typeof fetch, apiOrigin: string, credential: string): Promise<string> {
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
-		throw new Error('Invalid GitHub credential encoding');
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Invalid GitHub credential encoding');
 	}
 	const response = await fetcher(new URL('user', `${apiOrigin.replace(/\/$/, '')}/`), {
 		headers: { Authorization: `Bearer ${credential}`, Accept: 'application/vnd.github+json' },
@@ -145,7 +145,9 @@ export async function resolveMissionControlOwner(fetcher: typeof fetch, apiOrigi
 		signal: AbortSignal.timeout(15_000),
 	});
 	if (!response.ok) {
-		throw new Error(`GitHub identity validation failed (${response.status})`);
+		const denied = response.status === 401 || (response.status === 403
+			&& !response.headers.has('Retry-After') && response.headers.get('X-RateLimit-Remaining') !== '0');
+		throw new ProtocolError(denied ? JsonRpcErrorCodes.InvalidParams : JsonRpcErrorCodes.InternalError, `GitHub identity validation failed (${response.status})`);
 	}
 	let user: unknown;
 	try {
@@ -157,7 +159,7 @@ export async function resolveMissionControlOwner(fetcher: typeof fetch, apiOrigi
 		throw error;
 	}
 	if (!isObject(user) || !Number.isSafeInteger(user.id) || (user.id as number) <= 0 || user.type !== 'User') {
-		throw new Error('Mission Control requires a canonical GitHub user identity');
+		throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Mission Control requires a canonical GitHub user identity');
 	}
 	return String(user.id);
 }

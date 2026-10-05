@@ -3886,6 +3886,39 @@ suite('AgentHostProtocolClient', () => {
 			assert.deepStrictEqual({ preparations, activeSessions }, { preparations: 2, activeSessions: 3 });
 		}));
 
+		for (const code of [JsonRpcErrorCodes.InternalError, JsonRpcErrorCodes.InvalidParams]) {
+			test(`initial authentication ${code} distinguishes a retryable host fault from rejected credentials`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => ({ resource: 'https://api.example.com', token: 'fresh-credential' }),
+				});
+				const connecting = assert.rejects(client.connect(), /identity validation failed/);
+				transports[0].connectDeferred.complete();
+				const initialize = await waitForRequestAtWithin(transports[0], 'initialize', 0);
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] }
+				});
+				const firstAuthentication = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: firstAuthentication.id, error: { code, message: 'identity validation failed' } });
+				await connecting;
+				const afterFailure = client.connectionState;
+				if (code === JsonRpcErrorCodes.InternalError) {
+					const retry = await waitForTransport(transports, 1);
+					retry.connectDeferred.complete();
+					const reconnect = await waitForRequestAtWithin(retry, 'reconnect', 0, 100);
+					retry.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					const authenticate = await waitForRequestAtWithin(retry, 'authenticate', 0, 100);
+					retry.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+					await waitForConnectedWithin(client, 100);
+				}
+				const final = client.connectionState;
+				client.dispose();
+				assert.deepStrictEqual({ afterFailure, final }, code === JsonRpcErrorCodes.InternalError
+					? { afterFailure: AgentHostClientState.Reconnecting, final: AgentHostClientState.Connected }
+					: { afterFailure: AgentHostClientState.Incompatible, final: AgentHostClientState.Incompatible });
+			}));
+		}
+
 		for (const outcome of ['success', 'transient failure', 'disposed'] as const) {
 			test(`prepares initial authentication before sending credentials: ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const preparing = new DeferredPromise<void>();

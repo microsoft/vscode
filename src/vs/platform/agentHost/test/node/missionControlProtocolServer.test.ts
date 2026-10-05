@@ -39,6 +39,9 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 		const frame = JSON.parse(data) as { type: string; event?: string; ackId?: number; group?: string; data?: { kind: string; data: object }; sequenceId?: number };
 		if (frame.type === 'event' && frame.event && frame.data) {
 			this.userEvents.push({ event: frame.event, data: frame.data });
+			if (frame.ackId) {
+				this.publishAckIds.push(frame.ackId);
+			}
 		}
 		if (frame.type === 'joinGroup' && frame.group) {
 			this.joins.push(frame.group);
@@ -52,7 +55,7 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 		if (frame.type === 'sequenceAck' && frame.sequenceId) {
 			this.acknowledgements.push(frame.sequenceId);
 		}
-		if (frame.ackId && !(this._manualPublishAcks && frame.type === 'sendToGroup')) {
+		if (frame.ackId && !(this._manualPublishAcks && (frame.type === 'sendToGroup' || frame.type === 'event'))) {
 			this.emit('message', JSON.stringify({ type: 'ack', ackId: frame.ackId, success: this._ackSuccess }));
 		}
 	}
@@ -373,6 +376,58 @@ suite('Mission Control WPS', () => {
 			clock.restore();
 		}
 	});
+
+	for (const { name, count, title } of [
+		{ name: 'frame count', count: 600, title: 'Title' },
+		{ name: 'byte budget', count: 48, title: 'x'.repeat(512 * 1024) },
+	]) {
+		test(`backpressures historical mirror ${name} without disconnecting interactive lanes`, async () => {
+			const clock = sinon.useFakeTimers();
+			const { key, signed } = signingFixture();
+			const socket = new FakeWpsSocket(true, true);
+			const mirror = store.add(new MissionControlSessionMirror('environment', {}, new NullLogService()));
+			const session = 'ahp-session:/large-mirror';
+			mirror.registerSession(session);
+			for (let index = 0; index < count; index++) {
+				assert.strictEqual(mirror.enqueue({ channel: session, serverSeq: index, origin: undefined, action: { type: ActionType.SessionTitleChanged, title: `${title} ${index}` } }, session), true);
+			}
+			const server = store.add(new MissionControlProtocolServer(
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control`, ingest_ack: `${prefix}.ingest-ack` } },
+				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+				() => socket, undefined, undefined, undefined, mirror,
+			));
+			store.add(server.onConnection(lane => {
+				store.add(lane.onMessage(() => lane.send({ jsonrpc: '2.0', id: 1, result: null })));
+			}));
+			try {
+				const ready = server.connect();
+				socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+				await ready;
+				store.add(mirror.attach(event => server.publishMirrorEvent(event)));
+				await clock.tickAsync(5);
+				const beforeDrain = { sent: socket.userEvents.length, retained: mirror.getSessionStatus(session).retainedFrames, closed: server.isClosed };
+				socket.deliver(`${prefix}.control`, signed('client-a', 'mirror-pressure'), 1);
+				socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client-a' } }, 2);
+				for (let index = 0; index < count + 2 && socket.userEvents.length < count; index++) {
+					const ackId = socket.publishAckIds[index];
+					assert.ok(ackId !== undefined, 'Mirror must resume when transport capacity becomes available');
+					socket.emit('message', JSON.stringify({ type: 'ack', ackId, success: true }));
+					await clock.tickAsync(1);
+				}
+				assert.deepStrictEqual({
+					beforeDrain, mirrored: socket.userEvents.length, replies: socket.publishes.length,
+					retained: mirror.getSessionStatus(session).retainedFrames, failure: mirror.getSessionStatus(session).failure, closed: server.isClosed,
+				}, {
+					beforeDrain: { sent: 1, retained: count, closed: false }, mirrored: count, replies: 1,
+					retained: count, failure: undefined, closed: false,
+				});
+			} finally {
+				server.dispose();
+				mirror.dispose();
+				clock.restore();
+			}
+		});
+	}
 
 	test('failed relay startup marks the registered environment offline', async () => {
 		const path = await mkdtemp(join(tmpdir(), 'mission-control-failed-start-'));

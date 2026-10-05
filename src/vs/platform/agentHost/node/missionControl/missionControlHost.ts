@@ -15,7 +15,6 @@ import type { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import type { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
 import { parseAnnotationsUri } from '../../common/annotationsUri.js';
 import { parseChangesetUri } from '../../common/changesetUri.js';
-import type { OtlpLogEmitter } from '../../common/otlp/otlpLogEmitter.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { parseChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
@@ -31,7 +30,6 @@ import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly clientFileSystemProvider: AgentHostClientFileSystemProvider;
-	readonly otlpLogEmitter: OtlpLogEmitter;
 	readonly trackProtocolHandler: (handler: ProtocolServerHandler) => IDisposable;
 }
 
@@ -99,7 +97,6 @@ export class MissionControlHost extends Disposable {
 				relayRootMeta: relay.rootMeta,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
-				otlpLogEmitter: this._options.otlpLogEmitter,
 			},
 			this._options.clientFileSystemProvider,
 		);

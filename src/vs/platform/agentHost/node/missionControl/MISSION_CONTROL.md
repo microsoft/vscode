@@ -41,7 +41,7 @@ Enable `chat.remoteAgentHostsEnabled` and invoke **Connect to Mission Control En
 
 Selection revalidates availability. An offline user-local host is not woken or replaced; start its owning application before connecting. Discovery itself does not provision compute or create sessions. Connected user-local hosts use the generic native Sessions provider, not the managed-sandbox task/history/checkout adapter. The fuller retained-host/management UX is a separate increment.
 
-New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
+New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
 ## Security and data handling
 
@@ -59,16 +59,20 @@ The SDK's canonical device `remoteControl` branch is read before registration an
 
 The host uses proxy-aware bounded HTTP, a normal heartbeat cadence, and service-requested `Retry-After` waits. Recovery does not bypass those waits; disabling closes ingress even when its offline heartbeat must be delayed. WPS bootstrap/key refresh and relay keep-alive are independent of ordinary inbound traffic.
 
+Host-wide diagnostic log channels are not advertised on Mission Control ingress. Diagnostic logs remain available locally; they do not share the relay's bounded publisher with session operations. This does not change provider-native OTel export.
+
 A single ordered publisher and bounded reassembly/queue/lane limits preserve live protocol ordering. Replacement connections have distinct generations; stale predecessor frames/closures are fenced. Request-form compatibility for `dispatchAction` and `unsubscribe` shares the native notification path and does not make arbitrary notifications successful requests.
 
 Independent AHP/SDK spools use durable ingest acknowledgements and bounded failure/truncation signals. Signed backfill replays retained AHP frames exactly. SDK sequence ranges are reserved durably before publication; native journal cursors advance only after durable SDK acknowledgement. AHP process-restart epochs/spool durability and complete pre-registration history remain deferred. Native titles are synchronized through the runtime naming API, not fabricated SDK events.
 
 ## Implementation ownership
 
-Source files live under `node/missionControl/`. [MissionControlHost](./node/missionControl/missionControlHost.ts) is an entry-owned DI adapter for native services, handler lifetime and authoritative mirror wiring. [MissionControlEnvironment](./node/missionControl/missionControlEnvironment.ts) owns registration/recovery through a named host-options contract; it has no second runtime service graph.
+Source files live alongside these documents. [MissionControlHost](./missionControlHost.ts) is an entry-owned DI adapter for native services, handler lifetime and authoritative mirror wiring. [MissionControlEnvironment](./missionControlEnvironment.ts) owns registration/recovery through a named host-options contract; it has no second runtime service graph.
 
 Registration and heartbeat request construction are separate methods. Local management IPC is distinct from AHP; host-management extension methods remain unavailable to relay clients. The same `ProtocolServerHandler` owns session operations on both local and relay transports.
 
 ## Validation boundaries
 
-Tests cover built-product adapter construction without pre-opt-in traffic, product names, registration/heartbeat consistency, owner/lane/passive/resource guards, sealed vectors, stale generations, bounded mirrors and recovery. Current release artifact/network/client evidence and the explicitly agreed deferrals are listed in [remaining work](./MISSION_CONTROL_PRODUCTION_GAPS.md). Do not describe earlier CI or live exercises as evidence for a later unpushed increment.
+Tests cover built-product adapter construction without pre-opt-in traffic, product names, registration/heartbeat consistency, owner/lane/passive/resource guards, sealed vectors, stale generations, bounded mirrors and recovery. Current release artifact/network/client evidence and the explicitly agreed deferrals are listed in [remaining work](./MISSION_CONTROL_PRODUCTION_GAPS.md). Qualification of an earlier artifact is not evidence for a later revision.
+
+(Written by Copilot)

@@ -735,7 +735,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
 				throw error;
 			}
-			if (protocolError.code === AHP_CLIENT_CONNECTION_CLOSED && this._beginReconnectFromConnecting(protocolError)) {
+			if ((protocolError.code === AHP_CLIENT_CONNECTION_CLOSED || (stage === 'authentication' && protocolError.code === JSON_RPC_INTERNAL_ERROR))
+				&& this._beginReconnectFromConnecting(protocolError)) {
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -827,11 +828,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return false;
 		}
 		if (!this._reconnectPolicy.autoRestore) {
-			this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; automatic reconnect is disabled.`);
+			this._logService.info(`[RemoteAgentHostProtocol] Connection setup failed for ${this._address}; automatic reconnect is disabled.`);
 			this._handleFatalClose(error);
 			return true;
 		}
-		this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
+		this._logService.info(`[RemoteAgentHostProtocol] Connection setup failed for ${this._address}; scheduling a fresh initialize.`);
 		// Carry the pre-handshake outbox into the reconnect state so queued
 		// messages are replayed once the fresh initialize succeeds.
 		const outbox = this._state.outbox;
@@ -1199,11 +1200,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					? { bypassInitializeQueue: true, bypassReconnectGate: true }
 					: { bypassReconnectGate: true });
 			} catch (error) {
-				// A dropped transport is not an authentication failure. Wrapping it
-				// would classify a momentary blip as terminally incompatible and
-				// permanently stop recovery, so let it stay a reconnectable error.
-				// The pending flag survives so the next attempt redelivers this.
-				if (isConnectionClosedError(error)) {
+				// Transport loss and host faults do not prove that the credential was rejected.
+				if (isConnectionClosedError(error) || (key === initialAuthenticationKey && error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR)) {
 					throw error;
 				}
 				// Only the freshly resolved initial authentication is essential:

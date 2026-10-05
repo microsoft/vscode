@@ -186,6 +186,47 @@ suite('MissionControlSessionMirror', () => {
 		assert.deepStrictEqual(frames(events).map(frame => frame.seq), [0]);
 	});
 
+	test('transient publisher pressure pauses without consuming frames or spinning timers', () => {
+		const { mirror, events, warnings } = fixture();
+		let blocked = true;
+		let attempts = 0;
+		store.add(mirror.attach(event => {
+			attempts++;
+			if (blocked) {
+				return false;
+			}
+			events.push(event);
+			return undefined;
+		}));
+		mirror.enqueue(action(), sessionId);
+		clock.runAll();
+		mirror.enqueue(action(103), sessionId);
+		clock.tick(60_000);
+		const paused = { attempts, published: mirror.getSessionStatus(sessionId).publishedSeq, retained: mirror.statistics.retainedFrames, timers: clock.countTimers() };
+		blocked = false;
+		mirror.resumePublishing();
+		clock.runAll();
+		assert.deepStrictEqual({
+			paused, sequences: frames(events).map(frame => frame.seq), retained: mirror.statistics.retainedFrames, warnings: warnings.callCount,
+		}, {
+			paused: { attempts: 1, published: -1, retained: 2, timers: 0 }, sequences: [0, 1], retained: 2, warnings: 0,
+		});
+	});
+
+	test('replacing a blocked transport replays retained frames without a stale attachment detaching it', () => {
+		const { mirror, events, attach, warnings } = fixture();
+		const stale = store.add(mirror.attach(() => false));
+		mirror.enqueue(action(), sessionId);
+		clock.runAll();
+		attach();
+		stale.dispose();
+		mirror.resumePublishing();
+		clock.runAll();
+		assert.deepStrictEqual({
+			sequences: frames(events).map(frame => frame.seq), retained: mirror.statistics.retainedFrames, warnings: warnings.callCount,
+		}, { sequences: [0], retained: 1, warnings: 0 });
+	});
+
 	test('a throwing transport detaches without losing the failed frame or disrupting direct AHP', () => {
 		const { mirror, events, attach, warnings } = fixture();
 		const direct: ActionEnvelope[] = [];
