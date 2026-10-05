@@ -93,6 +93,8 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	readonly summary = derived(this, reader => this.enabled.read(reader)
 		? getAttemptsSummaryText(this.attempts.read(reader), this._getModelLabel)
 		: undefined);
+	/** The composer shows each attempt's own icon instead of the joined name list. */
+	readonly summaryModelIds = derived(this, reader => this.enabled.read(reader) ? this.attemptModelIds.read(reader) : undefined);
 	readonly state = derived<IModelPickerWorkflowState | undefined>(this, reader => {
 		const draft = this._draft.read(reader);
 		if (!draft || !this.available.read(reader)) {

@@ -517,6 +517,7 @@ suite('TabbedModelPicker', () => {
 					state.set({ ...draft, selectedModelIds: draft.selectedModelIds.includes(id) ? draft.selectedModelIds.filter(selected => selected !== id) : [...draft.selectedModelIds, id] }, undefined);
 				},
 				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+				getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 			};
 			const result = createPicker({ workflow });
 			const { picker, popup } = result;

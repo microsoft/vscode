@@ -9,6 +9,7 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -175,6 +176,7 @@ export class ModelPickerWidget extends Disposable {
 		if (this._delegate.workflow) {
 			this._register(autorun(reader => {
 				this._delegate.workflow?.summary.read(reader);
+				this._delegate.workflow?.summaryModelIds?.read(reader);
 				if (!this._delegate.workflow?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
@@ -825,14 +827,31 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = workflow ? Codicon.layers : this._selectedModel
-			? (this._delegate.getPresentationOptions().showModelIcon
-				? getCompactModelPickerIcon(this._selectedModel)
-				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
+		// A workflow summary (compare mode) shows one icon per attempt instead of the generic
+		// layers icon, replacing the joined name list entirely, when every attempt's model
+		// resolves to an icon; otherwise it falls back to the layers icon plus the name list.
+		const summaryModelIds = workflow && this._delegate.getPresentationOptions().showModelIcon
+			? this._delegate.workflow?.summaryModelIds?.get()
 			: undefined;
+		const summaryIcons = summaryModelIds?.length
+			? summaryModelIds.map(modelId => {
+				const model = this._delegate.getModels().find(candidate => candidate.identifier === modelId);
+				return model && getCompactModelPickerIcon(model);
+			})
+			: undefined;
+		const showSummaryIcons = !!summaryIcons?.every((icon): icon is ThemeIcon => !!icon);
+		const modelIcon = showSummaryIcons
+			? undefined
+			: workflow ? Codicon.layers : this._selectedModel
+				? (this._delegate.getPresentationOptions().showModelIcon
+					? getCompactModelPickerIcon(this._selectedModel)
+					: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
+				: undefined;
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		if (modelIcon && !noModelsAvailable) {
+		if (showSummaryIcons && summaryIcons && !noModelsAvailable) {
+			nameChildren.push(dom.$('span.chat-input-picker-attempt-icons', undefined, ...summaryIcons.map(icon => renderIcon(icon))));
+		} else if (modelIcon && !noModelsAvailable) {
 			nameChildren.push(renderIcon(modelIcon));
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
@@ -846,7 +865,7 @@ export class ModelPickerWidget extends Disposable {
 				: genericNoModels
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
-		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
+		const showModelLabel = (!compact || !modelIcon || noModelsAvailable) && !showSummaryIcons;
 		const showingAuto = !unavailable && !activating && !genericNoModels && (!this._selectedModel || isAutoModel(this._selectedModel));
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));

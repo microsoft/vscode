@@ -65,6 +65,15 @@
 	text-overflow: ellipsis;
 }
 
+/* One icon per compare-mode attempt, replacing the generic layers icon and joined
+ * name list; a tight row reads as "a small set of models" at a glance. */
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name .chat-input-picker-attempt-icons {
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	gap: var(--vscode-spacing-size20);
+}
+
 .chat-input-picker-item .action-label.model-picker-split.compact .model-picker-name {
 	flex: 0 0 auto;
 	width: 22px;

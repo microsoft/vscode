@@ -10,6 +10,12 @@ export interface IModelPickerWorkflow {
 	readonly available: IObservable<boolean>;
 	/** Composer label for the committed selection, independent of the open setup draft. */
 	readonly summary: IObservable<string | undefined>;
+	/**
+	 * One model id per attempt in the committed selection (duplicated for extra variant
+	 * attempts of the same model), parallel to `summary`. When present, the composer shows
+	 * each attempt's own icon instead of the generic layers icon and the joined name list.
+	 */
+	readonly summaryModelIds?: IObservable<readonly string[] | undefined>;
 	readonly state: IObservable<IModelPickerWorkflowState | undefined>;
 	readonly label: string;
 	start(): void;

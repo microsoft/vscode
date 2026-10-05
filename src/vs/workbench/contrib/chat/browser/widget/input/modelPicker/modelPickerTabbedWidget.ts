@@ -558,7 +558,7 @@ export class TabbedModelPicker extends Disposable {
 					} else {
 						workflow.start();
 					}
-					this._showCurrent();
+					this._showCurrent(this._filterValue);
 				},
 			});
 		}
@@ -585,7 +585,7 @@ export class TabbedModelPicker extends Disposable {
 				if (this._searchVisible) {
 					context.onDidSearch();
 				}
-				this._showCurrent();
+				this._showCurrent(this._filterValue);
 			},
 		});
 		return actions;
@@ -859,9 +859,7 @@ export class TabbedModelPicker extends Disposable {
 			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
 			const { action, ariaDescription } = createModelAction(model, undefined, () => {
 				workflow.select(model.identifier);
-				// Update the rows in place, so checking a model keeps the list where it was
-				// instead of revealing that row at the top, and the popup keeps its size.
-				this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
+				this._showCurrent(this._filterValue, model.identifier);
 			}, section, true);
 			const variants = checked && step.multiple ? workflow.getVariants(model.identifier) : [];
 			const baseSummary = getModelConfigSummary(model, context.configurationAccess);
