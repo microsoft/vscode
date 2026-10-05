@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -208,6 +208,7 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
+	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
 	readonly chatUri: URI;
 	/** Opaque scope shared by chats whose session configuration is shared. */
@@ -1102,6 +1103,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			...disabledMcpServers,
 			onEvent: event => {
+				runtime.onSessionEvent?.(event);
 				const owner = runtime.configurationResource.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data, plan.sessionId, this._logService));

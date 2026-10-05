@@ -39,6 +39,29 @@ suite('AgentSession namespace', () => {
 		const session = AgentSession.uri('copilot', 'sess-1');
 		assert.strictEqual(AgentSession.provider(session), 'copilot');
 	});
+
+	test('native URI helpers preserve legacy schemes without assigning a provider to standard sessions', () => {
+		const session = AgentSession.uri('copilotcli', 'mc-test');
+		assert.deepStrictEqual({
+			session: session.toString(),
+			id: AgentSession.id(session),
+			provider: AgentSession.provider(session),
+			stringProvider: AgentSession.provider(session.toString()),
+			legacyProvider: AgentSession.provider('copilotcli:/existing-session'),
+			standardProvider: AgentSession.provider('ahp-session:/standard-session'),
+			claude: AgentSession.uri('claude', 'unchanged').toString(),
+			codex: AgentSession.uri('codex', 'unchanged').toString(),
+		}, {
+			session: 'copilotcli:/mc-test',
+			id: 'mc-test',
+			provider: 'copilotcli',
+			stringProvider: 'copilotcli',
+			legacyProvider: 'copilotcli',
+			standardProvider: undefined,
+			claude: 'claude:/unchanged',
+			codex: 'codex:/unchanged',
+		});
+	});
 });
 
 suite('isAgentEnabled', () => {
