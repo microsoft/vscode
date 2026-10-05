@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { ModelPickerWidget } from './modelPickerWidget.js';
@@ -31,8 +32,14 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
+	readonly workflow?: IModelPickerWorkflow;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
+	/**
+	 * Persists a model change without treating it as a user selection.
+	 * Delegates whose {@link setModel} has no user-selection side effects may omit this; {@link setModel} is used instead.
+	 */
+	setModelProgrammatically?(model: ILanguageModelChatMetadataAndIdentifier): void;
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 	getPresentationOptions(): IModelPickerPresentationOptions;
 	/**
@@ -42,6 +49,7 @@ export interface IModelPickerDelegate {
 	 * Returns `undefined` when no session is active.
 	 */
 	getChatSessionId?(): string | undefined;
+	getProvider?(): string | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
@@ -82,6 +90,8 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget = this._register(instantiationService.createInstance(ModelPickerWidget, delegate));
 		this._pickerWidget.setSelectedModel(delegate.currentModel.get());
 		this._pickerWidget.setCompact(pickerOptions.compact);
+		this._pickerWidget.setContextViewLayer(pickerOptions.contextViewLayer);
+		this._pickerWidget.setForceTabbedPicker(pickerOptions.forceTabbedModelPicker === true);
 		if (pickerOptions.minimal) {
 			this._pickerWidget.setMinimal(pickerOptions.minimal);
 		}
@@ -100,10 +110,12 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		this._container = container;
+		// Style the container before rendering, so the picker measures its name with
+		// the sizes it will be laid out at.
+		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._pickerWidget.render(container);
 		this.element = this._pickerWidget.domNode;
 		this._updateTooltip();
-		container.classList.add('chat-input-picker-item', 'model-picker-item');
 		this._updateMinimumWidth(this._pickerWidget.minimumWidth);
 	}
 

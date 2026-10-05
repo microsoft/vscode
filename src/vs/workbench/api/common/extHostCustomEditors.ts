@@ -240,15 +240,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 	}
 
 	async $disposeCustomDocument(resource: UriComponents, viewType: string): Promise<void> {
-		const entry = this._editorProviders.get(viewType);
-		if (!entry) {
-			throw new Error(`No provider found for '${viewType}'`);
-		}
-
-		if (entry.type !== CustomEditorType.Custom) {
-			throw new Error(`Invalid provider type for '${viewType}'`);
-		}
-
+		// Unregistering a provider disposes its models, so the provider may already be gone.
 		const revivedResource = URI.revive(resource);
 		const { document } = this.getCustomDocumentEntry(viewType, revivedResource);
 		// Pass the resource we used to look up the document, not document.uri,

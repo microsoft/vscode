@@ -29,6 +29,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { DevContainerAgentHostMainService, getDevContainerCliPath, getDevContainerExecArgs, IDevContainerRelay, parseDevContainerMounts, parseDevContainerUpResult, waitForDevContainerRelayConnection } from '../../node/devContainerAgentHostService.js';
 import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
+import { DevContainerSample } from '../../common/devContainerSamples.js';
+import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
 
 class TestRelay implements IDevContainerRelay {
 	readonly sent: string[] = [];
@@ -847,6 +849,66 @@ suite('Dev Container Agent Host Main Service', () => {
 			'-c',
 			'printf test',
 		]]);
+	});
+
+	for (const failure of ['clone', 'lifecycle', 'cancellation'] as const) {
+		test(`stops the sample container after ${failure} failure without removing its volume`, async () => {
+			const cleanupCancellation: boolean[] = [];
+			const service = store.add(new class extends TestDevContainerAgentHostMainService {
+				protected override async _prepareSample(connectionId: string, _sample: DevContainerSample, _token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerSample> {
+					onContainerStarted('sample-container');
+					if (failure === 'cancellation') {
+						await this.disconnect(connectionId);
+						throw new CancellationError();
+					}
+					throw new Error(`${failure} failed`);
+				}
+
+				protected override _runDocker(args: readonly string[], token: CancellationToken = CancellationToken.None) {
+					cleanupCancellation.push(token.isCancellationRequested);
+					return super._runDocker(args);
+				}
+			}());
+			await assert.rejects(service.connect({ connectionId: 'sample', sampleId: 'node', name: 'Node Sample' }), failure === 'cancellation' ? /Canceled/ : new RegExp(`${failure} failed`));
+			assert.deepStrictEqual({
+				operations: service.dockerCommands.map(command => command[0]),
+				stopped: service.dockerCommands.at(-1),
+				cleanupCancellation,
+			}, {
+				operations: ['exec', 'stop'],
+				stopped: ['stop', 'sample-container'],
+				cleanupCancellation: [false, false],
+			});
+		});
+	}
+
+	test('failed sample preparation does not stop containers used by other VS Code sessions', async () => {
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override async _prepareSample(_connectionId: string, _sample: DevContainerSample, _token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerSample> {
+				onContainerStarted('sample-container');
+				throw new Error('Clone failed');
+			}
+		}());
+		service.containerSessionIds = ['another-window'];
+		await assert.rejects(service.connect({ connectionId: 'sample', sampleId: 'node', name: 'Node Sample' }), /Clone failed/);
+		assert.deepStrictEqual(service.dockerCommands.map(command => command[0]), ['exec']);
+	});
+
+	test('reports cleanup errors without hiding the sample preparation failure', async () => {
+		const output: string[] = [];
+		const service = store.add(new class extends TestDevContainerAgentHostMainService {
+			protected override async _prepareSample(_connectionId: string, _sample: DevContainerSample, _token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerSample> {
+				onContainerStarted('sample-container');
+				throw new Error('Clone failed');
+			}
+
+			protected override _runDocker(args: readonly string[]) {
+				return args[0] === 'stop' ? Promise.resolve({ stdout: '', stderr: 'Docker unavailable', code: 1 }) : super._runDocker(args);
+			}
+		}());
+		store.add(service.onDidOutput(event => output.push(event.data)));
+		await assert.rejects(service.connect({ connectionId: 'sample', sampleId: 'node', name: 'Node Sample' }), /Clone failed/);
+		assert.ok(output.some(message => message.includes('Failed to stop the sample container') && message.includes('Docker unavailable')));
 	});
 
 	test('runs the relay Dev Container exec command with debug logging', () => {

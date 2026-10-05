@@ -139,6 +139,7 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	agent: Adapt.v(m => m.response?.agent, (a, b) => a?.id === b?.id),
 	modelId: Adapt.v(m => m.modelId),
 	modelConfiguration: Adapt.v(m => m.modelConfiguration, objectsEqual),
+	agentHostMetadata: Adapt.v(m => m.agentHostMetadata, objectsEqual),
 	editedFileEvents: Adapt.t(m => m.editedFileEvents, Adapt.array(agentEditedFileEventSchema)),
 	variableData: Adapt.t(m => m.variableData, chatVariableSchema),
 	isHidden: Adapt.v(() => undefined), // deprecated, always undefined for new data
@@ -166,6 +167,8 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	promptTokens: Adapt.v(m => m.response?.usage?.promptTokens),
 	outputBuffer: Adapt.v(m => m.response?.usage?.outputBuffer),
 	promptTokenDetails: Adapt.v(m => m.response?.usage?.promptTokenDetails, objectsEqual),
+	latestModelCall: Adapt.v(m => m.response?.usage?.latestModelCall, objectsEqual),
+	contextUsage: Adapt.v(m => m.response?.usage?.contextUsage, objectsEqual),
 	copilotCredits: Adapt.v(m => m.response?.usage?.copilotCredits),
 	modelTotals: Adapt.v(m => m.response?.usage?.modelTotals, objectsEqual),
 	sessionCopilotCredits: Adapt.v(m => m.response?.usage?.sessionCopilotCredits),

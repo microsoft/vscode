@@ -73,6 +73,12 @@ Each timestamped log folder has this structure:
 
 A new `output_<timestamp>/` folder and a corresponding `output_logging_<timestamp>/` inside `exthost/` is created each time the window reloads within the same session. The session-level timestamped folder, such as `20260330T163430/`, stays the same, but each reload gets fresh output channel directories. The most recent `output_*` folder by timestamp has the logs for the current or latest reload. Earlier folders contain logs from prior reloads in that session.
 
+### Cloud Sandbox Startup Failures
+
+Start with `renderer.log`. `[CloudSandboxApi]` connect/reconnect HTTP failures record status, elapsed time, environment/session/client IDs when available, and a validated `requestId` from `X-GitHub-Request-Id`. Use that request ID to correlate the exact upstream HTTP request; environment/session IDs also span retries and asynchronous work. A missing request ID may reflect an absent or browser-inaccessible response header.
+
+Follow the returned `clientId` through `[WebPubSubRelayTransport]` and `[RemoteAgentHostProtocol]`. Relay readiness, the first publish acknowledgment, the first host frame, and the AHP initialize request/completion distinguish relay setup from host responsiveness. A relay publish acknowledgment does not prove host execution. The relay closing summary includes outstanding acknowledgments, host-frame/message counts, host silence, and protocol/reassembly error counts without logging credentials or payloads. These records are ordinary log-service output and do not require AHP payload logging.
+
 ## Key Files by Use Case
 
 | Investigating... | Check these files |

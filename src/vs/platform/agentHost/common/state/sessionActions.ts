@@ -41,6 +41,7 @@ export {
 	type ChatTurnCancelledAction,
 	type ChatTurnCompleteAction,
 	type ChatTurnStartedAction,
+	type CanvasStateChangedAction,
 	type ChatUsageAction,
 	type SessionServerToolsChangedAction,
 	type SessionActiveClientSetAction,

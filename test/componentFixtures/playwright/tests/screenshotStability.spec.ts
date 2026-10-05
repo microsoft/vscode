@@ -7,6 +7,9 @@ import { expect, Page, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { getBaseURL } from './utils.js';
 
+// DOM trace snapshots can exhaust native-time fixture deadlines; exact PNG checks below cover visuals.
+test.use({ trace: { mode: 'retain-on-failure', snapshots: false } });
+
 // Supplied by the Component Explorer headless page.
 declare const __componentExplorer__: {
 	renderFixture(fixtureId: string): Promise<{ hasError: boolean; previousDispose?: { hasError: boolean } }>;
@@ -29,6 +32,114 @@ async function renderFixture(page: Page, fixtureId: string): Promise<void> {
 		disposeError: report.previousDispose?.hasError ?? false,
 	}, JSON.stringify(report)).toEqual({ renderError: false, disposeError: false });
 }
+
+const sessionGridScenarios = [
+	{ name: 'NestedSplits', visibleSessions: 3, visibleChats: 3 },
+	{ name: 'Maximized', visibleSessions: 1, visibleChats: 1 },
+	{ name: 'MultipleChats', visibleSessions: 3, visibleChats: 4 },
+];
+
+for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) {
+	const scenarios = theme.endsWith('HighContrast') ? sessionGridScenarios.slice(0, 1) : sessionGridScenarios;
+	for (const scenario of scenarios) {
+		test(`sessions grid ${scenario.name}/${theme} has production actions and is stable when ready`, async ({ page }) => {
+			await page.setViewportSize({ width: 1500, height: 950 });
+			const fixtureId = `sessions/grid/sessionsGrid/${scenario.name}/${theme}`;
+			await renderFixture(page, fixtureId);
+
+			const titlebar = page.locator('.part.titlebar');
+			expect(await titlebar.locator('[aria-label]').evaluateAll(elements => elements.map(element => ({
+				label: element.getAttribute('aria-label'),
+				disabled: element.getAttribute('aria-disabled') === 'true',
+			})))).toEqual([
+				{ label: 'Toggle Side Bar', disabled: false },
+				{ label: 'New Session', disabled: false },
+				{ label: 'Go Back One Session', disabled: false },
+				{ label: 'Go Forward One Session', disabled: true },
+				{ label: 'Show Sessions: microsoft/vscode', disabled: false },
+				{ label: 'Run Task is not available for this session type', disabled: true },
+				{ label: 'Open in VS Code Editor Window', disabled: false },
+				{ label: 'Show Panel', disabled: false },
+				{ label: 'Toggle Side Panel', disabled: false },
+				{ label: 'Signed in as Developer with GitHub', disabled: false },
+			]);
+			await expect(page.locator('.session-view:visible')).toHaveCount(scenario.visibleSessions);
+			await expect(page.locator('.chat-group-view:visible')).toHaveCount(scenario.visibleChats);
+			await expect(page.locator('.session-view:visible').first().getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(1);
+			await expect(page.locator('.session-view:visible').getByRole('button', { name: 'More Actions...', exact: true })).toHaveCount(scenario.visibleSessions);
+
+			const border = await page.locator('.part.sessionspart').evaluate(element => {
+				const style = getComputedStyle(element);
+				return { width: style.borderTopWidth, style: style.borderTopStyle, transparent: style.borderTopColor === 'rgba(0, 0, 0, 0)' };
+			});
+			expect(border).toEqual({ width: '1px', style: 'solid', transparent: false });
+			await expectStableScreenshot(page, fixtureId, `sessions/grid/sessionsGrid/${scenario.name === 'Maximized' ? 'NestedSplits' : 'Maximized'}/Light`);
+		});
+	}
+}
+
+test('sessions grid header actions update their owning state', async ({ page }) => {
+	const errors: string[] = [];
+	page.on('pageerror', error => errors.push(error.message));
+	await page.setViewportSize({ width: 1500, height: 950 });
+	await renderFixture(page, 'sessions/grid/sessionsGrid/NestedSplits/Dark');
+	const session = page.locator('.session-view').filter({ has: page.locator('.chat-composite-bar-session-title', { hasText: /^Grid layout$/ }) });
+	const overflow = () => session.getByRole('button', { name: 'More Actions...', exact: true });
+	const openOverflow = async (expectedAction: string) => {
+		// Overflow menus snapshot actions; reopen if a debounced toolbar update is still pending.
+		await expect.poll(async () => {
+			await page.keyboard.press('Escape');
+			await overflow().click();
+			return page.getByRole('menuitemcheckbox', { name: new RegExp(`${expectedAction}$`) }).count();
+		}, { timeout: 5000 }).toBe(1);
+	};
+	const activate = async (role: 'menuitem' | 'menuitemcheckbox', name: string) => {
+		const item = page.getByRole(role, { name: new RegExp(`${name}$`) });
+		await item.hover();
+		// Keyboard activation avoids the menu's deliberate mouse-up guard delay.
+		await item.press('Enter');
+	};
+	await overflow().click();
+	await expect(page.locator('.context-view .action-label:not(.separator)')).toHaveText([
+		'Archive', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
+	]);
+	await activate('menuitemcheckbox', 'Maximize');
+	await expect(page.locator('.session-view:visible')).toHaveCount(1);
+	await openOverflow('Restore');
+	await activate('menuitemcheckbox', 'Restore');
+	await expect(page.locator('.session-view:visible')).toHaveCount(3);
+	await session.getByRole('button', { name: 'Unpin', exact: true }).click();
+	await expect(session.getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(0);
+	await openOverflow('Pin');
+	await activate('menuitemcheckbox', 'Pin');
+	await expect(session.getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(1);
+	await overflow().click();
+	await activate('menuitem', 'Close');
+	await expect(page.locator('.session-view:visible')).toHaveCount(2);
+	expect(errors).toEqual([]);
+});
+
+test('sessions grid gallery mounts all variants without shared-registration conflicts', async ({ context }) => {
+	const gallery = await context.newPage();
+	const errors: string[] = [];
+	gallery.on('pageerror', error => errors.push(error.message));
+	gallery.on('console', message => {
+		if (message.type() === 'error' || message.type() === 'warning') {
+			errors.push(message.text());
+		}
+	});
+	try {
+		await gallery.setViewportSize({ width: 3400, height: 6400 });
+		await gallery.goto(`${getBaseURL()}/___explorer?fixture=sessions%2Fgrid%2FsessionsGrid`, { waitUntil: 'networkidle' });
+		await expect(gallery.locator('.part.titlebar')).toHaveCount(12, { timeout: 20_000 });
+		await expect(gallery.locator('.session-view:visible')).toHaveCount(28);
+		await expect(gallery.locator('.part.titlebar').getByRole('button', { name: 'New Session', exact: true })).toHaveCount(12);
+		await expect(gallery.locator('.sessions-account-titlebar-widget')).toHaveCount(12);
+		expect(errors).toEqual([]);
+	} finally {
+		await gallery.close();
+	}
+});
 
 async function expectStableScreenshot(page: Page, fixtureId: string, precedingFixtureId: string): Promise<void> {
 	const container = page.locator('#root > div').last();

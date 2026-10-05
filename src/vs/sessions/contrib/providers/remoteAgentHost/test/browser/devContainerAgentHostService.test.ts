@@ -13,6 +13,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../../../base/co
 import { getComparisonKey } from '../../../../../../base/common/resources.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { resolveDevContainerSourceWorkspace } from '../../../../../browser/openInVSCodeUtils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -562,6 +563,24 @@ suite('Dev Container Agent Host Service', () => {
 			status: RemoteAgentHostConnectionStatus.disconnected,
 			registeredProviders: [`agenthost-${agentHostAuthority(address)}`],
 		});
+	});
+
+	test('restores sample providers lazily without a host worktree scope', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const source = devContainerSampleUri(devContainerSamples[0]);
+		storageService.store('devContainerAgentHost.connections', JSON.stringify([{ workspaceUri: source.toString(), name: 'Go Sample' }]), StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const providersService = store.add(new TestSessionsProvidersService());
+		store.add(new TestDevContainerAgentHostService(
+			store.add(new TestInstantiationService()),
+			store.add(new TestRemoteAgentHostService()),
+			providersService,
+			storageService,
+		));
+		assert.deepStrictEqual(providersService.getProviders().map(provider => ({
+			status: provider instanceof TestProvider ? provider.status : undefined,
+			source: resolveDevContainerSourceWorkspace(provider)?.folderUri.toString(),
+			scope: provider instanceof TestProvider ? provider.config.devContainerWorktreeScope : undefined,
+		})), [{ status: RemoteAgentHostConnectionStatus.disconnected, source: source.toString(), scope: undefined }]);
 	});
 
 	test('restores remote container source identities without merging identical paths on different hosts', async () => {

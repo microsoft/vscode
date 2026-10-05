@@ -727,7 +727,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		if (sideBySide) {
 			const session = this.sessionsManagementService.getSession(resource);
 			if (session) {
-				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList' }).catch(onUnexpectedError);
+				this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', forceMainChat: true }).catch(onUnexpectedError);
 				return;
 			}
 		}
@@ -764,24 +764,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		const sessionActionFeedback = this._register(new SessionActionFeedback());
 		const blockedIndicator = this._register(instantiationService.createInstance(BlockedSessionsIndicatorModel, undefined /* approvalModel */, undefined /* blockedSessions */, undefined /* ciFixModel */));
 
-		// Register the submenu item in the Agent Sessions command center
-		this._register(MenuRegistry.appendMenuItem(Menus.CommandCenter, {
-			submenu: Menus.TitleBarSessionTitle,
-			title: localize('agentSessionsControl', "Agent Sessions"),
-			order: 101,
-			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
-		}));
-
-		// Register a placeholder action so the submenu appears
-		this._register(MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
-			command: {
-				id: SHOW_SESSIONS_PICKER_COMMAND_ID,
-				title: localize('showSessions', "Show Sessions"),
-			},
-			group: 'a_sessions',
-			order: 1,
-			when: IsAuxiliaryWindowContext.negate()
-		}));
+		this._register(registerSessionsTitleBarMenus());
 
 		// The blocked-sessions dropdown header's "Show All Sessions" action dismisses
 		// the dropdown (a transient context view) before opening the full sessions
@@ -800,6 +783,26 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 			return instantiationService.createInstance(SessionsTitleBarWidget, action, options, sessionActionFeedback, blockedIndicator);
 		}, undefined));
 	}
+}
+
+export function registerSessionsTitleBarMenus(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.CommandCenter, {
+			submenu: Menus.TitleBarSessionTitle,
+			title: localize('agentSessionsControl', "Agent Sessions"),
+			order: 101,
+			when: ContextKeyExpr.and(IsAuxiliaryWindowContext.negate(), SessionsWelcomeVisibleContext.negate())
+		}),
+		MenuRegistry.appendMenuItem(Menus.TitleBarSessionTitle, {
+			command: {
+				id: SHOW_SESSIONS_PICKER_COMMAND_ID,
+				title: localize('showSessions', "Show Sessions"),
+			},
+			group: 'a_sessions',
+			order: 1,
+			when: IsAuxiliaryWindowContext.negate()
+		})
+	);
 }
 
 // Escape closes the blocked-sessions dropdown while it is open. Registered as a

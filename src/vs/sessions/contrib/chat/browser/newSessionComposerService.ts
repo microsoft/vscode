@@ -93,7 +93,9 @@ export interface INewSessionComposerService {
 	notifyUserWorkspaceSelection(): void;
 	readonly userNavigationVersion: IObservable<number>;
 	readonly inputVersion: IObservable<number>;
+	readonly draftInputVersion: IObservable<number>;
 	readonly hasDraftInput: boolean | undefined;
+	getDraftInputStateForSession(sessionResource: URI | undefined): boolean | undefined;
 	hasDraftInputForSession(sessionResource: URI): boolean;
 	notifyUserNavigation(): void;
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
@@ -113,6 +115,8 @@ export class NewSessionComposerService extends Disposable implements INewSession
 	readonly userNavigationVersion: IObservable<number> = this._userNavigationVersion;
 	private readonly _inputVersion = observableValue(this, 0);
 	readonly inputVersion: IObservable<number> = this._inputVersion;
+	private readonly _draftInputVersion = observableValue(this, 0);
+	readonly draftInputVersion: IObservable<number> = this._draftInputVersion;
 	private readonly _selectionChanged = derived(this, reader => observableSignalFromEvent(this, this.activeComposer.read(reader)?.onDidChangeWorkspaceSelection ?? Event.None));
 	readonly workspaceSelection = derived(this, reader => {
 		this._selectionChanged.read(reader).read(reader);
@@ -138,6 +142,12 @@ export class NewSessionComposerService extends Disposable implements INewSession
 		return ready.length ? ready.some(composer => composer.hasInput) : undefined;
 	}
 
+	getDraftInputStateForSession(sessionResource: URI | undefined): boolean | undefined {
+		const ready = [...this._composers].filter(composer => isEqual(composer.sessionResource?.get(), sessionResource)
+			&& composer.isInputReady !== false && composer.hasInput !== undefined);
+		return ready.length ? ready.some(composer => composer.hasInput) : undefined;
+	}
+
 	hasDraftInputForSession(sessionResource: URI): boolean {
 		return [...this._composers].some(composer => isEqual(composer.sessionResource?.get(), sessionResource)
 			&& (composer.isInputReady === false || composer.hasInput === true));
@@ -146,7 +156,12 @@ export class NewSessionComposerService extends Disposable implements INewSession
 	registerComposer(composer: INewSessionComposer): IDisposable {
 		this._composers.add(composer);
 		this._activeComposer.set(composer, undefined);
-		const inputListener = composer.onDidChangeInput?.(() => this._inputVersion.set(this._inputVersion.get() + 1, undefined)) ?? Disposable.None;
+		const inputListener = composer.onDidChangeInput?.(() => {
+			this._inputVersion.set(this._inputVersion.get() + 1, undefined);
+			if (composer.hasInput) {
+				this._draftInputVersion.set(this._draftInputVersion.get() + 1, undefined);
+			}
+		}) ?? Disposable.None;
 		const sessionListener = autorun(reader => {
 			composer.sessionResource?.read(reader);
 			this._inputVersion.set(this._inputVersion.read(undefined) + 1, undefined);

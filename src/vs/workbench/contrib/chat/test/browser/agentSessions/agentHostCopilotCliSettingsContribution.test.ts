@@ -12,11 +12,11 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotTgrepEnabledSettingId, OpusAltPromptEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -93,9 +93,9 @@ function makeRootStateWithSchema(properties: Record<string, ConfigPropertySchema
 const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.CopilotSdkLogLevel]: { type: 'string', title: 'Copilot SDK Log Level' },
 	[CopilotCliConfigKey.Opus48Prompt]: { type: 'boolean', title: 'Opus 4.8 Agent Prompt' },
-	[CopilotCliConfigKey.OpusAltPrompt]: { type: 'boolean', title: 'Opus Alternate Agent Prompt' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
 	[CopilotCliConfigKey.Tgrep]: { type: 'boolean', title: 'Indexed Search (tgrep)' },
+	[CopilotCliConfigKey.LocalIndexEnabled]: { type: 'boolean', title: 'Local Session Index' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
 	[CopilotCliConfigKey.HydraFusion]: { type: 'boolean', title: 'HydraFusion' },
@@ -124,7 +124,7 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>, 
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
-	return { agentHostService, defaultAccountService };
+	return { agentHostService, defaultAccountService, configurationService };
 }
 
 suite('AgentHostCopilotCliSettingsContribution', () => {
@@ -145,9 +145,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
 			[AgentHostOpus48PromptEnabledSettingId]: true,
-			[OpusAltPromptEnabledSettingId]: true,
 			[CopilotClaudeAdvisorEnabledSettingId]: true,
 			[CopilotTgrepEnabledSettingId]: true,
+			[CopilotLocalIndexEnabledSettingId]: false,
 			[AgentHostToolSearchEnabledSettingId]: true,
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: capabilityOverrides,
@@ -166,9 +166,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
-			[CopilotCliConfigKey.OpusAltPrompt]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
 			[CopilotCliConfigKey.Tgrep]: true,
+			[CopilotCliConfigKey.LocalIndexEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
 			[CopilotCliConfigKey.HydraFusion]: true,
@@ -193,6 +193,31 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
 			[CopilotCliConfigKey.Opus48Prompt]: true,
 		});
+	});
+
+	test('forwards the local index default and subsequent setting changes', async () => {
+		const { agentHostService, configurationService } = setup(disposables, {});
+		agentHostService.setRootState(makeRootStateWithSchema({
+			[CopilotCliConfigKey.LocalIndexEnabled]: fullSchema[CopilotCliConfigKey.LocalIndexEnabled],
+		}));
+		await flush();
+
+		for (const value of [false, true]) {
+			await configurationService.setUserConfiguration(CopilotLocalIndexEnabledSettingId, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([CopilotLocalIndexEnabledSettingId]),
+				change: { keys: [CopilotLocalIndexEnabledSettingId], overrides: [] },
+				affectsConfiguration: key => key === CopilotLocalIndexEnabledSettingId,
+			});
+			await flush();
+		}
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config), [
+			{ [CopilotCliConfigKey.LocalIndexEnabled]: true },
+			{ [CopilotCliConfigKey.LocalIndexEnabled]: false },
+			{ [CopilotCliConfigKey.LocalIndexEnabled]: true },
+		]);
 	});
 
 	test('disables HydraFusion when preview features are disabled', async () => {
@@ -237,9 +262,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
 			[CopilotCliConfigKey.Opus48Prompt]: true,
-			[CopilotCliConfigKey.OpusAltPrompt]: false,
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
 			[CopilotCliConfigKey.Tgrep]: false,
+			[CopilotCliConfigKey.LocalIndexEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,
 			[CopilotCliConfigKey.HydraFusion]: false,

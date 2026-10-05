@@ -71,8 +71,8 @@ export class CustomizationsNavigationState extends Disposable {
 			harnessService.availableHarnesses.read(reader);
 			const session = sessionsService.activeSession.read(reader);
 			session?.workspace.read(reader);
-			this.migrationAvailableValue.set(false, undefined);
 			if (!session) {
+				this.migrationAvailableValue.set(false, undefined);
 				return;
 			}
 

@@ -262,6 +262,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				url: URI.parse(externalUrl),
 				externalUrl,
 				repository: URI.parse('https://github.com/Owner/Repository'),
+				readmeUri: URI.parse('https://raw.githubusercontent.com/Owner/Repository/main/README.md'),
 				icon: URI.parse('https://github.com/Owner.png?size=64'),
 				publisher: 'Owner',
 				version: '1.0',
@@ -275,12 +276,46 @@ suite('CustomizationMarketplaceIpc', () => {
 
 		assert.deepStrictEqual({
 			page: result,
-			uriInstances: [result.items[0].url, result.items[0].repository, result.items[0].icon].map(uri => uri instanceof URI),
+			uriInstances: [result.items[0].url, result.items[0].repository, result.items[0].readmeUri, result.items[0].icon].map(uri => uri instanceof URI),
 			externalUrl: result.items[0].externalUrl,
 		}, {
 			page,
-			uriInstances: [true, true, true],
+			uriInstances: [true, true, true, true],
 			externalUrl,
+		});
+	});
+
+	test('revives light and dark icon URI bundles', async () => {
+		const page: ICustomizationMarketplacePage = {
+			items: [{
+				sourceId: 'testSource',
+				identifier: 'themed',
+				displayName: 'Themed',
+				description: '',
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: {
+					light: URI.parse('https://example.com/light.png'),
+					dark: URI.parse('https://example.com/dark.png'),
+				},
+			}],
+		};
+		const client = createClient({ query: async () => page });
+		const result = await client.query({}, CancellationToken.None);
+		const icon = result.items[0].icon;
+
+		assert.deepStrictEqual(URI.isUri(icon) ? undefined : {
+			light: icon?.light instanceof URI,
+			dark: icon?.dark instanceof URI,
+			lightUri: icon?.light.toString(),
+			darkUri: icon?.dark.toString(),
+		}, {
+			light: true,
+			dark: true,
+			lightUri: 'https://example.com/light.png',
+			darkUri: 'https://example.com/dark.png',
 		});
 	});
 

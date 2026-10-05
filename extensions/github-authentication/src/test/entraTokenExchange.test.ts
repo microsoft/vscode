@@ -23,6 +23,7 @@ import { TestMemento } from './testMemento';
 
 /** What `GitHubServer` derives as its endpoints for github.com. */
 const TOKEN_EXCHANGE_URL = 'https://github.com/login/oauth/access_token';
+const TOKEN_REVOCATION_URL = `https://api.github.com/applications/${Config.gitHubClientId}/token`;
 const USER_INFO_URL = 'https://api.github.com/user';
 const STORAGE_KEY = 'github.auth.microsoftAccountLinks';
 const ACCOUNT: IGitHubUserInfo = { id: '42', accountName: 'mona_contoso', avatarUrl: undefined };
@@ -70,6 +71,8 @@ interface IHarness {
 	/** The real mapping table the exchange wrote to. */
 	readonly accountLinks: AccountLinks;
 	readonly confirmations: string[];
+	/** The token each `DELETE /applications/{client_id}/token` asked to revoke, in order. */
+	readonly revocations: string[];
 }
 
 suite('EntraTokenExchange', () => {
@@ -79,7 +82,6 @@ suite('EntraTokenExchange', () => {
 
 	suiteSetup(() => {
 		logger = new Log(AuthProviderType.github);
-		// The secret only exists in builds that have had the distro mixin applied, so stand one in.
 		realClientSecret = Config.gitHubClientSecret;
 		Config.gitHubClientSecret = 'client-secret';
 	});
@@ -96,6 +98,8 @@ suite('EntraTokenExchange', () => {
 	function createHarness(overrides: {
 		/** Stands in for a host that has no exchange endpoint at all, such as Enterprise Server. */
 		noExchangeEndpoint?: boolean;
+		/** Stands in for a host that exchanges tokens but does not let the app delete them. */
+		noRevocationEndpoint?: boolean;
 		microsoftToken?: (call: number) => string | undefined;
 		microsoftError?: Error;
 		respond?: (call: number) => IHttpResponse;
@@ -110,6 +114,7 @@ suite('EntraTokenExchange', () => {
 		const acquisitions: IAcquisition[] = [];
 		const lookups: string[] = [];
 		const confirmations: string[] = [];
+		const revocations: string[] = [];
 
 		const memento = new TestMemento();
 		memento.updateError = overrides.storageError;
@@ -135,6 +140,10 @@ suite('EntraTokenExchange', () => {
 
 		const http: IHttpClient = {
 			send: async request => {
+				if (request.method === 'DELETE') {
+					revocations.push(`${request.url} ${request.headers.Authorization} ${JSON.parse(request.body!).access_token}`);
+					return jsonResponse(null, 204);
+				}
 				if (request.method === 'GET') {
 					lookups.push(request.headers.Authorization);
 					if (overrides.userInfoError) {
@@ -175,13 +184,14 @@ suite('EntraTokenExchange', () => {
 			logger,
 			{
 				tokenExchange: overrides.noExchangeEndpoint ? undefined : TOKEN_EXCHANGE_URL,
+				tokenRevocation: overrides.noExchangeEndpoint || overrides.noRevocationEndpoint ? undefined : TOKEN_REVOCATION_URL,
 				userInfo: USER_INFO_URL
 			},
 			microsoft,
 			accountLinks,
 			http,
 			confirmation);
-		return { exchange, requests, acquisitions, lookups, accountLinks, confirmations };
+		return { exchange, requests, acquisitions, lookups, accountLinks, confirmations, revocations };
 	}
 
 	/** Runs a login and reports the failure classification rather than the thrown object. */
@@ -228,7 +238,6 @@ suite('EntraTokenExchange', () => {
 				// Discovery is least privilege: only what `GET /user` needs.
 				form: {
 					client_id: Config.gitHubClientId,
-					client_secret: 'client-secret',
 					grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
 					subject_token: 'entra-1',
 					subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
@@ -243,7 +252,6 @@ suite('EntraTokenExchange', () => {
 				// Copilot default, and no scope that leaks where the token came from.
 				form: {
 					client_id: Config.gitHubClientId,
-					client_secret: 'client-secret',
 					grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
 					subject_token: 'entra-1',
 					subject_token_type: 'urn:ietf:params:oauth:token-type:access_token',
@@ -394,26 +402,6 @@ suite('EntraTokenExchange', () => {
 		});
 	});
 
-	test('refuses to exchange at all when the build has no client secret', async () => {
-		const harness = createHarness();
-		Config.gitHubClientSecret = undefined;
-		try {
-			assert.deepStrictEqual({
-				failure: await failureOf(harness),
-				// The subject token must never reach the wire when we already know it cannot work.
-				exchanges: harness.requests.length,
-				// And the user must not be put through a Microsoft sign in that cannot go anywhere.
-				acquisitions: harness.acquisitions.length
-			}, {
-				failure: EntraTokenExchangeFailure.Configuration,
-				exchanges: 0,
-				acquisitions: 0
-			});
-		} finally {
-			Config.gitHubClientSecret = 'client-secret';
-		}
-	});
-
 	test('refuses to exchange against a host that has no exchange endpoint', async () => {
 		// Self-hosted GitHub Enterprise Server: the identity mapping is a service GitHub runs, so
 		// there is nothing to exchange against.
@@ -428,6 +416,25 @@ suite('EntraTokenExchange', () => {
 			exchanges: 0,
 			acquisitions: 0
 		});
+	});
+
+	test('exchanges when the build has no client secret', async () => {
+		const harness = createHarness();
+		Config.gitHubClientSecret = undefined;
+		try {
+			const result = await harness.exchange.login(['read:user', 'user:email']);
+			assert.deepStrictEqual({
+				token: result.token,
+				exchanges: harness.requests.length,
+				acquisitions: harness.acquisitions.length
+			}, {
+				token: 'gho_granted',
+				exchanges: 2,
+				acquisitions: 1
+			});
+		} finally {
+			Config.gitHubClientSecret = 'client-secret';
+		}
 	});
 
 	test('rejects success responses that are not a valid token exchange', async () => {
@@ -586,26 +593,84 @@ suite('EntraTokenExchange', () => {
 		});
 	});
 
-	test('refuses to renew against a host or a build that cannot exchange at all', async () => {
+	test('refuses to renew against a host that cannot exchange at all', async () => {
 		const noEndpoint = createHarness({ noExchangeEndpoint: true });
+
+		assert.deepStrictEqual({
+			withoutEndpoint: await renewalFailureOf(noEndpoint),
+			// It does not reach for a Microsoft token it could never spend.
+			acquisitions: noEndpoint.acquisitions.length
+		}, {
+			withoutEndpoint: EntraTokenExchangeFailure.Configuration,
+			acquisitions: 0
+		});
+	});
+
+	test('probes with only the discovery scope, revokes the token, and leaves nothing behind', async () => {
+		const harness = createHarness();
+
+		const account = await harness.exchange.probe('entra-probe');
+
+		assert.deepStrictEqual({
+			account,
+			exchanges: harness.requests.map(request => ({ subject: formOf(request).subject_token, scope: formOf(request).scope })),
+			lookups: harness.lookups,
+			revocations: harness.revocations,
+			// The token came from the caller, and no one was asked anything.
+			acquisitions: harness.acquisitions.length,
+			confirmations: harness.confirmations.length,
+			links: harness.accountLinks.linkedAccounts()
+		}, {
+			account: ACCOUNT,
+			exchanges: [{ subject: 'entra-probe', scope: 'read:user' }],
+			lookups: ['token gho_discovery'],
+			revocations: [`${TOKEN_REVOCATION_URL} Basic ${btoa(`${Config.gitHubClientId}:client-secret`)} gho_discovery`],
+			acquisitions: 0,
+			confirmations: 0,
+			links: []
+		});
+	});
+
+	test('reports no account when the probe fails, and still revokes whatever was minted', async () => {
+		const unmapped = createHarness({ respond: () => jsonResponse({ error: 'invalid_grant' }, 400) });
+		const unreadable = createHarness({ userInfoError: new Error('offline') });
+
+		assert.deepStrictEqual({
+			unmapped: await unmapped.exchange.probe('entra-probe'),
+			unmappedRevoked: unmapped.revocations.length,
+			unreadable: await unreadable.exchange.probe('entra-probe'),
+			unreadableRevoked: unreadable.revocations.length,
+		}, {
+			unmapped: undefined,
+			unmappedRevoked: 0,
+			unreadable: undefined,
+			unreadableRevoked: 1,
+		});
+	});
+
+	test('still probes where the token cannot be revoked, and leaves it to expire', async () => {
+		const noRevocation = createHarness({ noRevocationEndpoint: true });
+		// Without the app's secret, as in Code - OSS, the exchange still works, but deleting a token
+		// authenticates as the app, so the token is left to expire.
 		const noSecret = createHarness();
 		Config.gitHubClientSecret = undefined;
-		let withoutSecret: string;
+		let withoutSecret: unknown;
 		try {
-			withoutSecret = await renewalFailureOf(noSecret);
+			withoutSecret = await noSecret.exchange.probe('entra-probe');
 		} finally {
 			Config.gitHubClientSecret = 'client-secret';
 		}
 
 		assert.deepStrictEqual({
-			withoutEndpoint: await renewalFailureOf(noEndpoint),
+			withoutRevocation: await noRevocation.exchange.probe('entra-probe'),
+			withoutRevocationRevoked: noRevocation.revocations.length,
 			withoutSecret,
-			// Neither one reaches for a Microsoft token it could never spend.
-			acquisitions: noEndpoint.acquisitions.length + noSecret.acquisitions.length
+			withoutSecretRevoked: noSecret.revocations.length,
 		}, {
-			withoutEndpoint: EntraTokenExchangeFailure.Configuration,
-			withoutSecret: EntraTokenExchangeFailure.Configuration,
-			acquisitions: 0
+			withoutRevocation: ACCOUNT,
+			withoutRevocationRevoked: 0,
+			withoutSecret: ACCOUNT,
+			withoutSecretRevoked: 0,
 		});
 	});
 });

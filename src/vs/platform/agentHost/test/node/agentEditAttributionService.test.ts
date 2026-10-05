@@ -97,7 +97,7 @@ suite('Agent Edit Attribution Service', () => {
 				deltaModifiedCount: event.data.deltaModifiedCount,
 				totalModifiedCount: event.data.totalModifiedCount,
 				origin: event.data.origin,
-				harness: event.data.harness,
+				provider: event.data.provider,
 				trackingScope: event.data.trackingScope,
 				otherAIModifiedCount: event.data.otherAIModifiedCount,
 				agentHostModifiedCount: event.data.agentHostModifiedCount,
@@ -132,7 +132,7 @@ suite('Agent Edit Attribution Service', () => {
 				deltaModifiedCount: 2,
 				totalModifiedCount: 2,
 				origin: 'agentHost',
-				harness: 'copilotcli',
+				provider: 'copilotcli',
 				trackingScope: undefined,
 				otherAIModifiedCount: undefined,
 				agentHostModifiedCount: undefined,
@@ -148,7 +148,7 @@ suite('Agent Edit Attribution Service', () => {
 				deltaModifiedCount: undefined,
 				totalModifiedCount: undefined,
 				origin: undefined,
-				harness: undefined,
+				provider: undefined,
 				trackingScope: 'agentHostStandalone',
 				otherAIModifiedCount: 0,
 				agentHostModifiedCount: 2,
@@ -330,7 +330,7 @@ suite('Agent Edit Attribution Service', () => {
 		await fileService.writeFile(claudeResource, VSBuffer.fromString('ab'));
 
 		const events: Record<string, string | number | undefined>[] = [];
-		const githubEvents: { eventName: string; harness: string | undefined }[] = [];
+		const githubEvents: { eventName: string; provider: string | undefined; hasHarness: boolean }[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IDiffComputeService, new TestDiffComputeService());
@@ -343,7 +343,7 @@ suite('Agent Edit Attribution Service', () => {
 				}
 			},
 			sendGHTelemetryEvent(eventName, properties) {
-				githubEvents.push({ eventName, harness: properties?.harness });
+				githubEvents.push({ eventName, provider: properties?.provider, hasHarness: !!properties && Object.hasOwn(properties, 'harness') });
 			},
 		};
 		instantiationService.stub(ITelemetryService, telemetryService);
@@ -383,16 +383,16 @@ suite('Agent Edit Attribution Service', () => {
 				sourceKeyCleaned: event.sourceKeyCleaned,
 				conversationId: event.conversationId,
 				requestId: event.requestId,
-				harness: event.harness,
+				provider: event.provider,
 			})),
 		}, {
 			afterDefaultChatFlush: 1,
 			afterPeerChatFlush: 2,
 			githubEvents: [
-				{ eventName: 'vscode.editTelemetry.editSources.details', harness: 'copilotcli' },
-				{ eventName: 'vscode.editTelemetry.editSources.stats', harness: undefined },
-				{ eventName: 'vscode.editTelemetry.editSources.details', harness: 'copilotcli' },
-				{ eventName: 'vscode.editTelemetry.editSources.stats', harness: undefined },
+				{ eventName: 'vscode.editTelemetry.editSources.details', provider: 'copilotcli', hasHarness: false },
+				{ eventName: 'vscode.editTelemetry.editSources.stats', provider: undefined, hasHarness: false },
+				{ eventName: 'vscode.editTelemetry.editSources.details', provider: 'copilotcli', hasHarness: false },
+				{ eventName: 'vscode.editTelemetry.editSources.stats', provider: undefined, hasHarness: false },
 			],
 			events: [
 				{
@@ -400,21 +400,21 @@ suite('Agent Edit Attribution Service', () => {
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					conversationId: 'Y29waWxvdGNsaTovc2Vzc2lvbi0x',
 					requestId: 'turn-default',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 				},
 				{
 					sourceKey: 'source:Chat.applyEdits-$modelId:copilot-model-$harness:copilotcli-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
 					conversationId: 'Y29waWxvdGNsaTovc2Vzc2lvbi0x',
 					requestId: 'turn-peer',
-					harness: 'copilotcli',
+					provider: 'copilotcli',
 				},
 				{
 					sourceKey: 'source:Chat.applyEdits-$modelId:claude-model-$harness:claude-$origin:agentHost',
 					sourceKeyCleaned: 'source:Chat.applyEdits-$harness:claude-$origin:agentHost',
 					conversationId: 'Y2xhdWRlOi9zZXNzaW9uLTI',
 					requestId: 'turn-claude',
-					harness: 'claude',
+					provider: 'claude',
 				},
 			],
 		});

@@ -112,6 +112,31 @@ suite('Session GitHub References', () => {
 		]);
 	});
 
+	test('scopes a pull request recorded by multiple chats to the focused chat', () => {
+		const uri = URI.parse('https://github.com/owner/repo/pull/1');
+		const peerChatResource = URI.parse('ahp-chat://peer/session');
+		const mainChatResource = URI.parse('ahp-chat://default/session');
+		const session = createSession([
+			{ id: 'peer-artifact', chat: peerChatResource, kind: SessionArtifactKind.PullRequest, label: 'Peer label', isArtifact: true, isGitHub: true, link: uri },
+			{ id: 'main-artifact', chat: mainChatResource, kind: SessionArtifactKind.PullRequest, label: 'Main label', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/OWNER/REPO/pull/1/') },
+		], {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 1, uri, recordedReferenceId: 'main-artifact', title: 'Live title' }],
+		});
+		const chat = (resource: URI) => upcastPartial<IChat>({ resource, workspace: constObservable(undefined) });
+
+		assert.deepStrictEqual({
+			session: getSessionGitHubReferences(session, undefined).pullRequests.map(ref => ref.recordedReferenceId),
+			peer: getSessionGitHubReferences(session, undefined, chat(peerChatResource)).pullRequests.map(ref => ref.recordedReferenceId),
+			main: getSessionGitHubReferences(session, undefined, chat(mainChatResource)).pullRequests.map(ref => ref.recordedReferenceId),
+		}, {
+			session: ['peer-artifact'],
+			peer: ['peer-artifact'],
+			main: ['main-artifact'],
+		});
+	});
+
 	test('resolves a chat\'s pull requests from its own repository only', () => {
 		const sessionPullRequest = { owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') };
 		const chatPullRequest = { owner: 'contoso', repo: 'tools', number: 7, uri: URI.parse('https://github.com/contoso/tools/pull/7') };
@@ -121,6 +146,7 @@ suite('Session GitHub References', () => {
 		], { owner: 'microsoft', repo: 'vscode', pullRequests: [sessionPullRequest] });
 		const chatRoot = URI.file('/other');
 		const chat = upcastPartial<IChat>({
+			resource: URI.parse('ahp-chat://peer/session'),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({
 				folders: [{
 					root: chatRoot, workingDirectory: chatRoot, name: 'other', description: undefined,
@@ -147,6 +173,7 @@ suite('Session GitHub References', () => {
 			{ id: 'foreign', kind: SessionArtifactKind.PullRequest, label: 'Foreign', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/other/project/pull/3') },
 		]);
 		const chat = upcastPartial<IChat>({
+			resource: URI.parse('ahp-chat://peer/session'),
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({
 				folders: [
 					folder('/repo', { owner: 'microsoft', repo: 'vscode', pullRequests: [{ owner: 'microsoft', repo: 'vscode', number: 1, uri: URI.parse('https://github.com/microsoft/vscode/pull/1') }] }),

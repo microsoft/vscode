@@ -21,7 +21,7 @@ export const enum SessionConfigKey {
 	AutoApprove = 'autoApprove',
 	/** `'permissions'` — per-tool session allow/deny lists. */
 	Permissions = 'permissions',
-	/** Persisted session sandbox selection; omitted or `default` follows the host default. */
+	/** Session sandbox selection; persistence records the successfully applied value. */
 	SandboxEnabled = 'sandboxEnabled',
 	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
@@ -80,6 +80,17 @@ export const KNOWN_MODE_VALUES: ReadonlySet<string> = new Set(['interactive', 'p
 export function omitTransientSessionConfigValues<T>(values: Record<string, T>): Record<string, T> {
 	const result = { ...values };
 	delete result[SessionConfigKey.ShellInitScripts];
+	return result;
+}
+
+/** Persists confirmed sandbox enablement rather than a pending or rejected selection. */
+export function getPersistedSessionConfigValues(values: Record<string, unknown>, appliedSandboxEnabled: boolean | undefined): Record<string, unknown> {
+	const result = omitTransientSessionConfigValues(values);
+	if (appliedSandboxEnabled === undefined) {
+		delete result[SessionConfigKey.SandboxEnabled];
+	} else {
+		result[SessionConfigKey.SandboxEnabled] = appliedSandboxEnabled ? 'on' : 'off';
+	}
 	return result;
 }
 

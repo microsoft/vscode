@@ -108,6 +108,13 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	async function createSession(prefix: string, stableResource = false, beforeCreateSession?: () => Promise<void>): Promise<IServerToolTestSession> {
 		const workspace = mkdtempSync(join(tmpdir(), `ahp-server-tools-${prefix}-`));
 		tempDirs.push(workspace);
+		if (config.provider === 'codex' && context.isLinux) {
+			// Concurrent Codex 0.153.0 starts can race cleanup of synthetic sandbox mount targets.
+			// Own the protected directories before either chat starts so cleanup preserves them.
+			for (const directory of ['.git', '.agents', '.codex']) {
+				mkdirSync(join(workspace, directory));
+			}
+		}
 		if (!stableResource) {
 			const sessionUri = await createRealSession(
 				context.client,
@@ -285,6 +292,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'turn-rename-chat-seed',
 			'/rename Seeded Chat',
 			reserveClientSequenceBlock(),
+			{ expectUnread: false },
 		);
 		const { tool } = await driveServerTool(
 			session,
@@ -332,12 +340,14 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 				result: `Added reference: ${artifacts[0].id}\nAdded artifact: ${artifacts[1].id}`,
 				artifacts: [
 					{
+						chat: buildDefaultChatUri(session.sessionUri),
 						type: 'website',
 						label: 'Agent Host guide',
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
 					},
 					{
+						chat: buildDefaultChatUri(session.sessionUri),
 						type: 'file',
 						label: 'Agent Host report',
 						isArtifact: true,
