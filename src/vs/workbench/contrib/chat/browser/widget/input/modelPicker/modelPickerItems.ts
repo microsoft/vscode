@@ -66,7 +66,7 @@ export function shouldShowManageModelsAction(chatEntitlementService: IChatEntitl
 		chatEntitlementService.isInternal;
 }
 
-export function createManageModelsAction(commandService: ICommandService): IActionWidgetDropdownAction {
+export function createManageModelsAction(commandService: ICommandService, sessionType?: string): IActionWidgetDropdownAction {
 	return {
 		id: 'manageModels',
 		enabled: true,
@@ -74,7 +74,7 @@ export function createManageModelsAction(commandService: ICommandService): IActi
 		class: ThemeIcon.asClassName(Codicon.gear),
 		tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 		label: localize('chat.manageModels', "Manage Models..."),
-		run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID); },
+		run: () => { commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, undefined, sessionType); },
 	};
 }
 

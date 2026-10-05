@@ -29,7 +29,7 @@ import type { ParseGroupNameOptions } from '../common/webPubSub/groups.js';
 /** How often to sweep the reassembler for abandoned partial-chunk buffers. */
 const REASSEMBLY_SWEEP_INTERVAL_MS = 15_000;
 
-/** Upper bound on the WPS handshake and publish acknowledgement waits, not host execution. */
+/** Upper bound on relay joins, AHP handshakes and publish acknowledgement waits, not session execution. */
 const WPS_TIMEOUT_MS = 30_000;
 
 /**
@@ -126,6 +126,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private readonly _reassembler = new Reassembler();
 	private readonly _sweepTimer = this._register(new IntervalTimer());
 	private readonly _publishAckTimer = this._register(new RunOnceScheduler(() => this._checkPublishAckTimeout(), WPS_TIMEOUT_MS));
+	private readonly _handshakeTimer = this._register(new RunOnceScheduler(() => {
+		this._reportProtocolError('AHP handshake timed out', new Error('WPS host handshake timed out'), true);
+		this._fireClose();
+	}, WPS_TIMEOUT_MS));
 
 	private _ws: IWebSocketLike | undefined;
 	private _ackId = 0;
@@ -396,6 +400,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._deliver(value as ProtocolMessage, result.generation);
 			}
 		} else if (result.kind === 'pending') {
+			if (this._handshakeId !== undefined && result.group.scope === 'client' && result.group.lane === 'to-client') {
+				this._handshakeTimer.schedule();
+			}
 			// Only host chunks count: relay acks and system frames arrive even when the host is dead.
 			this._onDidReceiveData.fire();
 		}
@@ -417,6 +424,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			}
 			this._generation = generation;
 			this._handshakeId = undefined;
+			this._handshakeTimer.cancel();
 			this._closedBeforeHandshake.clear();
 			this._requests.clear();
 		} else if (generation !== undefined && this._generation !== undefined && generation !== this._generation) {
@@ -451,6 +459,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			if (message.method === 'initialize' || message.method === 'reconnect') {
 				this._handshakeId = message.id;
 				this._closedBeforeHandshake.clear();
+				this._handshakeTimer.schedule();
 			}
 		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the
@@ -543,6 +552,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		this._closed = true;
 		this._sweepTimer.cancel();
 		this._publishAckTimer.cancel();
+		this._handshakeTimer.cancel();
 		this._pendingJoinAcks.clear();
 		this._pendingPublishAcks.clear();
 		this._requests.clear();

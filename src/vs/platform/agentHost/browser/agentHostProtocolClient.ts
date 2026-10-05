@@ -26,6 +26,7 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
+import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
@@ -734,7 +735,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (this._state.kind === AgentHostClientState.Reconnecting) {
 				throw error;
 			}
-			if (protocolError.code === AHP_CLIENT_CONNECTION_CLOSED && this._beginReconnectFromConnecting(protocolError)) {
+			if ((protocolError.code === AHP_CLIENT_CONNECTION_CLOSED || (stage === 'authentication' && protocolError.code === JSON_RPC_INTERNAL_ERROR))
+				&& this._beginReconnectFromConnecting(protocolError)) {
 				throw error;
 			}
 			this._handleClose(protocolError);
@@ -826,11 +828,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return false;
 		}
 		if (!this._reconnectPolicy.autoRestore) {
-			this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; automatic reconnect is disabled.`);
+			this._logService.info(`[RemoteAgentHostProtocol] Connection setup failed for ${this._address}; automatic reconnect is disabled.`);
 			this._handleFatalClose(error);
 			return true;
 		}
-		this._logService.info(`[RemoteAgentHostProtocol] Transport lost while connecting to ${this._address}; scheduling a fresh initialize.`);
+		this._logService.info(`[RemoteAgentHostProtocol] Connection setup failed for ${this._address}; scheduling a fresh initialize.`);
 		// Carry the pre-handshake outbox into the reconnect state so queued
 		// messages are replayed once the fresh initialize succeeds.
 		const outbox = this._state.outbox;
@@ -1198,11 +1200,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					? { bypassInitializeQueue: true, bypassReconnectGate: true }
 					: { bypassReconnectGate: true });
 			} catch (error) {
-				// A dropped transport is not an authentication failure. Wrapping it
-				// would classify a momentary blip as terminally incompatible and
-				// permanently stop recovery, so let it stay a reconnectable error.
-				// The pending flag survives so the next attempt redelivers this.
-				if (isConnectionClosedError(error)) {
+				// Transport loss and host faults do not prove that the credential was rejected.
+				if (isConnectionClosedError(error) || (key === initialAuthenticationKey && error instanceof ProtocolError && error.code === JSON_RPC_INTERNAL_ERROR)) {
 					throw error;
 				}
 				// Only the freshly resolved initial authentication is essential:
@@ -1894,36 +1893,40 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async listSessions(): Promise<(IAgentSessionMetadata & { readonly workingDirectory?: URI })[]> {
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
-		return result.items.map((s: SessionSummary) => ({
-			session: URI.parse(s.resource),
-			provider: s.provider,
-			startTime: Date.parse(s.createdAt),
-			modifiedTime: Date.parse(s.modifiedAt),
-			...(s.project ? {
-				project: {
-					uri: this._toClientUri(URI.parse(s.project.uri)),
-					displayName: s.project.displayName,
-				}
-			} : {}),
-			summary: s.title,
-			status: s.status,
-			activity: s.activity,
-			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
-			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
-			changes: s.changes,
-			chats: s.chats?.map(chat => ({
-				chat: URI.parse(chat.resource),
-				summary: chat.title,
-				kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
-				origin: chat.origin,
-				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-				...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
-				...(chat.status !== undefined ? { isRead: isSessionStatusRead(chat.status) } : {}),
-				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-			})) ?? (s.defaultChat ? [{ chat: URI.parse(s.defaultChat), kind: 'default' as const }] : undefined),
-			// Carry durable host provenance for sessions first materialized from a listing.
-			...(s._meta !== undefined ? { _meta: s._meta } : {}),
-		}));
+		return result.items.map((s: SessionSummary) => {
+			const model = readCodexSessionModel(s);
+			return {
+				session: URI.parse(s.resource),
+				provider: s.provider,
+				startTime: Date.parse(s.createdAt),
+				modifiedTime: Date.parse(s.modifiedAt),
+				...(s.project ? {
+					project: {
+						uri: this._toClientUri(URI.parse(s.project.uri)),
+						displayName: s.project.displayName,
+					}
+				} : {}),
+				summary: s.title,
+				status: s.status,
+				activity: s.activity,
+				workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
+				workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
+				changes: s.changes,
+				...(model ? { model } : {}),
+				chats: s.chats?.map(chat => ({
+					chat: URI.parse(chat.resource),
+					summary: chat.title,
+					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+					origin: chat.origin,
+					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
+					...(chat.status !== undefined ? { isRead: isSessionStatusRead(chat.status) } : {}),
+					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+				})) ?? (s.defaultChat ? [{ chat: URI.parse(s.defaultChat), kind: 'default' as const }] : undefined),
+				// Carry durable host provenance for sessions first materialized from a listing.
+				...(s._meta !== undefined ? { _meta: s._meta } : {}),
+			};
+		});
 	}
 
 	private _toClientUri(uri: URI): URI {

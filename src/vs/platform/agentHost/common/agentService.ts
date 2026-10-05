@@ -281,7 +281,8 @@ export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgen
 
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
 	return event.affectsConfiguration(AgentHostClaudeAgentEnabledSettingId)
-		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+		|| event.affectsConfiguration(AgentHostCodexAgentEnabledSettingId)
+		|| (!isSessionsWindow && event.affectsConfiguration(CodexPreferAgentHostEditorSettingId));
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
@@ -289,7 +290,8 @@ export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, con
 		case CLAUDE_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId) !== false;
 		case CODEX_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
+			return configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true
+				&& (isSessionsWindow || configurationService.getValue<boolean>(CodexPreferAgentHostEditorSettingId) === true);
 		default:
 			return true;
 	}
@@ -1009,6 +1011,7 @@ export interface IAgentService {
 	 * with {@link unsubscribe} when the subscription is released. When
 	 * provided, `isActive` is checked before registering the subscriber so a
 	 * request cancelled during asynchronous resolution cannot pin the resource.
+	 * Callers must distinguish lost subscription ownership from a missing resource.
 	 */
 	subscribe(resource: URI, clientId: string, isActive?: () => boolean): Promise<IStateSnapshot>;
 

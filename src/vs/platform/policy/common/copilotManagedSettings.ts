@@ -75,6 +75,12 @@ export const COPILOT_SANDBOX_MCP_SERVERS_KEY = 'sandbox.sandboxMcpServers';
 /** Managed-settings key that requires LSP servers to remain sandboxed. */
 export const COPILOT_SANDBOX_LSP_SERVERS_KEY = 'sandbox.sandboxLspServers';
 
+/** Managed-settings key that restricts HTTPS Git authentication inside the sandbox. */
+export const COPILOT_SANDBOX_AUTH_GIT_KEY = 'sandbox.auth.git';
+
+/** Managed-settings key that restricts GitHub CLI authentication inside the sandbox. */
+export const COPILOT_SANDBOX_AUTH_GH_KEY = 'sandbox.auth.gh';
+
 /** Managed-settings key that permits explicitly bypassing the sandbox. */
 export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
 
@@ -99,6 +105,8 @@ export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinit
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_LSP_SERVERS_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_AUTH_GIT_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_AUTH_GH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: { type: 'boolean' },
@@ -458,7 +466,7 @@ export interface IManagedSettingsPick {
  * a lower channel. Telemetry instead selects the highest-priority block in its entirety, including
  * empty or unrecognized server/file object blocks; native delivery observes declared flat keys only.
  * Omitted leaves cannot inherit from a weaker managed source.
- * Sandbox enablement is force-on-wins; bypass and outbound access are deny-wins so UI consumers
+ * Sandbox enablement is force-on-wins; bypass, access and credential authentication are deny-wins so UI consumers
  * cannot discard a sandbox restriction from another channel.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
@@ -499,7 +507,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 			if (existing) {
 				existing.contributions.push({ channel, value });
 				if (((key === COPILOT_SANDBOX_ENABLED_KEY || key === COPILOT_SANDBOX_MCP_SERVERS_KEY || key === COPILOT_SANDBOX_LSP_SERVERS_KEY) && value === true && existing.value !== true)
-					|| ((key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY || key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY || key === COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY || key === COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) && value === false && existing.value !== false)) {
+					|| ((key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY || key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY || key === COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY || key === COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY || key === COPILOT_SANDBOX_AUTH_GIT_KEY || key === COPILOT_SANDBOX_AUTH_GH_KEY) && value === false && existing.value !== false)) {
 					existing.value = value;
 					existing.source = channel;
 				}

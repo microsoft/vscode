@@ -7,6 +7,7 @@ import assert from 'assert';
 import { createHash, randomBytes } from 'crypto';
 import sodium from 'libsodium-wrappers';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { JsonRpcErrorCodes } from '../../common/state/protocol/common/errors.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 
@@ -101,6 +102,23 @@ suite('Mission Control sealed authentication', () => {
 		await assert.rejects(resolveMissionControlOwner(async () => new Response('', { status: 401 }), resource, 'test'), /401/);
 		await assert.rejects(resolveMissionControlOwner(async () => Response.json({ id: 123, type: 'Bot' }), resource, 'test'), /user identity/);
 	});
+
+	for (const { status, headers, code } of [
+		{ status: 401, headers: new Headers(), code: JsonRpcErrorCodes.InvalidParams },
+		{ status: 403, headers: new Headers(), code: JsonRpcErrorCodes.InvalidParams },
+		{ status: 403, headers: new Headers({ 'Retry-After': '10' }), code: JsonRpcErrorCodes.InternalError },
+		{ status: 403, headers: new Headers({ 'X-RateLimit-Remaining': '0' }), code: JsonRpcErrorCodes.InternalError },
+		{ status: 429, headers: new Headers(), code: JsonRpcErrorCodes.InternalError },
+		{ status: 503, headers: new Headers(), code: JsonRpcErrorCodes.InternalError },
+	]) {
+		test(`identity HTTP ${status} with ${JSON.stringify([...headers])} distinguishes rejection from a host fault`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const auth = new MissionControlAuthentication(sealing, '123', resource,
+				async () => new Response('', { status, headers }), false);
+			await assert.rejects(auth.authenticate({ resource, token: seal(sealing, 'owner-token') }), { code });
+			assert.strictEqual(auth.authenticated, false);
+		});
+	}
 
 	for (const transition of ['handshake', 'close'] as const) {
 		test(`does not authorize a stale credential after ${transition}`, async () => {

@@ -35,6 +35,8 @@ export interface IMissionControlBootstrap {
 }
 
 const relayKeepAliveTimeoutMs = 15 * 60_000;
+const maxQueuedMirrorFrames = 128;
+const maxQueuedMirrorBytes = 16 * 1024 * 1024;
 
 function newConnectionGeneration(): number {
 	return randomInt(1, 2 ** 48);
@@ -155,8 +157,10 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private readonly _ackTimeout = this._register(new RunOnceScheduler(() => this.dispose(), 30_000));
 	private readonly _ready = new DeferredPromise<void>();
 	private readonly _pending = new Set<number>();
-	private readonly _outbound: { ackId: number; frame: string }[] = [];
+	private readonly _outbound: { ackId: number; frame: string; mirror?: boolean }[] = [];
 	private _outboundBytes = 0;
+	private _queuedMirrorFrames = 0;
+	private _queuedMirrorBytes = 0;
 	private _draining = false;
 	private readonly _joins = new Map<number, string>();
 	private readonly _bootstrapJoins = new Set<string>();
@@ -245,18 +249,35 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._enqueue(frames);
 	}
 
-	publishMirrorEvent(event: MissionControlMirrorEvent): undefined {
-		const ackId = ++this._ackId;
-		this._enqueue([{ ackId, frame: JSON.stringify({ ...event, ackId }) }]);
+	publishMirrorEvent(event: MissionControlMirrorEvent): undefined | false {
+		if (this._closed) {
+			throw new Error('Mission Control mirror transport closed');
+		}
+		const ackId = this._ackId + 1;
+		const frame = JSON.stringify({ ...event, ackId });
+		const bytes = Buffer.byteLength(frame);
+		if (this._queuedMirrorFrames >= maxQueuedMirrorFrames || this._queuedMirrorBytes + bytes > maxQueuedMirrorBytes
+			|| this._outbound.length >= 512 || this._outboundBytes + bytes > 64 * 1024 * 1024) {
+			return false;
+		}
+		this._ackId = ackId;
+		this._enqueue([{ ackId, frame, mirror: true }]);
+		return undefined;
 	}
 
-	private _enqueue(frames: readonly { ackId: number; frame: string }[]): void {
+	private _enqueue(frames: readonly { ackId: number; frame: string; mirror?: boolean }[]): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
 		if (this._closed || this._outbound.length + frames.length > 512 || this._outboundBytes + bytes > 64 * 1024 * 1024) {
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
 		}
 		this._outbound.push(...frames);
 		this._outboundBytes += bytes;
+		for (const frame of frames) {
+			if (frame.mirror) {
+				this._queuedMirrorFrames++;
+				this._queuedMirrorBytes += Buffer.byteLength(frame.frame);
+			}
+		}
 		this._drain();
 	}
 
@@ -268,7 +289,12 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		try {
 			while (this._pending.size === 0 && this._outbound.length > 0) {
 				const next = this._outbound.shift()!;
-				this._outboundBytes -= Buffer.byteLength(next.frame);
+				const bytes = Buffer.byteLength(next.frame);
+				this._outboundBytes -= bytes;
+				if (next.mirror) {
+					this._queuedMirrorFrames--;
+					this._queuedMirrorBytes -= bytes;
+				}
 				this._pending.add(next.ackId);
 				this._waitForAck();
 				this._socket!.send(next.frame);
@@ -335,6 +361,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 					this._ackDeadline = undefined;
 				}
 				this._drain();
+				this._mirror?.resumePublishing();
 				return;
 			}
 			if (!this._connected) {

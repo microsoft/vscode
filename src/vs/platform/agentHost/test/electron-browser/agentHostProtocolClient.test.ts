@@ -26,6 +26,7 @@ import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -932,6 +933,38 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions reads only valid provider-qualified Codex models from namespaced metadata', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		const summary = (id: string, _meta?: Record<string, unknown>) => ({
+			resource: `agent-session://codex/${id}`,
+			provider: 'codex',
+			title: id,
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			...(_meta ? { _meta } : {}),
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [
+					summary('valid', withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					summary('malformed', { [CODEX_SESSION_MODEL_META_KEY]: { id: 'gpt-5.6-sol' } }),
+					summary('absent'),
+				],
+			},
+		});
+
+		assert.deepStrictEqual((await resultPromise).map(session => session.model), [
+			{ id: '@provider=openai:gpt-5.6-sol' },
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
@@ -3852,6 +3885,39 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.deepStrictEqual({ preparations, activeSessions }, { preparations: 2, activeSessions: 3 });
 		}));
+
+		for (const code of [JsonRpcErrorCodes.InternalError, JsonRpcErrorCodes.InvalidParams]) {
+			test(`initial authentication ${code} distinguishes a retryable host fault from rejected credentials`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => ({ resource: 'https://api.example.com', token: 'fresh-credential' }),
+				});
+				const connecting = assert.rejects(client.connect(), /identity validation failed/);
+				transports[0].connectDeferred.complete();
+				const initialize = await waitForRequestAtWithin(transports[0], 'initialize', 0);
+				transports[0].fireMessage({
+					jsonrpc: '2.0', id: initialize.id,
+					result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 1, snapshots: [] }
+				});
+				const firstAuthentication = await waitForRequestAtWithin(transports[0], 'authenticate', 0);
+				transports[0].fireMessage({ jsonrpc: '2.0', id: firstAuthentication.id, error: { code, message: 'identity validation failed' } });
+				await connecting;
+				const afterFailure = client.connectionState;
+				if (code === JsonRpcErrorCodes.InternalError) {
+					const retry = await waitForTransport(transports, 1);
+					retry.connectDeferred.complete();
+					const reconnect = await waitForRequestAtWithin(retry, 'reconnect', 0, 100);
+					retry.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+					const authenticate = await waitForRequestAtWithin(retry, 'authenticate', 0, 100);
+					retry.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: { authenticated: true } });
+					await waitForConnectedWithin(client, 100);
+				}
+				const final = client.connectionState;
+				client.dispose();
+				assert.deepStrictEqual({ afterFailure, final }, code === JsonRpcErrorCodes.InternalError
+					? { afterFailure: AgentHostClientState.Reconnecting, final: AgentHostClientState.Connected }
+					: { afterFailure: AgentHostClientState.Incompatible, final: AgentHostClientState.Incompatible });
+			}));
+		}
 
 		for (const outcome of ['success', 'transient failure', 'disposed'] as const) {
 			test(`prepares initial authentication before sending credentials: ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

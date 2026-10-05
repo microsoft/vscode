@@ -2643,6 +2643,9 @@ function renderEmbeddedMcpDetail(
 		readonly error?: string;
 		readonly migratable?: boolean;
 		readonly source?: IMcpServerDetailInput['source'];
+		/** Replaces the server's configuration file with a non-file provenance. */
+		readonly provenance?: IMcpServerDetailInput['provenance'];
+		readonly definitionUnavailable?: IMcpServerDetailInput['definitionUnavailable'];
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -2699,7 +2702,9 @@ function renderEmbeddedMcpDetail(
 			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
-			source: options.source ?? input.source,
+			source: options.provenance ? undefined : options.source ?? input.source,
+			provenance: options.provenance,
+			definitionUnavailable: options.definitionUnavailable,
 		});
 	}
 }
@@ -3866,6 +3871,35 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			type: McpServerType.REMOTE,
 			url: 'https://mcp.example.com/search',
 		})),
+	}),
+
+	EmbeddedMcpDetailBuiltinAgent: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail header shows Built-in: Copilot as plain description text in the proportional font below the server name. There is no Edit Configuration button. Configuration explains that Copilot configures this server automatically so its definition can\'t be viewed or edited, followed by an Open Settings link.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('github-mcp-server', 'github-mcp-server', LocalMcpServerScope.User),
+			{
+				provenance: { label: 'Built-in: Copilot' },
+				definitionUnavailable: {
+					message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.',
+					settingId: 'chat.agentHost.githubMcpServer.enabled',
+				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailBuiltinExtension: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail header shows Built-in: GitHub Copilot Chat as a themed link in the proportional font below the server name. There is no Edit Configuration button, and the HTTP configuration is shown below.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('github', 'GitHub', LocalMcpServerScope.User, 'GitHub tools from Copilot', {
+				type: McpServerType.REMOTE,
+				url: 'https://api.githubcopilot.com/mcp/',
+			}),
+			{ provenance: { label: 'Built-in: GitHub Copilot Chat', ariaLabel: 'Open extension details for GitHub Copilot Chat', open: () => { } } },
+		),
 	}),
 
 	EmbeddedMcpDetailErrorUnsupported: defineComponentFixture({

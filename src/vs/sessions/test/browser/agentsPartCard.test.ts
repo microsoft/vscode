@@ -250,8 +250,10 @@ suite('Sessions - Agents Part Card', () => {
 			container.classList.toggle('modern-ui-compact', compact);
 			const part = {
 				layoutService: {
+					mainContainer: container,
 					isModernUICompact: () => compact,
 					isVisible: () => true,
+					getPanelAlignment: () => 'justify' as const,
 				},
 			};
 			const panelLayout = PanelPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
@@ -274,6 +276,63 @@ suite('Sessions - Agents Part Card', () => {
 			{ panelSize: [800, 600, 36, 0], auxiliaryBarSize: [800, 600, 36, 0], panelMargin: '0px', auxiliaryBarPadding: '0px' },
 			defaultState,
 		]);
+	});
+
+	test('keeps panel composite content within active horizontal insets', () => {
+		const { container } = createCard(true, true);
+		const panel = append(container, $('.part.panel'));
+		const content = append(panel, $('.content'));
+		panel.style.transition = 'none';
+		const baseLayout = sinon.stub(AbstractPaneCompositePart.prototype, 'layout').callsFake((width, height) => {
+			content.style.width = `${width}px`;
+			content.style.height = `${height}px`;
+		});
+		let sidebarVisible = true;
+		let editorPaneVisible = true;
+		let alignment: 'center' | 'justify' = 'justify';
+		const part = {
+			layoutService: {
+				mainContainer: container,
+				isModernUICompact: () => false,
+				isVisible: (partId: Parts) => partId === Parts.PANEL_PART
+					|| (partId === Parts.SIDEBAR_PART && sidebarVisible)
+					|| ((partId === Parts.EDITOR_PART || partId === Parts.AUXILIARYBAR_PART) && editorPaneVisible),
+				getPanelAlignment: () => alignment,
+			},
+		};
+		const layoutPanel = PanelPart.prototype.layout as (this: typeof part, width: number, height: number, top: number, left: number) => void;
+		const states = [
+			{ name: 'full span', sidebar: true, editorPane: true, alignment: 'justify' as const, width: 798 },
+			{ name: 'full span without sidebar', sidebar: false, editorPane: true, alignment: 'justify' as const, width: 794 },
+			{ name: 'chat aligned', sidebar: true, editorPane: true, alignment: 'center' as const, width: 794 },
+			{ name: 'chat aligned without sidebar', sidebar: false, editorPane: true, alignment: 'center' as const, width: 790 },
+			{ name: 'chat aligned without side pane', sidebar: false, editorPane: false, alignment: 'center' as const, width: 794 },
+		];
+
+		const actual = states.map(state => {
+			sidebarVisible = state.sidebar;
+			editorPaneVisible = state.editorPane;
+			alignment = state.alignment;
+			container.classList.toggle('nosidebar', !state.sidebar);
+			container.classList.toggle('noeditorpane', !state.editorPane);
+			container.classList.toggle('panel-alignment-center', state.alignment === 'center');
+			container.classList.toggle('panel-alignment-justify', state.alignment === 'justify');
+			layoutPanel.call(part, 800, 200, 400, 0);
+
+			return {
+				name: state.name,
+				renderedWidth: panel.clientWidth,
+				contentWidth: content.clientWidth,
+				layout: baseLayout.lastCall.args,
+			};
+		});
+
+		assert.deepStrictEqual(actual, states.map(state => ({
+			name: state.name,
+			renderedWidth: state.width,
+			contentWidth: state.width,
+			layout: [state.width, 194, 400, 0],
+		})));
 	});
 
 	test('keeps connected chat and editor frames flush in compact density', () => {
@@ -359,8 +418,10 @@ suite('Sessions - Agents Part Card', () => {
 			panel.style.transition = 'none';
 			const panelContent = append(panel, $('.content'));
 			const layoutService = {
+				mainContainer: container,
 				isModernUICompact: () => true,
 				isVisible: () => true,
+				getPanelAlignment: () => 'justify' as const,
 			};
 			const auxiliaryPart = { layoutService };
 			const panelPart = { layoutService };

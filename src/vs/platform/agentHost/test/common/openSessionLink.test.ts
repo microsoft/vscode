@@ -6,12 +6,35 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildExternalOpenSessionLinkUri, buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, buildAgentSessionLinkPresentation, buildExternalOpenSessionLinkUri, buildOpenSessionLinkForChatResource, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseExternalOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkTurnId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 
 suite('openSessionLink', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('connection-scoped links preserve backend and peer identities through product handoff', () => {
+		const backend = URI.parse('ahp-session://tenant/opaque?revision=2');
+		const link = buildOpenSessionLinkUri(backend, 'conversation:/peer', 'turn-1', 'other-host');
+		const external = buildExternalOpenSessionLinkUri('vscode-insiders', backend, 'conversation:/peer', 'turn-1', 'other-host');
+		const restored = parseExternalOpenSessionLinkUri(external, 'vscode-insiders');
+		assert.ok(restored);
+		assert.deepStrictEqual([link, restored].map(value => ({
+			backend: parseOpenSessionLinkUri(value)?.toString(),
+			authority: parseOpenSessionLinkConnectionAuthority(value),
+			chat: parseOpenSessionLinkChatId(value),
+			turn: parseOpenSessionLinkTurnId(value),
+		})), Array(2).fill({ backend: backend.toString(), authority: 'other-host', chat: 'conversation:/peer', turn: 'turn-1' }));
+	});
+
+	test('invalid declared connection scope cannot fall back to the ambient host', () => {
+		assert.deepStrictEqual(['', '%'].map(value => parseOpenSessionLinkUri(`agent-host-session://ahp-session/shared?connectionAuthority=${value}`)), [undefined, undefined]);
+	});
+
+	test('an explicitly supplied ambient scope remains distinguishable from old unscoped links', () => {
+		const backend = URI.parse('ahp-session:/shared');
+		assert.deepStrictEqual([undefined, 'local'].map(authority => parseOpenSessionLinkConnectionAuthority(buildOpenSessionLinkUri(backend, undefined, undefined, authority))), [undefined, 'local']);
+	});
 
 	test('isCreateSessionTool matches bare and mcp-prefixed names', () => {
 		assert.strictEqual(isCreateSessionTool('create_session'), true);

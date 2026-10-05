@@ -13,8 +13,8 @@ import { IObservable, observableValueOpts } from '../../../../../../base/common/
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -48,7 +48,7 @@ import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 export class AgentHostOpenSessionLinkOpenerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.agentHostOpenSessionLinkOpener';
-	private _sessionListRefresh: Promise<void> | undefined;
+	private readonly _sessionListRefreshes = new Map<string, Promise<void>>();
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
@@ -132,21 +132,29 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 		if (cached || !parseOpenSessionLinkUri(resource)) {
 			return cached;
 		}
-		if (!this._sessionListRefresh) {
-			const refresh = this._loadSessionIdentities().finally(() => {
-				if (this._sessionListRefresh === refresh) {
-					this._sessionListRefresh = undefined;
+		const authority = parseOpenSessionLinkConnectionAuthority(resource) ?? AMBIENT_AGENT_HOST_AUTHORITY;
+		let refresh = this._sessionListRefreshes.get(authority);
+		if (!refresh) {
+			refresh = this._loadSessionIdentities(authority).finally(() => {
+				if (this._sessionListRefreshes.get(authority) === refresh) {
+					this._sessionListRefreshes.delete(authority);
 				}
 			});
-			this._sessionListRefresh = refresh;
+			this._sessionListRefreshes.set(authority, refresh);
 		}
-		await this._sessionListRefresh;
+		await refresh;
 		return token.isCancellationRequested ? undefined : toClientSessionResource(resource, this._connectionsService);
 	}
 
-	private async _loadSessionIdentities(): Promise<void> {
-		for (const metadata of await this._connectionsService.ambientConnection.listSessions()) {
-			this._connectionsService.getSessionResource(metadata.session, undefined, metadata.provider);
+	private async _loadSessionIdentities(authority: string): Promise<void> {
+		const connection = authority === AMBIENT_AGENT_HOST_AUTHORITY
+			? this._connectionsService.ambientConnection
+			: this._connectionsService.getConnectionByAuthority(authority);
+		if (!connection) {
+			throw new Error(`Agent host is not connected: ${authority}`);
+		}
+		for (const metadata of await connection.listSessions()) {
+			this._connectionsService.registerSessionResource(metadata.session, authority, metadata.provider);
 		}
 	}
 }
@@ -257,6 +265,10 @@ function toClientSessionResource(resource: URI | string, connectionsService: IAg
 	const backendSession = parseOpenSessionLinkUri(resource);
 	if (!backendSession) {
 		return undefined;
+	}
+	const authority = parseOpenSessionLinkConnectionAuthority(resource);
+	if (authority) {
+		return connectionsService.findSessionResource(backendSession, authority)?.with({ fragment: parseOpenSessionLinkChatId(resource) ?? '' });
 	}
 	if (backendSession.scheme === 'ahp-session' || backendSession.authority || backendSession.query) {
 		return connectionsService.findSessionResource(backendSession)?.with({ fragment: parseOpenSessionLinkChatId(resource) ?? '' });

@@ -452,7 +452,6 @@ async function startAgentHost(): Promise<void> {
 		? protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
 			hostLaunchKind,
 			clientFileSystemProvider,
-			otlpLogEmitter,
 			trackProtocolHandler: handler => {
 				protocolHandlers.push(handler);
 				return toDisposable(() => {

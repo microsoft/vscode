@@ -50,8 +50,8 @@ export type MissionControlMirrorEvent =
 	| { readonly type: 'event'; readonly event: 'sessionEvents'; readonly dataType: 'json'; readonly data: IMissionControlReplicationFrame }
 	| { readonly type: 'event'; readonly event: 'sessionLifecycle'; readonly dataType: 'json'; readonly data: IMissionControlSessionLifecycle };
 
-/** Synchronous queue acceptance only: throw if enqueueing fails; never await socket or service acknowledgements. */
-export type MissionControlMirrorSender = (event: MissionControlMirrorEvent) => undefined;
+/** Return false for transient queue pressure; throw for a failed transport. Never await service acknowledgements. */
+export type MissionControlMirrorSender = (event: MissionControlMirrorEvent) => undefined | false;
 
 /** Signature, owner, timestamp and nonce verification belong to the control ingress, before this call. */
 export interface IMissionControlMirrorBackfill {
@@ -154,6 +154,7 @@ export class MissionControlSessionMirror extends Disposable {
 	private readonly _chunkOptions: ChunkOptions | undefined;
 	private readonly _now: () => number;
 	private _attachment: { readonly sender: MissionControlMirrorSender } | undefined;
+	private _publisherBlocked = false;
 	private _retainedFrames = 0;
 	private _retainedBytes = 0;
 	private _sdkRetainedFrames = 0;
@@ -450,6 +451,7 @@ export class MissionControlSessionMirror extends Disposable {
 		this._assertLive();
 		const attachment = { sender };
 		this._attachment = attachment;
+		this._publisherBlocked = false;
 		this._ready.clear();
 		for (const session of this._sessions.values()) {
 			session.nextToSend = session.acknowledgedSeq + 1;
@@ -468,8 +470,19 @@ export class MissionControlSessionMirror extends Disposable {
 
 	detach(): void {
 		this._attachment = undefined;
+		this._publisherBlocked = false;
 		this._ready.clear();
 		this._scheduler.cancel();
+	}
+
+	resumePublishing(): void {
+		if (!this._publisherBlocked || !this._attachment || this._store.isDisposed) {
+			return;
+		}
+		this._publisherBlocked = false;
+		if (this._ready.size > 0 && !this._scheduler.isScheduled()) {
+			this._scheduler.schedule();
+		}
 	}
 
 	/** Takes the decoded ingest-ack body; validation is atomic and transport acknowledgements never release spool entries. */
@@ -650,7 +663,7 @@ export class MissionControlSessionMirror extends Disposable {
 		if (this._attachment && (session.failurePending || session.lifecycleEvent || this._canSendFrame(session)
 			|| (session.sdk && this._canSendFrame(session.sdk)) || session.backfills.length > 0)) {
 			this._ready.add(session);
-			if (!this._scheduler.isScheduled()) {
+			if (!this._publisherBlocked && !this._scheduler.isScheduled()) {
 				this._scheduler.schedule();
 			}
 		} else {
@@ -686,7 +699,13 @@ export class MissionControlSessionMirror extends Disposable {
 				throw new Error('Mission Control mirror spool invariant violated');
 			}
 			try {
-				if (attachment.sender(JSON.parse(json) as MissionControlMirrorEvent) !== undefined) {
+				const accepted = attachment.sender(JSON.parse(json) as MissionControlMirrorEvent);
+				if (accepted === false) {
+					this._publisherBlocked = true;
+					this._ready.add(session);
+					break;
+				}
+				if (accepted !== undefined) {
 					throw new Error('Mission Control mirror sender must accept synchronously');
 				}
 			} catch {
@@ -725,7 +744,7 @@ export class MissionControlSessionMirror extends Disposable {
 			}
 			this._wake(session);
 		}
-		if (this._attachment && this._ready.size > 0 && !this._scheduler.isScheduled()) {
+		if (this._attachment && !this._publisherBlocked && this._ready.size > 0 && !this._scheduler.isScheduled()) {
 			this._scheduler.schedule();
 		}
 	}

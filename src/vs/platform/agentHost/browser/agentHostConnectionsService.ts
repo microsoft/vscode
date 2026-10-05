@@ -77,7 +77,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 				if (connection.onDidNotification) {
 					store.add(connection.onDidNotification(notification => {
 						if (notification.type === 'root/sessionAdded') {
-							this.getSessionResource(URI.parse(notification.summary.resource), info.authority, notification.summary.provider);
+							this.registerSessionResource(URI.parse(notification.summary.resource), info.authority, notification.summary.provider);
 						}
 					}));
 				}
@@ -174,7 +174,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return connection ? { ...identity, connection } : undefined;
 	}
 
-	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY, advertisedProvider?: string): URI {
+	registerSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY, advertisedProvider?: string): URI {
 		const prefix = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_SCHEME_PREFIX : remoteAgentHostSessionTypeAuthorityPrefix(authority);
 		if (!advertisedProvider) {
 			const known = this.findSessionResource(backendSession, authority);
@@ -202,6 +202,27 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 
 	findSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
 		return [...this._backendSessions].find(([, identity]) => identity.authority === authority && isEqual(identity.backend, backendSession))?.[0];
+	}
+
+	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
+		const known = this.findSessionResource(backendSession, authority);
+		if (known) {
+			return known;
+		}
+		if (backendSession.authority || backendSession.query || backendSession.fragment) {
+			return undefined;
+		}
+		const backend = AgentSession.provider(backendSession);
+		const alias = this._sessionResolutionPolicies.get(authority)?.sessionSchemeAlias;
+		const provider = alias && alias.backend === backendSession.scheme ? alias.ui : backend;
+		if (!provider) {
+			return undefined;
+		}
+		const prefix = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_SCHEME_PREFIX : remoteAgentHostSessionTypeAuthorityPrefix(authority);
+		const resource = backendSession.with({ scheme: `${prefix}${provider}` });
+		// UI fragments select peer chats. Keep the existing owner-resolution
+		// contract and decline addresses it cannot represent without identity loss.
+		return isEqual(this.resolveSessionResourceIdentity(resource)?.backendSession, backendSession) ? resource : undefined;
 	}
 
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {

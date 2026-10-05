@@ -262,32 +262,50 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 		return this._trackRequest(signal, () => this._download(account, token, request, signal));
 	}
 
-	private async _download(
-		account: AccountHandle,
-		token: string,
+	anonymousDownload(
+		account: AnonymousAccount,
+		basePath: string,
 		request: GitHubDownloadRequest,
 		signal: AbortSignal,
 	): Promise<GitHubDownloadResponse> {
+		return this._trackRequest(signal, () => this._download(account, undefined, request, signal, basePath));
+	}
+
+	private async _download(
+		account: AccountHandle | AnonymousAccount,
+		token: string | undefined,
+		request: GitHubDownloadRequest,
+		signal: AbortSignal,
+		anonymousBasePath?: string,
+	): Promise<GitHubDownloadResponse> {
 		signal.throwIfAborted();
+		const anonymous = account.kind === 'anonymous';
+		if (anonymous) {
+			const url = new URL(request.url);
+			validateDownloadUrl(url, this._allowInsecureLoopbackDownloads);
+			if (url.origin !== account.origin || !anonymousBasePath || !url.pathname.startsWith(anonymousBasePath)) {
+				throw new GitHubRequestError('GitHub anonymous download escaped its content endpoint.', 'authorization');
+			}
+		}
 		if (!Number.isFinite(request.maximumBytes) || !Number.isFinite(request.timeout)) {
 			throw new GitHubRequestError('Invalid GitHub download limits', 'validation');
 		}
 		const deadline = this._deadline(request, Math.max(0, request.timeout));
 		const priority = request.priority ?? 'interactive';
-		return this._logRequest('download', formatDownloadUrl(request.url), account, priority, signal, () => this._enqueueWithRateLimit(account, getGitHubRestResource(request.url), priority, signal, async (combinedSignal, onDispatch) => {
+		return this._logRequest('download', formatDownloadUrl(request.url), account, priority, signal, () => this._enqueueWithRateLimit(account, anonymous ? 'raw' : getGitHubRestResource(request.url), priority, signal, async (combinedSignal, onDispatch) => {
 			const initialOrigin = new URL(request.url).origin;
 			let url = request.url;
-			let authenticated = true;
+			let authenticated = !anonymous;
 			for (let redirectCount = 0; redirectCount <= maximumRedirects; redirectCount++) {
 				combinedSignal.throwIfAborted();
-				const resource = getGitHubRestResource(url);
-				if (authenticated && this._rateLimits.getRequestDelay(account, resource) > 0) {
+				const resource = anonymous ? 'raw' : getGitHubRestResource(url);
+				if ((authenticated || anonymous) && this._rateLimits.getRequestDelay(account, resource) > 0) {
 					throw new GitHubRequestError('GitHub download is rate limited', 'rateLimit');
 				}
 				const headers: Record<string, string> = {
 					...(authenticated ? this._options.requestMetadata?.getHeaders(url, request.caller, false) : undefined),
 					'Accept': authenticated ? 'application/vnd.github+json' : 'text/plain, application/octet-stream',
-					'X-GitHub-Api-Version': defaultApiVersion,
+					...(anonymous ? {} : { 'X-GitHub-Api-Version': defaultApiVersion }),
 				};
 				if (authenticated) {
 					headers['Authorization'] = `Bearer ${token}`;
@@ -302,6 +320,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						headers,
 						signal: combinedSignal,
 						redirect: 'manual',
+						...(anonymous ? { credentials: 'omit', referrerPolicy: 'no-referrer' } as const : {}),
 					});
 					this._telemetry?.recordResponse(response.status);
 					if (combinedSignal.aborted) {
@@ -317,7 +336,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 					throw new GitHubRequestError(`GitHub download network request failed (host: ${formatDownloadUrl(url)}, redirect: ${redirectCount}, codes: ${formatNetworkErrorCodes(error)})`, 'network');
 				}
 				this._logService?.trace(`[GitHubTransport] Download request returned HTTP ${response.status}`);
-				if (authenticated) {
+				if (authenticated || anonymous) {
 					this._rateLimits.updateFromResponse(account, response, undefined, resource);
 				}
 				if ([301, 302, 307, 308].includes(response.status)) {
@@ -335,21 +354,24 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 						throw new GitHubRequestError('GitHub download redirect used an invalid target', 'authorization');
 					}
 					validateDownloadUrl(redirected, this._allowInsecureLoopbackDownloads);
-					authenticated = redirected.origin === initialOrigin;
+					if (anonymous && (redirected.origin !== initialOrigin || !anonymousBasePath || !redirected.pathname.startsWith(anonymousBasePath))) {
+						throw new GitHubRequestError('GitHub anonymous download redirect escaped its pinned content path.', 'authorization', response.status);
+					}
+					authenticated = !anonymous && redirected.origin === initialOrigin;
 					this._logService?.trace(`[GitHubTransport] Following download redirect to ${formatDownloadUrl(redirected.href)} (authenticated: ${authenticated})`);
 					url = redirected.href;
 					continue;
 				}
 				if (!response.ok) {
 					let diagnosticBody = '';
-					if (authenticated && response.status === 403) {
+					if ((authenticated || anonymous) && response.status === 403) {
 						const prefix = await this._readDownloadBody(response, Math.min(maximumDownloadErrorBytes, this._options.maximumResponseBytes), combinedSignal);
 						diagnosticBody = new TextDecoder().decode(prefix.bytes);
 						this._rateLimits.updateFromResponse(account, response, diagnosticBody, resource);
 					} else if (response.body) {
 						cancelResponseBody(response.body, this._logService);
 					}
-					const kind = !authenticated && response.status === 403 ? 'authorization' : classifyHttpError(response, diagnosticBody);
+					const kind = !authenticated && !anonymous && response.status === 403 ? 'authorization' : classifyHttpError(response, diagnosticBody);
 					if (response.status === 403 && kind === 'rateLimit') {
 						this._telemetry?.record('rateLimitedResponses');
 					}
@@ -358,7 +380,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 				const body = await this._readDownloadBody(response, Math.min(request.maximumBytes, this._options.maximumResponseBytes), combinedSignal);
 				this._logService?.trace(`[GitHubTransport] Downloaded ${body.bytes.byteLength} byte(s) (truncated: ${body.truncated})`);
 				return {
-					text: new TextDecoder().decode(body.bytes),
+					text: new TextDecoder('utf-8', { ignoreBOM: anonymous }).decode(body.bytes),
 					truncated: body.truncated,
 					bytesRead: body.bytes.byteLength,
 					sourceUrl: url,
