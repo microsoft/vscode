@@ -1023,7 +1023,8 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					const currentRequests = model.getRequests();
 					const existing = turn.id === undefined ? undefined : requestsById.get(turn.id);
-					if (existing && equals(turn.items, previousTurns.get(turn.id)?.items)) {
+					// An unchanged turn may be absent because the user removed it locally.
+					if (equals(turn.items, previousTurns.get(turn.id)?.items)) {
 						continue;
 					}
 					let insertionIndex = existing ? currentRequests.indexOf(existing) : currentRequests.length;
