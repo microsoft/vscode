@@ -21,7 +21,7 @@ suite('CodexAccountTelemetry', () => {
 
 	test('normalizes every generated plan value', () => {
 		const expected = {
-			free: 'free', go: 'go', plus: 'plus', pro: 'pro', prolite: 'pro',
+			free: 'free', go: 'go', plus: 'plus', pro: 'pro', prolite: 'pro', promax: 'pro',
 			team: 'business', self_serve_business_prolite: 'business', self_serve_business_usage_based: 'business', business: 'business',
 			ent26: 'enterprise', enterprise_cbp_automation: 'enterprise', enterprise_cbp_usage_based: 'enterprise', enterprise: 'enterprise',
 			edu: 'edu', edu_plus: 'edu', edu_pro: 'edu', unknown: 'unknown',
