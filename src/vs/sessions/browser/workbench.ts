@@ -1593,6 +1593,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			this._updateSessionsSidePaneDivider();
 			this._onGridDidChange();
 		}));
+		this._registerGridMaximizationListener();
 
 		// If the editor is restored visible, it already has an established
 		// width, so a later reveal must not force an even split over it.
@@ -1654,6 +1655,12 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 					// Editor modal close is handled by the editor service
 					break;
 			}
+		}));
+	}
+
+	private _registerGridMaximizationListener(): void {
+		this._register(this.workbenchGrid.onDidChangeViewMaximized(() => {
+			this._fireDidChangePartVisibility(Parts.PANEL_PART, this.isVisible(Parts.PANEL_PART));
 		}));
 	}
 

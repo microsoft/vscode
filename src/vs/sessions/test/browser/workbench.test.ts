@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { $, append } from '../../../base/browser/dom.js';
-import { Direction, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, Grid, ISerializableView, ISerializedGrid, ISerializedNode, LayoutPriority, SerializableGrid, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../base/common/observable.js';
 import { SashState } from '../../../base/browser/ui/sash/sash.js';
@@ -101,6 +101,12 @@ suite('Sessions - Workbench', () => {
 	const createDesktopGridDescriptor = Reflect.get(Workbench.prototype, 'createDesktopGridDescriptor') as (this: IGridDescriptorTestHarness, width: number, height: number) => TestSerializedGrid;
 	const loadPanelAlignment = Reflect.get(Workbench.prototype, '_loadPanelAlignment') as (this: Pick<IPanelAlignmentTestHarness, 'agentWorkbenchLayout'>, storageService: { get(key: string, scope: StorageScope): string | undefined }) => PanelAlignment;
 	const setPanelAlignment = Workbench.prototype.setPanelAlignment as (this: IPanelAlignmentTestHarness, alignment: PanelAlignment) => void;
+	const registerGridMaximizationListener = Reflect.get(Workbench.prototype, '_registerGridMaximizationListener') as (this: {
+		workbenchGrid: Pick<Grid, 'onDidChangeViewMaximized'>;
+		_register<T extends IDisposable>(disposable: T): T;
+		_fireDidChangePartVisibility(partId: Parts, visible: boolean): void;
+		isVisible(part: Parts): boolean;
+	}) => void;
 	const updateSessionsSidePaneDivider = Reflect.get(Workbench.prototype, '_updateSessionsSidePaneDivider') as (this: { workbenchGrid: { element: HTMLElement }; sessionsPartView: ISerializableView; editorPartView: ISerializableView }) => void;
 	const toggleMaximizedPanel = Workbench.prototype.toggleMaximizedPanel as (this: IPanelMaximizationTestHarness) => void;
 	const savePartSizes = Reflect.get(Workbench.prototype, '_savePartSizes') as (this: ISavePartSizesTestHarness) => void;
@@ -3628,6 +3634,37 @@ suite('Sessions - Workbench', () => {
 			restoredEditorState: undefined,
 			hiddenEditorState: { width: undefined },
 		});
+	});
+
+	test('forwards panel maximization after the Grid commits its state', () => {
+		const localStore = new DisposableStore();
+		try {
+			const panel = localStore.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+			const editor = localStore.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+			const grid = localStore.add(new Grid(panel));
+			grid.addView(editor, Sizing.Distribute, panel, Direction.Up);
+			grid.layout(800, 600);
+			const notifications: { partId: Parts; visible: boolean; maximized: boolean }[] = [];
+			const host = {
+				workbenchGrid: grid,
+				_register: <T extends IDisposable>(disposable: T) => localStore.add(disposable),
+				_fireDidChangePartVisibility: (partId: Parts, visible: boolean) => {
+					notifications.push({ partId, visible, maximized: grid.hasMaximizedView() });
+				},
+				isVisible: () => true,
+			};
+			registerGridMaximizationListener.call(host);
+
+			grid.maximizeView(panel);
+			grid.exitMaximizedView();
+
+			assert.deepStrictEqual(notifications, [
+				{ partId: Parts.PANEL_PART, visible: true, maximized: true },
+				{ partId: Parts.PANEL_PART, visible: true, maximized: false },
+			]);
+		} finally {
+			localStore.dispose();
+		}
 	});
 
 	test('round trips a detail-only pane and preserves hidden views through panel maximization', () => {
