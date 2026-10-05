@@ -5,27 +5,23 @@
 
 import type { AuthenticationSession } from 'vscode';
 import type { IAuthenticationService } from './authentication';
-import { authenticationSessionIdentityEquals } from './enterprise';
 
 const quotaTokenRefreshIntervalMs = 5 * 60 * 1000;
 
 interface QuotaTokenRefreshState {
-	readonly session: AuthenticationSession | undefined;
-	readonly staticSessionId: string | undefined;
+	readonly sessionKey: string | undefined;
 	username: string | undefined;
-	readonly scopes: Map<string, QuotaRefreshScope>;
-}
-
-interface QuotaRefreshScope {
-	handled: boolean;
-	nextRequestId: number;
-	lastSuccessfulRequestId: number;
-	lastQuotaRequestId: number;
-	refreshAfter: number;
-	pending: Promise<void> | undefined;
+	readonly scopes: Map<string, {
+		latched: boolean;
+		lastSuccessfulRequestId: number;
+		lastQuotaRequestId: number;
+		refreshAfter: number;
+		pending: Promise<void> | undefined;
+	}>;
 }
 
 const quotaTokenRefreshStates = new WeakMap<IAuthenticationService, QuotaTokenRefreshState>();
+let lastRequestId = 0;
 
 /**
  * Captures the account and quota scope before sending a request. Refreshes once per
@@ -33,22 +29,14 @@ const quotaTokenRefreshStates = new WeakMap<IAuthenticationService, QuotaTokenRe
  * The cooldown bounds failed refreshes and rapid success/failure cycles.
  */
 export class QuotaTokenRefreshRequest {
+	private readonly requestId = ++lastRequestId;
 	private readonly state: QuotaTokenRefreshState;
-	private readonly scope: QuotaRefreshScope;
-	private readonly requestId: number;
+	private readonly scope;
 
-	constructor(
-		scopeKey: string,
-		private readonly authenticationService: IAuthenticationService,
-	) {
+	constructor(scopeKey: string, private readonly authenticationService: IAuthenticationService) {
 		let state = quotaTokenRefreshStates.get(authenticationService);
 		if (!state || !isSameAccount(authenticationService, state)) {
-			state = {
-				session: authenticationService.anyGitHubSession,
-				staticSessionId: getStaticSessionId(authenticationService.anyGitHubSession),
-				username: authenticationService.copilotToken?.username,
-				scopes: new Map(),
-			};
+			state = { sessionKey: getSessionKey(authenticationService.anyGitHubSession), username: undefined, scopes: new Map() };
 			quotaTokenRefreshStates.set(authenticationService, state);
 		}
 		state.username ??= authenticationService.copilotToken?.username;
@@ -56,18 +44,17 @@ export class QuotaTokenRefreshRequest {
 
 		let scope = state.scopes.get(scopeKey);
 		if (!scope) {
-			scope = { handled: false, nextRequestId: 0, lastSuccessfulRequestId: 0, lastQuotaRequestId: 0, refreshAfter: 0, pending: undefined };
+			scope = { latched: false, lastSuccessfulRequestId: 0, lastQuotaRequestId: 0, refreshAfter: 0, pending: undefined };
 			state.scopes.set(scopeKey, scope);
 		}
 		this.scope = scope;
-		this.requestId = ++scope.nextRequestId;
 	}
 
 	onSuccess(): void {
 		if (this.isCurrentAccount()) {
 			this.scope.lastSuccessfulRequestId = Math.max(this.scope.lastSuccessfulRequestId, this.requestId);
 			if (this.requestId > this.scope.lastQuotaRequestId) {
-				this.scope.handled = false;
+				this.scope.latched = false;
 			}
 		}
 	}
@@ -78,34 +65,32 @@ export class QuotaTokenRefreshRequest {
 			return;
 		}
 		scope.lastQuotaRequestId = Math.max(scope.lastQuotaRequestId, this.requestId);
-		if (scope.pending) {
-			scope.handled = true;
-			return scope.pending;
-		}
-		if (knownQuotaExceeded) {
-			scope.handled = true;
-			return;
-		}
-		if (scope.handled || Date.now() < scope.refreshAfter) {
+		const shouldRefresh = !scope.pending && !scope.latched && !knownQuotaExceeded;
+		if (shouldRefresh && Date.now() < scope.refreshAfter) {
 			return;
 		}
 
-		scope.handled = true;
+		scope.latched = true;
+		if (shouldRefresh) {
+			scope.pending = this.refresh().finally(() => { scope.pending = undefined; });
+		}
+		return scope.pending;
+	}
+
+	private async refresh(): Promise<void> {
+		const scope = this.scope;
 		try {
-			// Publish the promise before resetting the token can notify other consumers.
-			scope.pending = Promise.resolve().then(async () => {
-				if (this.isCurrentAccount() && scope.lastQuotaRequestId > scope.lastSuccessfulRequestId) {
-					scope.refreshAfter = Date.now() + quotaTokenRefreshIntervalMs;
-					this.authenticationService.resetCopilotToken(402);
-					await this.authenticationService.getCopilotToken();
-				}
-			});
-			await scope.pending;
+			// Publish the shared promise first and let a newer success supersede this refresh.
+			await Promise.resolve();
+			if (!this.isCurrentAccount() || scope.lastQuotaRequestId <= scope.lastSuccessfulRequestId) {
+				return;
+			}
+			scope.refreshAfter = Date.now() + quotaTokenRefreshIntervalMs;
+			this.authenticationService.resetCopilotToken(402);
+			await this.authenticationService.getCopilotToken();
 		} catch (error) {
-			scope.handled = false;
+			scope.latched = false;
 			throw error;
-		} finally {
-			scope.pending = undefined;
 		}
 	}
 
@@ -115,22 +100,15 @@ export class QuotaTokenRefreshRequest {
 	}
 }
 
-function getStaticSessionId(session: AuthenticationSession | undefined): string | undefined {
-	// Static sessions have no issuer and can share a placeholder account ID.
-	// Snapshot their live id getter rather than keeping only the session object.
-	return session?.authorizationServer ? undefined : session?.id;
-}
-
 function isSameAccount(authenticationService: IAuthenticationService, state: QuotaTokenRefreshState): boolean {
 	const session = authenticationService.anyGitHubSession;
-	if (!authenticationSessionIdentityEquals(state.session, session) || state.staticSessionId !== getStaticSessionId(session)) {
-		return false;
-	}
-	if (session) {
-		return true;
-	}
-	// Token-only clients use the username, never the rotatable telemetry tid.
-	// A missing token during refresh preserves the latch.
-	const username = authenticationService.copilotToken?.username;
-	return username === undefined || state.username === undefined || username === state.username;
+	// Token-only clients retain their username while the token is missing during refresh.
+	const username = session ? undefined : authenticationService.copilotToken?.username;
+	return state.sessionKey === getSessionKey(session)
+		&& (username === undefined || state.username === undefined || username === state.username);
+}
+
+function getSessionKey(session: AuthenticationSession | undefined): string | undefined {
+	// OAuth sessions use account + issuer; static sessions need a snapshot of their live id.
+	return session && JSON.stringify([session.account.id, session.authorizationServer?.toString() ?? ['static', session.id]]);
 }

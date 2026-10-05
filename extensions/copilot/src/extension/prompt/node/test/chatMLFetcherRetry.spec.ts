@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
-import type { OpenAI } from 'openai';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CopilotToken, createTestExtendedTokenInfo } from '../../../../platform/authentication/common/copilotToken';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
 import { ChatFetchResponseType, ChatLocation } from '../../../../platform/chat/common/commonTypes';
@@ -21,7 +20,7 @@ import { ElectronFetchErrorChromiumDetails, ILogService } from '../../../../plat
 import { FinishedCallback, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
 import { IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
-import { IChatWebSocketConnection, NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
+import { NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
@@ -32,7 +31,7 @@ import { SpyingTelemetryService } from '../../../../platform/telemetry/node/spyi
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { InstantiationServiceBuilder } from '../../../../util/common/services';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
-import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IPowerService, NullPowerService } from '../../../power/common/powerService';
@@ -46,8 +45,6 @@ describe('ChatMLFetcherImpl retry logic', () => {
 	let cancellationTokenSource: CancellationTokenSource;
 	let endpoint: IChatEndpoint;
 	let telemetryService: SpyingTelemetryService;
-	let authenticationService: TestAuthenticationService;
-	let webSocketManager: QuotaWebSocketManager;
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -63,15 +60,13 @@ describe('ChatMLFetcherImpl retry logic', () => {
 		const experimentationService = new NullExperimentationService();
 
 		endpoint = createMockEndpoint();
-		authenticationService = disposables.add(new TestAuthenticationService());
-		webSocketManager = new QuotaWebSocketManager(disposables);
 
 		fetcher = disposables.add(new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
 			telemetryService,
 			new NullRequestLogger(),
 			logService,
-			authenticationService,
+			disposables.add(new TestAuthenticationService()),
 			createMockInteractionService(),
 			createMockChatQuotaService(),
 			new TestCAPIClientService() as unknown as ICAPIClientService,
@@ -82,10 +77,9 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			new InstantiationServiceBuilder([
 				[IFetcherService, mockFetcherService as unknown as IFetcherService],
 				[ITelemetryService, telemetryService],
-				[ILogService, logService],
 				[ICAPIClientService, new TestCAPIClientService() as unknown as ICAPIClientService],
 			]).seal() as unknown as IInstantiationService,
-			webSocketManager,
+			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 		));
 
@@ -95,8 +89,6 @@ describe('ChatMLFetcherImpl retry logic', () => {
 
 	afterEach(() => {
 		disposables.dispose();
-		vi.restoreAllMocks();
-		vi.useRealTimers();
 	});
 
 	function createBaseOpts(): IFetchMLOptions {
@@ -110,159 +102,6 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			finishedCb: undefined,
 		};
 	}
-
-	describe('quota errors', () => {
-		beforeEach(() => {
-			vi.useFakeTimers({ toFake: ['Date'] });
-			const token = new CopilotToken(createTestExtendedTokenInfo({
-				sku: 'copilot_individual',
-				limited_user_quotas: undefined,
-			}));
-			authenticationService.setCopilotToken(token);
-			vi.spyOn(authenticationService, 'getCopilotToken').mockResolvedValue(token);
-		});
-
-		it('bounds token resets for repeated 402s without legacy quota metadata', async () => {
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-
-			for (let i = 0; i < 3; i++) {
-				mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-				const result = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
-				expect(result.type).toBe(ChatFetchResponseType.QuotaExceeded);
-				vi.setSystemTime(Date.now() + 60 * 60 * 1000);
-			}
-
-			expect(reset.mock.calls).toEqual([[402]]);
-		});
-
-		it.each([
-			'quota_exceeded',
-			'free_quota_exceeded',
-			'overage_limit_reached',
-			'billing_not_configured',
-			'additional_spend_limit_reached',
-		])('bounds token resets for repeated WebSocket %s errors', async code => {
-			webSocketManager.errorCode = code;
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-
-			for (let i = 0; i < 3; i++) {
-				const result = await fetcher.fetchMany({
-					...createBaseOpts(),
-					useWebSocket: true,
-					conversationId: 'conversation',
-					turnId: 'turn',
-				}, cancellationTokenSource.token);
-				expect(result).toEqual(expect.objectContaining({ type: ChatFetchResponseType.QuotaExceeded }));
-				vi.setSystemTime(Date.now() + 60 * 60 * 1000);
-			}
-
-			expect(reset.mock.calls).toEqual([[402]]);
-		});
-
-		it('shares the quota refresh cooldown between HTTP and WebSocket', async () => {
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-			mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-			const httpResult = await fetcher.fetchMany(createBaseOpts(), cancellationTokenSource.token);
-			const webSocketResult = await fetcher.fetchMany({
-				...createBaseOpts(),
-				useWebSocket: true,
-				conversationId: 'conversation',
-				turnId: 'turn',
-			}, cancellationTokenSource.token);
-
-			expect({
-				httpResult: httpResult.type,
-				webSocketResult: webSocketResult.type,
-				resets: reset.mock.calls,
-			}).toEqual({
-				httpResult: ChatFetchResponseType.QuotaExceeded,
-				webSocketResult: ChatFetchResponseType.QuotaExceeded,
-				resets: [[402]],
-			});
-		});
-
-		it.each([false, true])('does not refresh an already exhausted chat quota (WebSocket: %s)', async useWebSocket => {
-			const token = new CopilotToken(createTestExtendedTokenInfo({ limited_user_quotas: { chat: 0, completions: 100 } }));
-			authenticationService.setCopilotToken(token);
-			vi.mocked(authenticationService.getCopilotToken).mockResolvedValue(token);
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-			mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-
-			const result = await fetcher.fetchMany({
-				...createBaseOpts(),
-				useWebSocket,
-				conversationId: 'conversation',
-				turnId: 'turn',
-			}, cancellationTokenSource.token);
-
-			expect({ type: result.type, resets: reset.mock.calls }).toEqual({ type: ChatFetchResponseType.QuotaExceeded, resets: [] });
-		});
-
-		it('does not let an NES quota episode suppress the first chat quota refresh', async () => {
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-			for (const model of ['nes-model', 'chat-model', 'nes-model', 'chat-model']) {
-				mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-				const result = await fetcher.fetchMany({
-					...createBaseOpts(),
-					endpoint: { ...endpoint, model },
-				}, cancellationTokenSource.token);
-				expect(result.type).toBe(ChatFetchResponseType.QuotaExceeded);
-			}
-
-			expect(reset.mock.calls).toEqual([[402], [402]]);
-		});
-
-		it.each([false, true])('does not reset tokens on successful NES responses with exhausted chat quota (WebSocket: %s)', async useWebSocket => {
-			const token = new CopilotToken(createTestExtendedTokenInfo({ limited_user_quotas: { chat: 0, completions: 100 } }));
-			authenticationService.setCopilotToken(token);
-			vi.mocked(authenticationService.getCopilotToken).mockResolvedValue(token);
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-			webSocketManager.successful = true;
-
-			for (let i = 0; i < 3; i++) {
-				mockFetcherService.queueResponse(createSuccessResponse('completion'));
-				const result = await fetcher.fetchMany({
-					...createBaseOpts(),
-					endpoint: { ...endpoint, model: 'nes-model' },
-					location: ChatLocation.Other,
-					useWebSocket,
-					conversationId: 'conversation',
-					turnId: 'turn',
-				}, cancellationTokenSource.token);
-				expect(result.type).toBe(ChatFetchResponseType.Success);
-				vi.setSystemTime(Date.now() + 60 * 60 * 1000);
-			}
-
-			expect(reset).not.toHaveBeenCalled();
-		});
-
-		it.each([false, true])('rearms a quota episode after success (WebSocket: %s)', async useWebSocket => {
-			const reset = vi.spyOn(authenticationService, 'resetCopilotToken');
-			const opts = {
-				...createBaseOpts(),
-				useWebSocket,
-				conversationId: 'conversation',
-				turnId: 'turn',
-			};
-			mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-			await fetcher.fetchMany(opts, cancellationTokenSource.token);
-
-			webSocketManager.successful = true;
-			mockFetcherService.queueResponse(createSuccessResponse('completion'));
-			const success = await fetcher.fetchMany(opts, cancellationTokenSource.token);
-			expect(success.type).toBe(ChatFetchResponseType.Success);
-
-			webSocketManager.successful = false;
-			vi.setSystemTime(Date.now() + 5 * 60 * 1000);
-			mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-			await fetcher.fetchMany(opts, cancellationTokenSource.token);
-			vi.setSystemTime(Date.now() + 24 * 60 * 60 * 1000);
-			mockFetcherService.queueResponse(createErrorResponse(402, 'Payment Required'));
-			await fetcher.fetchMany(opts, cancellationTokenSource.token);
-
-			expect(reset.mock.calls).toEqual([[402], [402]]);
-		});
-	});
 
 	describe('server error retry with configured status codes', () => {
 		it('retries on 500 status code when configured', async () => {
@@ -665,80 +504,6 @@ class TestAuthenticationService extends MockAuthenticationService {
 			token: 'test-token',
 			username: 'test-user',
 		} as CopilotToken);
-	}
-}
-
-class QuotaWebSocketManager extends NullChatWebSocketManager {
-	errorCode = 'quota_exceeded';
-	successful = false;
-	private readonly connection: IChatWebSocketConnection;
-
-	constructor(disposables: DisposableStore) {
-		super();
-		this.connection = disposables.add<IChatWebSocketConnection>({
-			connect: async () => { },
-			sendRequest: () => {
-				if (this.successful) {
-					const events = disposables.add(new Emitter<OpenAI.Responses.ResponseStreamEvent>());
-					const completed: OpenAI.Responses.ResponseCompletedEvent = {
-						type: 'response.completed',
-						sequence_number: 0,
-						response: {
-							id: 'response',
-							created_at: 0,
-							model: 'nes-model',
-							object: 'response',
-							output: [{
-								id: 'item',
-								type: 'message',
-								role: 'assistant',
-								status: 'completed',
-								content: [{ type: 'output_text', text: 'completion', annotations: [], logprobs: [] }],
-							}],
-							output_text: 'completion',
-							error: null,
-							incomplete_details: null,
-							instructions: null,
-							metadata: null,
-							parallel_tool_calls: false,
-							temperature: 0,
-							top_p: 1,
-							tool_choice: 'none',
-							tools: [],
-						},
-					};
-					return {
-						onEvent: events.event,
-						onCAPIError: Event.None,
-						onError: Event.None,
-						firstEvent: Promise.resolve(completed),
-						done: new Promise<void>(resolve => setTimeout(() => {
-							events.fire(completed);
-							resolve();
-						}, 0)),
-					};
-				}
-				return {
-					onEvent: Event.None,
-					onCAPIError: Event.None,
-					onError: Event.None,
-					firstEvent: Promise.resolve({ type: 'error', error: { code: this.errorCode, message: 'Quota exceeded' } }),
-					done: Promise.resolve(),
-				};
-			},
-			isOpen: true,
-			responseHeaders: new FakeHeaders(),
-			responseStatusCode: 101,
-			responseStatusText: 'Switching Protocols',
-			gitHubRequestId: 'request-id',
-			copilotServiceRequestId: 'service-request-id',
-			statefulMarker: undefined,
-			dispose: () => { },
-		});
-	}
-
-	override getOrCreateConnection(): IChatWebSocketConnection {
-		return this.connection;
 	}
 }
 

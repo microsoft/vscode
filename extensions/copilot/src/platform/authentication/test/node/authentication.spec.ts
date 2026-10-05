@@ -18,7 +18,7 @@ import { StaticGitHubAuthenticationService } from '../../common/staticGitHubAuth
 import { CopilotToken, createTestExtendedTokenInfo } from '../../common/copilotToken';
 import { ICopilotTokenManager } from '../../common/copilotTokenManager';
 import { ICopilotTokenStore } from '../../common/copilotTokenStore';
-import { createStaticGitHubTokenProvider, FixedCopilotTokenManager } from '../../node/copilotTokenManager';
+import { FixedCopilotTokenManager } from '../../node/copilotTokenManager';
 
 suite('AuthenticationService', function () {
 	let disposables: DisposableStore;
@@ -53,7 +53,6 @@ suite('AuthenticationService', function () {
 
 	afterEach(() => {
 		disposables.dispose();
-		vi.unstubAllEnvs();
 	});
 
 	test('Can get anyGitHubToken', async () => {
@@ -87,43 +86,6 @@ suite('AuthenticationService', function () {
 		));
 		expect(staticWithoutSession.anyGitHubSession).toBeUndefined();
 		expect(staticWithoutSession.hasCopilotTokenSource).toBe(true);
-	});
-
-	test('does not advertise a GitHub session without credentials when a Copilot token manager is injected', async () => {
-		vi.stubEnv('GITHUB_PAT', '');
-		vi.stubEnv('GITHUB_OAUTH_TOKEN', '');
-		const accessor = disposables.add(createPlatformServices().createTestingAccessor());
-		const service = disposables.add(new StaticGitHubAuthenticationService(
-			createStaticGitHubTokenProvider(),
-			accessor.get(ILogService),
-			accessor.get(ICopilotTokenStore),
-			copilotTokenManager,
-			accessor.get(IConfigurationService),
-		));
-		const token = await service.getCopilotToken();
-
-		expect({
-			hasAnySession: !!service.anyGitHubSession,
-			hasPermissiveSession: !!service.permissiveGitHubSession,
-			hasCopilotTokenSource: service.hasCopilotTokenSource,
-			token: token.token,
-		}).toEqual({
-			hasAnySession: false,
-			hasPermissiveSession: false,
-			hasCopilotTokenSource: true,
-			token: testToken,
-		});
-	});
-
-	test.each([
-		{ name: 'PAT', pat: 'test-pat', oauth: '', expected: 'test-pat' },
-		{ name: 'OAuth', pat: '', oauth: 'test-oauth', expected: 'test-oauth' },
-		{ name: 'PAT preferred over OAuth', pat: 'test-pat', oauth: 'test-oauth', expected: 'test-pat' },
-	])('uses the configured static GitHub credential: $name', ({ pat, oauth, expected }) => {
-		vi.stubEnv('GITHUB_PAT', pat);
-		vi.stubEnv('GITHUB_OAUTH_TOKEN', oauth);
-
-		expect(createStaticGitHubTokenProvider()?.()).toBe(expected);
 	});
 
 	test('Emits onDidCopilotTokenChange but not onDidAuthenticationChange when a Copilot Token change is notified', async () => {

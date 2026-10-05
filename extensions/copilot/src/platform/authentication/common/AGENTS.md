@@ -108,31 +108,19 @@ Most callers just need a valid CAPI token. `getCopilotToken()` handles refresh a
 const token = await authService.getCopilotToken();
 ```
 
-For quota rejections (HTTP 402 or CAPI quota errors), create a
-`QuotaTokenRefreshRequest` before sending the request, using a stable endpoint/model
-scope shared by HTTP and WebSocket. Call `onQuotaExceeded` with the applicable
-legacy quota flag and `onSuccess` when the server accepts a request. The helper
-preserves known-exhausted guards, coalesces concurrent attempts, and refreshes only
-once per quota episode. Success rearms only that scope; a five-minute backstop
-bounds failed refreshes and rapid success/failure cycles. Account changes start
-independent state, and late responses cannot refresh another account's token.
-Request ordering ensures an older success cannot discard a newer quota failure
-or rearm its latch. Identity uses the GitHub account and authorization server.
-Static sessions without an authorization server also snapshot the session ID
-to distinguish placeholder accounts, with the token username covering clients
-without a GitHub session. Never use the telemetry `tid` as account identity:
-it can rotate when a token is refreshed without changing the account.
-Environment-backed static sessions are absent when neither `GITHUB_PAT` nor
-`GITHUB_OAUTH_TOKEN` is set; an injected Copilot token manager can still be used.
-Do not advertise a GitHub session whose metadata getters require missing credentials.
-Legacy quota fields do not cover every NES or paid-plan quota, so neither a token
-rotation nor elapsed time alone clears the latch. Successful inference must not
-reset the token based on an unrelated legacy quota field. Normal token expiry
-and explicit authentication resets are unaffected.
+For quota rejections, create a `QuotaTokenRefreshRequest` before sending, keyed by
+endpoint/model (shared across HTTP and WebSocket). Call `onQuotaExceeded` with the
+known-exhausted flag and `onSuccess` for accepted requests. It refreshes once per
+account/scope quota episode, coalesces attempts, and ignores stale responses.
+Success rearms only its scope; a five-minute backstop bounds failed refreshes
+and recovery retries. Neither token rotation nor elapsed time clears the latch.
 
-The user-invoked `github.copilot.refreshToken` command forces a token refresh to
-pick up plan changes even when the cached token is still valid. Background
-context inspection continues to use the cache.
+Identity uses account/issuer, static-session ID snapshots, or token-only usernames,
+never telemetry `tid`. Missing GitHub credentials mean no static session.
+Successful inference must not reset tokens based on unrelated legacy quota fields.
+
+`github.copilot.refreshToken` forces renewal for plan changes; background context
+inspection uses the cache. Normal token expiry is unchanged.
 
 ## Minimal Mode
 
