@@ -9,10 +9,10 @@ import { mainWindow, type CodeWindow } from '../../base/browser/window.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
-import type { IManagedHoverContent } from '../../base/browser/ui/hover/hover.js';
+import type { IHoverAction, IManagedHoverContent } from '../../base/browser/ui/hover/hover.js';
 import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
-import { IAction, IActionRunner } from '../../base/common/actions.js';
+import { Action, IAction, IActionRunner } from '../../base/common/actions.js';
 import { disposableTimeout } from '../../base/common/async.js';
 import { CancellationToken, cancelOnDispose } from '../../base/common/cancellation.js';
 import { Emitter, Event } from '../../base/common/event.js';
@@ -102,6 +102,16 @@ export const chatPillRemoveArtifactHoverLabel = localize('chatPills.removeArtifa
 
 export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
 	return Object.assign(action, { hoverLabel });
+}
+
+export function toChatPillHoverAction(action: IChatPillAction): IHoverAction {
+	return {
+		commandId: action.id,
+		get label() { return action.hoverLabel ?? action.label; },
+		get iconClass() { return action.class; },
+		onDidChange: action instanceof Action ? Event.map(action.onDidChange, () => undefined) : undefined,
+		run: () => { void action.run(); },
+	};
 }
 
 export function getChatPillLocationHover(location: string): IActionListItemHover {

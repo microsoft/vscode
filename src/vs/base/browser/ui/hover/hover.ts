@@ -8,6 +8,7 @@ import type { HoverPosition } from './hoverWidget.js';
 import type { CancellationToken } from '../../../common/cancellation.js';
 import type { IMarkdownString } from '../../../common/htmlContent.js';
 import type { AnchorAlignment } from '../../../common/layout.js';
+import type { Event } from '../../../common/event.js';
 import type { IDisposable } from '../../../common/lifecycle.js';
 
 /**
@@ -375,6 +376,11 @@ export interface IHoverAppearanceOptions {
 }
 
 export interface IHoverAction {
+	/**
+	 * Fires when the label or icon changes.
+	 */
+	onDidChange?: Event<void>;
+
 	/**
 	 * The label to use in the hover's status bar.
 	 */

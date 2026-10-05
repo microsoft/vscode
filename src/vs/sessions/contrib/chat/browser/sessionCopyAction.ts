@@ -9,16 +9,27 @@ import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize } from '../../../../nls.js';
+import { chatCopiedLabel, chatCopiedToClipboardStatus, chatCopyFeedbackDuration } from '../../../../workbench/contrib/chat/browser/actions/chatCopyActions.js';
 
-const COPY_FEEDBACK_DURATION = 1200;
 const copyActionClass = ThemeIcon.asClassName(Codicon.copy);
 const copiedActionClass = ThemeIcon.asClassName(Codicon.check);
-const copiedActionLabel = localize('sessionCopyAction.copied', "Copied");
 
 class SessionCopyAction extends Action {
 
 	private readonly _reset = this._register(new MutableDisposable());
+	private _hoverLabel: string | undefined;
+	private _copyHoverLabel: string | undefined;
+
+	get hoverLabel(): string | undefined {
+		return this._hoverLabel;
+	}
+
+	set hoverLabel(value: string | undefined) {
+		this._hoverLabel = value;
+		if (value !== chatCopiedLabel) {
+			this._copyHoverLabel = value;
+		}
+	}
 
 	constructor(
 		id: string,
@@ -30,16 +41,18 @@ class SessionCopyAction extends Action {
 
 	override async run(): Promise<void> {
 		await this._copy();
-		this.label = copiedActionLabel;
+		this._hoverLabel = chatCopiedLabel;
+		this.label = chatCopiedLabel;
 		this.class = copiedActionClass;
-		status(localize('sessionCopyAction.copiedToClipboard', "Copied to clipboard"));
+		status(chatCopiedToClipboardStatus);
 		this._reset.value = disposableTimeout(() => {
+			this._hoverLabel = this._copyHoverLabel;
 			this.label = this._copyLabel;
 			this.class = copyActionClass;
-		}, COPY_FEEDBACK_DURATION);
+		}, chatCopyFeedbackDuration);
 	}
 }
 
-export function createSessionCopyAction(store: DisposableStore, id: string, label: string, copy: () => void | Promise<void>): Action {
+export function createSessionCopyAction(store: Pick<DisposableStore, 'add'>, id: string, label: string, copy: () => void | Promise<void>): Action {
 	return store.add(new SessionCopyAction(id, label, copy));
 }

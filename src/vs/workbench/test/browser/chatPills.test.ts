@@ -9,6 +9,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import type { IManagedHoverContent, IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import { HoverAction } from '../../../base/browser/ui/hover/hoverWidget.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { timeout } from '../../../base/common/async.js';
 import { Action, IAction } from '../../../base/common/actions.js';
@@ -19,6 +20,7 @@ import { AnchorPosition } from '../../../base/common/layout.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IActionListDelegate, IActionListItem, IActionListOptions } from '../../../platform/actionWidget/browser/actionList.js';
@@ -27,7 +29,7 @@ import { IFileContent, IFileService } from '../../../platform/files/common/files
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, toChatPillHoverAction, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -38,6 +40,24 @@ const getResourcePillHoverOptions = Reflect.get(ChatResourcePillActionViewItem.p
 
 suite('ChatPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('updates rendered hover actions when their source action changes', () => {
+		const action = store.add(new Action('copy', 'Copy', ThemeIcon.asClassName(Codicon.copy)));
+		const hoverAction = toChatPillHoverAction(action);
+		const container = mainWindow.document.createElement('div');
+		const rendered = store.add(HoverAction.render(container, hoverAction, null));
+
+		action.label = 'Copied';
+		action.class = ThemeIcon.asClassName(Codicon.check);
+
+		assert.deepStrictEqual({
+			label: rendered.actionRenderedLabel,
+			iconClasses: [...rendered.actionContainer.querySelector<HTMLElement>('.icon')!.classList],
+		}, {
+			label: 'Copied',
+			iconClasses: ['icon', 'codicon', 'codicon-check'],
+		});
+	});
 
 	test('forwards optional dropdown placement without forcing a side', () => {
 		const actual = [undefined, AnchorPosition.ABOVE, AnchorPosition.BELOW].map(preferredAnchorPosition => {

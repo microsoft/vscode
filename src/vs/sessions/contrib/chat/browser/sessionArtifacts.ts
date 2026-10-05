@@ -85,7 +85,7 @@ export interface ISessionArtifactActions {
 	remove?(id: string, label: string): Promise<void>;
 }
 
-function createCopyAction(id: string, label: string, value: string, actions: ISessionArtifactActions, store: DisposableStore) {
+function createCopyAction(id: string, label: string, value: string, actions: ISessionArtifactActions, store: Pick<DisposableStore, 'add'>) {
 	return createSessionCopyAction(store, id, label, () => actions.copy(value));
 }
 
@@ -194,7 +194,7 @@ function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActio
 	actions.recordOpen(artifact);
 }
 
-function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, store: DisposableStore, commit?: GitHubCommit, gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): IChatPillEntry | undefined {
+function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, store: Pick<DisposableStore, 'add'>, commit?: GitHubCommit, gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
 			return undefined;
@@ -363,7 +363,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * what the session recorded last. Websites the browsers pill already lists are
  * left out, so the same page is offered once across the pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, store: DisposableStore, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, store: Pick<DisposableStore, 'add'>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -410,18 +410,20 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						id: artifact.id,
 						label,
 						resource: uri,
-						toolbarActions: [toAction({
-							id: `sessions.artifacts.copyFilePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
-							class: ThemeIcon.asClassName(Codicon.copy),
-							run: () => actions.copy(fullPath),
-						})],
-						hoverActions: [toAction({
-							id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-							label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
-							class: ThemeIcon.asClassName(Codicon.copy),
-							run: () => actions.copy(relativePath),
-						})],
+						toolbarActions: [createCopyAction(
+							`sessions.artifacts.copyFilePath.${artifact.id}`,
+							localize('sessionArtifacts.copyFilePath', "Copy Path"),
+							fullPath,
+							actions,
+							store,
+						)],
+						hoverActions: [createCopyAction(
+							`sessions.artifacts.copyFileRelativePath.${artifact.id}`,
+							localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
+							relativePath,
+							actions,
+							store,
+						)],
 						...(!artifact.isArtifact ? { imagePreview: { resource: uri, mimeType } } : {}),
 						...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 						...(imageCarouselEnabled

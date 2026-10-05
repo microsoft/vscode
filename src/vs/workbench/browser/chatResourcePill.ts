@@ -14,7 +14,7 @@ import { IObservable, autorun } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItemBase, createChatPillImagePreview, getChatPillEntryHoverActions, type IChatPillEntry } from './chatPills.js';
+import { ChatPillActionViewItemBase, createChatPillImagePreview, getChatPillEntryHoverActions, toChatPillHoverAction, type IChatPillEntry } from './chatPills.js';
 import { ResourceLabels } from './labels.js';
 
 /**
@@ -86,12 +86,7 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
 		return hoverActions?.length ? {
 			trapFocus: true,
-			actions: hoverActions.map(action => ({
-				commandId: action.id,
-				label: action.hoverLabel ?? action.label,
-				iconClass: action.class,
-				run: () => { void action.run(); },
-			})),
+			actions: hoverActions.map(toChatPillHoverAction),
 		} : undefined;
 	}
 

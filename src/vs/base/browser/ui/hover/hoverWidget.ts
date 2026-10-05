@@ -7,6 +7,7 @@ import * as dom from '../../dom.js';
 import { StandardKeyboardEvent } from '../../keyboardEvent.js';
 import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { KeyCode } from '../../../common/keyCodes.js';
+import { Event } from '../../../common/event.js';
 import { Disposable } from '../../../common/lifecycle.js';
 import './hoverWidget.css';
 import { localize } from '../../../../nls.js';
@@ -50,22 +51,23 @@ export class HoverWidget extends Disposable {
 }
 
 export class HoverAction extends Disposable {
-	public static render(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
+	public static render(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string; onDidChange?: Event<void> }, keybindingLabel: string | null) {
 		return new HoverAction(parent, actionOptions, keybindingLabel);
 	}
 
-	public readonly actionLabel: string;
+	public get actionLabel(): string { return this._actionOptions.label; }
 	public readonly actionKeybindingLabel: string | null;
 
-	public readonly actionRenderedLabel: string;
+	public get actionRenderedLabel(): string { return this._renderedLabel.textContent ?? ''; }
 	public readonly actionContainer: HTMLElement;
 
 	private readonly action: HTMLElement;
+	private readonly _icon: HTMLElement;
+	private readonly _renderedLabel: HTMLElement;
 
-	private constructor(parent: HTMLElement, actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string }, keybindingLabel: string | null) {
+	private constructor(parent: HTMLElement, private readonly _actionOptions: { label: string; iconClass?: string; run: (target: HTMLElement) => void; commandId: string; onDidChange?: Event<void> }, keybindingLabel: string | null) {
 		super();
 
-		this.actionLabel = actionOptions.label;
 		this.actionKeybindingLabel = keybindingLabel;
 
 		this.actionContainer = dom.append(parent, $('div.action-container'));
@@ -73,17 +75,27 @@ export class HoverAction extends Disposable {
 
 		this.action = dom.append(this.actionContainer, $('a.action'));
 		this.action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			const iconElement = dom.append(this.action, $(`span.icon`));
-			iconElement.classList.add(...actionOptions.iconClass.split(' '));
+		this._icon = dom.append(this.action, $('span.icon'));
+		this._renderedLabel = dom.append(this.action, $('span'));
+		this._render();
+		if (this._actionOptions.onDidChange) {
+			this._register(this._actionOptions.onDidChange(() => this._render()));
 		}
-		this.actionRenderedLabel = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-		const label = dom.append(this.action, $('span'));
-		label.textContent = this.actionRenderedLabel;
 
-		this._store.add(new ClickAction(this.actionContainer, actionOptions.run));
-		this._store.add(new KeyDownAction(this.actionContainer, actionOptions.run, [KeyCode.Enter, KeyCode.Space]));
+		this._store.add(new ClickAction(this.actionContainer, this._actionOptions.run));
+		this._store.add(new KeyDownAction(this.actionContainer, this._actionOptions.run, [KeyCode.Enter, KeyCode.Space]));
 		this.setEnabled(true);
+	}
+
+	private _render(): void {
+		this._icon.className = 'icon';
+		this._icon.style.display = this._actionOptions.iconClass ? '' : 'none';
+		if (this._actionOptions.iconClass) {
+			this._icon.classList.add(...this._actionOptions.iconClass.split(' '));
+		}
+		this._renderedLabel.textContent = this.actionKeybindingLabel
+			? `${this._actionOptions.label} (${this.actionKeybindingLabel})`
+			: this._actionOptions.label;
 	}
 
 	public setEnabled(enabled: boolean): void {

@@ -119,7 +119,7 @@ interface IRecordedArtifactActions {
 }
 
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, store: DisposableStore, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, store: Pick<DisposableStore, 'add'>, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
 		const title = pullRequest?.title ?? ref.title;
 		const recordedReferenceId = ref.recordedReferenceId;
@@ -219,7 +219,7 @@ function groupSessionIssues(issues: readonly IResolvedSessionIssue[]) {
 }
 
 /** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
-export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, store: DisposableStore, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, store: Pick<DisposableStore, 'add'>, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
 	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
 		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
 		const title = issue?.title ?? ref.title;

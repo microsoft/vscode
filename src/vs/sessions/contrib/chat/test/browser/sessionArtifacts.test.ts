@@ -484,7 +484,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Chat settings', isArtifact: true, uri: resource },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => copied.push(text) }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => { copied.push(text); } }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
 		for (const entry of entries) {
 			entry.toolbarActions?.forEach(action => action.run());
 		}
@@ -521,17 +521,53 @@ suite('Session Artifacts', () => {
 		const [copyAction] = entry.toolbarActions ?? [];
 
 		const run = copyAction.run();
-		const pending = { label: copyAction.label, class: copyAction.class };
+		const pending = { label: copyAction.label, class: copyAction.class, hoverLabel: copyAction.hoverLabel };
 		copied.complete();
 		await run;
-		const copiedFeedback = { label: copyAction.label, class: copyAction.class };
+		const copiedFeedback = { label: copyAction.label, class: copyAction.class, hoverLabel: copyAction.hoverLabel };
 		await timeout(1250);
-		const reset = { label: copyAction.label, class: copyAction.class };
+		const reset = { label: copyAction.label, class: copyAction.class, hoverLabel: copyAction.hoverLabel };
 
 		assert.deepStrictEqual({ pending, copiedFeedback, reset }, {
-			pending: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy) },
-			copiedFeedback: { label: 'Copied', class: ThemeIcon.asClassName(Codicon.check) },
-			reset: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy) },
+			pending: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy), hoverLabel: 'Copy URL' },
+			copiedFeedback: { label: 'Copied', class: ThemeIcon.asClassName(Codicon.check), hoverLabel: 'Copied' },
+			reset: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy), hoverLabel: 'Copy URL' },
+		});
+	});
+
+	test('does not show copied feedback when copying a reference link fails', async () => {
+		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
+		const [entry] = buildSessionArtifactSections([
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: false, link: issueLink },
+		], { ...actions, copy: async () => { throw new Error('Clipboard unavailable'); } }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
+		const [copyAction] = entry.toolbarActions ?? [];
+
+		await assert.rejects(async () => { await copyAction.run(); }, /Clipboard unavailable/);
+
+		assert.deepStrictEqual(
+			{ label: copyAction.label, class: copyAction.class },
+			{ label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy) },
+		);
+	});
+
+	test('resets copied feedback from the latest successful copy', async () => {
+		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
+		const [entry] = buildSessionArtifactSections([
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: false, link: issueLink },
+		], actions, labelService, true, new Set(), disposables).flatMap(section => section.entries);
+		const [copyAction] = entry.toolbarActions ?? [];
+
+		await copyAction.run();
+		await timeout(700);
+		await copyAction.run();
+		await timeout(700);
+		const beforeLatestReset = { label: copyAction.label, class: copyAction.class };
+		await timeout(550);
+		const afterLatestReset = { label: copyAction.label, class: copyAction.class };
+
+		assert.deepStrictEqual({ beforeLatestReset, afterLatestReset }, {
+			beforeLatestReset: { label: 'Copied', class: ThemeIcon.asClassName(Codicon.check) },
+			afterLatestReset: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy) },
 		});
 	});
 
@@ -542,7 +578,7 @@ suite('Session Artifacts', () => {
 		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Recorded commit', isArtifact: false, link, commitHash: 'abc123' };
 		const sections = buildSessionArtifactSections(
 			[artifact],
-			{ ...actions, recordOpen: artifact => opened.push(artifact.id), copy: text => copied.push(text) },
+			{ ...actions, recordOpen: artifact => opened.push(artifact.id), copy: text => { copied.push(text); } },
 			labelService,
 			true,
 			new Set(),
