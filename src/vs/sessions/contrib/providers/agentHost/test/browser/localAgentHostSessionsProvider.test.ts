@@ -8779,11 +8779,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const sessionUri = AgentSession.uri('copilotcli', 'legacy-chat-read').toString();
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			const hiddenChat = buildChatUri(sessionUri, 'hidden');
 			agentHost.addSession(createSession('legacy-chat-read', {
 				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
 				chats: [
 					{ chat: URI.parse(defaultChat), kind: 'default', summary: '' },
 					{ chat: URI.parse(peerChat), kind: 'peer', summary: 'Peer' },
+					{ chat: URI.parse(hiddenChat), kind: 'peer', summary: 'Hidden', interactivity: ProtocolChatInteractivity.Hidden },
 				],
 			}));
 			const provider = createProvider(disposables, agentHost);
@@ -8796,11 +8798,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				chats: session.chats.get().map(chat => chat.isRead.get()),
 			};
 
-			const accepted = await provider.setChatReadState(session.sessionId, session.chats.get()[1].resource, true);
+			const accepted = await provider.setChatReadState(session.sessionId, session.chats.get()[2].resource, true);
+			const retried = await provider.setChatReadState(session.sessionId, session.chats.get()[2].resource, true);
 			fireSessionSummaryChanged(agentHost, 'legacy-chat-read', {
 				chats: [
 					{ resource: defaultChat, title: '' },
 					{ resource: peerChat, title: 'Peer' },
+					{ resource: hiddenChat, title: 'Hidden', interactivity: ProtocolChatInteractivity.Hidden },
 				],
 				defaultChat,
 			});
@@ -8808,6 +8812,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.deepStrictEqual({
 				initial,
 				accepted,
+				retried,
 				afterRefresh: {
 					session: session.isRead.get(),
 					chats: session.chats.get().map(chat => chat.isRead.get()),
@@ -8818,14 +8823,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 					isRead: dispatch.action.type === ActionType.SessionIsReadChanged ? dispatch.action.isRead : undefined,
 				})),
 			}, {
-				initial: { session: false, chats: [false, false] },
+				initial: { session: false, chats: [false, false, false] },
 				accepted: true,
-				afterRefresh: { session: true, chats: [true, true] },
-				actions: [{
-					channel: sessionUri,
-					type: ActionType.SessionIsReadChanged,
-					isRead: true,
-				}],
+				retried: true,
+				afterRefresh: { session: true, chats: [true, true, true] },
+				actions: [
+					{
+						channel: sessionUri,
+						type: ActionType.SessionIsReadChanged,
+						isRead: true,
+					},
+					{
+						channel: sessionUri,
+						type: ActionType.SessionIsReadChanged,
+						isRead: true,
+					},
+				],
 			});
 		});
 

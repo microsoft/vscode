@@ -6353,6 +6353,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('chatNotFound', "The chat could not be found."));
 		}
 		if (!isActionKnownToVersion(action, initializeResult.protocolVersion)) {
+			const chatChanged = cached.chats.get().some(chat => isEqual(chat.resource, chatResource) && chat.isRead.get() !== isRead);
+			if (!cached.setChatRead(chatResource, isRead)) {
+				throw new Error(localize('chatNotFound', "The chat could not be found."));
+			}
+			if (chatChanged) {
+				this._cacheDirty = true;
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			}
 			this._setLegacySessionReadState(cached, isRead);
 			return true;
 		}
@@ -6366,11 +6374,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _setLegacySessionReadState(cached: AgentHostSessionAdapter, isRead: boolean): void {
-		if (!cached.setLegacySessionReadState(isRead)) {
-			return;
+		if (cached.setLegacySessionReadState(isRead)) {
+			this._cacheDirty = true;
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
-		this._cacheDirty = true;
-		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		const connection = this.connection;
 		if (connection) {
 			connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsReadChanged as const, isRead });
