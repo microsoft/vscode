@@ -36,7 +36,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatPhoneInputPresenter } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { resetShownWarnings } from '../../../../../../workbench/contrib/chat/common/chatPermissionWarnings.js';
-import { ChatConfiguration } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { TestStorageService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../workbench/services/environment/common/environmentService.js';
 import { IOpenSettingsOptions, IPreferencesService } from '../../../../../../workbench/services/preferences/common/preferences.js';
@@ -44,7 +44,7 @@ import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, MODE_PERMISSIONS_PICKER_OPEN_ATT
 import { IAgentHostSessionsProvider } from '../../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { AgentHostModePicker } from '../../browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../browser/agentHostPermissionPickerDelegate.js';
 import { PickerActionViewItem } from '../../browser/agentHostSessionConfigPicker.js';
@@ -56,7 +56,7 @@ suite('AgentHostModePicker', () => {
 
 	teardown(() => resetShownWarnings());
 
-	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true, hostOS = 'linux') {
+	function setup(enabled = true, confirmPermissions = true, policyRestricted = false, publishSandboxPolicy = true, hostOS = 'linux', cloudDraft = false) {
 		const config: ResolveSessionConfigResult = {
 			schema: {
 				type: 'object',
@@ -77,10 +77,11 @@ suite('AgentHostModePicker', () => {
 			configChanged.fire('test-session');
 		}));
 		const provider = new class extends mock<IAgentHostSessionsProvider>() {
-			override readonly id = 'local-agent-host';
+			override readonly id = cloudDraft ? 'cloud-sandbox-creation' : 'local-agent-host';
+			override readonly sessionConfig: ISessionConfigProvider | undefined = cloudDraft ? this : undefined;
 			override readonly onDidChangeSessionConfig = configChanged.event;
 			override getSessionConfig() { return config; }
-			override getCreateSessionConfig() { return undefined; }
+			override getCreateSessionConfig() { return cloudDraft ? config.values : undefined; }
 			override getSessionSandboxPolicy() { return publishSandboxPolicy ? { enabled: managedSandboxEnforced.get() } : undefined; }
 			override isDevContainerRequested() { return devContainer.get(); }
 			override isSessionConfigResolving() { return resolving; }
@@ -198,6 +199,23 @@ suite('AgentHostModePicker', () => {
 		const trigger = picker.render(container);
 		return { picker, trigger, config, configChanged, configuration, actionWidget, writes, session, phone, resolving, permissionDelegate, managedSandboxEnforced, settingsRequests, hoverTargets, devContainer };
 	}
+
+	test('reuses mode and permission controls for a cloud draft without an agent host connection', async () => {
+		const { config, configChanged, trigger, picker, actionWidget, writes, permissionDelegate } = setup(true, true, false, false, 'linux', true);
+		delete config.schema.properties.autoApprove;
+		delete config.schema.properties[SessionConfigKey.SandboxEnabled];
+		config.schema.properties.approvalMode = { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] };
+		config.values = { mode: 'interactive', approvalMode: 'assisted' };
+		configChanged.fire('test-session');
+		picker.showPicker(trigger);
+		await actionWidget.select('Plan');
+		await permissionDelegate.setPermissionLevel(ChatPermissionLevel.Default);
+		assert.deepStrictEqual({ combined: permissionDelegate.isModePickerCombined.get(), levels: permissionDelegate.availableLevels, writes, config: config.values }, {
+			combined: true, levels: ['default', 'assisted', 'autoApprove'],
+			writes: [{ session: 'test-session', property: 'mode', value: 'plan' }, { session: 'test-session', property: 'approvalMode', value: 'manual' }],
+			config: { mode: 'plan', approvalMode: 'manual' },
+		});
+	});
 
 	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
 		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');

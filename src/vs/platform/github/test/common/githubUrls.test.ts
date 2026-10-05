@@ -6,10 +6,34 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getPullRequestUrlKey, parseGitHubCommitTarget, parseGitHubIssueUrl, parseGitHubLinkTarget, parseGitHubPullRequestUrl, parsePullRequestUrl } from '../../common/githubUrls.js';
+import { encodePathSegments, getPullRequestUrlKey, parseGitHubCommitTarget, parseGitHubIssueUrl, parseGitHubLinkTarget, parseGitHubPullRequestUrl, parsePullRequestUrl } from '../../common/githubUrls.js';
 
-suite('GitHub URL parsers', () => {
+suite('GitHub URL helpers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('path encoding escapes each segment without changing separators', () => {
+		assert.deepStrictEqual([
+			'',
+			'src/file.ts',
+			'/src//file.ts/',
+			'docs/a #?%.md',
+			'literal%2Fname.txt',
+			'a\\b.txt',
+			'caf\u00e9/\u65e5\u672c.md',
+		].map(encodePathSegments), [
+			'',
+			'src/file.ts',
+			'/src//file.ts/',
+			'docs/a%20%23%3F%25.md',
+			'literal%252Fname.txt',
+			'a%5Cb.txt',
+			'caf%C3%A9/%E6%97%A5%E6%9C%AC.md',
+		]);
+	});
+
+	test('path encoding rejects malformed Unicode', () => {
+		assert.throws(() => encodePathSegments('\uD800'), URIError);
+	});
 
 	test('pull request keys preserve the host and number while normalizing case and trailing slashes', () => {
 		assert.deepStrictEqual([

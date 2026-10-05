@@ -42,6 +42,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
+import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -95,6 +96,10 @@ import { AgentHostSessionListController } from '../../../browser/agentSessions/a
 import { AgentHostSessionListStore, type IAgentHostSessionListConnection } from '../../../browser/agentSessions/agentHost/agentHostSessionListStore.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { isResourceEditorInput, ITextDiffEditorPane, IUntypedEditorInput } from '../../../../../common/editor.js';
+import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -1158,6 +1163,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostActiveClientService, activeClientService);
 	instantiationService.stub(IAgentHostProtectedResourcesService, { onDidChange: Event.None, getProtectedResources: () => undefined });
 	instantiationService.stub(IOpenerService, openerService as IOpenerService);
+	instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
 
 	return { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, activeClientService, seedActiveClient, chatSessionContributions, chatSessionItemControllers, newSessionFolderService, trustController, modelService, workingCopyService, commandService };
 }
@@ -1973,6 +1979,74 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('response resource links', () => {
+		for (const host of ['local', 'WSL']) {
+			for (const message of ['/sandbox policy', '/SB   policy   ', 'Hello']) {
+				test(`opens the ${host} sandbox policy only for its submitted slash command (${message})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+					const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+					const opened: IResourceEditorInput[] = [];
+					instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+						async openEditor(input: EditorInput | IUntypedEditorInput) {
+							assert.ok(isResourceEditorInput(input));
+							opened.push(input);
+							return upcastPartial<ITextDiffEditorPane>({});
+						},
+					}));
+					const authority = host === 'local' ? 'local' : agentHostAuthority('vscode-remote://wsl+Ubuntu');
+					agentHostService.resourceUris = host === 'local' ? identityAgentHostResourceUriMapper : createAgentHostResourceUriMapper(authority);
+					const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+						provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+						fullName: 'Test', description: 'test', connection: agentHostService, connectionAuthority: authority,
+					}));
+					const { turnPromise, collected, chatSession, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { message });
+					const resource = URI.parse('agenthost-content:///reports/policy.md?version=1');
+					const content = '[Open Sandbox Policy](agenthost-content:///reports/policy.md?vscodeLinkType=markdown-preview)';
+					fire({
+						type: ActionType.ChatResponsePart, turnId,
+						part: { kind: ResponsePartKind.SystemNotification, content: { markdown: content }, _meta: toSlashCommandResourceMeta(resource, true) },
+					});
+					fire({ type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+					await turnPromise;
+					const fallbackResource = toAgentHostUri(resource.with({ query: '' }), authority);
+					assert.deepStrictEqual({
+						opened: opened.map(input => ({ resource: input.resource?.toString(), options: input.options })),
+						markdown: collected.flat().filter(part => part.kind === 'markdownContent' || part.kind === 'systemNotification').map(part => part.content.value),
+					}, message.startsWith('/') ? {
+						opened: [{
+							resource: agentHostService.resourceUris.fromAgentHost(resource).toString(),
+							options: { pinned: true, override: 'vscode.markdown.preview.editor' },
+						}],
+						markdown: ['Opened the sandbox policy in the editor.'],
+					} : {
+						opened: [],
+						markdown: [`[Open Sandbox Policy](${fallbackResource.with({ query: `${fallbackResource.query}&vscodeLinkType=markdown-preview` }).toString()})`],
+					});
+					chatSession.dispose();
+					const restored = await handler.provideChatSessionContent(URI.parse('agent-host-copilot:/new-turntest'), CancellationToken.None);
+					disposables.add(toDisposable(() => restored.dispose()));
+					assert.strictEqual(opened.length, message.startsWith('/') ? 1 : 0, 'Restoring history must not reopen the policy');
+				}));
+			}
+		}
+
+		test('reports failure to open the sandbox policy instead of claiming success', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+			instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
+				async openEditor() { throw new Error('Preview failed'); },
+			}));
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot', agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+				fullName: 'Test', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+			}));
+			const { turnPromise, collected, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { message: '/sandbox policy' });
+			fire({
+				type: ActionType.ChatResponsePart, turnId,
+				part: { kind: ResponsePartKind.SystemNotification, content: { markdown: '[Open Sandbox Policy](file:///policy.md)' }, _meta: toSlashCommandResourceMeta(URI.file('/policy.md'), true) },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 0 });
+			await assert.rejects(turnPromise, /Preview failed/);
+			assert.deepStrictEqual(collected.flat().filter(part => part.kind === 'markdownContent'), []);
+		}));
+
 		test('uses the WSL connection for file links despite a local session authority', () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const authority = agentHostAuthority('vscode-remote://wsl+Ubuntu');

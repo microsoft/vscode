@@ -96,19 +96,19 @@
 	margin-bottom: var(--vscode-spacing-size40);
 }
 
-.customization-discovery-result-content.loading {
-	background: url('../../../../extensions/browser/media/loading.svg') center center no-repeat;
+.customization-discovery-result-content > .customization-discovery-result-loading {
+	display: none;
+	position: absolute;
+	inset: 0;
+	margin: auto;
+	color: var(--vscode-descriptionForeground);
 }
 
-.vs-dark .customization-discovery-result-content.loading {
-	background-image: url('../../../../extensions/browser/media/loading-dark.svg');
+.customization-discovery-result-content.loading > .customization-discovery-result-loading {
+	display: inline-grid;
 }
 
-.hc-black .customization-discovery-result-content.loading {
-	background-image: url('../../../../extensions/browser/media/loading-hc.svg');
-}
-
-.customization-discovery-result-content.loading > * {
+.customization-discovery-result-content.loading > :not(.customization-discovery-result-loading) {
 	visibility: hidden;
 }
 

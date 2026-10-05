@@ -30,6 +30,8 @@ export function projectCopilotSandboxPolicy(data: Extract<SessionEvent, { type: 
 	const settings = data.settings;
 	const sandboxValue = settings && typeof settings === 'object' && !Array.isArray(settings) ? settings.sandbox : undefined;
 	const sandbox = sandboxValue && typeof sandboxValue === 'object' && !Array.isArray(sandboxValue) ? sandboxValue : undefined;
+	const authValue = sandbox?.auth;
+	const auth = authValue && typeof authValue === 'object' && !Array.isArray(authValue) ? authValue : undefined;
 	const userPolicyValue = sandbox?.userPolicy;
 	const userPolicy = userPolicyValue && typeof userPolicyValue === 'object' && !Array.isArray(userPolicyValue) ? userPolicyValue : undefined;
 	const networkValue = userPolicy?.network;
@@ -47,6 +49,8 @@ export function projectCopilotSandboxPolicy(data: Extract<SessionEvent, { type: 
 		...(typeof sandbox?.allowDevToolAccess === 'boolean' ? { allowDevToolAccess: sandbox.allowDevToolAccess } : {}),
 		...(typeof sandbox?.sandboxMcpServers === 'boolean' ? { sandboxMcpServers: sandbox.sandboxMcpServers } : {}),
 		...(typeof sandbox?.sandboxLspServers === 'boolean' ? { sandboxLspServers: sandbox.sandboxLspServers } : {}),
+		...(typeof auth?.git === 'boolean' ? { authenticateGit: auth.git } : {}),
+		...(typeof auth?.gh === 'boolean' ? { authenticateGh: auth.gh } : {}),
 		...(sandboxFailClosed ? { failClosed: true } : {}),
 	};
 }
