@@ -5130,7 +5130,15 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	// -- Dynamic session config ----------------------------------------------
 
 	getAutomationModelConfiguration(sessionId: string): AutomationModelConfiguration | undefined {
-		return this._getNewSession(sessionId)?.modelConfiguration ?? this._runningModelConfigurations.get(sessionId);
+		const draft = this._getNewSession(sessionId);
+		if (draft) {
+			return draft.modelConfiguration;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!this._runningModelConfigurations.has(sessionId) && rawId && this._sessionCache.has(rawId)) {
+			this._runningModelConfigurations.set(sessionId, new AutomationModelConfiguration(this._languageModelsService));
+		}
+		return this._runningModelConfigurations.get(sessionId);
 	}
 
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
@@ -6668,6 +6676,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			location: ChatAgentLocation.Chat,
 			userSelectedModelId: selectedModelId,
 			userSelectedModelConfiguration: selectedModelConfiguration,
+			agentHostSessionConfig: options.sessionConfig,
 			modeInfo: selectedAgentUri ? {
 				kind: ChatModeKind.Agent,
 				isBuiltin: false,

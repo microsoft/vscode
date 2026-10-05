@@ -7495,6 +7495,29 @@ suite('AgentSideEffects', () => {
 			});
 		});
 
+		test('a child-scoped cancellation ends the subagent turn as cancelled before its completion signal', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId: 'tc-task', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' });
+			agent.fireProgress({
+				kind: 'action',
+				resource: URI.parse(defaultChatUri),
+				parentToolCallId: 'tc-task',
+				action: { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 42 },
+			});
+			agent.fireProgress({ kind: 'subagent_completed', chat: URI.parse(defaultChatUri), toolCallId: 'tc-task' });
+
+			const subState = stateManager.getSessionState(buildSubagentChatUri(sessionUri.toString(), 'tc-task'));
+			assert.deepStrictEqual({
+				activeTurn: subState?.activeTurn,
+				turnStates: subState?.turns.map(turn => turn.state),
+			}, {
+				activeTurn: undefined,
+				turnStates: [TurnState.Cancelled],
+			});
+		});
+
 		test('permission requests for inactive and unroutable subagents are denied', () => {
 			setupSession();
 			startTurn('turn-1');

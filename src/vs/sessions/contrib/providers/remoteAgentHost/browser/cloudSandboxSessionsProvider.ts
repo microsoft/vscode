@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Sequencer } from '../../../../../base/common/async.js';
+import { raceCancellationError, Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
@@ -13,7 +13,11 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
+import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 
 /**
  * Sessions provider for a Copilot cloud sandbox.
@@ -48,9 +52,27 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * waking a sandbox can take minutes.
 	 */
 	private readonly _provisionalSessions = new Map<string, number | undefined>();
+	private readonly _pendingSessionTitles = new Map<string, string>();
 
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
+
+	/** Resolves creation options without requiring the host to know the preallocated session yet. */
+	async resolveInitialSessionConfig(sessionId: string, values: Record<string, unknown>, token: CancellationToken): Promise<Record<string, unknown>> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const connection = this.connection;
+		if (!connection || !rawId || !this._sessionCache.has(rawId)) {
+			throw new Error(localize('cloudSandbox.configUnavailable', "The sandbox connection is unavailable. Your prompt was not sent."));
+		}
+		const config = await raceCancellationError(connection.resolveSessionConfig({ provider: CLOUD_SANDBOX_AGENT_PROVIDER, config: values }), token);
+		for (const [key, value] of Object.entries(values)) {
+			validateSessionConfigWrite(config.schema, config.values, key, value, true);
+			if (config.values[key] !== value) {
+				throw new Error(localize('cloudSandbox.configNotApplied', "The sandbox could not apply the selected {0}. Your prompt was not sent.", key));
+			}
+		}
+		return { ...values };
+	}
 
 	protected override _adapterOptions() {
 		return {
@@ -72,6 +94,27 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	private _localSessionStorageKey(rawId: string): string {
 		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
+	}
+
+	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
+		const changed = super.updateAdapter(adapter, meta);
+		const rawId = AgentSession.id(meta.session);
+		// Unlike discovery seeds, this metadata comes from the host's listing or session-added notification.
+		this._provisionalSessions.delete(rawId);
+		const title = this._pendingSessionTitles.get(rawId);
+		if (title !== undefined && this.connection) {
+			this._pendingSessionTitles.delete(rawId);
+			void super.renameSession(adapter.sessionId, title).catch(error => {
+				this._logService.error(`[CloudSandboxSessionsProvider] Failed to apply initial title for ${rawId}`, error);
+			});
+			return true;
+		}
+		return changed;
+	}
+
+	protected override _onBackendSessionRemoved(rawId: string): void {
+		super._onBackendSessionRemoved(rawId);
+		this._pendingSessionTitles.delete(rawId);
 	}
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
@@ -98,16 +141,18 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		}
 		const handler = this._taskRenameHandler;
 		if (handler?.rawId !== rawId) {
-			if (!this.connection) {
+			if (!this.connection && !this._provisionalSessions.has(rawId)) {
 				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
 			}
-			return super.renameSession(sessionId, title);
+		} else {
+			await handler.rename(title);
+			if (this._store.isDisposed || this._sessionCache.get(rawId) !== session) {
+				throw new CancellationError();
+			}
 		}
-		await handler.rename(title);
-		if (this._store.isDisposed || this._sessionCache.get(rawId) !== session) {
-			throw new CancellationError();
-		}
-		if (this.connection) {
+		if (this._provisionalSessions.has(rawId)) {
+			this._pendingSessionTitles.set(rawId, title);
+		} else if (this.connection) {
 			return super.renameSession(sessionId, title);
 		}
 		session.title.set(title, undefined);
@@ -210,6 +255,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		const session = this._removeCachedSession(rawId);
 		this._withheldSessions.delete(rawId);
 		this._provisionalSessions.delete(rawId);
+		this._pendingSessionTitles.delete(rawId);
 		if (session) {
 			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 			session.dispose();
@@ -232,6 +278,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return false;
 		}
 		this._provisionalSessions.delete(rawId);
+		this._pendingSessionTitles.delete(rawId);
 		return true;
 	}
 
