@@ -525,7 +525,7 @@ suite('GitHub public repository files', () => {
 	async function read(service: IGitHubService, signal: GitHubCancellation = new AbortController().signal, options?: GitHubAnonymousReadOptions) {
 		const client = store.add(service.acquireAnonymousClient());
 		try {
-			return await client.object.readFile('microsoft', 'sample', path, signal, options);
+			return await client.object.getFile('microsoft', 'sample', path, signal, options);
 		} finally {
 			client.dispose();
 		}
@@ -555,7 +555,7 @@ suite('GitHub public repository files', () => {
 	test('custom API hosts require an explicit raw endpoint for file reads', async () => {
 		const service = create(async () => assert.fail('No fetch expected'));
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://github.example.test/api/v3' })).object;
-		await assert.rejects(client.readFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'validation' });
+		await assert.rejects(client.getFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'validation' });
 		assert.deepStrictEqual(service.reads, []);
 	});
 
@@ -573,7 +573,7 @@ suite('GitHub public repository files', () => {
 		const service = create(async () => { throw new Error('No fetch expected'); });
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		client.dispose();
-		await assert.rejects(client.object.readFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'unknown', message: 'GitHub client was disposed' });
+		await assert.rejects(client.object.getFile('microsoft', 'sample', path, CancellationToken.None), { kind: 'unknown', message: 'GitHub client was disposed' });
 		assert.strictEqual(service.releasedClients, 1);
 	});
 
@@ -586,8 +586,8 @@ suite('GitHub public repository files', () => {
 			return fileResponse(input);
 		});
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: endpoint, rawBaseUri: rawEndpoint }));
-		const first = await client.object.readFile('microsoft', 'sample', path, CancellationToken.None);
-		const second = await client.object.readFile('microsoft', 'sample', path, new AbortController().signal);
+		const first = await client.object.getFile('microsoft', 'sample', path, CancellationToken.None);
+		const second = await client.object.getFile('microsoft', 'sample', path, new AbortController().signal);
 		assert.deepStrictEqual({
 			first, second, apiBases: service.apiBases, releasedClients: service.releasedClients,
 			requests: requests.map(request => ({ url: request.url, authorization: request.headers.get('authorization') })),
@@ -641,7 +641,7 @@ suite('GitHub public repository files', () => {
 			return fileResponse(input);
 		});
 		const client = store.add(service.acquireAnonymousClient()).object;
-		const result = await client.readFile('microsoft', 'sample', 'docs/a #?%.md', CancellationToken.None);
+		const result = await client.getFile('microsoft', 'sample', 'docs/a #?%.md', CancellationToken.None);
 		assert.deepStrictEqual({ result, requests }, {
 			result: { commitSha, content },
 			requests: [apiBaseUri + paths[0], `${rawBaseUri}/microsoft/sample/${commitSha}/docs/a%20%23%3F%25.md`],
@@ -656,12 +656,12 @@ suite('GitHub public repository files', () => {
 				return fileResponse(input);
 			});
 			const client = store.add(service.acquireAnonymousClient()).object;
-			await assert.rejects(client.readFile('microsoft', 'sample', invalidPath, CancellationToken.None), { kind: 'validation' });
+			await assert.rejects(client.getFile('microsoft', 'sample', invalidPath, CancellationToken.None), { kind: 'validation' });
 			assert.deepStrictEqual(requests, [apiBaseUri + paths[0]]);
 		});
 	}
 
-	test('readFile forwards caller-selected options and a shared deadline without mutating them', async () => {
+	test('getFile forwards caller-selected options and a shared deadline without mutating them', async () => {
 		const download = spy(GitHubTransport.prototype, 'anonymousDownload');
 		const options = Object.freeze({
 			caller: 'test.repositoryReader',
@@ -680,7 +680,7 @@ suite('GitHub public repository files', () => {
 		});
 	});
 
-	test('readFile honors a caller deadline without fetching', async () => {
+	test('getFile honors a caller deadline without fetching', async () => {
 		const service = create(async () => assert.fail('No fetch expected'));
 		await assert.rejects(read(service, CancellationToken.None, { deadline: Date.now() - 1 }), { kind: 'timeout' });
 		assert.strictEqual(service.releasedClients, 1);
@@ -806,7 +806,7 @@ suite('GitHub public repository files', () => {
 			await assert.rejects(read(service), { kind: 'rateLimit', statusCode: 429 });
 			const client = store.add(service.acquireAnonymousClient()).object;
 			await client.get('/probe', CancellationToken.None);
-			const pending = assert.rejects(client.readFile('microsoft', 'sample', path, CancellationToken.None, { deadline: Date.now() + 50 }), { kind: 'timeout' });
+			const pending = assert.rejects(client.getFile('microsoft', 'sample', path, CancellationToken.None, { deadline: Date.now() + 50 }), { kind: 'timeout' });
 			await timeout(50);
 			await pending;
 			assert.deepStrictEqual(requests, [apiBaseUri + paths[0], rawBaseUri + rawPath, `${apiBaseUri}/probe`, apiBaseUri + paths[0]]);
@@ -897,7 +897,7 @@ suite('GitHub public repository files', () => {
 		const service = create(async () => assert.fail('No fetch expected'));
 		const client = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		client.dispose();
-		await assert.rejects(client.object.readFile('microsoft', 'sample', path, {
+		await assert.rejects(client.object.getFile('microsoft', 'sample', path, {
 			isCancellationRequested: false, onCancellationRequested: cancelled.event,
 		}), { kind: 'unknown', message: 'GitHub client was disposed' });
 		assert.strictEqual(cancelled.hasListeners(), false);
@@ -920,8 +920,8 @@ suite('GitHub public repository files', () => {
 		const second = store.add(service.acquireAnonymousClient({ apiBaseUri }));
 		const controller = new AbortController();
 		const reason = new Error('Caller cancelled');
-		const rejected = assert.rejects(first.object.readFile('microsoft', 'sample', path, controller.signal), error => error === reason);
-		const peer = second.object.readFile('microsoft', 'sample', path, CancellationToken.None);
+		const rejected = assert.rejects(first.object.getFile('microsoft', 'sample', path, controller.signal), error => error === reason);
+		const peer = second.object.getFile('microsoft', 'sample', path, CancellationToken.None);
 		const signal = await started.p;
 		controller.abort(reason);
 		first.dispose();

@@ -108,7 +108,7 @@ suite('Dev Container samples', () => {
 			readSource: async () => {
 				const client = store.add(service.acquireAnonymousClient());
 				try {
-					return await client.object.readFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None);
+					return await client.object.getFile('microsoft', folder, '.devcontainer/devcontainer.json', CancellationToken.None);
 				} finally {
 					client.dispose();
 				}

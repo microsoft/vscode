@@ -20,22 +20,30 @@ import { AnonymousAccount } from './types.js';
 
 /** Decoded repository file content paired with the commit SHA it was read from. */
 export interface IGitHubRepositoryFile {
+
+	/** Commit SHA of the repository revision the file was read from. */
 	readonly commitSha: string;
+
+	/** File contents decoded as UTF-8 text. */
 	readonly content: string;
 }
 
 /** Read-only access to public GitHub resources without authentication. */
 export interface IGitHubAnonymousClient {
+
 	readonly authorization: { readonly kind: 'anonymous' };
 	readonly apiBaseUri: string;
+
 	/** Reads JSON from an API-relative path. */
 	get<T>(path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
+
 	/** Reads a file at the resolved repository HEAD. */
-	readFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<IGitHubRepositoryFile>;
+	getFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options?: GitHubAnonymousReadOptions): Promise<IGitHubRepositoryFile>;
 }
 
 /** Fetches public GitHub API data and repository files without authentication. */
 export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient {
+
 	readonly authorization = Object.freeze({ kind: 'anonymous' as const });
 	references = 0;
 	private readonly _account: AnonymousAccount;
@@ -76,7 +84,7 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 		}
 	}
 
-	async readFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options: GitHubAnonymousReadOptions = {}): Promise<IGitHubRepositoryFile> {
+	async getFile(owner: string, repo: string, path: string, signal: GitHubCancellation, options: GitHubAnonymousReadOptions = {}): Promise<IGitHubRepositoryFile> {
 		const lifetime = new DisposableStore();
 		try {
 			const abortSignal = toAbortSignal(signal, lifetime);
@@ -85,6 +93,7 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 			if (!this._rawBaseUri) {
 				throw new GitHubRequestError('GitHub raw-content endpoint is not configured for this host.', 'validation');
 			}
+
 			const requestOptions: GitHubAnonymousReadOptions = { ...options, deadline: options.deadline ?? Date.now() + 5 * 60_000 };
 			const repositoryPath = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
 
@@ -95,10 +104,13 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 			const base = new URL(`${this._rawBaseUri}/`);
 			const root = new URL(`${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${commitSha}/`, base);
 			const url = new URL(encodePathSegments(path), root);
-			if (root.origin !== base.origin || !root.pathname.startsWith(base.pathname)
-				|| url.origin !== root.origin || !url.pathname.startsWith(root.pathname) || url.pathname === root.pathname) {
+			if (root.origin !== base.origin
+				|| !root.pathname.startsWith(base.pathname)
+				|| !url.href.startsWith(root.href)
+				|| url.href === root.href) {
 				throw new GitHubRequestError('GitHub file path escaped its pinned repository revision.', 'validation');
 			}
+
 			const file = await this._transport.anonymousDownload({ kind: 'anonymous', host: root.host, origin: root.origin }, root.pathname, {
 				url: url.href,
 				maximumBytes: 1024 * 1024,
@@ -107,6 +119,7 @@ export class GitHubAnonymousClient extends Disposable implements IGitHubAnonymou
 				priority: requestOptions.priority,
 				deadline: requestOptions.deadline,
 			}, abortSignal);
+
 			abortSignal.throwIfAborted();
 			if (file.truncated) {
 				throw new GitHubRequestError('GitHub repository file exceeded its byte limit.', 'responseTooLarge');

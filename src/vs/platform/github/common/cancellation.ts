@@ -21,5 +21,6 @@ export function toAbortSignal(cancellation: GitHubCancellation, lifetime: Dispos
 	} else {
 		lifetime.add(cancellation.onCancellationRequested(() => controller.abort(new CancellationError())));
 	}
+
 	return controller.signal;
 }

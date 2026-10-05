@@ -85,7 +85,7 @@ suite('Shared-process GitHub channel', () => {
 						object: {
 							apiBaseUri: request.apiBaseUri,
 							authorization: { kind: 'anonymous' },
-							readFile: async () => assert.fail('Not a repository file request'),
+							getFile: async () => assert.fail('Not a repository file request'),
 							get: async () => { throw error; },
 						},
 						dispose: () => { released++; },
