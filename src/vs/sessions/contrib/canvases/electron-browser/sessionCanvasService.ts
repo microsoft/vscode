@@ -106,7 +106,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			for (const [key, input] of this._inputs) {
 				const ownsActiveChat = !!activeSession && !!activeChat && ownsChat(input.reference, activeSession, activeChat);
 				if (!enabled || (ownsActiveChat && (!supported || (canvases !== undefined && !activeKeys.has(key))))) {
-					void this._closeInput(key, input);
+					void this._closeInput(key, input).catch(error => this.logService.error('[SessionCanvasService] Failed to close canvas', error));
 				}
 			}
 		}));
@@ -147,7 +147,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		this._presented.add(key);
 		try {
 			const pane = await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
-			const opened = pane || this.editorService.findEditors(input.resource).some(identifier => identifier.editor.matches(input));
+			const opened = pane || this.editorService.findEditors(input.resource).some(identifier => !identifier.editor.isDisposed() && identifier.editor.matches(input));
 			if (!opened) {
 				throw new Error('Canvas editor failed to open');
 			}
@@ -199,7 +199,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}
 		for (const [key, input] of this._inputs) {
 			if (ownsSession(input.reference, session)) {
-				void this._closeInput(key, input);
+				void this._closeInput(key, input).catch(error => this.logService.error('[SessionCanvasService] Failed to close canvas', error));
 			}
 		}
 	}
