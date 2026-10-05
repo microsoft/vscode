@@ -47,6 +47,7 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 	refreshSessionGitState: async () => { },
 	getSessionGitState: session => testGitStates.get(session),
 	getMaterializedWorktreeMeta: () => undefined,
+	setFolderGitState: async () => { },
 	resolveSessionBaseBranchName: async session => testGitStates.get(session)?.baseBranchName,
 	setSessionGitHubState: async () => { },
 	recordSessionMerge: async () => { },

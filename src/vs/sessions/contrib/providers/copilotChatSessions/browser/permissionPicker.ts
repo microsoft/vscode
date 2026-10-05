@@ -266,6 +266,16 @@ export class PermissionPicker extends Disposable {
 		return slot;
 	}
 
+	focus(): void {
+		this._triggerElement?.focus();
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this._triggerElement) {
+			this._triggerElement.tabIndex = focusable ? 0 : -1;
+		}
+	}
+
 	showPicker(): void {
 		this._showPicker();
 	}

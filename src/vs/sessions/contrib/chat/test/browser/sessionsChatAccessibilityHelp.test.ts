@@ -348,12 +348,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 				browserRepositorySearch: content.includes('When choosing a GitHub repository in the browser, search or enter a GitHub URL or owner/repository.'),
 				repositoryCreation: content.includes('Open Select Repository to choose its repository.'),
 				firstSend: content.includes('Selecting a repository does not start an environment; sending your first message does.'),
-				defaultModel: content.includes('Agent Default means the host chooses the model.'),
+				modeAndPermissions: content.includes('Before sending, use the mode picker to choose Interactive, Plan, or Autopilot, and the permissions picker to configure tool approvals.'),
+				modelAndReasoning: content.includes('Open the model picker to choose a cloud model and its supported reasoning effort.'),
 			}, {
 				browserRepositorySearch: isWeb,
 				repositoryCreation: sessionCreationProviderId !== undefined,
 				firstSend: sessionCreationProviderId !== undefined,
-				defaultModel: sessionCreationProviderId !== undefined,
+				modeAndPermissions: sessionCreationProviderId !== undefined,
+				modelAndReasoning: sessionCreationProviderId !== undefined,
 			});
 		});
 	}
@@ -553,6 +555,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: nudgeHelp?.includes('returns focus to the chat input'),
 				close: nudgeHelp?.includes('Close'),
 				onboarding: content.includes('The action waits until you activate the highlighted action, activate Understood, or press Escape to end the spotlight.'),
+				continuation: content.includes('Sending a new message after the suggestion appears hides it for those pull requests, including after a reload. It can appear again when a new pull request is added to the session and all its pull requests have merged.'),
 				sessionListHelp,
 			}, {
 				controls: true,
@@ -561,6 +564,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				focus: true,
 				close: false,
 				onboarding: true,
+				continuation: true,
 				sessionListHelp: expectedSessionListHelp,
 			});
 		});

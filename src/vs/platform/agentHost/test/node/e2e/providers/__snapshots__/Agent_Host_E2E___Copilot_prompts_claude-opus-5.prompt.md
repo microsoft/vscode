@@ -345,7 +345,7 @@
     },
     {
       "name": "write_agent",
-      "description": "Sends a message to one or more running or idle background agents, delivered as a new user turn in each agent's conversation.\n* Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.\n* Messages are delivered directly into the agent's conversation as a new user turn.\n* If the agent is idle (finished its last turn), it will wake up and process the message as its next turn.\n* If the agent is running, the message will be queued and delivered after the current turn completes.\n* Use agent_id for one recipient; use agent_ids for a small explicit set of known recipients; use scope only when the same message applies to every currently visible sibling or child agent.\n* For peer-to-peer conversations: send your message with write_agent, then end your turn. The other agent's reply will arrive as your next turn automatically.",
+      "description": "Sends a message to one or more running or idle background agents, delivered as a new user turn in each agent's conversation.\n* Use write_agent only for same-task follow-ups where retained context is useful. For unrelated work or the next independent batch item, use a fresh task when available rather than repurposing an existing agent.\n* Messages are delivered directly into the agent's conversation.\n* If the agent is idle (finished its last turn), it will wake up and process the message as its next turn.\n* If the agent is running, the message steers its current turn at the next processing opportunity.\n* Use agent_id for one recipient; use agent_ids for a small explicit set of known recipients; use scope only when the same message applies to every currently visible sibling or child agent.\n* For peer-to-peer conversations: send your message with write_agent, then end your turn. The other agent's reply will arrive as your next turn automatically.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -371,7 +371,7 @@
           },
           "message": {
             "type": "string",
-            "description": "The message to send to the selected agent or agents. Each recipient will process this as a new conversation turn."
+            "description": "The message to send to the selected agent or agents. Steers a running turn or starts the idle agent's next turn."
           }
         },
         "required": [
@@ -517,28 +517,28 @@
           "model": {
             "type": "string",
             "enum": [
-              "claude-sonnet-5",
-              "claude-opus-5.5",
-              "claude-opus-5",
-              "claude-opus-4.7",
-              "claude-sonnet-4.6",
               "claude-haiku-4.5",
-              "gpt-5.6-sol",
-              "gpt-5.6-terra",
-              "gpt-5.6-luna",
-              "gpt-5.3-codex",
-              "gpt-5-mini",
+              "claude-opus-4.5",
+              "claude-opus-4.6",
+              "claude-opus-4.7",
+              "claude-opus-5",
+              "claude-opus-5.5",
+              "claude-sonnet-4.5",
+              "claude-sonnet-4.6",
+              "claude-sonnet-5",
+              "gemini-2.0-flash",
+              "gpt-4o",
+              "gpt-4o-mini",
               "gpt-5",
               "gpt-5-codex",
+              "gpt-5-mini",
               "gpt-5.1",
               "gpt-5.1-codex",
               "gpt-5.1-codex-mini",
-              "claude-sonnet-4.5",
-              "claude-opus-4.5",
-              "claude-opus-4.6",
-              "gemini-2.0-flash",
-              "gpt-4o",
-              "gpt-4o-mini"
+              "gpt-5.3-codex",
+              "gpt-5.6-luna",
+              "gpt-5.6-sol",
+              "gpt-5.6-terra"
             ],
             "description": "Optional model override. Specify a value only when the user's current request or applicable persistent custom instructions (including global instructions) explicitly require that value for the subagent. Do not reuse values from earlier requests or infer unspecified values from the parent configuration. The runtime resolves `/subagents` preferences when these fields are omitted; do not copy them merely because they appear in `<subagent_model_preferences>`."
           },
@@ -769,6 +769,27 @@
       }
     },
     {
+      "name": "set_workspace",
+      "description": "Set the current chat's workspace while preserving its identity and history. If a workspace is already attached, use this tool only when the user explicitly asks to change this chat's workspace. Do not infer a workspace change from a file path, a request to inspect another repository, or ordinary work in the current workspace. If `isolation` is false and the requested folder is already this chat's effective working directory, skip this tool and the confirmation question; tell the user the chat already uses that workspace and continue normally. Compare against this chat's working directory, not its session's project root. Creating a new worktree from the same folder is a real change, not a no-op. For a workspace-less quick chat, attach a workspace only to modify its files or run commands requiring its project environment; not for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. Other chats keep their workspaces. Set `isolation` to true for a new managed Git worktree or false to use the selected folder directly; files are not moved or copied to the selected folder. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Make this the turn's final tool call and end the turn; the host changes the workspace and continues the original task automatically. Do not repeat the request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspaceFolder": {
+            "type": "string",
+            "description": "Absolute local folder path or file URI to set as the current chat's workspace. Use an exact path from the user or `list_sessions`; do not guess."
+          },
+          "isolation": {
+            "type": "boolean",
+            "description": "Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool."
+          }
+        },
+        "required": [
+          "workspaceFolder",
+          "isolation"
+        ]
+      }
+    },
+    {
       "name": "create_session",
       "description": "Create delegated work and start it with an initial prompt, either in a new chat sharing the current session's workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.",
       "input_schema": {
@@ -922,6 +943,14 @@
         "required": [
           "session"
         ]
+      }
+    },
+    {
+      "name": "isolate_session",
+      "description": "Move only the current chat to a new Git worktree when the user wants to continue this task without changing its current checkout. This preserves the chat and its history; it does not create a separate task or move other chats, even those sharing the same folder. The session workspace will include the new worktree. The original folder is unchanged, and uncommitted edits are not copied except configured worktree include-files. Requires a chat working in one local Git folder. Follow the tool confirmation flow. Make this the final tool call and end the turn after it succeeds; the host then moves this chat and continues its task automatically. Do not poll or repeat the request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
       },
       "cache_control": {
         "type": "ephemeral"

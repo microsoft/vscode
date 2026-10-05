@@ -57,6 +57,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 
 	private _models: readonly SessionModelInfo[] = [];
+	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
 		private readonly _sessionType: string,
@@ -89,8 +90,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		this._onDidChange.fire();
 	}
 
+	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
+		this._additionalModels = models;
+		this._onDidChange.fire();
+	}
+
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
-		return this._models
+		const hostModelIds = new Set(this._models.map(model => model.id));
+		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
 				const pricing = readAgentModelPricingMeta(m);

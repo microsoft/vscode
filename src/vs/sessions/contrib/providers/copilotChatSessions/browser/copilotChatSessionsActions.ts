@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ActionViewItem, BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -11,37 +11,41 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../workbench/common/contributions.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
-import { SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext, NewSessionCreationProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionProviderIdContext, SessionTypeContext, IsNewChatSessionContext } from '../../../../common/contextkeys.js';
 import { COPILOT_PROVIDER_ID, CopilotCloudSessionType } from './copilotChatSessionsProvider.js';
 import { SandboxPicker } from './sandboxPicker.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
+import { AgentHostModePicker } from '../../agentHost/browser/agentHostModePicker.js';
+import { AgentHostPermissionPickerDelegate } from '../../agentHost/browser/agentHostPermissionPickerDelegate.js';
+import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
+import { MobilePermissionPicker } from './mobilePermissionPicker.js';
+import { MobileAgentHostModePicker } from '../../agentHost/browser/mobile/mobileAgentHostModePicker.js';
+import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(SessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(ContextKeyExpr.equals(SessionTypeContext.key, CopilotCloudSessionType.id), IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.sandbox.agentDefaultModel',
-			title: localize2('sandbox.agentDefaultModel', "Agent Default"),
-			precondition: ContextKeyExpr.false(),
-			menu: [{
-				id: Menus.NewSessionConfig,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(IsNewChatSessionContext, ChatContextKeys.enabled, ContextKeyExpr.or(
-					SessionProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
-					NewSessionCreationProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
-				)),
-			}],
-		});
-	}
-	override run(): void { }
-});
+const IsNewCloudSession = ContextKeyExpr.and(IsNewChatSessionContext, ChatContextKeys.enabled, ContextKeyExpr.or(
+	IsActiveCopilotChatSessionProvider,
+	SessionProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
+));
+
+for (const [id, title, order] of [
+	['sessions.sandbox.modePicker', localize2('sandbox.modePicker', "Agent Mode"), 0],
+	['sessions.sandbox.approvalPicker', localize2('sandbox.approvalPicker', "Approvals"), 1],
+] as const) {
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({ id, title, menu: [{ id: Menus.NewSessionControl, group: 'navigation', order, when: IsNewCloudSession }] });
+		}
+		override run(): void { }
+	});
+}
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -66,7 +70,7 @@ registerAction2(class extends Action2 {
  * Wraps a standalone picker widget as a {@link BaseActionViewItem}
  * so it can be rendered by a {@link MenuWorkbenchToolBar}.
  */
-class PickerActionViewItem extends BaseActionViewItem {
+class SandboxPickerActionViewItem extends BaseActionViewItem {
 	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
@@ -89,18 +93,24 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-		this._register(actionViewItemService.register(
-			Menus.NewSessionConfig, 'sessions.sandbox.agentDefaultModel',
-			action => new ActionViewItem(undefined, action, { icon: false, label: true }),
-		));
+		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.sandbox.modePicker', (_action, _options, scopedInstantiationService) => {
+			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+			return new PickerActionViewItem(scopedInstantiationService.createInstance(isPhoneLayout(layoutService) ? MobileAgentHostModePicker : AgentHostModePicker, session));
+		}));
+		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.sandbox.approvalPicker', (_action, _options, scopedInstantiationService) => {
+			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
+			const delegate = scopedInstantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
+			return new PickerActionViewItem(scopedInstantiationService.createInstance(MobilePermissionPicker, delegate), delegate, true);
+		}));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.sandboxPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				const picker = scopedInstantiationService.createInstance(SandboxPicker, session);
-				return new PickerActionViewItem(picker);
+				return new SandboxPickerActionViewItem(picker);
 			},
 		));
 	}
