@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { GitHubHostCapabilitiesService } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import { gitHubGraphQLResponse, gitHubGraphQLStep, ProgrammableGitHubServer } from './programmableGitHubServer.js';
 
@@ -206,7 +206,7 @@ suite('GitHubHostCapabilitiesService', () => {
 					}),
 				}),
 			);
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;
@@ -271,7 +271,7 @@ suite('GitHubHostCapabilitiesService', () => {
 					}),
 				}),
 			);
-			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 0 }));
+			const scheduler = disposables.add(new FakeScheduler({ now: 0 }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubHostCapabilitiesService(scheduler, undefined, transport, server.createEndpointService()));
 			const signal = new AbortController().signal;

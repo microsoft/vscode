@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isGpt56Model } from './modelIdentifiers.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 
 export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -14,8 +15,6 @@ export { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
  */
 export const NON_DEFERRED_CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set<string>([
 	'runTests',
-	'rename',
-	'usages',
 	SEMANTIC_SEARCH_TOOL_NAME,
 ]);
 
@@ -26,7 +25,7 @@ export function agentHostModelSupportsToolSearch(modelId: string | undefined): b
 	}
 	const id = modelId.toLowerCase();
 	const normalizedId = id.replace(/\./g, '-');
-	if (normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56Model(id) || normalizedId.startsWith('gpt-6')) {
+	if (normalizedId === COPILOT_HYDRA_FUSION_MODEL_ID || normalizedId === 'gpt-5-4' || normalizedId === 'gpt-5-5' || isGpt56Model(id) || normalizedId.startsWith('gpt-6')) {
 		return true;
 	}
 	if (!normalizedId.startsWith('claude')) {

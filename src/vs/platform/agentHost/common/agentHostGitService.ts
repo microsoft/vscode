@@ -248,7 +248,13 @@ export interface IAgentHostGitService {
 	 * `node_modules` is copied as one recursive unit, so its files all land in
 	 * a single step.
 	 */
-	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void): Promise<void>;
+	copyWorktreeIncludeFiles(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string, onProgress?: (progress: IWorktreeFileProgress) => void, excludedFolders?: readonly string[]): Promise<void>;
+	/**
+	 * Symlinks git-ignored folders matching `patterns` from `repositoryRoot`
+	 * into the worktree. `patterns` use `.gitignore` syntax and are matched by
+	 * git itself. `sessionId` scopes the temporary files used while matching.
+	 */
+	symlinkWorktreeFolders(repositoryRoot: URI, worktree: URI, patterns: readonly string[], sessionId: string): Promise<readonly string[]>;
 	/**
 	 * Adds a worktree for an existing branch (no `-b`). Used when restoring
 	 * a worktree whose branch was preserved (e.g. unarchiving a session
@@ -305,6 +311,9 @@ export interface IAgentHostGitService {
 	 * to decide whether `--set-upstream` is needed.
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
+
+	/** Fetches the selected remote branch into its remote-tracking ref without changing the working tree. */
+	fetch(workingDirectory: URI, branch: IRemoteBranch): Promise<void>;
 
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
@@ -410,10 +419,11 @@ export interface IAgentHostGitService {
 	/**
 	 * Lists refs matching `pattern` (a `git for-each-ref` glob such as
 	 * `refs/sessions/<id>/*`) with their resolved commit OIDs. Returns an empty
-	 * array when none match. Optional: implementations that don't support raw
+	 * array when none match. Set `throwOnError` to distinguish a failed lookup
+	 * from an empty result. Optional: implementations that don't support raw
 	 * ref enumeration may omit it.
 	 */
-	listRefNamesWithOids?(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
+	listRefNamesWithOids?(repositoryRoot: URI, pattern: string, options?: { readonly throwOnError?: boolean }): Promise<Array<{ readonly ref: string; readonly oid: string }>>;
 
 	/**
 	 * Builds a new tree from `baseTreeOid` in which the single repo-relative

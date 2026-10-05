@@ -36,6 +36,7 @@ import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/def
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { ACCOUNTS_SHARED_SIGN_IN_GROUP } from '../../../../common/activity.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -68,6 +69,12 @@ const defaultChat = {
 };
 
 const SIGN_IN_TITLE_BAR_ACTION_ID = 'workbench.action.chat.signInIndicator';
+
+export const ChatSetupFromAccountsWhen = ContextKeyExpr.and(
+	ChatContextKeys.Setup.hidden.negate(),
+	ChatContextKeys.Setup.disabledInWorkspace.negate(),
+	CONTEXT_DEFAULT_ACCOUNT_STATE.notEqualsTo(DefaultAccountStatus.Available),
+);
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
@@ -373,14 +380,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: localize2('triggerChatSetupFromAccounts', "Sign in to use GitHub Copilot..."),
 					menu: {
 						id: MenuId.AccountsContext,
-						group: '2_copilot',
-						when: ContextKeyExpr.and(
-							ChatContextKeys.Setup.hidden.negate(),
-							ChatContextKeys.Setup.disabledInWorkspace.negate(),
-							CONTEXT_DEFAULT_ACCOUNT_STATE.notEqualsTo(DefaultAccountStatus.Available), // hide only when signed in (a default GitHub account is present); still shown while signed out or before the account state resolves, incl. untrusted workspaces — no auth prompt
-							ChatContextKeys.Setup.completed.negate(),
-							ChatContextKeys.Entitlement.signedOut
-						)
+						group: ACCOUNTS_SHARED_SIGN_IN_GROUP,
+						// Keep Copilot sign-in available after prior setup and alongside non-Copilot models.
+						when: ChatSetupFromAccountsWhen,
 					}
 				});
 			}

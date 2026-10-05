@@ -11,10 +11,14 @@ import { lstat, rename, rm, stat, writeFile } from 'fs/promises';
 import { Duplex } from 'stream';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../base/common/errors.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { join, posix } from '../../../base/common/path.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
+import { hasKey } from '../../../base/common/types.js';
 import { findExecutable } from '../../../base/node/processes.js';
+import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { vArray, vLiteral, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
@@ -23,9 +27,9 @@ import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { IRequestService } from '../../request/common/request.js';
+import { asTextOrError, IRequestService } from '../../request/common/request.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import type { AgentHostEndpointAddress } from '../common/agentHostEndpointRegistry.js';
@@ -45,14 +49,27 @@ import {
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
+import { DevContainerSample, devContainerSamples, devContainerSampleUri, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
+import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
 const DEV_CONTAINER_LOG_ARGS = ['--log-level', 'debug'] as const;
 const DEV_CONTAINER_RELAY_CONNECTION_TIMEOUT_MS = 30_000;
 
-export function getDevContainerExecArgs(workspaceFolder: string, command: string): readonly string[] {
-	return ['exec', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder, '/bin/sh', '-c', command];
+export function getDevContainerExecArgs(workspaceFolder: string | readonly string[], command: string): readonly string[] {
+	return ['exec', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceFolder === 'string' ? ['--workspace-folder', workspaceFolder] : workspaceFolder, '/bin/sh', '-c', command];
+}
+
+function getSourceKey(source: string | IDevContainerSampleSource): string {
+	if (typeof source === 'string') {
+		return extUriBiasedIgnorePathCase.getComparisonKey(URI.file(source));
+	}
+	const sample = devContainerSamples.find(sample => sample.id === source.sampleId);
+	if (!sample) {
+		throw new Error(localize('devContainerAgentHost.unknownSample', "Unknown Dev Container sample: {0}", source.sampleId));
+	}
+	return devContainerSampleUri(sample).toString();
 }
 
 /** Waits for the relay WebSocket to open while observing every terminal startup condition. */
@@ -163,6 +180,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
 
+	readonly onDidRelayActivity: Event<string> = Event.None;
+
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 
@@ -175,8 +194,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	private readonly _connections = this._register(new DisposableMap<string, IDevContainerRelay>());
 	private readonly _connectionStores = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _connectionTokenSources = new Map<string, CancellationTokenSource>();
+	private readonly _connectionWorkspaces = new Map<string, string>();
+	private readonly _containerIds = new Map<string, string>();
+	private readonly _suspendedWorkspaces = new Set<string>();
+	private readonly _containerOperations = new SequencerByKey<string>();
 	private _nativeRequire: NodeJS.Require | undefined;
 	private _shellEnvironment: Promise<typeof process.env> | undefined;
+	private _dockerExecutable: Promise<string | undefined> | undefined;
 	private _devContainerEnvironment: Promise<typeof process.env> | undefined;
 	private _dockerAvailable: Promise<boolean> | undefined;
 
@@ -190,32 +214,77 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		super();
 	}
 
-	async connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
 		this._disconnect(config.connectionId);
-		const store = new DisposableStore();
-		const tokenSource = store.add(new CancellationTokenSource());
+		const tokenSource = new CancellationTokenSource();
 		this._connectionTokenSources.set(config.connectionId, tokenSource);
+		return this._containerOperations.queue(getSourceKey(hasKey(config, { sampleId: true }) ? config : config.workspaceFolder), async () => {
+			try {
+				if (tokenSource.token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+				return await this._connect(config, tokenSource);
+			} finally {
+				if (!this._connectionStores.has(config.connectionId) && this._connectionTokenSources.get(config.connectionId) === tokenSource) {
+					this._connectionTokenSources.delete(config.connectionId);
+					tokenSource.dispose();
+				}
+			}
+		});
+	}
+
+	private async _connect(config: IDevContainerAgentHostConfig, tokenSource: CancellationTokenSource): Promise<IDevContainerAgentHostConnectResult> {
+		const source = hasKey(config, { sampleId: true }) ? config : config.workspaceFolder;
+		const workspaceKey = getSourceKey(source);
+		if (this._suspendedWorkspaces.has(workspaceKey) && config.resume !== true) {
+			throw new Error(localize('devContainerAgentHost.containerSuspended', "Dev Container for '{0}' is stopped.", config.name));
+		}
+		const store = new DisposableStore();
+		store.add(tokenSource);
 		store.add(toDisposable(() => {
 			if (this._connectionTokenSources.get(config.connectionId) === tokenSource) {
 				this._connectionTokenSources.delete(config.connectionId);
 			}
 		}));
 		this._connectionStores.set(config.connectionId, store);
+		let sampleContainerStarted = false;
+		const registerContainer = (containerId: string) => {
+			this._containerIds.set(workspaceKey, containerId);
+			this._connectionWorkspaces.set(config.connectionId, workspaceKey);
+			store.add(toDisposable(() => this._connectionWorkspaces.delete(config.connectionId)));
+		};
 
 		try {
-			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.workspaceFolder}`);
-			const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, config.workspaceFolder, tokenSource.token);
-			const up = await this._runDevContainer(
-				config.connectionId,
-				['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder, ...cacheMountArgs],
-				tokenSource.token,
-			);
-			const upResult = parseDevContainerUpResult(up.stdout);
-			if (!upResult) {
-				throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
+			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.name}`);
+			let upResult: IDevContainerUpResult;
+			let workspaceSelector: string | readonly string[];
+			let repository: IDevContainerRepository | undefined;
+			if (hasKey(config, { sampleId: true })) {
+				const sample = devContainerSamples.find(sample => sample.id === config.sampleId)!;
+				const prepared = await this._prepareSample(config.connectionId, sample, tokenSource.token, containerId => {
+					sampleContainerStarted = true;
+					registerContainer(containerId);
+				});
+				upResult = prepared;
+				workspaceSelector = prepared.cliArgs;
+				repository = prepared.repository;
+			} else {
+				workspaceSelector = config.workspaceFolder;
+				const cacheMountArgs = await this._getServerCacheMountArgs(config.connectionId, config.workspaceFolder, tokenSource.token);
+				const up = await this._runDevContainer(
+					config.connectionId,
+					['up', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', config.workspaceFolder, ...cacheMountArgs],
+					tokenSource.token,
+				);
+				const parsed = parseDevContainerUpResult(up.stdout);
+				if (up.code !== 0 || !parsed) {
+					throw new Error(localize('devContainerAgentHost.invalidUpResult', "Dev Container CLI returned an invalid result: {0}", up.stdout.trim() || up.stderr.trim()));
+				}
+				upResult = parsed;
+				registerContainer(upResult.containerId);
 			}
 
-			const exec = this._createExec(config.connectionId, config.workspaceFolder, tokenSource.token);
+			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token);
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
 				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
@@ -261,16 +330,24 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const cliDataDir = getRemoteCLIDataDir(serverDataFolderName);
 			const initial = await runAgentEndpoints(exec, cliBin, cliDataDir);
 			const live = await filterLiveAgentHostEndpoints(exec, initial.endpoints);
-			let endpoint = live
+			const sessionId = this._telemetryService.sessionId;
+			const ownedStandalones = await Promise.all(live
 				.filter(candidate => candidate.type === 'standalone')
+				.map(async candidate => ({
+					candidate,
+					sessionId: await this._readProcessSessionId(exec, candidate.pid),
+				})));
+			let endpoint = ownedStandalones
+				.filter(candidate => candidate.sessionId === sessionId)
+				.map(candidate => candidate.candidate)
 				.sort((a, b) => a.instanceId.localeCompare(b.instanceId))[0];
 			if (!endpoint) {
-				const spawnCommand = buildAgentHostSpawnCommand(
+				const spawnCommand = `${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=${shellEscape(sessionId)} ${buildAgentHostSpawnCommand(
 					cliBin,
 					cliDataDir,
 					initial.userDataPath,
 					telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
-				);
+				)}`;
 				void exec(spawnCommand, { ignoreExitCode: true }).catch(error => {
 					this._logService.warn(`${LOG_PREFIX} Agent Host spawn command failed`, error);
 				});
@@ -292,7 +369,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			const relayCommand = buildAgentRelayCommand(cliBin, cliDataDir, endpoint.instanceId, initial.userDataPath);
 			const relay = await this._createRelay(
 				config.connectionId,
-				config.workspaceFolder,
+				workspaceSelector,
 				relayCommand,
 				endpoint.endpoint,
 				endpoint.connectionToken,
@@ -304,20 +381,53 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			}
 			this._connections.set(config.connectionId, relay);
 			store.add(toDisposable(() => this._connections.deleteAndDispose(config.connectionId)));
+			if (config.resume === true) {
+				this._suspendedWorkspaces.delete(workspaceKey);
+			}
 
 			return {
 				connectionId: config.connectionId,
 				address: `devcontainer:${upResult.containerId}`,
 				name: config.name,
 				remoteWorkspaceFolder: upResult.remoteWorkspaceFolder,
-				hostWorkspaceFolder: config.workspaceFolder,
+				...(repository ? { repository } : {}),
+				...(hasKey(config, { workspaceFolder: true }) ? { hostWorkspaceFolder: config.workspaceFolder } : {}),
 			};
 		} catch (error) {
+			if (sampleContainerStarted) {
+				try {
+					await this._changeContainerState(source, 'stop');
+				} catch (cleanupError) {
+					this._logService.error(`${LOG_PREFIX} Failed to stop sample container after preparation failed`, cleanupError);
+					this._reportOutput(config.connectionId, localize('devContainerAgentHost.sampleCleanupFailed', "Failed to stop the sample container after preparation failed: {0}\n", getErrorMessage(cleanupError)));
+				}
+			}
 			if (this._connectionStores.get(config.connectionId) === store) {
 				this._connectionStores.deleteAndDispose(config.connectionId);
 			}
 			throw error;
 		}
+	}
+
+	protected _prepareSample(connectionId: string, sample: DevContainerSample, token: CancellationToken, onContainerStarted: (containerId: string) => void): Promise<IPreparedDevContainerSample> {
+		return prepareDevContainerSample(sample, join(this._environmentService.userDataPath, 'devContainerSamples', sample.id), {
+			onContainerStarted,
+			docker: async args => {
+				this._reportOutput(connectionId, `$ docker ${args.map(arg => JSON.stringify(arg)).join(' ')}\n`);
+				const result = await this._runDocker(args, token);
+				this._reportOutput(connectionId, result.stdout + result.stderr);
+				return result;
+			},
+			devcontainer: args => this._runDevContainer(connectionId, args, token),
+			fetch: async url => {
+				const response = await this._requestService.request({ type: 'GET', url, callSite: 'devContainerSample', headers: { 'User-Agent': 'VSCode' } }, token);
+				const content = await asTextOrError(response);
+				if (!content) {
+					throw new Error(localize('devContainerAgentHost.emptySampleResponse', "Empty response while downloading the Dev Container sample: {0}", url));
+				}
+				return content;
+			},
+		});
 	}
 
 	private async _getServerCacheMountArgs(connectionId: string, workspaceFolder: string, token: CancellationToken): Promise<readonly string[]> {
@@ -504,7 +614,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return !!owner && owner === user;
 	}
 
-	protected _createExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
+	protected _createExec(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken): ISshExec {
 		return async (command, options) => {
 			const result = await this._runDevContainer(
 				connectionId,
@@ -561,7 +671,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 	protected async _createRelay(
 		connectionId: string,
-		workspaceFolder: string,
+		workspaceFolder: string | readonly string[],
 		command: string,
 		endpoint: AgentHostEndpointAddress,
 		connectionToken: string | undefined,
@@ -802,10 +912,76 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 	}
 
 	isDockerAvailable(): Promise<boolean> {
-		this._dockerAvailable ??= this._resolveShellEnvironment()
-			.then(environment => findExecutable('docker', undefined, undefined, environment))
-			.then(executable => executable !== undefined);
+		this._dockerAvailable ??= this._resolveDockerExecutable().then(executable => executable !== undefined);
 		return this._dockerAvailable;
+	}
+
+	async stopContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
+		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'stop'));
+	}
+
+	async removeContainer(source: string | IDevContainerSampleSource): Promise<boolean> {
+		return this._containerOperations.queue(getSourceKey(source), () => this._changeContainerState(source, 'rm'));
+	}
+
+	private async _changeContainerState(source: string | IDevContainerSampleSource, operation: 'stop' | 'rm'): Promise<boolean> {
+		const workspaceKey = getSourceKey(source);
+		const containerId = this._containerIds.get(workspaceKey);
+		if (!containerId) {
+			return true;
+		}
+		const sessionIds = await this._findContainerSessionIds(containerId);
+		const foreignSessionIds = sessionIds.filter(sessionId => sessionId !== this._telemetryService.sessionId);
+		if (foreignSessionIds.length > 0) {
+			this._logService.info(`${LOG_PREFIX} Skipping container ${operation === 'rm' ? 'removal' : 'stop'} for ${workspaceKey}: ${foreignSessionIds.length} other VS Code session(s) are active.`);
+			return false;
+		}
+		this._suspendedWorkspaces.add(workspaceKey);
+		const connectionIds = [...this._connectionWorkspaces]
+			.filter(([, workspace]) => workspace === workspaceKey)
+			.map(([connectionId]) => connectionId);
+		await Promise.all(connectionIds.map(connectionId => this.disconnect(connectionId)));
+		const args = operation === 'rm' ? ['rm', '--force', containerId] : ['stop', containerId];
+		const result = await this._runDocker(args);
+		if (result.code !== 0 && !/No such container/i.test(result.stderr)) {
+			throw new Error(localize('devContainerAgentHost.containerLifecycleFailed', "Docker failed to {0} Dev Container '{1}' (exit {2}): {3}", operation === 'rm' ? 'remove' : 'stop', containerId, result.code, result.stderr.trim()));
+		}
+		if (operation === 'rm' || /No such container/i.test(result.stderr)) {
+			this._containerIds.delete(workspaceKey);
+		}
+		return true;
+	}
+
+	private async _findContainerSessionIds(containerId: string): Promise<readonly string[]> {
+		const script = `for env in /proc/[0-9]*/environ; do [ -r "$env" ] || continue; tr '\\0' '\\n' < "$env" 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p'; done`;
+		const result = await this._runDocker(['exec', containerId, '/bin/sh', '-c', script]);
+		if (result.code !== 0) {
+			if (/is not running|No such container/i.test(result.stderr)) {
+				return [];
+			}
+			throw new Error(localize('devContainerAgentHost.containerSessionCheckFailed', "Unable to check active VS Code sessions in Dev Container '{0}' (exit {1}): {2}", containerId, result.code, result.stderr.trim()));
+		}
+		return [...new Set(result.stdout.split('\n').map(value => value.trim()).filter(value => value.length > 0))];
+	}
+
+	private async _readProcessSessionId(exec: ISshExec, pid: number): Promise<string | undefined> {
+		const result = await exec(`tr '\\0' '\\n' < /proc/${pid}/environ 2>/dev/null | sed -n 's/^${VSCODE_REMOTE_CONTAINERS_SESSION_ENV}=//p' | head -n 1`, { ignoreExitCode: true });
+		return result.code === 0 ? result.stdout.trim() || undefined : undefined;
+	}
+
+	protected async _runDocker(args: readonly string[], token: CancellationToken = CancellationToken.None): Promise<{ stdout: string; stderr: string; code: number }> {
+		const executable = await this._resolveDockerExecutable();
+		if (!executable) {
+			throw new Error(localize('devContainerAgentHost.dockerUnavailable', "Docker is not available."));
+		}
+		const environment = await this._resolveShellEnvironment();
+		return this._runLocalCommand(executable, args, environment, token);
+	}
+
+	private _resolveDockerExecutable(): Promise<string | undefined> {
+		this._dockerExecutable ??= this._resolveShellEnvironment()
+			.then(environment => findExecutable('docker', undefined, undefined, environment));
+		return this._dockerExecutable;
 	}
 
 	protected _spawnDevContainer(

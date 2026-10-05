@@ -14,7 +14,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { SessionProviderIdContext } from '../../../../common/contextkeys.js';
+import { SessionItemIsMultiSelectionContext, SessionProviderIdContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { agentHostSettingsUri, AGENT_HOST_SETTINGS_SCHEME, AgentHostSettingsFileSystemProvider, AgentHostSettingsSchemaRegistrar } from './agentHostSettingsFileSystemProvider.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../../common/agentHostSessionsProvider.js';
@@ -63,13 +63,16 @@ registerAction2(class OpenHostSettingsAction extends Action2 {
 		super({
 			id: 'sessionsViewPane.openHostSettings',
 			title: localize2('openHostSettings', "Open Host Settings"),
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
+				SessionItemIsMultiSelectionContext.negate(),
+			),
 			menu: [{
 				id: Menus.SessionItemSettings,
 				group: 'navigation',
 				order: 2,
 				when: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			}],
-			precondition: ContextKeyExpr.regex(SessionProviderIdContext.key, ANY_AGENT_HOST_PROVIDER_RE),
 			f1: true
 		});
 	}

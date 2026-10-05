@@ -6,7 +6,7 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
+import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 
@@ -70,6 +70,20 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host detached worktrees are unavailable');
 		}
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
+	}
+
+	refreshCopilotConnectorSessions(): Promise<void> {
+		if (!this._agentService.refreshCopilotConnectorSessions) {
+			throw new Error('Copilot Connector session refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
+	}
+
+	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void> {
+		if (!this._agentService.uninstallPlugin) {
+			throw new Error('Agent Host plugin uninstall is unavailable');
+		}
+		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request));
 	}
 
 	shutdown(): Promise<void> {

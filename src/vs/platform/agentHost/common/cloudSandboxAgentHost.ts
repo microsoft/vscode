@@ -17,6 +17,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { RemoteAgentHostsEnabledSettingId } from './remoteAgentHostService.js';
 import { IReplayedTaskHistory } from './taskEventReplay.js';
 import { SessionStatus } from './state/sessionState.js';
+import { SessionModelInfo } from './state/protocol/state.js';
 
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
@@ -100,6 +101,7 @@ export interface ICloudSandboxCreatedSession {
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
 export interface ICloudSandboxDiscoveredSession {
+	readonly eventType?: string;
 	/** Mission Control environment id the session's sandbox is bound to. */
 	readonly environmentId: string;
 	/**
@@ -121,6 +123,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly updatedAt?: string;
 	/** Last reported activity; this does not establish environment availability or session flags. */
 	readonly status?: SessionStatus;
+	/** Mission Control's archive state, independent of the sandbox's AHP session flags. */
+	readonly isArchived?: boolean;
 }
 
 /** Build the synthesized remote-agent-host address for a sandbox environment. */
@@ -226,9 +230,16 @@ export interface ICloudSandboxConnectionRequest {
 	 * uses it to resolve the repository when minting the token.
 	 */
 	readonly sessionId?: string;
+	/** Reports credential HTTP dispatch or a pending response locally; never sent to the server. */
+	readonly onRequest?: (event: 'issued' | 'waking') => void;
 }
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
+
+export interface ICloudSandboxModelCatalog {
+	readonly models: readonly SessionModelInfo[];
+	readonly defaultModel?: string;
+}
 
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
@@ -239,6 +250,9 @@ export interface ICloudSandboxApiService {
 
 	/** Resolves an opaque, credential-free account key using the same identity as task requests. */
 	getAccountKey(): Promise<string | undefined>;
+
+	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
+	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;
 
 	/**
 	 * Mint a fresh client Web PubSub connection token for a new logical connection. May resolve to a
@@ -267,6 +281,15 @@ export interface ICloudSandboxApiService {
 	 * caller sends {@link ICloudSandboxCreateSessionRequest.prompt} over the relay itself.
 	 */
 	createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession>;
+
+	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
+	deleteTask(taskId: string, token: CancellationToken): Promise<void>;
+
+	/** Rename the Mission Control task without waking the sandbox. */
+	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
+
+	/** Archive or unarchive the Mission Control task without waking the sandbox. */
+	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
@@ -299,7 +322,7 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
  * so callers can tell a failure that may clear on its own from one that never will.
  */
 export class CloudSandboxRequestError extends Error {
-	constructor(readonly statusCode: number | undefined, message: string) {
+	constructor(readonly statusCode: number | undefined, message: string, readonly retryAfterSeconds?: number) {
 		super(message);
 		this.name = 'CloudSandboxRequestError';
 	}
@@ -335,6 +358,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly sessionId?: string;
 	/** Human-readable display name for the connection. */
 	readonly name: string;
+	/** Caller provenance, not a claim about warm or cold compute. */
+	readonly connectionSource?: 'created' | 'existing';
 }
 
 /**
@@ -358,9 +383,15 @@ export interface ICloudSandboxAgentHostService {
 	 */
 	connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string>;
 
+	/** Disconnect a sandbox address and discard its staged credentials. */
+	disconnect(address: string): Promise<void>;
+
 	/**
 	 * The sealed GitHub token for a live connection to the given environment, as minted by
 	 * `/connect` and refreshed by `/reconnect`, or `undefined` when there is no connection.
 	 */
 	getSealedGitHubToken(environmentId: string): string | undefined;
+
+	/** Renew a live connection's sealed credential, rejecting missing or reused envelopes while sharing its refresh and retry budget. */
+	refreshSealedGitHubToken(environmentId: string): Promise<string | undefined>;
 }

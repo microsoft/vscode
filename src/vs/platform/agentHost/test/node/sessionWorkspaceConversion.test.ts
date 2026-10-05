@@ -64,6 +64,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 			}),
 			worktreeBranchPrefixProperty: undefined,
 			worktreeIncludeFilesProperty: undefined,
+			worktreeSymlinkFoldersProperty: undefined,
 			worktreeBranchTrackProperty: undefined,
 			worktreeCreateNewBranchProperty: undefined,
 			isolationValue: 'worktree',
@@ -72,7 +73,7 @@ class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 		};
 	}
 
-	override async resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI> {
+	override async resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI> {
 		this.requests.push(request);
 		await request.onWillCreate?.({
 			repositoryRoot: this.repository,

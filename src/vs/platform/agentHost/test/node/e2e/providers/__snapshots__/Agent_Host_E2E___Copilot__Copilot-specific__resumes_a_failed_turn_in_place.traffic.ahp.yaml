@@ -41,6 +41,9 @@ rounds:
               errorType: query
               message: 'Execution failed: 400 Injected recoverable E2E failure.'
             resumable: true
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
   - clientToServer:
       - channel: ${chat_0}
         action:
