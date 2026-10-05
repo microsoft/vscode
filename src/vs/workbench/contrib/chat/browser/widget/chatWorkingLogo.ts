@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, addDisposableListener, append, getWindow } from '../../../../../base/browser/dom.js';
+import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -26,7 +27,7 @@ function isDrawAnimation(animation: ChatProgressAnimation): boolean {
 	return animation === ChatProgressAnimation.Draw || animation === ChatProgressAnimation.DrawMonochrome;
 }
 
-function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean) => void): IDisposable {
+function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean) => void, intersectionObserver?: typeof IntersectionObserver): IDisposable {
 	let disposed = false;
 	let observer: IntersectionObserver | undefined;
 	let visibilityListener: IDisposable | undefined;
@@ -36,14 +37,15 @@ function observeVisibility(element: HTMLElement, onDidChange: (visible: boolean)
 			return;
 		}
 		const targetWindow = getWindow(element);
-		if (typeof targetWindow.IntersectionObserver !== 'function') {
+		const Observer = intersectionObserver ?? targetWindow.IntersectionObserver;
+		if (typeof Observer !== 'function') {
 			onDidChange(true);
 			return;
 		}
 		let intersecting = false;
 		const update = () => onDidChange(!targetWindow.document.hidden && intersecting);
-		observer = new targetWindow.IntersectionObserver(entries => {
-			const entry = entries.find(entry => entry.target === element);
+		observer = new Observer(entries => {
+			const entry = findLast(entries, entry => entry.target === element);
 			if (entry) {
 				intersecting = entry.isIntersecting;
 				update();
@@ -83,6 +85,7 @@ export class ChatWorkingLogo extends Disposable {
 			readonly scheduleFrame?: (targetWindow: Window, runner: () => void) => IDisposable;
 			readonly isMotionReduced?: () => boolean;
 			readonly observeVisibility?: (element: HTMLElement, onDidChange: (visible: boolean) => void) => IDisposable;
+			readonly intersectionObserver?: typeof IntersectionObserver;
 		} = {},
 	) {
 		super();
@@ -98,12 +101,13 @@ export class ChatWorkingLogo extends Disposable {
 		const wrapper = append(this.domNode, $('span.chat-working-logo-face'));
 		wrapper.appendChild($.SVG<SVGSVGElement>('svg', { viewBox: '6 6 84 84', width: '100%', height: '100%', focusable: 'false' },
 			...facePaths.map(path => $.SVG<SVGPathElement>('path', { d: path, fill: 'currentColor' }))));
-		this._register((animationOptions.observeVisibility ?? observeVisibility)(this.domNode, visible => {
+		const visibilityObserver: typeof observeVisibility = animationOptions.observeVisibility ?? observeVisibility;
+		this._register(visibilityObserver(this.domNode, visible => {
 			if (this.visible !== visible) {
 				this.visible = visible;
 				this.restartDrawAnimation();
 			}
-		}));
+		}, animationOptions.intersectionObserver));
 		this.setAnimation(animation);
 		this.setActive(true);
 	}

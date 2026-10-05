@@ -165,7 +165,7 @@ suite('TerminalSandboxEngine', () => {
 	}
 
 	function enableWindowsSandbox(): void {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 	}
 
@@ -693,7 +693,8 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(createFileCount, 0, 'Disabled sandbox precheck should not create sandbox config files');
 	});
 
-	test('isEnabled returns false on Windows when Windows sandbox setting is disabled by default', async () => {
+	test('isEnabled returns false on Windows when the unified sandbox setting is off', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -702,8 +703,7 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(await engine.getSandboxConfigPath(), undefined);
 	});
 
-	test('isEnabled returns true on Windows when Windows sandbox setting is enabled even if global sandboxing is off', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+	test('isEnabled returns true on Windows when the unified sandbox setting is on', async () => {
 		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
@@ -712,9 +712,8 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(await engine.isSandboxAllowNetworkEnabled(), true);
 	});
 
-	test('enabledWindows on value does not enable allowNetwork on Windows', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+	test('the unified enable setting does not enable allowNetwork on Windows', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -962,7 +961,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));

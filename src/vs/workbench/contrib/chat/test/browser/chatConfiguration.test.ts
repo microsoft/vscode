@@ -5,14 +5,14 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../../platform/product/common/product.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -21,6 +21,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
+const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.UnifiedWorkspacePicker];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -36,17 +37,67 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {
+	test('enables the unified workspace picker by default while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
-			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			type: unifiedWorkspacePickerSetting.type,
+			default: unifiedWorkspacePickerSetting.default,
+			scope: unifiedWorkspacePickerSetting.scope,
+			experiment: unifiedWorkspacePickerSetting.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
+		assert.deepStrictEqual({
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
 		}, {
-			marketplace: false,
+			marketplace: {
+				type: 'boolean',
+				tags: ['experimental'],
+				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				default: false,
+				experiment: { mode: 'auto' },
+			},
 			publicFeed: true,
 		});
 	});
 
-	test('defaults persistent progress to Draw in Insiders and Off otherwise while allowing experiment overrides', () => {
+	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {
+		const isDefault = (inspection: IConfigurationValue<boolean>) =>
+			isCustomizationMarketplaceValueFromDefault({
+				inspect: <T>() => inspection as unknown as IConfigurationValue<Readonly<T>>,
+			} as unknown as IConfigurationService);
+		assert.deepStrictEqual([
+			isDefault({ defaultValue: false, value: false }),
+			...[
+				'applicationValue',
+				'userValue',
+				'userLocalValue',
+				'userRemoteValue',
+				'workspaceValue',
+				'workspaceFolderValue',
+				'memoryValue',
+				'policyValue',
+			].map(layer => isDefault({ defaultValue: false, value: true, [layer]: true })),
+		], [
+			true,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
+	});
+
+	test('defaults persistent progress to Draw regardless of product quality while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -54,7 +105,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -72,7 +123,7 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
 			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
 			descriptions: 4,

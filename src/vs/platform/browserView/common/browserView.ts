@@ -8,6 +8,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ITunnelProxyInfo } from '../../tunnel/common/tunnelProxy.js';
 import { IPermissionCategoryState, ISerializedBrowserPermissionsSnapshot, IBrowserDeviceCandidate, BrowserDeviceType, PermissionCategory } from './browserPermissions.js';
 import type { IntegratedBrowserOpenSource } from './browserViewTelemetry.js';
@@ -307,6 +308,7 @@ export interface IBrowserViewCreatedEvent {
 
 /** Host, ownership, storage, and initial access for a newly created browser view. */
 export interface IBrowserViewCreationContext {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
@@ -339,6 +341,7 @@ export interface IBrowserViewStorageKeys {
 }
 
 export interface IBrowserViewState {
+	readonly sandboxSessionId?: string;
 	url: string;
 	title: string;
 	canGoBack: boolean;
@@ -570,6 +573,7 @@ export function reviveBrowserViewInfo(info: IBrowserViewSerializedInfo, lastScre
 }
 
 export interface IBrowserViewService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
 	/** Read-only accessibility snapshot that does not grant agent access. */
 	getAccessibilitySnapshot(id: string, expectedHostWindowId: number): Promise<IBrowserViewAccessibilitySnapshot>;
 

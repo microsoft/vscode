@@ -112,3 +112,18 @@ export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 		? localize('sessionSubagents.showSingle', "Show 1 subagent")
 		: localize('sessionSubagents.show', "Show {0} subagents", count),
 };
+
+/** Background shells always open a list, including when only one is active. */
+export const sessionBackgroundShellsPillOptions: IChatDropdownPillOptions = {
+	widgetId: 'sessionBackgroundShells',
+	icon: Codicon.terminal,
+	title: localize('sessionBackgroundShells.title', "Background Shells"),
+	summaryLabel: count => count === 1
+		? localize('sessionBackgroundShells.countSingle', "1 Background Shell")
+		: localize('sessionBackgroundShells.count', "{0} Background Shells", count),
+	summaryAriaLabel: count => count === 1
+		? localize('sessionBackgroundShells.showSingle', "Show 1 background shell")
+		: localize('sessionBackgroundShells.show', "Show {0} background shells", count),
+	singleEntry: ChatPillSingleEntry.Summary,
+	openHoverOnSelect: true,
+};

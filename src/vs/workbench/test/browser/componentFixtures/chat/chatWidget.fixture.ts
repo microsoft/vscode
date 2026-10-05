@@ -2624,7 +2624,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			inputVisible: false,
 			height: 240,
 			messages: [{
-				user: '/sandbox-policy',
+				user: '/sandbox policy',
 				assistant: [{
 					kind: 'markdown',
 					text: '[Open Sandbox Policy](file:///session/diagnostics/sandbox-policy.md?vscodeLinkType=markdown-preview)\n\n[Regular chat link](https://example.com)',

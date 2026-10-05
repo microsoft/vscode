@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -21,6 +22,7 @@ import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
 import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { IDevContainerRepository } from './devContainerSamples.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 
 /**
@@ -231,15 +233,13 @@ export interface IRemoteAgentHostCloudSandboxConnection {
  * A runtime-only connection to an agent host running inside a Dev Container.
  * The Dev Container integration stages its transport for its connection factory.
  */
-export interface IRemoteAgentHostDevContainerConnection {
+export type IRemoteAgentHostDevContainerConnection = {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
 	/** Stable address for the container connection. */
 	readonly address: string;
-	/** Source folder on the parent host containing the Dev Container configuration. */
-	readonly hostPath: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
-}
+} & ({ readonly hostPath: string; readonly repository?: never } | { readonly repository: IDevContainerRepository; readonly hostPath?: never });
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
 
@@ -821,6 +821,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
+	/** Last operating system successfully reported by this host. */
+	readonly operatingSystem?: OperatingSystem;
 }
 
 export interface IRemoteAgentHostPendingConnection {

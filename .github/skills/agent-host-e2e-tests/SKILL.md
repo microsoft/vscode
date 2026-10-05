@@ -11,6 +11,8 @@ These tests run the whole agent host end-to-end (real server, real bundled provi
 
 It documents the mental model, the fixture format, every config flag, and a symptom→cause→fix troubleshooting table. This skill is only the *workflows*; the README is the source of truth for *how it works*.
 
+When validating an upstream provider/runtime fix, use [ci-artifact-testing](../ci-artifact-testing/SKILL.md) to check for a compatible CI artifact before building locally. Run the same strict replay against the bundled baseline and candidate; preserve the test assertions and existing cross-platform validation requirements.
+
 ## Core invariants
 
 1. **Replay is default and strict.** No env var serves committed fixtures without a token or network. An unrecorded request is a hard cache miss.

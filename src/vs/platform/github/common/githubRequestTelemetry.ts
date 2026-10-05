@@ -7,11 +7,11 @@ import { Event } from '../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
-import { IGitHubScheduler } from './githubScheduler.js';
+import { IRequestScheduler } from './scheduler.js';
 import { getGitHubRequestFeature, GitHubRequestFeature } from './githubRequestMetadata.js';
-import { GitHubRequestContext, GitHubRequestError, GitHubTelemetrySource } from './githubTypes.js';
+import { GitHubTelemetrySource } from './githubTypes.js';
+import { RequestContext, IRequestTiming, RequestOutcome } from './types.js';
 
-export type GitHubRequestOutcome = 'success' | 'cancelled' | 'authentication' | 'authorization' | 'notFound' | 'validation' | 'schema' | 'rateLimit' | 'network' | 'server' | 'overloaded' | 'timeout' | 'responseTooLarge' | 'malformedResponse' | 'other';
 type Caller = GitHubRequestFeature;
 type Rejection = 'engine' | 'account' | 'caller' | 'waiter';
 
@@ -97,7 +97,7 @@ interface TimingSample {
 	kind: 'rest' | 'graphql' | 'download' | 'other';
 	priority: 'mutationReconciliation' | 'mutation' | 'interactive' | 'mergeGate' | 'visible' | 'background' | 'enrichment' | 'other';
 	resource: 'core' | 'search' | 'graphql' | 'other';
-	outcome: GitHubRequestOutcome;
+	outcome: RequestOutcome;
 	queueMs: number;
 	cooldownMs: number;
 	executionMs: number;
@@ -119,12 +119,7 @@ type TimingClassification = {
 	samplePopulation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Completed admitted operations represented by this interval reservoir.' };
 };
 
-export interface IGitHubRequestTiming {
-	updateCooldown(delay: number): void;
-	start(priority?: GitHubRequestContext['priority']): void;
-	finish(outcome: GitHubRequestOutcome): void;
-}
-
+/** Privacy-safe request counters and sampled timings for GitHub engine traffic. */
 export class GitHubRequestTelemetry extends Disposable {
 
 	static readonly interval = 5 * 60_000;
@@ -142,7 +137,7 @@ export class GitHubRequestTelemetry extends Disposable {
 
 	constructor(
 		source: GitHubTelemetrySource,
-		private readonly _scheduler: IGitHubScheduler,
+		private readonly _scheduler: IRequestScheduler,
 		private readonly _telemetryService: ITelemetryService,
 		private readonly _logService: ILogService,
 		onDidChangeTelemetryLevel: Event<TelemetryLevel> = Event.None,
@@ -159,7 +154,7 @@ export class GitHubRequestTelemetry extends Disposable {
 		}));
 	}
 
-	startRequest(): ((outcome: GitHubRequestOutcome) => void) | undefined {
+	startRequest(): ((outcome: RequestOutcome) => void) | undefined {
 		if (!this._record()) {
 			return undefined;
 		}
@@ -241,7 +236,7 @@ export class GitHubRequestTelemetry extends Disposable {
 		}
 	}
 
-	startQueue(context: GitHubRequestContext): IGitHubRequestTiming | undefined {
+	startQueue(context: RequestContext): IRequestTiming | undefined {
 		if (!this._record()) {
 			return undefined;
 		}
@@ -368,18 +363,6 @@ export class GitHubRequestTelemetry extends Disposable {
 	}
 }
 
-export function gitHubRequestOutcome(error: unknown, cancelled: boolean): GitHubRequestOutcome {
-	if (error instanceof GitHubRequestError) {
-		switch (error.kind) {
-			case 'authentication': case 'authorization': case 'notFound': case 'validation': case 'schema':
-			case 'rateLimit': case 'network': case 'server': case 'overloaded': case 'timeout':
-			case 'responseTooLarge': case 'malformedResponse':
-				return error.kind;
-		}
-	}
-	return cancelled ? 'cancelled' : 'other';
-}
-
 function classifyPriority(priority: string): TimingSample['priority'] {
 	switch (priority) {
 		case 'mutationReconciliation': case 'mutation': case 'interactive': case 'mergeGate':
@@ -389,7 +372,7 @@ function classifyPriority(priority: string): TimingSample['priority'] {
 	}
 }
 
-function classifyOutcome(outcome: string): GitHubRequestOutcome {
+function classifyOutcome(outcome: string): RequestOutcome {
 	switch (outcome) {
 		case 'success': case 'cancelled': case 'authentication': case 'authorization': case 'notFound':
 		case 'validation': case 'schema': case 'rateLimit': case 'network': case 'server':

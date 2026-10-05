@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { findNodeAtLocation, parseTree } from '../../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
@@ -89,6 +90,9 @@ type McpDetailCompatibilityState =
  * Detail view for an MCP server inside the AI Customizations management editor.
  */
 export class EmbeddedMcpServerDetail extends Disposable {
+
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
@@ -497,6 +501,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			|| this.compatibilitySection.section.style.display !== 'none'
 			|| this.migrationSection.section.style.display !== 'none';
 		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
+		this._onDidChangeContent.fire();
 	}
 
 	private updateDiagnosticSection(section: IMcpDiagnosticSection, kind: 'warning' | 'error' | 'neutral', icon: ThemeIcon, summary: string, details: readonly string[]): void {
@@ -540,6 +545,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.definitionEmptyEl.textContent = emptyMessage;
 
 		if (this.currentDefinition === definition) {
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -548,6 +554,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!hasDefinition) {
 			this.definitionEditor?.setModel(null);
 			this.definitionModel.clear();
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -558,6 +565,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const model = this.modelService.createModel(definition, this.languageService.createById('jsonc'), undefined, true);
 		definitionEditor.setModel(model);
 		this.definitionModel.value = model;
+		this._onDidChangeContent.fire();
 	}
 
 	private ensureDefinitionEditor(): CodeEditorWidget {

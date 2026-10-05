@@ -135,6 +135,93 @@ suite('buildAgentHostOTelEnv', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('identity policy overrides both settings and environment without enabling telemetry or content', () => {
+		for (const captureIdentity of [false, true]) {
+			const env = buildAgentHostOTelEnv(
+				{ captureIdentity: !captureIdentity },
+				{ COPILOT_OTEL_CAPTURE_IDENTITY: String(!captureIdentity) },
+				{ captureIdentity },
+				{ COPILOT_OTEL_CAPTURE_IDENTITY: String(!captureIdentity) },
+			);
+			assert.deepStrictEqual(env, { COPILOT_OTEL_CAPTURE_IDENTITY: String(captureIdentity) });
+		}
+	});
+
+	test('identity omission preserves environment precedence over personal settings', () => {
+		assert.deepStrictEqual({
+			absent: buildAgentHostOTelEnv({}, {}),
+			preference: buildAgentHostOTelEnv({ captureIdentity: true }, {}),
+			environment: buildAgentHostOTelEnv({ captureIdentity: false }, { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' }),
+		}, {
+			absent: {},
+			preference: { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' },
+			environment: {},
+		});
+	});
+
+	test('shell identity opt-in does not change content defaults or shell endpoint inheritance', () => {
+		const shellEnv = {
+			COPILOT_OTEL_CAPTURE_IDENTITY: 'true',
+			OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://shell:4318',
+		};
+		const overlay = buildAgentHostOTelEnv({ captureIdentity: false, captureContent: false }, {}, {}, shellEnv);
+		assert.deepStrictEqual({ ...shellEnv, ...overlay }, {
+			COPILOT_OTEL_CAPTURE_IDENTITY: 'true',
+			OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'false',
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://shell:4318',
+		});
+	});
+
+	test('resolved shell env overrides only the new identity preference, not existing OTel settings', () => {
+		const shellEnv = {
+			COPILOT_OTEL_ENABLED: 'false',
+			COPILOT_OTEL_EXPORTER_TYPE: 'console',
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://shell:4318',
+			OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
+			COPILOT_OTEL_CAPTURE_IDENTITY: 'false',
+			COPILOT_OTEL_FILE_EXPORTER_PATH: 'shell.jsonl',
+			COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'false',
+		};
+		const overlay = buildAgentHostOTelEnv({
+			enabled: true,
+			exporterType: 'otlp-http',
+			otlpEndpoint: 'http://settings:4318',
+			captureContent: false,
+			captureIdentity: true,
+			outfile: 'settings.jsonl',
+			dbSpanExporterEnabled: true,
+		}, {}, {}, shellEnv);
+		assert.deepStrictEqual({ ...shellEnv, ...overlay }, {
+			COPILOT_OTEL_ENABLED: 'true',
+			COPILOT_OTEL_EXPORTER_TYPE: 'otlp-http',
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://settings:4318',
+			OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'false',
+			COPILOT_OTEL_CAPTURE_IDENTITY: 'false',
+			COPILOT_OTEL_FILE_EXPORTER_PATH: 'settings.jsonl',
+			COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true',
+		});
+	});
+
+	test('managed policy still overrides resolved shell content and endpoint values', () => {
+		const shellEnv = {
+			COPILOT_OTEL_CAPTURE_IDENTITY: 'true',
+			OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://shell:4318',
+		};
+		const overlay = buildAgentHostOTelEnv({}, {}, {
+			captureIdentity: false,
+			captureContent: false,
+			otlpEndpoint: 'http://enterprise:4318',
+		}, shellEnv);
+		assert.deepStrictEqual({ ...shellEnv, ...overlay }, {
+			COPILOT_OTEL_CAPTURE_IDENTITY: 'false',
+			OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'false',
+			OTEL_EXPORTER_OTLP_ENDPOINT: 'http://enterprise:4318',
+			COPILOT_OTEL_FILE_EXPORTER_PATH: '',
+		});
+	});
+
 	test('enterprise policy wins over inherited env', () => {
 		const env = buildAgentHostOTelEnv(
 			{ enabled: false },
@@ -222,6 +309,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			'chat.agentHost.otel.otlpProtocol': 'http/protobuf',
 			'chat.agentHost.otel.otlpEndpoint': 'http://localhost:4318',
 			'chat.agentHost.otel.captureContent': false,
+			'chat.agentHost.otel.captureIdentity': true,
 			'chat.agentHost.otel.outfile': '/tmp/o.jsonl',
 			'chat.agentHost.otel.serviceName': 'my-service',
 			'chat.agentHost.otel.resourceAttributes': { 'service.namespace': 'acme' },
@@ -232,6 +320,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			otlpProtocol: 'http/protobuf',
 			otlpEndpoint: 'http://localhost:4318',
 			captureContent: false,
+			captureIdentity: true,
 			outfile: '/tmp/o.jsonl',
 			serviceName: 'my-service',
 			resourceAttributes: { 'service.namespace': 'acme' },
@@ -245,6 +334,7 @@ suite('readAgentHostOTelPolicySettings', () => {
 			otlpProtocol: undefined,
 			otlpEndpoint: undefined,
 			captureContent: undefined,
+			captureIdentity: undefined,
 			outfile: undefined,
 			serviceName: undefined,
 			resourceAttributes: undefined,
@@ -264,6 +354,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 				otlpProtocol: 'http/protobuf',
 				otlpEndpoint: 'http://localhost:4318',
 				captureContent: false,
+				captureIdentity: false,
 				outfile: '/tmp/o.jsonl',
 				serviceName: 'my-service',
 				resourceAttributes: { 'service.namespace': 'acme', dropped: 7 },
@@ -275,6 +366,7 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 				otlpProtocol: 'http/protobuf',
 				otlpEndpoint: 'http://localhost:4318',
 				captureContent: false,
+				captureIdentity: false,
 				outfile: '/tmp/o.jsonl',
 				serviceName: 'my-service',
 				resourceAttributes: { 'service.namespace': 'acme' },
@@ -284,8 +376,8 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 
 	test('mistyped fields are dropped to undefined', () => {
 		assert.deepStrictEqual(
-			sanitizeAgentHostOTelPolicySettings({ enabled: 'yes', otlpEndpoint: 42, captureContent: 1 }),
-			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, outfile: undefined, serviceName: undefined, resourceAttributes: undefined },
+			sanitizeAgentHostOTelPolicySettings({ enabled: 'yes', otlpEndpoint: 42, captureContent: 1, captureIdentity: 'false' }),
+			{ enabled: undefined, exporterType: undefined, otlpProtocol: undefined, otlpEndpoint: undefined, captureContent: undefined, captureIdentity: undefined, outfile: undefined, serviceName: undefined, resourceAttributes: undefined },
 		);
 	});
 
@@ -307,6 +399,23 @@ suite('sanitizeAgentHostOTelPolicySettings', () => {
 suite('AgentHostOTelPolicyState', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('identity-only changes restart for capture, suppression, and withdrawal after settled refresh', () => {
+		const state = new AgentHostOTelPolicyState();
+		state.update({}, false);
+		for (const captureIdentity of [true, false, undefined, true]) {
+			state.didStart();
+			const policy = { captureIdentity };
+			assert.strictEqual(state.update(policy, true, false), false);
+			assert.strictEqual(state.update(policy, true, true), true);
+			assert.strictEqual(state.update(policy, true, true), false);
+			assert.strictEqual(state.policy?.captureIdentity, captureIdentity);
+			const inherited = { COPILOT_OTEL_CAPTURE_IDENTITY: 'true' };
+			assert.deepStrictEqual({ ...inherited, ...buildAgentHostOTelEnv({}, inherited, state.policy) }, {
+				COPILOT_OTEL_CAPTURE_IDENTITY: String(captureIdentity ?? true),
+			});
+		}
+	});
 
 	test('ignores transient refresh and unresolved window snapshots for a running host', () => {
 		const state = new AgentHostOTelPolicyState();
@@ -382,6 +491,7 @@ suite('AgentHostOTelPolicyState', () => {
 				otlpProtocol: undefined,
 				otlpEndpoint: 'http://localhost:4320',
 				captureContent: undefined,
+				captureIdentity: undefined,
 				outfile: undefined,
 				serviceName: undefined,
 				resourceAttributes: undefined,

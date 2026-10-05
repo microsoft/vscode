@@ -70,7 +70,7 @@ import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } fro
 import { ChatWidgetPasteTarget } from '../attachments/chatWidgetPasteTarget.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestTranscriptContextVariableEntry, IChatRequestVariableEntry, isPastedTextArtifact, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -224,6 +224,7 @@ export function shouldUnlockChatPetQueueOrSteeringMessage(isUserQuery: boolean, 
 }
 
 type ChatHandoffClickEvent = {
+	provider: string | undefined;
 	fromAgent: string;
 	toAgent: string;
 	hasPrompt: boolean;
@@ -231,6 +232,7 @@ type ChatHandoffClickEvent = {
 };
 
 type ChatHandoffClickClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	owner: 'digitarald';
 	comment: 'Event fired when a user clicks on a handoff prompt in the chat suggest-next widget';
 	fromAgent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent/mode the user was in before clicking the handoff' };
@@ -1250,6 +1252,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listWidget.delegateScrollFromMouseWheelEvent(e);
 		}));
 
+		if (this.viewOptions.firstRequestSummary) {
+			this._register(autorun(reader => {
+				this.listWidget.updateRendererOptions({ firstRequestSummary: this.viewOptions.firstRequestSummary?.read(reader) });
+			}));
+		}
+
 		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
@@ -1897,6 +1905,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const currentMode = this.input.currentModeObs.get();
 		const toMode = handoff.agent ? this.input.currentChatModesObs.get().findModeByName(handoff.agent) : undefined;
 		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
+			provider: getAgentHostProviderForTelemetry(this.viewModel ? getChatSessionType(this.viewModel.model.sessionResource) : undefined, this.chatSessionsService),
 			fromAgent: getModeNameForTelemetry(currentMode),
 			toAgent: agentId || (toMode ? getModeNameForTelemetry(toMode) : ''),
 			hasPrompt: Boolean(promptToUse),
@@ -2558,6 +2567,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderFollowups: options?.renderFollowups ?? true,
 			renderStyle: options?.renderStyle === 'minimal' ? 'compact' : options?.renderStyle,
 			renderInputToolbarBelowInput: options?.renderInputToolbarBelowInput ?? false,
+			renderSecondaryToolbar: this.viewOptions.renderSecondaryToolbar ?? true,
 			menus: {
 				executeToolbar: MenuId.ChatExecute,
 				telemetrySource: 'chatWidget',

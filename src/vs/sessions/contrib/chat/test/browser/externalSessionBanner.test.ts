@@ -33,6 +33,9 @@ suite('Sessions - External Session Banner', () => {
 
 	test('explains continuation and subscriptions without visibility controls when sectioning is enabled', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: true });
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
 		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {}));
 		const descriptions = ['codex', 'copilot', 'claude'].map(sessionType => {
 			banner.setSession(externalSession(sessionType));
@@ -61,9 +64,10 @@ suite('Sessions - External Session Banner', () => {
 		]);
 	});
 
-	test('switches between continuation and visibility controls when sectioning changes', async () => {
+	test('shows visibility controls by default and switches to continuation when sectioning is enabled', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const configurationService = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: false });
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(IConfigurationService, configurationService);
 		const banner = disposables.add(instantiationService.createInstance(ExternalSessionBanner, $('div'), {}));
 		banner.setSession(externalSession('codex'));

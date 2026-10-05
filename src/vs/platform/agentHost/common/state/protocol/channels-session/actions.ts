@@ -75,6 +75,9 @@ export interface SessionChatRemovedAction {
  * SHOULD then wait for a {@link SessionChatAddedAction | `session/chatAdded`}.
  *
  * Mirrors the root-channel `root/sessionSummaryChanged` notification.
+ * When `changes.status` changes, the host MUST project that exact value into
+ * the matching `SessionChatSummary.status` field and publish
+ * the updated compact chat catalog through `root/sessionSummaryChanged`.
  *
  * @category Session Actions
  * @version 1
@@ -102,6 +105,24 @@ export interface SessionDefaultChatChangedAction {
 	type: ActionType.SessionDefaultChatChanged;
 	/** New default chat URI, or `undefined` to clear the hint. */
 	defaultChat?: URI;
+}
+
+/**
+ * The owning session's authoritative chat catalog order changed.
+ *
+ * Host-emitted convergence signal; it never originates from a client
+ * dispatch. `chats` is the complete resulting order and MUST contain every
+ * chat currently in the session exactly once. Reducers replace the catalog
+ * order while preserving each matching summary. Invalid or incomplete orders
+ * are ignored.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionChatsReorderedAction {
+	type: ActionType.SessionChatsReordered;
+	/** Every chat URI in authoritative catalog order. */
+	chats: URI[];
 }
 
 /**

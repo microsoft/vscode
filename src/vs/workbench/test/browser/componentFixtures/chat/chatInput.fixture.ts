@@ -89,7 +89,7 @@ const sampleModels: ILanguageModelChatMetadataAndIdentifier[] = [
 
 // A short name beside its thinking effort / context readout. The name must keep its
 // own width rather than being padded out to the picker's minimum label width.
-const shortNameModels: ILanguageModelChatMetadataAndIdentifier[] = [
+export const shortNameModels: ILanguageModelChatMetadataAndIdentifier[] = [
 	{
 		identifier: 'xai-grok-4.7',
 		metadata: {
@@ -166,7 +166,8 @@ const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { 
 const combinedPickerOptions: ChatInputFixtureOptions = {
 	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
 	combinedModePermissionsPicker: true,
-	models: copilotHarnessModels,
+	tabbedModelPicker: true,
+	models: shortNameModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } })),
 };
 
 const copilotIntroductionOptions: ChatInputFixtureOptions = {
@@ -223,6 +224,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	}),
 	CopilotHarnessCombinedPickers: defineComponentFixture({
 		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderChatInput(context, combinedPickerOptions),
 	}),
 	CopilotHarnessCombinedCompactPickers: defineComponentFixture({

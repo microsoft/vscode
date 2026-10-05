@@ -18,7 +18,7 @@ export interface ISessionGridEntry {
 	readonly placement?: ISessionGridPlacement;
 }
 
-/** A host keeps grid identity stable while its content is projected onto a single-pane surface. */
+/** A host keeps grid identity stable while its content is projected onto the desktop surface. */
 class SessionGridLeaf implements ISerializableView {
 	readonly element = $('.session-grid-leaf');
 	private projected = false;

@@ -280,6 +280,23 @@ prewarming is Copilot-only. Codex scan end markers also include `pageCount` and
 the startup-settled barrier. Providers may defer scanning until later use, so
 not every startup produces every marker.
 
+Copilot background discovery coalesces changes and paces SDK catalog listings by
+candidate. A session folder created while discovery observes the root, or a session
+first seen without `events.jsonl` that later gains one, may trigger up to four
+listings at least five seconds apart, so new external sessions appear promptly.
+Every other listing (history that was already ready when first observed, sessions
+that exhausted their fast budget, and retries) waits at least one minute after the
+preceding successful scan; due retries join any listing that runs. Candidates
+that cannot be classified until their metadata changes (an incomplete marker, or
+`workspace.yaml` without `cwd` or `client_name`) wait for a file change instead of
+retrying. Unwatched candidates park only when their readiness fingerprint was
+unchanged across the listing, so they may need one confirming listing first. Other
+unresolved candidates back off to an hourly retry. Shallow watchers
+and bounded, rotating readiness probes cover both watched candidates and overflow
+beyond the 32-watcher cap, so readiness that depends on an overflow probe can take
+longer. Discovery still needs a bulk listing: the SDK's exact `getSessionMetadata`
+API does not retain the `clientName` required for provenance filtering.
+
 ### Marker locations
 
 | Markers | Where they are set |

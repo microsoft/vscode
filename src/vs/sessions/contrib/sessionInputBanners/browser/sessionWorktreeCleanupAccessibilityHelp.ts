@@ -12,7 +12,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { SessionWorktreeCleanupEditorFocusedContext } from '../../../common/contextkeys.js';
 
 /**
- * Editor-scoped accessibility help for the Clean Up Agent Worktrees editor. It replaces the
+ * Editor-scoped accessibility help for the Open worktree cleanup editor. It replaces the
  * window-wide chat help while this editor is focused, so screen reader users hear guidance about
  * the filters, table, and cleanup controls instead of the chat input.
  */
@@ -25,7 +25,7 @@ export class SessionWorktreeCleanupAccessibilityHelp implements IAccessibleViewI
 	getProvider(_accessor: ServicesAccessor) {
 		const previouslyFocused = getActiveElement();
 		const content: string[] = [
-			localize('sessionWorktreeCleanupHelp.overview', "You are in the Clean Up Agent Worktrees editor. It lists agent session worktrees that are inactive and eligible for cleanup so you can reclaim the disk space they use. Cleaning up a session marks it as done and deletes its worktree; you can restore the session later to recreate it."),
+			localize('sessionWorktreeCleanupHelp.overview', "You are in the Open worktree cleanup editor. It lists agent session worktrees that are inactive and eligible for cleanup so you can reclaim the disk space they use. Cleaning up a session marks it as done and deletes its worktree; you can restore the session later to recreate it."),
 			localize('sessionWorktreeCleanupHelp.filter', "Use the Untouched For selector to choose how long a session must be inactive to be eligible. Changing it re-measures storage and updates the table and summary."),
 			localize('sessionWorktreeCleanupHelp.summary', "A summary line above the table reports how many worktrees are eligible and about how much storage they use. A nearby info button explains why sessions are included or excluded."),
 			localize('sessionWorktreeCleanupHelp.table', "The table lists one row per eligible session with its title, when it was last used, and its worktree size. Use Tab to move into the table. Each row has a checkbox to select it and a session title link that opens the session, and a Select All checkbox in the header toggles every eligible row."),

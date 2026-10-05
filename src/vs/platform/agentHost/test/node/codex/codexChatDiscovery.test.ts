@@ -75,6 +75,7 @@ function thread(id: string, updatedAt = 1, name = id): Thread {
 		id, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null,
 		preview: id, ephemeral: false, section: null, sectionEnteredAt: null,
 		projectId: null, historyMode: 'paginated', modelProvider: 'openai', model: null,
+		environments: null, originator: null, daybreakEnabled: null,
 		reasoningEffort: null, createdAt: 1, updatedAt, recencyAt: null,
 		status: { type: 'notLoaded' }, path: URI.joinPath(codexHome, 'sessions/2026/09/22', `${id}.jsonl`).fsPath,
 		cwd: '/project', cliVersion: '0.153.0', source: 'appServer', canAcceptDirectInput: null,

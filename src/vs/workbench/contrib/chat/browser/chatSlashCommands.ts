@@ -42,6 +42,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
 import { IChatPetService } from './chatPetService.js';
+import { CHAT_PET_BLOBBY_COMMAND_ID } from './chatPetColors.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 
 export class ChatSlashCommandsContribution extends Disposable {
@@ -75,6 +76,18 @@ export class ChatSlashCommandsContribution extends Disposable {
 			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			chatPetService.toggle();
+		}));
+		this._register(slashCommandService.registerSlashCommand({
+			command: 'blobby',
+			detail: nls.localize('blobby', "Show Blobby or open its color customization"),
+			sortText: 'z3_blobby',
+			executeImmediately: true,
+			executeDuringRequest: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Setup.hidden.negate()),
+		}, async () => {
+			await commandService.executeCommand(CHAT_PET_BLOBBY_COMMAND_ID);
 		}));
 		const clearCommandRegistration = this._register(new MutableDisposable());
 		const registerClearCommand = () => {
