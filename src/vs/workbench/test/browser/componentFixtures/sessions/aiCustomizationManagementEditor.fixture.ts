@@ -97,7 +97,7 @@ import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/conf
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -687,6 +687,11 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
+const reconciledConnectorMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-93f713b9a912cfbc0384', name: 'github-copilot-connector-93f713b9a912cfbc0384', displayName: 'Microsoft Learn Docs', source: 'managed', sourceUri: undefined },
+	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-94d26095770df60673dd', name: 'github-copilot-connector-94d26095770df60673dd', displayName: 'Azure Data Explorer', source: 'managed', sourceUri: undefined },
+];
+
 const allStateMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0] },
 	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
@@ -927,6 +932,33 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	},
 ];
 
+const reconciledCopilotConnectors: readonly ICopilotConnector[] = [
+	{
+		name: 'microsoftlearndocsmcpserver',
+		displayName: 'Microsoft Learn Docs',
+		description: 'Search official Microsoft documentation.',
+		tags: ['documentation'],
+		keywords: ['microsoft', 'learn'],
+		capabilities: ['Search documentation'],
+		representativeQueries: [],
+		connectionStatus: 'connected',
+		scopes: [],
+		mcpServers: [{ name: 'microsoftlearndocsmcpserver', type: 'http', url: URI.parse('https://api.github.com/copilot-connectors/api/v1/connectors/microsoftlearndocsmcpserver/mcp') }],
+	},
+	{
+		name: 'kusto',
+		displayName: 'Azure Data Explorer',
+		description: 'Query Azure Data Explorer.',
+		tags: ['data'],
+		keywords: ['kusto'],
+		capabilities: ['Query data'],
+		representativeQueries: [],
+		connectionStatus: 'connected',
+		scopes: [],
+		mcpServers: [{ name: 'kusto', type: 'http', url: URI.parse('https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp') }],
+	},
+];
+
 const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
 	sourceId: 'copilotConnectors',
 	identifier: 'workiq-mail',
@@ -1011,6 +1043,8 @@ interface IRenderEditorOptions {
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
+	readonly mcpWorkbenchServers?: readonly IWorkbenchMcpServer[];
+	readonly mcpRuntimeServers?: readonly IMcpServer[];
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
@@ -1074,7 +1108,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		},
 	];
 
-	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const allMcpServers = [...(options.mcpWorkbenchServers ?? [...mcpWorkspaceServers, ...mcpUserServers])];
 	const toolSets = options.toolSets ?? fixtureToolSets;
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
@@ -1657,7 +1691,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async install(server: IWorkbenchMcpServer) { return server; }
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
-				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override readonly servers = constObservable((options.mcpRuntimeServers ?? mcpRuntimeServers) as never[]);
 				override readonly enablementModel = {
 					readEnabled: (serverId: string) => {
 						if (serverId.includes('mcp-web-search')) {
@@ -2968,6 +3002,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
 			copilotConnectors: [],
+		}),
+	}),
+
+	McpServersReconciledConnectors: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins group contains one Kusto row and one Microsoft Learn Docs row, each with its Connector provenance and Sign In action. No opaque github-copilot-connector rows or Built-In group appear.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: reconciledCopilotConnectors,
+			marketplaceVisibilityEnabled: true,
+			activeSessionMcpServers: reconciledConnectorMcpServers,
+			mcpWorkbenchServers: [],
+			mcpRuntimeServers: [],
+			height: 460,
 		}),
 	}),
 
