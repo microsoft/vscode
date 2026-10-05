@@ -35,7 +35,7 @@ import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
-import { getModelSelectionKind, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
@@ -981,7 +981,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return {
 			provider: getAutomationTelemetryProvider(template.provider),
 			model: toTelemetryModel(modelId, modelKind),
-			modelSelectionKind: getModelSelectionKind(modelId),
+			modelSelectionKind: modelId === undefined ? 'default' : modelId === 'auto' ? 'auto' : 'explicit',
 			mode: getAutomationTelemetryMode(template.config?.[SessionConfigKey.Mode]),
 			permissionLevel: getAutomationTelemetryPermissionLevel(template.config?.[SessionConfigKey.AutoApprove]),
 			isolationMode: folderCount > 0 ? getAutomationTelemetryIsolation(template.config?.[SessionConfigKey.Isolation]) : 'none',

@@ -23,7 +23,6 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
@@ -388,28 +387,6 @@ suite('AgentHostAutomationService', () => {
 				enabled: true,
 				scheduleKind: 'manual',
 			},
-		}]);
-	});
-
-	test('classifies HydraFusion automation model selection as routing', async () => {
-		const service = createService();
-		await service.handleCreate({
-			...createAction(),
-			definition: {
-				...definition(),
-				session: {
-					provider: 'copilotcli',
-					model: { id: COPILOT_HYDRA_FUSION_MODEL_ID },
-				},
-			},
-		});
-
-		assert.deepStrictEqual(telemetry.events.map(event => ({
-			name: event.name,
-			modelSelectionKind: event.data.modelSelectionKind,
-		})), [{
-			name: 'automation.created',
-			modelSelectionKind: 'hydrafusion',
 		}]);
 	});
 

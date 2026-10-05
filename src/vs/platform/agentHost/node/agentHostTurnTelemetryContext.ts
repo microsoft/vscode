@@ -51,7 +51,7 @@ export function getTurnTelemetryContext(agent: IAgent, chat: ProtocolURI, contex
 	return { ...modelContext, modelSelectionKind, permissionLevel, interactionMode };
 }
 
-export function getModelSelectionKind(modelId: string | undefined, effectiveModelId = modelId): AgentHostModelSelectionKind {
+function getModelSelectionKind(modelId: string | undefined, effectiveModelId = modelId): AgentHostModelSelectionKind {
 	if (effectiveModelId === COPILOT_HYDRA_FUSION_MODEL_ID) {
 		return 'hydrafusion';
 	}
