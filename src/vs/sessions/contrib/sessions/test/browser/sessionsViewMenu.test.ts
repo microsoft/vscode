@@ -250,9 +250,10 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Copilot App (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'Copilot CLI (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'Slack (Cloud)', group: '3_applications_000001', checked: false },
-				{ title: 'Copilot CLI (A Host)', group: '3_applications_000002', checked: true },
+				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
+				{ title: 'Copilot CLI (A Host)', group: '3_applications_000002', checked: false },
 				{ title: 'VS Code (A Host)', group: '3_applications_000002', checked: true },
-				{ title: 'Claude (Z Host)', group: '3_applications_000003', checked: true },
+				{ title: 'Claude (Z Host)', group: '3_applications_000003', checked: false },
 				{ title: 'VS Code (Z Host)', group: '3_applications_000003', checked: true },
 			],
 			harnesses: [
@@ -263,14 +264,48 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('source toggles stay independent and Reset restores defaults and Show Recent', async () => {
+	test('remote application opt-ins stay scoped to their host and Reset restores VS Code-only defaults', async () => {
+		const sessions = [
+			buildTestSession({ id: 'local-codex', title: 'Local Codex', application: 'codex' }).session,
+			buildTestSession({ id: 'cloud-codex', title: 'Cloud Codex', environment: 'cloud', application: 'codex' }).session,
+			buildTestSession({ id: 'first-vscode', title: 'First VS Code', environment: 'first-host' }).session,
+			buildTestSession({ id: 'first-codex', title: 'First Codex', environment: 'first-host', application: 'codex' }).session,
+			buildTestSession({ id: 'second-vscode', title: 'Second VS Code', environment: 'second-host' }).session,
+			buildTestSession({ id: 'second-codex', title: 'Second Codex', environment: 'second-host', application: 'codex' }).session,
+		];
+		const { snapshot, filters, run } = createMenu(sessions, [{ id: 'first-host', label: 'First Host' }, { id: 'second-host', label: 'Second Host' }]);
+		const state = () => ({
+			visible: sessions.filter(session => filters.matches(session)).map(session => session.sessionId),
+			sources: snapshot(Menus.SessionsViewSource).map(item => [item.title, item.checked]),
+		});
+		const defaults = state();
+		const codexAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem).find(item => item.command.title === 'Codex (First Host)');
+		assert.ok(codexAction);
+		await run(codexAction.command.id);
+		const optedIn = state();
+		await run('sessionsViewPane.resetFilters');
+		assert.deepStrictEqual({ defaults, optedIn, reset: state() }, {
+			defaults: {
+				visible: ['cloud-codex', 'first-vscode', 'second-vscode'],
+				sources: [['Codex (Local)', false], ['VS Code (Local)', true], ['Codex (Cloud)', true], ['VS Code (Cloud)', true], ['Codex (First Host)', false], ['VS Code (First Host)', true], ['Codex (Second Host)', false], ['VS Code (Second Host)', true]],
+			},
+			optedIn: {
+				visible: ['cloud-codex', 'first-vscode', 'first-codex', 'second-vscode'],
+				sources: [['Codex (Local)', false], ['VS Code (Local)', true], ['Codex (Cloud)', true], ['VS Code (Cloud)', true], ['Codex (First Host)', true], ['VS Code (First Host)', true], ['Codex (Second Host)', false], ['VS Code (Second Host)', true]],
+			},
+			reset: defaults,
+		});
+	});
+
+	test('VS Code toggles work before any sessions and Reset restores defaults and Show Recent', async () => {
 		const local = buildTestSession({ id: 'local', title: 'Local' }).session;
 		const cloud = buildTestSession({ id: 'cloud', title: 'Cloud', environment: 'cloud' }).session;
-		const { snapshot, filters, capped, run, sessionsControl } = createMenu([local, cloud]);
+		const { snapshot, filters, capped, run, sessionsControl, setSessions } = createMenu();
 		const localAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem)[0];
 		await run(localAction.command.id);
 		await run('sessionsViewPane.filterArchived');
 		capped.set(false);
+		setSessions([local, cloud]);
 		const selected = {
 			local: filters.matches(local),
 			cloud: filters.matches(cloud),
@@ -356,7 +391,10 @@ suite('Sessions - View Menu', () => {
 		}, {
 			visible: false,
 			excludeArchived: true,
-			sources: [{ title: 'VS Code (Local)', group: '3_applications_000000', checked: false }],
+			sources: [
+				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: false },
+				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
+			],
 			environments: [
 				{ title: 'Local', group: '2_environments', checked: true },
 				{ title: 'Cloud', group: '2_environments', checked: true },
@@ -364,7 +402,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('distinguishes an empty catalog from having no included environments', () => {
+	test('offers VS Code in an empty catalog and scopes its choices to included environments', () => {
 		const { snapshot, filters } = createMenu();
 		const state = () => ({
 			title: snapshot(Menus.SessionsViewFilter).find(item => item.submenu === Menus.SessionsViewEnvironment.id)?.title,
@@ -377,15 +415,39 @@ suite('Sessions - View Menu', () => {
 		const none = state();
 		filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
 		const cloud = state();
-		const noApplications = [{ title: 'No Applications Found', group: '3_applications', enabled: false }];
+		const localApplication = { title: 'VS Code (Local)', group: '3_applications_000000', checked: true };
+		const cloudApplication = { title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true };
 		assert.deepStrictEqual({ empty, local, none, cloud }, {
-			empty: { title: 'Environment', sources: noApplications },
-			local: { title: 'Environment (Local)', sources: noApplications },
+			empty: { title: 'Environment', sources: [localApplication, cloudApplication] },
+			local: { title: 'Environment (Local)', sources: [localApplication] },
 			none: {
 				title: 'Environment (None)',
 				sources: [{ title: 'Select an Environment First', group: '3_applications', enabled: false }],
 			},
-			cloud: { title: 'Environment (Cloud)', sources: noApplications },
+			cloud: { title: 'Environment (Cloud)', sources: [cloudApplication] },
+		});
+	});
+
+	test('offers a VS Code toggle for a connected remote host before it has any sessions', async () => {
+		const { snapshot, filters, run, setSessions } = createMenu([], [{ id: 'remote', label: 'Build Server' }]);
+		const before = snapshot(Menus.SessionsViewSource);
+		const vscodeAction = MenuRegistry.getMenuItems(Menus.SessionsViewSource).filter(isIMenuItem).find(item => item.command.title === 'VS Code (Build Server)');
+		assert.ok(vscodeAction);
+		await run(vscodeAction.command.id);
+		const remote = buildTestSession({ id: 'remote-vscode', title: 'Remote VS Code', environment: 'remote' }).session;
+		setSessions([remote]);
+		assert.deepStrictEqual({ before, after: snapshot(Menus.SessionsViewSource), visible: filters.matches(remote) }, {
+			before: [
+				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
+				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
+				{ title: 'VS Code (Build Server)', group: '3_applications_000002', checked: true },
+			],
+			after: [
+				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
+				{ title: 'VS Code (Cloud)', group: '3_applications_000001', checked: true },
+				{ title: 'VS Code (Build Server)', group: '3_applications_000002', checked: false },
+			],
+			visible: false,
 		});
 	});
 

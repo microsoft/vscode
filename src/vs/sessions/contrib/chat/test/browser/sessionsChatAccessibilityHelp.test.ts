@@ -207,6 +207,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			return {
 				filter: content.includes('Created Externally submenu') && content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
 				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
+				applicationDefaults: content.includes('In Local and on remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
+				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
 				section: sectionHelp !== undefined,
 				keyboard: sectionHelp?.includes('<keybinding:editor.action.showContextMenu>') ?? false,
@@ -214,9 +216,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 
 		assert.deepStrictEqual(snapshots, [
-			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
-			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
-			{ filter: true, defaults: true, importAction: true, section: true, keyboard: true },
+			{ filter: true, defaults: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: true, keyboard: true },
 		]);
 	});
 
