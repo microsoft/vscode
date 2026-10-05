@@ -513,9 +513,11 @@ suite('ChatPills', () => {
 		getDropdownPillItems.call(viewItem);
 		sections.set([{ title: 'Shells', entries: [entry('2s')] }], undefined);
 		getDropdownPillItems.call(viewItem);
-		const afterUpdate = released;
+		// Nothing rebuilds the dropdown's items after this update, as when the dropdown is closed.
+		sections.set([{ title: 'Shells', entries: [entry('3s')] }], undefined);
+		const afterUpdates = released;
 		sections.set([], undefined);
-		assert.deepStrictEqual({ afterUpdate, afterRemoval: released }, { afterUpdate: 0, afterRemoval: 1 });
+		assert.deepStrictEqual({ afterUpdates, afterRemoval: released }, { afterUpdates: 0, afterRemoval: 1 });
 	});
 
 	test('uses the main DOM realm and target auxiliary window', () => {

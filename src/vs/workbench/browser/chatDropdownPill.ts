@@ -443,15 +443,21 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	/**
-	 * Forgets the hover cached for an entry that changed or was removed. An entry can
+	 * Releases the hover cached for an entry that changed or was removed. An entry can
 	 * hand out the same hover disposable on every update, for content its source keeps
-	 * alive, so that disposable is only released once the entry no longer carries it.
+	 * alive. That hover stays cached until the entry is removed or stops carrying the
+	 * disposable, so it is still released when the entry updates while the dropdown is closed.
 	 */
 	private _evictResourceHover(id: string, replacement: IChatPillEntry | undefined): void {
 		const cached = this._resourceDropdownHovers.get(id);
-		if (cached && cached.hover.disposable !== replacement?.hover?.disposable) {
-			cached.hover.disposable?.dispose();
+		if (!cached) {
+			return;
 		}
+		const disposable = cached.hover.disposable;
+		if (disposable && disposable === replacement?.hover?.disposable) {
+			return;
+		}
+		disposable?.dispose();
 		this._resourceDropdownHovers.delete(id);
 	}
 
