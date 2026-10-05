@@ -5343,8 +5343,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				// Mirror the host default so the chip does not flash while the config resolves.
 				const repository = newSession.session.workspace.get()?.folders[0]?.gitRepository;
 				const defaultBranchName = normalizedValue === 'worktree'
-					? repository?.upstreamBranchName ?? repository?.defaultBranchName
-					: undefined;
+					? repository?.defaultRemoteBranchName ?? repository?.defaultBranchName
+					: repository?.branchName;
 				if (workspace.baseBranch && isSessionConfigWritable(workspace.baseBranch.schema, true)) {
 					newSession.setConfigValue(workspace.baseBranch.key, defaultBranchName);
 				}
