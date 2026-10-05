@@ -70,7 +70,7 @@ function environment(id: string, status = 'online', kind = 'user-local'): IMissi
 suite('Mission Control environment picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(cached?: readonly IMissionControlEnvironment[], status: ICloudSandboxEnvironment['status'] = 'online') {
+	function fixture(cached?: readonly IMissionControlEnvironment[], status: ICloudSandboxEnvironment['status'] = 'online', hidden = false) {
 		const quickPick = store.add(new TestEnvironmentQuickPick());
 		const instantiationService = store.add(new TestInstantiationService());
 		const inventory = new DeferredPromise<readonly IMissionControlEnvironment[]>();
@@ -84,13 +84,13 @@ suite('Mission Control environment picker', () => {
 			warnings: [] as string[],
 		};
 		instantiationService.stub(IEnvironmentService, new class extends mock<IEnvironmentService>() {
-			override readonly isBuilt = false;
+			override readonly isBuilt = true;
 		}());
 		instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
-			override readonly sentiment = { hidden: false };
+			override readonly sentiment = { hidden };
 		}());
 		instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
-			override async getExperimentalMissionControlEnvironmentId() { return 'own'; }
+			override async getMissionControlEnvironmentId() { return 'own'; }
 		}());
 		instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 			override getCachedEnvironments() { return cached; }
@@ -159,6 +159,12 @@ suite('Mission Control environment picker', () => {
 			connections: [{ environmentId: 'b', name: 'Host b', environmentKind: 'user-local' }],
 			errors: [], disposed: true, cancelled: true,
 		});
+	});
+
+	test('does not expose discovery when AI features are disabled', async () => {
+		const { calls, quickPick, run } = fixture(undefined, 'online', true);
+		await assert.rejects(async () => run(), /AI features are disabled/);
+		assert.deepStrictEqual({ requests: calls.refresh, shown: quickPick.shown.isSettled }, { requests: [], shown: false });
 	});
 
 	test('a cold picker shows progress until one fresh inventory supplies hosts', async () => {

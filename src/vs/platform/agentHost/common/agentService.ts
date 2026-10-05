@@ -797,7 +797,7 @@ export interface IConnectionTrackerService {
  * Narrow renderer-to-local-agent-host control surface. All stateful agent
  * operations travel over {@link AgentHostIpcChannels.Protocol}.
  */
-export interface IExperimentalMissionControlOptions {
+export interface IMissionControlOptions {
 	readonly baseUrl: string;
 	readonly accountId: string;
 	readonly credential: string;
@@ -816,10 +816,10 @@ export interface IMissionControlCredentialSealingRequest {
 
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
-	/** Development-only Mission Control ingress; never enabled in builds. */
-	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	/** Opt-in Mission Control ingress configured through trusted local IPC. */
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
-	getExperimentalMissionControlEnvironmentId(): Promise<string | undefined>;
+	getMissionControlEnvironmentId(): Promise<string | undefined>;
 
 	/**
 	 * Local-only compatibility path for session fields not yet represented by
@@ -1310,10 +1310,10 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
 export interface IAgentHostService extends IAgentConnection {
 
 	readonly _serviceBrand: undefined;
-	/** Available only in the local, development Agent Host. */
-	configureExperimentalMissionControl?(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	/** Available only through the local native Agent Host management connection. */
+	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
 	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
-	getExperimentalMissionControlEnvironmentId?(): Promise<string | undefined>;
+	getMissionControlEnvironmentId?(): Promise<string | undefined>;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

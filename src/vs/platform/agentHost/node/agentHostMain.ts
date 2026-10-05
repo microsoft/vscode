@@ -22,9 +22,6 @@ import { AgentService } from './agentService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostCompletions } from './agentHostCompletions.js';
-import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
-import { Schemas } from '../../../base/common/network.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { ClaudeAgent } from './claude/claudeAgent.js';
 import { ClaudeSdkPackage } from './claude/claudeAgentSdkService.js';
@@ -35,12 +32,7 @@ import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
-import { ExperimentalMissionControlEnvironment } from './missionControlEnvironment.js';
-import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
-import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
-import { parseChatUri } from '../common/state/sessionState.js';
-import { parseAnnotationsUri } from '../common/annotationsUri.js';
-import { parseChangesetUri } from '../common/changesetUri.js';
+import { MissionControlHost } from './missionControl/missionControlHost.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -121,10 +113,6 @@ async function startAgentHost(): Promise<void> {
 	let fileService!: IFileService;
 	let stateManager!: AgentHostStateManager;
 	let completionTriggerCharacters!: readonly string[];
-	let getRemoteControlPolicy: (() => Promise<Record<string, unknown> | undefined>) | undefined;
-	let getGitHubIdentityApiBase!: () => string;
-	let onDidChangeGitHubIdentityAuthority!: Event<void>;
-	let sessionDataService!: ISessionDataService;
 	// Hoisted out of the `try` below so the protocol handlers (constructed
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -155,28 +143,16 @@ async function startAgentHost(): Promise<void> {
 			providerService: accessor.get(IAgentHostProviderService),
 			stateManager: accessor.get(IAgentHostStateManager),
 			completions: accessor.get(IAgentHostCompletions),
-			gitHubEndpoints: accessor.get(IAgentHostGitHubEndpointService),
-			sessionData: accessor.get(ISessionDataService),
 		}));
 		const agentConfigurationService = runtimeServices.configurationService;
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;
-		getGitHubIdentityApiBase = () => runtimeServices.gitHubEndpoints.getApiBaseUri();
-		onDidChangeGitHubIdentityAuthority = runtimeServices.gitHubEndpoints.onDidChange;
-		sessionDataService = runtimeServices.sessionData;
 		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
 		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
-		getRemoteControlPolicy = async () => {
-			const provider = providerService.getProvider('copilotcli');
-			if (!provider?.getRemoteControlManagedSettings) {
-				throw new Error('Copilot runtime cannot read device remote-control policy');
-			}
-			return provider.getRemoteControlManagedSettings();
-		};
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
 		//     forwarded as an env var by the starters). Claude defaults to on.
@@ -472,78 +448,19 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	const missionControl = !environmentService.isBuilt && server instanceof UtilityProcessServer
-		? protocolIngressDisposables.add(instantiationService.createInstance(ExperimentalMissionControlEnvironment,
-			environmentService.userDataPath,
-			(input, init) => proxyResolver.fetch(input, init),
-			(relay, roots, getRoots) => {
-				const handler = instantiationService.createInstance(
-					ProtocolServerHandler,
-					agentService,
-					stateManager,
-					relay,
-					{
-						hostLaunchKind,
-						allowExtensionMethods: false,
-						relayRoots: relay.rootMeta ? undefined : roots,
-						relayRootMeta: relay.rootMeta,
-						relayResourceRoots: readOnly => {
-							const summaries = stateManager.getOverlaySessionSummaries();
-							const workspaces = summaries.flatMap(summary => summary.workingDirectories ?? []).map(directory => URI.parse(directory)).filter(directory => directory.scheme === Schemas.file).map(directory => directory.fsPath);
-							const contentRoots = readOnly ? summaries.map(summary => sessionDataService.getSessionDataDir(URI.parse(summary.resource)).fsPath) : [];
-							return [...getRoots(), ...workspaces, ...contentRoots];
-						},
-						defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
-						otlpLogEmitter,
-					},
-					clientFileSystemProvider,
-				);
+	const missionControl = server instanceof UtilityProcessServer
+		? protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
+			hostLaunchKind,
+			clientFileSystemProvider,
+			otlpLogEmitter,
+			trackProtocolHandler: handler => {
 				protocolHandlers.push(handler);
 				return toDisposable(() => {
 					protocolHandlers.splice(protocolHandlers.indexOf(handler), 1);
 					handler.dispose();
 				});
 			},
-			error => logService.error('[AgentHost] Experimental Mission Control failure', error),
-			undefined,
-			async () => (await agentService.listSessions()).length,
-			getRemoteControlPolicy,
-			environmentId => logService.info(`[AgentHost] Experimental Mission Control ready; environmentId=${environmentId}`),
-			getGitHubIdentityApiBase,
-			onDidChangeGitHubIdentityAuthority,
-			environmentId => {
-				const mirror = instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
-				const sources = new DisposableStore();
-				const sdk = sources.add(instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => missionControl?.isEnabled === true));
-				const registered = new Set<string>();
-				sources.add(stateManager.onDidEmitEnvelope(envelope => {
-					const channel = parseChatUri(envelope.channel)?.session ?? parseAnnotationsUri(envelope.channel)?.sessionUri
-						?? parseChangesetUri(envelope.channel)?.sessionUri ?? envelope.channel;
-					const session = stateManager.getSessionSummary(channel);
-					if (!session) {
-						return;
-					}
-					try {
-						if (!missionControl?.isEnabled) {
-							if (registered.has(session.resource)) {
-								mirror.reportSourceLag(session.resource, 1);
-							}
-							return;
-						}
-						if (!registered.has(session.resource)) {
-							mirror.registerSession(session.resource);
-							registered.add(session.resource);
-							mirror.setLifecycle(session.resource, 'started');
-						}
-						mirror.enqueue(envelope, session.resource);
-						sdk.observeSession(session.resource);
-					} catch (error) {
-						logService.error('[AgentHost] Mission Control mirror admission failed', error);
-					}
-				}));
-				return { mirror, source: sources };
-			},
-		))
+		}))
 		: undefined;
 	const management = instantiationService.createInstance(
 		AgentHostManagementService,
@@ -551,15 +468,15 @@ async function startAgentHost(): Promise<void> {
 		connectionTrackerService,
 		async () => {
 			try {
-				await missionControl?.configure(undefined);
+				await missionControl?.environment.configure(undefined);
 			} catch (error) {
-				logService.error('[AgentHost] Failed to unregister experimental Mission Control environment', error);
+				logService.error('[AgentHost] Failed to unregister Mission Control environment', error);
 			}
 			protocolIngressDisposables.dispose();
 			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
 		},
 	);
-	management.setExperimentalMissionControl(missionControl);
+	management.setMissionControl(missionControl?.environment);
 	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(management, disposables));
 	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));

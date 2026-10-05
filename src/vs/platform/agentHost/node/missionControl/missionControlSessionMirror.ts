@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise, raceCancellationError, RunOnceScheduler } from '../../../base/common/async.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
-import { CancellationError } from '../../../base/common/errors.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ILogService } from '../../log/common/log.js';
-import type { ActionEnvelope } from '../common/state/sessionActions.js';
-import { chunk, type ChunkEnvelope, type ChunkOptions, DEFAULT_MAX_CHUNK_BYTES } from '../common/webPubSub/chunking.js';
+import { DeferredPromise, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../log/common/log.js';
+import type { ActionEnvelope } from '../../common/state/sessionActions.js';
+import { chunk, type ChunkEnvelope, type ChunkOptions, DEFAULT_MAX_CHUNK_BYTES } from '../../common/webPubSub/chunking.js';
 
 export interface IMissionControlMirrorProject {
 	readonly uri: string;

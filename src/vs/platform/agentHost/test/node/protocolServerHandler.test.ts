@@ -42,8 +42,8 @@ import { SessionInputRequestKind, TerminalClaimKind } from '../../common/state/p
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { ExperimentalMissionControlEnvironment } from '../../node/missionControlEnvironment.js';
-import type { IMissionControlSocket } from '../../node/missionControlProtocolServer.js';
+import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
+import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
@@ -1629,7 +1629,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('experimental relay binds clients and grants only active clients sessions in permitted roots', async () => {
+	test('local-test relay binds clients and grants only active clients sessions in permitted roots', async () => {
 		const relay = disposables.add(new MockProtocolServer());
 		disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay,
@@ -1720,9 +1720,11 @@ suite('ProtocolServerHandler', () => {
 			input.toString().endsWith('/user') ? { id: 123, type: 'User' } : input.toString().endsWith('jwks.json') ? { keys: [key] } : environmentResponse,
 		);
 		let relayHandler: ProtocolServerHandler | undefined;
-		const registration = disposables.add(new ExperimentalMissionControlEnvironment(
-			userData, fakeFetch,
-			(relay, roots) => {
+		const registration = disposables.add(new MissionControlEnvironment({
+			userDataPath: userData,
+			name: 'VS Code OSS',
+			fetch: fakeFetch,
+			attach: (relay, roots) => {
 				relayHandler = new ProtocolServerHandler(
 					agentService, stateManager, relay,
 					{ allowExtensionMethods: false, relayRootMeta: relay.rootMeta, defaultDirectory: URI.file(roots[0]).toString() },
@@ -1731,13 +1733,13 @@ suite('ProtocolServerHandler', () => {
 				);
 				return relayHandler;
 			},
-			error => { throw error; },
-			() => {
+			onError: error => { throw error; },
+			socketFactory: () => {
 				queueMicrotask(() => events.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 				return socket;
 			},
-			undefined,
-			async () => undefined,
+			getRemoteControlPolicy: async () => undefined
+		}
 		));
 		try {
 			await registration.configure({ baseUrl: 'https://api.github.com', live: true, accountId: 'owner', credential: 'fake-local-token', roots: [process.cwd()] });

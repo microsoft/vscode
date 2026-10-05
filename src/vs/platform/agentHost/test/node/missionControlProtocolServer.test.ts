@@ -15,11 +15,11 @@ import { Emitter } from '../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControlControl.js';
-import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControlProtocolServer.js';
-import { ExperimentalMissionControlEnvironment } from '../../node/missionControlEnvironment.js';
+import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControl/missionControlControl.js';
+import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
+import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { MissionControlSessionMirror } from '../../node/missionControlSessionMirror.js';
+import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 
@@ -66,7 +66,7 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 	}
 }
 
-suite('Experimental Mission Control WPS', () => {
+suite('Mission Control WPS', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function signingFixture(kid = 'test-key') {
@@ -333,19 +333,24 @@ suite('Experimental Mission Control WPS', () => {
 					webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-wps-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
 				});
 			};
-			const service = store.add(new ExperimentalMissionControlEnvironment(
-				path, fakeFetch, () => ({ dispose() { } }), () => { },
-				() => {
+			const service = store.add(new MissionControlEnvironment({
+				userDataPath: path,
+				name: 'VS Code OSS',
+				fetch: fakeFetch,
+				attach: () => ({ dispose() { } }),
+				onError: () => { },
+				socketFactory: () => {
 					queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 					return socket;
-				},
+				}
+			}
 			));
 			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), /connection closed before joining/);
 			assert.deepStrictEqual({ requests, closed: socket.closed }, {
 				requests: [
-					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name: 'VS Code Agent Host (Development)' },
+					{ path: '/cmc_internal/api/agents/environments/register', status: undefined, name: 'VS Code OSS' },
 					{ path: '/cmc_internal/api/agents/environments/.well-known/jwks.json', status: undefined, name: undefined },
-					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name: 'VS Code Agent Host (Development)' },
+					{ path: '/cmc_internal/api/agents/environments/environment/heartbeat', status: 'offline', name: 'VS Code OSS' },
 				],
 				closed: true,
 			});
@@ -447,14 +452,19 @@ suite('Experimental Mission Control WPS', () => {
 				return Response.json(url.pathname.endsWith('jwks.json') ? { keys: [key] }
 					: url.pathname.endsWith('/token') ? { ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() } : environment);
 			};
-			const service = store.add(new ExperimentalMissionControlEnvironment(
-				path, fakeFetch, () => ({ dispose() { } }), () => { throw new Error('Unexpected WPS failure'); },
-				() => {
+			const service = store.add(new MissionControlEnvironment({
+				userDataPath: path,
+				name: 'VS Code OSS',
+				fetch: fakeFetch,
+				attach: () => ({ dispose() { } }),
+				onError: () => { throw new Error('Unexpected WPS failure'); },
+				socketFactory: () => {
 					const socket = new FakeWpsSocket();
 					sockets.push(socket);
 					queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 					return socket;
-				},
+				}
+			}
 			));
 			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] };
 			await service.configure(options);
@@ -497,7 +507,7 @@ suite('Experimental Mission Control WPS', () => {
 		async function withEnvironment(
 			replies: readonly { retryAfter?: string; status?: number; body?: string }[],
 			run: (fixture: {
-				service: ExperimentalMissionControlEnvironment;
+				service: MissionControlEnvironment;
 				clock: sinon.SinonFakeTimers;
 				heartbeats: { time: number; status: string }[];
 				errors: string[];
@@ -517,7 +527,7 @@ suite('Experimental Mission Control WPS', () => {
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
 			const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
-			let service: ExperimentalMissionControlEnvironment | undefined;
+			let service: MissionControlEnvironment | undefined;
 			try {
 				const { key } = signingFixture();
 				const heartbeats: { time: number; status: string }[] = [];
@@ -537,9 +547,10 @@ suite('Experimental Mission Control WPS', () => {
 					id: 'environment', kind: 'user-local', user_id: '123', owner_id: '123', owner_type: 'user',
 					webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' }, ...(bootstrapLifetime === undefined ? {} : { expires_at: new Date(clock.now + bootstrapLifetime).toISOString() }) },
 				};
-				service = store.add(new ExperimentalMissionControlEnvironment(
-					path,
-					async (input, init) => {
+				service = store.add(new MissionControlEnvironment({
+					userDataPath: path,
+					name: 'VS Code OSS',
+					fetch: async (input, init) => {
 						const url = new URL(input.toString());
 						requests.push({ path: url.pathname, credential: new Headers(init?.headers).get('Authorization'), body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined });
 						if (url.pathname.endsWith('/register')) {
@@ -570,24 +581,22 @@ suite('Experimental Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					(_server, initialRoots, getRoots) => {
+					attach: (_server, initialRoots, getRoots) => {
 						attachments.push({ initialRoots, getRoots });
 						return { dispose() { } };
 					},
-					error => errors.push(error instanceof Error ? error.message : String(error)),
-					() => {
+					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
+					socketFactory: () => {
 						const socket = new FakeWpsSocket();
 						sockets.push(socket);
 						queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 						return socket;
 					},
-					undefined,
-					async () => policy,
-					undefined,
-					() => identityApiBase,
-					identityAuthorityChanged.event,
-					undefined,
-					policyChanged.event,
+					getRemoteControlPolicy: async () => policy,
+					getIdentityApiBase: () => identityApiBase,
+					onDidChangeIdentityAuthority: identityAuthorityChanged.event,
+					onDidChangeRemoteControlPolicy: policyChanged.event
+				}
 				));
 				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [] };
 				await service.configure(options);
@@ -637,7 +646,7 @@ suite('Experimental Mission Control WPS', () => {
 
 		test('refreshes the host-owned name on startup, periodic, recovery, and withdrawal heartbeats', async () => {
 			await withEnvironment([], async ({ service, clock, requests, sockets, options }) => {
-				const hostName = 'VS Code Agent Host (Development)';
+				const hostName = 'VS Code OSS';
 				const snapshot = () => {
 					let storedName: string | undefined;
 					let registrations = 0;
@@ -982,11 +991,12 @@ suite('Experimental Mission Control WPS', () => {
 		});
 	});
 
-	function createIdentityService(userData: string, computeIds: string[], names?: string[]): ExperimentalMissionControlEnvironment {
+	function createIdentityService(userData: string, computeIds: string[], names?: string[]): MissionControlEnvironment {
 		const { key } = signingFixture();
-		return store.add(new ExperimentalMissionControlEnvironment(
-			userData,
-			async (input, init) => {
+		return store.add(new MissionControlEnvironment({
+			userDataPath: userData,
+			name: 'VS Code OSS',
+			fetch: async (input, init) => {
 				const url = new URL(input.toString());
 				if (url.pathname.endsWith('/register')) {
 					const body = JSON.parse(String(init?.body)) as { compute_id: string; name: string };
@@ -998,13 +1008,14 @@ suite('Experimental Mission Control WPS', () => {
 					webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
 				});
 			},
-			() => ({ dispose() { } }),
-			error => { throw error; },
-			() => {
+			attach: () => ({ dispose() { } }),
+			onError: error => { throw error; },
+			socketFactory: () => {
 				const socket = new FakeWpsSocket();
 				queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 				return socket;
-			},
+			}
+		}
 		));
 	}
 
@@ -1032,7 +1043,7 @@ suite('Experimental Mission Control WPS', () => {
 				names,
 			}, {
 				registrationsForTwoWindows: 1, restartIdentityMatches: true, isolatedIdentityDiffers: true, registrations: 3,
-				names: ['VS Code Agent Host (Development)', 'VS Code Agent Host (Development)', 'VS Code Agent Host (Development)'],
+				names: ['VS Code OSS', 'VS Code OSS', 'VS Code OSS'],
 			});
 		} finally {
 			await rm(path, { recursive: true });
@@ -1127,17 +1138,18 @@ suite('Experimental Mission Control WPS', () => {
 			const metadata = new DeferredPromise<number>();
 			const started = new DeferredPromise<void>();
 			const requests: string[] = [];
-			const service = store.add(new ExperimentalMissionControlEnvironment(
-				path,
-				async input => {
+			const service = store.add(new MissionControlEnvironment({
+				userDataPath: path,
+				name: 'VS Code OSS',
+				fetch: async input => {
 					requests.push(input.toString());
 					return Response.json({ id: 123, type: 'User' });
 				},
-				() => { throw new Error('Timed-out registration must not attach a server'); },
-				error => { throw error; },
-				undefined,
-				() => { started.complete(); return metadata.p; },
-				async () => undefined,
+				attach: () => { throw new Error('Timed-out registration must not attach a server'); },
+				onError: error => { throw error; },
+				getSessionCount: () => { started.complete(); return metadata.p; },
+				getRemoteControlPolicy: async () => undefined
+			}
 			));
 			const configuring = service.configure({ baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] });
 			const rejected = assert.rejects(configuring, /registration metadata timed out/);
@@ -1160,9 +1172,10 @@ suite('Experimental Mission Control WPS', () => {
 			const { key } = signingFixture();
 			const requestPaths: string[] = [];
 			let attachedRoots: readonly string[] | undefined;
-			const service = store.add(new ExperimentalMissionControlEnvironment(
-				path,
-				async input => {
+			const service = store.add(new MissionControlEnvironment({
+				userDataPath: path,
+				name: 'VS Code OSS',
+				fetch: async input => {
 					const url = new URL(input.toString());
 					requestPaths.push(url.pathname);
 					return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : {
@@ -1170,15 +1183,15 @@ suite('Experimental Mission Control WPS', () => {
 						webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' } },
 					});
 				},
-				(_server, roots) => { attachedRoots = roots; return { dispose() { } }; },
-				error => { throw error; },
-				() => {
+				attach: (_server, roots) => { attachedRoots = roots; return { dispose() { } }; },
+				onError: error => { throw error; },
+				socketFactory: () => {
 					const socket = new FakeWpsSocket();
 					queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 					return socket;
 				},
-				undefined,
-				async () => undefined,
+				getRemoteControlPolicy: async () => undefined
+			}
 			));
 			await service.configure({ baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] });
 			assert.deepStrictEqual({ requestPaths, attachedRoots }, {

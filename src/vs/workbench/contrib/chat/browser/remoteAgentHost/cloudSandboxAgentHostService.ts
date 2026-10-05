@@ -329,7 +329,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 	) {
 		super();
@@ -359,9 +358,6 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 	}
 
 	async connect(options: ICloudSandboxConnectOptions, token: CancellationToken): Promise<string> {
-		if (options.environmentKind === 'user-local' && this._environmentService.isBuilt) {
-			throw new Error('User-local Mission Control connections are development-only.');
-		}
 		if (options.environmentKind !== 'user-local' && !this._configurationService.getValue<boolean>(CloudSandboxEnabledSettingId)) {
 			throw new Error('Copilot cloud sandbox connections are not enabled.');
 		}
@@ -371,7 +367,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		let userLocalAccount: string | undefined;
 		const accountGeneration = this._accountGeneration;
 		if (options.environmentKind === 'user-local') {
-			if (await this._localAgentHostService.getExperimentalMissionControlEnvironmentId?.() === options.environmentId) {
+			if (await this._localAgentHostService.getMissionControlEnvironmentId?.() === options.environmentId) {
 				throw new Error('Use local IPC for this window\'s own Agent Host, not its Mission Control relay.');
 			}
 			const account = await this._apiService.getAccountKey();

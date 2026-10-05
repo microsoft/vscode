@@ -137,7 +137,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 	}());
 	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
-		override async getExperimentalMissionControlEnvironmentId(): Promise<string | undefined> { return ownEnvironment; }
+		override async getMissionControlEnvironmentId(): Promise<string | undefined> { return ownEnvironment; }
 	}());
 	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
 		override readonly onDidChangeConnections = Event.None;
@@ -173,6 +173,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(IWorkbenchEnvironmentService, new class extends mock<IWorkbenchEnvironmentService>() {
 		override readonly logsHome = URI.file('/logs');
 		override readonly isSessionsWindow = isSessionsWindow;
+		override readonly isBuilt = true;
 	}());
 	instantiationService.stub(ILogService, new class extends NullLogService {
 		override warn(message: string): void {

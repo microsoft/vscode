@@ -18,8 +18,8 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { MissionControlSdkEventSource } from '../../node/missionControlSdkEventSource.js';
-import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControlSessionMirror.js';
+import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
+import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 
 const session = 'ahp-session:/native';
 const chat = URI.parse(buildDefaultChatUri(session));

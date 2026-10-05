@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createPublicKey, verify, type JsonWebKey } from 'crypto';
-import { hasKey } from '../../../base/common/types.js';
+import { hasKey } from '../../../../base/common/types.js';
 import type { IMissionControlMirrorBackfill } from './missionControlSessionMirror.js';
 
 const MAX_SKEW_SECONDS = 300;

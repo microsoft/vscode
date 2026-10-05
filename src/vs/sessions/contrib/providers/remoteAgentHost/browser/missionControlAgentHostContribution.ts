@@ -7,15 +7,13 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { ICloudSandboxAgentHostService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { EntryDrivenProviderContribution, type IEntryDrivenProviderOptions } from './entryDrivenProviderContribution.js';
@@ -34,7 +32,6 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@INotificationService notificationService: INotificationService,
 		@ICloudSandboxAgentHostService private readonly _connections: ICloudSandboxAgentHostService,
-		@IEnvironmentService private readonly _environment: IEnvironmentService,
 	) {
 		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
 		this._register(remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
@@ -44,9 +41,6 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	}
 
 	protected override _getProviderEntries(): readonly IRemoteAgentHostEntry[] {
-		if (this._environment.isBuilt) {
-			return [];
-		}
 		return super._getProviderEntries().filter(entry => {
 			if (entry.connection.type !== RemoteAgentHostEntryType.CloudSandbox || entry.connection.environmentKind !== 'user-local') {
 				return false;
@@ -72,7 +66,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
 	command: { id: ConnectMissionControlEnvironmentCommand, title: localize('connectMissionControlHost', "Connect to Mission Control Environment..."), icon: Codicon.cloud },
-	when: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled),
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 	group: '1_add',
 	order: 5,
 });

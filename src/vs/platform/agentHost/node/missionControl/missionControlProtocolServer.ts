@@ -5,19 +5,19 @@
 
 import WebSocket from 'ws';
 import { randomInt } from 'crypto';
-import { DeferredPromise, IntervalTimer, RunOnceScheduler } from '../../../base/common/async.js';
-import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
-import { hasKey } from '../../../base/common/types.js';
-import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
-import { Reassembler } from '../common/webPubSub/chunking.js';
-import { buildPublish, parseInbound, RELIABLE_JSON_SUBPROTOCOL } from '../common/webPubSub/framing.js';
-import { parseGroupName } from '../common/webPubSub/groups.js';
+import { DeferredPromise, IntervalTimer, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { Reassembler } from '../../common/webPubSub/chunking.js';
+import { buildPublish, parseInbound, RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
+import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { MissionControlControlVerifier } from './missionControlControl.js';
 import { MissionControlAuthentication } from './missionControlAuthentication.js';
-import type { AuthenticateParams } from '../common/agent.js';
+import type { AuthenticateParams } from '../../common/agent.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from './missionControlSessionMirror.js';
 
 export interface IMissionControlSocket {

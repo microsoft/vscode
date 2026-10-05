@@ -11,8 +11,6 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService, type IMissionControlEnvironment } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -32,13 +30,13 @@ registerAction2(class extends Action2 {
 			id: ConnectMissionControlEnvironmentCommand,
 			title: localize2('connectMissionControlEnvironment', "Connect to Mission Control Environment..."),
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		if (accessor.get(IEnvironmentService).isBuilt || accessor.get(IChatEntitlementService).sentiment.hidden) {
-			throw new Error('User-local Mission Control connections are development-only.');
+		if (accessor.get(IChatEntitlementService).sentiment.hidden) {
+			throw new Error('Mission Control connections are unavailable when AI features are disabled.');
 		}
 		const api = accessor.get(ICloudSandboxApiService);
 		const connections = accessor.get(ICloudSandboxAgentHostService);
@@ -46,7 +44,7 @@ registerAction2(class extends Action2 {
 		const notifications = accessor.get(INotificationService);
 		const local = accessor.get(IAgentHostService);
 		try {
-			const ownEnvironment = await local.getExperimentalMissionControlEnvironmentId?.();
+			const ownEnvironment = await local.getMissionControlEnvironmentId?.();
 			const toItems = (environments: readonly IMissionControlEnvironment[]): IEnvironmentPick[] => environments
 				.filter(environment => environment.kind === 'user-local' && environment.id !== ownEnvironment)
 				.sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online') || a.name.localeCompare(b.name))

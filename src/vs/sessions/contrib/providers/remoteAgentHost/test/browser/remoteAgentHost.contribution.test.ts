@@ -369,7 +369,6 @@ interface IProviderOwnerHarness {
 }
 
 interface IMissionControlProviderOwnerHarness extends IProviderOwnerHarness {
-	_environment: { readonly isBuilt: boolean };
 	_remoteAgentHostService: IProviderOwnerHarness['_remoteAgentHostService'] & {
 		getConnection(address: string): Pick<IAgentConnection, 'rootState'> | undefined;
 	};
@@ -411,21 +410,18 @@ suite('Remote agent host provider ownership', () => {
 		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
 	});
 
-	test('native MC provider ownership excludes sandbox entries and never activates in built products', () => {
+	test('native MC provider ownership excludes managed sandbox entries without a development-build dependency', () => {
 		const entries: IRemoteAgentHostEntry[] = [
 			{ name: 'Native', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:native', environmentId: 'native', environmentKind: 'user-local' } },
 			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:sandbox', environmentId: 'sandbox' } },
 		];
 		const owner = Object.create(MissionControlAgentHostContribution.prototype) as IMissionControlProviderOwnerHarness;
 		owner._configurationService = { getValue: () => true };
-		owner._environment = { isBuilt: false };
 		owner._entryType = RemoteAgentHostEntryType.CloudSandbox;
 		owner._providerInstances = new Map([['cloudsandbox:native', { label: 'Native', defaultLabel: 'Native' }]]);
 		owner._remoteAgentHostService = { configuredEntries: entries, getConnection: () => undefined };
 		assert.deepStrictEqual(owner._getProviderEntries(), [entries[0]]);
 		assert.deepStrictEqual(Object.keys(owner._getProviderOptions(entries[0])), ['connectOnDemand', 'disconnectOnDemand']);
-		owner._environment = { isBuilt: true };
-		assert.deepStrictEqual(owner._getProviderEntries(), []);
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {

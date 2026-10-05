@@ -13,7 +13,7 @@ import { Reassembler } from '../../common/webPubSub/chunking.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import {
 	MissionControlSessionMirror, type IMissionControlSessionMirrorOptions, type MissionControlMirrorEvent, type IMissionControlMirrorBackfill,
-} from '../../node/missionControlSessionMirror.js';
+} from '../../node/missionControl/missionControlSessionMirror.js';
 
 const environment = 'env_xyz';
 const sessionId = 'ahp-session:/sess_abc123';

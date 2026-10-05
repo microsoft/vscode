@@ -8,7 +8,7 @@ import { createHash, randomBytes } from 'crypto';
 import sodium from 'libsodium-wrappers';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControlAuthentication.js';
+import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 
 suite('Mission Control sealed authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

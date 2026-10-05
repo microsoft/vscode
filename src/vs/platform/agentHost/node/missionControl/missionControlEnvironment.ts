@@ -6,14 +6,14 @@
 import { randomUUID } from 'crypto';
 import { mkdir, open, readFile, rename, unlink } from 'fs/promises';
 import { realpathSync } from 'fs';
-import { join } from '../../../base/common/path.js';
-import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../base/common/async.js';
-import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import type { Event } from '../../../base/common/event.js';
-import type { IExperimentalMissionControlOptions } from '../common/agentService.js';
-import { parseGroupName } from '../common/webPubSub/groups.js';
-import { RELIABLE_JSON_SUBPROTOCOL } from '../common/webPubSub/framing.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { join } from '../../../../base/common/path.js';
+import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
+import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
+import type { Event } from '../../../../base/common/event.js';
+import type { IMissionControlOptions } from '../../common/agentService.js';
+import { parseGroupName } from '../../common/webPubSub/groups.js';
+import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
@@ -35,8 +35,29 @@ interface IEnvironmentResponse {
 	};
 }
 
-const environmentName = 'VS Code Agent Host (Development)';
 const heartbeatInterval = 60_000;
+
+export interface IMissionControlEnvironmentHost {
+	readonly userDataPath: string;
+	readonly name: string;
+	readonly fetch: typeof fetch;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable;
+	readonly onError: (error: unknown) => void;
+	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
+	readonly getSessionCount?: () => Promise<number>;
+	readonly getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
+	readonly onReady?: (environmentId: string) => void;
+	readonly getIdentityApiBase?: () => string;
+	readonly onDidChangeIdentityAuthority?: Event<void>;
+	readonly createMirror?: (environmentId: string) => { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable };
+	readonly onDidChangeRemoteControlPolicy?: Event<void>;
+}
+
+interface IEnvironmentCapabilities {
+	readonly ahp_version: string;
+	readonly features: readonly string[];
+	readonly current_sessions: number;
+}
 
 function heartbeatRetryAfter(value: string, now: number): number | undefined {
 	const trimmed = value.trim();
@@ -70,10 +91,10 @@ function parseEnvironment(value: unknown): IEnvironmentResponse {
 }
 
 /**
- * Process-owned, development-only Mission Control registration and WPS lifetime.
+ * Process-owned Mission Control registration and WPS lifetime.
  * The first account owns the process; a different window cannot rebind it.
  */
-export class ExperimentalMissionControlEnvironment extends Disposable {
+export class MissionControlEnvironment extends Disposable {
 	private readonly _server = this._register(new MutableDisposable<MissionControlProtocolServer>());
 	private readonly _handler = this._register(new MutableDisposable<IDisposable>());
 	private readonly _sealing = this._register(new MutableDisposable<MissionControlSealing>());
@@ -89,7 +110,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	private _canonicalOwner: string | undefined;
 	private _identityApiBase: string | undefined;
 	private _policy: string | undefined;
-	private _options: IExperimentalMissionControlOptions | undefined;
+	private _options: IMissionControlOptions | undefined;
 	private _roots: readonly string[] = [];
 	private _initialRoots: readonly string[] | undefined;
 	private _environment: IEnvironmentResponse | undefined;
@@ -106,43 +127,30 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	private _tokenExpiresAt: number | undefined;
 	private _requiresBootstrap = false;
 
-	constructor(
-		private readonly _userDataPath: string,
-		private readonly _fetch: typeof fetch,
-		private readonly _attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable,
-		private readonly _onError: (error: unknown) => void,
-		private readonly _socketFactory?: (url: string, protocol: string) => IMissionControlSocket,
-		private readonly _getSessionCount: () => Promise<number> = async () => 0,
-		private readonly _getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>,
-		private readonly _onReady?: (environmentId: string) => void,
-		private readonly _getIdentityApiBase: () => string = () => 'https://api.github.com',
-		onDidChangeIdentityAuthority?: Event<void>,
-		private readonly _createMirror?: (environmentId: string) => { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable },
-		onDidChangeRemoteControlPolicy?: Event<void>,
-	) {
+	constructor(private readonly _host: IMissionControlEnvironmentHost) {
 		super();
 		this._register(toDisposable(() => {
 			this._withdraw();
 		}));
-		if (onDidChangeIdentityAuthority) {
-			this._register(onDidChangeIdentityAuthority(() => {
+		if (_host.onDidChangeIdentityAuthority) {
+			this._register(_host.onDidChangeIdentityAuthority(() => {
 				if (this._options?.live && this._identityApiBase !== this._getIdentityApiBase()) {
-					void this.configure(undefined).catch(this._onError);
+					void this.configure(undefined).catch(this._host.onError);
 				}
 			}));
 		}
-		if (onDidChangeRemoteControlPolicy) {
-			this._register(onDidChangeRemoteControlPolicy(() => {
+		if (_host.onDidChangeRemoteControlPolicy) {
+			this._register(_host.onDidChangeRemoteControlPolicy(() => {
 				this._policyRefresh++;
 				if (this._options?.live) {
-					void this._checkIn().catch(this._onError);
+					void this._checkIn().catch(this._host.onError);
 				}
 			}));
 		}
 	}
 
 	/** Renderer withdrawals identify their requested account; unbound withdrawal is reserved for process-owned cleanup. */
-	configure(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+	configure(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
 		if (!options) {
 			if (withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
 				return Promise.reject(new Error('Only the Agent Host owner can withdraw Mission Control registration'));
@@ -154,7 +162,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
 					await this._request(
 						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
-						{ name: environmentName, status: 'offline' },
+						this._createHeartbeat('offline'),
 						previous,
 					);
 				}
@@ -166,6 +174,31 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 
 	get environmentId(): string | undefined { return this._environment?.id; }
 	get isEnabled(): boolean { return this._options?.live === true; }
+
+	private _getIdentityApiBase(): string {
+		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
+	}
+
+	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities): object {
+		return {
+			name: this._host.name,
+			status,
+			...(capabilities ? { capabilities } : {}),
+			...(this._sealing.value ? { encryption_keys: this._sealing.value.advertisedKeys } : {}),
+		};
+	}
+
+	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<object> {
+		return {
+			name: this._host.name,
+			kind: 'user-local',
+			compute_id: await this._computeId(),
+			capabilities,
+			labels: { embedder: 'vscode' },
+			...(this._sealing.value ? { encryption_keys: this._sealing.value.advertisedKeys } : {}),
+			...(remoteControl ? { managed_settings: { remoteControl } } : {}),
+		};
+	}
 
 	private _withdraw(): void {
 		this._configurationEpoch++;
@@ -187,7 +220,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		this._nextHeartbeatAt = 0;
 	}
 
-	private async _configure(options: IExperimentalMissionControlOptions, epoch: number): Promise<void> {
+	private async _configure(options: IMissionControlOptions, epoch: number): Promise<void> {
 		if (this._store.isDisposed) {
 			throw new Error('Mission Control environment service is disposed');
 		}
@@ -207,7 +240,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		if (options.live && (new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
 			throw new Error('Mission Control requires a stable HTTPS GitHub identity authority');
 		}
-		const owner = options.live ? await resolveMissionControlOwner(this._fetch, identityApiBase, options.credential) : options.accountId;
+		const owner = options.live ? await resolveMissionControlOwner(this._host.fetch, identityApiBase, options.credential) : options.accountId;
 		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 			return;
 		}
@@ -265,10 +298,10 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				const previous = this._options;
 				this._withdraw();
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
-					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, { name: environmentName, status: 'offline' }, previous);
+					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, this._createHeartbeat('offline'), previous);
 				}
 			} catch (offlineError) {
-				this._onError(offlineError);
+				this._host.onError(offlineError);
 			}
 			throw error;
 		}
@@ -276,8 +309,8 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 
 	/** The native Agent Host owns profile writes; atomic replacement keeps the location-bound identity record complete. */
 	private async _computeId(): Promise<string> {
-		await mkdir(this._userDataPath, { recursive: true });
-		const directory = realpathSync(this._userDataPath);
+		await mkdir(this._host.userDataPath, { recursive: true });
+		const directory = realpathSync(this._host.userDataPath);
 		const path = join(directory, 'agent-host-mission-control-id');
 		let contents: string | undefined;
 		try {
@@ -333,7 +366,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control is disabled');
 		}
 		const generation = this._generation;
-		const response = await this._fetch(new URL(path, `${options.baseUrl.replace(/\/$/, '')}/`), {
+		const response = await this._host.fetch(new URL(path, `${options.baseUrl.replace(/\/$/, '')}/`), {
 			method: body ? 'POST' : 'GET',
 			headers: { Authorization: `Bearer ${options.credential}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
 			body: body ? JSON.stringify(body) : undefined,
@@ -347,7 +380,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				const now = Date.now();
 				const delay = heartbeatRetryAfter(retryAfter, now);
 				if (delay === undefined) {
-					this._onError(new Error('Mission Control heartbeat returned an invalid Retry-After header'));
+					this._host.onError(new Error('Mission Control heartbeat returned an invalid Retry-After header'));
 				} else {
 					this._heartbeatNotBefore = Math.max(this._heartbeatNotBefore, now + delay);
 				}
@@ -405,7 +438,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				const refreshingPolicy = this._options.live && this._appliedPolicyRefresh !== this._policyRefresh;
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._heartbeat.clear();
-					this._checkIn().catch(this._onError);
+					this._checkIn().catch(this._host.onError);
 				}, refreshingPolicy ? this._retryDelay : this._requiresBootstrap ? Math.max(this._retryDelay, heartbeatDelay) : recovering ? this._retryDelay : Math.min(heartbeatDelay, tokenDelay));
 			}
 		}
@@ -452,13 +485,13 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 				return;
 			}
 		}
-		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._getSessionCount()) };
+		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
 		let remoteControl: Record<string, unknown> | undefined;
 		if (options.live) {
-			if (!this._getRemoteControlPolicy) {
+			if (!this._host.getRemoteControlPolicy) {
 				throw new Error('Cannot register before reading device remote-control policy');
 			}
-			remoteControl = await this._boundedRegistrationWork(this._getRemoteControlPolicy());
+			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy());
 		}
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
 			return;
@@ -472,13 +505,12 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			}
 			return;
 		}
-		const encryptionKeys = this._sealing.value?.advertisedKeys;
 		const path = !register && this._environment
 			? `cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/heartbeat`
 			: 'cmc_internal/api/agents/environments/register';
 		const body = !register
-			? { name: environmentName, status: options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}) }
-			: { name: environmentName, kind: 'user-local', compute_id: await this._computeId(), capabilities, labels: { embedder: 'vscode' }, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}), ...(remoteControl ? { managed_settings: { remoteControl } } : {}) };
+			? this._createHeartbeat(options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities)
+			: await this._createRegistration(capabilities, remoteControl);
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
 			return;
 		}
@@ -495,7 +527,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control returned an invalid control lane');
 		}
 		this._environment = response;
-		if (options.live && this._createMirror && (!this._mirror.value || this._mirrorEnvironment !== response.id)) {
+		if (options.live && this._host.createMirror && (!this._mirror.value || this._mirrorEnvironment !== response.id)) {
 			if (!response.webpubsub.groups.ingest_ack) {
 				throw new Error('Mission Control returned no durable ingest acknowledgement lane');
 			}
@@ -506,7 +538,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			this._mirrorAttachment.clear();
 			this._mirrorSource.clear();
 			this._mirror.clear();
-			const created = this._createMirror(response.id);
+			const created = this._host.createMirror(response.id);
 			this._mirror.value = created.mirror;
 			this._mirrorSource.value = created.source;
 			this._mirrorEnvironment = response.id;
@@ -524,7 +556,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		await this._connectRelay(options, generation);
 	}
 
-	private async _connectRelay(options: IExperimentalMissionControlOptions, generation: number): Promise<void> {
+	private async _connectRelay(options: IMissionControlOptions, generation: number): Promise<void> {
 		const response = this._environment;
 		if (!response || generation !== this._generation || this._store.isDisposed) {
 			return;
@@ -565,17 +597,17 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		const server = new MissionControlProtocolServer(
 			response.webpubsub, response.user_id, response.id,
 			verifier,
-			this._socketFactory,
-			error => this._onError(error),
-			sealing && identityApiBase ? () => new MissionControlAuthentication(sealing, response.user_id, identityApiBase, this._fetch, options.requireConnectionBinding === true, () => identityApiBase === this._getIdentityApiBase() && generation === this._generation) : undefined,
+			this._host.socketFactory,
+			error => this._host.onError(error),
+			sealing && identityApiBase ? () => new MissionControlAuthentication(sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true, () => identityApiBase === this._getIdentityApiBase() && generation === this._generation) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,
 		);
 		this._server.value = server;
-		this._handler.value = combinedDisposable(this._attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
 				this._heartbeat.value = disposableLongTimeout(() => {
-					this._checkIn().catch(this._onError);
+					this._checkIn().catch(this._host.onError);
 				}, this._retryDelay);
 			}
 		}));
@@ -600,10 +632,10 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			this._mirrorAttachment.value = combinedDisposable(attachment, onClose);
 		}
 		if (options.live && Date.now() >= this._heartbeatNotBefore) {
-			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, { name: environmentName, status: 'online', encryption_keys: sealing?.advertisedKeys }, options);
+			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, this._createHeartbeat('online'), options);
 		}
 		if (generation === this._generation && this._options === options && !this._store.isDisposed) {
-			this._onReady?.(response.id);
+			this._host.onReady?.(response.id);
 		}
 	}
 

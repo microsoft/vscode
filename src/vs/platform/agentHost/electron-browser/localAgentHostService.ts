@@ -56,7 +56,7 @@ import {
 	type IAgentHostOTelSettings,
 	type IAgentHostOTelPolicyReadiness,
 	IAgentPluginUninstallRequest,
-	type IExperimentalMissionControlOptions,
+	type IMissionControlOptions,
 	type IMissionControlCredentialSealingRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
@@ -648,16 +648,16 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		);
 	}
 
-	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		return this._getManagementService().configureExperimentalMissionControl(options, withdrawingAccountId);
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
 		return this._getManagementService().sealMissionControlCredential(request);
 	}
 
-	getExperimentalMissionControlEnvironmentId(): Promise<string | undefined> {
-		return this._getManagementService().getExperimentalMissionControlEnvironmentId();
+	getMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentId();
 	}
 
 }

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash, randomBytes } from 'crypto';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import type { IMissionControlCredentialSealingRequest } from '../common/agentService.js';
-import type { AuthenticateParams } from '../common/agent.js';
-import type { IHostEncryptionKey } from '../common/cloudSandboxAgentHost.js';
-import { JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import type { IMissionControlCredentialSealingRequest } from '../../common/agentService.js';
+import type { AuthenticateParams } from '../../common/agent.js';
+import type { IHostEncryptionKey } from '../../common/cloudSandboxAgentHost.js';
+import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 type KeyUse = 'auth-token' | 'mcp-auth-token';
 

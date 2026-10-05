@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Limiter, RunOnceScheduler, timeout } from '../../../base/common/async.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { URI } from '../../../base/common/uri.js';
-import { ILogService } from '../../log/common/log.js';
-import type { IAgent, IAgentChatSessionEvent } from '../common/agent.js';
-import { ISessionDataService } from '../common/sessionDataService.js';
-import { parseChatUri } from '../common/state/sessionState.js';
-import { createAgentChatContext } from './agentChatContext.js';
-import { IAgentHostProviderService } from './agentHostProviderService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Limiter, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ILogService } from '../../../log/common/log.js';
+import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { parseChatUri } from '../../common/state/sessionState.js';
+import { createAgentChatContext } from '../agentChatContext.js';
+import { IAgentHostProviderService } from '../agentHostProviderService.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 
 const reservationSize = 1024;
