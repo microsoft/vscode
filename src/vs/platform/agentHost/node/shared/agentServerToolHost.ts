@@ -5,7 +5,7 @@
 
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, isSubagentSession, parseRequiredSessionUriFromChatUri, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 
@@ -192,7 +192,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[] {
 		const materializedDefinitions = this._stateManager.getSessionState(sessionUri)?.serverTools;
 		const isEphemeral = this._stateManager.isEphemeralSession(sessionUri);
-		return this._groups.flatMap(group => {
+		return this._groups.flatMap<IAgentServerToolDefinition>(group => {
 			const currentDefinitions = group.getDefinitions?.() ?? group.definitions;
 			if (materializedDefinitions && group.materializeDefinitions) {
 				// A session's tool membership is fixed at materialization time, but
@@ -211,7 +211,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 				.filter(definition => group.isEnabled(definition.name, sessionUri) && group.isEnabledForSession(definition.name, sessionUri))
 				.map(definition => group.getDefinitionForSession?.(definition, sessionUri) ?? definition);
 			return isEphemeral ? definitions.filter(definition => definition.enabledForEphemeralSessions) : definitions;
-		});
+		}).filter(definition => !definition.topLevelChatOnly || !isSubagentSession(sessionUri));
 	}
 
 	get toolNames(): readonly string[] {
@@ -225,7 +225,8 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		];
 	}
 
-	advertise(sessionUri: URI): void {
+	advertise(sessionOrChatUri: URI): void {
+		const sessionUri = isAhpChatChannel(sessionOrChatUri) ? parseRequiredSessionUriFromChatUri(sessionOrChatUri) : sessionOrChatUri;
 		// Provider materialization can precede restore; AgentService advertises again once the session is registered.
 		if (!this._stateManager.getSessionState(sessionUri)) {
 			return;
@@ -274,11 +275,14 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 	}
 
 	private _toProtocolDefinitions(definitions: readonly IAgentServerToolDefinition[]): ToolDefinition[] {
-		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, deferLoading: _deferLoading, ...definition }) => definition);
+		return definitions.map(({ enabledForEphemeralSessions: _enabledForEphemeralSessions, topLevelChatOnly: _topLevelChatOnly, deferLoading: _deferLoading, ...definition }) => definition);
 	}
 
 	private _isEnabledForSession(group: IServerToolGroup, chatUri: URI, toolName: string, requestedToolName = toolName): boolean {
 		const sessionUri = parseRequiredSessionUriFromChatUri(chatUri);
+		if (group.definitions.find(definition => definition.name === toolName)?.topLevelChatOnly && isSubagentSession(sessionUri)) {
+			return false;
+		}
 		if (!group.isEnabledForSession(toolName, sessionUri)) {
 			return false;
 		}

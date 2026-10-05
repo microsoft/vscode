@@ -357,6 +357,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		view: { height: 380 },
 		interaction: { focused: { group: 'release' } },
 	}, {
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The Release work group header has keyboard focus, shown with a focus outline, a chevron in place of the group icon, and its New Session and Archive All actions.'],

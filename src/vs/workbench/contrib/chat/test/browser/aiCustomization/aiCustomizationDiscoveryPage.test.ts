@@ -545,7 +545,16 @@ suite('AICustomizationDiscoveryPage', () => {
 		const placeholder = fixture.container.querySelector<HTMLElement>('.customization-discovery-result-content.loading')!;
 		assert.ok(placeholder.inert);
 		placeholder.querySelector<HTMLButtonElement>('button')!.click();
-		assert.deepStrictEqual(fixture.openedDetails, []);
+		const spinner = placeholder.querySelector<HTMLElement>('.customization-discovery-result-loading')!;
+		assert.deepStrictEqual({
+			openedDetails: fixture.openedDetails,
+			spinnerDisplay: DOM.getWindow(spinner).getComputedStyle(spinner).display,
+			spinnerAriaHidden: spinner.getAttribute('aria-hidden'),
+		}, {
+			openedDetails: [],
+			spinnerDisplay: 'grid',
+			spinnerAriaHidden: 'true',
+		});
 		const pending = position();
 		await fixture.requests[1].result.complete({
 			items: [resource('mail-24', { mediaType: CustomizationMarketplaceMediaType.CopilotPlugin })],
@@ -557,10 +566,13 @@ suite('AICustomizationDiscoveryPage', () => {
 			length: list.length,
 			state: loadingState(fixture.container),
 			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+			visibleSpinners: [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-loading')]
+				.filter(spinner => DOM.getWindow(spinner).getComputedStyle(spinner).display !== 'none').length,
 		}, {
 			position: pending, rowRetained: true, length: 25,
 			state: { progress: false, placeholder: false, status: ['', ''] },
 			busy: 'false',
+			visibleSpinners: 0,
 		});
 	});
 
