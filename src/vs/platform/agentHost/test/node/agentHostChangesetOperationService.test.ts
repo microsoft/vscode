@@ -103,6 +103,7 @@ class TestGitStateService implements IAgentHostGitStateService {
 		this.refreshes.push(sessionKey);
 	}
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
+	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchName(): Promise<string | undefined> { return undefined; }
 
 	async getSessionGitHubState(_sessionKey: string): Promise<ISessionGitHubState | undefined> {
@@ -127,6 +128,9 @@ class TestConfigurationService implements IAgentConfigurationService {
 	readonly onDidRootConfigChange = Event.None;
 	readonly onDidSessionConfigChange = Event.None;
 	readonly onDidChangeWorkingDirectoryPending = Event.None;
+	setSessionSandboxEnabled(): void { }
+	getSessionSandboxEnabled(): undefined { return undefined; }
+	rejectSessionSandboxChange(): void { }
 
 	constructor(private _workingDirectories: string[] | undefined) { }
 

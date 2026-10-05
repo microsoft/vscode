@@ -12,6 +12,8 @@ import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
 
 export type { IModelConfigurationAccess } from '../../../../common/languageModels.js';
 
+type ModelConfigurationReader = Pick<IModelConfigurationAccess, 'getModelConfiguration' | 'getModelConfigurationSchema'>;
+
 /** The thinking effort group, or the routing tier for the Auto model. */
 export const MODEL_CONFIG_GROUP_EFFORT = 'navigation';
 /** The context window group: how much context the model is given. */
@@ -87,12 +89,11 @@ export function getModelConfigChoices(
 }
 
 /**
- * The first property of a model's configuration schema belonging to `group` that
- * offers a choice, with the user's value or the schema default.
+ * Selects a property by explicit alias precedence, then schema order for unknown keys.
  */
 export function getModelConfigProperty(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
 	group: string,
 ): IModelConfigProperty | undefined {
 	const properties = model && (configurationAccess.getModelConfigurationSchema?.(model.identifier) ?? model.metadata.configurationSchema)?.properties;
@@ -100,11 +101,17 @@ export function getModelConfigProperty(
 		return undefined;
 	}
 	const currentConfig = configurationAccess.getModelConfiguration(model.identifier) ?? {};
-	for (const [key, schema] of Object.entries(properties)) {
+	const aliases = group === MODEL_CONFIG_GROUP_EFFORT
+		? ['tier', 'autoTier', 'thinkingLevel', 'reasoningEffort']
+		: group === MODEL_CONFIG_GROUP_CONTEXT ? ['contextSize', 'contextTier'] : [];
+	const alias = aliases.find(key => Object.hasOwn(properties, key) && properties[key].group === group);
+	const keys = alias ? [alias] : Object.keys(properties);
+	for (const key of keys) {
+		const schema = properties[key];
 		if (schema.group !== group || !schema.enum?.length) {
 			continue;
 		}
-		return { key, value: currentConfig[key] ?? schema.default, schema };
+		return { key, value: Object.hasOwn(currentConfig, key) ? currentConfig[key] : schema.default, schema };
 	}
 	return undefined;
 }
@@ -132,7 +139,7 @@ export function isExtendedContext(property: IModelConfigProperty): boolean {
 /** A short readout of the effective effort and context, including defaults. */
 export function getModelConfigSummary(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
 ): string | undefined {
 	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.label);
 	return parts.length ? parts.join(' \u00b7 ') : undefined;
@@ -141,14 +148,14 @@ export function getModelConfigSummary(
 /** Names each displayed setting for assistive technology. */
 export function getModelConfigDescription(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
-	configurationAccess: IModelConfigurationAccess,
+	configurationAccess: ModelConfigurationReader,
 ): string | undefined {
 	const parts = getModelConfigDisplayValues(model, configurationAccess).map(value => value.description);
 	return parts.length ? parts.join(', ') : undefined;
 }
 
-function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentifier | undefined, configurationAccess: IModelConfigurationAccess): { label: string; description: string }[] {
-	const values: { label: string; description: string }[] = [];
+export function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentifier | undefined, configurationAccess: ModelConfigurationReader): { group: string; label: string; description: string }[] {
+	const values: { group: string; label: string; description: string }[] = [];
 	for (const group of [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT]) {
 		const property = getModelConfigProperty(model, configurationAccess, group);
 		if (property?.value !== undefined && property.schema.enum?.includes(property.value)) {
@@ -156,12 +163,12 @@ function getModelConfigDisplayValues(model: ILanguageModelChatMetadataAndIdentif
 			const title = property.schema.title ?? (group === MODEL_CONFIG_GROUP_EFFORT
 				? localize('chat.effort.header', "Thinking Effort")
 				: localize('chat.context.header', "Context"));
-			values.push({ label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
+			values.push({ group, label, description: localize('chat.modelPicker.configValue', "{0}: {1}", title, label) });
 		} else if (!property && group === MODEL_CONFIG_GROUP_CONTEXT && model && !isAutoModel(model) && !isHydraFusionModel(model)) {
 			const total = getModelContextWindowTotal(model.metadata);
 			if (Number.isFinite(total) && total > 0) {
 				const label = formatTokenCount(total);
-				values.push({ label, description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
+				values.push({ group, label, description: localize('chat.modelPicker.maxContext', "Max context: {0}", label) });
 			}
 		}
 	}

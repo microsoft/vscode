@@ -71,6 +71,8 @@ type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<
 const connectionDetails = {
 	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
+	firstFailurePhase: undefined, firstFailureCode: undefined,
+	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
 };
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[], waitForConnection?: () => Promise<IRemoteAgentHostConnectionInfo>, isSessionsWindow = false) {
@@ -82,6 +84,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const started = new DeferredPromise<void>();
 	let ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
 	const events: { eventName: string; data?: ITelemetryData }[] = [];
+	const warnings: string[] = [];
 	const removed: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
@@ -153,7 +156,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly logsHome = URI.file('/logs');
 		override readonly isSessionsWindow = isSessionsWindow;
 	}());
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, new class extends NullLogService {
+		override warn(message: string): void {
+			warnings.push(message);
+		}
+	}());
 
 	return {
 		service: store.add(instantiationService.createInstance(TestCloudSandboxAgentHostService)),
@@ -165,6 +172,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestCalls: () => calls,
 		requests,
 		events,
+		warnings,
 		removed,
 		started: started.p,
 		setState(state: 'reconnecting' | 'connected'): void {
@@ -243,6 +251,9 @@ suite('CloudSandboxAgentHostService', () => {
 			const failed = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
 			await timeout(600_000);
 			await failed;
+			assert.deepStrictEqual(fixture.warnings, [
+				`[CloudSandboxAgentHost] Connection timeout: environmentId=env-1 sessionId=none clientId=${stage === 'credentials' ? 'none' : 'client-1'} stage=${stage} durationMs=600000`,
+			]);
 			await tokenResponse.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.late') });
 			await ready.complete({ address: cloudSandboxAddress('env-1'), name: 'Sandbox', status: RemoteAgentHostConnectionStatus.connected });
 			await timeout(0);
@@ -775,7 +786,7 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, credentialRequests: 1, firstFailurePhase: 'credentials', credentialFailures: 1 } },
 				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
@@ -810,7 +821,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, credentialRequests: 1, credentialsMs: 1700 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, credentialRequests: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', credentialFailures: 1 } },
 			]);
 		}));
 

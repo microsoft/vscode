@@ -11,6 +11,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable } from '../../../../../base/common/observable.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -27,13 +28,14 @@ import {
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -41,6 +43,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const DISCOVERY_STALE_AFTER_MS = 60_000;
@@ -51,6 +54,7 @@ const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 /** A discovered sandbox environment we can create a provider for. */
 export interface ICloudSandboxSessionEnvironment {
 	readonly environmentId: string;
+	readonly eventType?: string;
 	readonly sessionId?: string;
 	/**
 	 * Mission Control task owning the session. Persisted AHP history is addressed per task, so this
@@ -60,6 +64,7 @@ export interface ICloudSandboxSessionEnvironment {
 	readonly name: string;
 	readonly repoName?: string;
 	readonly updatedAt?: string;
+	readonly isArchived?: boolean;
 }
 
 function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDiscoveredSession {
@@ -69,8 +74,10 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0
 		&& typeof candidate.taskId === 'string' && candidate.taskId.length > 0
 		&& typeof candidate.name === 'string'
+		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
-		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string');
+		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
+		&& (candidate.isArchived === undefined || typeof candidate.isArchived === 'boolean');
 }
 
 /**
@@ -95,6 +102,7 @@ export interface ICloudSandboxSessionList extends IDisposable {
 	setLabel?(label: string): void;
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void;
+	setSessionArchived(rawId: string, archived: boolean): void;
 }
 
 export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSessionList> extends Disposable implements IWorkbenchContribution {
@@ -132,6 +140,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _lastFullDiscovery: number | undefined;
 	private _discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
 	private _accountKey: string | undefined;
+	private readonly _deletedTaskIds = new Set<string>();
 
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
@@ -145,6 +154,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IHostService private readonly _hostService: IHostService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -288,13 +298,13 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const present = new Set<string>();
 		const updatedTasks = new Set<string>();
 		for (const session of result.sessions) {
-			if (!session.environmentId || !session.sessionId) {
+			if (!session.environmentId || !session.sessionId || this._deletedTaskIds.has(session.taskId)) {
 				continue;
 			}
 			const address = cloudSandboxAddress(session.environmentId);
 			present.add(address);
 			updatedTasks.add(session.taskId);
-			this._seedDiscoveredSession(session);
+			this._seedDiscoveredSession({ ...session, isArchived: session.isArchived === true });
 		}
 
 		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
@@ -327,12 +337,17 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const project = discoveredSessionProject(session.repoName);
 		provider?.seedSessions([{
 			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
+			provider: CLOUD_SANDBOX_AGENT_PROVIDER,
+			...(session.eventType ? { _meta: withSessionInitiator(undefined, { name: session.eventType }) } : {}),
 			startTime: modifiedTime,
 			modifiedTime,
 			summary: session.name,
 			...(session.status !== undefined ? { status: session.status } : {}),
 			...(project ? { project } : {}),
 		}], { updateExisting: true });
+		if (session.isArchived !== undefined) {
+			provider?.setSessionArchived(session.sessionId, session.isArchived);
+		}
 	}
 
 	protected _restoreAccount(accountKey: string | undefined): boolean {
@@ -397,9 +412,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					environmentId: environment.environmentId,
 					sessionId: environment.sessionId,
 					taskId: environment.taskId,
+					eventType: environment.eventType,
 					name: environment.name,
 					repoName: environment.repoName,
 					updatedAt: environment.updatedAt,
+					...(environment.isArchived !== undefined ? { isArchived: environment.isArchived } : {}),
 				};
 				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
 				const value = JSON.stringify({ version: 1, sessions: [session] });
@@ -420,6 +437,89 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		this._persistedInventory = inventory;
 		this._storageService.storeAll(entries, false);
+	}
+
+	protected _ownsSandboxSession(address: string, rawId: string): boolean {
+		const environment = this._environments.get(address);
+		return !!environment?.taskId && environment.sessionId === rawId;
+	}
+
+	protected async _renameSandboxSession(address: string, rawId: string, title: string): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || environment.sessionId !== rawId) {
+			throw new Error(localize('cloudSandbox.renameSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		try {
+			await this._apiService.renameTask(environment.taskId, title, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		const current = this._environments.get(address);
+		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
+			throw new CancellationError();
+		}
+		this._environments.set(address, { ...current, name: title });
+		this._persistInventory();
+	}
+
+	protected async _setSandboxSessionArchived(address: string, rawId: string, archived: boolean, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || environment.sessionId !== rawId) {
+			throw new Error(localize('cloudSandbox.archiveSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		store.add(token.onCancellationRequested(() => source.cancel()));
+		try {
+			await this._apiService.setTaskArchived(environment.taskId, archived, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		const current = this._environments.get(address);
+		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
+			throw new CancellationError();
+		}
+		this._environments.set(address, { ...current, isArchived: archived });
+		this._persistInventory();
+	}
+
+	protected async _deleteSandboxSession(address: string, sessionIds: readonly string[], removeSession: (rawId: string) => void, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || !environment.sessionId || sessionIds.some(id => id !== environment.sessionId)) {
+			throw new Error(localize('cloudSandbox.deleteSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		if (sessionIds.length === 0) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		store.add(token.onCancellationRequested(() => source.cancel()));
+		try {
+			await this._apiService.deleteTask(environment.taskId, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		this._deletedTaskIds.add(environment.taskId);
+		removeSession(environment.sessionId);
+		this._teardownEnvironment(address);
+		this._persistInventory();
 	}
 
 	/**
@@ -469,6 +569,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._lastFullDiscovery = undefined;
 		this._discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
 		this._accountKey = undefined;
+		this._deletedTaskIds.clear();
 		this._persistedInventory.clear();
 		for (const address of [...this._environments.keys()]) {
 			this._teardownEnvironment(address);
@@ -512,11 +613,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		};
 
 		// Without a task there is no history fallback, so connecting is the only way to open it.
-		const shouldConnect = !env.taskId || await this._isEnvironmentOnline(env, token);
+		const shouldConnect = !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;
 		}
-		if (!shouldConnect) {
+		if (!shouldConnect && !this._pendingConnects.has(address)) {
 			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
 			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
@@ -710,6 +811,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._environments.set(address, {
 			...known, ...env,
 			taskId: env.taskId ?? known?.taskId,
+			eventType: env.eventType ?? known?.eventType,
 			repoName: env.repoName ?? known?.repoName,
 			updatedAt: env.updatedAt ?? known?.updatedAt,
 		});
@@ -718,6 +820,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 		const store = new DisposableStore();
 		this._providerStores.set(address, store);
+		store.add(this._workspaceTrustManagementService.registerTrustedAuthority(AGENT_HOST_SCHEME, agentHostAuthority(address)));
 		const provider = this._createProvider(env, store);
 		this._providerInstances.set(address, provider);
 		store.add(toDisposable(() => this._providerInstances.delete(address)));

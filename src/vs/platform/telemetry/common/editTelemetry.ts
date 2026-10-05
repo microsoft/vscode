@@ -25,7 +25,7 @@ export interface IEditSourcesDetailsTelemetryData {
 	chatSessionId?: string;
 	requestId: string | undefined;
 	origin: string | undefined;
-	harness: string | undefined;
+	provider: string | undefined;
 	modifiedCount: number;
 	deltaModifiedCount: number;
 	totalModifiedCount: number;
@@ -48,7 +48,7 @@ type EditSourcesDetailsTelemetryClassification = {
 	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hashed originating Agent Host chat identifier, scoped under its session rather than globally and matching core Agent Host telemetry. Omitted when chat provenance is unknown.' };
 	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat request identifier when the edit source comes from chat.' };
 	origin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The process or subsystem that observed the edit source.' };
-	harness: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host provider that produced the edit.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation that produced the edit, such as copilotcli, claude, or codex.' };
 	trigger: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates why the session ended.' };
 	modifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session that are still in the text document at the end of the session.'; isMeasurement: true };
 	deltaModifiedCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters inserted by the given edit source during the session.'; isMeasurement: true };

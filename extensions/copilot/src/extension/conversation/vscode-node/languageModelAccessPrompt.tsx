@@ -30,13 +30,14 @@ interface IThinkingGroup {
 function groupThinkingParts(parts: readonly vscode.LanguageModelThinkingPart[]): IThinkingGroup[] {
 	const groups = new Map<string, IThinkingGroup>();
 	for (const part of parts) {
-		if (!part.id) {
+		const text = Array.isArray(part.value) ? part.value : [part.value];
+		if (!part.id && !text.some(value => value.length > 0)) {
 			continue;
 		}
-		const previous = groups.get(part.id);
-		const text = Array.isArray(part.value) ? part.value : [part.value];
-		groups.set(part.id, {
-			id: part.id,
+		const id = part.id ?? '';
+		const previous = groups.get(id);
+		groups.set(id, {
+			id,
 			text: [...previous?.text ?? [], ...text],
 			metadata: { ...previous?.metadata, ...part.metadata },
 		});

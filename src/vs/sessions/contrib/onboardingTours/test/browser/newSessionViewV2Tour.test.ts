@@ -12,7 +12,7 @@ import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_DEVELOPER_MODE_VARIATIONS_
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 import { resolveNewSessionViewV2TourVariation } from '../../browser/newSessionViewV2TourVariation.js';
-import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
+import { createNewSessionViewV2ParallelWorkTour, createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID, NEW_SESSION_VIEW_V2_TOUR_ID } from '../../browser/tours/newSessionViewV2Tour.js';
 import { createNewSessionViewV3Tour } from '../../browser/tours/newSessionViewV3Tour.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from '../../browser/tours/newSessionTour.js';
 import { createNewSessionViewTour } from '../../browser/tours/newSessionViewTour.js';
@@ -96,6 +96,12 @@ suite('NewSessionViewV2Tour', () => {
 		);
 	});
 
+	test('can be enabled by default without experiment gating', () => {
+		const trigger = observableValue<boolean>(disposables, false);
+
+		assert.strictEqual(createNewSessionViewV2Tour(trigger, undefined, { enabledByDefault: true }).experiment, undefined);
+	});
+
 	test('resolves the workspace-and-model variation without changing the default flow', async () => {
 		const trigger = observableValue<boolean>(disposables, false);
 		const scenario = createNewSessionViewV2Tour(trigger, async () => 'workspaceAndModel');
@@ -134,13 +140,14 @@ suite('NewSessionViewV2Tour', () => {
 
 	test('selects the V2 variation from the experiment or an enabled developer override', async () => {
 		const cases = [
-			{ treatment: undefined, developerMode: false, override: undefined, expected: 'default', warnings: 0 },
-			{ treatment: 'workspaceAndModel', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0 },
-			{ treatment: 'default', developerMode: true, override: 'workspaceAndModel', expected: 'workspaceAndModel', warnings: 0 },
-			{ treatment: 'workspaceAndModel', developerMode: true, override: 'default', expected: 'default', warnings: 0 },
-			{ treatment: 'default', developerMode: false, override: 'workspaceAndModel', expected: 'default', warnings: 0 },
-			{ treatment: 'workspaceAndModel', developerMode: true, override: '', expected: 'workspaceAndModel', warnings: 0 },
-			{ treatment: 'unsupported', developerMode: false, override: undefined, expected: 'default', warnings: 1 },
+			{ treatment: undefined, developerMode: false, override: undefined, expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'workspaceAndModel', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: true, override: 'workspaceAndModel', expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'workspaceAndModel', developerMode: true, override: 'default', expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: false, override: 'workspaceAndModel', expected: 'default', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'workspaceAndModel', developerMode: true, override: '', expected: 'workspaceAndModel', warnings: 0, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'unsupported', developerMode: false, override: undefined, expected: 'default', warnings: 1, defaultVariation: undefined, useTreatment: undefined },
+			{ treatment: 'default', developerMode: false, override: undefined, expected: 'workspaceAndModel', warnings: 0, defaultVariation: 'workspaceAndModel' as const, useTreatment: false },
 		];
 		const results = [];
 		for (const entry of cases) {
@@ -160,7 +167,10 @@ suite('NewSessionViewV2Tour', () => {
 				override warn(): void { warnings++; }
 			}());
 			results.push({
-				variation: await resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService),
+				variation: await resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService, {
+					defaultVariation: entry.defaultVariation,
+					useTreatment: entry.useTreatment,
+				}),
 				warnings,
 				requestedTreatments,
 			});
@@ -168,8 +178,46 @@ suite('NewSessionViewV2Tour', () => {
 		assert.deepStrictEqual(results, cases.map(entry => ({
 			variation: entry.expected,
 			warnings: entry.warnings,
-			requestedTreatments: entry.developerMode && entry.override ? [] : ['onb.newSessionViewV2.variation'],
+			requestedTreatments: entry.developerMode && entry.override || entry.useTreatment === false ? [] : ['onb.newSessionViewV2.variation'],
 		})));
+	});
+
+	test('always introduces the running session before the unchanged workspaceAndModel V2 steps', async () => {
+		const beforeShow = async () => { };
+		const scenario = createNewSessionViewV2ParallelWorkTour('running-session', beforeShow);
+		const regular = createNewSessionViewV2Tour(observableValue<boolean>(disposables, false), async () => 'workspaceAndModel');
+		const steps = scenario.presentation.payload.steps;
+		assert.deepStrictEqual({
+			id: scenario.id,
+			seenKey: scenario.seenKey,
+			trigger: scenario.trigger,
+			experiment: scenario.experiment,
+			resolveSteps: scenario.presentation.payload.resolveSteps,
+			introduction: {
+				id: steps[0].id,
+				targetId: steps[0].targetId,
+				onBeforeShow: steps[0].onBeforeShow,
+				placement: steps[0].placement,
+				allowTargetInteraction: steps[0].allowTargetInteraction,
+				missingTarget: steps[0].missingTarget,
+			},
+			remainingSteps: steps.slice(1),
+		}, {
+			id: NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID,
+			seenKey: regular.seenKey,
+			trigger: { kind: 'command', commandId: NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID },
+			experiment: undefined,
+			resolveSteps: undefined,
+			introduction: {
+				id: 'runningSession',
+				targetId: 'running-session',
+				onBeforeShow: beforeShow,
+				placement: 'right',
+				allowTargetInteraction: undefined,
+				missingTarget: { kind: 'wait', timeoutMs: 5_000, onTimeout: 'abort' },
+			},
+			remainingSteps: await regular.presentation.payload.resolveSteps!(),
+		});
 	});
 
 	test('waits for an agent-host provider before running V2 or V3', () => {

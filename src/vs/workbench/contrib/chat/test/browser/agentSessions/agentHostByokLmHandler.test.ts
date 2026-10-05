@@ -512,6 +512,69 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
+	test('forwards tool-result images as ordered data parts of the tool result', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [
+				{ type: 'function_call', callId: 't1', name: 'view', argumentsJson: '{"path":"/work/a.png"}' },
+				{
+					type: 'function_call_output', callId: 't1', output: 'caption Acaption B', content: [
+						{ type: 'text', text: 'caption A' },
+						{ type: 'image', mimeType: 'image/png', data: 'aW1hZ2VB' },
+						{ type: 'text', text: 'caption B' },
+						{ type: 'image', mimeType: 'image/jpeg', data: 'aW1hZ2VC' },
+					]
+				},
+			],
+		}, CancellationToken.None);
+
+		const toolResult = service.captured?.messages.at(-1)?.content[0];
+		assert.deepStrictEqual(toolResult?.type === 'tool_result' && toolResult.value.map(part => part.type === 'data' ? { ...part, data: part.data.toString() } : part), [
+			{ type: 'text', value: 'caption A' },
+			{ type: 'data', mimeType: 'image/png', data: 'imageA' },
+			{ type: 'text', value: 'caption B' },
+			{ type: 'data', mimeType: 'image/jpeg', data: 'imageB' },
+		]);
+	});
+
+	test('keeps omitted-file notes distinct when merging adjacent text parts', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+
+		// Mirrors what the node proxy produces for a prompt with two PDF attachments.
+		await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [{
+				type: 'message', role: 'user', content: [
+					{ type: 'text', text: 'summarize these' },
+					{ type: 'text', text: 'Document file "a.pdf" at path "/work/a.pdf"' },
+					{ type: 'text', text: '\n[a.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+					{ type: 'text', text: 'Document file "b.pdf" at path "/work/b.pdf"' },
+					{ type: 'text', text: '\n[b.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+				]
+			}],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(service.captured?.messages, [{
+			role: ChatMessageRole.User,
+			content: [{
+				type: 'text',
+				value: 'summarize theseDocument file "a.pdf" at path "/work/a.pdf"\n[a.pdf (application/pdf) omitted: this model does not accept file inputs]\nDocument file "b.pdf" at path "/work/b.pdf"\n[b.pdf (application/pdf) omitted: this model does not accept file inputs]\n',
+			}],
+		}]);
+	});
+
 	test('returns an error result when no BYOK model matches', async () => {
 		const service = new TestLanguageModelsService(new Map(), () => responseOf([]));
 		const handler = createHandler(service);

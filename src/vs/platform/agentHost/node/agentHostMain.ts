@@ -147,7 +147,6 @@ async function startAgentHost(): Promise<void> {
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;
-		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
 		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
@@ -189,6 +188,7 @@ async function startAgentHost(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
+		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		disposables.dispose();
@@ -480,10 +480,12 @@ async function startAgentHost(): Promise<void> {
 	// Startup is complete once the last ingress has settled — successfully or
 	// not, since a failed WebSocket server is non-fatal. Deferred maintenance
 	// then runs after a client has also been served its first session listing.
+	let startupOutcome: 'success' | 'error' = 'success';
 	void configuredWebSocketServerStart.catch(err => {
+		startupOutcome = 'error';
 		logService.error('Failed to start WebSocket server', err);
 	}).finally(() => {
-		agentService.markStartupComplete();
+		agentService.markStartupComplete(startupOutcome);
 		markNodeCompileCacheReady(message => logService.info(message));
 	});
 

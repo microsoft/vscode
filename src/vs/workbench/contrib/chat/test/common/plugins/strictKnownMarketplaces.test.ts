@@ -50,6 +50,27 @@ suite('strictKnownMarketplaces', () => {
 		assert.strictEqual(isMarketplaceReferenceAllowed(allowlist, ref('microsoft/other-repo')), false);
 	});
 
+	for (const revision of [undefined, 'marketplace']) {
+		test(`marketplace traversal cannot inherit an allowed identity (${revision ?? 'default ref'})`, () => {
+			const suffix = revision ? `#${revision}` : '';
+			const allowlist: IStrictMarketplaceSource[] = [{ source: 'github', repo: 'microsoft/vscode', ref: revision }];
+			const candidate = parseMarketplaceReference(`https://github.com/microsoft/vscode/../../example/unapproved.git${suffix}`);
+			assert.deepStrictEqual({
+				crafted: !!candidate && isMarketplaceReferenceAllowed(allowlist, candidate),
+				direct: isMarketplaceReferenceAllowed(allowlist, ref(`example/unapproved${suffix}`)),
+				approved: isMarketplaceReferenceAllowed(allowlist, ref(`microsoft/vscode${suffix}`)),
+			}, { crafted: false, direct: false, approved: true });
+		});
+	}
+
+	test('a GitHub repository prefix is not a marketplace identity', () => {
+		const allowlist: IStrictMarketplaceSource[] = [{ source: 'github', repo: 'microsoft/vscode' }];
+		assert.deepStrictEqual([
+			'https://github.com/microsoft/vscode/another.git',
+			'git@github.com:microsoft/vscode/another.git',
+		].map(value => isMarketplaceReferenceAllowed(allowlist, ref(value))), [false, false]);
+	});
+
 	test('github entry ref must match exactly (tri-state)', () => {
 		const pinned: IStrictMarketplaceSource[] = [{ source: 'github', repo: 'owner/repo', ref: 'main' }];
 		assert.strictEqual(isMarketplaceReferenceAllowed(pinned, ref('owner/repo#main')), true);

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
@@ -20,6 +22,7 @@ import { Memento } from '../../../../common/memento.js';
 import { IAssignmentFilter, IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
+import { runWithOnboardingPresentation } from '../../browser/onboardingPresentationQueue.js';
 import { OnboardingScenarioService } from '../../browser/onboardingService.js';
 import { IOnboardingPresentation, IOnboardingRunContext, onboardingPresentationRegistry } from '../../common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../common/onboardingRegistry.js';
@@ -372,6 +375,82 @@ suite('OnboardingScenarioService', () => {
 		const [a, b] = await Promise.all([first, second]);
 
 		assert.deepStrictEqual({ runs, a, b }, { runs: ['inflight-1'], a: OnboardingOutcome.Completed, b: OnboardingOutcome.Completed });
+	});
+
+	test('runScenario does not enqueue an already cancelled request', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'cancelled', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const { service } = createService();
+
+		const outcome = await service.runScenario('cancelled', CancellationToken.Cancelled);
+
+		assert.deepStrictEqual({ outcome, runs: presentation.runs, shown: service.hasBeenShown('cancelled') }, {
+			outcome: OnboardingOutcome.Aborted, runs: [], shown: false,
+		});
+	});
+
+	test('runScenario cancels a window-queued presentation without affecting its current occupant', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({ id: 'waiting', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind: presentation.kind, payload: undefined } });
+		const { service } = createService();
+		const finish = new DeferredPromise<void>();
+		const occupant = runWithOnboardingPresentation(mainWindow, CancellationToken.None, () => finish.p);
+		const cancellation = disposables.add(new CancellationTokenSource());
+		let outcome: OnboardingOutcome | undefined;
+		const waiting = service.runScenario('waiting', cancellation.token).then(result => { outcome = result; });
+		await timeout(0);
+		cancellation.cancel();
+		await timeout(0);
+		const beforeRelease = { outcome, runs: [...presentation.runs], shown: service.hasBeenShown('waiting') };
+		finish.complete();
+		await Promise.all([occupant, waiting]);
+		await service.runScenario('waiting');
+
+		assert.deepStrictEqual({ beforeRelease, runs: presentation.runs }, {
+			beforeRelease: { outcome: OnboardingOutcome.Aborted, runs: [], shown: false },
+			runs: ['waiting'],
+		});
+	});
+
+	test('runScenario aborts an active run and waits for cleanup before resolving joined callers', async () => {
+		const kind = uniqueKind();
+		const started = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		const events: string[] = [];
+		registerPresentation({
+			kind,
+			async run(_scenario, context) {
+				const store = new DisposableStore();
+				try {
+					store.add(context.onAbort(() => events.push('abort')));
+					started.complete();
+					await finish.p;
+					events.push('cleanup');
+					return completedResult(events.includes('abort') ? OnboardingOutcome.Aborted : OnboardingOutcome.Completed);
+				} finally {
+					store.dispose();
+				}
+			},
+		});
+		registerScenario({ id: 'active-cancellation', trigger: { kind: 'command', commandId: 'noop' }, presentation: { kind, payload: undefined } });
+		const { service } = createService();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const running = service.runScenario('active-cancellation', cancellation.token).then(outcome => { events.push('resolved'); return outcome; });
+		await started.p;
+		const joined = service.runScenario('active-cancellation');
+		cancellation.cancel();
+		await timeout(0);
+		const duringCleanup = [...events];
+		finish.complete();
+		const outcomes = await Promise.all([running, joined]);
+
+		assert.deepStrictEqual({ duringCleanup, events, outcomes }, {
+			duringCleanup: ['abort'],
+			events: ['abort', 'cleanup', 'resolved'],
+			outcomes: [OnboardingOutcome.Aborted, OnboardingOutcome.Aborted],
+		});
 	});
 
 	for (const developerMode of [false, true]) {

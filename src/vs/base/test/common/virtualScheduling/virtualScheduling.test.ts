@@ -419,7 +419,8 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 		const clock = new VirtualClock(12345);
 		const api = createVirtualTimeApi(clock, { fakeRequestAnimationFrame: true });
 		const originalPerformanceNow = performance.now;
-		const originalPerformanceTimeOrigin = performance.timeOrigin;
+		// WebKit's native timeOrigin getter can return slightly different values on successive reads.
+		const originalPerformanceTimeOriginDescriptor = Object.getOwnPropertyDescriptor(performance, 'timeOrigin');
 		const restore = pushGlobalTimeApi(api);
 		let animationFrameTime: number | undefined;
 		let actual: object;
@@ -438,7 +439,7 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 		assert.deepStrictEqual({
 			actual,
 			restoredPerformanceNow: performance.now === originalPerformanceNow,
-			restoredPerformanceTimeOrigin: performance.timeOrigin,
+			restoredPerformanceTimeOriginDescriptor: Object.getOwnPropertyDescriptor(performance, 'timeOrigin'),
 		}, {
 			actual: {
 				dateNow: 12361,
@@ -447,7 +448,7 @@ suite('virtualScheduling - createVirtualTimeApi without processor', () => {
 				animationFrameTime: 16,
 			},
 			restoredPerformanceNow: true,
-			restoredPerformanceTimeOrigin: originalPerformanceTimeOrigin,
+			restoredPerformanceTimeOriginDescriptor: originalPerformanceTimeOriginDescriptor,
 		});
 	});
 });

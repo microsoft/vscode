@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { addDisposableListener } from '../../../../base/browser/dom.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { isRemoteDiagnosticError, SystemInfo } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { ISettingSearchResult, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
@@ -49,10 +51,11 @@ export interface IssueReporterData {
 	isSessionsWindow?: boolean;
 }
 
-export class IssueReporterModel {
+export class IssueReporterModel extends Disposable {
 	private readonly _data: IssueReporterData;
 
 	constructor(initialData?: Partial<IssueReporterData>) {
+		super();
 		const defaultData = {
 			issueType: IssueType.Bug,
 			includeSystemInfo: true,
@@ -66,14 +69,14 @@ export class IssueReporterModel {
 
 		this._data = initialData ? Object.assign(defaultData, initialData) : defaultData;
 
-		mainWindow.addEventListener('message', async (event) => {
+		this._register(addDisposableListener(mainWindow, 'message', event => {
 			if (event.data && event.data.sendChannel === 'vscode:triggerIssueData') {
 				mainWindow.postMessage({
 					data: { issueBody: this._data.issueDescription, issueTitle: this._data.issueTitle },
 					replyChannel: 'vscode:triggerIssueDataResponse'
 				}, '*');
 			}
-		});
+		}));
 	}
 
 	getData(): IssueReporterData {
