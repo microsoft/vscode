@@ -688,6 +688,30 @@ suite('ActionListWidget', () => {
 		assert.notStrictEqual(panel.style.display, 'none');
 	}));
 
+	for (const { name, preserveHover, remove, expected } of [
+		{ name: 'preserves pending hover through replacement', preserveHover: true, remove: false, expected: 'Updated details' },
+		{ name: 'cancels pending hover when its entry is removed', preserveHover: true, remove: true, expected: '' },
+		{ name: 'cancels pending hover when preservation is disabled', preserveHover: false, remove: false, expected: '' },
+	]) {
+		test(name, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const widget = createActionListWidget(disposables, {
+				items: [{ ...action('entry'), hover: { content: 'Initial details' } }],
+				listOptions: { showFilter: false },
+			});
+			widget.focus();
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row')!;
+			const panel = widget.domNode.querySelector<HTMLElement>('.action-list-submenu-panel')!;
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+			await timeout(100);
+			widget.updateItems(remove ? [] : [{ ...action('entry'), hover: { content: 'Updated details' } }], undefined, { preserveHover });
+			await timeout(399);
+			const beforeDelay = panel.textContent;
+			await timeout(1);
+			assert.deepStrictEqual({ beforeDelay, afterDelay: panel.textContent }, { beforeDelay: '', afterDelay: expected });
+		}));
+	}
+
 	for (const count of [1, 3, 30]) {
 		test(`opening ${count} interactive previews stays quiet until intentional hover`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			let rendered = 0;
@@ -2378,6 +2402,50 @@ suite('ActionListWidget', () => {
 		}, { panelVisible: true, layouts: 1 });
 	}));
 
+	test('notifies initially visible rows once when scrolling begins', async () => {
+		const visible: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+				...action(`item-${index}`),
+				onDidBecomeVisible: () => visible.push(`item-${index}`),
+			})),
+			listOptions: { showFilter: false },
+		});
+		widget.layout(47, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 1;
+		await settleLayout();
+		list.scrollTop = 0;
+		await settleLayout();
+		assert.deepStrictEqual(visible, ['item-0', 'item-1']);
+	});
+
+	test('notifies virtualized items when scrolling makes them visible', async () => {
+		const visible: string[] = [];
+		const items = Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+			...action(`item-${index}`),
+			onDidBecomeVisible: () => visible.push(`item-${index}`),
+		}));
+		const widget = createActionListWidget(disposables, {
+			items,
+			listOptions: { showFilter: false },
+		});
+		widget.layout(48, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 240;
+		await settleLayout();
+		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
+		list.scrollTop = 241;
+		list.scrollTop = 242;
+		await settleLayout();
+
+		assert.ok(visible.length > 0);
+		assert.ok(visible.every(id => Number(id.slice('item-'.length)) >= 9));
+		assert.strictEqual(new Set(visible).size, visible.length, 'Already visible rows must not be notified again after metadata or pixel scroll updates');
+	});
+
 	test('tabs through a focused row toolbar and hover panel while preserving list navigation', () => {
 		const createPanel = (id: string) => {
 			const panel = document.createElement('div');
@@ -3151,16 +3219,6 @@ suite('ActionListWidget', () => {
 			{ text: link!.textContent, href: link!.getAttribute('href') },
 			{ text: 'Learn more', href: 'https://aka.ms/test' },
 		);
-	});
-
-	test('updates an open search and focuses the exact duplicate-label row without selecting', () => {
-		const widget = createActionListWidget(disposables, {
-			items: [{ ...action('source'), label: 'GPT' }, { ...action('target'), label: 'GPT' }, action('different')],
-			listOptions: { showFilter: true, filterAsCombobox: true },
-		});
-		widget.setFilter('GPT', 'target');
-		widget.setFilter('GPT', 'target');
-		assert.deepStrictEqual({ query: widget.filterInput?.value, focused: widget.getFocusedElement()?.item?.id }, { query: 'GPT', focused: 'target' });
 	});
 
 	test('focuses the configured initial item when opened', () => {

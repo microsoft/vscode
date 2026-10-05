@@ -60,6 +60,7 @@ export class ModelPicker extends Disposable {
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
+			workflow: this._selectionModel.workflow,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
 			setModel: model => {

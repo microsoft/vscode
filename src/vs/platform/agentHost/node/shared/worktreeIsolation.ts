@@ -1554,8 +1554,12 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 			return undefined;
 		}
 
-		const currentBranch = await this._gitService.getCurrentBranch(repositoryRoot) ?? 'HEAD';
-		const defaultBranch = await this._gitService.getDefaultBranch(repositoryRoot) ?? { name: currentBranch, startPoint: currentBranch };
+		const [branch, remoteDefaultBranch] = await Promise.all([
+			this._gitService.getCurrentBranch(repositoryRoot),
+			this._gitService.getDefaultBranch(repositoryRoot),
+		]);
+		const currentBranch = branch ?? 'HEAD';
+		const defaultBranch = remoteDefaultBranch ?? { name: currentBranch, startPoint: currentBranch };
 		return { currentBranch, defaultBranch };
 	}
 

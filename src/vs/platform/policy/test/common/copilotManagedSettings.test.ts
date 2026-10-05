@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, hasManagedSettingsDefinitions, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 
 suite('Copilot managed settings projection', () => {
@@ -447,7 +447,7 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 		});
 	}
 
-	for (const key of [COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]) {
+	for (const key of [COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_AUTH_GH_KEY]) {
 		test(`${key} is deny-wins across every channel combination`, () => {
 			const values = [undefined, false, true];
 			for (const native of values) {
@@ -516,6 +516,18 @@ suite('Copilot managed settings precedence (pickManagedSettings)', () => {
 			{},
 		]);
 	});
+
+	for (const [field, key] of [['git', COPILOT_SANDBOX_AUTH_GIT_KEY], ['gh', COPILOT_SANDBOX_AUTH_GH_KEY]]) {
+		test(`sandbox ${field} authentication projects only canonical nested boolean values`, () => {
+			assert.deepStrictEqual([false, true, 'false'].map(value => projectManagedSettings(
+				normalizeManagedSettings({ sandbox: { auth: { [field]: value } } }), MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+			)), [
+				{ [key]: false },
+				{ [key]: true },
+				{},
+			]);
+		});
+	}
 
 	test('sandbox local network access projects only canonical nested boolean values', () => {
 		assert.deepStrictEqual([false, true, 'false'].map(allowLocalNetwork => projectManagedSettings(

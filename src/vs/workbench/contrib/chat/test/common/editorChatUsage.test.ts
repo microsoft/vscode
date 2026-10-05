@@ -83,12 +83,12 @@ suite('EditorChatUsage', () => {
 	test('normalizes remote authorities and unknown providers, and clamps clock skew', () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const usage = new EditorChatUsage(storage);
-		for (const provider of ['remote-private-host-copilotcli', 'remote-private-host-claude', 'remote-private-host-codex', 'private-extension']) {
+		for (const provider of ['remote-private-host-copilotcli', 'remote-cloudsandbox_private-environment-copilot', 'remote-private-host-claude', 'remote-private-host-codex', 'private-extension']) {
 			usage.recordSubmission(provider, true, false, false, 5000);
 		}
 		assert.deepStrictEqual(usage.getTelemetry(4000), {
-			editorSessionsByProvider: '{"remoteCopilot":1,"remoteClaude":1,"remoteCodex":1,"other":1}',
-			editorMessages: 4,
+			editorSessionsByProvider: '{"remoteCopilot":2,"remoteClaude":1,"remoteCodex":1,"other":1}',
+			editorMessages: 5,
 			editorMessagesWithOtherSessionInProgress: 0,
 			editorMessagesWithOtherSessionInProgressAcrossWindows: 0,
 			editorLastMessageSecondsAgo: 0,

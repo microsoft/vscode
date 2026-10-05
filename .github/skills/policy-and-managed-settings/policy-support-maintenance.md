@@ -35,11 +35,15 @@ source references and disclose runtime paths that cannot be verified locally.
   Separate confirmed gaps from runtime-native enforcement that is unverified.
 - **notEnforced**: establish that the configured control is not enforced; do not
   substitute this for "not audited."
-- **notApplicable**: the governed behavior is outside the target scope. An
+- **notApplicable**: the policy is outside the supported target policy scope. An
   editor-owned control that also governs Agent Host use can be enforced rather
   than not applicable. Other-provider availability is outside the Copilot-only
   scope; this classification must not certify process-level denial of those
-  providers.
+  providers. The explicitly retired legacy sandbox device policies are also
+  outside this contract; native managed settings are the supported enterprise
+  control. This does not mean their values have no effect on forwarded settings.
+  Deprecation alone is not enough to reclassify a policy: document the explicit
+  scope decision and replacement.
 
 If evidence is insufficient, explicitly report an unverified classification.
 Do not silently turn uncertainty into an assertion of support or absence. If the

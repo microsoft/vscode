@@ -1188,10 +1188,15 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
 		? request.requestSandboxBypass
 		: undefined;
+	const requestSandboxPermissive = request.kind === 'shell' && requestSandboxBypass === true
+		? request.requestSandboxPermissive === true
+		: false;
 
-	const shellConfirmationTitle = requestSandboxBypass
-		? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
-		: localize('copilot.permission.shell.title', "Run in terminal?");
+	const shellConfirmationTitle = requestSandboxPermissive
+		? localize('copilot.permission.shell.permissive.title', "Retry by allowing filesystem access inside the sandbox?")
+		: requestSandboxBypass
+			? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
+			: localize('copilot.permission.shell.title', "Run in terminal?");
 
 	switch (request.kind) {
 		case 'shell': {

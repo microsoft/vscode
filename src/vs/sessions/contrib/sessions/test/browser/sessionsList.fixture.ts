@@ -775,7 +775,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['New Session, Automations, and Customizations appear as three full-width navigation rows above the Sessions header. The session tree starts after the header and contains only session sections. New Session has a plus icon and its platform keybinding aligned on the right, Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
+		expectedVisualDescriptions: ['New Session, Automations, and Customizations appear as three inset navigation rows above the Sessions header. The hovered New Session row uses the same horizontal inset and rounded control-tier corners as the session row below. New Session has a plus icon and its platform keybinding aligned on the right, Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
+		afterRender: fixture => {
+			const newSessionRow = fixture.container.querySelector('.session-section-new-session')?.closest<HTMLElement>('.monaco-list-row');
+			if (!newSessionRow) {
+				throw new Error('Expected the New Session navigation row.');
+			}
+			newSessionRow.classList.add('hovered');
+		},
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],

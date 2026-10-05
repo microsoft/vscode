@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -23,6 +23,29 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
+
+	test('retains cloud-service models omitted from the host catalog across root updates', async () => {
+		const provider = createProvider();
+		provider.updateAdditionalModels([
+			{ ...makeModel('claude-sonnet-4.6'), configSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', title: 'Effort', enum: ['low', 'high'] } } } },
+			makeModel('disabled'),
+		]);
+		provider.updateModels([makeModel('auto'), { ...makeModel('disabled'), policyState: PolicyState.Disabled }]);
+		const first = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateModels([makeModel('auto'), makeModel('host-only'), { ...makeModel('disabled'), policyState: PolicyState.Disabled }]);
+		const updated = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateAdditionalModels([]);
+		const cleared = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			first: first.map(model => model.metadata.id),
+			efforts: first[1].metadata.configurationSchema?.properties?.reasoningEffort.enum,
+			updated: updated.map(model => model.metadata.id),
+			cleared: cleared.map(model => model.metadata.id),
+		}, {
+			first: ['auto', 'claude-sonnet-4.6'], efforts: ['low', 'high'],
+			updated: ['auto', 'host-only', 'claude-sonnet-4.6'], cleared: ['auto', 'host-only'],
+		});
+	});
 
 	test('groups native autoTier without inventing a default or losing fast', async () => {
 		const provider = createProvider();

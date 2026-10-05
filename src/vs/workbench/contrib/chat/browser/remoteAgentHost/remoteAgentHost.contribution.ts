@@ -12,6 +12,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { CloudSandboxAgentHostService } from './cloudSandboxAgentHostService.js';
 import { CloudSandboxApiService } from './cloudSandboxApiService.js';
+import { CloudSandboxModelCatalogService, ICloudSandboxModelCatalogService } from './cloudSandboxModels.js';
 import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './cloudSandboxTelemetry.js';
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
@@ -19,6 +20,7 @@ import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnecti
 
 registerSingleton(ICloudSandboxTelemetryService, CloudSandboxTelemetryService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxApiService, CloudSandboxApiService, InstantiationType.Delayed);
+registerSingleton(ICloudSandboxModelCatalogService, CloudSandboxModelCatalogService, InstantiationType.Delayed);
 registerSingleton(ICloudSandboxAgentHostService, CloudSandboxAgentHostService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService, InstantiationType.Delayed);
 
