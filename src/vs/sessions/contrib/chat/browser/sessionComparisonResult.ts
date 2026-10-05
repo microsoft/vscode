@@ -287,7 +287,6 @@ export class SessionComparisonResult extends Disposable {
 	private renderScorecard(context: IScorecardContext, winner: ISessionComparisonParticipant): void {
 		const scorecard = dom.append(this.domNode, dom.$('.session-comparison-scorecard'));
 		const columns = dom.append(scorecard, dom.$('.session-comparison-scorecard-columns'));
-		columns.setAttribute('aria-hidden', 'true');
 		dom.append(columns, dom.$('span'));
 		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.attempt', "Attempt");
 		const checksHeader = dom.append(columns, dom.$('span'));
@@ -295,9 +294,13 @@ export class SessionComparisonResult extends Disposable {
 		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.time', "Time");
 		dom.append(columns, dom.$('span')).textContent = localize('sessionComparisonResult.tokens', "Tokens");
 		if (context.uniformValidationNote) {
-			// Explained on hover rather than as a standing sentence, so the scorecard stays compact
-			// when every attempt shares the same non-informative check state.
-			this.renderStore.add(this.hoverService.setupDelayedHover(checksHeader, { content: context.uniformValidationNote }));
+			// Keep the explanation compact, but make it discoverable from the keyboard as well
+			// as the pointer instead of attaching it to a non-focusable visual label.
+			checksHeader.classList.add('session-comparison-scorecard-checks-header');
+			checksHeader.tabIndex = 0;
+			checksHeader.setAttribute('role', 'note');
+			checksHeader.setAttribute('aria-label', context.uniformValidationNote);
+			this.renderStore.add(this.hoverService.setupDelayedHover(checksHeader, { content: context.uniformValidationNote }, { setupKeyboardEvents: true }));
 		}
 
 		const list = dom.append(scorecard, dom.$('ul.session-comparison-scorecard-rows'));
@@ -398,6 +401,9 @@ export class SessionComparisonResult extends Disposable {
 			localize('sessionComparisonResult.timeAriaLabel', "Time {0}", elapsedMs === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatElapsedTime(elapsedMs)),
 			localize('sessionComparisonResult.tokensAriaLabel', "Tokens {0}", tokenCount === undefined ? localize('sessionComparisonResult.unavailable', "Unavailable") : formatTokenCount(tokenCount, attempt.completion?.tokenCountIsComplete)),
 		].join(', '));
+		if (checkDescriptions.length > 0) {
+			this.renderStore.add(this.hoverService.setupDelayedHover(toggle, { content: checkDescriptions.join('\n') }, { setupKeyboardEvents: true }));
+		}
 
 		if (attempt.sessionResource) {
 			const openLabel = localize('sessionComparisonResult.openAttempt', "Open {0}", attemptLabel);
@@ -698,24 +704,19 @@ function getValidationCheckPurpose(key: ValidationKey): string {
 }
 
 /**
- * True when every attempt shares the exact same not-run, not-applicable, or unknown
- * state for every check, so the checks column would repeat the same uninformative
- * icons for each attempt instead of showing anything that actually differs.
+ * True when every attempt reports that every validation category was not run, so
+ * the checks column would repeat the same uninformative icons for each attempt.
  */
-function isValidationUninformative(verdict: ISessionComparisonVerdict): boolean {
+function wereAllValidationChecksNotRun(verdict: ISessionComparisonVerdict): boolean {
 	if (verdict.attempts.length < 2) {
 		return false;
 	}
-	const inertStates: readonly SessionComparisonValidationState[] = [SessionComparisonValidationState.NotRun, SessionComparisonValidationState.NotApplicable, SessionComparisonValidationState.Unknown];
-	return getValidationChecks().every(check => {
-		const first = verdict.attempts[0].validation[check.key].state;
-		return inertStates.includes(first) && verdict.attempts.every(attempt => attempt.validation[check.key].state === first);
-	});
+	return getValidationChecks().every(check => verdict.attempts.every(attempt => attempt.validation[check.key].state === SessionComparisonValidationState.NotRun));
 }
 
-/** A single shared explanation to show once instead of repeating the same uninformative checks on every row. */
+/** A single shared explanation to show once instead of repeating all-not-run checks on every row. */
 function getUniformValidationNote(verdict: ISessionComparisonVerdict): string | undefined {
-	return isValidationUninformative(verdict)
+	return wereAllValidationChecksNotRun(verdict)
 		? localize('sessionComparisonResult.noChecksRan', "Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.")
 		: undefined;
 }

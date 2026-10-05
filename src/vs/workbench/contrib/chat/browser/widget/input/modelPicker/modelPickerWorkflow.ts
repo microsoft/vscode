@@ -33,8 +33,15 @@ export interface IModelPickerWorkflow {
 	 */
 	getVariants(modelId: string): readonly IModelPickerWorkflowVariant[];
 	/** Adds another attempt of a selected model at a specific configuration. */
-	addVariant(modelId: string, configuration: Readonly<Record<string, string | number | boolean | null>>, label: string): void;
+	addVariant(
+		modelId: string,
+		configuration: Readonly<Record<string, string | number | boolean | null>>,
+		label: string,
+		baseConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+	): void;
 	removeVariant(modelId: string, index: number): void;
+	/** Reconciles queued variants after the selected model's persisted base configuration changes. */
+	reconcileVariants?(modelId: string, baseConfiguration: Readonly<Record<string, string | number | boolean | null>>): void;
 }
 
 /** One extra configured attempt of an already-selected model. */

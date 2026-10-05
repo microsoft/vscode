@@ -54,6 +54,10 @@ const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
 const AUTO_TIER_ACTION_PREFIX = 'autoTier:';
 
+function isWorkflowConfigurationValue(value: unknown): value is string | number | boolean | null {
+	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+}
+
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
 	readonly workflow?: IModelPickerWorkflow;
@@ -948,8 +952,8 @@ export class TabbedModelPicker extends Disposable {
 			speedVariants: this._speedVariants.get(model.identifier),
 			workflowVariants: isCheckedAttempt ? {
 				list: context.workflow!.getVariants(model.identifier),
-				onAdd: (configuration, label) => {
-					context.workflow!.addVariant(model.identifier, configuration, label);
+				onAdd: (configuration, label, baseConfiguration) => {
+					context.workflow!.addVariant(model.identifier, configuration, label, baseConfiguration);
 					this.refresh();
 				},
 				onRemove: index => {
@@ -980,6 +984,10 @@ export class TabbedModelPicker extends Disposable {
 				? pinned => this._togglePin(model.identifier, pinned)
 				: undefined,
 			onDidChangeConfiguration: (...change) => {
+				const [group, key, , toValue] = change;
+				if (group === MODEL_CONFIG_GROUP_EFFORT && isWorkflowConfigurationValue(toValue)) {
+					context.workflow?.reconcileVariants?.(model.identifier, { [key]: toValue });
+				}
 				context.onConfigurationChanged(model, ...change);
 			},
 		};

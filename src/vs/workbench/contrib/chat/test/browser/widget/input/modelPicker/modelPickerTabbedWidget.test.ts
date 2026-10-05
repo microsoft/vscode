@@ -397,13 +397,18 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('a checked compare-mode row can add and remove variant attempts at another configuration from its Details flyout', () => {
+	test('a checked compare-mode row reconciles effort variants and renders a keyboard-native remove control', async () => {
 		const attempts: IModelPickerWorkflowState = {
 			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
 			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
 		};
 		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
 		const variantsByModel = new Map<string, { configuration: Record<string, string | number | boolean | null>; label: string }[]>();
+		const baseConfigurations = new Map<string, Readonly<Record<string, string | number | boolean | null>>>();
+		const configurationsEqual = (
+			left: Readonly<Record<string, string | number | boolean | null>>,
+			right: Readonly<Record<string, string | number | boolean | null>>,
+		) => Object.keys(left).length === Object.keys(right).length && Object.keys(left).every(key => left[key] === right[key]);
 		const workflow: IModelPickerWorkflow = {
 			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set(attempts, undefined),
@@ -417,11 +422,21 @@ suite('TabbedModelPicker', () => {
 			setCount: () => { }, back: () => { }, next: () => { },
 			finish: () => { },
 			getVariants: modelId => variantsByModel.get(modelId) ?? [],
-			addVariant: (modelId, configuration, label) => {
-				variantsByModel.set(modelId, [...(variantsByModel.get(modelId) ?? []), { configuration, label }]);
+			addVariant: (modelId, configuration, label, baseConfiguration) => {
+				if (baseConfiguration) {
+					baseConfigurations.set(modelId, baseConfiguration);
+				}
+				const existing = variantsByModel.get(modelId) ?? [];
+				if (!existing.some(variant => configurationsEqual(variant.configuration, configuration)) && (!baseConfiguration || !configurationsEqual(baseConfiguration, configuration))) {
+					variantsByModel.set(modelId, [...existing, { configuration, label }]);
+				}
 			},
 			removeVariant: (modelId, index) => {
 				variantsByModel.set(modelId, (variantsByModel.get(modelId) ?? []).filter((_, candidate) => candidate !== index));
+			},
+			reconcileVariants: (modelId, baseConfiguration) => {
+				baseConfigurations.set(modelId, baseConfiguration);
+				variantsByModel.set(modelId, (variantsByModel.get(modelId) ?? []).filter(variant => !configurationsEqual(variant.configuration, baseConfiguration)));
 			},
 		};
 		const result = createPicker({ workflow });
@@ -437,20 +452,28 @@ suite('TabbedModelPicker', () => {
 
 		element(result.popup, '.chat-model-card-variant-chip.addable').click();
 		const afterAdd = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
+		const firstRemove = element(result.popup, '.chat-model-card-variant-remove') as HTMLButtonElement;
+		const removeControl = { tagName: firstRemove.tagName, type: firstRemove.type };
 		goBack(result.popup);
 		const badgeAfterAdd = rowBadge();
 
 		openDetails(result.popup, 'First');
-		element(result.popup, '.chat-model-card-variant-remove').click();
+		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
+		await timeout(0);
+		const afterBaseChange = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
+		element(result.popup, '.chat-model-card-variant-chip.addable').click();
+		(element(result.popup, '.chat-model-card-variant-remove') as HTMLButtonElement).click();
 		const afterRemove = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
 		goBack(result.popup);
 
-		assert.deepStrictEqual({ beforeAdd, afterAdd, badgeAfterAdd, afterRemove, badgeAfterRemove: rowBadge() }, {
+		assert.deepStrictEqual({ beforeAdd, afterAdd, removeControl, badgeAfterAdd, afterBaseChange, afterRemove, badgeAfterRemove: rowBadge() }, {
 			beforeAdd: { addable: ['High'], added: [] },
 			afterAdd: { addable: [], added: ['High'], stored: [{ configuration: { effort: 'high' }, label: 'High' }] },
+			removeControl: { tagName: 'BUTTON', type: 'button' },
 			badgeAfterAdd: 'Low · 32K +1',
-			afterRemove: { addable: ['High'], added: [], stored: [] },
-			badgeAfterRemove: 'Low · 32K',
+			afterBaseChange: { addable: ['Low'], added: [], stored: [] },
+			afterRemove: { addable: ['Low'], added: [], stored: [] },
+			badgeAfterRemove: 'High · 32K',
 		});
 	});
 	for (const committed of [false, true]) {

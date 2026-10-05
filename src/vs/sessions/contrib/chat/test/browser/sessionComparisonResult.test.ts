@@ -314,17 +314,26 @@ suite('Sessions - Comparison Result', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
 		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { }());
+		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
-			override comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
+			override comparisons = comparisons;
 			override getComparison(): ISessionComparison { return comparison; }
 		}());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
 		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { });
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
-		const hoverCalls: { target: HTMLElement; content: unknown }[] = [];
+		const hoverCalls: { target: HTMLElement; content: unknown; keyboard: boolean }[] = [];
 		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
-			override setupDelayedHover(target: HTMLElement, options: (() => { content?: unknown }) | { content?: unknown }) {
-				hoverCalls.push({ target, content: (typeof options === 'function' ? options() : options).content });
+			override setupDelayedHover(
+				target: HTMLElement,
+				options: Parameters<IHoverService['setupDelayedHover']>[1],
+				lifecycleOptions?: Parameters<IHoverService['setupDelayedHover']>[2],
+			) {
+				hoverCalls.push({
+					target,
+					content: (typeof options === 'function' ? options() : options).content,
+					keyboard: lifecycleOptions?.setupKeyboardEvents === true,
+				});
 				return { dispose: () => { } };
 			}
 		}());
@@ -341,19 +350,55 @@ suite('Sessions - Comparison Result', () => {
 		store.add({ dispose: () => result.domNode.remove() });
 
 		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
-		const checksHeaderHover = hoverCalls.find(call => call.target.textContent === 'Checks')?.content;
+		const checksHeader = result.domNode.querySelector<HTMLElement>('.session-comparison-scorecard-checks-header');
+		const checksHeaderHover = hoverCalls.find(call => call.target === checksHeader);
 		assert.deepStrictEqual({
 			note: result.domNode.querySelector('.session-comparison-scorecard-checks-note'),
-			checksHeaderHover,
+			checksHeader: checksHeader && {
+				content: checksHeaderHover?.content,
+				keyboard: checksHeaderHover?.keyboard,
+				role: checksHeader.getAttribute('role'),
+				tabIndex: checksHeader.tabIndex,
+				ariaLabel: checksHeader.getAttribute('aria-label'),
+			},
+			rowKeyboardHovers: hoverCalls.filter(call => call.target.classList.contains('session-comparison-scorecard-toggle')).map(call => call.keyboard),
 			perRowChecks: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check')].length),
 			perRowSummaryDash: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check-summary')?.textContent),
 		}, {
 			note: null,
-			checksHeaderHover: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			checksHeader: {
+				content: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+				keyboard: true,
+				role: 'note',
+				tabIndex: 0,
+				ariaLabel: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			},
+			rowKeyboardHovers: [true, true],
 			perRowChecks: [0, 0],
 			perRowSummaryDash: ['\u2014', '\u2014'],
 		});
 		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
 		assert.strictEqual(rows()[0].querySelector('.session-comparison-scorecard-checks-strip'), null, 'the shared note replaces the per-row checks strip once expanded too');
+
+		const unknown = { state: SessionComparisonValidationState.Unknown, source: SessionComparisonValidationSource.Unavailable } satisfies SessionComparisonValidationEvidence;
+		comparisons.set([{
+			...comparison,
+			verdict: comparison.verdict && {
+				...comparison.verdict,
+				attempts: comparison.verdict.attempts.map(attempt => ({
+					...attempt,
+					validation: { tests: unknown, build: unknown, lint: unknown, diagnostics: unknown },
+				})),
+			},
+		}], undefined);
+		assert.deepStrictEqual({
+			checksHeader: result.domNode.querySelector('.session-comparison-scorecard-checks-header'),
+			perRowChecks: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check')].length),
+			perRowSummaryDash: rows().map(row => row.querySelector('.session-comparison-scorecard-check-summary')?.textContent),
+		}, {
+			checksHeader: null,
+			perRowChecks: [4, 4],
+			perRowSummaryDash: [undefined, undefined],
+		});
 	});
 });

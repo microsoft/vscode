@@ -100,6 +100,46 @@ suite('SessionComparisonModelSelection', () => {
 		assert.deepStrictEqual(selection.getVariants('gpt-5.5'), [{ configuration: { effort: 'max' }, label: 'Max' }]);
 	});
 
+	test('variants stay distinct from the persisted base configuration and from each other', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('gpt-5.5');
+		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High', { effort: 'low' });
+		selection.addVariant('gpt-5.5', { effort: 'high' }, 'High duplicate', { effort: 'low' });
+		const beforeBaseChange = {
+			variants: selection.getVariants('gpt-5.5'),
+			canFinish: selection.state.get()?.canFinish,
+		};
+
+		selection.reconcileVariants('gpt-5.5', { effort: 'high' });
+		const afterBaseChange = {
+			variants: selection.getVariants('gpt-5.5'),
+			canFinish: selection.state.get()?.canFinish,
+		};
+		assert.throws(() => selection.finish(), /not ready/);
+
+		selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max', { effort: 'high' });
+		selection.finish();
+		assert.deepStrictEqual({
+			beforeBaseChange,
+			afterBaseChange,
+			attempts: selection.attempts.get(),
+		}, {
+			beforeBaseChange: {
+				variants: [{ configuration: { effort: 'high' }, label: 'High' }],
+				canFinish: true,
+			},
+			afterBaseChange: {
+				variants: [],
+				canFinish: false,
+			},
+			attempts: [
+				{ modelId: 'gpt-5.5' },
+				{ modelId: 'gpt-5.5', configuration: { effort: 'max' }, variantLabel: 'Max' },
+			],
+		});
+	});
+
 	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
 		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
 		const named = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));

@@ -16,6 +16,8 @@ interface IComparisonModelSelection {
 	readonly repeatCount: number;
 	/** Extra attempts of an already-selected model at another configuration, keyed by model id. */
 	readonly variants: Readonly<Record<string, readonly IModelPickerWorkflowVariant[]>>;
+	/** The selected model's effective base configuration when its variants were last reconciled. */
+	readonly baseConfigurations?: Readonly<Record<string, IModelPickerWorkflowVariant['configuration']>>;
 	readonly judge?: string;
 	readonly synthesizer?: string;
 }
@@ -28,6 +30,34 @@ export interface IComparisonAttempt {
 	readonly variantLabel?: string;
 }
 
+function configurationsEqual(
+	left: IModelPickerWorkflowVariant['configuration'],
+	right: IModelPickerWorkflowVariant['configuration'],
+): boolean {
+	const leftKeys = Object.keys(left);
+	return leftKeys.length === Object.keys(right).length && leftKeys.every(key => left[key] === right[key]);
+}
+
+function getDistinctVariants(selection: IComparisonModelSelection, modelId: string): readonly IModelPickerWorkflowVariant[] {
+	const baseConfiguration = selection.baseConfigurations?.[modelId];
+	const variants = selection.variants[modelId] ?? [];
+	return variants.filter((variant, index) =>
+		(!baseConfiguration || !configurationsEqual(variant.configuration, baseConfiguration))
+		&& variants.findIndex(candidate => configurationsEqual(candidate.configuration, variant.configuration)) === index
+	);
+}
+
+function normalizeSelectionVariants(selection: IComparisonModelSelection): IComparisonModelSelection {
+	const variants: Record<string, readonly IModelPickerWorkflowVariant[]> = {};
+	for (const modelId of selection.models) {
+		const distinct = getDistinctVariants(selection, modelId);
+		if (distinct.length > 0) {
+			variants[modelId] = distinct;
+		}
+	}
+	return { ...selection, variants };
+}
+
 /**
  * How many real, distinct attempts are configured: one per selected model, plus one per
  * variant. Unlike {@link getAttempts}, this never applies the legacy single-model
@@ -38,7 +68,7 @@ function getAttemptCount(selection: IComparisonModelSelection | undefined): numb
 	if (!selection) {
 		return 0;
 	}
-	return selection.models.reduce((sum, modelId) => sum + 1 + (selection.variants[modelId]?.length ?? 0), 0);
+	return selection.models.reduce((sum, modelId) => sum + 1 + getDistinctVariants(selection, modelId).length, 0);
 }
 
 function getAttempts(selection: IComparisonModelSelection | undefined): readonly IComparisonAttempt[] {
@@ -47,12 +77,12 @@ function getAttempts(selection: IComparisonModelSelection | undefined): readonly
 	}
 	// Legacy path, preserved for existing single-model repeat-count callers: a lone selected
 	// model with no variants runs repeatCount times at its one configuration.
-	if (selection.models.length === 1 && !(selection.variants[selection.models[0]]?.length)) {
+	if (selection.models.length === 1 && getDistinctVariants(selection, selection.models[0]).length === 0) {
 		return Array.from({ length: selection.repeatCount }, () => ({ modelId: selection.models[0] }));
 	}
 	return selection.models.flatMap(modelId => [
 		{ modelId },
-		...(selection.variants[modelId] ?? []).map(variant => ({ modelId, configuration: variant.configuration, variantLabel: variant.label })),
+		...getDistinctVariants(selection, modelId).map(variant => ({ modelId, configuration: variant.configuration, variantLabel: variant.label })),
 	]);
 }
 
@@ -143,7 +173,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			throw new Error('Model comparison is not available.');
 		}
 		transaction(tx => {
-			this._draft.set(this._committed.get() ?? { models: [], repeatCount: 2, variants: {} }, tx);
+			this._draft.set(normalizeSelectionVariants(this._committed.get() ?? { models: [], repeatCount: 2, variants: {}, baseConfigurations: {} }), tx);
 			this._step.set('attempts', tx);
 		});
 	}
@@ -179,7 +209,8 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 				if (models.includes(modelId)) {
 					// Deselecting a model discards its queued variants with it.
 					const { [modelId]: _removed, ...variants } = draft.variants;
-					this._draft.set({ ...draft, models: models.filter(id => id !== modelId), variants }, undefined);
+					const { [modelId]: _removedBase, ...baseConfigurations } = draft.baseConfigurations ?? {};
+					this._draft.set({ ...draft, models: models.filter(id => id !== modelId), variants, baseConfigurations }, undefined);
 				} else {
 					this._draft.set({ ...draft, models: [...models, modelId] }, undefined);
 				}
@@ -198,22 +229,44 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 
 	getVariants(modelId: string): readonly IModelPickerWorkflowVariant[] {
 		const draft = this._draft.get();
-		return draft?.models.includes(modelId) ? draft.variants[modelId] ?? [] : [];
+		return draft?.models.includes(modelId) ? getDistinctVariants(draft, modelId) : [];
 	}
 
-	addVariant(modelId: string, configuration: Readonly<Record<string, string | number | boolean | null>>, label: string): void {
+	addVariant(
+		modelId: string,
+		configuration: Readonly<Record<string, string | number | boolean | null>>,
+		label: string,
+		baseConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+	): void {
 		const draft = this._getDraft();
 		if (!draft.models.includes(modelId)) {
 			throw new Error('Select the model before adding another attempt of it.');
 		}
-		const variants = [...(draft.variants[modelId] ?? []), { configuration, label }];
-		this._draft.set({ ...draft, variants: { ...draft.variants, [modelId]: variants } }, undefined);
+		const updated = {
+			...draft,
+			variants: { ...draft.variants, [modelId]: [...(draft.variants[modelId] ?? []), { configuration, label }] },
+			baseConfigurations: baseConfiguration
+				? { ...draft.baseConfigurations, [modelId]: baseConfiguration }
+				: draft.baseConfigurations,
+		};
+		this._draft.set(normalizeSelectionVariants(updated), undefined);
 	}
 
 	removeVariant(modelId: string, index: number): void {
 		const draft = this._getDraft();
 		const variants = (draft.variants[modelId] ?? []).filter((_, candidate) => candidate !== index);
 		this._draft.set({ ...draft, variants: { ...draft.variants, [modelId]: variants } }, undefined);
+	}
+
+	reconcileVariants(modelId: string, baseConfiguration: Readonly<Record<string, string | number | boolean | null>>): void {
+		const draft = this._getDraft();
+		if (!draft.models.includes(modelId)) {
+			return;
+		}
+		this._draft.set(normalizeSelectionVariants({
+			...draft,
+			baseConfigurations: { ...draft.baseConfigurations, [modelId]: baseConfiguration },
+		}), undefined);
 	}
 
 	setCount(count: number): void {
@@ -239,7 +292,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			throw new Error('The comparison is not ready.');
 		}
 		transaction(tx => {
-			this._committed.set(this._getDraft(), tx);
+			this._committed.set(normalizeSelectionVariants(this._getDraft()), tx);
 			this._draft.set(undefined, tx);
 			this._step.set('attempts', tx);
 		});
@@ -261,8 +314,11 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			const variants = models.length !== draft.models.length
 				? Object.fromEntries(Object.entries(draft.variants).filter(([modelId]) => models.includes(modelId)))
 				: draft.variants;
+			const baseConfigurations = models.length !== draft.models.length
+				? Object.fromEntries(Object.entries(draft.baseConfigurations ?? {}).filter(([modelId]) => models.includes(modelId)))
+				: draft.baseConfigurations;
 			if (models.length !== draft.models.length || judge !== draft.judge || synthesizer !== draft.synthesizer) {
-				this._draft.set({ ...draft, models, judge, synthesizer, variants }, tx);
+				this._draft.set({ ...draft, models, judge, synthesizer, variants, baseConfigurations }, tx);
 				if (models.length !== draft.models.length) {
 					this._step.set('attempts', tx);
 				} else if (judge !== draft.judge) {

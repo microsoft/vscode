@@ -73,8 +73,16 @@ export interface IModelCardOptions {
 export interface IModelCardWorkflowVariants {
 	/** This model's already-added variants, beyond its one default-configured attempt. */
 	readonly list: readonly IModelPickerWorkflowVariant[];
-	readonly onAdd: (configuration: Readonly<Record<string, string | number | boolean | null>>, label: string) => void;
+	readonly onAdd: (
+		configuration: Readonly<Record<string, string | number | boolean | null>>,
+		label: string,
+		baseConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
+	) => void;
 	readonly onRemove: (index: number) => void;
+}
+
+function isWorkflowConfigurationValue(value: unknown): value is string | number | boolean | null {
+	return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
 }
 
 /**
@@ -370,6 +378,7 @@ export class ModelCard extends DisposableStore {
 	 */
 	private _renderVariantsSection(effort: IModelConfigProperty, variants: IModelCardWorkflowVariants): void {
 		const choices = getModelConfigChoices(effort);
+		const baseConfiguration = isWorkflowConfigurationValue(effort.value) ? { [effort.key]: effort.value } : undefined;
 		const addable = choices.filter(choice => !choice.checked && !variants.list.some(variant => variant.configuration[effort.key] === choice.value));
 		if (!addable.length && !variants.list.length) {
 			return;
@@ -378,16 +387,15 @@ export class ModelCard extends DisposableStore {
 		const chips = dom.append(section, dom.$('.chat-model-card-variant-chips'));
 		for (const variant of variants.list) {
 			const chip = dom.append(chips, dom.$('span.chat-model-card-variant-chip.added', undefined, variant.label));
-			const remove = dom.append(chip, dom.$('span.chat-model-card-variant-remove' + ThemeIcon.asCSSSelector(Codicon.close)));
-			remove.setAttribute('role', 'button');
-			remove.setAttribute('tabindex', '0');
+			const remove = dom.append(chip, dom.$<HTMLButtonElement>('button.chat-model-card-variant-remove' + ThemeIcon.asCSSSelector(Codicon.close)));
+			remove.type = 'button';
 			remove.setAttribute('aria-label', localize('chat.modelPicker.removeVariant', "Remove the {0} attempt", variant.label));
 			this._contentDisposables.add(dom.addDisposableListener(remove, dom.EventType.CLICK, () => variants.onRemove(variants.list.indexOf(variant))));
 		}
 		for (const choice of addable) {
 			const chip = dom.append(chips, dom.$('button.chat-model-card-variant-chip.addable', { 'aria-label': localize('chat.modelPicker.addVariant', "Also compare at {0}", choice.label) }));
 			dom.reset(chip, ...renderLabelWithIcons(`$(${Codicon.add.id}) ${choice.label}`));
-			this._contentDisposables.add(dom.addDisposableListener(chip, dom.EventType.CLICK, () => variants.onAdd({ [effort.key]: choice.value }, choice.label)));
+			this._contentDisposables.add(dom.addDisposableListener(chip, dom.EventType.CLICK, () => variants.onAdd({ [effort.key]: choice.value }, choice.label, baseConfiguration)));
 		}
 	}
 

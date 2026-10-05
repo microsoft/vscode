@@ -1053,8 +1053,12 @@
 
 .chat-model-card-variant-remove {
 	display: flex;
+	padding: 0;
+	border: none;
+	background: transparent;
 	cursor: pointer;
 	color: var(--vscode-descriptionForeground);
+	font: inherit;
 }
 
 .chat-model-card-variant-remove:hover {
