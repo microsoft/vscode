@@ -669,6 +669,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (this._state.kind !== AgentHostClientState.Connecting) {
 				throw transportLostError(this._address);
 			}
+			// Arm the watchdog before the handshake, as a reconnect does. A relay can be up and
+			// acknowledging publishes while the host behind it never answers `initialize`; without a
+			// liveness check the handshake would wait on that silence indefinitely.
+			this._lastReadTime = Date.now();
+			this._resetLivenessTimers();
 
 			stage = 'initialize';
 			const result = await this._traceConnection('protocol.initialize', () => this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
@@ -2567,8 +2572,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		// Fire-and-forget. The reply (or any other inbound message that
 		// happens to arrive first) will reset both timers; if nothing
-		// arrives, {@link _onCloseTimer} fires.
-		void this._dispatchRequest<CommandMap['ping']['result']>('ping', { channel: ROOT_STATE_URI }, { bypassReconnectGate: true }).catch(() => undefined);
+		// arrives, {@link _onCloseTimer} fires. During the initial handshake
+		// the ping goes straight to the wire rather than the pre-initialize
+		// outbox, since it exists to probe the transport.
+		void this._dispatchRequest<CommandMap['ping']['result']>('ping', { channel: ROOT_STATE_URI }, { bypassReconnectGate: true, bypassInitializeQueue: true }).catch(() => undefined);
 	}
 
 	/** Rechecks deferrals promptly, then force-closes only after a fresh liveness window expires. */

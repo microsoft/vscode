@@ -375,7 +375,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 
 			// A token only means Mission Control believes the environment is online — a sandbox deleted
 			// minutes ago still has a fresh heartbeat, so one is minted for a host that is already gone.
-			// The handshake's liveness watchdog settles that case.
+			// The protocol client's liveness watchdog, armed before the handshake, settles that case.
 			establishing = true;
 			clientId = clientToken.client_id;
 			this._logService.info(`${LOG_PREFIX} Credentials ready: environmentId=${options.environmentId} sessionId=${options.sessionId ?? 'none'} clientId=${clientId} durationMs=${watch.elapsed()}`);

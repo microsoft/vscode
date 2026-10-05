@@ -5622,6 +5622,34 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('watchdog fails a silent initial handshake instead of waiting on it indefinitely', async function () {
+			this.timeout(60_000);
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				// A relay can be up and acknowledging publishes while the host behind it never
+				// answers `initialize`; relay acks are not host data, so the transport stays silent.
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				const connectError = client.connect().catch(err => err);
+				transports[0].connectDeferred.complete();
+				await waitForRequest(transports[0], 'initialize');
+
+				await timeout(30_000);
+
+				const err = await connectError;
+				const pings = transports[0].sentMessages.filter(isPingRequest);
+				assert.deepStrictEqual({
+					failed: err instanceof ProtocolError && /Connection appears dead/.test(err.message),
+					pinged: pings.length >= 1,
+					state: client.connectionState,
+					retrying: transports.length >= 2,
+				}, {
+					failed: true,
+					pinged: true,
+					state: AgentHostClientState.Reconnecting,
+					retrying: true,
+				});
+			});
+		});
+
 		for (const stalledMethod of ['reconnect', 'initialize', 'subscribe']) {
 			test(`watchdog retries a silent ${stalledMethod} and hydrates a waiting session`, async () => {
 				return runWithFakedTimers({ useFakeTimers: true }, async () => {
