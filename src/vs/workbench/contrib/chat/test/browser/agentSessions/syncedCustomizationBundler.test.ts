@@ -10,7 +10,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -30,7 +30,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly statFailures = new ResourceSet();
 	private readonly writeFailures = new ResourceSet();
 	private statDelay = 0;
-	private statBlock: Promise<void> | undefined;
+	private statBlock: { directory: URI; released: Promise<void> } | undefined;
 	activeStats = 0;
 	maxActiveStats = 0;
 	statCalls = 0;
@@ -44,8 +44,8 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		this.statDelay = delay;
 	}
 
-	blockStatsUntil(released: Promise<void>): void {
-		this.statBlock = released;
+	blockStatsInDirectory(directory: URI, released: Promise<void>): void {
+		this.statBlock = { directory, released };
 	}
 
 	failStat(resource: URI): void {
@@ -64,7 +64,9 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 			if (this.statDelay > 0) {
 				await timeout(this.statDelay);
 			}
-			await this.statBlock;
+			if (this.statBlock && isEqual(dirname(resource), this.statBlock.directory)) {
+				await this.statBlock.released;
+			}
 			if (this.statFailures.has(resource)) {
 				throw new Error('Unavailable test resource');
 			}
@@ -404,7 +406,7 @@ suite('SyncedCustomizationBundler', () => {
 		}
 		const replacement = await seedFile('/replacement.md', 'replacement content');
 		const statsReleased = new DeferredPromise<void>();
-		memFs.blockStatsUntil(statsReleased.p);
+		memFs.blockStatsInDirectory(URI.joinPath(dirname(skill), 'references'), statsReleased.p);
 
 		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		while (memFs.maxActiveStats < 10) {
