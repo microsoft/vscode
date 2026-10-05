@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -19,6 +19,7 @@ import { ISessionContext } from '../../../../services/sessions/browser/sessionCo
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID } from '../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { AgentHostModePicker } from '../../agentHost/browser/agentHostModePicker.js';
 import { AgentHostPermissionPickerDelegate } from '../../agentHost/browser/agentHostPermissionPickerDelegate.js';
+import { PickerActionViewItem } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
 import { MobilePermissionPicker } from './mobilePermissionPicker.js';
 import { MobileAgentHostModePicker } from '../../agentHost/browser/mobile/mobileAgentHostModePicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
@@ -69,8 +70,8 @@ registerAction2(class extends Action2 {
  * Wraps a standalone picker widget as a {@link BaseActionViewItem}
  * so it can be rendered by a {@link MenuWorkbenchToolBar}.
  */
-class PickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, private readonly delegate?: IDisposable) {
+class SandboxPickerActionViewItem extends BaseActionViewItem {
+	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
 
@@ -80,7 +81,6 @@ class PickerActionViewItem extends BaseActionViewItem {
 
 	override dispose(): void {
 		this.picker.dispose();
-		this.delegate?.dispose();
 		super.dispose();
 	}
 }
@@ -103,14 +103,14 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(Menus.NewSessionControl, 'sessions.sandbox.approvalPicker', (_action, _options, scopedInstantiationService) => {
 			const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 			const delegate = scopedInstantiationService.createInstance(AgentHostPermissionPickerDelegate, session);
-			return new PickerActionViewItem(scopedInstantiationService.createInstance(MobilePermissionPicker, delegate), delegate);
+			return new PickerActionViewItem(scopedInstantiationService.createInstance(MobilePermissionPicker, delegate), delegate, true);
 		}));
 		this._register(actionViewItemService.register(
 			Menus.NewSessionRepositoryConfig, 'sessions.defaultCopilot.sandboxPicker',
 			(_action, _options, scopedInstantiationService) => {
 				const { session } = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionContext));
 				const picker = scopedInstantiationService.createInstance(SandboxPicker, session);
-				return new PickerActionViewItem(picker);
+				return new SandboxPickerActionViewItem(picker);
 			},
 		));
 	}

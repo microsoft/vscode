@@ -43,7 +43,7 @@ import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } 
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
-import { ChatModeKind, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatDefaultPermissionLevel, ChatModeKind, ChatPermissionLevel } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID, CopilotCloudSessionType, CopilotSandboxSessionType, RemoteNewSession } from '../../browser/copilotChatSessionsProvider.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
@@ -2534,6 +2534,32 @@ suite('CopilotChatSessionsProvider', () => {
 		// A browsed GitHub workspace root carries a ref (`/<owner>/<repo>/HEAD`), which is what
 		// `repoNwo` has to strip back down to `owner/repo`.
 		const repoWorkspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/osortega/simple-server/HEAD' });
+
+		test('seeds cloud approvals from each default configuration value', () => {
+			const values = [ChatDefaultPermissionLevel.Manual, ChatDefaultPermissionLevel.Assisted, ChatDefaultPermissionLevel.AllowAll, undefined].map(approvals => {
+				const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultConfiguration]: { approvals } });
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
+				return createCloudSandboxSessionConfig(configuration).values.approvalMode;
+			});
+			assert.deepStrictEqual(values, ['manual', 'assisted', 'allow-all', 'assisted']);
+		});
+
+		test('enterprise policy clamps an Allow All default to Manual', () => {
+			const configuration = new class extends TestConfigurationService {
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === ChatConfiguration.GlobalAutoApprove ? inspected.value : undefined };
+				}
+			}({
+				[ChatConfiguration.DefaultConfiguration]: { approvals: ChatDefaultPermissionLevel.AllowAll },
+				[ChatConfiguration.GlobalAutoApprove]: false,
+			});
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const config = createCloudSandboxSessionConfig(configuration);
+			assert.deepStrictEqual({ values: config.values, approvals: config.schema.properties.approvalMode.enum }, {
+				values: { mode: 'interactive', approvalMode: 'manual' }, approvals: ['manual'],
+			});
+		});
 
 		function createSandboxProvider(opts: { enabled?: boolean; provision?: CloudSandboxAgentHostContribution['provisionSession']; prepare?: CloudSandboxAgentHostContribution['prepareSession']; trackProgress?: CloudSandboxAgentHostContribution['trackSessionCreationProgress']; getOptionGroups?: () => IChatSessionProviderOptionGroup[] | undefined; providerMode?: 'default' | 'sandbox'; onGetChatSession?: () => void; sandboxModels?: readonly ILanguageModelChatMetadataAndIdentifier[] } = {}) {
 			const configurationService = new TestConfigurationService();

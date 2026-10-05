@@ -7,7 +7,7 @@ import { localize } from '../../../../../nls.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
-import { ChatConfiguration, IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatDefaultPermissionLevel, IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 
 /** Cloud draft vocabulary until the provisioned host supplies its authoritative schema. */
 export function createCloudSandboxSessionConfig(configurationService: IConfigurationService): ResolveSessionConfigResult {
@@ -15,7 +15,7 @@ export function createCloudSandboxSessionConfig(configurationService: IConfigura
 	const modes = ['interactive', 'plan', 'autopilot'];
 	const approvals = restricted ? ['manual'] : ['manual', 'assisted', 'allow-all'];
 	const defaults = configurationService.getValue<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-	const approval = defaults?.approvals;
+	const approval = defaults?.approvals === ChatDefaultPermissionLevel.AllowAll ? 'allow-all' : defaults?.approvals;
 	return {
 		schema: {
 			type: 'object',

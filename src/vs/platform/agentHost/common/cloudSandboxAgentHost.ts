@@ -236,6 +236,11 @@ export interface ICloudSandboxConnectionRequest {
 
 export const ICloudSandboxApiService = createDecorator<ICloudSandboxApiService>('cloudSandboxApiService');
 
+export interface ICloudSandboxModelCatalog {
+	readonly models: readonly SessionModelInfo[];
+	readonly defaultModel?: string;
+}
+
 /** Account identity and control-plane APIs for sandbox credentials, discovery, and persisted history. */
 export interface ICloudSandboxApiService {
 	readonly _serviceBrand: undefined;
@@ -247,7 +252,7 @@ export interface ICloudSandboxApiService {
 	getAccountKey(): Promise<string | undefined>;
 
 	/** Account-authorized cloud model catalog, available before a sandbox is provisioned. */
-	listModels(token: CancellationToken): Promise<{ readonly models: readonly SessionModelInfo[]; readonly defaultModel?: string }>;
+	listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog>;
 
 	/**
 	 * Mint a fresh client Web PubSub connection token for a new logical connection. May resolve to a

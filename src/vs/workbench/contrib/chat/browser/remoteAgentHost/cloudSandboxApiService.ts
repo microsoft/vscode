@@ -25,6 +25,7 @@ import {
 	ICloudSandboxDiscoveredSession,
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
+	ICloudSandboxModelCatalog,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -815,7 +816,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`;
 	}
 
-	async listModels(token: CancellationToken): Promise<{ readonly models: readonly SessionModelInfo[]; readonly defaultModel?: string }> {
+	async listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog> {
 		const context = await this._request(`${this._tasksBaseUrl()}/swe/models`, 'mc.models.list', 'listModels', {
 			'Accept': 'application/json',
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,

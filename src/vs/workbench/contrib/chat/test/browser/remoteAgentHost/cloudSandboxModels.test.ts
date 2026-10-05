@@ -13,7 +13,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, IPromptChoice, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
-import { CloudSandboxModels } from '../../../browser/remoteAgentHost/cloudSandboxModels.js';
+import { CloudSandboxModelCatalogService, CloudSandboxModels, ICloudSandboxModelCatalogService } from '../../../browser/remoteAgentHost/cloudSandboxModels.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -40,8 +40,11 @@ suite('CloudSandboxModels', () => {
 				return new NoOpNotification();
 			},
 		});
-		const catalog = store.add(instantiation.createInstance(CloudSandboxModels, 'sandbox', 'sandbox-catalog', modelProvider));
-		return { catalog, accounts, errors, retries, notified };
+		const sharedCatalog = store.add(instantiation.createInstance(CloudSandboxModelCatalogService));
+		instantiation.stub(ICloudSandboxModelCatalogService, sharedCatalog);
+		const createCatalog = (vendor = 'sandbox-catalog', provider = modelProvider) => store.add(instantiation.createInstance(CloudSandboxModels, 'sandbox', vendor, provider));
+		const catalog = createCatalog();
+		return { catalog, sharedCatalog, createCatalog, accounts, errors, retries, notified };
 	}
 
 	test('supplements the connected host catalog without dropping its models on account changes', async () => {
@@ -65,53 +68,85 @@ suite('CloudSandboxModels', () => {
 
 	test('coalesces reads and caches the catalog until the account changes', async () => {
 		let calls = 0;
-		const { catalog, accounts } = setup(async () => ({
+		const { catalog, createCatalog, accounts } = setup(async () => ({
 			defaultModel: 'new-model',
 			models: [{ id: `model-${++calls}`, provider: 'copilot', name: 'New Model', configSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', title: 'Effort', enum: ['low', 'high'] } } } }],
 		}));
-		const first = Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready));
+		const secondCatalog = createCatalog('second');
+		const thirdCatalog = createCatalog('third');
+		const consumers = [catalog, secondCatalog, thirdCatalog];
+		const first = Promise.all(consumers.map(consumer => Event.toPromise(Event.filter(consumer.onDidChange, () => consumer.ready))));
 		catalog.load();
-		catalog.load();
+		secondCatalog.load();
+		thirdCatalog.load();
 		await first;
-		catalog.load();
-		const before = catalog.models.map(model => model.metadata.id);
-		const second = Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready));
+		const cachedCatalog = createCatalog('cached');
+		const cached = Event.toPromise(Event.filter(cachedCatalog.onDidChange, () => cachedCatalog.ready));
+		cachedCatalog.load();
+		await cached;
+		consumers.push(cachedCatalog);
+		const before = consumers.map(consumer => consumer.models.map(model => model.metadata.id));
+		const second = Promise.all(consumers.map(consumer => Event.toPromise(Event.filter(consumer.onDidChange, () => consumer.ready))));
 		accounts.fire('another-account');
 		await second;
-		assert.deepStrictEqual({ calls, before, after: catalog.models.map(model => model.metadata.id), efforts: catalog.models[0].metadata.configurationSchema?.properties?.reasoningEffort.enum }, {
-			calls: 2, before: ['model-1'], after: ['model-2'], efforts: ['low', 'high'],
+		assert.deepStrictEqual({ calls, before, after: consumers.map(consumer => consumer.models.map(model => model.metadata.id)), efforts: catalog.models[0].metadata.configurationSchema?.properties?.reasoningEffort.enum }, {
+			calls: 2, before: [['model-1'], ['model-1'], ['model-1'], ['model-1']], after: [['model-2'], ['model-2'], ['model-2'], ['model-2']], efforts: ['low', 'high'],
 		});
 	});
 
 	test('offers an explicit retry after a failed request', async () => {
 		let calls = 0;
-		const { catalog, errors, retries, notified } = setup(async () => {
+		const { catalog, createCatalog, errors, retries, notified } = setup(async () => {
 			if (++calls === 1) {
 				throw new Error('catalog unavailable');
 			}
 			return { models: [{ id: 'model', provider: 'copilot', name: 'Model' }] };
 		});
+		const otherCatalog = createCatalog('other');
 		catalog.load();
+		otherCatalog.load();
 		await notified.p;
-		const ready = Event.toPromise(Event.filter(catalog.onDidChange, () => catalog.ready));
+		const lateCatalog = createCatalog('late');
+		lateCatalog.load();
+		const consumers = [catalog, otherCatalog, lateCatalog];
+		const ready = Promise.all(consumers.map(consumer => Event.toPromise(Event.filter(consumer.onDidChange, () => consumer.ready))));
 		await retries[0].run();
 		await ready;
-		assert.deepStrictEqual({ calls, errors, ready: catalog.ready, ids: catalog.models.map(model => model.metadata.id) }, {
-			calls: 2, errors: ['Could not load models for GitHub sandboxes.'], ready: true, ids: ['model'],
+		assert.deepStrictEqual({ calls, errors, ready: consumers.map(consumer => consumer.ready), ids: consumers.map(consumer => consumer.models.map(model => model.metadata.id)) }, {
+			calls: 2, errors: ['Could not load models for GitHub sandboxes.'], ready: [true, true, true], ids: [['model'], ['model'], ['model']],
 		});
 	});
 
 	test('cancels an in-flight catalog request when its owner is disposed', async () => {
 		const cancelled = new DeferredPromise<void>();
-		const { catalog, errors } = setup(async token => {
+		const { catalog, sharedCatalog, errors } = setup(async token => {
 			store.add(token.onCancellationRequested(() => cancelled.complete()));
 			await cancelled.p;
 			throw new CancellationError();
 		});
 		catalog.load();
-		catalog.dispose();
+		sharedCatalog.dispose();
 		await cancelled.p;
 		assert.deepStrictEqual(errors, []);
+	});
+
+	test('disposing one provider does not cancel discovery needed by another', async () => {
+		const response = new DeferredPromise<Awaited<ReturnType<ICloudSandboxApiService['listModels']>>>();
+		let cancelled = false;
+		let calls = 0;
+		const { catalog, createCatalog } = setup(token => {
+			calls++;
+			store.add(token.onCancellationRequested(() => cancelled = true));
+			return response.p;
+		});
+		const otherCatalog = createCatalog('other');
+		const ready = Event.toPromise(Event.filter(otherCatalog.onDidChange, () => otherCatalog.ready));
+		catalog.load();
+		otherCatalog.load();
+		catalog.dispose();
+		await response.complete({ models: [{ id: 'model', name: 'Model', provider: 'copilot' }] });
+		await ready;
+		assert.deepStrictEqual({ calls, cancelled, ids: otherCatalog.models.map(model => model.metadata.id) }, { calls: 1, cancelled: false, ids: ['model'] });
 	});
 
 	test('ignores a late response from the previous account', async () => {
