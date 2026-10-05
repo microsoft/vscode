@@ -47,8 +47,8 @@ export interface IOnboardingTarget {
 	/** Accepted selections supplied by a scoped adapter, without replacing the owner's DOM marker. */
 	readonly onDidSelect?: Event<Promise<boolean>>;
 	readonly onDidActivate?: Event<void>;
-	/** Returns an element the target opened, such as its menu, so the spotlight highlights both together. */
-	readonly popup?: () => HTMLElement | undefined;
+	/** Returns other elements to highlight together with {@link element}, such as a menu the target opened. */
+	readonly additionalElements?: () => readonly HTMLElement[];
 }
 
 interface IOnboardingTargetRegistration {
@@ -94,7 +94,7 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 				}
 				return undefined;
 			},
-			popup: target.popup,
+			additionalElements: target.additionalElements,
 		};
 	}
 	const element = findOnboardingTarget(targetWindow, id, scope);

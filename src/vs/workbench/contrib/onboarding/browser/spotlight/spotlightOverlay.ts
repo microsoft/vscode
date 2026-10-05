@@ -58,12 +58,14 @@ export interface ISpotlightShowOptions {
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
 	/**
-	 * Returns an element the target opened, such as its menu. The hole grows to include it, so the
-	 * popup shows through the hole and the callout is placed beside it. Clicking the callout keeps
-	 * focus in the popup, so the popup stays open across steps. Combine with `allowTargetInteraction`
-	 * to keep the popup interactive.
+	 * Returns other elements to highlight together with the target, such as a menu the target
+	 * opened. Read on every layout, so the list can change while the step is shown. The hole covers
+	 * the target and every visible element in the list, and the callout is placed beside them all.
+	 * While focus is inside one of these elements, clicking the callout leaves focus there, so
+	 * elements that close on blur stay open. Combine with `allowTargetInteraction` to keep them
+	 * interactive.
 	 */
-	readonly popup?: () => HTMLElement | undefined;
+	readonly additionalElements?: () => readonly HTMLElement[];
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
 	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
@@ -237,10 +239,11 @@ export class SpotlightOverlay extends Disposable {
 			this._scheduledLayout = undefined;
 		}));
 
-		const popup = options.popup;
-		if (popup) {
+		const additionalElements = options.additionalElements;
+		if (additionalElements) {
 			this._stepListeners.add(addDisposableGenericMouseDownListener(this._callout, event => {
-				if (popup()) {
+				const activeElement = getActiveElement();
+				if (activeElement && additionalElements().some(element => element.contains(activeElement))) {
 					event.preventDefault();
 				}
 			}));
@@ -361,17 +364,20 @@ export class SpotlightOverlay extends Disposable {
 		this._layoutCallout({ top: holeTop, left: holeLeft, width: holeWidth, height: holeHeight }, viewportWidth, viewportHeight);
 	}
 
-	/** The target's bounds, extended to include a visible popup the target opened. */
+	/** The bounds that contain the target and every visible additional element. */
 	private _getHighlightRect(target: HTMLElement): IRect {
 		const rect = target.getBoundingClientRect();
-		const popup = this._options.popup?.();
-		const popupRect = popup?.isConnected ? popup.getBoundingClientRect() : undefined;
-		if (!popupRect || popupRect.width === 0 || popupRect.height === 0) {
-			return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+		let { left, top, right, bottom } = rect;
+		for (const element of this._options.additionalElements?.() ?? []) {
+			const elementRect = element.isConnected ? element.getBoundingClientRect() : undefined;
+			if (elementRect && elementRect.width > 0 && elementRect.height > 0) {
+				left = Math.min(left, elementRect.left);
+				top = Math.min(top, elementRect.top);
+				right = Math.max(right, elementRect.right);
+				bottom = Math.max(bottom, elementRect.bottom);
+			}
 		}
-		const left = Math.min(rect.left, popupRect.left);
-		const top = Math.min(rect.top, popupRect.top);
-		return { left, top, width: Math.max(rect.right, popupRect.right) - left, height: Math.max(rect.bottom, popupRect.bottom) - top };
+		return { left, top, width: right - left, height: bottom - top };
 	}
 
 	private _layoutBlocker(blocker: HTMLElement, left: number, top: number, width: number, height: number): void {

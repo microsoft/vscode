@@ -104,11 +104,11 @@ suite('ChatInputSpotlightTour', () => {
 
 	async function openTargets() {
 		const targets = Object.values(ChatInputTourTarget).map(targetId => ({ targetId, target: resolveOnboardingTarget(mainWindow, targetId) }));
-		const popupsBeforeOpen = targets.map(({ target }) => target?.popup?.());
+		const additionalElementsBeforeOpen = targets.map(({ target }) => target?.additionalElements?.());
 		for (const { target } of targets) {
 			await target?.open?.();
 		}
-		return { targets, popupsBeforeOpen, popups: targets.map(({ target }) => target?.popup?.()) };
+		return { targets, additionalElementsBeforeOpen, additionalElements: targets.map(({ target }) => target?.additionalElements?.()) };
 	}
 
 	test('starts in the eligible chat once its pickers render and moves the open menu from agent mode to permissions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -122,7 +122,7 @@ suite('ChatInputSpotlightTour', () => {
 		const beforeRender = tour.signal.get();
 		renderPickers();
 		await retry();
-		const { targets, popupsBeforeOpen, popups } = await openTargets();
+		const { targets, additionalElementsBeforeOpen, additionalElements } = await openTargets();
 
 		assert.deepStrictEqual({
 			registered,
@@ -134,8 +134,8 @@ suite('ChatInputSpotlightTour', () => {
 			modelPicker: targets[2].target?.element === modelPicker,
 			opened,
 			sections,
-			popupsBeforeOpen,
-			popupsAreMenu: popups.map(popup => popup === menu),
+			additionalElementsBeforeOpen,
+			additionalElementsAreMenu: additionalElements.map(elements => elements?.length === 1 && elements[0] === menu),
 			steps: createChatInputTour(tour.signal).presentation.payload.steps.map(step => ({ targetId: step.targetId, openTarget: step.openTarget })),
 		}, {
 			registered: true,
@@ -151,8 +151,8 @@ suite('ChatInputSpotlightTour', () => {
 			modelPicker: true,
 			opened: ['mode'],
 			sections: ['focus:agentHostModePicker.mode', 'focus:agentHostModePicker.mode', 'collapseSectionCodeAction', 'focus:agentHostModePicker.permissions', 'expandSectionCodeAction'],
-			popupsBeforeOpen: [undefined, undefined, undefined],
-			popupsAreMenu: [true, true, false],
+			additionalElementsBeforeOpen: [[], [], undefined],
+			additionalElementsAreMenu: [true, true, false],
 			steps: [
 				{ targetId: ChatInputTourTarget.ModelPicker, openTarget: undefined },
 				{ targetId: ChatInputTourTarget.AgentMode, openTarget: true },

@@ -128,7 +128,17 @@ function resolveChatInputTourTarget(widget: IChatWidget, targetId: string, actio
 	const input = widget.inputPart;
 	const pickerTarget = (picker: AgentHostChatInputPicker | undefined, section: ChatInputTourPickerSection): IOnboardingTarget | undefined => {
 		const element = picker?.triggerElement;
-		return picker && element ? { element, open: () => actions.open(picker, section), popup: () => actions.getOpenMenu(picker) } : undefined;
+		if (!picker || !element) {
+			return undefined;
+		}
+		return {
+			element,
+			open: () => actions.open(picker, section),
+			additionalElements: () => {
+				const menu = actions.getOpenMenu(picker);
+				return menu ? [menu] : [];
+			},
+		};
 	};
 	switch (targetId) {
 		case ChatInputTourTarget.AgentMode:
