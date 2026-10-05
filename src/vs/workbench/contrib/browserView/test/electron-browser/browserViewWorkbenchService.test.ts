@@ -171,4 +171,22 @@ suite('BrowserViewWorkbenchService', () => {
 			externalModel.dispose();
 		}
 	});
+
+	test('attributes canvas backing views without navigating until the caller requests it', async () => {
+		const { service, creationOptions, loadedUrls } = createService();
+		const model = store.add(await service.createExternalBrowserView(undefined, 'canvas'));
+		const urlsBeforeNavigation = [...loadedUrls];
+		await model.loadURL('https://example.test/canvas');
+		assert.deepStrictEqual({
+			openSources: creationOptions.map(options => options.openSource),
+			urlsBeforeNavigation,
+			loadedUrls,
+			knownIds: [...service.getKnownBrowserViews().keys()],
+		}, {
+			openSources: ['canvas'],
+			urlsBeforeNavigation: [],
+			loadedUrls: [{ id: model.id, url: 'https://example.test/canvas' }],
+			knownIds: [],
+		});
+	});
 });

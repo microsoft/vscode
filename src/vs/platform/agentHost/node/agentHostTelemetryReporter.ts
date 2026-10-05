@@ -80,6 +80,44 @@ export interface IAgentHostEventTelemetry extends IAgentHostInitiatorTelemetry, 
 
 export type IAgentHostEventClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification;
 
+type CanvasExtensionSource = 'project' | 'user' | 'plugin' | 'session' | 'unknown';
+
+type CanvasOpenedEvent = IAgentHostEventTelemetry & {
+	schemaVersion: number;
+	provider: string;
+	agentSessionId: string;
+	extensionSource: CanvasExtensionSource;
+};
+
+type CanvasOpenedClassification = IAgentHostEventClassification & {
+	owner: 'jruales';
+	comment: 'Counts new live canvas instances projected by the agent host, excluding restored replay and updates to an existing instance.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Canvas open event schema version.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider opening the canvas.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Existing agent host session identifier, not a URI or canvas instance name.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from discovery metadata, or unknown when unavailable.' };
+};
+
+export interface ICanvasExtensionsReadyEvent {
+	schemaVersion: number;
+	launchKind: 'create' | 'resume';
+	outcome: 'alreadySettled' | 'settled' | 'timeout' | 'error' | 'cancelled';
+	durationMs: number;
+	extensionCount?: number;
+	failedExtensionCount?: number;
+}
+
+type CanvasExtensionsReadyClassification = {
+	owner: 'jruales';
+	comment: 'Measures the host canvas readiness operation, not total runtime extension startup or model time to first token. Settled can include failed providers.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas readiness event schema version.' };
+	launchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the session is being created or resumed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, timed out, failed, or the operation was cancelled.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds for the host readiness operation, including extension listing, waiting, and canvas listing.' };
+	extensionCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+	failedExtensionCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+};
+
 export type IAgentHostSubagentKindClassification = {
 	subagentKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the subagent chat represents, set only when isSubagentSession is true: task for a delegated subagent, or fusionPhase for a presentation-only HydraFusion phase chat that shows part of the parent turn.' };
 };
@@ -1140,6 +1178,22 @@ export class AgentHostTelemetryReporter {
 
 	workspaceSnapshotSent(event: IAgentHostWorkspaceSnapshotEvent): void {
 		this._telemetryService.publicLog2<IAgentHostWorkspaceSnapshotEvent, IAgentHostWorkspaceSnapshotClassification>('agentHost.workspaceSnapshot', event);
+	}
+
+	canvasOpened(provider: string, session: string, source: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined): void {
+		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' ? source : 'unknown';
+		this._telemetryService.publicLog2<CanvasOpenedEvent, CanvasOpenedClassification>('agentHost.canvasOpened', {
+			...toInitiatorTelemetry(clientContext),
+			...this._copilotSku(provider),
+			schemaVersion: 1,
+			provider,
+			agentSessionId: AgentSession.id(session),
+			extensionSource,
+		});
+	}
+
+	canvasExtensionsReady(event: ICanvasExtensionsReadyEvent): void {
+		this._telemetryService.publicLog2<ICanvasExtensionsReadyEvent, CanvasExtensionsReadyClassification>('agentHost.canvasExtensionsReady', event);
 	}
 
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {

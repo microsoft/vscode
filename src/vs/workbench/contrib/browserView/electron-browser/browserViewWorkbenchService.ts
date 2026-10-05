@@ -382,7 +382,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl?: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource']): Promise<IBrowserViewModel> {
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
@@ -394,6 +394,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			presentation: BrowserViewPresentation.Unlisted,
 			session: { scope: BrowserViewStorageScope.Ephemeral },
 			initialAudiences: [],
+			openSource,
 		});
 		if (this._store.isDisposed) {
 			await this._browserViewService.destroyBrowserView(info.id);
@@ -401,7 +402,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 		const model = this._createModel(info, undefined, false);
 		try {
-			await model.loadURL(initialUrl);
+			if (initialUrl !== undefined) {
+				await model.loadURL(initialUrl);
+			}
 			return model;
 		} catch (error) {
 			model.dispose();

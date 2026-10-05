@@ -13,7 +13,7 @@ import { DeferredPromise, firstParallel, raceCancellation, raceCancellationError
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { escapeMarkdownSyntaxTokens } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IReference, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
@@ -78,7 +78,7 @@ import { isAutoModel } from './modelIdentifiers.js';
 import { applySandboxConfig, clientToolNamesFromSnapshot, isMcpServerExplicitlyProjected, mergeByokSessionConfig, toSessionConfigMcpServers, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotSessionLauncher, type ICopilotSessionRuntime } from './copilotSessionLauncher.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, NON_DEFERRED_CLIENT_TOOL_NAMES, RUNTIME_TOOL_SEARCH_TOOL_NAME } from './toolSearchDeferral.js';
 import { ActiveClientToolSet } from '../activeClientState.js';
-import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type ICanvasExtensionsReadyEvent } from '../agentHostTelemetryReporter.js';
 import { AgentHostRepoInfoTelemetry } from '../agentHostRepoInfoTelemetry.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
@@ -1313,6 +1313,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _canvasByInstanceId = new Map<string, ICopilotCanvasProjection>();
+	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
 	private _canvasProjectionReady = false;
 	private _detectInterruptedTurnOnRestore: boolean;
@@ -3069,6 +3070,7 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._registeredByokConfig = wrapper.launchByokConfig;
 		this._canvasByInstanceId.clear();
+		this._canvasExtensions = undefined;
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		if (this._launchPlan.kind === 'resume') {
 			for (const canvas of wrapper.session.openCanvases) {
@@ -3125,22 +3127,43 @@ export class CopilotAgentSession extends Disposable {
 		}
 		const settled = new DeferredPromise<boolean>();
 		const listener = wrapper.onExtensionsLoaded(() => settled.complete(true));
+		const stopwatch = StopWatch.create();
+		let outcome: ICanvasExtensionsReadyEvent['outcome'] = 'alreadySettled';
 		try {
 			const extensions = await wrapper.session.rpc.extensions.list();
+			// An extensions_loaded event received during the RPC is newer than its snapshot.
+			this._canvasExtensions ??= extensions.extensions;
 			if (extensions.extensions.some(extension => extension.status === 'starting')) {
 				const ready = await raceTimeout(settled.p, 10_000);
+				outcome = ready === true ? 'settled' : 'timeout';
 				if (ready !== true) {
 					this._logService.warn(`[Copilot:${this.sessionId}] Canvas extensions did not settle before the readiness deadline`);
 				}
 			}
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			await wrapper.session.rpc.canvas.list();
+			if (this._store.isDisposed) {
+				throw new CancellationError();
+			}
+			this._canvasProjectionReady = true;
+		} catch (error) {
+			outcome = this._store.isDisposed || isCancellationError(error) ? 'cancelled' : 'error';
+			throw error;
 		} finally {
 			listener.dispose();
+			this._telemetryReporter.canvasExtensionsReady({
+				schemaVersion: 1,
+				launchKind: this._launchPlan.kind,
+				outcome,
+				durationMs: stopwatch.elapsed(),
+				...(this._canvasExtensions ? {
+					extensionCount: this._canvasExtensions.length,
+					failedExtensionCount: this._canvasExtensions.filter(extension => extension.status === 'failed').length,
+				} : {}),
+			});
 		}
-		if (this._store.isDisposed) {
-			throw new CancellationError();
-		}
-		await wrapper.session.rpc.canvas.list();
-		this._canvasProjectionReady = true;
 	}
 
 	private _publishCanvases(): void {
@@ -8561,8 +8584,9 @@ export class CopilotAgentSession extends Disposable {
 			this._logService.trace(`[Copilot:${sessionId}] session.indexed_search: ${safeStringify(data)}`);
 		}));
 
-		this._register(wrapper.onExtensionsLoaded(() => {
+		this._register(wrapper.onExtensionsLoaded(e => {
 			if (wrapper.canvasRuntimeEnabled) {
+				this._canvasExtensions = e.data.extensions;
 				this._canvasProjectionReady = true;
 			}
 		}));
@@ -8617,6 +8641,12 @@ export class CopilotAgentSession extends Disposable {
 			this._canvasByInstanceId.set(canvas.instanceId, projection);
 			this._publishCanvasState(projection);
 			if (!existing) {
+				this._telemetryReporter.canvasOpened(
+					'copilotcli',
+					this._ownerSessionUri.toString(),
+					this._canvasExtensions?.find(extension => extension.id === canvas.extensionId)?.source,
+					this._currentTurn.value?.clientContext,
+				);
 				this._publishCanvases();
 			}
 		}));
