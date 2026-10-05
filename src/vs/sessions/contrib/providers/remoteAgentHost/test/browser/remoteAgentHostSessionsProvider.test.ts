@@ -322,7 +322,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 		findSessionResource: backend => sessionResources.get(backend),
 		onDidChangeSessionResolution: sessionResourcesChanged.event,
-		getSessionResource: (backend, authority, provider) => {
+		registerSessionResource: (backend, authority, provider) => {
 			const resource = backend.with({ scheme: `remote-${authority}-${provider ?? backend.scheme}` });
 			if (!sessionResources.has(backend)) {
 				sessionResources.set(backend, resource);
@@ -330,6 +330,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			}
 			return resource;
 		},
+		getSessionResource: backend => sessionResources.get(backend),
 		registerSessionResolutionPolicy: (authority, policy) => {
 			overrides?.sessionResolutionPolicies?.push({ authority, policy });
 			return Disposable.None;

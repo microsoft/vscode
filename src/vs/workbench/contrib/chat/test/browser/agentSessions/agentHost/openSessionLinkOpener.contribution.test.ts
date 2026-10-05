@@ -47,7 +47,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			}();
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return authority === 'other-host' ? owner : undefined; }
 			override findSessionResource(resource: URI, authority = 'local'): URI | undefined { return resources.get(`${authority}:${resource}`); }
-			override getSessionResource(resource: URI, authority?: string, provider?: string): URI {
+			override registerSessionResource(resource: URI, authority?: string, provider?: string): URI {
 				assert.deepStrictEqual([authority, provider], ['other-host', 'claude']);
 				resources.set(`${authority}:${resource}`, remote);
 				return remote;
@@ -88,7 +88,7 @@ suite('AgentHostOpenSessionLinkOpenerContribution', () => {
 			override readonly ambientConnection = connection;
 			override readonly onDidChangeSessionResolution = changed.event;
 			override findSessionResource(resource: URI): URI | undefined { return resources.get(resource.toString()); }
-			override getSessionResource(resource: URI, _authority?: string, provider?: string): URI {
+			override registerSessionResource(resource: URI, _authority?: string, provider?: string): URI {
 				assert.strictEqual(provider, 'codex');
 				resources.set(resource.toString(), client);
 				changed.fire();

@@ -154,7 +154,7 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 			throw new Error(`Agent host is not connected: ${authority}`);
 		}
 		for (const metadata of await connection.listSessions()) {
-			this._connectionsService.getSessionResource(metadata.session, authority, metadata.provider);
+			this._connectionsService.registerSessionResource(metadata.session, authority, metadata.provider);
 		}
 	}
 }

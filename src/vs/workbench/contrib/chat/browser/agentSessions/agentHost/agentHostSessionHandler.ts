@@ -5798,7 +5798,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const authority = this._connectionsService.resolveSessionResourceIdentity(sessionResource)?.connectionAuthority
 			?? this._config.connectionAuthority;
 		for (const metadata of await this._config.connection.listSessions()) {
-			this._connectionsService.getSessionResource(metadata.session, authority, metadata.provider);
+			this._connectionsService.registerSessionResource(metadata.session, authority, metadata.provider);
 		}
 	}
 

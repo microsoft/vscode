@@ -66,6 +66,57 @@ function createSubscription<T>(): IAgentSubscription<T> {
 suite('AgentHostGenericConfigChips', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		for (const remote of [false, true]) {
+			test(`peer selection subscribes only to its owning ${provider} session (${remote ? 'remote' : 'local'})`, () => {
+				const acquired: string[] = [];
+				const released: string[] = [];
+				const agentHost = new class extends mock<IAgentHostService>() {
+					override readonly onAgentHostStart = Event.None;
+					override readonly onAgentHostExit = Event.None;
+					override readonly onDidNotification = Event.None;
+					override readonly resourceUris = identityAgentHostResourceUriMapper;
+					override getSubscription<T extends StateComponents>(_kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+						acquired.push(resource.toString());
+						return { object: createSubscription<ComponentToState[T]>(), dispose: () => released.push(resource.toString()) };
+					}
+				}();
+				const remoteService = new class extends mock<IRemoteAgentHostService>() {
+					override readonly onDidChangeConnections = Event.None;
+					override readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [{ address: 'host', name: 'Host', status: { kind: 'connected' } }];
+					override getConnection() { return agentHost; }
+					override getConnectionByAuthority() { return agentHost; }
+				}();
+				const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), new NullLogService()));
+				const backend = URI.parse(`${provider}:/parent`);
+				const resource = connections.getSessionResource(backend, remote ? 'host' : AMBIENT_AGENT_HOST_AUTHORITY)!;
+				for (const fragment of ['', 'first-peer', 'second-peer']) {
+					const widget = new class extends mock<IChatWidget>() {
+						override readonly onDidChangeViewModel = Event.None;
+						override readonly viewModel = new class extends mock<IChatViewModel>() {
+							override readonly sessionResource = resource.with({ fragment });
+						}();
+					}();
+					const provisional = new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+						override readonly onDidChange = Event.None;
+						override get() { return undefined; }
+					}();
+					const chips = disposables.add(new AgentHostGenericConfigChips(widget,
+						disposables.add(new TestInstantiationService()), connections, provisional,
+						new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() { }(),
+						new class extends mock<IWorkspaceContextService>() { }(),
+						new class extends mock<IAgentHostNewSessionFolderService>() { }(),
+					));
+					chips.dispose();
+				}
+				assert.deepStrictEqual({ acquired, released }, {
+					acquired: [backend.toString(), backend.toString(), backend.toString()],
+					released: [backend.toString(), backend.toString(), backend.toString()],
+				});
+			});
+		}
+	}
+
 	test('moves its subscription when the provisional generation changes', () => {
 		const sessionResource = URI.parse('agent-host-copilot:/untitled-test');
 		const firstBackend = URI.parse('copilot:/first-generation');

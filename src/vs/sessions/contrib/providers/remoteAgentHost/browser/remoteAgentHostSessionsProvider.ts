@@ -918,7 +918,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
-		this.agentHostConnectionsService.getSessionResource(backendSession, this._connectionAuthority, provider);
+		this.agentHostConnectionsService.registerSessionResource(backendSession, this._connectionAuthority, provider);
 	}
 
 	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {

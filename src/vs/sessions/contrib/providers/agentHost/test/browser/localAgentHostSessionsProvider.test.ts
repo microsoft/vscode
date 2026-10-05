@@ -631,7 +631,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		private readonly _changed = disposables.add(new Emitter<void>());
 		override readonly onDidChangeSessionResolution = this._changed.event;
 		override findSessionResource(backend: URI): URI | undefined { return this._resources.get(backend); }
-		override getSessionResource(backend: URI, authority = 'local', provider = backend.scheme): URI {
+		override registerSessionResource(backend: URI, authority = 'local', provider = backend.scheme): URI {
 			const resource = backend.with({ scheme: authority === 'local' ? `agent-host-${provider}` : `remote-${authority}-${provider}` });
 			if (!this._resources.has(backend)) {
 				this._resources.set(backend, resource);
@@ -639,6 +639,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 			}
 			return resource;
 		}
+		override getSessionResource(backend: URI): URI | undefined { return this._resources.get(backend); }
 	}());
 	const configurationService = options?.configurationService ?? new TestConfigurationService();
 	instantiationService.stub(IConfigurationService, configurationService);

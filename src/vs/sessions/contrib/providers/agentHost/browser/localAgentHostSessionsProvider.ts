@@ -282,7 +282,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	}
 
 	protected override registerBackendSession(backendSession: URI, provider: string): void {
-		this._connectionsService.getSessionResource(backendSession, undefined, provider);
+		this._connectionsService.registerSessionResource(backendSession, undefined, provider);
 	}
 
 	override getSessions(): ISession[] {

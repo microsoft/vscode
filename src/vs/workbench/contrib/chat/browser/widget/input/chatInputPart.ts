@@ -941,6 +941,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionTypeObservable = observableValue<string | undefined>(this, undefined);
 	private get _currentSessionType(): string | undefined { return this._currentSessionTypeObservable.get(); }
 	private set _currentSessionType(value: string | undefined) { this._currentSessionTypeObservable.set(value, undefined); }
+
+	/** The session type (harness) whose models this input selects from. */
+	get modelTargetSessionType(): string | undefined { return this._currentSessionType ?? this.getCurrentSessionType(); }
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
@@ -1447,6 +1450,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setCurrentLanguageModel(pinnedModels[nextIndex], true);
 	}
 
+	/** Exact desktop picker owned by this input; combined phone sheets have no search contract. */
+	public getModelPickerControl(): ReturnType<ModelPickerActionItem['getModelPickerControl']> {
+		return this.chatPhoneInputPresenter.enabled.get() ? undefined : this.modelWidget?.getModelPickerControl();
+	}
+
 	public openModelPicker(): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
 			this._showCombinedPhonePickerSheet();
@@ -1494,6 +1502,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getModels: () => this.getModels(),
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
+			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
@@ -3719,6 +3728,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'last',
 				minItems: 2,
 				actionMinWidth: 48,
+				// Let the pickers yield to the execute toolbar so that a narrow
+				// input never pushes the send button out of view.
+				reserveMinWidth: false,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
 				getOverflowAction: (action, getAnchor) => getOverflowAction(action, inputToolbarMenu, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),

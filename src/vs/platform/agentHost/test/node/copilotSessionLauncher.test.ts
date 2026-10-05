@@ -490,8 +490,8 @@ suite('synthesizeByokSessionConfig', () => {
 	test('synthesizes deduped providers and per-model config from the active bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const registration = registry.register('client-1', connectionOf([
-			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
-			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined },
+			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, supportsVision: true },
+			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined, supportsVision: false },
 			{ vendor: 'globex', id: 'llama', name: 'Globex Llama' },
 		]));
 		const proxy = countingProxy();
@@ -506,8 +506,8 @@ suite('synthesizeByokSessionConfig', () => {
 				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
-				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
-				{ id: 'gpt', provider: 'acme' },
+				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, capabilities: { supports: { vision: true } } },
+				{ id: 'gpt', provider: 'acme', capabilities: { supports: { vision: false } } },
 				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
 			],
 		});

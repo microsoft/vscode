@@ -1496,7 +1496,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/session-from-host');
 			const backendSession = AgentSession.uri('copilot', 'session-from-host');
 			instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService))
-				.getSessionResource(backendSession, undefined, 'copilot');
+				.registerSessionResource(backendSession, undefined, 'copilot');
 			const chatUri = 'ahp-chat:/host-assigned-conversation-73';
 			const summary = { resource: chatUri, title: 'Remote chat', status: SessionStatus.Idle, modifiedAt: '2026-09-30T12:00:00.000Z' };
 			const sessionSubscribe = peer.nextRequest('subscribe');
@@ -5618,7 +5618,7 @@ suite('AgentHostChatContribution', () => {
 			test(`a neighboring legacy ID cannot claim complete unadvertised resource ${unknown}`, async () => {
 				const { instantiationService, agentHostService } = createTestServices(disposables);
 				const connections = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostConnectionsService));
-				connections.getSessionResource(URI.parse('codex:/shared'), undefined, 'codex');
+				connections.registerSessionResource(URI.parse('codex:/shared'), undefined, 'codex');
 				agentHostService.listSessions = async () => [];
 				const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 					provider: 'codex', agentId: 'agent-host-codex', sessionType: 'agent-host-codex',
