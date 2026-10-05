@@ -155,6 +155,12 @@ export interface ISessionDatabase extends IDisposable {
 	createTurn(turnId: string): Promise<void>;
 
 	/**
+	 * Checks for a stored turn by its host ID or provider event ID, including host-persisted turns.
+	 * Observes writes submitted before this read; provider history not recorded here is not inspected.
+	 */
+	hasTurn(turnId: string): Promise<boolean>;
+
+	/**
 	 * Delete a turn and all of its associated file edits (cascade).
 	 */
 	deleteTurn(turnId: string): Promise<void>;

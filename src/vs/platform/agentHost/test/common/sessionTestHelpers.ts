@@ -43,6 +43,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._turns.add(turnId);
 	}
 
+	async hasTurn(turnId: string): Promise<boolean> {
+		return this._turns.has(turnId) || [...this._turnEventIds.values()].includes(turnId) || this._persistedTurns.has(turnId);
+	}
+
 	async deleteTurn(turnId: string): Promise<void> {
 		this._turns.delete(turnId);
 		this._persistedTurns.delete(turnId);

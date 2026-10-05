@@ -760,6 +760,40 @@ suite('SessionDatabase', () => {
 			await db.createTurn('turn-1'); // should not throw
 		});
 
+		test('hasTurn finds host ids, provider event ids and host-persisted turns', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.createTurn('host-1');
+			await db.setTurnEventId('host-2', 'event-2');
+			await db.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{}' });
+			await db.insertPersistedTurn({ kind: 'failed', turnId: 'failed-1', chatUri: 'chat', anchorTurnId: undefined, payload: '{}' });
+			const ids = ['host-1', 'host-2', 'event-2', 'local-1', 'failed-1', 'missing'];
+			const beforeDelete = await Promise.all(ids.map(id => db!.hasTurn(id)));
+			await db.deleteAllTurns();
+			const afterDelete = await Promise.all(ids.map(id => db!.hasTurn(id)));
+
+			assert.deepStrictEqual({ beforeDelete, afterDelete }, {
+				beforeDelete: [true, true, true, true, true, false],
+				afterDelete: [false, false, false, false, false, false],
+			});
+		});
+
+		test('hasTurn waits for a preceding turn id write', async () => {
+			const database = disposables.add(await TestableSessionDatabase.open(':memory:'));
+			db = database;
+			const gate = database.blockNextMutation();
+			const write = database.setTurnEventId('host-1', 'event-1');
+			await gate.started.p;
+			const read = database.hasTurn('event-1');
+			let readSettled = false;
+			void read.then(() => readSettled = true, () => readSettled = true);
+			await database.waitForRaw();
+			const readSettledBeforeWrite = readSettled;
+			gate.release.complete();
+			const [, found] = await Promise.all([write, read]);
+
+			assert.deepStrictEqual({ readSettledBeforeWrite, found }, { readSettledBeforeWrite: false, found: true });
+		});
+
 		test('deleteTurn cascades to file edits', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
 

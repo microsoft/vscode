@@ -533,6 +533,15 @@ export class SessionDatabase implements ISessionDatabase {
 		});
 	}
 
+	hasTurn(turnId: string): Promise<boolean> {
+		return this._queueTurnData(async db => {
+			const row = await dbGet(db, `SELECT
+				EXISTS(SELECT 1 FROM turns WHERE id = ?1 OR event_id = ?1)
+				OR EXISTS(SELECT 1 FROM local_turns WHERE turn_id = ?1) AS has_turn`, [turnId]);
+			return !!row?.has_turn;
+		});
+	}
+
 	deleteTurn(turnId: string): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned file edits, usage, and workspace transitions cascade-delete.
