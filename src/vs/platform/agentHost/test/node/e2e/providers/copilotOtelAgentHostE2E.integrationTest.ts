@@ -21,12 +21,11 @@ import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, remo
 import { fetchSessionWithChat, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
-import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
-const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
-
-const clearedOtlpTlsEnv = {
+const otelTestEnv = {
+	// Keep native batch export within the bounded wait, independent of inherited or default scheduling.
+	OTEL_BSP_SCHEDULE_DELAY: '100',
 	OTEL_EXPORTER_OTLP_CERTIFICATE: '',
 	OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE: '',
 	OTEL_EXPORTER_OTLP_CLIENT_KEY: '',
@@ -48,12 +47,11 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 	let workspace: string;
 	let collector: ILocalOtlpHttpReceiver;
 	let initialized: boolean;
-	let allowUnconsumedResponses: boolean;
 
 	teardown(async function () {
 		this.timeout(120_000);
 		try {
-			await lease?.release(createdSessions, this.currentTest?.state === 'failed', { allowUnconsumedResponses });
+			await lease?.release(createdSessions, this.currentTest?.state === 'failed');
 		} finally {
 			try {
 				await lease?.dispose();
@@ -71,7 +69,6 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		spans.length = 0;
 		decodeErrors.length = 0;
 		initialized = false;
-		allowUnconsumedResponses = false;
 		const directory = await mkdtemp(join(tmpdir(), 'copilot-managed-otel-'));
 		tempDirs.push(directory);
 		workspace = join(directory, 'workspace');
@@ -88,7 +85,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		endpoint = collector.baseUrl;
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
-				...clearedOtlpTlsEnv,
+				...otelTestEnv,
 				COPILOT_CACHE_HOME: cacheHome,
 				COPILOT_MANAGED_SETTINGS_CACHE: 'true',
 				COPILOT_OTEL_ENABLED: 'false',
@@ -177,14 +174,10 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		await completeCapturedTurn('otel-policy-a', 'otel-capture-second', await setPolicy('otel-policy-a'));
 	});
 
-	(RECORD ? test.skip : test)('new sessions honor changed managed telemetry without restarting', async function () {
+	test('new sessions honor changed managed telemetry without restarting', async function () {
 		this.timeout(180_000);
 		await completeCapturedTurn('otel-policy-a', 'otel-policy-first', await setPolicy('otel-policy-a'));
-		await assertExpectedFailure('github/copilot-agent-runtime#24069',
-			/^Session error while driving otel-policy-second: sendFailed: Request session\.create failed with message: Standalone managed telemetry preparation failed: Managed telemetry conflicts with the already selected OTel configuration$/, async () => {
-				await completeCapturedTurn('otel-policy-b', 'otel-policy-second', await setPolicy('otel-policy-b'));
-			});
-		allowUnconsumedResponses = true;
+		await completeCapturedTurn('otel-policy-b', 'otel-policy-second', await setPolicy('otel-policy-b'));
 	});
 
 	test('new sessions honor changed managed telemetry after restarting', async function () {
@@ -211,14 +204,12 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		exportFile = join(directory, 'spans.jsonl');
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
-				...clearedOtlpTlsEnv,
+				...otelTestEnv,
 				COPILOT_OTEL_ENABLED: 'true',
 				COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true',
 				COPILOT_OTEL_EXPORTER_TYPE: 'file',
 				COPILOT_OTEL_FILE_EXPORTER_PATH: exportFile,
 				OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
-				// Keep SDK batching comfortably inside the file-export polling budget.
-				OTEL_BSP_SCHEDULE_DELAY: '100',
 			},
 		});
 	});
@@ -261,7 +252,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-otel-turn', createdSessions, URI.file(workspace));
 
 		await driveTurnToCompletion(client, sessionUri, 'turn-otel-export', 'Reply exactly "traced".', 1);
-		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10);
+		await driveTurnToCompletion(client, sessionUri, 'turn-otel-title', '/rename OTel Captured Title', 10, { expectUnread: false });
 		const exported = await retry(async () => {
 			const contents = await readFile(exportFile, 'utf8').catch(() => '');
 			if (!contents.includes('"traceId"')

@@ -9,6 +9,7 @@ import { AdditionalWorktreeLifecycleContribution } from './additionalWorktreeLif
 import { ChatArchiveContribution } from './chatArchive/chatArchiveContribution.js';
 import { ChatDraftContribution } from './chatDraft/chatDraftContribution.js';
 import { ChatInputContribution } from './chatInput/chatInputContribution.js';
+import { ChatReadContribution } from './chatRead/chatReadContribution.js';
 import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.js';
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
@@ -63,5 +64,6 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(SessionFlagsContribution));
 	registrations.add(contributions.registerContribution(AdditionalWorktreeLifecycleContribution));
 	registrations.add(contributions.registerContribution(ChatArchiveContribution));
+	registrations.add(contributions.registerContribution(ChatReadContribution));
 	return registrations;
 }

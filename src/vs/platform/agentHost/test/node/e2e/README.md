@@ -118,7 +118,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots (`*.traffic.ahp.yaml`) and assembled-prompt snapshots (`*.prompt.md`), resolved relative to the entry point that registered the test. |
 | `providers/copilotPromptsE2E.integrationTest.ts` | The provider request-body boundary: the complete model request body the bundled Copilot CLI sends, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
-| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes after a host restart. The warm policy-change gap is tracked in `KNOWN_ISSUES.md`. |
+| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes with and without a host restart. |
 | `coverage/summary.json` | Checked-in line coverage of the host implementation. |
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
@@ -212,6 +212,8 @@ Each elision has a reason, and dropping any of them would make the assertion eit
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
 
+Runtime-authored change notices are elided from user text. A standalone user message containing only those recognized notices is omitted as well; user questions, empty authored messages, assistant messages, and tool-result wiring remain asserted.
+
 A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and prints both projections. It usually means the capture is stale — the prompt or the host's prompt assembly changed without a re-record — so **re-record it** (see [Updating snapshots and fixtures](#updating-snapshots-and-fixtures)). Never hand-edit the request block to match. If a capture genuinely cannot be refreshed, add its test title to `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts` with a `KNOWN_ISSUES.md` entry.
 
 ---
@@ -285,7 +287,7 @@ On Windows, test-server cleanup records descendants before requesting graceful s
 
 The complete-suite runner parallelizes above this lease: conformance, Claude, Codex, Copilot, and Copilot OTel each run in an isolated test process with their own server lease. Tests within one entrypoint stay serial and continue sharing servers, preserving the lifecycle and fixture-window invariants while letting the independent entrypoints overlap. Managed-telemetry tests use a fresh lease and loopback collector per test because their policy and exporter configuration are process-scoped.
 
-Copilot OTel leases clear inherited generic and trace-specific OTLP certificate/key variables in the child environment because both managed telemetry and the Agent Host file-export path use plain HTTP loopback collectors. The parent process environment is unchanged.
+Copilot OTel leases clear inherited generic and trace-specific OTLP certificate/key variables in the child environment because both managed telemetry and the Agent Host file-export path use plain HTTP loopback collectors. They also set `OTEL_BSP_SCHEDULE_DELAY=100` so native span batching does not consume the bounded export-readiness wait or inherit a developer's longer export schedule. The tests still wait for and assert the actual exported spans; the parent process environment is unchanged.
 
 The file-export test also sets `OTEL_BSP_SCHEDULE_DELAY=100` in its child environment so native SDK batching does not race the ten-second span-polling budget. It still waits for the actual SDK and host spans in the exported file; neither the polling deadline nor the required spans are relaxed.
 

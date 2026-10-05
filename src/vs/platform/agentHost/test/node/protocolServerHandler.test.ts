@@ -46,7 +46,7 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 
@@ -1638,14 +1638,18 @@ suite('ProtocolServerHandler', () => {
 		await Promise.resolve();
 		transport.simulateClose();
 		await agentService.subscribeBarrier.complete();
-		await Promise.resolve();
+		await handler.whenIdle();
 
 		assert.deepStrictEqual({
+			response: findResponse(transport.sent, 2),
 			subscribes: agentService.subscribeCalls,
 			unsubscribes: agentService.unsubscribeCalls,
+			errorCount: logService.errorCount,
 		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
 			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+			errorCount: 0,
 		});
 	});
 
@@ -1709,17 +1713,147 @@ suite('ProtocolServerHandler', () => {
 
 		const [first, second] = await Promise.all([firstResponse, secondResponse]);
 		assert.deepStrictEqual({
-			firstFailed: hasKey(first, { error: true }),
+			firstError: hasKey(first, { error: true }) ? first.error : undefined,
 			secondSucceeded: hasKey(second, { result: true }),
+			errorCount: logService.errorCount,
 			subscribes: agentService.subscribeCalls,
 			unsubscribes: agentService.unsubscribeCalls,
 		}, {
-			firstFailed: true,
+			firstError: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` },
 			secondSucceeded: true,
+			errorCount: 0,
 			subscribes: [
 				{ resource: sessionUri, clientId: 'client-1' },
 				{ resource: sessionUri, clientId: 'client-1' },
 			],
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('superseded turn changeset subscriptions are cancelled even when their resources exist', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const turns = ['previous-1', 'previous-2', 'latest'].map(turnId => buildTurnChangesetUri(defaultChatUri, turnId));
+		const barrier = new DeferredPromise<void>();
+		for (const channel of turns) {
+			stateManager.registerChangeset(channel);
+		}
+		for (const channel of turns.slice(0, -1)) {
+			agentService.subscribeBarriers.set(channel, barrier);
+		}
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responses = turns.map((_, index) => waitForResponse(transport, index + 2));
+		const emitted: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => emitted.push(envelope)));
+
+		for (const [index, channel] of turns.entries()) {
+			transport.simulateMessage(request(index + 2, 'subscribe', { channel }));
+			if (index < turns.length - 1) {
+				transport.simulateMessage(notification('unsubscribe', { channel }));
+			}
+		}
+		await responses[2];
+		for (const channel of turns.slice(0, -1)) {
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetContentChanged, files: [] });
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		}
+		await barrier.complete();
+		const results = await Promise.all(responses);
+
+		assert.deepStrictEqual({
+			errors: results.slice(0, -1).map(result => hasKey(result, { error: true }) ? result.error : undefined),
+			latestResource: hasKey(results[2], { result: true }) ? (results[2].result as SubscribeResult).snapshot?.resource : undefined,
+			supersededResourcesExist: turns.slice(0, -1).map(channel => !!stateManager.getSnapshot(channel)),
+			emitted: emitted.map(envelope => ({ channel: envelope.channel, type: envelope.action.type })),
+			deliveredActions: findNotifications(transport.sent, 'action').length,
+			unsubscribes: agentService.unsubscribeCalls,
+			errorCount: logService.errorCount,
+		}, {
+			errors: turns.slice(0, -1).map(channel => ({ code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${channel}` })),
+			latestResource: turns[2],
+			supersededResourcesExist: [true, true],
+			emitted: turns.slice(0, -1).flatMap(channel => [
+				{ channel, type: ActionType.ChangesetContentChanged },
+				{ channel, type: ActionType.ChangesetStatusChanged },
+			]),
+			deliveredActions: 0,
+			unsubscribes: turns.slice(0, -1).map(resource => ({ resource, clientId: 'client-1' })),
+			errorCount: 0,
+		});
+	});
+
+	test('unsubscribe cancels a subscribe whose snapshot resolves successfully afterwards', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const barrier = new DeferredPromise<IStateSnapshot>();
+		agentService.subscribe = async () => barrier.p;
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await barrier.complete(stateManager.getSnapshot(sessionUri)!);
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			errorCount: 0,
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('subscribe still reports and logs genuinely missing resources', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const channel = buildTurnChangesetUri(defaultChatUri, 'missing');
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: AHP_SESSION_NOT_FOUND, message: `Resource not found: ${channel}` } },
+			errorCount: 1,
+		});
+	});
+
+	test('subscribe preserves and logs protocol failures while it still owns the subscription', async () => {
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required', { resources: [] });
+		agentService.subscribe = async () => { throw error; };
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: error.code, message: error.message, data: error.data } },
+			errorCount: 1,
+		});
+	});
+
+	test('unsubscribe cancels a subscribe whose restore rejects with a protocol error afterwards', async () => {
+		const barrier = new DeferredPromise<IStateSnapshot>();
+		agentService.subscribe = async () => barrier.p;
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await barrier.error(new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required', { resources: [] }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			errorCount: 0,
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 		});
 	});
@@ -2121,14 +2255,14 @@ suite('ProtocolServerHandler', () => {
 			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
 				listedMeta: { providerOnly: true, live: 'current' },
 				summaryChanges: [{
+					modifiedAt: startedAt,
+					status: SessionStatus.InProgress,
 					chats: [{
-						resource: defaultChatUri,
+						resource: buildDefaultChatUri(sessionUri),
 						title: '',
 						origin: { kind: MessageKind.User },
 						status: SessionStatus.InProgress,
 					}],
-					modifiedAt: startedAt,
-					status: SessionStatus.InProgress,
 				}],
 			});
 		});
@@ -2328,14 +2462,16 @@ suite('ProtocolServerHandler', () => {
 	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
+		const unknownStatusChat = URI.parse(`${sessionUri}/chat/unknown`);
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Session Summary',
 			chats: [
-				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ chat: defaultChat, kind: 'default', summary: 'Default Chat', isRead: true },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
+				{ chat: unknownStatusChat, kind: 'peer', summary: 'Unknown Status Chat' },
 			],
 		});
 
@@ -2351,8 +2487,9 @@ suite('ProtocolServerHandler', () => {
 			defaultChat: result.items[0].defaultChat,
 		}, {
 			chats: [
-				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined, status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: peerChat.toString(), title: 'Peer Chat', status: SessionStatus.Idle | SessionStatus.IsArchived, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ resource: unknownStatusChat.toString(), title: 'Unknown Status Chat', origin: undefined },
 			],
 			defaultChat: defaultChat.toString(),
 		});

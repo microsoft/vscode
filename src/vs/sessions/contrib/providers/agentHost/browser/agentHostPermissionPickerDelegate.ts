@@ -19,8 +19,8 @@ import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
-import { IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -115,7 +115,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		const isDevContainer = derived(this, reader => {
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
-			return !!session && this._getProvider(session.providerId)?.isDevContainerRequested?.(session.sessionId) === true;
+			return !!session && this._getAgentHostProvider(session.providerId)?.isDevContainerRequested?.(session.sessionId) === true;
 		});
 		const sandboxPolicy = derived(this, reader => {
 			if (isDevContainer.read(reader)) {
@@ -124,7 +124,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			}
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
-			const policy = session && this._getProvider(session.providerId)?.getSessionSandboxPolicy?.(session.sessionId);
+			const policy = session && this._getAgentHostProvider(session.providerId)?.getSessionSandboxPolicy?.(session.sessionId);
 			if (policy || isWeb || environmentService.remoteAuthority || session?.providerId !== LOCAL_AGENT_HOST_PROVIDER_ID || session.sessionType !== CopilotCLISessionType.id) {
 				return policy;
 			}
@@ -161,7 +161,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			}
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
-			return session && this._getProvider(session.providerId)?.getSessionSandboxEnabled?.(session.sessionId);
+			return session && this._getAgentHostProvider(session.providerId)?.getSessionSandboxEnabled?.(session.sessionId);
 		});
 		this.sandboxEnabled = derived(this, reader => {
 			this._configChangedSignal.read(reader);
@@ -228,7 +228,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			throw new Error('Sandbox configuration is unavailable for this session');
 		}
 		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
-		provider.trackSessionConfigOperation(session.sessionId, operation);
+		provider.trackSessionConfigOperation?.(session.sessionId, operation);
 		void operation.catch(onUnexpectedError);
 	}
 
@@ -256,7 +256,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			throw new Error('Approval configuration is unavailable for this session');
 		}
 		const operation = provider.setSessionConfigValue(session.sessionId, approvalProperty.key, value);
-		provider.trackSessionConfigOperation(session.sessionId, operation);
+		provider.trackSessionConfigOperation?.(session.sessionId, operation);
 		await operation.catch(onUnexpectedError);
 	}
 
@@ -313,18 +313,24 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		return !!approvalProperty && isSessionConfigWritable(approvalProperty.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined);
 	}
 
-	private _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
+	private _getProvider(providerId: string): ISessionConfigProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(providerId);
+		return provider && getSessionConfigProvider(provider);
+	}
+
+	private _getAgentHostProvider(providerId: string): IAgentHostSessionsProvider | undefined {
 		const provider = this._sessionsProvidersService.getProvider(providerId);
 		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
 		for (const provider of providers) {
-			if (!isAgentHostProvider(provider) || this._providerSubscriptions.has(provider.id)) {
+			const configProvider = getSessionConfigProvider(provider);
+			if (!configProvider || this._providerSubscriptions.has(provider.id)) {
 				continue;
 			}
 			const subscriptions = new DisposableStore();
-			subscriptions.add(provider.onDidChangeSessionConfig(() => {
+			subscriptions.add(configProvider.onDidChangeSessionConfig(() => {
 				this._configChangedSignal.trigger(undefined);
 			}));
 			this._providerSubscriptions.set(provider.id, subscriptions);

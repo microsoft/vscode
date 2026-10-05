@@ -10,7 +10,7 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ChatOriginKind } from '../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, PEER_CHATS_METADATA_KEY } from '../../node/agentHostPeerChatStore.js';
@@ -926,6 +926,30 @@ suite('AgentHostPeerChatStore', () => {
 		assert.deepStrictEqual({ archived, restored }, {
 			archived: [{ uri: first.toString(), archived: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
 			restored: [{ uri: first.toString(), providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+		});
+	});
+
+	test('persists read state across updates and restores', async () => {
+		const { store, databaseFor } = createPerResourceStore();
+		await store.upsert(session, first, 'old', origin, 'inherited-turn');
+		await store.setRead(session, first, false);
+		await store.upsert(session, first, 'refreshed');
+		const unread = await store.tryRead(session);
+		const centralUnread = (await orchestrator.getSessionChatCatalog(session.toString()))?.chats.find(chat => chat.chat === first.toString())?.isRead;
+		const compatibilityUnread = await databaseFor(first).getMetadata(AH_META_IS_READ_DB_KEY);
+
+		await store.setRead(session, first, true);
+		const read = await store.tryRead(session);
+		const centralRead = (await orchestrator.getSessionChatCatalog(session.toString()))?.chats.find(chat => chat.chat === first.toString())?.isRead;
+		const compatibilityRead = await databaseFor(first).getMetadata(AH_META_IS_READ_DB_KEY);
+
+		assert.deepStrictEqual({ unread, centralUnread, compatibilityUnread, read, centralRead, compatibilityRead }, {
+			unread: [{ uri: first.toString(), isRead: false, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			centralUnread: false,
+			compatibilityUnread: '',
+			read: [{ uri: first.toString(), isRead: true, providerData: 'refreshed', origin, inheritedTurnId: 'inherited-turn' }],
+			centralRead: true,
+			compatibilityRead: 'true',
 		});
 	});
 

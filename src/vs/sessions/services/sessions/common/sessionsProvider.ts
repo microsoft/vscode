@@ -9,6 +9,7 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -28,6 +29,16 @@ export interface ISessionChangeEvent {
 
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
+
+/** Schema-backed configuration consumed by mode and approval pickers, including pre-provisioning drafts. */
+export interface ISessionConfigProvider {
+	readonly onDidChangeSessionConfig: Event<string>;
+	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
+	isSessionConfigResolving(sessionId: string): IObservable<boolean>;
+	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
+	trackSessionConfigOperation?(sessionId: string, operation: Promise<void>): void;
+}
 
 /** Provider-owned permission choice exposed while configuring a new session. */
 export interface ISessionPermissionOption {
@@ -52,6 +63,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Initial configuration resolved by the target provider before its first turn. */
+	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 	/** UI-only response observation, forwarded to the chat service rather than the backend. */
 	readonly onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'];
 	/** The query text to send. */
@@ -174,6 +187,7 @@ export interface IDeleteChatOptions {
  * serve the same session type (e.g., one per remote agent host).
  */
 export interface ISessionsProvider {
+	readonly sessionConfig?: ISessionConfigProvider;
 	/**
 	 * Unique identifier for the provider.
 	 */
@@ -519,6 +533,13 @@ export interface ISessionsProvider {
 	 * @param isRead `true` to mark the session read, `false` to mark it unread.
 	 */
 	setSessionReadState(sessionId: string, isRead: boolean): Promise<void>;
+
+	/**
+	 * Set the read/unread state of a chat independently of its owning session.
+	 * Providers without independently readable chats leave this capability undefined.
+	 * Returns `false` when the transition was not accepted and may be retried.
+	 */
+	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
 
 	/**
 	 * Delete a session.

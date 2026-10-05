@@ -16,7 +16,7 @@ import { buildChatUri, buildSubagentSessionUri, MessageKind, SessionStatus, Tool
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
+import { getCopilotBrowserSandboxNetworkRestrictions, projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
@@ -80,8 +80,8 @@ suite('Session sandbox configuration', () => {
 		});
 	});
 
-	test('ignores missing or malformed sandbox policy metadata', () => {
-		const values = [undefined, null, [], true, {}, { enabled: 'true' }, { enabled: true, allowBypass: 'false' }, { enabled: true, allowOutbound: 'false' }, { enabled: true, allowLocalNetwork: 'false' }, { enabled: true, allowDevToolAccess: 'false' }, { enabled: true, sandboxMcpServers: 'true' }, { enabled: true, sandboxLspServers: 'true' }];
+	test('ignores missing or non-object sandbox policy metadata', () => {
+		const values = [undefined, null, [], true, 'policy', 0];
 		assert.deepStrictEqual(values.map(value => readSessionSandboxPolicy({ _meta: { 'vscode.resolvedSandboxPolicy': value } })), values.map(() => undefined));
 	});
 
@@ -164,6 +164,41 @@ suite('Session sandbox configuration', () => {
 			{ enabled: 'on' },
 			{ enabled: 'off' },
 			{ enabled: 'on', allowUnsandboxedCommands: false },
+		]);
+	});
+
+	test('browser client tool network restrictions use session selection and managed outbound policy', () => {
+		const { configuration, create } = setupSession();
+		const enabled = create('network-enabled', { sandboxEnabled: 'on' });
+		const disabled = create('network-disabled', { sandboxEnabled: 'off' });
+		const managed = create('network-managed');
+		const bypassed = create('network-bypassed', { sandboxEnabled: 'off' });
+		const failClosed = create('network-fail-closed');
+		configuration.updateRootConfig({ sandbox: { enabled: 'off', allowNetwork: true, allowedNetworkDomains: ['example.com'], deniedNetworkDomains: ['private.example.com'] } });
+		configuration.setSessionSandboxPolicy(managed, { enabled: true, allowOutbound: false });
+		configuration.setSessionSandboxPolicy(bypassed, { enabled: true, allowBypass: true });
+		configuration.setSessionSandboxEnabled(bypassed, false);
+		configuration.updateSessionConfig(bypassed, { sandboxEnabled: 'off' });
+		configuration.setSessionSandboxPolicy(failClosed, { enabled: true, allowBypass: false, failClosed: true });
+		assert.deepStrictEqual([enabled, disabled, managed, bypassed, failClosed].map(session => getCopilotBrowserSandboxNetworkRestrictions(configuration, session, 'openBrowserPage')), [
+			{ sandboxEnabled: true, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: ['private.example.com'] },
+			{ sandboxEnabled: false, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: ['private.example.com'] },
+			{ sandboxEnabled: true, allowNetwork: false, allowedDomains: ['example.com'], deniedDomains: ['private.example.com'] },
+			{ sandboxEnabled: false, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: ['private.example.com'] },
+			{ sandboxEnabled: true, allowNetwork: true, allowedDomains: ['example.com'], deniedDomains: ['private.example.com'] },
+		]);
+	});
+
+	test('Copilot network metadata is limited to integrated-browser client tools', () => {
+		const { configuration, create } = setupSession();
+		const session = create('browser-only', { sandboxEnabled: 'on' });
+		const names = ['openBrowserPage', 'readPage', 'screenshotPage', 'navigatePage', 'clickElement', 'typeInPage',
+			'hoverElement', 'dragElement', 'handleDialog', 'runPlaywrightCode', 'list_browser_pages', 'fetchWebPage', 'run_in_terminal', 'read_file'];
+		assert.deepStrictEqual(names.map(name => [name, getCopilotBrowserSandboxNetworkRestrictions(configuration, session, name) !== undefined]), [
+			['openBrowserPage', true], ['readPage', true], ['screenshotPage', true], ['navigatePage', true],
+			['clickElement', true], ['typeInPage', true], ['hoverElement', true], ['dragElement', true],
+			['handleDialog', true], ['runPlaywrightCode', true], ['list_browser_pages', true],
+			['fetchWebPage', false], ['run_in_terminal', false], ['read_file', false],
 		]);
 	});
 
@@ -312,6 +347,53 @@ suite('Session sandbox configuration', () => {
 			{ enabled: true, allowBypass: true },
 		]);
 	});
+
+	for (const [key, field] of [
+		[AgentHostSandboxKey.AuthenticateGit, 'git'],
+		[AgentHostSandboxKey.AuthenticateGh, 'gh'],
+	] as const) {
+		test(`resolved ${key} policy survives serialization and clears when omitted or malformed`, () => {
+			const { manager, configuration, create } = setupSession();
+			const owner = create('credentials');
+			const apply = (value: boolean | string | undefined) => {
+				configuration.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy({
+					source: 'server', serverManaged: true, deviceManaged: false,
+					failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['sandbox'],
+					settings: { sandbox: { enabled: true, allowBypass: false, auth: value === undefined ? {} : { [field]: value } } },
+				}, owner, new NullLogService()));
+				return readSessionSandboxPolicy(JSON.parse(JSON.stringify(manager.getSessionState(owner))));
+			};
+			assert.deepStrictEqual([true, false, undefined, 'true'].map(apply), [
+				{ enabled: true, allowBypass: false, [key]: true },
+				{ enabled: true, allowBypass: false, [key]: false },
+				{ enabled: true, allowBypass: false },
+				{ enabled: true, allowBypass: false },
+			]);
+		});
+
+		test(`managed ${key} denial wins without widening local choices for owners, peers and subagents`, () => {
+			const { manager, configuration, create } = setupSession();
+			const owner = create('credentials');
+			const peer = buildChatUri(owner, 'peer');
+			manager.addChat(owner, peer);
+			for (const local of [undefined, false, true]) {
+				const sandbox = { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) };
+				configuration.updateRootConfig({ sandbox });
+				for (const managed of [undefined, false, true, false, undefined]) {
+					configuration.setSessionSandboxPolicy(owner, { enabled: false, [key]: managed });
+					const sessions = [owner, peer, buildSubagentSessionUri(owner, 'child')];
+					assert.deepStrictEqual({
+						values: sessions.map(session => (['linux', 'darwin', 'win32'] as const).map(platform =>
+							buildSandboxConfigForSdk(platform, getSessionSandboxConfig(configuration, session))?.auth?.[field])),
+						stored: configuration.getRootConfigValues()?.sandbox,
+					}, {
+						values: sessions.map(() => (['linux', 'darwin', 'win32'] as const).map(() => managed === false ? false : local ?? true)),
+						stored: sandbox,
+					});
+				}
+			}
+		});
+	}
 
 	for (const [key, managedValue] of [
 		[AgentHostSandboxKey.SandboxMcpServers, true],

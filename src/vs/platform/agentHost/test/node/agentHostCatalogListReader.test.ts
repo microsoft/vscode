@@ -97,8 +97,8 @@ suite('AgentHostCatalogListReader', () => {
 			[SESSION_META_EHCLI_ADOPTABLE_KEY]: true,
 		},
 		chats: [
-			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user' },
-			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+			{ uri: `${session.toString()}/chat/default`, order: 0, kind: 'default', summary: 'Catalog title', titleSource: 'user', isRead: true },
+			{ uri: `${session.toString()}/chat/peer`, order: 1, kind: 'peer', summary: 'Peer title', titleSource: 'agent', origin: { kind: 'fork', chat: `${session.toString()}/chat/default`, turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
 		],
 	};
 
@@ -191,6 +191,7 @@ suite('AgentHostCatalogListReader', () => {
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			})),
 			catalogChats: data.chats,
 		});
