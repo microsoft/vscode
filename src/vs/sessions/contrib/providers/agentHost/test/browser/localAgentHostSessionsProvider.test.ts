@@ -5821,7 +5821,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('selects the current branch upstream when New Worktree is toggled on', async () => {
+	test('selects the default remote branch for New Worktree and the current branch for Branch', async () => {
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
@@ -5842,7 +5842,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
-			values: { isolation: 'worktree', branch: 'origin/feature' },
+			values: { isolation: 'worktree', branch: 'origin/main' },
 		};
 
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
@@ -5861,10 +5861,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			repository: 'origin/feature',
 			requests: [
-				{ isolation: 'worktree', branch: 'origin/feature' },
-				{ isolation: 'folder' },
+				{ isolation: 'worktree', branch: 'origin/main' },
+				{ isolation: 'folder', branch: 'feature' },
 			],
-			worktreeConfig: { isolation: 'worktree', branch: 'origin/feature' },
+			worktreeConfig: { isolation: 'worktree', branch: 'origin/main' },
 			config: { isolation: 'folder', branch: 'feature' },
 		});
 	});
@@ -8315,6 +8315,73 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, {
 				sessionRepository: 'API',
 				peerRepository: undefined,
+			});
+		});
+
+		for (const customDefaultChat of [false, true]) {
+			test(`maps PR artifact owners to chat resources with ${customDefaultChat ? 'host-advertised' : 'local'} chat URIs`, () => {
+				const provider = createProviderWithPullRequestModels();
+				const rawId = `multi-pr-owner-${customDefaultChat}`;
+				const directory = URI.file('/work/vscode');
+				const session = setupMultiChatSession(provider, rawId, [directory]);
+				const sessionUri = AgentSession.uri('copilotcli', rawId).toString();
+				const defaultChat = customDefaultChat ? 'custom-chat://host/conversation/main' : buildDefaultChatUri(sessionUri);
+				const peerChat = buildChatUri(sessionUri, 'peer-1');
+				const meta = withSessionArtifacts({
+					githubData: {
+						[directory.toString()]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/pull/2'] },
+					},
+				}, [
+					{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+					{ id: 'peer-pr', chat: peerChat, type: SessionArtifactType.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				]);
+
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([
+					makeChatSummary(defaultChat, 'Main', ProtocolSessionStatus.Idle, [directory.toString()]),
+					makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle, [directory.toString()]),
+				], { defaultChat, meta }));
+				const main = session.mainChat.get();
+				const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+				assert.ok(peer);
+				assert.deepStrictEqual({
+					owners: session.artifacts?.get().map(artifact => [artifact.id, artifact.chat?.toString()]),
+					restrictedMain: getSessionGitHubReferences(session, undefined, main, false).pullRequests.map(ref => ref.number),
+					restrictedPeer: getSessionGitHubReferences(session, undefined, peer, false).pullRequests.map(ref => ref.number),
+					automaticMain: getSessionGitHubReferences(session, undefined, main).pullRequests.map(ref => ref.number),
+					automaticPeer: getSessionGitHubReferences(session, undefined, peer).pullRequests.map(ref => ref.number),
+				}, {
+					owners: [['peer-pr', peer.resource.toString()], ['main-pr', main.resource.toString()]],
+					restrictedMain: [1],
+					restrictedPeer: [2],
+					automaticMain: [1, 2],
+					automaticPeer: [2, 1],
+				});
+			});
+		}
+
+		test('remaps artifact ownership when a single chat catalog hydrates without attributing unknown owners', () => {
+			const provider = createProviderWithPullRequestModels();
+			const rawId = 'pr-owner-hydration';
+			const session = setupMultiChatSession(provider, rawId);
+			const defaultChat = 'custom-chat://host/conversation/main';
+			const unknownChat = 'custom-chat://host/conversation/unknown';
+			const meta = withSessionArtifacts(undefined, [
+				{ id: 'main-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: 'Main PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+				{ id: 'unknown-pr', chat: unknownChat, type: SessionArtifactType.PullRequest, label: 'Unknown PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				{ id: 'legacy-pr', type: SessionArtifactType.PullRequest, label: 'Legacy PR', isArtifact: true, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/3' },
+			]);
+			const snapshots: (readonly (readonly (string | undefined)[])[])[] = [];
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([], { meta }));
+			disposables.add(autorun(reader => {
+				snapshots.push(session.artifacts?.read(reader).map(artifact => [artifact.id, artifact.chat?.toString()]) ?? []);
+			}));
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat, 'Main'),
+			], { defaultChat, meta }));
+
+			assert.deepStrictEqual({ before: snapshots[0], after: snapshots.at(-1) }, {
+				before: [['legacy-pr', undefined], ['unknown-pr', unknownChat], ['main-pr', defaultChat]],
+				after: [['legacy-pr', undefined], ['unknown-pr', unknownChat], ['main-pr', session.mainChat.get().resource.toString()]],
 			});
 		});
 

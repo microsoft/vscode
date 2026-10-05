@@ -24,6 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
+import { getPluginCacheUri, validatePluginCacheUri } from '../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
@@ -109,9 +110,9 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			return marketplace.localRepositoryUri;
 		}
 
-		const indexed = this._marketplaceIndex.value.get(marketplace.canonicalId);
-		if (indexed?.repositoryUri && this._isSupportedIndexedRepositoryUri(indexed.repositoryUri)) {
-			return indexed.repositoryUri;
+		const indexed = this._getIndexedRepositoryUri(marketplace);
+		if (indexed) {
+			return indexed;
 		}
 
 		return this._getRepoCacheDirForReference(marketplace);
@@ -146,11 +147,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	private async _ensureRemoteRepository(marketplace: IMarketplaceReference, options: IEnsureRepositoryOptions | undefined): Promise<URI> {
-		const storedIndexedRepoDir = this._marketplaceIndex.value.get(marketplace.canonicalId)?.repositoryUri;
-		const indexedRepoDir = storedIndexedRepoDir && this._isSupportedIndexedRepositoryUri(storedIndexedRepoDir) ? storedIndexedRepoDir : undefined;
-		if (storedIndexedRepoDir && !indexedRepoDir) {
-			this._removeMarketplaceIndex(marketplace);
-		}
+		const indexedRepoDir = this._getIndexedRepositoryUri(marketplace);
 		const primaryRepoDir = this._getRepoCacheDirForReference(marketplace);
 		const fallbackRepoDir = marketplace.ref ? undefined : this._getMarketplaceVariantCacheDir(marketplace, 'default');
 		const candidates: URI[] = [];
@@ -264,8 +261,22 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		}
 	}
 
-	private _isSupportedIndexedRepositoryUri(repositoryUri: URI): boolean {
-		return isEqualOrParent(repositoryUri, this._cacheRoot) || isEqualOrParent(repositoryUri, this._legacyCacheRoot);
+	private _getIndexedRepositoryUri(marketplace: IMarketplaceReference): URI | undefined {
+		const indexed = this._marketplaceIndex.value.get(marketplace.canonicalId);
+		if (!indexed?.repositoryUri) {
+			return undefined;
+		}
+		let validationError: unknown;
+		for (const root of [this._cacheRoot, this._legacyCacheRoot]) {
+			try {
+				return validatePluginCacheUri(root, indexed.repositoryUri);
+			} catch (error) {
+				validationError = error;
+			}
+		}
+		this._logService.warn(`[AgentPluginRepositoryService] Discarding invalid cached marketplace location for ${marketplace.displayLabel}`, validationError);
+		this._removeMarketplaceIndex(marketplace);
+		return undefined;
 	}
 
 	/**
@@ -417,12 +428,12 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 			}
 			return this._getMarketplaceVariantCacheDir(reference, refSegment);
 		}
-		return joinPath(this._cacheRoot, ...reference.cacheSegments);
+		return getPluginCacheUri(this._cacheRoot, reference.cacheSegments);
 	}
 
 	private _getMarketplaceVariantCacheDir(reference: IMarketplaceReference, variant: string): URI {
 		const baseSegments = reference.ref ? reference.cacheSegments.slice(0, -1) : reference.cacheSegments;
-		return joinPath(this._cacheRoot, MARKETPLACE_VARIANT_CACHE_SEGMENT, ...baseSegments, variant);
+		return getPluginCacheUri(this._cacheRoot, [MARKETPLACE_VARIANT_CACHE_SEGMENT, ...baseSegments, variant]);
 	}
 
 	private _loadMarketplaceIndex(): Map<string, IMarketplaceIndexEntry> {
