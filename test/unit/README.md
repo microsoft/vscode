@@ -29,6 +29,21 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
     npm run test-node -- --run src/vs/editor/test/browser/controller/cursor.test.ts
 
+## Product quality
+
+Official builds run unit tests with a `product.json` that sets `quality` (`insider` or `stable`), but the OSS `product.json` has no `quality`. Code that checks `product.quality`, such as setting defaults like `product.quality === 'insider'`, therefore takes a different branch in OSS runs than in official builds.
+
+Set `VSCODE_TEST_QUALITY` to override `product.quality` in the Electron and node.js unit test runners:
+
+    VSCODE_TEST_QUALITY=insider ./scripts/test.sh --run src/vs/workbench/contrib/chat/test/browser/chatConfiguration.test.ts
+    VSCODE_TEST_QUALITY=stable npm run test-node
+
+On Windows (PowerShell):
+
+    $env:VSCODE_TEST_QUALITY = 'insider'; .\scripts\test.bat
+
+Accepted values are `insider`, `stable`, and `exploration`. GitHub PR CI runs unit tests with `insider`. The browser unit test runner doesn't read `product.json`, so `product.quality` is always `undefined` there, including in official builds.
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:
