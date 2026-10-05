@@ -7,6 +7,7 @@ import * as dom from '../../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { SelectBox } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
+import type { IModelPickerOpenOptions } from './modelPickerWidget.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -190,7 +191,12 @@ export class TabbedModelPicker extends Disposable {
 		super.dispose();
 	}
 
-	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number): void {
+	openWithFilter(options: IModelPickerOpenOptions): void {
+		this._searchVisible = true;
+		this._showCurrent(options.initialFilterValue, options.initialFocusItemId);
+	}
+
+	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number, options?: IModelPickerOpenOptions): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 			if (context.workflow?.available.get() && context.workflow.summary.get()) {
@@ -205,7 +211,10 @@ export class TabbedModelPicker extends Disposable {
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
 		this._rememberSelection(pickerContext.selectedModelId);
-		this._showCurrent();
+		if (options?.initialFilterValue !== undefined) {
+			this._searchVisible = true;
+		}
+		this._showCurrent(options?.initialFilterValue, options?.initialFocusItemId);
 		const detailsModel = pickerContext.models.find(model => model.identifier === detailsModelId);
 		if (detailsModel && !isAutoModel(detailsModel) && !isHydraFusionModel(detailsModel)) {
 			this._showModelDetails(detailsModel, focusConfiguration);

@@ -26,6 +26,9 @@ import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { newAgentHostSessionUri } from '../../../../../../platform/agentHost/common/agentHostSessionIdentity.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IPosition } from '../../../../../../editor/common/core/position.js';
 import type { IRange } from '../../../../../../editor/common/core/range.js';
 import { isLocation, type Location } from '../../../../../../editor/common/languages.js';
@@ -1237,6 +1240,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * it (see {@link _releaseChatSessionSubscriptions} / {@link _hasOtherSessionHold}).
 	 */
 	private readonly _hydratingChatSessions = new Map<string, number>();
+	private _sessionIdentityRefresh: Promise<void> | undefined;
 
 	/**
 	 * Whether the `hideAutoExplainability` experiment suppresses Auto's routing
@@ -1281,6 +1285,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IAgentHostCustomizationService private readonly _customizationService: IAgentHostCustomizationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this._config = config;
@@ -1526,13 +1531,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// For new sessions, defer backend session creation until the first request
 		// arrives so the user-selected model is available. The chat resource still
 		// carries the raw session id that will be used when createSession runs.
-		const resolvedSession = this._resolveSessionUri(sessionResource);
+		let resolvedSession = this._resolveSessionUri(sessionResource);
 		let chatURI: string | undefined;
 
 		// The point of this is to check with the session provider or controller
 		// whether this session resource represents a new session that hasn't yet
 		// been created on the backend.
 		const isNewSession = this._isNewSessionResource(sessionResource);
+		if (!isNewSession && !this._provisionalService.get(sessionResource)
+			&& !this._resolveAdvertisedSessionUri(sessionResource)) {
+			resolvedSession = await this._discoverSessionIdentity(sessionResource, token);
+		}
 		this._logService.trace(`[AgentHost] provideChatSessionContent start: ${resolvedSession.toString()} (isNewSession=${isNewSession})`);
 		const history: IChatSessionHistoryItem[] = [];
 		let initialProgress: IChatProgress[] | undefined;
@@ -1606,7 +1615,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							this._chatErrorContext(),
 							this._config.connection.initializeResult.get()?.terminalCommandPrefix,
 							this._config.connection.resourceUris,
-							this._config.provider,
 							turn => this._getTurnErrorDetails(turn, allowTurnResume),
 							readAgentContextUsage(sessionState, sessionState.turns.at(-1)?.usage),
 						));
@@ -1646,7 +1654,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								...(isMessageRequestHiddenFromTranscript(sessionState.activeTurn.message) ? { isRequestHidden: true } : {}),
 								isSystemInitiated: sessionState.activeTurn.message.origin.kind === MessageKind.SystemNotification,
 								requestSource: messageToRequestSource(sessionState.activeTurn.message),
-								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId, this._config.provider),
+								origin: messageToRequestOrigin(resolvedSession, sessionState.activeTurn.message, this._config.agentId, this._config.connectionAuthority),
 							});
 							history.push({
 								type: 'response',
@@ -2399,7 +2407,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return explicitChatUri;
 		}
 		if (sessionResource.fragment) {
-			const match = state.chats.find(summary => parseChatUri(summary.resource)?.chatId === sessionResource.fragment);
+			const match = state.chats.find(summary => getAgentHostChatId(summary.resource) === sessionResource.fragment);
 			if (!match) {
 				throw new Error(`Cannot resolve chat '${sessionResource.fragment}' from session state for ${sessionResource.toString()}`);
 			}
@@ -2548,7 +2556,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const allowTurnResume = !this._isChatReadOnly(sessionStr, chatURI);
 			chatSession.updateHistory(turnsToHistory(backendSession, state.turns, this._config.agentId, this._config.connectionAuthority,
 				lookup, this._chatErrorContext(), this._config.connection.initializeResult.get()?.terminalCommandPrefix,
-				this._config.connection.resourceUris, this._config.provider, turn => this._getTurnErrorDetails(turn, allowTurnResume),
+				this._config.connection.resourceUris, turn => this._getTurnErrorDetails(turn, allowTurnResume),
 				readAgentContextUsage(state, state.turns.at(-1)?.usage)));
 		};
 		let previousContextUsage = currentState ? readAgentContextUsage(currentState, currentState.turns.at(-1)?.usage) : undefined;
@@ -2656,7 +2664,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					timestamp: parseTimestamp(activeTurn.startedAt),
 					isTerminalRequest: isTerminalCommandPrompt(activeTurn.message.text, this._config.connection.initializeResult.get()?.terminalCommandPrefix),
 					resume: resumedTurn,
-					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId, this._config.provider),
+					origin: messageToRequestOrigin(backendSession, activeTurn.message, this._config.agentId, this._config.connectionAuthority),
 				},
 			);
 
@@ -5769,14 +5777,71 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		);
 	}
 
-	/** Maps a UI session resource to a backend provider URI. */
+	private async _discoverSessionIdentity(sessionResource: URI, token: CancellationToken): Promise<URI> {
+		if (!this._sessionIdentityRefresh) {
+			const refresh = this._loadSessionIdentities(sessionResource).finally(() => {
+				if (this._sessionIdentityRefresh === refresh) {
+					this._sessionIdentityRefresh = undefined;
+				}
+			});
+			this._sessionIdentityRefresh = refresh;
+		}
+		await raceCancellationError(this._sessionIdentityRefresh, token);
+		const advertised = this._resolveAdvertisedSessionUri(sessionResource);
+		if (!advertised) {
+			throw new Error(`Session identity was not advertised by its agent host: ${sessionResource.toString()}`);
+		}
+		return advertised;
+	}
+
+	private async _loadSessionIdentities(sessionResource: URI): Promise<void> {
+		const authority = this._connectionsService.resolveSessionResourceIdentity(sessionResource)?.connectionAuthority
+			?? this._config.connectionAuthority;
+		for (const metadata of await this._config.connection.listSessions()) {
+			this._connectionsService.registerSessionResource(metadata.session, authority, metadata.provider);
+		}
+	}
+
+	/** Resolves a known backend identity or a not-yet-created session address. */
 	private _resolveSessionUri(sessionResource: URI): URI {
 		const provisionalSession = this._provisionalService.get(sessionResource);
 		if (provisionalSession) {
 			return provisionalSession;
 		}
 		const rawId = sessionResource.path.substring(1);
-		return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
+		const advertised = this._resolveAdvertisedSessionUri(sessionResource);
+		if (advertised) {
+			return advertised;
+		}
+		if (!this._isNewSessionResource(sessionResource)) {
+			return AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, rawId);
+		}
+		return this._config.backendSessionScheme
+			? AgentSession.uri(this._config.backendSessionScheme, rawId)
+			: newAgentHostSessionUri(this._config.provider, rawId, this._config.connection.initializeResult.get());
+	}
+
+	private _resolveAdvertisedSessionUri(sessionResource: URI): URI | undefined {
+		const identity = this._connectionsService.resolveSessionResourceIdentity(sessionResource);
+		if (identity?.backendSessionIsAdvertised) {
+			return identity.backendSession;
+		}
+		const query = sessionResource.query.split('&').filter(part => !part.startsWith(`${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=`)).join('&');
+		const parent = sessionResource.with({ query, fragment: '' });
+		const parentIdentity = this._connectionsService.resolveSessionResourceIdentity(parent);
+		if (parentIdentity?.backendSessionIsAdvertised) {
+			return parentIdentity.backendSession;
+		}
+		const authority = identity?.connectionAuthority ?? this._config.connectionAuthority;
+		if (this._connectionsService.findSessionResource(parent, authority)) {
+			return parent;
+		}
+		const legacy = AgentSession.uri(this._config.backendSessionScheme ?? this._config.provider, AgentSession.id(parent));
+		if (parent.authority || parent.query || legacy.scheme === 'ahp-session'
+			|| (parent.scheme !== this._config.sessionType && parent.scheme !== legacy.scheme)) {
+			return undefined;
+		}
+		return this._connectionsService.findSessionResource(legacy, authority) ? legacy : undefined;
 	}
 
 	private _isNewSessionResource(sessionResource: URI): boolean {

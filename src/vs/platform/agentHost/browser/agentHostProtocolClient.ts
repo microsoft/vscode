@@ -13,16 +13,19 @@ import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { newAgentHostSessionUri } from '../common/agentHostSessionIdentity.js';
+import { AgentHostSessionUrisCapabilityMetaKey } from '../common/meta/agentHostSessionUrisMeta.js';
 import { vArray, vEnum, vObj, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
+import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
@@ -1220,12 +1223,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _clientMeta(): Record<string, unknown> {
 		const telemetryLevel = this._effectiveTelemetryLevel();
 		const sendIdentity = telemetryLevel >= TelemetryLevel.USAGE;
-		return toAgentHostClientMeta(
-			this._transport.clientConnectionKind,
-			telemetryLevel,
-			sendIdentity ? this._telemetryService.machineId : undefined,
-			sendIdentity ? this._telemetryService.devDeviceId : undefined,
-		);
+		return {
+			...toAgentHostClientMeta(
+				this._transport.clientConnectionKind,
+				telemetryLevel,
+				sendIdentity ? this._telemetryService.machineId : undefined,
+				sendIdentity ? this._telemetryService.devDeviceId : undefined,
+			), [AgentHostSessionUrisCapabilityMetaKey]: true
+		};
 	}
 
 	private _applyInitializeResult(result: IAgentHostExtensionInitializeResult, forwardClientConfig = true): void {
@@ -1483,7 +1488,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		if (!provider) {
 			throw new Error('Cannot create remote agent host session without a provider.');
 		}
-		const session = config?.session ?? AgentSession.uri(provider, generateUuid());
+		const root = this.rootState.value;
+		const session = config?.session ?? newAgentHostSessionUri(provider, generateUuid(), this.initializeResult.get(), root instanceof Error ? undefined : root);
 		if (config?.activeClient?.customizations) {
 			this._grantImplicitReadsForCustomizations(config.activeClient.customizations);
 		}
@@ -1833,36 +1839,40 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async listSessions(): Promise<(IAgentSessionMetadata & { readonly workingDirectory?: URI })[]> {
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
-		return result.items.map((s: SessionSummary) => ({
-			session: URI.parse(s.resource),
-			provider: s.provider,
-			startTime: Date.parse(s.createdAt),
-			modifiedTime: Date.parse(s.modifiedAt),
-			...(s.project ? {
-				project: {
-					uri: this._toClientUri(URI.parse(s.project.uri)),
-					displayName: s.project.displayName,
-				}
-			} : {}),
-			summary: s.title,
-			status: s.status,
-			activity: s.activity,
-			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
-			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
-			changes: s.changes,
-			chats: s.chats?.map(chat => ({
-				chat: URI.parse(chat.resource),
-				summary: chat.title,
-				kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
-				origin: chat.origin,
-				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-				...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
-				...(chat.status !== undefined ? { isRead: isSessionStatusRead(chat.status) } : {}),
-				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-			})),
-			// Carry durable host provenance for sessions first materialized from a listing.
-			...(s._meta !== undefined ? { _meta: s._meta } : {}),
-		}));
+		return result.items.map((s: SessionSummary) => {
+			const model = readCodexSessionModel(s);
+			return {
+				session: URI.parse(s.resource),
+				provider: s.provider,
+				startTime: Date.parse(s.createdAt),
+				modifiedTime: Date.parse(s.modifiedAt),
+				...(s.project ? {
+					project: {
+						uri: this._toClientUri(URI.parse(s.project.uri)),
+						displayName: s.project.displayName,
+					}
+				} : {}),
+				summary: s.title,
+				status: s.status,
+				activity: s.activity,
+				workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
+				workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
+				changes: s.changes,
+				...(model ? { model } : {}),
+				chats: s.chats?.map(chat => ({
+					chat: URI.parse(chat.resource),
+					summary: chat.title,
+					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+					origin: chat.origin,
+					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
+					...(chat.status !== undefined ? { isRead: isSessionStatusRead(chat.status) } : {}),
+					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+				})) ?? (s.defaultChat ? [{ chat: URI.parse(s.defaultChat), kind: 'default' as const }] : undefined),
+				// Carry durable host provenance for sessions first materialized from a listing.
+				...(s._meta !== undefined ? { _meta: s._meta } : {}),
+			};
+		});
 	}
 
 	private _toClientUri(uri: URI): URI {
