@@ -1612,6 +1612,16 @@ export class CopilotAgentSession extends Disposable {
 		} else {
 			turnId = turn?.sdkTurnIds.has(event.data.turnId) ? turn.id : undefined;
 		}
+		// Each HydraFusion phase runs its own SDK turn under a fresh interaction id, but the runtime
+		// stages the phase's `assistant.turn_start` until commit and never delivers it for a discarded
+		// or cancelled phase. A phase only runs while its current host turn owns it, so attribute
+		// its root model calls to that turn rather than dropping them from the turn's call count.
+		if (!turnId && turn && !event.agentId && this._fusionProgress.runningPhaseToolCallId !== undefined) {
+			turnId = turn.id;
+			if (event.data.interactionId) {
+				turn.interactionIds.add(event.data.interactionId);
+			}
+		}
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
 			return;
