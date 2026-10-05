@@ -101,11 +101,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	private getFrameByName(id: WebviewWebContentsId | WebviewWindowId, frameName: string): WebFrameMain | undefined {
 		const contents = this.getWebContents(id);
 
-		// The render frame backing this webContents may already be disposed
-		// (e.g. the originating webview/window was closed or navigated away)
-		// by the time a find/stop-find request is handled. Accessing the frame
-		// subtree of a disposed webContents yields `undefined`, so guard before
-		// reading it to avoid a `Cannot read properties of undefined` throw.
+		// The frame subtree can be unavailable after the webContents has been disposed.
 		if (contents.isDestroyed()) {
 			return undefined;
 		}
