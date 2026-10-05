@@ -222,13 +222,13 @@ export class HoverWidget extends Widget implements IHoverWidget {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
 				this._register(HoverAction.render(actionsElement, {
-					label: action.label,
+					get label() { return action.label; },
 					commandId: action.commandId,
 					run: e => {
 						action.run(e);
 						this.dispose();
 					},
-					iconClass: action.iconClass,
+					get iconClass() { return action.iconClass; },
 					onDidChange: action.onDidChange,
 				}, keybindingLabel));
 			});
