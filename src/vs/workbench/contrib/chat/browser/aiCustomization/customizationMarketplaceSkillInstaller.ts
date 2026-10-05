@@ -6,25 +6,18 @@
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { isValidBasename } from '../../../../../base/common/extpath.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { posix } from '../../../../../base/common/path.js';
-import { isWeb, OperatingSystem, OS } from '../../../../../base/common/platform.js';
-import { dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../base/common/resources.js';
+import { dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { getAgentHostOperatingSystem } from '../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
-import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { CustomizationMarketplaceInstallation, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
-import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
@@ -55,8 +48,6 @@ export class CustomizationMarketplaceSkillInstaller {
 		@IProgressService private readonly progressService: IProgressService,
 		@ILabelService private readonly labelService: ILabelService,
 		@ILogService private readonly logService: ILogService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) { }
 
 	async install(resource: ICustomizationMarketplaceResource, enabledToken: CancellationToken): Promise<SkillInstallationTarget> {
@@ -325,32 +316,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		}
 	}
 
-	private async getDestinationOS(target: URI): Promise<OperatingSystem> {
-		switch (target.scheme) {
-			case Schemas.file:
-				return OS;
-			case Schemas.vscodeUserData:
-				return isWeb ? OperatingSystem.Linux : OS;
-			case Schemas.vscodeRemote: {
-				const environment = await this.remoteAgentService.getRawEnvironment();
-				if (environment) {
-					return environment.os;
-				}
-				break;
-			}
-			case AGENT_HOST_SCHEME: {
-				const connection = this.agentHostConnectionsService.getConnectionByAuthority(target.authority);
-				if (connection) {
-					return getAgentHostOperatingSystem(connection);
-				}
-				break;
-			}
-		}
-		throw new Error(localize('customizationMarketplace.unknownSkillDestinationOS', "The remote destination's operating system could not be determined. Reconnect and try again."));
-	}
-
 	private async copySkill(source: URI, target: URI, checkContext: () => void, token: CancellationToken): Promise<readonly string[]> {
-		const windowsTarget = (await this.getDestinationOS(target)) === OperatingSystem.Windows;
 		const directories = [{ source, target, relativePath: '' }];
 		const skillFile = joinPath(source, SKILL_FILENAME);
 		const files: string[] = [];
@@ -374,13 +340,6 @@ export class CustomizationMarketplaceSkillInstaller {
 					throw new Error(localize('customizationMarketplace.unsafeSkillContents', "The skill contains symbolic links or too many files. Review the source before installing it manually."));
 				}
 				const destination = joinPath(directory.target, child.name);
-				if (!isValidBasename(child.name, windowsTarget)
-					|| child.name.includes('\0')
-					|| (windowsTarget && /[\u0000-\u001f\u007f]/.test(child.name))
-					|| !isEqualOrParent(destination, target)
-					|| isEqual(destination, target)) {
-					throw new Error(localize('customizationMarketplace.unsafeSkillFileName', "The skill contains a file or folder name that cannot be copied safely. Review the source before installing it manually."));
-				}
 				const relativePath = directory.relativePath ? `${directory.relativePath}/${child.name}` : child.name;
 				recordPathCharacters += relativePath.length;
 				if (recordPathCharacters > maxSkillRecordPathCharacters) {
