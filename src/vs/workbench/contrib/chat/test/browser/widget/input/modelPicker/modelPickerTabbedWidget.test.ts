@@ -422,6 +422,17 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('idempotent filtered opening focuses the exact row without selecting it', () => {
+		const a = model('same');
+		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };
+		const { picker, popup, selections } = createPicker({ models: [a, b] });
+		picker.openWithFilter({ initialFilterValue: 'same', initialFocusItemId: b.identifier });
+		picker.openWithFilter({ initialFilterValue: 'same', initialFocusItemId: b.identifier });
+		const input = popup.querySelector<HTMLInputElement>('input');
+		assert.deepStrictEqual({ visible: picker.isVisible, query: input?.value, selections }, { visible: true, query: 'same', selections: [] });
+		assert.ok(popup.querySelector('.monaco-list-row.focused'));
+	});
+
 	for (const initiallyAuto of [false, true]) {
 		test(`mode and provider changes retain the popup size when opened in ${initiallyAuto ? 'Auto' : 'manual'} mode`, () => {
 			const older = model('example-5.5');

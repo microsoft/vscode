@@ -141,6 +141,17 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return connection ? { ...identity, connection } : undefined;
 	}
 
+	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI | undefined {
+		const backend = backendSession.scheme;
+		const alias = this._sessionResolutionPolicies.get(authority)?.sessionSchemeAlias;
+		const provider = alias && alias.backend === backend ? alias.ui : backend;
+		const prefix = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_SCHEME_PREFIX : remoteAgentHostSessionTypeAuthorityPrefix(authority);
+		const resource = backendSession.with({ scheme: `${prefix}${provider}` });
+		// UI fragments select peer chats. Keep the existing owner-resolution
+		// contract and decline addresses it cannot represent without identity loss.
+		return this.resolveSessionResourceIdentity(resource)?.backendSession.toString() === backendSession.toString() ? resource : undefined;
+	}
+
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {
 		const scheme = sessionResource.scheme;
 		const rawSessionId = sessionResource.path.substring(1);

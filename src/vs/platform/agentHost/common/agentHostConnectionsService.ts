@@ -144,6 +144,12 @@ export interface IAgentHostConnectionsService {
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
 	/**
+	 * Maps a backend session through provider policy only when the resource
+	 * resolves back to that exact session. Unsupported identities return undefined.
+	 */
+	getSessionResource(backendSession: URI, authority?: string): URI | undefined;
+
+	/**
 	 * Resolves an agent-host chat-session resource to its connection authority
 	 * and backend session URI without requiring the host to be connected.
 	 */

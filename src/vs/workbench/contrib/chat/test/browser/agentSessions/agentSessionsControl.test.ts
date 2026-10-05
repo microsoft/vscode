@@ -20,6 +20,9 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { AgentSessionsGrouping } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 
 suite('AgentSessionsControl', () => {
 
@@ -157,6 +160,68 @@ suite('AgentSessionsControl', () => {
 		}, {
 			openedResource: resource.toString(),
 			visibleRows: 2,
+		});
+	});
+
+	test('temporarily reveals a filtered row in More and observes its real open action', async () => {
+		const sessions = Array.from({ length: 6 }, (_, index) => ({
+			...createSession(URI.parse(`test:/session-${index}`), `Session ${index}`),
+			timing: { created: 10 - index, lastRequestStarted: undefined, lastRequestEnded: undefined },
+		}));
+		const target = sessions[5];
+		const model: IAgentSessionsModel = {
+			sessions, resolved: true,
+			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
+			observeSession: () => { throw new Error('Not implemented'); },
+			onWillResolve: Event.None, onDidResolve: Event.None,
+			onDidChangeSessions: Event.None, onDidChangeSessionArchivedState: Event.None,
+			resolve: async () => { },
+		};
+		const instantiation = workbenchInstantiationService(undefined, store);
+		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
+			override resolveChatSessionItem = async () => undefined;
+		});
+		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
+			override readonly pendingResponseVersion = observableValue(this, 0);
+			override hasPendingResponse = () => false;
+		});
+		instantiation.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+			override readonly model = model;
+			override readonly onDidChangeSessionArchivedState = Event.None;
+			override getSession = (resource: URI) => model.getSession(resource);
+		});
+		const opened: string[] = [];
+		const observed: string[] = [];
+		const filter = { ...createFilter(), exclude: (session: IAgentSession) => session === target, groupResults: () => AgentSessionsGrouping.Capped, reset: () => assert.fail('Must not reset saved filters') };
+		const container = document.body.appendChild(document.createElement('div'));
+		container.style.cssText = 'width: 500px; height: 500px;';
+		store.add(toDisposable(() => container.remove()));
+		const control = store.add(instantiation.createInstance(AgentSessionsControl, container, {
+			overrideStyles: {}, filter, source: 'test',
+			createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW,
+			trackActiveEditorSession: () => false,
+			overrideSessionOpen: async resource => { opened.push(resource.toString()); },
+		}));
+		store.add(control.onDidOpenSession(resource => observed.push(resource.toString())));
+		await timeout(0); // Let the initial asynchronous tree input finish before expanding sections.
+		control.layout(500, 500);
+		await control.update();
+		assert.strictEqual(control.getSessionElement(target.resource), undefined);
+		const reveal = await control.revealSession(target.resource, CancellationToken.None);
+		assert.ok(reveal);
+		store.add(reveal);
+		assert.deepStrictEqual(opened, [], 'reveal is not a session open');
+		await control.update();
+		const row = control.getSessionElement(target.resource);
+		assert.ok(row, 'the exact row remains resolvable after refresh');
+		row.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true, button: 0 }));
+		await timeout(0);
+		reveal.dispose();
+		await control.update();
+		await timeout(0);
+		assert.deepStrictEqual({ opened, observed, filteredAgain: !control.getSessionElement(target.resource), stillExcluded: filter.exclude(target) }, {
+			opened: [target.resource.toString()], observed: [target.resource.toString()], filteredAgain: true, stillExcluded: true,
 		});
 	});
 
