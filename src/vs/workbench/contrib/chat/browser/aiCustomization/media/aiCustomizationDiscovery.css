@@ -96,7 +96,7 @@
 	margin-bottom: var(--vscode-spacing-size40);
 }
 
-.customization-discovery-result-loading {
+.customization-discovery-result-content > .customization-discovery-result-loading {
 	display: none;
 	position: absolute;
 	inset: 0;
