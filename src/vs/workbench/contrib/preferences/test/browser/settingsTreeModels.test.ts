@@ -9,12 +9,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
@@ -25,8 +26,86 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { TestProductService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { EXP_ASSIGNMENT_SETTING_TAG, POLICY_SETTING_TAG } from '../../common/preferences.js';
 import { SettingsTarget } from '../../browser/preferencesWidgets.js';
+import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
+import { SettingMatches } from '../../browser/preferencesSearch.js';
+
+suite('SettingsTree Agents Window density', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel(isSessionsWindow: boolean, settingsTarget: SettingsTarget) {
+		const key = LayoutSettings.MODERN_UI_DENSITY;
+		const defaults = new TestConfigurationService({ [key]: ModernUIDensity.Default });
+		const workspace = new TestConfigurationService();
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				const inspected = super.inspect<T>(key, overrides);
+				const defaultValue = defaults.getValue<T>(key);
+				const workspaceValue = workspace.getValue<T>(key);
+				return { ...inspected, defaultValue, workspaceValue, value: workspaceValue ?? inspected.userValue ?? defaultValue };
+			}
+		}({ [key]: ModernUIDensity.Compact });
+		for (const service of [defaults, workspace, configuration]) {
+			store.add(service.onDidChangeConfigurationEmitter);
+		}
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		const model = store.add(instantiationService.createInstance(SearchResultModel, { settingsTarget }, null, true));
+		model.setResult(SearchResultIdx.Local, {
+			filterMatches: [{
+				setting: new class extends mock<ISetting>() {
+					override key = key;
+					override type = 'string';
+					override enum = [ModernUIDensity.Default, ModernUIDensity.Compact];
+					override description = [];
+					override scope = ConfigurationScope.WINDOW;
+				}(),
+				matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0,
+			}],
+			exactMatch: false,
+		});
+		const read = () => {
+			const element = model.getElementsByName(key)![0];
+			element.inspectSelf();
+			return { value: element.value, defaultValue: element.defaultValue, configured: element.isConfigured };
+		};
+		return { workspace, read, key };
+	}
+
+	test('shows inherited density until an Agents Window override is set', async () => {
+		const { workspace, read, key } = createModel(true, ConfigurationTarget.WORKSPACE);
+		const inherited = read();
+		await workspace.setUserConfiguration(key, ModernUIDensity.Default);
+		const overridden = read();
+		await workspace.setUserConfiguration(key, undefined);
+
+		const inheritedState = { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: false };
+		assert.deepStrictEqual({ inherited, overridden, reset: read() }, {
+			inherited: inheritedState,
+			overridden: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: true },
+			reset: inheritedState,
+		});
+	});
+
+	test('preserves the existing editor-window and User scope display', () => {
+		assert.deepStrictEqual({
+			editorWorkspace: createModel(false, ConfigurationTarget.WORKSPACE).read(),
+			agentsUser: createModel(true, ConfigurationTarget.USER_LOCAL).read(),
+		}, {
+			editorWorkspace: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: false },
+			agentsUser: { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: true },
+		});
+	});
+});
 
 suite('SettingsTree managed sandbox', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -395,6 +474,53 @@ suite('SettingsTree deprecation warnings', () => {
 	}
 });
 
+suite('SettingsTree sandbox network search ordering', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sandbox search puts user-configured paths before allowed and denied domains', () => {
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+		}();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		const keys = [
+			AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
+			AgentNetworkDomainSettingId.AllowedNetworkDomains,
+			AgentNetworkDomainSettingId.DeniedNetworkDomains,
+		];
+		const model = store.add(instantiationService.createInstance(SearchResultModel,
+			{ settingsTarget: ConfigurationTarget.USER_LOCAL, query: 'sandbox' },
+			new Map(keys.map((key, index) => [key, index])), true));
+		const matches = [...keys].reverse().map(key => {
+			const setting = new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'array';
+				override description = [];
+				override scope = ConfigurationScope.APPLICATION;
+				override keyRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: key.length + 1 };
+			}();
+			const match = new SettingMatches('sandbox', setting, true, configuration);
+			return { setting, matches: match.matches, matchType: match.matchType, keyMatchScore: match.keyMatchScore, score: 0 };
+		});
+		model.setResult(SearchResultIdx.Local, { filterMatches: matches, exactMatch: false });
+		assert.deepStrictEqual(model.getUniqueSearchResults()?.filterMatches.map(match => ({
+			key: match.setting.key,
+			matchType: match.matchType,
+		})), keys.map(key => ({
+			key,
+			matchType: SettingMatchType.AllWordsInSettingsLabel | SettingMatchType.ContiguousQueryInSettingId,
+		})));
+	});
+});
+
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat - sandbox outbound connections', () => {
 		assert.deepStrictEqual([
@@ -409,6 +535,32 @@ suite('SettingsTree', () => {
 			{ category: 'Network', label: 'Allow Outbound Connections' },
 			{ category: '', label: 'Allow Outbound Connections' },
 			{ category: 'Other', label: 'Allow Network' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - allowed network domains', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains, 'chat'),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains, 'chat.agent.sandbox.network'),
+		], [
+			{ category: 'Chat › Agent › Sandbox › Network', label: 'Allowed Domains' },
+			{ category: 'Agent › Sandbox › Network', label: 'Allowed Domains' },
+			{ category: 'Network', label: 'Allowed Domains' },
+			{ category: '', label: 'Allowed Domains' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - denied network domains', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.DeniedNetworkDomains),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.DeniedNetworkDomains, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.DeniedNetworkDomains, 'chat.agent.sandbox.network'),
+		], [
+			{ category: 'Chat › Agent › Sandbox › Network', label: 'Denied Domains' },
+			{ category: 'Network', label: 'Denied Domains' },
+			{ category: '', label: 'Denied Domains' },
 		]);
 	});
 
@@ -510,6 +662,22 @@ suite('SettingsTree', () => {
 				{ category: '', label: 'Allow Dev Tool Access' },
 			],
 		});
+	});
+
+	test('settingKeyToDisplayFormat - sandbox credential authentication', () => {
+		for (const [key, label] of [
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 'Authenticate git'],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 'Authenticate gh'],
+		] as const) {
+			assert.deepStrictEqual(
+				['', 'chat.agent.sandbox', 'chat.agent.sandbox.credentials'].map(group => settingKeyToDisplayFormat(key, group)),
+				[
+					{ category: 'Chat › Agent › Sandbox › Credentials', label },
+					{ category: 'Credentials', label },
+					{ category: '', label },
+				],
+			);
+		}
 	});
 
 	test('settingKeyToDisplayFormat - sandbox user-configured paths', () => {

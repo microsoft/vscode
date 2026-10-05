@@ -24,7 +24,7 @@ import { ITabDescriptor, TabbedActionListWidget } from '../../../../platform/act
 import { IMenuService, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../../../platform/agentHost/common/devContainerSamples.js';
+import { DevContainerSample, devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../../../platform/agentHost/common/devContainerSamples.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -60,6 +60,16 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PIC
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
 
 export type { IResolvedFolderWorkspace } from './sessionWorkspaceFallback.js';
+
+type DevContainerSampleSelectedEvent = {
+	sampleId: DevContainerSample['id'];
+};
+
+type DevContainerSampleSelectedClassification = {
+	owner: 'chrmarti';
+	comment: 'Records accepted user selections of Dev Container samples in the Agents workspace picker, not container provisioning or session creation.';
+	sampleId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected built-in sample catalog identifier: go, dotnet, node, php, python, or rust. Does not contain a workspace path or repository URL.' };
+};
 
 const FILTER_THRESHOLD = 10;
 
@@ -1046,6 +1056,10 @@ export class WorkspacePicker extends Disposable {
 			this._selectedDevContainerFolderUri = item.preferDevContainer ? item.folderUri : undefined;
 			this._onDidSelectWorkspaceMode.fire({ folderUri: item.folderUri, preferDevContainer: item.preferDevContainer === true });
 			this._selectFolder(item.folderUri, true, item.providerId);
+			const sample = findDevContainerSample(item.folderUri);
+			if (sample) {
+				this.telemetryService.publicLog2<DevContainerSampleSelectedEvent, DevContainerSampleSelectedClassification>('devContainerSampleSelected', { sampleId: sample.id });
+			}
 			return true;
 		}
 		return false;
@@ -1992,7 +2006,7 @@ export class WorkspacePicker extends Disposable {
 		return this.options.getNoWorkspaceOption?.();
 	}
 
-	private _getNoWorkspaceLabel(): string {
+	protected _getNoWorkspaceLabel(): string {
 		return this._useConsolidatedRemoteWorkspaces()
 			? localize('workspacePicker.chat', "Chat")
 			: localize('workspacePicker.noWorkspace', "No workspace");

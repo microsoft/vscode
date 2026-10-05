@@ -413,7 +413,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
+	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.updateWindowControls(options);
 	}
@@ -1162,7 +1162,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
-		return session?.resolveProxy(url);
+		return session ? session.resolveProxy(url) : app.resolveProxy(url);
 	}
 
 	async resolveProxyWithPackage(_windowId: number | undefined, url: string): Promise<IOSProxy[]> {

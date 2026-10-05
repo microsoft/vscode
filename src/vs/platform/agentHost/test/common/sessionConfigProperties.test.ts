@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 
 suite('Session config properties', () => {
@@ -163,24 +163,63 @@ suite('Session config properties', () => {
 		});
 	});
 
-	test('filters unsupported VS seeds, host reports, and immutable runtime writes', () => {
+	test('filters unsupported VS seeds and immutable runtime writes without checking readOnly', () => {
 		const values = { autoApprove: 'autoApprove', isolation: 'worktree', worktreeBranchPrefix: 'user/', approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' };
 		assert.deepStrictEqual({
 			creation: filterSessionConfigValues(copilot, values),
 			runtime: filterSessionConfigValues(copilot, values, false),
 			noDefaultInvented: filterSessionConfigValues(copilot, {}),
 		}, {
-			creation: { approvalMode: 'assisted', target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
+			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
 			runtime: { approvalMode: 'assisted', mode: 'plan' },
 			noDefaultInvented: {},
 		});
 	});
 
-	test('rejects unavailable, readonly, unadvertised and immutable writes before dispatch', () => {
+	test('rejects unavailable, unadvertised and immutable writes before dispatch', () => {
 		assert.throws(() => validateSessionConfigWrite(copilot, { availableApprovalModes: ['manual'] }, 'approvalMode', 'allow-all', false), /does not offer/);
-		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'effectiveApprovalMode', 'allow-all', true), /not writable/);
+		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'effectiveApprovalMode', 'allow-all', false), /not writable/);
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'autoApprove', 'autoApprove', true), /not writable/);
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'target', 'workspace', false), /not writable/);
+	});
+
+	test('readOnly values can be forwarded and validated without enabling picker edits', () => {
+		const schema: SessionConfigSchema = {
+			type: 'object',
+			properties: {
+				worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+				worktreeIncludeFiles: { type: 'array', title: 'Included files', readOnly: true, sessionMutable: false },
+				worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', readOnly: true, sessionMutable: false },
+				worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
+				worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
+				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true, sessionMutable: true },
+				providerOption: { type: 'string', title: 'Provider option', enum: ['allowed'], readOnly: true, sessionMutable: true },
+			},
+		};
+		const values = {
+			worktreeBranchPrefix: 'user/',
+			worktreeIncludeFiles: ['product.overrides.json'],
+			worktreeSymlinkFolders: ['node_modules'],
+			worktreeBranchTrack: true,
+			worktreeCreateNewBranch: false,
+			shellInitScripts: [{ shell: 'bash', script: 'source .venv/bin/activate' }],
+			providerOption: 'allowed',
+		};
+		for (const [key, value] of Object.entries(values)) {
+			assert.doesNotThrow(() => validateSessionConfigWrite(schema, values, key, value, true));
+		}
+		assert.doesNotThrow(() => validateSessionConfigWrite(schema, values, 'shellInitScripts', values.shellInitScripts, false));
+		assert.doesNotThrow(() => validateSessionConfigWrite(schema, values, 'providerOption', 'allowed', false));
+		assert.throws(() => validateSessionConfigWrite(schema, values, 'providerOption', 'unsupported', true), /does not offer/);
+		assert.deepStrictEqual({
+			creation: filterSessionConfigValues(schema, values),
+			runtime: filterSessionConfigValues(schema, values, false),
+			pickerEditable: Object.values(schema.properties).map(property => isSessionConfigWritable(property, true)),
+		}, {
+			creation: values,
+			runtime: { shellInitScripts: values.shellInitScripts, providerOption: 'allowed' },
+			pickerEditable: [false, false, false, false, false, false, false],
+		});
 	});
 
 	test('concrete selectors expose the original host property without constructing converted choices', () => {

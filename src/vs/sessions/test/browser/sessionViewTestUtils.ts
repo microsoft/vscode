@@ -123,6 +123,7 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 		override readonly mainContainerDimension = { width: 1200, height: 800 };
 		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.SIDEBAR_PART; }
 		override isEditorPaneVisible() { return false; }
+		override isModernUICompact() { return false; }
 	}());
 	services.instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;

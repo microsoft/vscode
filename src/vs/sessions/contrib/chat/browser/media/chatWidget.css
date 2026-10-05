@@ -564,6 +564,10 @@
 	background-image: none;
 }
 
+.monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .sessions-chat-widget:not(.new-chat-in-session) .new-chat-widget-content.experimental-new-session-composer .new-chat-session-options .new-chat-repo-config-container .monaco-action-bar {
+	height: var(--vscode-spacing-size240);
+}
+
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container:hover .monaco-action-bar,
 .monaco-workbench.agent-sessions-workbench .part.sessionspart.has-chat-background .new-chat-widget-container .new-chat-repo-config-container[data-picker-open='true'] .monaco-action-bar {
 	background-image: linear-gradient(var(--vscode-button-secondaryHoverBackground), var(--vscode-button-secondaryHoverBackground));

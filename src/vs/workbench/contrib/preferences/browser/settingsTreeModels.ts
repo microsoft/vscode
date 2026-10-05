@@ -123,7 +123,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	private _displayLabel: string | null = null;
 
 	/**
-	 * scopeValue || defaultValue, for rendering convenience.
+	 * The displayed value, including inherited values in the Agents Window scope.
 	 */
 	value: any;
 
@@ -317,7 +317,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				break;
 		}
 
-		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
+		const inheritedValue = this.isSessionsWindow && targetSelector === 'workspaceValue' && !languageSelector ? inspected.value : inspected.defaultValue;
+		let displayValue = isConfigured ? inspected[targetSelector] : inheritedValue;
 		const overriddenScopeList: string[] = [];
 		const overriddenDefaultsLanguageList: string[] = [];
 		if ((languageSelector || targetSelector !== 'workspaceValue') && typeof inspected.workspaceValue !== 'undefined') {
@@ -811,6 +812,12 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 			break;
 		case AgentSandboxSettingId.AgentSandboxLspServers:
 			displayLabel = localize('agentSandbox.lspServers.label', "Sandbox LSP Servers");
+			break;
+		case AgentSandboxSettingId.AgentSandboxAuthenticateGit:
+			displayLabel = localize('agentSandbox.authenticateGit.label', "Authenticate git");
+			break;
+		case AgentSandboxSettingId.AgentSandboxAuthenticateGh:
+			displayLabel = localize('agentSandbox.authenticateGh.label', "Authenticate gh");
 			break;
 		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
 			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");

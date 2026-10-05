@@ -154,6 +154,12 @@ suite('ChatMcpServersStartingContentPart', () => {
 			disposedSpinners: 0,
 			finishedCount: 1,
 		});
+
+		test('renders connector labels without visible markdown escapes', () => {
+			const { part } = createPart([{ id: 'connector', name: 'GitHub (Connector)' }]);
+
+			assert.strictEqual(part.domNode.textContent, 'Starting MCP servers GitHub (Connector)...');
+		});
 	});
 
 	test('reflects a blocking server becoming nonblocking', () => {

@@ -6,6 +6,7 @@
 import type { Mutable } from '../../../../../base/common/types.js';
 import { hasAgentMetadata } from '../metadata.js';
 import { imageGenerationToolMetaKey, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './agentImageGenerationMeta.js';
+import { ISandboxNetworkRestrictions, isSandboxNetworkRestrictions } from '../../../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
@@ -20,6 +21,8 @@ interface IHasToolCallMeta {
  */
 export interface IToolCallMeta {
 	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
+	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
+	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
 	/**
 	 * VS Code rendering hint. `terminal` routes the call to the command/output
@@ -65,6 +68,7 @@ const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuse
 
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
+	'vscode.copilotSandboxNetworkRestrictions',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
 ] as const;
@@ -170,6 +174,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
+	if (isSandboxNetworkRestrictions(networkRestrictions)) {
+		result['vscode.copilotSandboxNetworkRestrictions'] = networkRestrictions;
+	}
 	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
 	if (isToolKind(meta.toolKind)) { result.toolKind = meta.toolKind; }
 	if (typeof meta.language === 'string') { result.language = meta.language; }
