@@ -3759,7 +3759,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('applies independent read actions to the default chat only', async () => {
+		test('keeps the session unread when another chat is unread', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
@@ -3791,6 +3791,42 @@ suite('AgentService (node dispatcher)', () => {
 					{ kind: 'default', isRead: true },
 					{ kind: 'peer', isRead: false },
 				],
+			});
+		});
+
+		test('promotes and persists the session when the last unread chat becomes read', async () => {
+			const database = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(session, 'peer');
+			const stateManager = getStateManager(svc);
+			stateManager.addChat(sessionUri, peerChat);
+			stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
+			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true });
+			const sessionReadPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
+				envelope.action.type === ActionType.SessionIsReadChanged && envelope.action.isRead));
+
+			svc.dispatchAction(peerChat, {
+				type: ActionType.ChatIsReadChanged,
+				isRead: true,
+			}, 'test-client', 1);
+			await sessionReadPromise;
+
+			assert.deepStrictEqual({
+				sessionRead: isSessionStatusRead(stateManager.getSessionState(sessionUri)!.status),
+				defaultChatRead: isSessionStatusRead(stateManager.getChatState(defaultChat)!.status),
+				peerChatRead: isSessionStatusRead(stateManager.getChatState(peerChat)!.status),
+				persistedSessionRead: await database.getMetadata(AH_META_IS_READ_DB_KEY),
+			}, {
+				sessionRead: true,
+				defaultChatRead: true,
+				peerChatRead: true,
+				persistedSessionRead: 'true',
 			});
 		});
 
