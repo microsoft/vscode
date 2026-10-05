@@ -493,6 +493,33 @@ suite('ChatPills', () => {
 		}, { preserved: true, changed: true, copied: ['new'] });
 	});
 
+	test('keeps hover content an updated entry still owns and releases it when the entry is removed', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let released = 0;
+		// The entry's source keeps this content alive across updates, like the live output of a background shell.
+		const release = { dispose: () => { released++; } };
+		const entry = (elapsed: string): IChatPillEntry => ({
+			id: 'shell', label: 'Run tests', ariaDescription: elapsed,
+			hover: { ...getChatPillLocationHover('npm test'), disposable: release },
+			open: () => { },
+		});
+		const sections = observableValue<readonly IChatPillSection[]>('shells', [{ title: 'Shells', entries: [entry('1s')] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('shells', 'Background Shells')), {}, sections, {
+			widgetId: 'shells', icon: Codicon.terminal, title: 'Background Shells',
+			summaryLabel: count => `${count} Background Shells`, summaryAriaLabel: count => `Show ${count} background shells`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		viewItem.render(mainWindow.document.createElement('div'));
+		getDropdownPillItems.call(viewItem);
+		sections.set([{ title: 'Shells', entries: [entry('2s')] }], undefined);
+		getDropdownPillItems.call(viewItem);
+		// Nothing rebuilds the dropdown's items after this update, as when the dropdown is closed.
+		sections.set([{ title: 'Shells', entries: [entry('3s')] }], undefined);
+		const afterUpdates = released;
+		sections.set([], undefined);
+		assert.deepStrictEqual({ afterUpdates, afterRemoval: released }, { afterUpdates: 0, afterRemoval: 1 });
+	});
+
 	test('uses the main DOM realm and target auxiliary window', () => {
 		const disposables = store.add(new DisposableStore());
 		const iframe = mainWindow.document.createElement('iframe');

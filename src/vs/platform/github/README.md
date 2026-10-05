@@ -15,7 +15,7 @@ Reusable GitHub engine and cross-target architecture.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
-- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with the existing default fetch implementation. Its separate, opt-in [typed service boundary](common/githubIpc.ts) currently exposes anonymous JSON reads only. Existing desktop callers have not moved there.
+- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with direct Node networking. Its separate, opt-in [typed service boundary](common/githubIpc.ts) currently exposes anonymous JSON reads only. Existing desktop callers have not moved there.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
 These instances do not currently share application-wide request state.
@@ -60,6 +60,16 @@ VS Code forwards optional account provenance through the standard authentication
 
 Private caches and request sharing remain token/base-specific. Host-supplied account provenance affects only quota accounting: known IDs share applicable GitHub account limits, while unknown identities use a conservative origin-wide bootstrap bucket. Known bootstrap clients also honor outstanding unresolved-origin waits. A bootstrap waiter fails promptly as rate-limited when the cooldown cannot fit its deadline; authenticated repository and anonymous reads keep their existing deadline behavior. Client release preserves live server cooldowns and cannot cancel another token's work. Migrating Copilot discovery to this capability is a separate, deferred change.
 
+### Repository queries
+
+Authorized clients expose one-shot `getRepository`, `listRepositories` and `searchRepositories` operations in addition to repository subscriptions. They use the existing repository response mapping and governed REST transport, including authorization-scoped ETags and coalescing with subscribed reads. REST results retain server-provided HTTPS and SSH clone URLs when available; GraphQL-hydrated resources may omit them.
+
+Discovery takes an account handle, not a synthetic repository or Agent Host/session context. Each call fetches one page (1–100 items, default 100) and returns an optional `nextPage` from the server's pagination signal. Callers own iteration, selection, sorting, query qualifiers and operation budgets; the service does not fetch organizations, scope a search to the current user, or automatically drain every page. Empty queries and invalid pagination fail with a validation error before credential resolution or network dispatch.
+
+Search also returns `totalCount`, `incompleteResults` and `limitReached`. The last field identifies searches exceeding GitHub's 1,000 retrievable results; pagination never advertises a page beyond that ceiling. A missing `nextPage` does not imply a complete search when either flag is set. Malformed completeness fields are errors, not empty successful results.
+
+These contracts cover metadata/discovery requirements of core repository presentations, the legacy Sessions repository picker, and the built-in GitHub remote-source provider without taking over their UI, account selection or git workflows. Those legacy renderer/extension consumers remain unmigrated; shared-process authenticated-client IPC and repository creation/fork/branch APIs are separate work.
+
 ### Agent Host repository and PR operations
 
 The [association resolver](../agentHost/node/agentHostPullRequestAssociationResolver.ts), [creation handler](../agentHost/node/agentHostPullRequestOperationHandler.ts) and [title controller](../agentHost/node/agentHostSessionTitleController.ts) retain an authorized client for each operation. They reuse the binding's selected repository resource and existing silent missing-token checks; title context does not introduce another scope requirement or a sign-in prompt.
@@ -91,6 +101,12 @@ Internal requests carry caller attribution and a deadline. Current transport def
 - Credential resolution has a separate five-minute caller deadline covering token acquisition, identity backoff and shared identity lookup. A caller timing out does not erase server cooldowns or cancel another caller's identity lookup.
 - Long server cooldowns use bounded native timer chunks. Queue drains also expire overdue active requests after wall-clock jumps; rejected unique reads never retain coalescing entries or waiter timers.
 
+HTTP error classification, response telemetry and cooldowns share the same quota-evidence check. A generic HTTP 403 with "Rate Limit Exceeded" wording remains an authorization failure unless valid exhausted-quota or `Retry-After` headers, an explicit primary message without usable remaining-quota feedback, or explicit secondary-limit evidence establish throttling. HTTP 429 still establishes throttling; malformed refusal headers do not invent cooldowns, healthy quota observations do not erase existing waits, and storage-origin download denials do not establish GitHub account limits. Later exhausted-quota responses extend existing waits while preserving `Retry-After` precedence.
+
+REST admission recognizes fixed core, checks, code-search, semantic-search and other-search route families, including the Enterprise `/api/v3` prefix. Checks also honor legacy core waits; specialized searches honor legacy search waits, and code search honors its expanded bucket. This deliberately favors safe backoff over exact credential-specific quota isolation.
+
+An unexpected REST resource uses one account-scoped REST cooldown in the existing storage instead of a learned route mapping. This aggregate stores only deadlines derived from each response's own validated hints, not quota counters from unrelated resources. Valid server retry/reset timing governs admission, retries, authenticated downloads and bootstrap waiters; an exhausted successful response also establishes a wait. Such a wait can delay otherwise independent REST requests, but does not block another account or GraphQL. REST admission waits are separate from identity's core/secondary cooldown checks, so token renewal does not promote an unrelated REST wait into credential resolution; cooldowns returned by the identity request itself remain enforced. Successful identity responses preserve their fallback on the resolved account and renewal gate before bootstrap cleanup. HTTP quota counters and retry hints are validated strictly, and healthy feedback cannot erase a live wait.
+
 ### Request identification
 
 Bindings supply trusted product/channel/version and originating component/version metadata. Configured GitHub endpoints receive `X-Client-Application`, `X-Client-Source`, an allowlisted `X-Client-Feature`, and `X-Is-Retry` on Node egress. Shared reads retain the initiating caller's attribution; arbitrary caller strings are never sent.
@@ -99,23 +115,51 @@ Bindings supply trusted product/channel/version and originating component/versio
 
 Browser fetch, including desktop renderers, sends only `X-Client-Application` to `https://api.github.com`. The other headers are not in GitHub.com's CORS allowlist. Enterprise browser endpoints receive no identification headers until their allowlists are established; CAPI requires its own endpoint policy. This is an explicit egress policy, not a fallback after failed requests. Cross-origin download storage hops receive no identification or retry headers.
 
+### Host networking
+
+GitHub service implementations own their plain [RequestFetch](common/types.ts) functions. The workbench uses browser fetch, the shared-process service creates its proxy-aware fetch in its constructor, and Agent Host reuses its existing host fetch. There is no fetch service, fetch IPC or automatic move to a different machine after a failure.
+
+- **Web and desktop workbench:** browser fetch is used directly, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
+- **Standalone Agent Host:** GitHub receives the same fetch as Copilot and other host services, without an additional wrapper. The existing Agent Host proxy resolver owns host/PAC, authentication and certificate handling. The foundation preserves explicit test overrides for all consumers.
+- **Shared process:** [createFetch](electron-utility/githubFetch.ts) lazily configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. System/PAC lookup uses the native host's existing `resolveProxy` API, which uses Electron's application-level resolver for windowless callers.
+
+The bindings retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
+
+The transport enforces manual redirects. Anonymous and bootstrap requests also enforce credential omission and no-referrer policy in the transport. Anonymous requests never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
+
+#### Shared-process proxy and certificate behavior
+
+Routing follows the proxy helper's precedence and loopback bypass: `http.noProxy`/`NO_PROXY`, configured/environment proxies, then host system/PAC lookup. Network-interface changes invalidate cached system routes at `http.experimental.networkInterfaceCheckInterval`. Configuration comes from local-user/default values, not remote-workspace settings.
+
+On the first GitHub request, the shared-process fetch uses the [standard shell environment resolver](../shell/node/shellEnv.ts) and merges its result over the inherited process environment. This preserves login-shell proxy variables on GUI launches without delaying shared-process startup, and honors the resolver's Windows, CLI-launch, and user-environment flags. Lookup failures are logged once per fetch instance and retain the inherited environment, matching the existing request service.
+
+`http.proxyAuthorization` is supplied to proxy CONNECT requests rather than the origin and is not repeatedly resent after rejection. Kerberos uses the existing host lookup. With `http.systemCertificates` enabled, additional host certificates honor `http.systemCertificatesNode` and retain Node's default CA set.
+
+Certificate and hostname verification remain enabled by default. `http.proxyStrictSSL: false` is not translated into a verification bypass or weaker-TLS retry. Extension-specific proxy/fetch switches do not select this GitHub helper. Proxy diagnostics do not include URLs, credentials or response bodies.
+
+The helper does not promise full Chromium parity: SOCKS4/4a, native NTLM, ordered PAC failover and Chromium certificate exceptions are not reproduced.
+
 ### Shared-process preparation
 
 `IGitHubService` is registered locally in the shared process. Desktop consumers may explicitly use `ISharedProcessGitHubService` for an anonymous, API-relative GET, with a cancellation token, request options and serializable result metadata. The boundary preserves domain error kinds, HTTP details, rate-limit delays and timeout dispatch status; disconnecting one caller cancels only its waiter and releases its lease. The complete shared engine still owns admission, cooldowns and response limits.
 
 This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
 
-This preparation uses the engine's existing default fetch. Host-specific fetch, proxy and certificate integration is deferred; it does not modify the Agent Host proxy resolver or any existing workbench networking. Resolve that transport integration before migrating production callers.
+### Public repository files
 
-Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
+[The anonymous client](common/anonymousClient.ts) exposes `get` and `getFile` directly. Both accept a `signal` of type `GitHubCancellation` (`AbortSignal | CancellationToken`) and anonymous read options. `get` stays confined to JSON reads under `apiBaseUri`. `getFile` resolves `GET /repos/{owner}/{repo}/commits/HEAD`, validates the commit SHA, then downloads `/{owner}/{repo}/{commitSha}/{path}` from `rawBaseUri`. It makes one REST API read and one raw-content download, with no Contents API request or `download_url` lookup.
 
-```powershell
-npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\node\githubService.test.ts
-.\scripts\test.bat --run src\vs\platform\github\test\electron-utility\githubService.test.ts
-```
+The two operations share one normalized signal and an absolute deadline (five minutes by default). Caller attribution, priority, and deadline apply to both; representation and ETag options apply only to the commit API read. Raw content is returned as UTF-8 text without JSON/base64 parsing, preserving its BOM and whitespace. The existing 1 MiB client byte limit still applies and oversized content fails explicitly. Callers own the anonymous client lease; `getFile` neither acquires another lease nor releases the caller's lease.
 
-Tests use injected fetchers, not live GitHub requests or inference.
+Raw downloads use the same host-local fetch, admission queue, bounded body reader, cancellation and deadline handling as other engine traffic, but their quota identity is the raw origin rather than the API origin. A REST quota cooldown does not block a different raw origin; raw throttling is retained independently and does not block the API origin. Every raw request omits credentials, referrers, authorization and API-identification headers. Redirects must stay on the configured raw origin within the pinned repository/commit path.
+
+[The shared cancellation helper](common/cancellation.ts), `toAbortSignal`, passes existing signals and their abort reasons through unchanged. It converts tokens to signals that abort with `CancellationError`, registering the listener in the operation's disposable store. The anonymous client disposes its operation stores on success, failure, or cancellation. The GitHub IPC boundary passes its token directly to `get`; the internal request engine continues to use `AbortSignal`.
+
+`acquireAnonymousClient()` defaults to GitHub.com's API and `https://raw.githubusercontent.com`. Host options may override `rawBaseUri`; it is part of client identity along with `apiBaseUri`. An explicit non-GitHub.com API endpoint must also configure its raw base before using `getFile` (JSON `get` calls still work without it). Raw-host mappings are not guessed for Enterprise deployments. API and raw base URIs must be HTTPS and cannot contain credentials, a query or a fragment.
+
+Dev Container sample preparation leases the default anonymous client from the owning host's local `IGitHubService`, passes its `CancellationToken` directly to `client.getFile` with caller `devContainerSample` and interactive priority, and releases the lease when the read settles. There is no caller-side cancellation adapter or desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client or create a token adapter.
+
+Desktop sample reads inherit the shared-process proxy and certificate behavior and its documented Chromium-compatibility limits above. Standalone hosts retain their local `AgentHostProxyResolver.fetch` binding.
 
 ### Telemetry
 

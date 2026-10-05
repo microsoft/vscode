@@ -7,6 +7,7 @@ import './media/modelPicker.css';
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -439,13 +440,21 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Registers mouse-down and Enter/Space key handlers on a button element.
+	 * Registers mouse-down, touch tap, and Enter/Space key handlers on a button element.
 	 */
 	private _registerButtonAction(element: HTMLElement, action: (fromKeyboard: boolean) => void): void {
-		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+		this._register(dom.addDisposableListener(element, dom.EventType.MOUSE_DOWN, e => {
 			if (e.button !== 0) {
 				return;
 			}
+			dom.EventHelper.stop(e, true);
+			action(false);
+		}));
+		// Touch and pen need an explicit tap handler: an ancestor `Gesture` target
+		// (e.g. the view pane container) cancels the touch, which suppresses the
+		// compatibility `mousedown` the browser would otherwise synthesize.
+		this._register(Gesture.addTarget(element));
+		this._register(dom.addDisposableListener(element, TouchEventType.Tap, e => {
 			dom.EventHelper.stop(e, true);
 			action(false);
 		}));
@@ -605,7 +614,7 @@ export class ModelPickerWidget extends Disposable {
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
-		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
+		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};

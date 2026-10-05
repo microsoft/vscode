@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSessionStatusRead, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -230,6 +230,199 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(envelopes[0].action.type, ActionType.SessionReady);
 		assert.strictEqual(envelopes[0].serverSeq, 1);
 		assert.strictEqual(envelopes[0].origin, undefined);
+	});
+
+	test('does not mark a multi-chat session read while any chat is unread', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer);
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+
+		const state = manager.getSessionState(sessionUri)!;
+		assert.deepStrictEqual({
+			sessionIsRead: !!(state.status & SessionStatus.IsRead),
+			defaultChatIsRead: !!(manager.getChatState(sessionChatUri)!.status & SessionStatus.IsRead),
+			peerIsRead: !!(manager.getChatState(peer)!.status & SessionStatus.IsRead),
+			catalog: state.chats.map(chat => ({
+				resource: chat.resource,
+				isRead: !!(chat.status & SessionStatus.IsRead),
+			})),
+		}, {
+			sessionIsRead: false,
+			defaultChatIsRead: false,
+			peerIsRead: false,
+			catalog: [
+				{ resource: sessionChatUri, isRead: false },
+				{ resource: peer, isRead: false },
+			],
+		});
+	});
+
+	test('marking a chat unread also marks its session unread', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		manager.addChat(sessionUri, peer);
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peerIsRead: isSessionStatusRead(manager.getChatState(peer)!.status),
+		}, {
+			sessionIsRead: false,
+			defaultChatIsRead: true,
+			peerIsRead: false,
+		});
+	});
+
+	test('marking the sole unread chat read also marks its session read', () => {
+		manager.createSession(makeSessionSummary());
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			sessionIsRead: true,
+			chatIsRead: true,
+			actions: [
+				{ channel: sessionChatUri, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('only the last unread aggregate chat promotes its session to read', () => {
+		manager.createSession(makeSessionSummary());
+		const peer = buildChatUri(sessionUri, 'peer');
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		manager.addChat(sessionUri, peer);
+		manager.addChat(sessionUri, hidden, { interactivity: ChatInteractivity.Hidden });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: false });
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatIsReadChanged, isRead: true });
+		manager.dispatchServerAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+		const afterLastUnreadChat = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peer: isSessionStatusRead(manager.getChatState(peer)!.status),
+			hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+		manager.dispatchServerAction(peer, { type: ActionType.ChatIsReadChanged, isRead: true });
+
+		assert.deepStrictEqual({
+			afterLastUnreadChat,
+			afterRedundantRead: {
+				session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+				defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+				peer: isSessionStatusRead(manager.getChatState(peer)!.status),
+				hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+			},
+			actions: actions
+				.filter(({ action }) => action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged)
+				.map(({ channel, action }) => ({
+					channel,
+					type: action.type,
+					isRead: action.type === ActionType.ChatIsReadChanged || action.type === ActionType.SessionIsReadChanged ? action.isRead : undefined,
+				})),
+		}, {
+			afterLastUnreadChat: { session: true, defaultChat: true, peer: true, hidden: false },
+			afterRedundantRead: { session: false, defaultChat: true, peer: true, hidden: false },
+			actions: [
+				{ channel: peer, type: ActionType.ChatIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: true },
+				{ channel: sessionUri, type: ActionType.SessionIsReadChanged, isRead: false },
+				{ channel: peer, type: ActionType.ChatIsReadChanged, isRead: true },
+			],
+		});
+	});
+
+	test('tool chats retain exact read state without affecting the session aggregate', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const tool = buildChatUri(sessionUri, 'tool');
+		manager.addChat(sessionUri, tool, {
+			origin: { kind: ChatOriginKind.Tool, chat: sessionChatUri, toolCallId: 'tool-call' },
+		});
+
+		manager.dispatchServerAction(tool, { type: ActionType.ChatIsReadChanged, isRead: false });
+		const afterToolUnread = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			tool: isSessionStatusRead(manager.getChatState(tool)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+		const afterSessionUnread = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			tool: isSessionStatusRead(manager.getChatState(tool)!.status),
+		};
+
+		assert.deepStrictEqual({ afterToolUnread, afterSessionUnread }, {
+			afterToolUnread: { session: true, defaultChat: true, tool: false },
+			afterSessionUnread: { session: false, defaultChat: false, tool: false },
+		});
+	});
+
+	test('hidden chats retain exact read state without affecting the session aggregate', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		manager.addChat(sessionUri, hidden, { interactivity: ChatInteractivity.Hidden });
+
+		manager.dispatchServerAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+		}, {
+			session: true,
+			defaultChat: true,
+			hidden: false,
+		});
+	});
+
+	test('session read state synchronizes its sole default chat', () => {
+		manager.createSession(makeSessionSummary());
+
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const afterRead = {
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			chat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+		};
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			afterRead,
+			afterUnread: {
+				session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+				chat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			},
+		}, {
+			afterRead: { session: true, chat: true },
+			afterUnread: { session: false, chat: false },
+		});
 	});
 
 	test('emits session title changes and suppresses no-op assignments', () => {
@@ -463,11 +656,30 @@ suite('AgentHostStateManager', () => {
 			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
 		}, {
 			status: SessionStatus.InProgress,
-			project: provisional.project,
+			project: persisted.project,
 			workingDirectories: persisted.workingDirectories,
 			addedStatus: SessionStatus.InProgress,
 			addedProject: persisted.project,
 			addedWorkingDirectories: persisted.workingDirectories,
+		});
+	});
+
+	test('project changes keep catalogue and session snapshots consistent', () => {
+		manager.createSession(makeSessionSummary());
+		const previous = manager.getSessionState(sessionUri);
+		const project = { uri: 'file:///new-project', displayName: 'New Project' };
+		manager.setSessionProject(sessionUri, project);
+		const snapshot = manager.getSnapshot(sessionUri)?.state as SessionState;
+		assert.deepStrictEqual({
+			previous: previous?.project,
+			state: manager.getSessionState(sessionUri)?.project,
+			snapshot: snapshot.project,
+			summary: manager.getSessionSummary(sessionUri)?.project,
+		}, {
+			previous: makeSessionSummary().project,
+			state: project,
+			snapshot: project,
+			summary: project,
 		});
 	});
 
@@ -755,6 +967,44 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual((chatState?.turns[0].responseParts[0] as MarkdownResponsePart).content, 'world');
 	});
 
+	test('restoreSession marks an inconsistent multi-chat aggregate unread', () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const state = manager.restoreSession({
+			...makeSessionSummary(),
+			status: SessionStatus.Idle | SessionStatus.IsRead,
+			chats: [{ resource: peer, title: 'Peer', status: SessionStatus.Idle | SessionStatus.IsRead }],
+		}, [], { defaultChatIsRead: false });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(state.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			peerIsRead: isSessionStatusRead(state.chats.find(chat => chat.resource === peer)!.status),
+		}, {
+			sessionIsRead: false,
+			defaultChatIsRead: false,
+			peerIsRead: true,
+		});
+	});
+
+	test('restoreSession excludes hidden unread chats from the session aggregate', () => {
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		const state = manager.restoreSession({
+			...makeSessionSummary(),
+			status: SessionStatus.Idle | SessionStatus.IsRead,
+			chats: [{ resource: hidden, title: 'Hidden', interactivity: ChatInteractivity.Hidden, status: SessionStatus.Idle }],
+		}, [], { defaultChatIsRead: true });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(state.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			hiddenIsRead: isSessionStatusRead(state.chats.find(chat => chat.resource === hidden)!.status),
+		}, {
+			sessionIsRead: true,
+			defaultChatIsRead: true,
+			hiddenIsRead: false,
+		});
+	});
+
 	test('restoreSession returns existing state for duplicate session', () => {
 		const existing = manager.createSession(makeSessionSummary());
 
@@ -930,6 +1180,42 @@ suite('AgentHostStateManager', () => {
 			assert.strictEqual(notification.session, sessionUri);
 			assert.strictEqual(notification.changes.title, 'New Title');
 			assert.strictEqual(notification.changes.status, undefined, 'unchanged fields should be omitted');
+		});
+	});
+
+	test('emits sessionSummaryChanged when compact chat status changes', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const chat = buildChatUri(sessionUri, 'compact-status');
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			manager.addChat(sessionUri, chat, { title: 'Peer' });
+			await new Promise(r => setTimeout(r, 150));
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+			manager.dispatchServerAction(chat, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+			await new Promise(r => setTimeout(r, 150));
+
+			const changes = notifications
+				.filter(notification => notification.type === NotificationType.SessionSummaryChanged)
+				.map(notification => notification.changes);
+			assert.deepStrictEqual(changes, [{
+				chats: [
+					{
+						resource: buildDefaultChatUri(sessionUri),
+						title: 'Test',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.Idle,
+					},
+					{
+						resource: chat,
+						title: 'Peer',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
+						archived: true,
+					},
+				],
+			}]);
 		});
 	});
 
@@ -1249,7 +1535,7 @@ suite('AgentHostStateManager', () => {
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
 					summaryChats: [
 						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User }, status: SessionStatus.Idle },
-						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User }, status: SessionStatus.Idle },
+						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User }, status: SessionStatus.Idle | SessionStatus.IsRead },
 					],
 					defaultChat: buildDefaultChatUri(sessionUri),
 					peerTurns: 0,
@@ -1569,14 +1855,14 @@ suite('AgentHostStateManager', () => {
 					resource: peerChat,
 					title: 'Peer',
 					origin: { kind: ChatOriginKind.User },
-					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
 					archived: true,
 				},
 				sessionArchived: false,
 				action: {
 					type: ActionType.SessionChatUpdated,
 					chat: peerChat,
-					changes: { status: SessionStatus.Idle | SessionStatus.IsArchived, activity: undefined },
+					changes: { status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived, activity: undefined },
 				},
 			});
 		});
@@ -2184,7 +2470,7 @@ suite('AgentHostStateManager', () => {
 				...makeSessionSummary(),
 				chats: [
 					{ resource: defaultChat, title: '' },
-					{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle },
+					{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle | SessionStatus.IsRead },
 				],
 				defaultChat,
 			};
@@ -2197,7 +2483,7 @@ suite('AgentHostStateManager', () => {
 
 			assert.strictEqual(
 				manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.status,
-				SessionStatus.Idle | SessionStatus.IsArchived,
+				SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
 			);
 		});
 
@@ -2410,9 +2696,10 @@ suite('AgentHostStateManager', () => {
 				resource: chat.resource,
 				title: chat.title,
 				interactivity: chat.interactivity,
+				status: chat.status,
 			})), [
-				{ resource: sessionChatUri, title: 'Test', interactivity: undefined },
-				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden },
+				{ resource: sessionChatUri, title: 'Test', interactivity: undefined, status: SessionStatus.Idle },
+				{ resource: peerChat, title: 'Hidden peer', interactivity: ChatInteractivity.Hidden, status: SessionStatus.Idle | SessionStatus.IsRead },
 			]);
 		});
 

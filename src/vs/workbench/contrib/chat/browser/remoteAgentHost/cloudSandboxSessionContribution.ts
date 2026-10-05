@@ -15,6 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
+	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
@@ -26,11 +27,11 @@ import {
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -43,6 +44,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { sealMissionControlMcpCredential } from './missionControlCredentialSealing.js';
 import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -64,6 +66,7 @@ export interface ICloudSandboxSessionEnvironment {
 	readonly name: string;
 	readonly repoName?: string;
 	readonly updatedAt?: string;
+	readonly isArchived?: boolean;
 }
 
 function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDiscoveredSession {
@@ -75,7 +78,8 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& typeof candidate.name === 'string'
 		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
-		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string');
+		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
+		&& (candidate.isArchived === undefined || typeof candidate.isArchived === 'boolean');
 }
 
 /**
@@ -100,6 +104,7 @@ export interface ICloudSandboxSessionList extends IDisposable {
 	setLabel?(label: string): void;
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void;
+	setSessionArchived(rawId: string, archived: boolean): void;
 }
 
 export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSessionList> extends Disposable implements IWorkbenchContribution {
@@ -152,6 +157,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IHostService private readonly _hostService: IHostService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 	) {
 		super();
 
@@ -160,7 +166,32 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		// specifics into that shared code path.
 		this._register(this._connectionCustomizations.register(
 			isCloudSandboxConnectionAddress,
-			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService)!,
+			address => {
+				const connection = this._remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === address)?.connection;
+				const userLocal = connection?.type === RemoteAgentHostEntryType.CloudSandbox && connection.environmentKind === 'user-local';
+				return createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, userLocal, async request => {
+					if (!userLocal) {
+						throw new Error('User-local MC sealing requires a user-local connection.');
+					}
+					const environment = await this._apiService.getEnvironment(connection.environmentId, CancellationToken.None);
+					const client = this._remoteAgentHostService.getConnection(address);
+					const root = client?.rootState.value;
+					if (environment.id !== connection.environmentId || !client || !root || root instanceof Error) {
+						throw new Error('Mission Control environment or host is unavailable for sealing.');
+					}
+					const initialization = client.initializeResult.get();
+					const result = await sealMissionControlMcpCredential(request, environment.encryption_keys, root, initialization?._meta, sealingRequest => {
+						if (!this._localAgentHostService.sealMissionControlCredential) {
+							throw new Error('Trusted local credential sealing is unavailable.');
+						}
+						return this._localAgentHostService.sealMissionControlCredential(sealingRequest);
+					});
+					if (this._remoteAgentHostService.getConnection(address) !== client || client.initializeResult.get() !== initialization) {
+						throw new CancellationError();
+					}
+					return result;
+				})!;
+			},
 		));
 
 		// Keep providers wired to their live connections and their status fresh.
@@ -301,7 +332,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			const address = cloudSandboxAddress(session.environmentId);
 			present.add(address);
 			updatedTasks.add(session.taskId);
-			this._seedDiscoveredSession(session);
+			this._seedDiscoveredSession({ ...session, isArchived: session.isArchived === true });
 		}
 
 		const removedTasks = new Set(result.kind === 'complete' ? [] : result.removedTaskIds);
@@ -333,7 +364,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const modifiedTime = Number.isNaN(parsed) ? provider?.getSessionModifiedTime(session.sessionId) ?? Date.now() : parsed;
 		const project = discoveredSessionProject(session.repoName);
 		provider?.seedSessions([{
-			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
+			session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, session.sessionId),
 			provider: CLOUD_SANDBOX_AGENT_PROVIDER,
 			...(session.eventType ? { _meta: withSessionInitiator(undefined, { name: session.eventType }) } : {}),
 			startTime: modifiedTime,
@@ -342,6 +373,9 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			...(session.status !== undefined ? { status: session.status } : {}),
 			...(project ? { project } : {}),
 		}], { updateExisting: true });
+		if (session.isArchived !== undefined) {
+			provider?.setSessionArchived(session.sessionId, session.isArchived);
+		}
 	}
 
 	protected _restoreAccount(accountKey: string | undefined): boolean {
@@ -410,6 +444,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					name: environment.name,
 					repoName: environment.repoName,
 					updatedAt: environment.updatedAt,
+					...(environment.isArchived !== undefined ? { isArchived: environment.isArchived } : {}),
 				};
 				const key = `${storageKey}.${JSON.stringify([session.environmentId, session.sessionId])}`;
 				const value = JSON.stringify({ version: 1, sessions: [session] });
@@ -457,6 +492,33 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			throw new CancellationError();
 		}
 		this._environments.set(address, { ...current, name: title });
+		this._persistInventory();
+	}
+
+	protected async _setSandboxSessionArchived(address: string, rawId: string, archived: boolean, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || environment.sessionId !== rawId) {
+			throw new Error(localize('cloudSandbox.archiveSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		store.add(token.onCancellationRequested(() => source.cancel()));
+		try {
+			await this._apiService.setTaskArchived(environment.taskId, archived, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		const current = this._environments.get(address);
+		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
+			throw new CancellationError();
+		}
+		this._environments.set(address, { ...current, isArchived: archived });
 		this._persistInventory();
 	}
 
@@ -579,11 +641,11 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		};
 
 		// Without a task there is no history fallback, so connecting is the only way to open it.
-		const shouldConnect = !env.taskId || await this._isEnvironmentOnline(env, token);
+		const shouldConnect = !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;
 		}
-		if (!shouldConnect) {
+		if (!shouldConnect && !this._pendingConnects.has(address)) {
 			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
 			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}

@@ -193,6 +193,8 @@ export interface IAgentSessionChatMetadata {
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
 	readonly archived?: boolean;
+	/** Exact chat read state when known; absence means the provider did not supply it. */
+	readonly isRead?: boolean;
 	readonly changes?: ChangesSummary;
 }
 
@@ -879,6 +881,16 @@ export interface IAgentChats {
 
 }
 
+/** Provider-native metadata events, before protocol translation. */
+export interface IAgentChatSessionEvent {
+	readonly chat: URI;
+	readonly id: string;
+	readonly timestamp: string;
+	readonly persisted: boolean;
+	readonly type: string;
+	readonly data: unknown;
+}
+
 export interface IAgentResolveChatConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
@@ -1021,11 +1033,14 @@ export interface IAgentToolPendingConfirmationSignal {
 	 */
 	readonly managedApprovalRequired?: boolean;
 	/**
-	 * Host-only flag (not part of the dispatched action): the model requested
-	 * this shell command run OUTSIDE the sandbox (and the host opted in via
-	 * `sandbox.allowBypass`).
+	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
 	readonly requestSandboxBypass?: boolean;
+	/**
+	 * Host-only flag indicating that the sandbox escalation keeps the sandbox attached
+	 * while file and process restrictions record instead of block.
+	 */
+	readonly requestSandboxPermissive?: boolean;
 	/**
 	 * Host-only shell language for terminal auto-approval.
 	 * Only `bash` and `powershell` are eligible for terminal-rule analysis;
@@ -1044,6 +1059,9 @@ export interface IAgentToolPendingConfirmationSignal {
 
 export type AgentSubagentTaskModelSource = 'task_argument' | 'subagent_configuration' | 'custom_agent_definition' | 'unset';
 
+/** `task` is a delegated subagent; `fusionPhase` is a presentation-only chat for one HydraFusion phase of the parent turn. */
+export type AgentSubagentKind = 'task' | 'fusionPhase';
+
 /**
  * A subagent was spawned by a tool call. The host creates a child session
  * silently and routes subsequent inner-tool events to it.
@@ -1059,6 +1077,10 @@ export interface IAgentSubagentStartedSignal {
 	readonly agentDisplayName: string;
 	readonly agentDescription?: string;
 	readonly taskModelSource?: AgentSubagentTaskModelSource;
+	/** Absent means `task`. */
+	readonly subagentKind?: AgentSubagentKind;
+	/** For telemetry, when the chat reports no usage of its own. */
+	readonly model?: string;
 	/**
 	 * The spawning Task tool's short (typically 3-5 word) `description`
 	 * input, e.g. "Review package.json structure". Distinct from
@@ -1145,12 +1167,11 @@ export namespace AgentSession {
 	}
 
 	/**
-	 * Extracts the provider name from a session URI scheme.
-	 * Accepts both a URI object and a URI string.
+	 * Legacy provider-scheme fallback; standard sessions require explicit provider metadata.
 	 */
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
-		return parsed.scheme || undefined;
+		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
 	}
 }
 
@@ -1291,6 +1312,15 @@ export interface IAgent {
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
 
+	/** Optional admitted native metadata stream for environment-owned session mirroring. */
+	readonly onDidChatSessionEvent?: Event<IAgentChatSessionEvent>;
+
+	/** Read genuine persisted metadata without creating or resuming a provider session. */
+	readChatSessionEvents?(chat: URI, context: IAgentChatContext, token: CancellationToken, afterEventId?: string, onDidReadEventId?: (id: string) => void): AsyncIterable<IAgentChatSessionEvent>;
+
+	/** Synchronize a host-owned title into an already-live provider session. */
+	synchronizeChatSessionTitle?(chat: URI, title: string): Promise<boolean>;
+
 	/** Fires when a provisional chat acquires its SDK backing and durable metadata. */
 	readonly onDidMaterializeChat: Event<IAgentMaterializeChatEvent>;
 
@@ -1319,6 +1349,9 @@ export interface IAgent {
 	 * not advertise the capability MUST reject the call.
 	 */
 	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
+
+	/** Changes the addressed chat's backing. Shared roots may change only under the host's single-chat catalog lock. */
+	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI, options?: { readonly replaceSessionWorkspace: boolean }): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;
@@ -1457,6 +1490,8 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+	/** Canonical device remote-control policy; absence is distinct from a failed read. */
+	getRemoteControlManagedSettings?(): Promise<Record<string, unknown> | undefined>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;

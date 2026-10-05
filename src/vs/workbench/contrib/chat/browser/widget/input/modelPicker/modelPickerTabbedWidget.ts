@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IModelPickerOpenOptions } from './modelPickerWidget.js';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { SelectBox } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
+import type { IModelPickerOpenOptions } from './modelPickerWidget.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';

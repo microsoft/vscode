@@ -59,20 +59,26 @@ interface ISeedFeedbackOptions {
 
 const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
-const sessionToolNames = [
-	SessionServerToolName.ListSessions,
-	SessionServerToolName.GetCurrentSession,
-	SessionServerToolName.CreateSession,
-	SessionServerToolName.RenameChat,
-	SessionServerToolName.SendMessage,
-	SessionServerToolName.GetSessionContext,
-	SessionServerToolName.DeleteSession,
-] as const;
+function getSessionToolNames(supportsWorkspaceChange: boolean): readonly SessionServerToolName[] {
+	return [
+		SessionServerToolName.ListSessions,
+		SessionServerToolName.GetCurrentSession,
+		...(supportsWorkspaceChange ? [SessionServerToolName.SetWorkspace] : []),
+		SessionServerToolName.CreateSession,
+		SessionServerToolName.RenameChat,
+		SessionServerToolName.SendMessage,
+		SessionServerToolName.GetSessionContext,
+		SessionServerToolName.DeleteSession,
+		...(supportsWorkspaceChange ? [SessionServerToolName.IsolateSession] : []),
+	];
+}
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	// Claude omits the prior server-tool input from detailed session context.
 	const supportsFullSessionContext = config.provider !== 'claude';
+	// Claude cannot move a chat to another workspace.
+	const supportsWorkspaceChange = config.provider !== 'claude';
 	// Claude reports success but leaves the target listed.
 	const supportsCrossSessionDelete = config.provider !== 'claude';
 	// Claude starts another turn instead of rejecting a message to the current chat.
@@ -281,7 +287,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			}
 			return state.serverTools.map(tool => tool.name);
 		}, 100, 30);
-		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames]);
+		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...getSessionToolNames(supportsWorkspaceChange)]);
 	});
 
 	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
@@ -292,6 +298,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'turn-rename-chat-seed',
 			'/rename Seeded Chat',
 			reserveClientSequenceBlock(),
+			{ expectUnread: false },
 		);
 		const { tool } = await driveServerTool(
 			session,

@@ -36,6 +36,12 @@ const WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS = 500;
 /** Budget for reading one blob; a timeout here drops a diff's original side. */
 const SHOW_BLOB_TIMEOUT_MS = 15_000;
 
+/**
+ * Budget for listing refs. Sorting by commit date reads every ref's tip commit, which can
+ * exceed the default timeout on a cold disk cache, e.g. on the first start after an update.
+ */
+const GET_REFS_TIMEOUT_MS = 30_000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
 
@@ -101,7 +107,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			}
 		}
 
-		const output = await this._runGit(workingDirectory, args);
+		const output = await this._runGit(workingDirectory, args, { timeout: GET_REFS_TIMEOUT_MS });
 		return parseGitRefs(output);
 	}
 
@@ -994,8 +1000,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return out?.trim() || undefined;
 	}
 
-	async listRefNamesWithOids(repositoryRoot: URI, pattern: string): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
-		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern]);
+	async listRefNamesWithOids(repositoryRoot: URI, pattern: string, options?: { readonly throwOnError?: boolean }): Promise<Array<{ readonly ref: string; readonly oid: string }>> {
+		const out = await this._runGit(repositoryRoot, ['for-each-ref', '--format=%(refname)%00%(objectname)', pattern], options);
 		if (!out) {
 			return [];
 		}

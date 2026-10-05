@@ -86,7 +86,6 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -108,7 +107,8 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
-	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), changes: constObservable([]), changesets: constObservable([]) });
+	const isRead = observableValue(`isRead-${id}`, opts.isRead ?? true);
+	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), isRead, changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -137,7 +137,7 @@ function createSession(id: string, opts: {
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
 		isArchived,
-		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
+		isRead,
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
@@ -175,7 +175,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -232,7 +231,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -257,189 +255,13 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
 				spinnerParent: spinner?.parentElement?.className,
+				newBadge: !!container.querySelector('.session-section-new-badge'),
 				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
 			}, {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
+				newBadge: false,
 				trailingStatusIndicator: false,
-			});
-		});
-
-		test('renders new badge presentations only on the Automations section when templates are recycled', () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
-				override set context(_context: unknown) { }
-				override dispose(): void { }
-			});
-			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}());
-			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-				override getStatusIcon(_status: SessionStatus, isRead: boolean) {
-					return isRead ? Codicon.circleSmallFilled : Codicon.circleFilled;
-				}
-			});
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const runs = observableValue<readonly IAutomationRun[]>(disposables, []);
-			const badgePresentation = observableValue<AutomationsNewBadgeStyle | undefined>(disposables, 'outline');
-			const automationService = new class extends mock<IAutomationService>() {
-				override readonly runs = runs;
-			};
-			const renderer = new SessionSectionRenderer(
-				true,
-				() => { },
-				constObservable(true),
-				constObservable(new Set<string>()),
-				noHeaderStatusTrigger,
-				instantiationService,
-				contextKeyService,
-				automationService,
-				constObservable([]),
-				badgePresentation,
-				new class extends mock<IUriIdentityService>() {
-					override readonly extUri = new ExtUri(() => true);
-				},
-				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
-				},
-				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
-			);
-			const container = document.createElement('div');
-			const template = renderer.renderTemplate(container);
-			disposables.add(template.disposables);
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'automations', label: 'Automations', sessions: [] },
-				collapsible: false,
-				collapsed: false,
-			}), 0, template);
-			const getPresentationSnapshot = () => ({
-				badgeText: template.newBadge.textContent,
-				badgeDisplay: template.newBadge.style.display,
-				badgeAriaHidden: template.newBadge.getAttribute('aria-hidden'),
-				hasOutlineBadge: template.newBadge.classList.contains('session-section-new-badge-outline'),
-				hasUnreadDot: !!container.querySelector('.session-section-icon > .codicon-circle-filled:not([data-icon-fading-out="1"])'),
-				hasSpinner: !!container.querySelector('.session-section-icon > .monaco-pixel-spinner:not([data-icon-fading-out="1"])'),
-				hasCalendar: template.icon.classList.contains('codicon-calendar'),
-			});
-			const outline = getPresentationSnapshot();
-
-			badgePresentation.set('unread', undefined);
-			const unread = getPresentationSnapshot();
-
-			runs.set([upcastPartial<IAutomationRun>({ status: 'running' })], undefined);
-			const running = getPresentationSnapshot();
-
-			runs.set([], undefined);
-			const unreadRestored = getPresentationSnapshot();
-
-			badgePresentation.set(undefined, undefined);
-			const dismissed = getPresentationSnapshot();
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Test', sessions: [] },
-				collapsible: true,
-				collapsed: false,
-			}), 0, template);
-
-			assert.deepStrictEqual({
-				outline,
-				unread,
-				running,
-				unreadRestored,
-				dismissed,
-				recycledDisplay: template.newBadge.style.display,
-				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
-			}, {
-				outline: {
-					badgeText: 'New',
-					badgeDisplay: 'inline-flex',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: true,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				unread: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				running: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: true,
-					hasCalendar: false,
-				},
-				unreadRestored: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				dismissed: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				recycledDisplay: 'none',
-				recycledShortcutClass: false,
-			});
-		});
-
-		test('updates the Automations row accessible label when the new badge is dismissed', async () => {
-			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
-			const harness = createListHarness(disposables, [], instantiationService => {
-				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'unread');
-				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
-					override readonly automations = constObservable([]);
-					override readonly runs = constObservable([]);
-					override readonly catalogueState = constObservable('ready' as const);
-				});
-				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = activeCustomView;
-				});
-			});
-			const container = harness.createContainer();
-			const navigationContainer = mainWindow.document.createElement('div');
-			const listContainer = mainWindow.document.createElement('div');
-			container.append(navigationContainer, listContainer);
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				navigationContainer,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			await list.resetAutomationsNewBadge();
-			const row = navigationContainer.querySelector<HTMLElement>('.monaco-list-row');
-			const before = row?.getAttribute('aria-label');
-
-			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
-
-			assert.deepStrictEqual({
-				before,
-				after: row?.getAttribute('aria-label'),
-			}, {
-				before: 'Automations, new feature',
-				after: 'Automations',
 			});
 		});
 
@@ -922,7 +744,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -994,7 +815,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -1159,6 +979,31 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(header, `Expected section ${label}`);
 			return header;
 		}
+
+		test('derives collapsed section unread state from its chats', () => {
+			const built = buildTestSession({
+				id: 'section-chat-read-state',
+				title: 'Main chat',
+				workspace: 'Workspace',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { list, container } = renderList([built.session]);
+			list.collapseAllSections();
+
+			const peerUnread = unreadSections(container);
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const chatsRead = unreadSections(container);
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = unreadSections(container);
+
+			assert.deepStrictEqual({ peerUnread, chatsRead, mainUnread }, {
+				peerUnread: ['Workspace'],
+				chatsRead: [],
+				mainUnread: ['Workspace'],
+			});
+		});
 
 		test('reports the experiment trigger where a header could show a status, whether or not the setting shows it', () => {
 			const trigger = [`config.${SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING}`];
@@ -2413,7 +2258,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), changes: constObservable([]), changesets: constObservable([]) })),
+			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), isRead: constObservable(true), changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -4148,6 +3993,7 @@ suite('Sessions - SessionsList', () => {
 				status: constObservable(status),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -4195,9 +4041,7 @@ suite('Sessions - SessionsList', () => {
 				onChatOpen,
 			}));
 			list.layout(300, 400);
-			if (expandChats) {
-				setSessionChatsExpanded(container, true);
-			}
+			setSessionChatsExpanded(container, expandChats);
 			return { container, list, managementService: harness.managementService };
 		}
 
@@ -4208,6 +4052,83 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('renders the exact main chat read state whether collapsed or expanded', () => {
+			const built = buildTestSession({
+				id: 'chat-read-state',
+				title: 'Main chat',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { container } = renderSessionChatsList(built.session, undefined, false, false);
+			const mainItem = container.querySelector<HTMLElement>('.session-item');
+			const snapshot = () => ({
+				mainUnread: mainItem?.classList.contains('unread'),
+				mainAriaLabel: mainItem?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				peerUnread: container.querySelector<HTMLElement>('.session-chat-item')?.classList.contains('unread'),
+				peerAriaLabel: container.querySelector<HTMLElement>('.session-chat-item')?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			});
+
+			const collapsed = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expanded = snapshot();
+			setSessionChatsExpanded(container, false);
+			const recollapsed = snapshot();
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = snapshot();
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const peerRead = snapshot();
+			built.isRead.set(true, undefined);
+			const sessionRead = snapshot();
+			setSessionChatsExpanded(container, true);
+			const expandedMainUnread = snapshot();
+
+			assert.deepStrictEqual({ collapsed, expanded, recollapsed, mainUnread, peerRead, sessionRead, expandedMainUnread }, {
+				collapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expanded: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: true,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed, unread',
+				},
+				recollapsed: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				mainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				peerRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				sessionRead: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: undefined,
+					peerAriaLabel: undefined,
+				},
+				expandedMainUnread: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: false,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+				},
+			});
+		});
 
 		test('matches the main chat row vertical layout in compact and regular views', () => {
 			const main = createChat('Main chat');
@@ -4366,6 +4287,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5425,6 +5347,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5499,6 +5422,7 @@ suite('Sessions - SessionsList', () => {
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
 				description: constObservable(undefined),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
@@ -5757,6 +5681,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -6993,7 +6918,7 @@ suite('Sessions - SessionsList', () => {
 					badge: undefined,
 					time: undefined,
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, updated now',
+					ariaLabel: 'Investigate failure, updated now, unread',
 				},
 				regular: {
 					usesStandardRowHeight: true,
@@ -7005,7 +6930,7 @@ suite('Sessions - SessionsList', () => {
 					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, chat, updated now',
+					ariaLabel: 'Investigate failure, chat, updated now, unread',
 				},
 			});
 		});
@@ -7018,6 +6943,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -7496,6 +7422,56 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
 				opened: [session.resource.toString()],
 				markedRead: 1,
+			});
+		});
+
+		test('opening an expanded main chat does not mark the parent session read', async () => {
+			const base = createTestSession('Unread multi-chat', { isRead: false }).session;
+			const main = base.mainChat.get();
+			const peer: IChat = {
+				...main,
+				resource: URI.parse('test-chat://peer'),
+				workspace: constObservable(undefined),
+				title: constObservable('Peer chat'),
+				updatedAt: constObservable(new Date()),
+				status: constObservable(SessionStatus.Completed),
+				isArchived: constObservable(false),
+				isRead: constObservable(true),
+				changes: constObservable([]),
+				changesets: constObservable([]),
+				interactivity: constObservable(ChatInteractivity.Full),
+				origin: { kind: ChatOriginKind.User },
+			};
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const opened: string[] = [];
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: resource => {
+					opened.push(resource.toString());
+				},
+			}));
+			list.layout(300, 400);
+			const row = findSessionRow(container, 'Unread multi-chat');
+			const twistie = row.querySelector<HTMLElement>('.session-chat-twistie');
+			assert.ok(twistie);
+			if (row.getAttribute('aria-expanded') !== 'true') {
+				twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			}
+
+			clickRow(row);
+			await settle();
+
+			assert.deepStrictEqual({ opened, markedRead: harness.managementService.readSessions.length }, {
+				opened: [session.resource.toString()],
+				markedRead: 0,
 			});
 		});
 

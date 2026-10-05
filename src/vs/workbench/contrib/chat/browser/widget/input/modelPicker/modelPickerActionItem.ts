@@ -51,6 +51,11 @@ export interface IModelPickerDelegate {
 	getChatSessionId?(): string | undefined;
 	getProvider?(): string | undefined;
 	/**
+	 * The session type (harness) the picker selects models for. Used to scope
+	 * the Manage Models editor to that harness's Copilot models.
+	 */
+	getSessionType?(): string | undefined;
+	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
 	 * has sent a request), inferred from request history / session status rather

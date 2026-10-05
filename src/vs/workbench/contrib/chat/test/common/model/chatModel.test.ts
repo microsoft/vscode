@@ -2198,14 +2198,17 @@ suite('ChatResponseModel', () => {
 			response.updateContent(tool);
 			tool.setAuthenticationRequired({ id: 'server', name: 'Test MCP', resource: 'https://example.com/mcp' });
 			const authentication = pending(response);
+			tool.setAuthenticationRequired({ id: 'server', name: 'Test MCP (Connector)', resource: 'https://example.com/mcp' });
+			const refreshedAuthentication = pending(response);
 			tool.requestConfirmation({ confirmationMessages: { title: 'Approve', message: new MarkdownString('Confirm'), confirmResults: true } });
 			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
 			await tool.didExecuteTool({ content: [] });
 			const postApproval = pending(response);
 			IChatToolInvocation.confirmWith(tool, { type: ToolConfirmKind.UserAction });
 
-			assert.deepStrictEqual([authentication, postApproval, pending(response)], [
+			assert.deepStrictEqual([authentication, refreshedAuthentication, postApproval, pending(response)], [
 				{ detail: 'Authenticate Test MCP to continue...', tools: ['tool'] },
+				{ detail: 'Authenticate Test MCP (Connector) to continue...', tools: ['tool'] },
 				{ detail: 'Approve tool result?', tools: ['tool'] },
 				{ detail: undefined, tools: [] },
 			]);

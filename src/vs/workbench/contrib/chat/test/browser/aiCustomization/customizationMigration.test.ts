@@ -19,7 +19,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -128,6 +128,61 @@ suite('customizationMigration', () => {
 			},
 			failure: 'Could not migrate \'Server\' because the destination already contains a different server with that name.',
 		});
+	});
+
+	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
+		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
+		const prompt = createCustomizationMigrationAgentPrompt(
+			{ id: 'agent-host-copilotcli', label: 'Copilot' },
+			'migration-flow-id',
+			recoveryBundleFolder,
+			[
+				{
+					category: CustomizationMigrationType.PromptFiles,
+					customization: { uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt },
+				},
+				{
+					category: CustomizationMigrationType.McpServers,
+					customization: {
+						type: CustomizationMigrationType.McpServers,
+						storage: PromptsStorage.user,
+						id: 'server',
+						name: 'Server',
+						sourceUri: URI.file('/profile/mcp.json'),
+						targetUri: URI.file('/home/.copilot/mcp-config.json'),
+						projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+					},
+				},
+				{
+					category: CustomizationMigrationType.ConfiguredLocations,
+					customization: { uri: URI.file('/workspace/custom/review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions },
+				},
+			],
+			new Map([
+				[PromptsType.skill, [
+					{ uri: URI.file('/workspace/.github/skills'), label: 'Workspace skills', source: 'local' },
+					{ uri: URI.file('/home/.copilot/skills'), label: 'User skills', source: 'user' },
+				]],
+			]),
+		);
+
+		assert.strictEqual(prompt.replace(/\\/g, '/'), [
+			'/migrate-customizations',
+			'',
+			'Selected harness: Copilot (agent-host-copilotcli)',
+			'Migration telemetry flow: migration-flow-id',
+			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
+			`Recovery bundle filesystem path: ${recoveryBundleFolder.path}`,
+			'',
+			'Customizations that need migration:',
+			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
+			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
+			'- configuredLocations: instructions (local): file:///workspace/custom/review.instructions.md',
+			'',
+			'Valid target folders reported by the selected harness:',
+			'- skill (local, Workspace skills): file:///workspace/.github/skills',
+			'- skill (user, User skills): file:///home/.copilot/skills',
+		].join('\n'));
 	});
 
 	test('configured locations copy explains harness discovery and setting scope', () => {
