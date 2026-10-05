@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -16,6 +17,7 @@ import { applyAgentHostSessionConfigChange } from './applyAgentHostSessionConfig
 
 export interface IApplyAgentHostSubmitConfigServices {
 	readonly agentHostService: IAgentHostService;
+	readonly connectionsService: IAgentHostConnectionsService;
 	readonly provisionalService: IAgentHostUntitledProvisionalSessionService;
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;

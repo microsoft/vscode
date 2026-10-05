@@ -1185,6 +1185,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.showEmbeddedMcpDetail(server);
 			}));
 
+			this.editorDisposables.add(this.mcpListWidget.onDidUpdateServerDetail(() => this.refreshEmbeddedMcpDetail()));
+
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestShowPlugin(item => {
 				this.showPluginDetail(item);
 			}));
@@ -4984,6 +4986,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.mcpDetailInput = undefined;
 		this.embeddedMcpDetail?.clearInput();
 		void this.restoreDetailOrigin(origin);
+	}
+
+	/** Keeps an open MCP detail in sync when the agent host reports new metadata for its server. */
+	private refreshEmbeddedMcpDetail(): void {
+		const current = this.mcpDetailInput;
+		if (!current || !this.embeddedMcpDetail || this.viewMode !== 'mcpDetail') {
+			return;
+		}
+		const updated = this.mcpListWidget?.getUpdatedServerDetail(current.id);
+		if (!updated) {
+			return;
+		}
+		this.mcpDetailInput = updated;
+		this.embeddedMcpDetail.updateInput(updated);
 	}
 
 	private refreshMcpDetailMigrationState(): void {
