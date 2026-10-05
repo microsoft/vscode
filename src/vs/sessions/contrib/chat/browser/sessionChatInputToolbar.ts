@@ -54,6 +54,7 @@ import { ISessionChangesStatsCache, readChatChangesStats } from '../../../servic
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
+import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
 
@@ -404,6 +405,7 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
 	private readonly _browsers: SessionBrowsersControl;
+	private readonly _canvases: SessionCanvasesControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
 	private readonly _pullRequestDropdownHoverCache = new WeakMap<IGitHubPullRequestRef, ICachedHover>();
 	private readonly _issueDropdownHoverCache = new WeakMap<IGitHubIssueRef, ICachedHover>();
@@ -470,6 +472,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const pillsEnabled = constObservable(true);
 		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
+		this._canvases = this._register(instantiationService.createInstance(SessionCanvasesControl, this._session, this._chat, derived(this, reader => this._debugData.read(reader) === undefined)));
 		const autoAssociatePullRequests = derived(this, reader => {
 			const session = this._session.read(reader);
 			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
@@ -609,6 +612,7 @@ export class SessionChatInputToolbar extends Disposable {
 			artifacts: { sections: this._artifactSections },
 			references: { sections: this._referenceSections },
 			customizations: { sections: this._customizationSections },
+			canvases: { sections: this._canvases.sections },
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
 			backgroundShells,
