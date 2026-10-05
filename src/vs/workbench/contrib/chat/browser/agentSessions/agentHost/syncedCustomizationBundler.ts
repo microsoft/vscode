@@ -436,6 +436,16 @@ export class SyncedCustomizationBundler extends Disposable {
 		return this._originByDest.get(syncedUri);
 	}
 
+	/** Finds the bundled URI for a source file in the most recent bundle. */
+	getSyncedUri(sourceUri: URI): URI | undefined {
+		for (const [destination, origin] of this._originByDest) {
+			if (extUri.isEqual(origin.uri, sourceUri)) {
+				return destination;
+			}
+		}
+		return undefined;
+	}
+
 	override dispose(): void {
 		if (this._isDisposed) {
 			return;

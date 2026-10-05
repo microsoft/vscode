@@ -52,6 +52,16 @@
 	width: auto;
 }
 
+.customization-discovery-title-row > .monaco-button,
+.customization-discovery-source > .monaco-button {
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.customization-discovery-title-row > .monaco-button .codicon:last-child,
+.customization-discovery-source > .monaco-button .codicon:last-child {
+	margin-right: 0;
+}
+
 .customization-discovery-description {
 	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size120);
 	color: var(--vscode-descriptionForeground);
@@ -78,6 +88,28 @@
 	display: flex;
 	align-items: stretch;
 	gap: var(--vscode-spacing-size80);
+}
+
+.customization-discovery-progress {
+	position: relative;
+	height: 2px;
+	margin-bottom: var(--vscode-spacing-size40);
+}
+
+.customization-discovery-result-content.loading {
+	background: url('../../../../extensions/browser/media/loading.svg') center center no-repeat;
+}
+
+.vs-dark .customization-discovery-result-content.loading {
+	background-image: url('../../../../extensions/browser/media/loading-dark.svg');
+}
+
+.hc-black .customization-discovery-result-content.loading {
+	background-image: url('../../../../extensions/browser/media/loading-hc.svg');
+}
+
+.customization-discovery-result-content.loading > * {
+	visibility: hidden;
 }
 
 .customization-discovery-search {
@@ -113,7 +145,6 @@
 	height: var(--vscode-spacing-size240);
 	min-height: var(--vscode-spacing-size240);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-body1);
 	white-space: nowrap;
 }
 
@@ -180,8 +211,8 @@
 }
 
 .customization-discovery-card {
-	display: grid;
-	grid-template-columns: 48px minmax(0, 1fr) auto;
+	position: relative;
+	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	min-width: 0;
@@ -189,6 +220,23 @@
 	padding: var(--vscode-spacing-size40);
 	border-radius: var(--vscode-cornerRadius-small);
 	background: transparent;
+}
+
+.customization-discovery-card-primary,
+.customization-discovery-result-primary {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: inherit;
+	background: transparent;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
 }
 
 .customization-discovery-section.featured .customization-discovery-card {
@@ -202,22 +250,29 @@
 
 .customization-discovery-card-icon {
 	position: relative;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 48px;
-	height: 48px;
+	width: var(--vscode-spacing-size400);
+	height: var(--vscode-spacing-size400);
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	background: var(--vscode-editorWidget-background);
+	pointer-events: none;
 }
 
 .customization-discovery-card-icon.is-fallback,
 .customization-discovery-result-icon.is-fallback {
 	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
+}
+
+.customization-discovery-card-icon:not(.is-fallback) > .codicon,
+.customization-discovery-result-icon:not(.is-fallback) > .codicon {
+	display: none;
 }
 
 .customization-discovery-card-icon img {
@@ -230,7 +285,10 @@
 
 .customization-discovery-card-body,
 .customization-discovery-result-identity {
+	position: relative;
+	z-index: 1;
 	min-width: 0;
+	pointer-events: none;
 }
 
 .customization-discovery-card-heading,
@@ -252,12 +310,6 @@
 	text-overflow: ellipsis;
 	text-decoration: none;
 	white-space: nowrap;
-}
-
-.customization-discovery-card-name[href]:hover,
-.customization-discovery-result-name[href]:hover {
-	color: var(--vscode-textLink-activeForeground);
-	text-decoration: underline;
 }
 
 .customization-discovery-card-description {
@@ -282,13 +334,17 @@
 }
 
 .customization-discovery-card-actions {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
+	pointer-events: none;
 }
 
 .customization-discovery-card-actions > .monaco-button {
 	width: auto;
+	pointer-events: auto;
 }
 
 .customization-discovery-show-all {
@@ -310,10 +366,12 @@
 }
 
 .customization-discovery-show-all:focus-visible,
-.customization-discovery-card-name:focus-visible,
-.customization-discovery-result-name:focus-visible {
+.customization-discovery-card-primary:focus-visible,
+.customization-discovery-list .monaco-list-row.focused > .customization-discovery-result-content > .customization-discovery-result-primary,
+.customization-discovery-result-primary:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	border-radius: var(--vscode-cornerRadius-small);
 }
 
 .customization-discovery-results {
@@ -341,6 +399,7 @@
 }
 
 .customization-discovery-result-content {
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
@@ -354,17 +413,19 @@
 
 .customization-discovery-result-icon {
 	position: relative;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	width: 48px;
-	height: 48px;
+	width: var(--vscode-spacing-size400);
+	height: var(--vscode-spacing-size400);
 	flex-shrink: 0;
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-small);
 	color: var(--vscode-descriptionForeground);
 	background: var(--vscode-editorWidget-background);
+	pointer-events: none;
 }
 
 .customization-discovery-result-icon img {
@@ -392,12 +453,15 @@
 }
 
 .customization-discovery-result-aside {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
 	gap: var(--vscode-spacing-size80);
 	flex-shrink: 0;
 	min-width: 72px;
+	pointer-events: none;
 }
 
 .customization-discovery-result-stats {
@@ -422,6 +486,7 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	flex-shrink: 0;
+	pointer-events: auto;
 }
 
 .customization-discovery-result-actions > .monaco-button {

@@ -29,7 +29,8 @@ export function shouldGenerateNodeCompileCache(platform: string, arch: string, p
 		return false;
 	}
 
-	return platform === 'darwin' ? arch === 'arm64' : (platform === 'linux' || platform === 'win32') && arch === 'x64';
+	// TODO: Re-enable POSIX caches once the runtime fixes portable caching with eager/read-only options.
+	return platform === 'win32' && arch === 'x64';
 }
 
 export function getNodeCompileCachePaths(platform: string, outputDirectory: string, versionedResourcesFolder: string, product: INodeCompileCacheProduct): INodeCompileCachePaths {

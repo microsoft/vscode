@@ -7,11 +7,12 @@ import { IObservable } from '../../../../../base/common/observable.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
 import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
-import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps that walk a brand-new user through the new-session view the
@@ -37,6 +38,7 @@ import { IsNewChatSessionContext, SessionHarnessPickerVisibleContext, SessionIso
  * missing entirely is also skipped automatically.
  */
 export const NEW_SESSION_VIEW_TOUR_ID = 'sessions.onboarding.newSessionView';
+onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_TOUR_ID });
 
 /**
  * ExP treatment flag names for Tour 1's A/B experiment.
@@ -100,7 +102,7 @@ export function createNewSessionViewTour(signal: IObservable<boolean>): IOnboard
 	return {
 		id: NEW_SESSION_VIEW_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsNewChatSessionContext, EditorPartModalVisibleContext.toNegated()),
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsNewChatSessionContext, EditorPartModalVisibleContext.toNegated(), NewSessionOnboardingHandoffContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		experiment: NEW_SESSION_VIEW_EXPERIMENT,

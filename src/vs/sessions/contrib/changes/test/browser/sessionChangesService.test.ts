@@ -21,7 +21,7 @@ import { IDecorationsProvider, IDecorationsService } from '../../../../../workbe
 import { IEditorGroup } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionChangeset, ISessionFileChange, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { SessionChangesEditorInput } from '../../browser/sessionChangesEditorInput.js';
 import { ISessionChangesService, SessionChangesService } from '../../browser/sessionChangesService.js';
@@ -66,9 +66,9 @@ suite('SessionChangesService', () => {
 			},
 		};
 
-		for (const isSinglePaneLayoutEnabled of [true, false]) {
+		for (const desktop of [true, false]) {
 			const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-				override readonly isSinglePaneLayoutEnabled = isSinglePaneLayoutEnabled;
+				override readonly agentWorkbenchLayout = desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile;
 				override readonly onDidChangePartVisibility = Event.None;
 				override isVisible(): boolean { return true; }
 			}();
@@ -128,7 +128,7 @@ suite('SessionChangesService', () => {
 			}
 		}();
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = false;
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Mobile;
 		}();
 		const changesViewService = new class extends mock<IChangesViewService>() {
 			override readonly activeSessionResourceObs = noActiveSessionResource;
@@ -181,7 +181,7 @@ suite('SessionChangesService', () => {
 		});
 	});
 
-	test('selects the requested changeset in the single-pane layout', async () => {
+	test('selects the requested changeset in the desktop layout', async () => {
 		const selections: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
@@ -200,7 +200,7 @@ suite('SessionChangesService', () => {
 			}
 		}();
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = true;
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(): boolean {
 				return true;
@@ -245,7 +245,7 @@ suite('SessionChangesService', () => {
 			}
 		};
 		const layoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly isSinglePaneLayoutEnabled = true;
+			override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 			override readonly onDidChangePartVisibility = Event.None;
 			override isVisible(): boolean {
 				return true;

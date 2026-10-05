@@ -40,6 +40,11 @@ export interface ISelectWorkspaceOptions {
 	readonly isDefault?: boolean;
 }
 
+export interface ISelectNoWorkspaceOptions {
+	readonly userSelection?: boolean;
+	readonly preserveNavigation?: boolean;
+}
+
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
 
 /**
@@ -101,6 +106,9 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	readonly isLoadingTranscript: IObservable<boolean> = constObservable(false);
 
+	/** Whether an input notification already explains a temporary sending restriction. */
+	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
@@ -122,7 +130,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
 		// no-op by default
 	}
 

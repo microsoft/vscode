@@ -406,10 +406,7 @@ export function setup(logger: Logger, quality: Quality) {
 				// customTerminalTool intentionally OFF (default) — the SDK runs
 				// the shell tool, and the AgentHost is expected to forward
 				// `chat.agent.sandbox.*` into the SDK so commands still run
-				// sandboxed. The SDK-sandbox gate defaults to 'off'; set it
-				// to 'on' explicitly so the test exercises the SDK sandbox
-				// override path.
-				'chat.agentHost.sdkSandbox.enabled': 'on',
+				// sandboxed.
 				'chat.agent.sandbox.enabled': 'on',
 			},
 		});

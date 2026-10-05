@@ -58,6 +58,14 @@
 	padding-right: var(--vscode-spacing-size40);
 }
 
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item:is(.compact-left, .has-background-color) > .statusbar-item-label {
+	margin-left: 0;
+}
+
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item:is(.compact-right, .has-background-color) > .statusbar-item-label {
+	margin-right: 0;
+}
+
 .modern-ui.modern-ui-compact .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {
 	margin-left: var(--vscode-spacing-size20);
 }
