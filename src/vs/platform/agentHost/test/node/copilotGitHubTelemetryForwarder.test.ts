@@ -117,7 +117,7 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			});
 			forwarder.forward({
 				sessionId: 'sdk-session', restricted: true,
-				event: { kind: 'skill_invoked', properties: { skill_name: 'create-canvas', skill_path: '/private/skill.md' } },
+				event: { kind: 'skill_invoked', properties: { skill_name: 'create-canvas', skill_path: '/private/skill.md' }, metrics: {} },
 			});
 			assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
 				eventName, restricted: data?.restricted, toolName: data?.tool_name, durationMs: data?.duration_ms,
