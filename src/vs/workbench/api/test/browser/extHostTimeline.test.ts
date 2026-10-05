@@ -20,10 +20,10 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 
 suite('ExtHostTimeline', function () {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('disposes cached timeline items with their provider', async function () {
-		let argumentProcessor: ArgumentProcessor | undefined;
+		let argumentProcessor!: ArgumentProcessor;
 		const commands = new class extends mock<ExtHostCommands>() {
 			override registerArgumentProcessor(processor: ArgumentProcessor): void {
 				argumentProcessor = processor;
@@ -40,32 +40,33 @@ suite('ExtHostTimeline', function () {
 			enabledApiProposals: ['timeline'],
 		};
 		const uri = URI.parse('file:///timeline.txt');
+		const item = new TimelineItem('first item', 1);
 		const provider = {
 			id: 'test-timeline',
 			label: 'Test Timeline',
-			provideTimeline: () => ({ items: [new TimelineItem('first item', 1)] }),
+			provideTimeline: () => ({ items: [item] }),
 		};
 		const converter = new class extends mock<CommandsConverter>() { };
-		const registration = timeline.registerTimelineProvider('file', provider, extension.identifier, converter);
+		const registration = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
 		const options: TimelineOptions = { cacheResults: true };
 		const result = await timeline.$getTimeline(provider.id, uri, options, CancellationToken.None);
-		const handle = result?.items[0].handle;
-
-		registration.dispose();
-		const replacement = timeline.registerTimelineProvider('file', provider, extension.identifier, converter);
-		const cachedItem = argumentProcessor?.processArgument({
+		assert.ok(result);
+		const context = {
 			$mid: MarshalledId.TimelineActionContext,
-			handle,
+			handle: result.items[0].handle,
 			source: provider.id,
 			uri,
-		}, extension);
+		};
+		assert.strictEqual(argumentProcessor.processArgument(context, extension), item);
 
-		assert.strictEqual(cachedItem, undefined);
+		registration.dispose();
+		const replacement = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
+		assert.strictEqual(argumentProcessor.processArgument(context, extension), undefined);
 		replacement.dispose();
 	});
 
 	test('does not cache an in-flight timeline result after provider disposal', async function () {
-		let argumentProcessor: ArgumentProcessor | undefined;
+		let argumentProcessor!: ArgumentProcessor;
 		const commands = new class extends mock<ExtHostCommands>() {
 			override registerArgumentProcessor(processor: ArgumentProcessor): void {
 				argumentProcessor = processor;
@@ -89,19 +90,19 @@ suite('ExtHostTimeline', function () {
 			provideTimeline: () => deferredResult.p,
 		};
 		const converter = new class extends mock<CommandsConverter>() { };
-		const registration = timeline.registerTimelineProvider('file', provider, extension.identifier, converter);
+		const registration = store.add(timeline.registerTimelineProvider('file', provider, extension.identifier, converter));
 		const options: TimelineOptions = { cacheResults: true };
 		const resultPromise = timeline.$getTimeline(provider.id, uri, options, CancellationToken.None);
 
 		registration.dispose();
-		const replacement = timeline.registerTimelineProvider('file', {
+		const replacement = store.add(timeline.registerTimelineProvider('file', {
 			...provider,
 			provideTimeline: () => ({ items: [] }),
-		}, extension.identifier, converter);
+		}, extension.identifier, converter));
 		deferredResult.complete({ items: [new TimelineItem('stale item', 1)] });
 
 		assert.strictEqual(await resultPromise, undefined);
-		assert.strictEqual(argumentProcessor?.processArgument({
+		assert.strictEqual(argumentProcessor.processArgument({
 			$mid: MarshalledId.TimelineActionContext,
 			handle: `${provider.id}|1`,
 			source: provider.id,
