@@ -11,7 +11,8 @@ const quotaTokenRefreshIntervalMs = 5 * 60 * 1000;
 
 interface QuotaTokenRefreshState {
 	readonly session: AuthenticationSession | undefined;
-	tokenAccountId: string | undefined;
+	readonly staticSessionId: string | undefined;
+	username: string | undefined;
 	readonly scopes: Map<string, QuotaRefreshScope>;
 }
 
@@ -44,12 +45,13 @@ export class QuotaTokenRefreshRequest {
 		if (!state || !isSameAccount(authenticationService, state)) {
 			state = {
 				session: authenticationService.anyGitHubSession,
-				tokenAccountId: getTokenAccountId(authenticationService),
+				staticSessionId: getStaticSessionId(authenticationService.anyGitHubSession),
+				username: authenticationService.copilotToken?.username,
 				scopes: new Map(),
 			};
 			quotaTokenRefreshStates.set(authenticationService, state);
 		}
-		state.tokenAccountId ??= getTokenAccountId(authenticationService);
+		state.username ??= authenticationService.copilotToken?.username;
 		this.state = state;
 
 		let scope = state.scopes.get(scopeKey);
@@ -113,17 +115,22 @@ export class QuotaTokenRefreshRequest {
 	}
 }
 
-function getTokenAccountId(authenticationService: IAuthenticationService): string | undefined {
-	const token = authenticationService.copilotToken;
-	return token?.getTokenValue('tid') ?? token?.username;
+function getStaticSessionId(session: AuthenticationSession | undefined): string | undefined {
+	// Static sessions have no issuer and can share a placeholder account ID.
+	// Snapshot their live id getter rather than keeping only the session object.
+	return session?.authorizationServer ? undefined : session?.id;
 }
 
 function isSameAccount(authenticationService: IAuthenticationService, state: QuotaTokenRefreshState): boolean {
-	if (!authenticationSessionIdentityEquals(state.session, authenticationService.anyGitHubSession)) {
+	const session = authenticationService.anyGitHubSession;
+	if (!authenticationSessionIdentityEquals(state.session, session) || state.staticSessionId !== getStaticSessionId(session)) {
 		return false;
 	}
-	// Static GitHub sessions can share a placeholder account ID, so also compare
-	// token identities. A missing token during refresh must not discard the latch.
-	const tokenAccountId = getTokenAccountId(authenticationService);
-	return tokenAccountId === undefined || state.tokenAccountId === undefined || tokenAccountId === state.tokenAccountId;
+	if (session) {
+		return true;
+	}
+	// Token-only clients use the username, never the rotatable telemetry tid.
+	// A missing token during refresh preserves the latch.
+	const username = authenticationService.copilotToken?.username;
+	return username === undefined || state.username === undefined || username === state.username;
 }

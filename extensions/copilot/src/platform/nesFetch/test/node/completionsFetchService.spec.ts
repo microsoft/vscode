@@ -9,6 +9,7 @@ import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { CopilotToken, createTestExtendedTokenInfo, ExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenManager } from '../../../authentication/common/copilotTokenManager';
 import { CopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
@@ -103,7 +104,7 @@ describe('CompletionsFetchService quota handling', () => {
 	});
 
 	it('keeps the quota latch after the cooldown and ordinary token refreshes', async () => {
-		const { authenticationService, service } = createServices();
+		const { authenticationService, service } = createServices({ token: 'tid=initial-tracking-id' });
 		const start = Date.now();
 
 		await fetch(service);
@@ -112,7 +113,7 @@ describe('CompletionsFetchService quota handling', () => {
 		const refreshesBeforeCooldown = authenticationService.getCopilotToken.mock.calls.length;
 		vi.setSystemTime(start + 5 * 60 * 1000);
 		await fetch(service);
-		authenticationService.setCopilotToken(new CopilotToken(createTestExtendedTokenInfo({ token: 'rotated-token' })));
+		authenticationService.setCopilotToken(new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=rotated-tracking-id' })));
 		vi.setSystemTime(start + 24 * 60 * 60 * 1000);
 		await fetch(service);
 
@@ -121,6 +122,41 @@ describe('CompletionsFetchService quota handling', () => {
 			refreshesAfterCooldown: authenticationService.getCopilotToken.mock.calls.length,
 			resets: authenticationService.resetCopilotToken.mock.calls,
 		}).toEqual({ refreshesBeforeCooldown: 1, refreshesAfterCooldown: 1, resets: [[402]] });
+	});
+
+	it.each([false, true])('keeps the quota latch when every mint rotates the tracking ID (GitHub session: %s)', async hasSession => {
+		const { authenticationService, service } = createServices();
+		authenticationService.switchAccount('same-account', hasSession);
+		let mints = 0;
+		authenticationService.getCopilotToken.mockImplementation(async () => {
+			const token = new CopilotToken(createTestExtendedTokenInfo({
+				token: `tid=tracking-${++mints}`,
+				username: 'same-account',
+			}));
+			authenticationService.setCopilotToken(token);
+			return token;
+		});
+
+		for (let i = 0; i < 3; i++) {
+			const result = await fetch(service);
+			expect(result.isError() && result.err).toMatchObject({ kind: 'not-200-status', status: 402 });
+			vi.setSystemTime(Date.now() + 60 * 60 * 1000);
+		}
+
+		expect({ mints, resets: authenticationService.resetCopilotToken.mock.calls }).toEqual({ mints: 1, resets: [[402]] });
+	});
+
+	it('handles an in-flight quota response after the token tracking ID rotates', async () => {
+		const { authenticationService, fetcherService, service } = createServices({ token: 'tid=initial-tracking-id' });
+		const response = new DeferredPromise<Response>();
+		fetcherService.fetch.mockImplementationOnce(() => response.p);
+		const request = fetch(service);
+
+		authenticationService.setCopilotToken(new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=rotated-tracking-id' })));
+		await response.complete(Response.fromText(402, 'Payment Required', new FakeHeaders(), 'Quota exceeded', 'test-stub'));
+		await request;
+
+		expect(authenticationService.resetCopilotToken.mock.calls).toEqual([[402]]);
 	});
 
 	it('rearms after success without bypassing the five-minute backstop', async () => {
@@ -180,8 +216,8 @@ describe('CompletionsFetchService quota handling', () => {
 	it('distinguishes accounts with the static GitHub session placeholder identity', async () => {
 		let account = 'first-account';
 		const manager = new TestCopilotTokenManager(() => new CopilotToken(createTestExtendedTokenInfo({
-			token: `tid=${account}`,
-			username: account,
+			token: 'tid=not-an-account-id',
+			username: 'unknown',
 		})));
 		const auth = disposables.add(new StaticGitHubAuthenticationService(
 			() => account,
@@ -199,6 +235,30 @@ describe('CompletionsFetchService quota handling', () => {
 		await fetch(service);
 
 		expect(manager.resetCopilotToken.mock.calls).toEqual([[402], [402]]);
+	});
+
+	it('keeps the quota latch for static GitHub sessions when the tracking ID rotates', async () => {
+		let mints = 0;
+		const manager = new TestCopilotTokenManager(() => new CopilotToken(createTestExtendedTokenInfo({
+			token: `tid=tracking-${++mints}`,
+			username: 'unknown',
+		})));
+		const auth = disposables.add(new StaticGitHubAuthenticationService(
+			() => 'same-github-token',
+			new TestLogService(),
+			disposables.add(new CopilotTokenStore()),
+			manager,
+			new DefaultsOnlyConfigurationService(),
+		));
+		const service = new CompletionsFetchService(auth, new QuotaFetcherService(), new NullRequestLogger());
+
+		await auth.getCopilotToken();
+		for (let i = 0; i < 3; i++) {
+			await fetch(service);
+			vi.setSystemTime(Date.now() + 60 * 60 * 1000);
+		}
+
+		expect({ mints, resets: manager.resetCopilotToken.mock.calls }).toEqual({ mints: 2, resets: [[402]] });
 	});
 
 	it('ignores a quota response from before an account switch', async () => {
@@ -392,7 +452,7 @@ class QuotaAuthenticationService extends MockAuthenticationService {
 	}
 
 	switchAccount(id: string, hasSession = true): void {
-		this.anyGitHubSession = hasSession ? { id, accessToken: `test-${id}`, account: { id, label: id }, scopes: [] } : undefined;
+		this.anyGitHubSession = hasSession ? { id, accessToken: `test-${id}`, account: { id, label: id }, scopes: [], authorizationServer: URI.parse('https://github.com/login/oauth') } : undefined;
 		this.tokenInfo = { ...this.tokenInfo, token: `tid=${id}`, username: id };
 		this.setCopilotToken(new CopilotToken(createTestExtendedTokenInfo(this.tokenInfo)));
 	}

@@ -117,8 +117,11 @@ once per quota episode. Success rearms only that scope; a five-minute backstop
 bounds failed refreshes and rapid success/failure cycles. Account changes start
 independent state, and late responses cannot refresh another account's token.
 Request ordering ensures an older success cannot discard a newer quota failure
-or rearm its latch. Token identity is checked even for static GitHub sessions
-that share a placeholder account ID.
+or rearm its latch. Identity uses the GitHub account and authorization server.
+Static sessions without an authorization server also snapshot the session ID
+to distinguish placeholder accounts, with the token username covering clients
+without a GitHub session. Never use the telemetry `tid` as account identity:
+it can rotate when a token is refreshed without changing the account.
 Legacy quota fields do not cover every NES or paid-plan quota, so neither a token
 rotation nor elapsed time alone clears the latch. Successful inference must not
 reset the token based on an unrelated legacy quota field. Normal token expiry
