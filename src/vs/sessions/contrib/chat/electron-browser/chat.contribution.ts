@@ -7,7 +7,7 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { raceCancellation } from '../../../../base/common/async.js';
+import { raceCancellation, Sequencer } from '../../../../base/common/async.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -24,6 +24,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../../workbench/service
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { ISessionsSetUpService } from '../../../browser/sessionsSetUpService.js';
 import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
 import { SessionsCopilotConfigSlashSubmitHandlerContribution } from '../browser/copilotConfigSlashSubmitHandler.js';
@@ -42,6 +43,38 @@ import { AgentsWindowWorkspaceHandoff } from '../browser/agentsWindowWorkspaceHa
 import { SessionsWorkspaceSelectionTelemetry } from '../../sessions/browser/sessionsWorkspaceSelectionTelemetry.js';
 import { AgentsWindowInvitationOnboarding } from '../../onboardingTours/browser/agentsWindowInvitationOnboarding.js';
 import { isAgentsWindowInvitationSource } from '../../../../workbench/contrib/chat/common/agentsWindowInvitation.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { isAgentHostTarget } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
+import { ISession } from '../../../services/sessions/common/session.js';
+
+/** Revokes editor request ownership when the next request is submitted here. */
+export class AgentsWindowRequestActivity extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.agentHostRequestActivity';
+
+	constructor(
+		@IChatService chatService: IChatService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILogService logService: ILogService,
+	) {
+		super();
+		const updates = new Sequencer();
+		let pending = Promise.resolve();
+		this._register(chatService.onDidAcceptRequest(event => {
+			if (isAgentHostTarget(getChatSessionType(event.chatSessionResource))) {
+				pending = updates.queue(() => nativeHostService.updateAgentHostEditorState({
+					kind: 'request', resource: event.chatSessionResource.toJSON(), isNewSession: event.isNewSession,
+				}));
+				void pending.catch(error => logService.error('[AgentsWindowRequestActivity] Failed to update request origin', error));
+			}
+		}));
+		this._register(lifecycleService.onWillShutdown(event => event.join(pending, {
+			id: AgentsWindowRequestActivity.ID,
+			label: localize('savingAgentsWindowRequestActivity', "Saving Agent Host request activity"),
+		})));
+	}
+}
 
 export class SelectAgentsFolderContribution extends Disposable implements IWorkbenchContribution {
 
@@ -101,7 +134,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
 				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
 					const available = await this.waitForSessionAvailable(onboardingSessionResource, cancellation.token);
-					return available ? this.sessionsManagementService.getSession(onboardingSessionResource) : undefined;
+					return available ? this.getSessionForResource(onboardingSessionResource) : undefined;
 				}, cancellation.token, sessionResource !== undefined)
 				: handoff();
 			opening.catch(err => this.logService.error('[AgentsHandoff] handleOpenIntent failed', err));
@@ -312,16 +345,26 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 		}
 		this.logService.info('[AgentsHandoff] target session available; opening');
 
-		// `openSession` cancels any in-flight restore before activating the
+		// `openChat` cancels any in-flight restore before activating the
 		// target, so a single call wins the race — no retry/verify needed.
-		await this.sessionsService.openSession(sessionResource, { source: 'chat' });
+		const session = this.getSessionForResource(sessionResource);
+		if (!session) {
+			this.logService.warn('[AgentsHandoff] target session disappeared before opening; aborting');
+			return;
+		}
+		await this.sessionsService.openChat(session, sessionResource, { source: 'chat' });
+	}
+
+	private getSessionForResource(chatResource: URI): ISession | undefined {
+		return this.sessionsManagementService.getSessionForChatResource(chatResource)?.session
+			?? this.sessionsManagementService.getSession(chatResource);
 	}
 
 	private async waitForSessionAvailable(sessionResource: URI, token: CancellationToken, timeoutMs = 15_000): Promise<boolean> {
 		if (token.isCancellationRequested) {
 			return false;
 		}
-		if (this.sessionsManagementService.getSession(sessionResource)) {
+		if (this.getSessionForResource(sessionResource)) {
 			return true;
 		}
 
@@ -332,10 +375,10 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				store.dispose();
 				resolve(result);
 			};
-			const timer = setTimeout(() => done(!!this.sessionsManagementService.getSession(sessionResource)), timeoutMs);
+			const timer = setTimeout(() => done(!!this.getSessionForResource(sessionResource)), timeoutMs);
 			store.add({ dispose: () => clearTimeout(timer) });
 			store.add(this.sessionsManagementService.onDidChangeSessions(() => {
-				if (this.sessionsManagementService.getSession(sessionResource)) {
+				if (this.getSessionForResource(sessionResource)) {
 					done(true);
 				}
 			}));
@@ -346,6 +389,7 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 }
 
 registerWorkbenchContribution2(SelectAgentsFolderContribution.ID, SelectAgentsFolderContribution, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(AgentsWindowRequestActivity.ID, AgentsWindowRequestActivity, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionsCopilotConfigSlashSubmitHandlerContribution.ID, SessionsCopilotConfigSlashSubmitHandlerContribution, WorkbenchPhase.AfterRestored);
 
 // Renderer-side BYOK language-model handler that backs the node agent host's

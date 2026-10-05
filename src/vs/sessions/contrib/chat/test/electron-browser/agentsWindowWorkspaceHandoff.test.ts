@@ -17,7 +17,7 @@ import { AgentsWindowOpenSource, IAgentsWindowDraft } from '../../../../../platf
 import { LifecyclePhase, ShutdownReason } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ISessionsWindowOpenContext, SessionsWindowOpenTelemetry } from '../../../sessions/browser/sessionsWindowOpenTelemetry.js';
-import { SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
+import { AgentsWindowRequestActivity, SelectAgentsFolderContribution } from '../../electron-browser/chat.contribution.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -26,6 +26,17 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { IOpenNewSessionOptions } from '../../../../services/sessions/browser/sessionsService.js';
+import { SessionsManagementService } from '../../../../services/sessions/browser/sessionsManagementService.js';
+import { createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
+import { IChatRequestAcceptedEvent, IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { INativeHostService } from '../../../../../platform/native/common/native.js';
+import { AgentHostEditorUpdate } from '../../../../../platform/chat/common/agentsWindowInvitation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { extUri } from '../../../../../base/common/resources.js';
+
+const getSessionForResource = Reflect.get(SelectAgentsFolderContribution.prototype, 'getSessionForResource') as (
+	chatResource: URI,
+) => ISession | undefined;
 
 const startWindowOpenTelemetry = Reflect.get(SelectAgentsFolderContribution.prototype, '_startWindowOpenTelemetry') as (
 	source: AgentsWindowOpenSource,
@@ -34,6 +45,46 @@ const startWindowOpenTelemetry = Reflect.get(SelectAgentsFolderContribution.prot
 
 suite('Agents Window workspace handoff telemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports accepted Agents Window requests without editor status or usage initialization', async () => {
+		const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+		const updates: AgentHostEditorUpdate[] = [];
+		disposables.add(new AgentsWindowRequestActivity(
+			upcastPartial<IChatService>({ onDidAcceptRequest: accepted.event }),
+			upcastPartial<INativeHostService>({ updateAgentHostEditorState: async update => { updates.push(update); } }),
+			disposables.add(new TestLifecycleService()), new NullLogService(),
+		));
+		const resource = URI.parse('agent-host-copilotcli:/session');
+		accepted.fire({ chatSessionResource: resource, isNewSession: false });
+		accepted.fire({ chatSessionResource: URI.parse('vscode-local-chat:/session'), isNewSession: true });
+		await timeout(0);
+		assert.deepStrictEqual(updates, [{ kind: 'request', resource: resource.toJSON(), isNewSession: false }]);
+	});
+
+	test('resolves an additional chat to its containing session and opens that exact chat', async () => {
+		const session = createTestSession('Session').session;
+		const chatResource = session.mainChat.get().resource.with({ fragment: 'additional-chat' });
+		const chat = { ...session.mainChat.get(), resource: chatResource };
+		const management = {
+			_getMergedSessions: () => [{ ...session, chats: { get: () => [session.mainChat.get(), chat] } }],
+			uriIdentityService: { extUri },
+			getSession: () => undefined,
+			getSessionForChatResource: Reflect.get(SessionsManagementService.prototype, 'getSessionForChatResource') as (resource: URI) => { session: ISession } | undefined,
+		};
+		const opens: { resource: URI; chatResource?: URI }[] = [];
+		const harness = {
+			sessionsManagementService: management,
+			getSessionForResource,
+			waitForSessionAvailable: Reflect.get(SelectAgentsFolderContribution.prototype, 'waitForSessionAvailable') as (resource: URI, token: CancellationToken) => Promise<boolean>,
+			resolveAndOpenSession: Reflect.get(SelectAgentsFolderContribution.prototype, 'resolveAndOpenSession') as (resource: URI, token: CancellationToken) => Promise<void>,
+			sessionsService: { openChat: async (session: ISession, chatResource: URI) => { opens.push({ resource: session.resource, chatResource }); } },
+			logService: new NullLogService(),
+		};
+		await harness.resolveAndOpenSession(chatResource, CancellationToken.None);
+		assert.deepStrictEqual({ parent: harness.getSessionForResource(chatResource)?.resource, opens }, {
+			parent: session.resource, opens: [{ resource: session.resource, chatResource }],
+		});
+	});
 
 	test('routes a typed draft without a workspace and preserves existing-session precedence', async () => {
 		const draft: IAgentsWindowDraft = { inputText: 'Incoming', attachments: '[]' };
@@ -206,8 +257,9 @@ suite('Agents Window workspace handoff telemetry', () => {
 				const cancellation = disposables.add(new CancellationTokenSource());
 				const harness = {
 					waitForSessionAvailable: Reflect.get(SelectAgentsFolderContribution.prototype, 'waitForSessionAvailable') as (resource: URI, token: CancellationToken) => Promise<boolean>,
+					getSessionForResource,
 					waitForSessionLinkAvailable: Reflect.get(SelectAgentsFolderContribution.prototype, 'waitForSessionLinkAvailable') as (resource: URI, token: CancellationToken) => Promise<ISession | undefined>,
-					sessionsManagementService: { getSession: () => undefined, getSessions: () => [], onDidChangeSessions: changed.event },
+					sessionsManagementService: { getSession: () => undefined, getSessionForChatResource: () => undefined, getSessions: () => [], onDidChangeSessions: changed.event },
 					agentHostConnectionsService: { onDidChangeSessionResolution: resolved.event },
 				};
 				if (alreadyCancelled) {

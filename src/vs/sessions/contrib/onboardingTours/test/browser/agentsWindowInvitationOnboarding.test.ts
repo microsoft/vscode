@@ -16,6 +16,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
@@ -89,6 +90,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		store.add(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(constObservable(true))));
 		const entitlement = new class extends TestChatEntitlementService {
 			override readonly sentiment = { hidden: options.hidden ?? false };
+			override readonly sentimentObs = observableValue(this, this.sentiment);
 		}();
 		entitlement.entitlement = ChatEntitlement.Available;
 		entitlement.entitlementObs.set(ChatEntitlement.Available, undefined);
@@ -145,7 +147,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			lifecycle, views, entitlement, log, assignment,
 		));
 		return {
-			runner, onboarding, context, session, events, presented, started: started.p, activeSession, initialRestoreComplete, navigationRequest, warnings, traces,
+			runner, onboarding, context, configuration, session, events, presented, started: started.p, activeSession, initialRestoreComplete, navigationRequest, warnings, traces,
 			copies, tourSteps, treatments, requestedTreatments, refetch: () => refetched.fire(),
 			handoff: async () => { events.push('handoff'); },
 			resolveSession: async () => { events.push('resolve'); return session; },
@@ -156,6 +158,10 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			setEntitlement: (value: ChatEntitlement) => {
 				entitlement.entitlement = value;
 				entitlement.entitlementObs.set(value, undefined);
+			},
+			hideAI: () => {
+				entitlement.sentiment.hidden = true;
+				entitlement.sentimentObs.set({ hidden: true }, undefined);
 			},
 		};
 	}
@@ -397,7 +403,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const first = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token).then(() => { firstFinished = true; });
 		await timeout(0);
 		cancellation.cancel();
-		h.activeSession.set(upcastPartial<IActiveSession>({ resource: replacement.resource }), undefined);
+		h.activeSession.set(upcastPartial<IActiveSession>({ resource: replacement.resource, isCreated: constObservable(true) }), undefined);
 		const second = h.runner.runWithHandoff(h.handoff, async () => replacement, CancellationToken.None);
 		await timeout(0);
 		const whileBlocked = { firstFinished, pending: h.pending(), targets: [...targets] };
@@ -443,7 +449,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 		const first = h.runner.runWithHandoff(h.handoff, h.resolveSession, cancellation.token);
 		await started.p;
 		cancellation.cancel();
-		h.activeSession.set(upcastPartial<IActiveSession>({ resource: replacement.resource }), undefined);
+		h.activeSession.set(upcastPartial<IActiveSession>({ resource: replacement.resource, isCreated: constObservable(true) }), undefined);
 		const second = h.runner.runWithHandoff(h.handoff, async () => replacement, CancellationToken.None);
 		await timeout(0);
 		const duringCleanup = { events: [...h.events], pending: h.pending() };
@@ -697,7 +703,7 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			kind: SPOTLIGHT_PRESENTATION_KIND,
 			async run(scenario, context) {
 				store.add(context.onAbort(() => { cancelled = true; }));
-				h.activeSession.set(upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/another-session' }) }), undefined);
+				h.activeSession.set(upcastPartial<IActiveSession>({ resource: h.session.resource.with({ path: '/another-session' }), isCreated: constObservable(true) }), undefined);
 				const payload = scenario.presentation.payload as ISpotlightPayload;
 				await payload.steps[0].onBeforeShow?.();
 				return { outcome: OnboardingOutcome.Aborted, shown: false, dismissReason: OnboardingDismissReason.Aborted, lastStepIndex: 0, stepCount: 1 };
@@ -735,6 +741,59 @@ suite('AgentsWindowInvitationOnboarding', () => {
 			cancelled: true, events: ['handoff', 'resolve', 'expanded:true', 'reveal:Running session', 'released'], pending: false,
 		});
 	});
+
+	for (const change of ['navigation', 'activeSession', 'disabledOnboarding', 'hiddenAI'] as const) {
+		test(`cancels a visible spotlight when ${change} changes and releases its UI and reservation`, () => runWithFakedTimers({ startTime: 1 }, async () => {
+			const h = createHarness();
+			const container = $('div');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const input = $('input');
+			const row = $('button');
+			container.append(input, row);
+			input.focus();
+			h.setReveal(() => markOnboardingTarget(row, getSessionOnboardingTargetId(h.session)));
+			const presentation = store.add(new SpotlightPresentation(
+				new class extends TestLayoutService { override getContainer(): HTMLElement { return container; } }(),
+				new TestHostService(), h.context,
+			));
+			let shown = false;
+			let cancelled = false;
+			h.setPresentation({
+				kind: presentation.kind,
+				run: (scenario, context) => {
+					store.add(context.onAbort(() => { cancelled = true; }));
+					return presentation.run(scenario, {
+						...context,
+						onDidShow: () => {
+							context.onDidShow?.();
+							shown = true;
+							if (change === 'navigation') {
+								h.navigationRequest.set({ token: CancellationToken.None }, undefined);
+							} else if (change === 'activeSession') {
+								h.activeSession.set(undefined, undefined);
+							} else if (change === 'hiddenAI') {
+								h.hideAI();
+							} else {
+								void h.configuration.setUserConfiguration(ONBOARDING_ENABLED_CONFIG, false).then(() => {
+									h.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+										affectedKeys: new Set([ONBOARDING_ENABLED_CONFIG]),
+										affectsConfiguration: section => section === ONBOARDING_ENABLED_CONFIG,
+									}));
+								});
+							}
+						},
+					});
+				},
+			});
+			await h.runner.runWithHandoff(h.handoff, h.resolveSession, CancellationToken.None);
+			assert.deepStrictEqual({
+				shown, cancelled, focused: mainWindow.document.activeElement === input,
+				overlay: !!container.querySelector('.spotlight-callout'),
+				target: row.hasAttribute('data-onboarding-id'), pending: h.pending(),
+			}, { shown: true, cancelled: true, focused: true, overlay: false, target: false, pending: false });
+		}));
+	}
 
 	test('renders experiment copy on an inactive session row without opening it and restores focus after keyboard dismissal', () => runWithFakedTimers({ startTime: 1 }, async () => {
 		const h = createHarness();

@@ -4,16 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceCancellation, raceTimeout, Sequencer } from '../../../../base/common/async.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { waitForState } from '../../../../base/common/observable.js';
+import { autorun, observableSignalFromEvent, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
+import { resolveOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { OnboardingOutcome } from '../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
@@ -112,6 +114,21 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 				return;
 			}
 
+			let activatedNewSession = false;
+			const configurationChanged = observableSignalFromEvent(this, this._configurationService.onDidChangeConfiguration);
+			store.add(autorun(reader => {
+				configurationChanged.read(reader);
+				this._chatEntitlementService.sentimentObs.read(reader);
+				this._chatEntitlementService.entitlementObs.read(reader);
+				this._sessionsService.navigationRequest.read(reader);
+				this._sessionsService.activeSession.read(reader)?.isCreated.read(reader);
+				// Target activation is reported after the owning control starts navigation.
+				queueMicrotask(() => {
+					if (!store.isDisposed && (!this._canShow() || !activatedNewSession && !isCurrentSession())) {
+						cancellation.cancel();
+					}
+				});
+			}));
 			const target = store.add(new MutableDisposable());
 			const openSessionsList = async () => {
 				if (!this._canShow() || !isCurrentSession()) {
@@ -137,6 +154,10 @@ export class AgentsWindowInvitationOnboarding extends Disposable {
 				}
 			}, () => raceCancellation(this._resolveCopy(revealSession), token, {}), revealSession ? async () => {
 				await openSessionsList();
+				const activation = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button')?.onDidActivate;
+				if (activation) {
+					store.add(activation(() => { activatedNewSession = true; }));
+				}
 			} : undefined);
 			store.add(onboardingScenarioRegistry.register(scenario));
 			const outcome = await this._onboardingService.runScenario(scenario.id, token);

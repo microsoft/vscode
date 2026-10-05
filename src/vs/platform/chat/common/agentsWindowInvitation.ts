@@ -104,10 +104,19 @@ export class AgentsWindowInvitationState extends Disposable {
 		};
 	}
 
-	update(windowId: number, update: AgentHostEditorUpdate): void {
+	update(windowId: number, update: AgentHostEditorUpdate): void;
+	/** An Agents Window request revokes editor ownership without contributing editor usage. */
+	update(windowId: undefined, update: Extract<AgentHostEditorUpdate, { kind: 'request' }>): void;
+	update(windowId: number | undefined, update: AgentHostEditorUpdate): void {
 		switch (update.kind) {
 			case 'request': {
 				const resource = URI.revive(update.resource);
+				if (windowId === undefined) {
+					if (this.sessions.delete(resource)) {
+						this.fireChange();
+					}
+					break;
+				}
 				if (update.isNewSession && !this.sessions.has(resource)) {
 					this.storageService.store(EDITOR_AGENT_HOST_SESSIONS_STORAGE_KEY, this.getState().editorSessionCount + 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				}
@@ -120,7 +129,7 @@ export class AgentsWindowInvitationState extends Disposable {
 				for (const session of update.sessions) {
 					const resource = URI.revive(session.resource);
 					const previous = this.sessions.get(resource);
-					if (previous?.windowId === windowId && (previous.inProgress !== session.inProgress || previous.needsInput !== session.needsInput)) {
+					if (previous && windowId !== undefined && previous.windowId === windowId && (previous.inProgress !== session.inProgress || previous.needsInput !== session.needsInput)) {
 						this.sessions.set(resource, { ...session, windowId });
 						changed = true;
 					}
@@ -134,7 +143,7 @@ export class AgentsWindowInvitationState extends Disposable {
 				const original = URI.revive(update.original);
 				const committed = URI.revive(update.committed);
 				const session = this.sessions.get(original);
-				if (session?.windowId === windowId && !isEqual(original, committed)) {
+				if (session && windowId !== undefined && session.windowId === windowId && !isEqual(original, committed)) {
 					this.sessions.delete(original);
 					if (!this.sessions.has(committed)) {
 						this.sessions.set(committed, { ...session, resource: update.committed });

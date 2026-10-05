@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableLongTimeout } from '../../../../../base/common/async.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
@@ -70,6 +71,7 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 	private presentation: IInvitationPresentation | undefined;
 	private renderedInput: URI | undefined;
 	private claiming = false;
+	private updatePending = false;
 	private updating = false;
 
 	constructor(
@@ -174,12 +176,15 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 	}
 
 	private isAllowed(widget: IChatWidget): boolean {
-		return isAgentHostChatWidget(widget) && widget.scopedContextKeyService.contextMatchesRules(precondition);
+		return widget.domNode.ownerDocument === mainWindow.document && isAgentHostChatWidget(widget) && widget.scopedContextKeyService.contextMatchesRules(precondition);
 	}
 
 	private update(): void {
 		if (this._store.isDisposed || this.updating) {
 			return;
+		}
+		if (this.claiming) {
+			this.updatePending = true;
 		}
 		this.updating = true;
 		try {
@@ -294,6 +299,10 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 			this.update();
 		} finally {
 			this.claiming = false;
+			if (this.updatePending) {
+				this.updatePending = false;
+				this.update();
+			}
 		}
 	}
 
@@ -312,9 +321,9 @@ export class AgentsWindowInvitationContribution extends Disposable implements IW
 				return;
 			}
 		}
-		const widget = presentation.owner.visible && isEqual(presentation.owner.viewModel?.sessionResource, presentation.resource)
+		const widget = presentation.owner.visible && this.isAllowed(presentation.owner) && isEqual(presentation.owner.viewModel?.sessionResource, presentation.resource)
 			? presentation.owner
-			: this.chatWidgetService.getAllWidgets().find(widget => widget.visible && isEqual(widget.viewModel?.sessionResource, presentation.resource));
+			: this.chatWidgetService.getAllWidgets().find(widget => widget.visible && this.isAllowed(widget) && isEqual(widget.viewModel?.sessionResource, presentation.resource));
 		const model = widget?.viewModel?.model;
 		if (!widget || !model || model.requestNeedsInput.get()) {
 			this.hide();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -78,6 +79,7 @@ suite('AgentsWindowInvitation', () => {
 		const events: { name: string | undefined; data: object | undefined }[] = [];
 		const opens: (IOpenAgentsWindowOptions | undefined)[] = [];
 		const warnings: string[] = [];
+		const claims: URI[] = [];
 		let focusedWidget: IChatWidget | undefined;
 		let notification: IChatInputNotification | undefined;
 		let allowed = true;
@@ -96,6 +98,7 @@ suite('AgentsWindowInvitation', () => {
 			getAgentHostEditorState: async count => coordinator.initialize(count),
 			updateAgentHostEditorState: async update => coordinator.update(1, update),
 			claimAgentsWindowInvitation: async (resource, developerMode) => {
+				claims.push(URI.revive(resource));
 				const invitation = coordinator.claim(1, URI.revive(resource), developerMode);
 				if (options.claimDelay) {
 					await options.claimDelay;
@@ -169,6 +172,7 @@ suite('AgentsWindowInvitation', () => {
 				requestNeedsInput: needsInput,
 			});
 			const widget = upcastPartial<IChatWidget>({
+				domNode: mainWindow.document.createElement('div'),
 				location: ChatAgentLocation.Chat,
 				visible: true,
 				viewContext: { viewId: 'workbench.panel.chat.view' },
@@ -202,7 +206,7 @@ suite('AgentsWindowInvitation', () => {
 		instantiation.stub(IAgentHostEditorActivityService, activity);
 		const contribution = store.add(instantiation.createInstance(AgentsWindowInvitationContribution));
 		return {
-			addChat, coordinator, storage, treatments, configuration, telemetry, events, opens, warnings, contribution, activity,
+			addChat, coordinator, storage, treatments, configuration, telemetry, events, opens, warnings, claims, contribution, activity,
 			get notification() { return notification; },
 			get scenario() { return notification?.telemetryId; },
 			set allowed(value: boolean) { allowed = value; focused.fire(); },
@@ -453,6 +457,57 @@ suite('AgentsWindowInvitation', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ notification: h.notification, invitation: h.coordinator.getState().invitation, history: h.coordinator.getState().lastShown }, {
 			notification: undefined, invitation: undefined, history: undefined,
+		});
+	}));
+
+	test('reevaluates focus after releasing a superseded asynchronous claim without another event', () => runWithFakedTimers({ startTime: 100_000 }, async () => {
+		const gate = new DeferredPromise<void>();
+		const h = createHarness({ claimDelay: gate.p });
+		const first = h.addChat('/first');
+		const second = h.addChat('/second');
+		first.send(Date.now() - 60_000);
+		second.send(Date.now() - 60_000);
+		await timeout(0);
+		h.focus(first.widget);
+		await timeout(0);
+		h.focus(second.widget);
+		await gate.complete();
+		await timeout(0);
+		assert.deepStrictEqual({
+			claims: h.claims.map(resource => resource.path),
+			invited: URI.revive(h.coordinator.getState().invitation?.resource)?.path,
+			visible: !!h.notification,
+		}, { claims: ['/first', '/second'], invited: '/second', visible: true });
+	}));
+
+	test('auxiliary chat widgets cannot claim, trigger experiments, or consume an impression', () => runWithFakedTimers({ startTime: 100_000 }, async () => {
+		const h = createHarness();
+		const document = mainWindow.document.implementation.createHTMLDocument();
+		const chat = h.addChat('/auxiliary', SessionType.AgentHostCopilot, { domNode: document.createElement('div') });
+		h.focus(chat.widget);
+		chat.send(Date.now() - 60_000);
+		await timeout(0);
+		assert.deepStrictEqual({ claims: h.claims, events: h.events, notification: h.notification, history: h.coordinator.getState().lastShown }, {
+			claims: [], events: [], notification: undefined, history: undefined,
+		});
+	}));
+
+	test('a visible invitation is not moved to an auxiliary widget displaying the same chat', () => runWithFakedTimers({ startTime: 100_000 }, async () => {
+		const h = createHarness();
+		let visible = true;
+		const chat = h.addChat('/current');
+		Object.defineProperty(chat.widget, 'visible', { get: () => visible });
+		h.focus(chat.widget);
+		chat.send(Date.now() - 60_000);
+		await timeout(0);
+		const history = h.coordinator.getState().lastShown;
+		assert.ok(h.notification);
+		const document = mainWindow.document.implementation.createHTMLDocument();
+		const auxiliary = h.addChat('/current', SessionType.AgentHostCopilot, { domNode: document.createElement('div') });
+		visible = false;
+		h.focus(auxiliary.widget);
+		assert.deepStrictEqual({ visible: !!h.notification, history: h.coordinator.getState().lastShown, claims: h.claims.length }, {
+			visible: false, history, claims: 1,
 		});
 	}));
 

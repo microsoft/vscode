@@ -237,6 +237,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async updateAgentHostEditorState(windowId: number | undefined, update: AgentHostEditorUpdate): Promise<void> {
 		await this.applicationStorageService.whenReady;
+		const window = typeof windowId === 'number' ? this.windowsMainService.getWindowById(windowId) : undefined;
+		if (window?.config?.isSessionsWindow && update.kind === 'request') {
+			this.agentsWindowInvitations.update(undefined, update);
+			return;
+		}
 		this.agentsWindowInvitations.update(this.getEditorWindowId(windowId), update);
 	}
 

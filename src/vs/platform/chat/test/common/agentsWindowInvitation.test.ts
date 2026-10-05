@@ -57,6 +57,23 @@ suite('AgentsWindowInvitationState', () => {
 		});
 	});
 
+	test('an Agents Window follow-up revokes editor ownership and ignores stale catalog updates', () => {
+		const h = createHarness();
+		const second = resource.with({ path: '/second' });
+		h.submit(1);
+		h.submit(1, second);
+		h.state.update(1, { kind: 'sessions', sessions: [{ resource: second, inProgress: false, needsInput: false }] });
+		h.state.update(undefined, { kind: 'request', resource: second, isNewSession: false });
+		h.state.update(1, { kind: 'sessions', sessions: [{ resource: second, inProgress: true, needsInput: false }] });
+		h.state.update(undefined, { kind: 'request', resource: resource.with({ path: '/agents-created' }), isNewSession: true });
+		assert.deepStrictEqual({
+			count: h.state.getState().editorSessionCount,
+			activity: getAgentHostEditorActivity(h.state.getState(), 1, resource),
+			followUp: getAgentHostEditorActivity(h.state.getState(), 1, second),
+			claim: h.state.claim(1, second, true),
+		}, { count: 12, activity: { sameWindow: 1, acrossWindows: false }, followUp: undefined, claim: undefined });
+	});
+
 	test('materializing an invited resource releases a stale action target', () => {
 		const h = createHarness();
 		h.submit(1);
