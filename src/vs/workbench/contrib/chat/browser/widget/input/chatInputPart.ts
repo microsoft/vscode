@@ -3719,6 +3719,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'last',
 				minItems: 2,
 				actionMinWidth: 48,
+				// Let the pickers yield to the execute toolbar so that a narrow
+				// input never pushes the send button out of view.
+				reserveMinWidth: false,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
 				getOverflowAction: (action, getAnchor) => getOverflowAction(action, inputToolbarMenu, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),
