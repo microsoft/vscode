@@ -981,10 +981,7 @@ export class ChatService extends Disposable implements IChatService {
 				turn.id = initialRequests[index].id;
 			}
 			let pendingHistory: readonly IChatSessionHistoryItem[] | undefined;
-			// Locally created or removed requests take precedence over refreshed history.
 			const localRequestIds = new Set<string>();
-			// Keep generated identities when later snapshots omit locally removed turns.
-			const removedAnonymousRequests = new Map<string, HistoryTurn['request']>();
 			const refreshHistory = () => {
 				const history = pendingHistory;
 				if (!history || model.hasActiveRequest.get()) {
@@ -996,31 +993,17 @@ export class ChatService extends Disposable implements IChatService {
 				if (turns.length === lastTurns.length && turns.every((turn, index) => equals(turn.items, lastTurns[index].items))) {
 					return;
 				}
-				const previousAnonymous = new Map(removedAnonymousRequests);
-				for (const turn of lastTurns) {
-					if (turn.request.id === undefined && turn.id !== undefined) {
-						previousAnonymous.set(turn.id, turn.request);
-					}
-				}
+				const previousAnonymous = lastTurns.filter(turn => turn.request.id === undefined);
 				const incomingAnonymous = turns.filter(turn => turn.request.id === undefined);
 				for (const turn of incomingAnonymous) {
-					const matches = [...previousAnonymous].filter(([, request]) => equals(turn.request, request));
-					// Reuse a local ID only when the request matches uniquely among known and incoming requests.
+					const matches = previousAnonymous.filter(previous => equals(turn.request, previous.request));
+					// Reuse a local ID only when the request matches uniquely in both histories.
 					if (matches.length === 1 && !incomingAnonymous.some(other => other !== turn && equals(other.request, turn.request))) {
-						turn.id = matches[0][0];
+						turn.id = matches[0].id;
 					}
 				}
 				const previousTurns = new Map(lastTurns.map(turn => [turn.id, turn]));
 				const incomingIds = new Set(turns.map(turn => turn.id));
-				const currentRequestIds = new Set(requests.map(request => request.id));
-				for (const [requestId, turn] of previousTurns) {
-					if (requestId !== undefined && !currentRequestIds.has(requestId)) {
-						localRequestIds.add(requestId);
-						if (turn.request.id === undefined) {
-							removedAnonymousRequests.set(requestId, turn.request);
-						}
-					}
-				}
 				for (const request of requests) {
 					if (!previousTurns.has(request.id)) {
 						localRequestIds.add(request.id);
@@ -1040,7 +1023,8 @@ export class ChatService extends Disposable implements IChatService {
 					}
 					const currentRequests = model.getRequests();
 					const existing = turn.id === undefined ? undefined : requestsById.get(turn.id);
-					if (existing && equals(turn.items, previousTurns.get(turn.id)?.items)) {
+					// An unchanged turn may be absent because the user removed it locally.
+					if (equals(turn.items, previousTurns.get(turn.id)?.items)) {
 						continue;
 					}
 					let insertionIndex = existing ? currentRequests.indexOf(existing) : currentRequests.length;

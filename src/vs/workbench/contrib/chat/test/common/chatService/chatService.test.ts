@@ -3800,50 +3800,53 @@ suite('ChatService', () => {
 
 		for (const withRequestId of [true, false]) {
 			for (const removedLocally of [true, false]) {
-				test(`passive history respects local removals when a provider reintroduces a turn (removed locally: ${removedLocally}, request ID: ${withRequestId})`, async () => {
-					const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
-					const first: IChatSessionHistoryItem[] = [
-						{ type: 'request', id: 'retained', prompt: 'Retained request', participant: remoteScheme },
-						{ type: 'response', parts: [], participant: remoteScheme },
-						{ type: 'request', id: withRequestId ? 'removed' : undefined, prompt: 'Removed request', participant: remoteScheme },
-						{ type: 'response', parts: [], participant: remoteScheme },
-					];
-					const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
-					const service = createChatService();
-					const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
-					assert.ok(ref);
-					testDisposables.add(ref);
-					const model = ref.object as ChatModel;
-					const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
-					if (removedLocally) {
-						await service.removeRequest(resource, model.getRequests()[1].id);
-					}
-					changes.fire(first.slice(0, 2));
-					for (const elapsedMs of [1000, 2000]) {
-						changes.fire([
-							...first.slice(0, 3),
-							{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Updated response') }], participant: remoteScheme, elapsedMs },
-						]);
-					}
-					const next = model.addRequest({ parts: [], text: 'New branch' }, { variables: [] }, 0);
-					next.response?.complete();
+				for (const omittedFirst of [true, false]) {
+					test(`passive history applies changed or reintroduced turns (removed locally: ${removedLocally}, request ID: ${withRequestId}, omitted first: ${omittedFirst})`, async () => {
+						const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+						const first: IChatSessionHistoryItem[] = [
+							{ type: 'request', id: 'retained', prompt: 'Retained request', participant: remoteScheme },
+							{ type: 'response', parts: [], participant: remoteScheme },
+							{ type: 'request', id: withRequestId ? 'repeated' : undefined, prompt: 'Repeated request', participant: remoteScheme },
+							{ type: 'response', parts: [], participant: remoteScheme },
+						];
+						const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+						const service = createChatService();
+						const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						assert.ok(ref);
+						testDisposables.add(ref);
+						const model = ref.object as ChatModel;
+						const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+						if (removedLocally) {
+							await service.removeRequest(resource, model.getRequests()[1].id);
+						}
+						if (omittedFirst) {
+							changes.fire(first.slice(0, 2));
+						}
+						for (const elapsedMs of [1000, 2000]) {
+							changes.fire([
+								...first.slice(0, 3),
+								{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('New response') }], participant: remoteScheme, elapsedMs },
+							]);
+						}
+						const next = model.addRequest({ parts: [], text: 'New branch' }, { variables: [] }, 0);
+						next.response?.complete();
 
-					const expected = removedLocally ? ['Retained request', 'New branch'] : ['Retained request', 'Removed request', 'New branch'];
-					assert.deepStrictEqual({
-						requests: model.getRequests().map(request => request.message.text),
-						items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
-						previousRequest: model.getRequests()[model.getRequests().indexOf(next) - 1].message.text,
-					}, {
-						requests: expected,
-						items: expected,
-						previousRequest: removedLocally ? 'Retained request' : 'Removed request',
+						assert.deepStrictEqual({
+							requests: model.getRequests().map(request => [request.message.text, request.response?.response.toString()]),
+							items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+							previousRequest: model.getRequests()[model.getRequests().indexOf(next) - 1].message.text,
+						}, {
+							requests: [['Retained request', ''], ['Repeated request', 'New response'], ['New branch', '']],
+							items: ['Retained request', 'Repeated request', 'New branch'],
+							previousRequest: 'Repeated request',
+						});
 					});
-				});
+				}
 			}
 		}
 
-		for (const [previousCount, nextCount] of [[2, 1], [1, 2]]) {
-			test(`passive history does not reuse ambiguous locally removed ID-less identities after omission: ${previousCount} to ${nextCount}`, async () => {
+		for (const [previousCount, nextCount] of [[1, 1], [2, 1], [1, 2]]) {
+			test(`passive history does not reuse removed ID-less identities after omission: ${previousCount} to ${nextCount}`, async () => {
 				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 				const first: IChatSessionHistoryItem[] = Array.from({ length: previousCount }, () => [
 					{ type: 'request' as const, prompt: 'Repeated request', participant: remoteScheme },
@@ -3851,7 +3854,7 @@ suite('ChatService', () => {
 				]).flat();
 				const updated: IChatSessionHistoryItem[] = Array.from({ length: nextCount }, () => [
 					{ type: 'request' as const, prompt: 'Repeated request', participant: remoteScheme },
-					{ type: 'response' as const, parts: [], participant: remoteScheme },
+					{ type: 'response' as const, parts: [{ kind: 'markdownContent' as const, content: new MarkdownString('New response') }], participant: remoteScheme },
 				]).flat();
 				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
 				const service = createChatService();
@@ -3870,9 +3873,10 @@ suite('ChatService', () => {
 				assert.deepStrictEqual({
 					count: model.getRequests().length,
 					items: viewModel.getItems().filter(isRequestVM).length,
-					reusedAmbiguousId: model.getRequests().some(request => previousIds.has(request.id)),
+					reusedRemovedId: model.getRequests().some(request => previousIds.has(request.id)),
 					uniqueIds: new Set(model.getRequests().map(request => request.id)).size,
-				}, { count: nextCount, items: nextCount, reusedAmbiguousId: false, uniqueIds: nextCount });
+					responses: model.getRequests().map(request => request.response?.response.toString()),
+				}, { count: nextCount, items: nextCount, reusedRemovedId: false, uniqueIds: nextCount, responses: Array.from({ length: nextCount }, () => 'New response') });
 			});
 		}
 
