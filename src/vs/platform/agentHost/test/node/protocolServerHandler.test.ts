@@ -1974,7 +1974,7 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(result.snapshot.resource.toString(), sessionUri.toString());
 	});
 
-	test('disconnect cancels a pending subscribe request', async () => {
+	test('disconnect cancels a pending subscribe request without replying on the ended transport', async () => {
 		stateManager.createSession(makeSessionSummary());
 		agentService.subscribeBarrier = new DeferredPromise<void>();
 		const transport = connectClient('client-1');
@@ -1992,7 +1992,7 @@ suite('ProtocolServerHandler', () => {
 			unsubscribes: agentService.unsubscribeCalls,
 			errorCount: logService.errorCount,
 		}, {
-			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			response: undefined,
 			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 			errorCount: 0,

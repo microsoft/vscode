@@ -1982,13 +1982,18 @@ suite('AgentHostChatContribution', () => {
 
 	suite('response resource links', () => {
 		for (const backendSessionScheme of ['copilotcli', 'ahp-session', 'custom-session']) {
-			test(`uses the configured backend scheme ${backendSessionScheme} instead of native URI aliases`, async () => {
-				const { sessionHandler, agentHostService } = createContribution(disposables, { provider: 'copilotcli', backendSessionScheme });
+			test(`uses the advertised backend scheme ${backendSessionScheme} instead of allocation defaults`, async () => {
+				const { sessionHandler, agentHostService } = createContribution(disposables, {
+					provider: 'copilotcli',
+					backendSessionScheme: 'new-allocation-only',
+				});
+				const backendSession = URI.parse(`${backendSessionScheme}:/remote-session`);
+				agentHostService.seedSessionMetadata(backendSession, 'copilotcli');
 				const subscriptions = sinon.spy(agentHostService, 'getSubscription');
 				disposables.add(toDisposable(() => subscriptions.restore()));
-				await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilot:/remote-session'), CancellationToken.None);
+				await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/remote-session'), CancellationToken.None);
 				assert.deepStrictEqual(subscriptions.getCalls().filter(call => call.args[0] === StateComponents.Session)
-					.map(call => call.args[1].toString()), [`${backendSessionScheme}:/remote-session`]);
+					.map(call => call.args[1].toString()), [backendSession.toString()]);
 			});
 		}
 
