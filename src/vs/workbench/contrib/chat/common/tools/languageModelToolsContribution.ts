@@ -197,6 +197,50 @@ function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `${extensionIdentifier.value}/${toolName}`;
 }
 
+/**
+ * Adds the named tools and tool sets to `toolSet`. Members that are not resolvable yet, for
+ * example because their tools register later or are not yet permitted, are added once they
+ * appear, even when none of the members resolve initially.
+ */
+export function addContributedToolSetMembers(languageModelToolsService: ILanguageModelToolsService, toolSet: ToolSet, memberNames: readonly string[]): IDisposable {
+	const store = new DisposableStore();
+	const pending = new Set(memberNames);
+	const resolvePending = () => {
+		const tools: IToolData[] = [];
+		const toolSets: IToolSet[] = [];
+		for (const name of pending) {
+			const tool = languageModelToolsService.getToolByName(name);
+			if (tool) {
+				tools.push(tool);
+				pending.delete(name);
+				continue;
+			}
+			const memberToolSet = languageModelToolsService.getToolSetByName(name);
+			if (memberToolSet) {
+				toolSets.push(memberToolSet);
+				pending.delete(name);
+			}
+		}
+		if (tools.length || toolSets.length) {
+			transaction(tx => {
+				tools.forEach(tool => store.add(toolSet.addTool(tool, tx)));
+				toolSets.forEach(memberToolSet => store.add(toolSet.addToolSet(memberToolSet, tx)));
+			});
+		}
+	};
+
+	resolvePending();
+	if (pending.size > 0) {
+		const listener = store.add(languageModelToolsService.onDidChangeTools(() => {
+			resolvePending();
+			if (pending.size === 0) {
+				store.delete(listener);
+			}
+		}));
+	}
+	return store;
+}
+
 export function toToolSetKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
 	return `toolset:${extensionIdentifier.value}/${toolName}`;
 }
@@ -363,29 +407,6 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
-					const tools: IToolData[] = [];
-					const toolSets: IToolSet[] = [];
-					const missingToolNames: string[] = [];
-
-					for (const toolName of toolSet.tools) {
-						const toolObj = languageModelToolsService.getToolByName(toolName);
-						if (toolObj) {
-							tools.push(toolObj);
-							continue;
-						}
-						const toolSetObj = languageModelToolsService.getToolSetByName(toolName);
-						if (toolSetObj) {
-							toolSets.push(toolSetObj);
-							continue;
-						}
-						missingToolNames.push(toolName);
-					}
-
-					if (toolSets.length === 0 && tools.length === 0) {
-						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array (none of the tools were found)`);
-						continue;
-					}
-
 					const store = new DisposableStore();
 					const referenceName = toolSet.referenceName ?? toolSet.name;
 					const existingToolSet = languageModelToolsService.getToolSetByName(referenceName);
@@ -410,37 +431,10 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						);
 					}
 
-					transaction(tx => {
-						if (!mergeExisting) {
-							store.add(obj);
-						}
-						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
-						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
-					});
-
-					// Listen for late-registered tools that weren't available at contribution time
-					if (missingToolNames.length > 0) {
-						const pending = new Set(missingToolNames);
-						const listener = store.add(languageModelToolsService.onDidChangeTools(() => {
-							for (const toolName of pending) {
-								const toolObj = languageModelToolsService.getToolByName(toolName);
-								if (toolObj) {
-									store.add(obj.addTool(toolObj));
-									pending.delete(toolName);
-								} else {
-									const toolSetObj = languageModelToolsService.getToolSetByName(toolName);
-									if (toolSetObj) {
-										store.add(obj.addToolSet(toolSetObj));
-										pending.delete(toolName);
-									}
-								}
-							}
-							if (pending.size === 0) {
-								// done
-								store.delete(listener);
-							}
-						}));
+					if (!mergeExisting) {
+						store.add(obj);
 					}
+					store.add(addContributedToolSetMembers(languageModelToolsService, obj, toolSet.tools));
 
 					this._registrationDisposables.set(toToolSetKey(extension.description.identifier, toolSet.name), store);
 				}
