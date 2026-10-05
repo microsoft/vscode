@@ -341,6 +341,51 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const provider of ['copilotcli', 'copilot', 'claude', 'codex', 'custom-provider']) {
+		for (const scheme of [provider, 'ahp-session']) {
+			test(`turn and tool telemetry preserves ${provider} for ${scheme} sessions`, () => {
+				sinon.stub(agent, 'id').value(provider);
+				const resource = AgentSession.uri(scheme, 'provider-telemetry');
+				const root = buildDefaultChatUri(resource);
+				const peer = buildChatUri(resource, 'peer');
+				const subagent = buildSubagentChatUri(resource, 'subagent');
+				stateManager.createSession({
+					resource: resource.toString(), provider, title: 'Test', status: SessionStatus.Idle,
+					createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+				});
+				stateManager.dispatchServerAction(resource.toString(), { type: ActionType.SessionReady });
+				stateManager.addChat(resource.toString(), peer);
+				stateManager.addChat(resource.toString(), subagent);
+
+				startTurn('success', 'hello', undefined, root);
+				fire({ type: ActionType.ChatToolCallStart, turnId: 'success', toolCallId: 'tool', toolName: 'bash', displayName: 'bash' }, root);
+				fire({ type: ActionType.ChatToolCallReady, turnId: 'success', toolCallId: 'tool', invocationMessage: 'run' }, root);
+				fire({ type: ActionType.ChatToolCallComplete, turnId: 'success', toolCallId: 'tool', result: { success: true, pastTenseMessage: 'ran' } }, root);
+				fire({ type: ActionType.ChatTurnComplete, turnId: 'success', duration: 1 }, root);
+				startTurn('failure', 'hello', undefined, peer);
+				fire({ type: ActionType.ChatError, turnId: 'failure', duration: 1, part: createErrorResponsePart({ errorType: 'test', message: 'failed' }) }, peer);
+				startTurn('cancelled', 'hello', undefined, subagent);
+				fire({ type: ActionType.ChatTurnCancelled, turnId: 'cancelled', duration: 1 }, subagent);
+
+				const providerEvents = telemetry.events.filter(event => event.data?.provider !== undefined);
+				assert.deepStrictEqual({
+					providers: [...new Set(providerEvents.map(event => event.data?.provider))],
+					completions: completedEvents().map(event => {
+						const data = event.data as Record<string, unknown>;
+						return { provider: data.provider, result: data.result };
+					}),
+					failures: failedEvents().length,
+					tools: providerEvents.filter(event => event.eventName === 'languageModelToolInvoked' || event.eventName === 'agentHost.toolInvoked').map(event => event.eventName).sort(),
+				}, {
+					providers: [provider],
+					completions: [{ provider, result: 'success' }, { provider, result: 'error' }, { provider, result: 'cancelled' }],
+					failures: 1,
+					tools: ['agentHost.toolInvoked', 'languageModelToolInvoked'],
+				});
+			});
+		}
+	}
+
 	test('keeps admission context independent across concurrent chats and sessions', async () => {
 		sinon.stub(agent, 'id').value('codex');
 		setupSession();
