@@ -7218,7 +7218,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel);
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
-		const requiresTurnIdLookup = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
+		const requiresTurnIdLookup = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getPeerChatsForTurnValidation(sessionChannel, channel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
@@ -7911,22 +7911,22 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
+	private _getPeerChatsForTurnValidation(sessionChannel: string, chatChannel: string): readonly string[] | undefined {
 		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat =>
-			!isDefaultChatUri(chat.resource)
+			chat.resource !== chatChannel
+			&& !isDefaultChatUri(chat.resource)
 			&& chat.origin?.kind !== ChatOriginKind.Tool
 			&& !isSubagentChatUri(chat.resource)
-			&& !this._stateManager.getChatState(chat.resource)
 		).map(chat => chat.resource);
 	}
 
 	/** Checks existing peer databases without resolving provider runtimes or history. */
 	private async _isPersistedTurnIdUsedByAnotherChat(sessionChannel: string, chatChannel: string, turnId: string): Promise<boolean> {
-		const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel);
-		if (!unresolvedChats) {
+		const peerChats = this._getPeerChatsForTurnValidation(sessionChannel, chatChannel);
+		if (!peerChats) {
 			throw new Error('Cannot validate turn id for unknown session');
 		}
-		const matches = await Promise.all(unresolvedChats.filter(chat => chat !== chatChannel).map(async chat => {
+		const matches = await Promise.all(peerChats.map(async chat => {
 			let ref: IReference<ISessionDatabase> | undefined;
 			try {
 				const storage = chatStorageUri(chat);

@@ -4059,52 +4059,58 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		for (const turnId of ['host-turn', 'provider-event', 'local-turn']) {
-			test(`rejects persisted turn id ${turnId} without resolving a restored peer`, async () => {
-				const data = createPerSessionDataService();
-				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-				const agent = new MockAgent('copilot');
-				disposables.add(toDisposable(() => agent.dispose()));
-				registerTestAgentProvider(svc, agent);
-				const session = await svc.createSession({ provider: 'copilot' });
-				const defaultChat = buildDefaultChatUri(session.toString());
-				const peerChat = buildChatUri(session, 'peer-1');
-				const peerDatabase = data.database(URI.parse(peerChat));
-				await peerDatabase.setTurnEventId('host-turn', 'provider-event');
-				await peerDatabase.insertPersistedTurn({ kind: 'local', turnId: 'local-turn', chatUri: peerChat, anchorTurnId: undefined, payload: '{}' });
-				let resolverCalls = 0;
-				getStateManager(svc).registerRestoredChatSummary(session.toString(), peerChat, {
-					resolver: async () => {
-						resolverCalls++;
-						return { turns: [] };
-					},
-				});
-				const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+			for (const hydrated of [false, true]) {
+				test(`rejects persisted turn id ${turnId} with a ${hydrated ? 'hydrated' : 'restored'} peer`, async () => {
+					const data = createPerSessionDataService();
+					const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+					const agent = new MockAgent('copilot');
+					disposables.add(toDisposable(() => agent.dispose()));
+					registerTestAgentProvider(svc, agent);
+					const session = await svc.createSession({ provider: 'copilot' });
+					const defaultChat = buildDefaultChatUri(session.toString());
+					const peerChat = buildChatUri(session, 'peer-1');
+					const peerDatabase = data.database(URI.parse(peerChat));
+					await peerDatabase.setTurnEventId('host-turn', 'provider-event');
+					await peerDatabase.insertPersistedTurn({ kind: 'local', turnId: 'local-turn', chatUri: peerChat, anchorTurnId: undefined, payload: '{}' });
+					let resolverCalls = 0;
+					getStateManager(svc).registerRestoredChatSummary(session.toString(), peerChat, {
+						resolver: async () => {
+							resolverCalls++;
+							return { turns: [{ id: 'provider-event', state: TurnState.Complete, message: { text: 'peer', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }] };
+						},
+					});
+					if (hydrated) {
+						await getStateManager(svc).resolveChatState(peerChat);
+						resolverCalls = 0;
+					}
+					const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
-				svc.dispatchAction(defaultChat, {
-					type: ActionType.ChatTurnStarted,
-					turnId,
-					startedAt: '2025-01-01T00:00:01.000Z',
-					message: { text: 'default', origin: { kind: MessageKind.User } },
-				}, 'test-client', 1);
-				const envelope = await envelopePromise;
-				const defaultChatState = getStateManager(svc).getChatState(defaultChat);
+					svc.dispatchAction(defaultChat, {
+						type: ActionType.ChatTurnStarted,
+						turnId,
+						startedAt: '2025-01-01T00:00:01.000Z',
+						message: { text: 'default', origin: { kind: MessageKind.User } },
+					}, 'test-client', 1);
+					const envelope = await envelopePromise;
+					const defaultChatState = getStateManager(svc).getChatState(defaultChat);
 
-				assert.deepStrictEqual({
-					rejectionReason: envelope.rejectionReason,
-					resolverCalls,
-					peerResolved: getStateManager(svc).getChatState(peerChat) !== undefined,
-					activeTurn: defaultChatState?.activeTurn,
-					turns: defaultChatState?.turns,
-					sendMessageCalls: agent.sendMessageCalls,
-				}, {
-					rejectionReason: 'Turn id is already used by another chat in this session.',
-					resolverCalls: 0,
-					peerResolved: false,
-					activeTurn: undefined,
-					turns: [],
-					sendMessageCalls: [],
+					assert.deepStrictEqual({
+						rejectionReason: envelope.rejectionReason,
+						resolverCalls,
+						peerResolved: getStateManager(svc).getChatState(peerChat) !== undefined,
+						activeTurn: defaultChatState?.activeTurn,
+						turns: defaultChatState?.turns,
+						sendMessageCalls: agent.sendMessageCalls,
+					}, {
+						rejectionReason: 'Turn id is already used by another chat in this session.',
+						resolverCalls: 0,
+						peerResolved: hydrated,
+						activeTurn: undefined,
+						turns: [],
+						sendMessageCalls: [],
+					});
 				});
-			});
+			}
 		}
 
 		for (const scenario of ['missing database', 'unrecorded history', 'own turn', 'read failure', 'open failure']) {
