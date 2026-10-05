@@ -1846,6 +1846,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		return this._chatsObs.get().filter(chat => this._aggregateChatResources.has(chat.resource) && !chat.isRead.get());
 	}
 
+	isChatInReadAggregate(chatResource: URI): boolean {
+		return this._aggregateChatResources.has(chatResource);
+	}
+
 	private _markSessionUnreadForUnreadChat(tx?: ITransaction): boolean {
 		if (!this.isRead.get() || !this.hasUnreadChat()) {
 			return false;
@@ -6309,12 +6313,24 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return false;
 		}
 		const backendChatResource = this.getBackendChatResource(chatResource);
-		if (!backendChatResource || !cached.setChatRead(chatResource, isRead)) {
+		if (!backendChatResource) {
 			throw new Error(localize('chatNotFound', "The chat could not be found."));
 		}
+		const previousSessionIsRead = cached.isRead.get();
+		if (!cached.setChatRead(chatResource, isRead)) {
+			throw new Error(localize('chatNotFound', "The chat could not be found."));
+		}
+		if (isRead && cached.isChatInReadAggregate(chatResource) && !cached.hasUnreadChat()) {
+			cached.isRead.set(true, undefined);
+		}
+		const sessionIsRead = cached.isRead.get();
 		this._cacheDirty = true;
 		this._keepSessionStateAlive(cached.sessionId);
 		connection.dispatch(backendChatResource.toString(), action);
+		if (sessionIsRead !== previousSessionIsRead) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+			connection.dispatch(cached.backendUri.toString(), { type: ActionType.SessionIsReadChanged as const, isRead: sessionIsRead });
+		}
 		return true;
 	}
 
