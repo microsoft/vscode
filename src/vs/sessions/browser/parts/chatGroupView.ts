@@ -16,16 +16,16 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
 import { SessionRemoteConnection } from './sessionRemoteConnection.js';
 import { ISessionReadOnlyBannerContent, SessionReadOnlyBanner } from './sessionReadOnlyBanner.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from './chatView.js';
 import { ChatHeader } from './chatHeader.js';
 
 /**
@@ -113,10 +113,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
+	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
+	private readonly _activeChatIsDeletableKey: IContextKey<boolean>;
+	private readonly _activeChatIsUntitledKey: IContextKey<boolean>;
 	private readonly _activeChatIsPinnedKey: IContextKey<boolean>;
 	private readonly _activeChatResourceKey: IContextKey<string>;
 	private readonly _activeChatHasSideChatsKey: IContextKey<boolean>;
 	private readonly _headerShowsChatKey: IContextKey<boolean>;
+	private readonly _headerTargetsChatKey: IContextKey<boolean>;
+	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 	private readonly _connection: SessionRemoteConnection;
 
@@ -149,10 +154,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._activeChatIsClosableKey = SessionActiveChatIsClosableContext.bindTo(scopedContextKeyService);
+		this._activeChatCanArchiveKey = SessionActiveChatCanArchiveContext.bindTo(scopedContextKeyService);
+		this._activeChatIsDeletableKey = SessionActiveChatIsDeletableContext.bindTo(scopedContextKeyService);
+		this._activeChatIsUntitledKey = SessionActiveChatIsUntitledContext.bindTo(scopedContextKeyService);
 		this._activeChatIsPinnedKey = SessionHeaderActiveChatIsPinnedContext.bindTo(scopedContextKeyService);
 		this._activeChatResourceKey = SessionActiveChatResourceContext.bindTo(scopedContextKeyService);
 		this._activeChatHasSideChatsKey = SessionActiveChatHasSideChatsContext.bindTo(scopedContextKeyService);
 		this._headerShowsChatKey = SessionHeaderShowsChatContext.bindTo(scopedContextKeyService);
+		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(scopedContextKeyService);
+		this._toolbarShowsSessionKey = SessionToolbarShowsSessionContext.bindTo(scopedContextKeyService);
 		this._focusedChatIsRenameTargetKey = SessionFocusedChatIsRenameTargetContext.bindTo(scopedContextKeyService);
 
 		// Assigned here rather than as a field initializer: `_instantiationService`
@@ -229,10 +239,15 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		if (!context) {
 			this._activeChatIsClosableKey.reset();
+			this._activeChatCanArchiveKey.reset();
+			this._activeChatIsDeletableKey.reset();
+			this._activeChatIsUntitledKey.reset();
 			this._activeChatIsPinnedKey.reset();
 			this._activeChatResourceKey.reset();
 			this._activeChatHasSideChatsKey.reset();
 			this._headerShowsChatKey.reset();
+			this._headerTargetsChatKey.reset();
+			this._toolbarShowsSessionKey.reset();
 			this._focusedChatIsRenameTargetKey.reset();
 			this._chatHeader.setChat(undefined);
 			this._compositeBar.setGroup(undefined);
@@ -256,6 +271,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._chatHeader.setVisible(visible);
 			this._headerShowsChatKey.set(visible);
 		}));
+		this._contextDisposables.add(autorun(reader => {
+			this._toolbarShowsSessionKey.set(context.showSessionActions.read(reader));
+		}));
 
 		const delegate: IChatCompositeBarDelegate = {
 			session: context.session,
@@ -276,9 +294,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const chat = activeChat.read(reader);
 			const isNonMainChat = activeResource !== mainResource;
 			this._activeChatIsClosableKey.set(isNonMainChat || context.chatHeaderVisible.read(reader));
+			const capabilities = chat && getChatCapabilities(chat, context.session, reader);
+			this._activeChatCanArchiveKey.set(!!capabilities?.canArchive && !(chat?.isArchived?.read(reader) ?? false));
+			this._activeChatIsDeletableKey.set(capabilities?.canDelete ?? false);
+			this._activeChatIsUntitledKey.set(chat?.status.read(reader) === SessionStatus.Untitled);
 			this._activeChatIsPinnedKey.set(context.activeChatIsPinned.read(reader));
 			this._activeChatResourceKey.set(chat?.resource.toString() ?? '');
 			this._activeChatHasSideChatsKey.set(!!chat && context.session.chats.read(reader).some(candidate => isSideChatOf(candidate, chat.resource)));
+			this._headerTargetsChatKey.set(context.chatHeaderVisible.read(reader) && isNonMainChat);
 			this._focusedChatIsRenameTargetKey.set(isNonMainChat);
 		}));
 		const currentView = observableValue<AbstractChatView | undefined>(this._contextDisposables, this._currentView.value);
@@ -327,7 +350,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return { banner: connectionBanner, recovery: undefined };
 			}
 
-			return { banner: readOnly?.content, recovery: undefined };
+			return { banner: !transcriptSettled || view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {
@@ -425,8 +448,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		return this._currentView.value?.selectWorkspace(folderUri, options) ?? 'notReady';
 	}
 
-	selectNoWorkspace(): void {
-		this._currentView.value?.selectNoWorkspace();
+	selectNoWorkspace(options?: ISelectNoWorkspaceOptions): void {
+		this._currentView.value?.selectNoWorkspace(options);
 	}
 
 	prefillInput(text: string): void {

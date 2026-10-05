@@ -29,6 +29,7 @@ suite('SessionChatPills', () => {
 				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
+				{ kind: SessionChatPillKind.BackgroundShells, label: 'Background Shells', checked: true },
 			],
 		});
 	});
@@ -72,12 +73,14 @@ suite('SessionChatPills', () => {
 		assert.deepStrictEqual({
 			customizations: visibility.isVisible(SessionChatPillKind.Customizations, undefined),
 			subagents: visibility.isVisible(SessionChatPillKind.Subagents, undefined),
+			backgroundShells: visibility.isVisible(SessionChatPillKind.BackgroundShells, undefined),
 			artifacts: visibility.isVisible(SessionChatPillKind.Artifacts, undefined),
 			references: visibility.isVisible(SessionChatPillKind.References, undefined),
 			changes: visibility.isVisible(SessionChatPillKind.Changes, undefined),
 		}, {
 			customizations: false,
 			subagents: false,
+			backgroundShells: true,
 			artifacts: true,
 			references: true,
 			changes: true,

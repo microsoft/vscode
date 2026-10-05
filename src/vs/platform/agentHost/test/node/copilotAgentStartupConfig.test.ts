@@ -11,9 +11,9 @@ suite('CopilotAgentStartupConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('compares and describes startup configuration changes', () => {
-		const previous = new CopilotAgentStartupConfig(false, true, false, false, false, 15_000, 'info', undefined, undefined, true, true, false, {});
-		const same = new CopilotAgentStartupConfig(false, true, false, false, false, 15_000, 'info', undefined, undefined, true, true, false, {});
-		const changed = new CopilotAgentStartupConfig(true, true, true, true, true, 30_000, 'trace', '/usr/local/bin/copilot-runtime', 'github.example.com', false, false, true, { deny: ['shell(*)'] });
+		const previous = new CopilotAgentStartupConfig(false, true, false, false, false, 15_000, 'info', undefined, undefined, true, true, false, {}, true);
+		const same = new CopilotAgentStartupConfig(false, true, false, false, false, 15_000, 'info', undefined, undefined, true, true, false, {}, true);
+		const changed = new CopilotAgentStartupConfig(true, true, true, true, true, 30_000, 'trace', '/usr/local/bin/copilot-runtime', 'github.example.com', false, false, true, { deny: ['shell(*)'] }, false);
 
 		assert.deepStrictEqual({
 			same: same.equals(previous),
@@ -24,7 +24,7 @@ suite('CopilotAgentStartupConfig', () => {
 			same: true,
 			changed: false,
 			proxyTargetChanged: true,
-			description: 'sessionSync=true, claudeAdvisor=true, tgrep=true, hydraFusion=true, skillCharBudget=30000, copilotSdkLogLevel=trace, runtimePath=/usr/local/bin/copilot-runtime, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, copilotConnectors=true, managedSettingsPermissions',
+			description: 'sessionSync=true, claudeAdvisor=true, tgrep=true, hydraFusion=true, skillCharBudget=30000, copilotSdkLogLevel=trace, runtimePath=/usr/local/bin/copilot-runtime, enterpriseHost=github.example.com, systemProxy=false, githubMcpServer=false, copilotConnectors=true, managedSettingsPermissions, localIndexEnabled=false',
 		});
 	});
 });

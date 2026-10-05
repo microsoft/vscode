@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { parseRemoteAgentHostHarness } from '../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostProvider, parseRemoteAgentHostHarness } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { SessionType } from './chatSessionsService.js';
 
 const storagePrefix = 'chat.editorUsage.';
@@ -29,8 +29,11 @@ function getProvider(sessionType: string): typeof providers[number] {
 		case SessionType.Codex: return 'codexExtension';
 		case SessionType.Growth: return 'growth';
 	}
-	switch (parseRemoteAgentHostHarness(sessionType)) {
-		case 'copilotcli': return 'remoteCopilot';
+	const remoteProvider = parseRemoteAgentHostHarness(sessionType);
+	if (isCopilotAgentHostProvider(remoteProvider)) {
+		return 'remoteCopilot';
+	}
+	switch (remoteProvider) {
 		case 'claude': return 'remoteClaude';
 		case 'codex': return 'remoteCodex';
 		default: return 'other';

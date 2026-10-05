@@ -4,14 +4,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { CompletionItem, CompletionItemKind } from '../../../../../editor/common/languages.js';
+import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IChatInputCompletionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry, toAgentHostCompletionVariableEntry, AgentHostCompletionReferenceKind } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { getAgentHostCompletionAttachmentRange, getCommandArgumentHintPlaceholder } from '../../browser/agentHostInputCompletions.js';
+import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { AgentHostInputCompletionHandler, getAgentHostCompletionAttachmentRange, getCommandArgumentHintPlaceholder } from '../../browser/agentHostInputCompletions.js';
+import { INewChatAttachments } from '../../browser/newChatContextAttachments.js';
+
+class TestableAgentHostInputCompletionHandler extends AgentHostInputCompletionHandler {
+	buildItem(position: Position, item: IChatInputCompletionItem): CompletionItem | undefined {
+		return this._buildItem(position, item);
+	}
+}
 
 suite('AgentHostInputCompletions', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('shows plain-text sandbox slash commands without adding an attachment', async () => {
+		const services = new ServiceCollection(
+			[ISessionContext, { _serviceBrand: undefined, session: constObservable(undefined) }],
+			[IChatSessionsService, new class extends mock<IChatSessionsService>() { }],
+		);
+		const model = store.add(createTextModel('/', null, undefined, URI.parse('test:input')));
+		await withTestCodeEditor(model, { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {
+			const attachments = new class extends mock<INewChatAttachments>() {
+				override readonly onDidChangeContext = Event.None;
+				override readonly attachments = [];
+			};
+			const handler = store.add(instantiationService.createInstance(TestableAgentHostInputCompletionHandler, editor, attachments, async () => true));
+			assert.deepStrictEqual(handler.buildItem(new Position(1, 2), {
+				insertText: '/review',
+				label: 'Review the workspace',
+				start: { lineNumber: 1, column: 1 },
+				end: { lineNumber: 1, column: 2 },
+				attachment: { kind: 'text' },
+			}), {
+				label: { label: '/review', description: 'Review the workspace' },
+				insertText: '/review',
+				filterText: '/review',
+				range: {
+					insert: new Range(1, 1, 1, 2),
+					replace: new Range(1, 1, 1, 2),
+				},
+				kind: CompletionItemKind.Text,
+			});
+		});
+	});
 
 	test('uses the accepted occurrence when duplicate slash tokens exist', () => {
 		const text = 'first /rename then accepted /rename';

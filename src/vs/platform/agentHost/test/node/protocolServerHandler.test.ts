@@ -7,6 +7,9 @@ import assert from 'assert';
 import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -21,15 +24,15 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
-import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type IRootConfigChangedAction, type ProgressParams, type SessionAction, type TerminalAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, JsonRpcErrorCodes, ProtocolError, AhpErrorCodes, AHP_UNSUPPORTED_PROTOCOL_VERSION, AHP_SESSION_NOT_FOUND, type AhpNotification, type InitializeResult, type ProtocolMessage, type ReconnectResult, type ResourceListResult, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot, type SubscribeResult } from '../../common/state/sessionProtocol.js';
-import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type SessionSummary } from '../../common/state/sessionState.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, ChatInteractivity, ChatOriginKind, MessageKind, ResponsePartKind, SessionStatus, ChangesetStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, readSessionExternal, readSessionWorkspaceless, withSessionExternal, withSessionWorkspaceless, type ChangesetState, type ChatState, type SessionState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionInputRequestKind, TerminalClaimKind } from '../../common/state/protocol/state.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
@@ -44,8 +47,9 @@ import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, AgentHostClientConnecti
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
+import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -155,6 +159,7 @@ class MockAgentService implements IAgentService {
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
+	readonly createTerminalClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly readErrors = new Map<string, Error>();
@@ -336,7 +341,9 @@ class MockAgentService implements IAgentService {
 		this.watchUnsubscribeCalls.push(channel);
 		return this.liveWatchDescriptors.has(channel);
 	}
-	async createTerminal(): Promise<void> { }
+	async createTerminal(_params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void> {
+		this.createTerminalClientTypes.push(clientType);
+	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
 	async handleMcpRequest(): Promise<unknown> { throw new Error('Method not found'); }
@@ -421,8 +428,8 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
-	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>): MockProtocolTransport {
-		const transport = new MockProtocolTransport();
+	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
+		const transport = new MockProtocolTransport(transportKind);
 		server.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', {
 			protocolVersions: [PROTOCOL_VERSION],
@@ -496,6 +503,37 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('isLocalClient requires an active Local MessagePort connection', () => {
+		const results = [];
+		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.Unknown]) {
+			for (const transportKind of [AgentHostTransportKind.MessagePort, AgentHostTransportKind.WebSocket, AgentHostTransportKind.Unknown]) {
+				const clientId = `${connectionKind}-${transportKind}`;
+				const transport = connectClient(clientId, undefined, undefined, {
+					'vscode.clientConnectionKind': connectionKind,
+				}, transportKind);
+				results.push(clientConnections.isLocalClient(clientId));
+				transport.simulateClose();
+				results.push(clientConnections.isLocalClient(clientId));
+			}
+		}
+		assert.deepStrictEqual({ missing: clientConnections.isLocalClient('missing'), results }, {
+			missing: false,
+			results: [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
+		});
+	});
+
+	test('isLocalClient follows the qualifying connection when a client has multiple transports', () => {
+		const meta = { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local };
+		connectClient('client', undefined, undefined, meta, AgentHostTransportKind.WebSocket);
+		const remoteOnly = clientConnections.isLocalClient('client');
+		const local = connectClient('client', undefined, undefined, meta, AgentHostTransportKind.MessagePort);
+		const withLocal = clientConnections.isLocalClient('client');
+		local.simulateClose();
+		assert.deepStrictEqual({ remoteOnly, withLocal, afterLocalCloses: clientConnections.isLocalClient('client'), connected: clientConnections.isClientConnected('client') }, {
+			remoteOnly: false, withLocal: true, afterLocalCloses: false, connected: true,
+		});
+	});
+
 	test('Dev Containers enforce initiating transport trust, ownership, and disconnect cleanup', async () => {
 		const first = connectClient('client-1');
 		const second = connectClient('client-1');
@@ -527,6 +565,51 @@ suite('ProtocolServerHandler', () => {
 		const response = findResponse(transport.sent, 2);
 		assert.ok(response && hasKey(response, { error: true }) && response.error?.code === AhpErrorCodes.PermissionDenied);
 		assert.deepStrictEqual(devContainerService.connects, []);
+	});
+
+	test('requests MCP authentication in client order, skipping rejection and disconnect', async () => {
+		const clients = [connectClient('unsupported'), connectClient('disconnected'), connectClient('denied'), connectClient('authenticated'), connectClient('unused')];
+		const params: IAgentHostMcpAuthenticationRequest = {
+			serverName: 'example',
+			auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] } },
+		};
+		const result = clientConnections.requestMcpAuthentication(params);
+		const requests = [];
+		for (let index = 0; index < 4; index++) {
+			let reverseRequest = findRequest(clients[index].sent, RequestAgentHostMcpAuthenticationExtensionMethod);
+			while (!reverseRequest) {
+				await Promise.resolve();
+				reverseRequest = findRequest(clients[index].sent, RequestAgentHostMcpAuthenticationExtensionMethod);
+			}
+			requests.push({ client: index, method: reverseRequest.method, params: reverseRequest.params });
+			if (index === 0) {
+				clients[index].simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Unsupported' } });
+			} else if (index === 1) {
+				clients[index].simulateClose();
+			} else {
+				clients[index].simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: { authenticated: index === 3 } });
+			}
+		}
+		assert.deepStrictEqual({
+			authenticated: await result,
+			requests,
+			unused: findRequest(clients[4].sent, RequestAgentHostMcpAuthenticationExtensionMethod),
+		}, {
+			authenticated: true,
+			requests: [0, 1, 2, 3].map(client => ({ client, method: RequestAgentHostMcpAuthenticationExtensionMethod, params })),
+			unused: undefined,
+		});
+	});
+
+	test('returns false for MCP authentication without connected clients', async () => {
+		const params: IAgentHostMcpAuthenticationRequest = {
+			serverName: 'example',
+			auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', authorization_servers: [] } },
+		};
+		const withoutClients = await clientConnections.requestMcpAuthentication(params);
+		const disconnected = connectClient('disconnected');
+		disconnected.simulateClose();
+		assert.deepStrictEqual([withoutClients, await clientConnections.requestMcpAuthentication(params)], [false, false]);
 	});
 
 	test('routes a workspace trust request to the initiating client', async () => {
@@ -750,6 +833,30 @@ suite('ProtocolServerHandler', () => {
 		const result = (resp as { result: InitializeResult }).result;
 		assert.strictEqual(result.snapshots.length, 1);
 		assert.strictEqual(result.snapshots[0].resource.toString(), sessionUri.toString());
+	});
+
+	test('initial chat subscription includes input checks in both chat and session snapshots', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const barrier = new DeferredPromise<void>();
+		agentService.subscribeBarriers.set(defaultChatUri, barrier);
+		const transport = connectClient('input-client', [sessionUri, defaultChatUri]);
+		const response = waitForResponse(transport, 1);
+		const input = { kind: 'blocked', error: { errorType: 'CodexThreadInUse', message: 'Locked' } } as const;
+		stateManager.setSessionMeta(sessionUri, withChatInputState({}, defaultChatUri, input));
+		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionChatUpdated, chat: defaultChatUri, changes: { interactivity: ChatInteractivity.ReadOnly } });
+		await barrier.complete();
+		const result = (await response as { result: InitializeResult }).result;
+		const chat = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+		const session = result.snapshots.find(snapshot => snapshot.resource === sessionUri)?.state as SessionState;
+		assert.deepStrictEqual({
+			subscribeCalls: agentService.subscribeCalls,
+			interactivity: chat.interactivity,
+			catalogInteractivity: session.chats[0].interactivity,
+			input: readChatInputState(session, defaultChatUri),
+		}, {
+			subscribeCalls: [{ resource: defaultChatUri, clientId: 'input-client' }],
+			interactivity: ChatInteractivity.ReadOnly, catalogInteractivity: ChatInteractivity.ReadOnly, input,
+		});
 	});
 
 	for (const cached of [false, true]) {
@@ -1532,14 +1639,18 @@ suite('ProtocolServerHandler', () => {
 		await Promise.resolve();
 		transport.simulateClose();
 		await agentService.subscribeBarrier.complete();
-		await Promise.resolve();
+		await handler.whenIdle();
 
 		assert.deepStrictEqual({
+			response: findResponse(transport.sent, 2),
 			subscribes: agentService.subscribeCalls,
 			unsubscribes: agentService.unsubscribeCalls,
+			errorCount: logService.errorCount,
 		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
 			subscribes: [{ resource: sessionUri, clientId: 'client-1' }],
 			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+			errorCount: 0,
 		});
 	});
 
@@ -1603,13 +1714,15 @@ suite('ProtocolServerHandler', () => {
 
 		const [first, second] = await Promise.all([firstResponse, secondResponse]);
 		assert.deepStrictEqual({
-			firstFailed: hasKey(first, { error: true }),
+			firstError: hasKey(first, { error: true }) ? first.error : undefined,
 			secondSucceeded: hasKey(second, { result: true }),
+			errorCount: logService.errorCount,
 			subscribes: agentService.subscribeCalls,
 			unsubscribes: agentService.unsubscribeCalls,
 		}, {
-			firstFailed: true,
+			firstError: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` },
 			secondSucceeded: true,
+			errorCount: 0,
 			subscribes: [
 				{ resource: sessionUri, clientId: 'client-1' },
 				{ resource: sessionUri, clientId: 'client-1' },
@@ -1618,13 +1731,142 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('client action is dispatched and echoed', () => {
+	test('superseded turn changeset subscriptions are cancelled even when their resources exist', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const turns = ['previous-1', 'previous-2', 'latest'].map(turnId => buildTurnChangesetUri(defaultChatUri, turnId));
+		const barrier = new DeferredPromise<void>();
+		for (const channel of turns) {
+			stateManager.registerChangeset(channel);
+		}
+		for (const channel of turns.slice(0, -1)) {
+			agentService.subscribeBarriers.set(channel, barrier);
+		}
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const responses = turns.map((_, index) => waitForResponse(transport, index + 2));
+		const emitted: ActionEnvelope[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => emitted.push(envelope)));
+
+		for (const [index, channel] of turns.entries()) {
+			transport.simulateMessage(request(index + 2, 'subscribe', { channel }));
+			if (index < turns.length - 1) {
+				transport.simulateMessage(notification('unsubscribe', { channel }));
+			}
+		}
+		await responses[2];
+		for (const channel of turns.slice(0, -1)) {
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetContentChanged, files: [] });
+			stateManager.dispatchServerAction(channel, { type: ActionType.ChangesetStatusChanged, status: ChangesetStatus.Ready });
+		}
+		await barrier.complete();
+		const results = await Promise.all(responses);
+
+		assert.deepStrictEqual({
+			errors: results.slice(0, -1).map(result => hasKey(result, { error: true }) ? result.error : undefined),
+			latestResource: hasKey(results[2], { result: true }) ? (results[2].result as SubscribeResult).snapshot?.resource : undefined,
+			supersededResourcesExist: turns.slice(0, -1).map(channel => !!stateManager.getSnapshot(channel)),
+			emitted: emitted.map(envelope => ({ channel: envelope.channel, type: envelope.action.type })),
+			deliveredActions: findNotifications(transport.sent, 'action').length,
+			unsubscribes: agentService.unsubscribeCalls,
+			errorCount: logService.errorCount,
+		}, {
+			errors: turns.slice(0, -1).map(channel => ({ code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${channel}` })),
+			latestResource: turns[2],
+			supersededResourcesExist: [true, true],
+			emitted: turns.slice(0, -1).flatMap(channel => [
+				{ channel, type: ActionType.ChangesetContentChanged },
+				{ channel, type: ActionType.ChangesetStatusChanged },
+			]),
+			deliveredActions: 0,
+			unsubscribes: turns.slice(0, -1).map(resource => ({ resource, clientId: 'client-1' })),
+			errorCount: 0,
+		});
+	});
+
+	test('unsubscribe cancels a subscribe whose snapshot resolves successfully afterwards', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const barrier = new DeferredPromise<IStateSnapshot>();
+		agentService.subscribe = async () => barrier.p;
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await barrier.complete(stateManager.getSnapshot(sessionUri)!);
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			errorCount: 0,
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('subscribe still reports and logs genuinely missing resources', async () => {
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const channel = buildTurnChangesetUri(defaultChatUri, 'missing');
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: AHP_SESSION_NOT_FOUND, message: `Resource not found: ${channel}` } },
+			errorCount: 1,
+		});
+	});
+
+	test('subscribe preserves and logs protocol failures while it still owns the subscription', async () => {
+		const error = new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required', { resources: [] });
+		agentService.subscribe = async () => { throw error; };
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: error.code, message: error.message, data: error.data } },
+			errorCount: 1,
+		});
+	});
+
+	test('unsubscribe cancels a subscribe whose restore rejects with a protocol error afterwards', async () => {
+		const barrier = new DeferredPromise<IStateSnapshot>();
+		agentService.subscribe = async () => barrier.p;
+		const transport = connectClient('client-1');
+		transport.sent.length = 0;
+		const response = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+		await barrier.error(new ProtocolError(AhpErrorCodes.AuthRequired, 'Authentication required', { resources: [] }));
+
+		assert.deepStrictEqual({
+			response: await response,
+			errorCount: logService.errorCount,
+			unsubscribes: agentService.unsubscribeCalls,
+		}, {
+			response: { jsonrpc: '2.0', id: 2, error: { code: JSON_RPC_INTERNAL_ERROR, message: `Subscription cancelled: ${sessionUri}` } },
+			errorCount: 0,
+			unsubscribes: [{ resource: sessionUri, clientId: 'client-1' }],
+		});
+	});
+
+	test('client action is dispatched and echoed', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
 		// Chat actions are emitted on the derived default-chat channel, so the
 		// client must subscribe to it (as the real UI bridge does) to see echoes.
 		const transport = connectClient('client-1', [sessionUri, defaultChatUri]);
+		await waitForResponse(transport, 1);
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('dispatchAction', {
@@ -1729,7 +1971,7 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('unsupported chat actions are rejected, not dispatched', () => {
+	test('unsupported chat actions are rejected, not dispatched', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 
@@ -1742,6 +1984,7 @@ suite('ProtocolServerHandler', () => {
 			const clientId = `unsupported-client-${index}`;
 			const clientSeq = 100 + index;
 			const transport = connectClient(clientId, [sessionUri, defaultChatUri]);
+			await waitForResponse(transport, 1);
 			transport.sent.length = 0;
 			agentService.handledActions.length = 0;
 
@@ -1780,6 +2023,21 @@ suite('ProtocolServerHandler', () => {
 		}));
 
 		assert.deepStrictEqual(agentService.handledActions.at(-1), { type: ActionType.ChatTurnResume, turnId: 'turn-1' });
+	});
+
+	test('createTerminal reaches the agent service with the requesting client type', async () => {
+		const vscodeClient = connectClient('vscode-terminal-client', undefined, editorWindowAgentHostClientInfo);
+		const otherClient = connectClient('other-terminal-client');
+		for (const [transport, clientId] of [[vscodeClient, 'vscode-terminal-client'], [otherClient, 'other-terminal-client']] as const) {
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createTerminal', {
+				channel: `agenthost-terminal://test/${clientId}`,
+				claim: { kind: TerminalClaimKind.Client, clientId },
+			}));
+			assert.ok(hasKey(await response, { result: true }));
+		}
+
+		assert.deepStrictEqual(agentService.createTerminalClientTypes, [AgentHostClientType.EditorWindow, AgentHostClientType.Unknown]);
 	});
 
 	test('session working-directory actions reach the agent service', () => {
@@ -1997,7 +2255,16 @@ suite('ProtocolServerHandler', () => {
 				.map(message => (message.params as SessionSummaryChangedParams).changes);
 			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
 				listedMeta: { providerOnly: true, live: 'current' },
-				summaryChanges: [{ modifiedAt: startedAt, status: SessionStatus.InProgress }],
+				summaryChanges: [{
+					modifiedAt: startedAt,
+					status: SessionStatus.InProgress,
+					chats: [{
+						resource: buildDefaultChatUri(sessionUri),
+						title: '',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.InProgress,
+					}],
+				}],
 			});
 		});
 	});
@@ -2193,17 +2460,39 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
 	});
 
+	test('listSessions carries the provider-qualified Codex model on namespaced _meta', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Codex Session',
+			model: { id: '@provider=openai:gpt-5.6-sol' },
+			_meta: withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' }),
+		});
+
+		const transport = connectClient('client-list-codex-model');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const result = (response as unknown as { result: ListSessionsResult }).result;
+
+		assert.deepStrictEqual(result.items.map(item => readCodexSessionModel(item)), [{ id: '@provider=openai:gpt-5.6-sol' }]);
+	});
+
 	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
+		const unknownStatusChat = URI.parse(`${sessionUri}/chat/unknown`);
 		agentService.listedSessions.push({
 			session: URI.parse(sessionUri),
 			startTime: 1000,
 			modifiedTime: 2000,
 			summary: 'Session Summary',
 			chats: [
-				{ chat: defaultChat, kind: 'default', summary: 'Default Chat' },
-				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ chat: defaultChat, kind: 'default', summary: 'Default Chat', isRead: true },
+				{ chat: peerChat, kind: 'peer', summary: 'Peer Chat', origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true, isRead: false },
+				{ chat: unknownStatusChat, kind: 'peer', summary: 'Unknown Status Chat' },
 			],
 		});
 
@@ -2219,8 +2508,9 @@ suite('ProtocolServerHandler', () => {
 			defaultChat: result.items[0].defaultChat,
 		}, {
 			chats: [
-				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined },
-				{ resource: peerChat.toString(), title: 'Peer Chat', archived: true, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden },
+				{ resource: defaultChat.toString(), title: 'Default Chat', origin: undefined, status: SessionStatus.Idle | SessionStatus.IsRead },
+				{ resource: peerChat.toString(), title: 'Peer Chat', status: SessionStatus.Idle | SessionStatus.IsArchived, origin: { kind: ChatOriginKind.Fork, chat: defaultChat.toString(), turnId: 'turn-1' }, interactivity: ChatInteractivity.Hidden, archived: true },
+				{ resource: unknownStatusChat.toString(), title: 'Unknown Status Chat', origin: undefined },
 			],
 			defaultChat: defaultChat.toString(),
 		});
@@ -2269,6 +2559,22 @@ suite('ProtocolServerHandler', () => {
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
 		});
+	});
+
+	test('createSession captures the initiating Editor or Agents Window client', async () => {
+		const actual = [];
+		for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+			const transport = connectClient(clientInfo.name, undefined, clientInfo);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				channel: `copilot:///${clientInfo.name}`,
+				_meta: withSessionInitiator({ preserved: true }, { name: 'request-supplied-client' }),
+			}));
+			await response;
+			const config = agentService.createSessionConfigs.at(-1);
+			actual.push({ initiator: readSessionInitiator(config), preserved: config?._meta?.preserved });
+		}
+		assert.deepStrictEqual(actual, [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo].map(initiator => ({ initiator, preserved: true })));
 	});
 
 	test('whenIdle waits for in-flight protocol requests after disposal', async () => {
@@ -2531,7 +2837,13 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', { channel: 'copilot:/missing', chat: buildChatUri('copilot:/missing', 'peer-1') }));
 			const resp = await responsePromise as { error?: { code: number } };
 
-			assert.strictEqual(resp.error?.code, AHP_SESSION_NOT_FOUND);
+			assert.deepStrictEqual({
+				code: resp.error?.code,
+				created: agentService.createdChats,
+			}, {
+				code: AHP_SESSION_NOT_FOUND,
+				created: [],
+			});
 		});
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
@@ -4522,9 +4834,43 @@ suite('ProtocolServerHandler', () => {
 				permissions: { ask: ['Shell'] },
 			}));
 			transport.simulateClose();
+			assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
 
 			await new Promise(resolve => setTimeout(resolve, 30_001));
 
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
+		});
+	});
+
+	test('disconnect expiry removes only that client managed permissions', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = connectClient('permissions-first');
+			const second = connectClient('permissions-second');
+			first.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { ask: ['Shell'] } }));
+			second.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { deny: ['Write(**)'] } }));
+			first.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.deepStrictEqual(managedSettingsService.permissions, { deny: ['Write(**)'] });
+			second.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: {} }));
+			assert.deepStrictEqual(managedSettingsService.permissions, {});
+		});
+	});
+
+	test('reconnecting preserves managed permissions beyond the disconnect grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = connectClient('permissions-reconnect');
+			first.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { ask: ['Shell'] } }));
+			first.simulateClose();
+			const reconnected = new MockProtocolTransport();
+			server.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(2, 'reconnect', {
+				clientId: 'permissions-reconnect',
+				lastSeenServerSeq: stateManager.serverSeq,
+				subscriptions: [],
+			}));
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
+			reconnected.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: {} }));
 			assert.deepStrictEqual(managedSettingsService.permissions, {});
 		});
 	});

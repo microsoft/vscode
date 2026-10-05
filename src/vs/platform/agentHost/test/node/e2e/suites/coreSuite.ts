@@ -245,7 +245,8 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}
 	});
 
-	test('retains context across consecutive turns', async function () {
+	// Quarantined on Codex Linux/macOS: https://github.com/microsoft/vscode/issues/338152
+	(config.provider !== 'codex' || context.isWindows ? test : test.skip)('retains context across consecutive turns', async function () {
 		this.timeout(180_000);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-memory-'));
 		tempDirs.push(workspace);
@@ -261,24 +262,32 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		await assertRecordedAhpSnapshot(this.test!, context.client, behaviorSnapshot);
 	});
 
-	(modelSwitchTarget ? test : test.skip)('client-selected model is used for the turn', async function () {
+	// Quarantined on Codex Linux: https://github.com/microsoft/vscode/issues/338152
+	(modelSwitchTarget && (config.provider !== 'codex' || !context.isLinux) ? test : test.skip)('client-selected model is used for the turn', async function () {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-switch-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `model-switch-${config.provider}`, createdSessions, URI.file(workspace));
+		const prompt = 'Reply exactly "model selected".';
+		const observedRequestCount = context.observedModelRequestBodies.length;
 
 		const result = await driveTurnWithModelToCompletion(
 			context.client,
 			sessionUri,
 			'turn-model-switch',
-			'Reply exactly "model selected".',
+			prompt,
 			modelSwitchTarget,
 			1,
 		);
+		const selectedModelRequest = context.observedModelRequestBodies
+			.slice(observedRequestCount)
+			.map(observedModelRequest)
+			.find(request => request.messages.some(message => modelContentText(message.content).includes(prompt)));
+		assert.ok(selectedModelRequest, 'Expected the selected-model turn to reach the provider');
 
 		assert.deepStrictEqual({
-			model: observedModelRequest(context.observedModelRequestBodies.at(-1)).model,
+			model: selectedModelRequest.model,
 			response: result.responseText.trim(),
 		}, {
 			model: modelSwitchWireTarget,

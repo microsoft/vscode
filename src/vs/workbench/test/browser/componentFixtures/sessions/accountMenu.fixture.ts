@@ -9,6 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -28,16 +29,19 @@ import { ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetA
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatStatusItemService } from '../../../../contrib/chat/browser/chatStatus/chatStatusItemService.js';
 import { ICodexAccountService, ICodexAccountViewInfo } from '../../../../services/agentHost/browser/codexAccountService.js';
-import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { TestTextResourceConfigurationService } from '../../workbenchTestServices.js';
 import { configureChatPetFixtureFileRoot, FixtureChatPetService } from '../chat/chatPetFixtureUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 
 type UsageState = 'both' | 'weeklyOnly' | 'fiveHourOnly' | 'unavailable' | 'withoutReset';
+type HoveredLimit = 'fiveHour' | 'weekly';
 
-async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState): Promise<void> {
+const profileImageDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" fill="#5b5fc7"/><circle cx="32" cy="24" r="12" fill="#f8f8f8"/><path d="M12 64c2-16 10-24 20-24s18 8 20 24" fill="#f8f8f8"/></svg>')}`;
+
+async function renderAccountMenu(context: ComponentFixtureContext, usageState: UsageState, hoveredLimit?: HoveredLimit): Promise<void> {
 	const { container, disposableStore } = context;
 	container.classList.add('agent-sessions-workbench');
 	container.style.width = '448px';
@@ -55,6 +59,7 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 		status: 'signedIn',
 		email: 'alex@example.com',
 		planType: 'plus',
+		profileImageDataUri,
 		rateLimit: usageState === 'weeklyOnly' ? weekly : undefined,
 		rateLimits: usageState === 'both' ? [weekly, fiveHour]
 			: usageState === 'fiveHourOnly' ? [fiveHour]
@@ -66,7 +71,10 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 		override readonly sessionId = 'fixture-session';
 		override readonly authenticationProvider = { id: 'github', name: 'GitHub', scopes: [], enterprise: false };
 	}();
-	const configurationService = new TestConfigurationService({ [AgentHostCodexAgentEnabledSettingId]: true });
+	const configurationService = new TestConfigurationService({
+		[AgentHostCodexAgentEnabledSettingId]: true,
+		[ACCOUNTS_AVATAR_SETTING]: true,
+	});
 	disposableStore.add(configurationService.onDidChangeConfigurationEmitter);
 	const chatPetService = disposableStore.add(new FixtureChatPetService({
 		enabled: true,
@@ -92,7 +100,12 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 			});
 			registry.definePartialInstance(IAuthenticationService, {
 				onDidChangeSessions: Event.None,
-				getSessions: async () => [],
+				getSessions: async () => [{
+					id: defaultAccount.sessionId,
+					accessToken: '',
+					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: URI.parse(profileImageDataUri) },
+					scopes: [],
+				}],
 			});
 			registry.definePartialInstance(ICodexAccountService, {
 				agent: 'codex',
@@ -143,29 +156,62 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 	if (!panel) {
 		throw new Error('Account popover fixture did not open the account panel.');
 	}
-	container.style.height = `${Math.ceil(panel.getBoundingClientRect().bottom - container.getBoundingClientRect().top) + 24}px`;
+	await waitForFixtureCondition(() => {
+		const images = [...container.querySelectorAll<HTMLImageElement>('img')];
+		return images.length === 2 && images.every(image => image.hasAttribute('src') && image.complete && image.naturalWidth > 0);
+	}, 'Account popover fixture did not load both local avatars');
+	await Promise.all([...container.querySelectorAll<HTMLImageElement>('img')].map(image => image.decode()));
+	if (hoveredLimit) {
+		const rateLimitRows = panel.querySelectorAll<HTMLElement>('.sessions-account-titlebar-panel-provider-metric-row.secondary[tabindex="0"]');
+		const row = rateLimitRows[hoveredLimit === 'fiveHour' ? 0 : 1];
+		if (!row) {
+			throw new Error(`Missing ${hoveredLimit} rate-limit row.`);
+		}
+		row.focus();
+		const keyboardEvent = new row.ownerDocument.defaultView!.KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true });
+		Object.defineProperty(keyboardEvent, 'keyCode', { value: 13 });
+		row.dispatchEvent(keyboardEvent);
+	}
+	const containerTop = container.getBoundingClientRect().top;
+	const contentBottom = Math.max(...Array.from(container.querySelectorAll<HTMLElement>('.monaco-hover, .sessions-account-titlebar-panel'), element => element.getBoundingClientRect().bottom));
+	container.style.height = `${Math.ceil(contentBottom - containerTop) + 24}px`;
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	WeeklyAndFiveHourLimits: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderAccountMenu(context, 'both'),
 	}),
 	WeeklyLimitOnly: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'weeklyOnly'),
 	}),
 	FiveHourLimitOnly: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'fiveHourOnly'),
 	}),
 	UsageUnavailable: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'unavailable'),
 	}),
 	LimitsWithoutReset: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'withoutReset'),
+	}),
+	FiveHourLimitHover: defineComponentFixture({
+		deferPaint: true,
+		labels: { kind: 'screenshot' },
+		render: context => renderAccountMenu(context, 'both', 'fiveHour'),
+	}),
+	WeeklyLimitHover: defineComponentFixture({
+		deferPaint: true,
+		labels: { kind: 'screenshot' },
+		render: context => renderAccountMenu(context, 'both', 'weekly'),
 	}),
 });

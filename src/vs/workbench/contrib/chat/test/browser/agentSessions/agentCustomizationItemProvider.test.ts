@@ -190,6 +190,41 @@ suite('AgentCustomizationItemProvider', () => {
 		}]);
 	});
 
+	test('bounds and shares the source folder readiness wait', async () => {
+		class TestCustomizationService extends NullAgentHostCustomizationService {
+			readinessCalls = 0;
+
+			override whenCustomizationsReady(): Promise<boolean> {
+				this.readinessCalls++;
+				return new Promise<boolean>(() => { });
+			}
+		}
+		class TestAgentCustomizationItemProvider extends AgentCustomizationItemProvider {
+			protected override readonly _sourceFolderReadinessTimeoutMs = 1;
+		}
+
+		const customizationService = new TestCustomizationService();
+		const provider = disposables.add(new TestAgentCustomizationItemProvider(
+			'local',
+			undefined,
+			undefined,
+			upcastPartial<IFileService>({}),
+			new NullLogService(),
+			customizationService,
+			makePromptsService(),
+		));
+		const sessionResource = URI.parse('agent-host-copilotcli:///session');
+
+		const first = await provider.provideSourceFolders(sessionResource, PromptsType.agent, CancellationToken.None);
+		const second = await provider.provideSourceFolders(sessionResource, PromptsType.instructions, CancellationToken.None);
+
+		assert.deepStrictEqual({ first, second, readinessCalls: customizationService.readinessCalls }, {
+			first: [],
+			second: [],
+			readinessCalls: 1,
+		});
+	});
+
 	test('classifies a directory child by its real file URI when its container is synthetic', async () => {
 		const skillUri = 'file:///workspace/.agents/skills/launch/SKILL.md';
 		const customizations: Customization[] = [{

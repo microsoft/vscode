@@ -23,6 +23,7 @@ import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../theme/browser/defaultStyles.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from './actionList.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
@@ -126,6 +127,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>;
 	/** Optional fixed popup width. */
 	readonly width?: number;
+	/** Context view layer used when the picker must render above another context view. */
+	readonly contextViewLayer?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
 	/**
@@ -272,8 +275,10 @@ export class TabbedActionListWidget extends Disposable {
 					widget.style.width = `${options.width}px`;
 				}
 				let widgetClassNames: readonly string[] = [];
+				let hasRendered = false;
 				const applyWidgetClassNames = () => {
-					const next = options.widgetClassNames?.(activeTab) ?? [];
+					const next = (options.widgetClassNames?.(activeTab) ?? []).filter(className =>
+						className !== ACTION_WIDGET_DROPDOWN_MOTION_CLASS || (hasRendered && !isSwap));
 					const removed = widgetClassNames.filter(name => !next.includes(name));
 					const added = next.filter(name => !widgetClassNames.includes(name));
 					if (removed.length) {
@@ -418,6 +423,7 @@ export class TabbedActionListWidget extends Disposable {
 						refreshPending = true;
 						return;
 					}
+					finishActionWidgetOpeningAnimation(widget);
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
 					const bodyHeight = body.offsetHeight;
 					if (options.isBodyCollapsed?.() && dom.isAncestorOfActiveElement(body)) {
@@ -444,6 +450,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
 						preserveHover: refreshOptions?.preserveHover,
+						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),
 					});
 					if (sizingChanged) {
@@ -771,6 +778,11 @@ export class TabbedActionListWidget extends Disposable {
 					hide();
 				}));
 
+				hasRendered = true;
+				applyWidgetClassNames();
+				if (!isSwap) {
+					widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
+				}
 				return renderDisposables;
 			},
 			onHide: () => {
@@ -791,6 +803,7 @@ export class TabbedActionListWidget extends Disposable {
 				this._onDidHide.fire();
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
+			layer: options.contextViewLayer,
 		}, undefined, false);
 
 		if (options.showCheckedItemHover && !options.isBodyCollapsed?.()) {

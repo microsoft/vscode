@@ -10,6 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
+import { escape } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -21,6 +22,7 @@ import { IWebview } from '../../webview/browser/webview.js';
 
 interface IReleaseNotesTryoutState {
 	readonly id: string;
+	readonly index: number;
 	readonly kind: 'ready' | 'hidden' | 'unavailable';
 	readonly label: string;
 	readonly ariaLabel: string;
@@ -56,8 +58,8 @@ function parseTryoutLink(uri: URI): string | undefined {
 export class ReleaseNotesTryouts extends Disposable {
 	readonly documentId = generateUuid();
 
-	private readonly _states = new Map<string, IReleaseNotesTryoutState>();
-	private readonly _links = new Map<number, string>();
+	private readonly _states = new Map<number, IReleaseNotesTryoutState>();
+	private readonly _links = new Map<number, { readonly id: string; readonly label?: string }>();
 	private readonly _interaction = this._register(new MutableDisposable());
 	private readonly _availabilityListener = this._register(new MutableDisposable());
 	private _interactionTarget: { id: string; action: 'run' | 'setup' } | undefined;
@@ -72,6 +74,19 @@ export class ReleaseNotesTryouts extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
+	}
+
+	renderCodeSpan(escapedText: string): string | undefined {
+		const match = /^try\((?<id>[^,]+),(?<label>[\s\S]*)\)$/.exec(escapedText);
+		if (!match?.groups) {
+			return undefined;
+		}
+		const id = match.groups.id.trim();
+		const label = match.groups.label.trim();
+		if (!isOnboardingTryoutId(id) || !label) {
+			return undefined;
+		}
+		return `<a class="release-notes-tryout-shorthand" href="${escape(createOnboardingTryoutUri(id).toString())}">${label}</a>`;
 	}
 
 	needsRender(content: TrustedHTML): boolean {
@@ -116,10 +131,11 @@ export class ReleaseNotesTryouts extends Disposable {
 			}
 
 			this._availabilityListener.value ??= this._tryoutService.onDidChange(() => this.update());
-			const state = this.getState(id);
 			const index = this._links.size;
-			this._links.set(index, id);
-			this._states.set(id, state);
+			const label = link.classList.contains('release-notes-tryout-shorthand') ? link.textContent || undefined : undefined;
+			const state = this.getState(id, index, label);
+			this._links.set(index, { id, label });
+			this._states.set(index, state);
 			const element = $('span.release-notes-tryout', {
 				'data-release-notes-tryout-id': id,
 				'data-release-notes-tryout-index': index,
@@ -137,25 +153,27 @@ export class ReleaseNotesTryouts extends Disposable {
 		link.replaceWith(fallback);
 	}
 
-	private getState(id: string): IReleaseNotesTryoutState {
+	private getState(id: string, index: number, customLabel?: string): IReleaseNotesTryoutState {
 		const metadata = this._tryoutService.getTryout(id)?.tryout;
 		const availability = metadata ? this.getAvailability(id) : {
 			kind: 'unavailable' as const,
 			message: localize('releaseNotes.tryout.unknown', "This example is not available in this version of VS Code."),
 		};
-		const empty = { id, label: '', ariaLabel: '', href: '', message: '', setupLabel: '', setupAriaLabel: '' };
+		const empty = { id, index, label: '', ariaLabel: '', href: '', message: '', setupLabel: '', setupAriaLabel: '' };
 		if (availability.kind === 'hidden') {
 			return { ...empty, kind: 'hidden' };
 		}
-		const label = metadata ? localize('releaseNotes.tryout.contextualLabel', "Try This: {0}", metadata.title) : localize('releaseNotes.tryout.label', "Try This");
+		const label = customLabel ?? (metadata ? localize('releaseNotes.tryout.contextualLabel', "Try This: {0}", metadata.title) : localize('releaseNotes.tryout.label', "Try This"));
 		const message = availability.kind === 'unavailable' ? availability.message : '';
 		const setupLabel = availability.kind === 'unavailable' ? availability.action?.label ?? '' : '';
 		return {
 			id,
+			index,
 			kind: availability.kind,
 			label,
 			ariaLabel: [
 				label,
+				customLabel && customLabel !== metadata?.title ? metadata?.title : '',
 				metadata?.description,
 				metadata?.targetWindow === 'agents' ? localize('releaseNotes.tryout.anotherWindow', "Opens in the Agents window.") : '',
 				metadata?.isAI ? localize('releaseNotes.tryout.noAutoSend', "Chat examples are prepared for review and are not sent automatically.") : '',
@@ -200,7 +218,7 @@ export class ReleaseNotesTryouts extends Disposable {
 			this.update(true);
 		} else if (request.type === 'releaseNotesTryout') {
 			if (!isOnboardingTryoutId(request.id)
-				|| typeof request.index !== 'number' || this._links.get(request.index) !== request.id
+				|| typeof request.index !== 'number' || this._links.get(request.index)?.id !== request.id
 				|| (request.action !== 'run' && request.action !== 'setup')
 				|| Object.keys(request).some(key => !['type', 'documentId', 'id', 'index', 'action'].includes(key))) {
 				this._notificationService.error(localize('releaseNotes.tryout.invalidLink', "This feature example link is invalid."));
@@ -211,18 +229,17 @@ export class ReleaseNotesTryouts extends Disposable {
 	}
 
 	async openLink(uri: URI): Promise<void> {
+		let id: string | undefined;
 		try {
-			const id = parseTryoutLink(uri);
-			const link = [...this._links].find(([, value]) => value === id);
-			if (!id || !link) {
-				throw new Error(localize('releaseNotes.tryout.invalidLink', "This feature example link is invalid."));
-			}
-			await this.interact(id, link[0], 'run');
-		} catch (error) {
-			if (!this._store.isDisposed) {
-				this._notificationService.error(error);
-			}
+			id = parseTryoutLink(uri);
+		} catch {
+			return;
 		}
+		const link = [...this._links].find(([, value]) => value.id === id);
+		if (!id || !link) {
+			return;
+		}
+		await this.interact(id, link[0], 'run');
 	}
 
 	private async interact(id: string, index: number, action: 'run' | 'setup'): Promise<void> {
@@ -248,7 +265,7 @@ export class ReleaseNotesTryouts extends Disposable {
 					const command = availability.action.command;
 					await this._commandService.executeCommand(command.id, ...(command.arguments ?? []));
 				} else {
-					this._notificationService.info(localize('releaseNotes.tryout.nowReady', "This example is ready. Choose Try This to continue."));
+					this._notificationService.info(localize('releaseNotes.tryout.nowReady', "This example is ready. Activate the example link to continue."));
 					this.restoreFocus(index, 'run');
 				}
 			} else {
@@ -294,10 +311,10 @@ export class ReleaseNotesTryouts extends Disposable {
 			return;
 		}
 		const states: IReleaseNotesTryoutState[] = [];
-		for (const [id, previous] of this._states) {
-			const state = this.getState(id);
-			if (force || !equals(previous, state)) {
-				this._states.set(id, state);
+		for (const [index, link] of this._links) {
+			const state = this.getState(link.id, index, link.label);
+			if (force || !equals(this._states.get(index), state)) {
+				this._states.set(index, state);
 				states.push(state);
 			}
 		}
@@ -314,6 +331,8 @@ export class ReleaseNotesTryouts extends Disposable {
 		this._interactionTarget = undefined;
 		this._webview = undefined;
 		this._canRestoreFocus = undefined;
+		this._states.clear();
+		this._links.clear();
 		super.dispose();
 	}
 }
@@ -363,13 +382,8 @@ export function initializeReleaseNotesTryouts(
 ): () => void {
 	const controller = new AbortController();
 	const options = { signal: controller.signal };
-	const elementsById = new Map<string, HTMLElement[]>();
 	const elementsByIndex = new Map<number, HTMLElement>();
 	for (const element of targetDocument.querySelectorAll<HTMLElement>('[data-release-notes-tryout-id]')) {
-		const id = element.dataset.releaseNotesTryoutId!;
-		const elements = elementsById.get(id) ?? [];
-		elements.push(element);
-		elementsById.set(id, elements);
 		elementsByIndex.set(Number(element.dataset.releaseNotesTryoutIndex), element);
 	}
 	targetDocument.addEventListener('click', event => {
@@ -398,7 +412,8 @@ export function initializeReleaseNotesTryouts(
 		}
 		if (message.type === 'releaseNotesTryouts') {
 			for (const state of message.states as IReleaseNotesTryoutState[]) {
-				for (const element of elementsById.get(state.id) ?? []) {
+				const element = elementsByIndex.get(state.index);
+				if (element?.dataset.releaseNotesTryoutId === state.id) {
 					applyState(element, state);
 				}
 			}
