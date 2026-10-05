@@ -20,6 +20,9 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -1213,6 +1216,20 @@ suite('ChatListRenderer', () => {
 	}));
 
 	suite('shouldHideChatUserIdentity', () => {
+		test('hides cloud sandbox response identity without hiding user identity', () => {
+			const sessionResource = URI.from({
+				scheme: remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress('environment-one')), CLOUD_SANDBOX_AGENT_PROVIDER),
+				path: '/session-one',
+			});
+			assert.deepStrictEqual([
+				shouldHideChatUserIdentity('Copilot [Fix the issue with a long session title]', sessionResource, true, false, false),
+				shouldHideChatUserIdentity('Copilot [Renamed session]', sessionResource, true, false, false),
+				shouldHideChatUserIdentity('User', sessionResource, false, false, false),
+				shouldHideChatUserIdentity('Copilot [Remote host]', URI.from({ scheme: 'remote-test-authority-copilot' }), true, false, false),
+				shouldHideChatUserIdentity('User', URI.from({ scheme: 'remote-test-authority-copilot' }), false, false, false),
+			], [true, true, false, true, false]);
+		});
+
 		test('hides local Copilot and Agent Host Copilot response identity', () => {
 			assert.deepStrictEqual([
 				shouldHideChatUserIdentity('GitHub Copilot', URI.from({ scheme: 'vscode-chat-editor' }), true, false, false),

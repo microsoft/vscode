@@ -768,7 +768,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				return undefined;
 			}
 
-			const newBackendSession = this._toBackendUri(newSessionResource, provider);
+			let newBackendSession = this._toBackendUri(newSessionResource, provider);
 			// Imports materialize eagerly, so carry their history and model into the rebound session.
 			const imported = this._importConversationStore.take(newSessionResource);
 
@@ -823,6 +823,10 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 						this._restoreImportedConversation(newSessionResource, imported);
 						throw new Error(`Cannot safely retry rebound session ${newBackendSession.toString()} until its stale candidate is retired`);
 					}
+					if (newBackendSession.scheme === 'ahp-session') {
+						// Disposal permanently retires a standard session identity.
+						newBackendSession = this._toBackendUri(newSessionResource.with({ path: `/${generateUuid()}` }), provider);
+					}
 					continue;
 				}
 
@@ -832,7 +836,15 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				newEntry.usesWorkspaceRootSet = oldEntry.usesWorkspaceRootSet;
 				this._updateActiveClientScope(newEntry);
 				newEntry.generation = { backendSession: created, workingDirectory: targetWorkingDirectory, workingDirectories: targetWorkingDirectories };
-				this._entries.set(newSessionResource, newEntry);
+				const boundResource = newSessionResource.with({ path: created.path });
+				this._entries.set(boundResource, newEntry);
+				if (!isEqual(boundResource, newSessionResource)) {
+					const metadata = this._sessionCreationMetadata.get(newSessionResource);
+					if (metadata) {
+						this._sessionCreationMetadata.set(boundResource, metadata);
+						this._sessionCreationMetadata.delete(newSessionResource);
+					}
+				}
 				this._publishActiveClient(newEntry);
 				this._entries.delete(oldSessionResource);
 				oldEntry.disposed = true;
@@ -841,7 +853,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 				this._resolvedConfigRequestSeq.delete(oldSessionResource);
 				this._rebound.add(oldSessionResource);
 				// Notify only the real resource; notifying the old URI can recreate an orphan while the widget still uses it.
-				this._onDidChange.fire(newSessionResource);
+				this._onDidChange.fire(boundResource);
 
 				if (oldGeneration) {
 					// The temporary generation is in-memory only, so disposal is best-effort.

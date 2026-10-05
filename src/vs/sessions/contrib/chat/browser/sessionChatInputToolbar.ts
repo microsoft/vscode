@@ -13,7 +13,7 @@ import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -24,6 +24,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
@@ -41,6 +42,7 @@ import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHA
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
 import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
@@ -397,7 +399,17 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const pillsEnabled = constObservable(true);
 		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
-		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader, this._chat.read(reader)));
+		const autoAssociatePullRequests = derived(this, reader => {
+			const session = this._session.read(reader);
+			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
+			return provider && isAgentHostProvider(provider)
+				? observableFromEvent(this, provider.onDidChangeRootConfig, () => {
+					const config = provider.getRootConfig();
+					return (config?.values[AgentHostAutoAttachPullRequestsConfigKey] ?? config?.schema.properties[AgentHostAutoAttachPullRequestsConfigKey]?.default) !== false;
+				})
+				: constObservable(true);
+		});
+		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader, this._chat.read(reader), autoAssociatePullRequests.read(reader).read(reader)));
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.

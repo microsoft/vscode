@@ -55,29 +55,6 @@ The session's combined changes sometimes omit edits from one of its two chats, f
 scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
 ```
 
-### Copilot managed telemetry changes require a host restart
-
-An administrator can change telemetry policy while a user has an Agent Host running.
-After the runtime has exported a turn under the original policy, creating another
-session with a changed telemetry service name fails instead of starting the chat.
-Restarting the host lets the same new policy work, including message-content capture.
-
-- Test: `new sessions honor changed managed telemetry without restarting` in `providers/copilotOtelAgentHostE2E.integrationTest.ts`.
-- Scope: Copilot, record and replay. Reproduced locally on macOS with SDK `1.0.16` / runtime `1.0.90`; other platforms remain unvalidated.
-- Expected: the second session completes without a manual restart, and its decoded inference span contains its actual user message under service B, correlated using the provider session ID reported over AHP.
-- Observed: the second turn fails with `Managed telemetry conflicts with the already selected OTel configuration`. The runtime deliberately permits only one effective telemetry configuration per process; suppressing the error or retaining policy A is not a fix.
-- Controls: unchanged-policy sessions and an explicit host restart both pass with capture enabled. Runtime `1.0.89-3` from SDK `1.0.15-preview.3`, tested through the current host's runtime-path override, completes the first turn but exports no inference spans. It is not a green baseline for the full telemetry contract.
-- Expected failure: runs by default and accepts only the second session's known configuration-conflict error, tracked by [github/copilot-agent-runtime#24069](https://github.com/github/copilot-agent-runtime/pull/24069). A successful second turn and export fail the test as an unexpected pass, requiring removal of the marker. Setup, replay, and other failures remain failures.
-- After that recognized failure only, teardown permits unused future model responses; all observed requests must still match the recording.
-- Fixture provenance: the two trivial model responses were generated with an explicit restart between turns, then the restart was removed and the warm failure was confirmed in strict replay. The permanent warm scenario must never restart the host.
-- Reproduce:
-
-  ```bash
-  ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
-    --grep "new sessions honor changed managed telemetry without restarting"
-  ```
-
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
@@ -588,17 +565,6 @@ A client can synchronize a question's answer while the user edits it, then submi
 - Observed: Claude and Copilot do not forward the selected Banana answer to the model; Codex asks for input again instead of finishing the turn.
 - Gate: `context.runKnownIssueTests`. Explicit final-answer replacement and cancellation remain enabled.
 - Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'input drafts: submitting uses'`.
-
-### Workspace-less sessions cannot offer their workspace attachment tool
-
-A user can start a conversation without a workspace and later ask to attach a project folder. Copilot and Codex support workspace conversion, but the new session does not advertise the `set_workspace` tool, even after completing a normal turn. The agent therefore cannot start the attachment workflow.
-
-- Test: `workspace conversion: a workspaceless session advertises its attachment tool`.
-- Scope: observed on macOS with Copilot and Codex; gated on all platforms. Claude does not support workspace conversion.
-- Expected: the materialized workspace-less session advertises `set_workspace`.
-- Observed: `serverTools` omits the tool; a recording asking Copilot to attach a folder confirms that the model does not have it.
-- Gate: `context.runKnownIssueTests`.
-- Reproduce: `AGENT_HOST_RUN_KNOWN_ISSUES=1 AGENT_HOST_REPLAY_RECORD=1 ./scripts/test-integration.sh --runGlob '**/e2e/providers/*AgentHostE2E.integrationTest.js' --grep 'workspace conversion: a workspaceless session advertises'`.
 
 ### Workspace membership changes are lost after a host restart
 

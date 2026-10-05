@@ -399,7 +399,7 @@ export class AgentHostSessionListStore extends Disposable {
 		}
 
 		const rawId = AgentSession.id(session.session);
-		this._connectionsService.getSessionResource(session.session, this._options.connectionAuthority, provider);
+		this._connectionsService.registerSessionResource(session.session, this._options.connectionAuthority, provider);
 
 		return {
 			provider,
@@ -439,7 +439,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (!provider) {
 			return undefined;
 		}
-		this._connectionsService.getSessionResource(URI.parse(summary.resource), this._options.connectionAuthority, provider);
+		this._connectionsService.registerSessionResource(URI.parse(summary.resource), this._options.connectionAuthority, provider);
 		return {
 			provider,
 			rawId: AgentSession.id(summary.resource),

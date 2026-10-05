@@ -10,7 +10,7 @@ import { DefaultConfiguration } from '../../../../../../platform/configuration/c
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { WorkspaceConfigurationModelParser } from '../../../../../services/configuration/common/configurationModels.js';
 import { sandboxAllowNetworkMigration, terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -59,6 +59,8 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 30],
 			[AgentSandboxSettingId.AgentSandboxMcpServers, 40],
 			[AgentSandboxSettingId.AgentSandboxLspServers, 50],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 51],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 52],
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, 60],
 			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, 65],
 			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, 70],
@@ -84,6 +86,25 @@ suite('Terminal chat agent tools configuration', () => {
 			values.push(defaults.merge(parser.configurationModel).getValue<boolean>(settingId));
 		}
 		assert.deepStrictEqual(values, [true, false, true]);
+	});
+
+	test('presents managed credential denial without locking allowed or unmanaged preferences', () => {
+		const settings = [
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, COPILOT_SANDBOX_AUTH_GIT_KEY, 'Use your credentials for HTTPS git operations inside the sandbox.'],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, COPILOT_SANDBOX_AUTH_GH_KEY, 'Use your GitHub account for gh commands inside the sandbox.'],
+		] as const;
+		assert.deepStrictEqual(settings.map(([id, managedKey]) => {
+			const setting = terminalChatAgentToolsConfiguration[id];
+			return {
+				description: setting.markdownDescription,
+				policy: setting.policy,
+				presentation: [undefined, false, true].map(value => setting.managedSettingsPresentation?.(key => key === managedKey ? value : undefined)),
+			};
+		}), settings.map(([, , description]) => ({
+			description: `${description} Applies only to the Copilot Agent Host harness.`,
+			policy: undefined,
+			presentation: [undefined, false, undefined],
+		})));
 	});
 
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
@@ -180,6 +201,8 @@ suite('Terminal chat agent tools configuration', () => {
 			AgentSandboxSettingId.AgentSandboxAllowLocalNetwork,
 			AgentSandboxSettingId.AgentSandboxMcpServers,
 			AgentSandboxSettingId.AgentSandboxLspServers,
+			AgentSandboxSettingId.AgentSandboxAuthenticateGit,
+			AgentSandboxSettingId.AgentSandboxAuthenticateGh,
 			AgentSandboxSettingId.AgentSandboxAllowDevToolAccess,
 			AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
 		];
@@ -205,6 +228,8 @@ suite('Terminal chat agent tools configuration', () => {
 	for (const [key, defaultValue] of [
 		[AgentSandboxSettingId.AgentSandboxMcpServers, true],
 		[AgentSandboxSettingId.AgentSandboxLspServers, true],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, true],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, true],
 		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, true],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, false],
 	] as const) {

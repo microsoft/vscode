@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
-import { createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -86,6 +86,7 @@ interface ITurnTiming {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	telemetryContext: IAgentTelemetryContext | undefined;
 	readonly providerTelemetryContext: IAgentProviderTurnTelemetryContext | undefined;
+	codexModelProvider?: CodexModelProvider;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
 	readonly finishedModelCallIds: Set<string>;
@@ -191,6 +192,7 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined;
 	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
 	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
+	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
 	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined;
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
@@ -678,6 +680,13 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		return this._turnTimings.get(this._key(session, turnId))?.telemetryContext;
 	}
 
+	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing?.agent.id === 'codex') {
+			timing.codexModelProvider = provider;
+		}
+	}
+
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.providerTelemetryContext;
 	}
@@ -736,6 +745,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			clientContext: timing.clientContext,
 			telemetryContext: timing.telemetryContext,
 			providerTelemetryContext: timing.providerTelemetryContext,
+			codexModelProvider: timing.codexModelProvider,
 			provider: timing.agent.id,
 			session: timing.session,
 			turnId,

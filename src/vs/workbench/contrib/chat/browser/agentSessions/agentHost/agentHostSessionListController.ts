@@ -101,7 +101,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		const rawId = generateUuid();
 		this._sessionListStore.addPendingNewSession(this._provider, rawId);
 		const now = Date.now();
-		const item = this._makeItem(rawId, {
+		let item = this._makeItem(rawId, {
 			title: request.prompt.trim(),
 			status: SessionStatus.InProgress,
 			createdAt: now,
@@ -136,7 +136,30 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// untitled chat-input resource to the freshly-minted real resource so
 			// the provisional `getOrCreate` for the real resource seeds it.
 			this._importConversationStore.rename(request.untitledResource, item.resource);
-			await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
+			const rebound = await this._provisional.tryRebind(request.untitledResource, item.resource, this._provider);
+			const previousResource = item.resource;
+			// The final item is not published yet; retired allocations must not be reused.
+			const nextResource = previousResource.with({ path: rebound?.path ?? `/${generateUuid()}` });
+			if (nextResource.path !== previousResource.path) {
+				const pending = this._sessionListStore.isPendingNewSession(this._provider, rawId);
+				this._sessionListStore.clearPendingNewSession(this._provider, rawId);
+				if (pending || !rebound) {
+					this._sessionListStore.addPendingNewSession(this._provider, AgentSession.id(nextResource));
+				}
+				const currentDirectory = rebound
+					? this._provisional.getProvisionalWorkingDirectories(nextResource)?.[0]
+					: this._newSessionFolderService.getFolder(request.untitledResource)
+					?? this._newSessionFolderService.getDefaultFolder()
+					?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+				if (currentDirectory) {
+					this._newSessionFolderService.setFolder(nextResource, currentDirectory);
+				}
+				this._importConversationStore.rename(previousResource, nextResource);
+				if (metadata) {
+					this._provisional.setSessionCreationMetadata(nextResource, metadata);
+				}
+				item = { ...item, resource: nextResource };
+			}
 		}
 
 		return item;

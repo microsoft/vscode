@@ -45,8 +45,9 @@ export class CopilotSandboxDiagnostics extends Disposable {
 					const network = config.userPolicy?.network;
 					reasons = support.capabilities.filter(capability => !capability.supported && (
 						capability.name === 'shell'
+						|| capability.name === 'filesystem_enumeration'
 						|| capability.name === 'network' && network?.allowOutbound === true
-						|| capability.name === 'network_filtering' && network?.proxy !== undefined
+						|| capability.name === 'network_filtering'
 						|| capability.name === 'denied_paths' && !!config.userPolicy?.filesystem?.deniedPaths?.length
 					)).map(capability => capability.reason || localize('copilot.sandbox.capabilityUnavailable', "The sandbox capability '{0}' is unavailable on this host.", capability.name));
 				}

@@ -86,8 +86,8 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
-	readonly handshakeState = observableValue(this, {
-		protocolVersion: '1',
+	readonly handshakeState = observableValue<InitializeResult>(this, {
+		protocolVersion: PROTOCOL_VERSION,
 		serverSeq: 0,
 		snapshots: [],
 		_meta: { 'vscode.agentHost': true } as Record<string, unknown>,
@@ -268,9 +268,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { session?: URI; provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number; status?: ProtocolSessionStatus; _meta?: IAgentSessionMetadata['_meta'] }): IAgentSessionMetadata {
 	return {
-		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
+		session: opts?.session ?? AgentSession.uri(opts?.provider ?? 'copilotcli', id),
+		...(opts?.session ? { provider: opts.provider ?? 'copilotcli' } : {}),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
@@ -322,7 +323,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
 		findSessionResource: backend => sessionResources.get(backend),
 		onDidChangeSessionResolution: sessionResourcesChanged.event,
-		getSessionResource: (backend, authority, provider) => {
+		registerSessionResource: (backend, authority, provider) => {
 			const resource = backend.with({ scheme: `remote-${authority}-${provider ?? backend.scheme}` });
 			if (!sessionResources.has(backend)) {
 				sessionResources.set(backend, resource);
@@ -330,6 +331,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			}
 			return resource;
 		},
+		getSessionResource: backend => sessionResources.get(backend),
 		registerSessionResolutionPolicy: (authority, policy) => {
 			overrides?.sessionResolutionPolicies?.push({ authority, policy });
 			return Disposable.None;
@@ -411,9 +413,9 @@ async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, s
 	});
 }
 
-function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; createdAt?: string; modifiedAt?: string; metadata?: Record<string, unknown>; status?: ProtocolSessionStatus }): void {
+function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { session?: URI; provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string; createdAt?: string; modifiedAt?: string; metadata?: Record<string, unknown>; status?: ProtocolSessionStatus }): void {
 	const provider = opts?.provider ?? 'copilotcli';
-	const sessionUri = AgentSession.uri(provider, rawId);
+	const sessionUri = opts?.session ?? AgentSession.uri(provider, rawId);
 	connection.fireNotification({
 		channel: 'ahp-root://',
 		type: NotificationType.SessionAdded,
@@ -1387,7 +1389,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			const handle = '00000000-0000-4000-8000-000000000001';
 			const hostConnection = new class extends MockAgentConnection {
 				override readonly initializeResult = constObservable({
-					protocolVersion: '1', serverSeq: 0, snapshots: [],
+					protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [],
 					automations: { create: {}, schedules: {}, runCancellation: {} },
 					_meta: getAgentHostExtensionInitializeResultMeta(),
 				});
@@ -3600,7 +3602,7 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		const importedSessions: URI[] = [];
 		const connection = disposables.add(new class extends MockAgentConnection {
 			override readonly initializeResult = constObservable({
-				protocolVersion: '1', serverSeq: 0, snapshots: [],
+				protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [],
 				automations: { create: {}, schedules: {}, runCancellation: {} },
 				_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, true),
 			});
@@ -3719,6 +3721,37 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 			storageService,
 		}) as CloudSandboxSessionsProvider;
 	}
+
+	test('resolves initial configuration before the host knows the provisional session', async () => {
+		const provider = createSandboxProvider();
+		provider.seedProvisionalSession(metadata);
+		provider.setConnection(connection);
+		connection.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'] },
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] },
+				}
+			},
+			values: { mode: 'plan', approvalMode: 'manual' },
+		};
+		const session = provider.getCachedSession('discovered-session')!;
+		const values = await provider.resolveInitialSessionConfig(session.sessionId, { mode: 'plan', approvalMode: 'manual' }, CancellationToken.None);
+		assert.deepStrictEqual({ values, created: connection.createdSessionUris, dispatched: connection.dispatchedActions }, {
+			values: { mode: 'plan', approvalMode: 'manual' }, created: [], dispatched: [],
+		});
+	});
+
+	test('rejects a host that cannot apply initial configuration', async () => {
+		const provider = createSandboxProvider();
+		provider.seedProvisionalSession(metadata);
+		provider.setConnection(connection);
+		connection.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan'] } } },
+			values: { mode: 'interactive' },
+		};
+		await assert.rejects(provider.resolveInitialSessionConfig(provider.getCachedSession('discovered-session')!.sessionId, { mode: 'plan' }, CancellationToken.None), /could not apply/);
+	});
 
 	test('opts out of workspace selection while retaining workspace resolution', () => {
 		const provider = createSandboxProvider();
@@ -4144,13 +4177,19 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 
 	test('fresh discovery replaces a cached activity placeholder without changing user flags', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storage = disposables.add(new InMemoryStorageService());
-		const metadata = createSession('discovered', {
-			summary: 'Cached title',
-			modifiedTime: 1_000,
-			status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
-			workingDirectory: URI.file('/remote/project'),
-		});
+		const metadata = {
+			...createSession('discovered', {
+				summary: 'Cached title',
+				modifiedTime: 1_000,
+				status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead,
+				workingDirectory: URI.file('/remote/project'),
+			}),
+			session: AgentSession.uri('ahp-session', 'discovered'),
+			provider: 'copilot',
+		};
 		const first = sandbox(storage);
+		assert.ok(first instanceof CloudSandboxSessionsProvider);
+		first.setTaskArchiveHandler('discovered', async () => { });
 		first.seedSessions([metadata]);
 		await first.archiveSession(first.getSessions()[0].sessionId);
 		await storage.flush();
@@ -4245,14 +4284,14 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 
 suite('CloudSandboxSessionsProvider renaming', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Old title' });
-	const backendUri = metadata.session.with({ scheme: 'ahp-session' });
+	const backendUri = AgentSession.uri('ahp-session', 'sandbox-session');
+	const metadata = { ...createSession('sandbox-session', { provider: 'copilot', summary: 'Old title' }), session: backendUri, provider: 'copilot' };
 
 	class TestSandboxProvider extends CloudSandboxSessionsProvider {
 		refresh(): Promise<void> { return this._refreshSessions(); }
 	}
 
-	function createSandbox(): { provider: TestSandboxProvider; connection: MockAgentConnection; renamed: string[] } {
+	function createSandbox(provisional = false): { provider: TestSandboxProvider; connection: MockAgentConnection; renamed: string[] } {
 		const connection = store.add(new MockAgentConnection());
 		connection.addSession({ ...metadata, session: backendUri });
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
@@ -4261,8 +4300,46 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		}) as TestSandboxProvider;
 		const renamed: string[] = [];
 		provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
-		provider.seedSessions([metadata], { updateExisting: true });
+		if (provisional) {
+			provider.seedProvisionalSession(metadata);
+		} else {
+			provider.seedSessions([metadata], { updateExisting: true });
+		}
 		return { provider, connection, renamed };
+	}
+
+	for (const nativeProvider of ['copilotcli', 'codex', 'claude']) {
+		test(`task rename and removal retain a colliding ${nativeProvider} session`, async () => {
+			const connection = store.add(new MockAgentConnection());
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:rename-test', ctor: TestSandboxProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' }, noConnection: true,
+			}) as TestSandboxProvider;
+			const renamed: string[] = [];
+			provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
+			provider.seedSessions([createSession('sandbox-session', { provider: nativeProvider }), metadata]);
+			const other = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === nativeProvider);
+			const task = provider.getCachedSession('sandbox-session');
+			assert.ok(other && task);
+			const otherTitle = other.title.get();
+
+			await assert.rejects(provider.renameSession(other.sessionId, 'Other title'), /Connect to the environment/);
+			provider.removeDeletedSession('sandbox-session');
+
+			assert.deepStrictEqual({
+				taskBackend: task instanceof AgentHostSessionAdapter ? task.backendUri.toString() : undefined,
+				renamed,
+				cachedTask: provider.getCachedSession('sandbox-session'),
+				remaining: provider.getSessions().map(session => session.sessionId),
+				otherTitleUnchanged: other.title.get() === otherTitle,
+			}, {
+				taskBackend: backendUri.toString(),
+				renamed: [],
+				cachedTask: undefined,
+				remaining: [other.sessionId],
+				otherTitleUnchanged: true,
+			});
+		});
 	}
 
 	test('renames a disconnected task and its default chat without connecting', async () => {
@@ -4320,6 +4397,23 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		const session = provider.getSessions()[0];
 		await assert.rejects(provider.renameSession(session.sessionId, 'New title'), /task rename rejected/);
 		assert.deepStrictEqual({ title: session.title.get(), dispatched: connection.dispatchedActions }, { title: 'Old title', dispatched: [] });
+	});
+
+	test('does not queue a provisional rename rejected by Mission Control', async () => {
+		const { provider, connection } = createSandbox(true);
+		const session = provider.getCachedSession('sandbox-session')!;
+		provider.setTaskRenameHandler('sandbox-session', async () => { throw new Error('task rename rejected'); });
+		await assert.rejects(provider.renameSession(session.sessionId, 'New title'), /task rename rejected/);
+		provider.setConnection(connection);
+		await provider.refresh();
+
+		assert.deepStrictEqual({
+			title: session.title.get(),
+			dispatched: connection.dispatchedActions,
+		}, {
+			title: 'Old title',
+			dispatched: [],
+		});
 	});
 
 	test('does not update a session deleted while task rename is in flight', async () => {
@@ -4515,8 +4609,12 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 
 suite('CloudSandboxSessionsProvider archiving', () => {
 	const disposables = new DisposableStore();
-	const metadata = createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' });
 	const backendResource = AgentSession.uri('ahp-session', 'sandbox-session');
+	const metadata = {
+		...createSession('sandbox-session', { provider: 'copilot', summary: 'Sandbox Session' }),
+		session: backendResource,
+		provider: 'copilot',
+	};
 	let connection: MockAgentConnection;
 
 	setup(() => {
@@ -4529,19 +4627,50 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void> }): RemoteAgentHostSessionsProvider {
-		return createProvider(disposables, connection, {
+	function createSandboxProvider(overrides?: { storageService?: IStorageService; connectOnDemand?: () => Promise<void>; setArchived?: (archived: boolean) => Promise<void> }): CloudSandboxSessionsProvider {
+		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:archive-test',
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 			ctor: CloudSandboxSessionsProvider,
 			noConnection: true,
 			...overrides,
 		});
+		assert.ok(provider instanceof CloudSandboxSessionsProvider);
+		provider.setTaskArchiveHandler('sandbox-session', overrides?.setArchived ?? (async () => { }));
+		return provider;
 	}
 
-	test('archives and unarchives without connecting or dispatching host actions', async () => {
+	for (const nativeProvider of ['copilotcli', 'codex', 'claude']) {
+		test(`task archive ownership does not claim a colliding ${nativeProvider} session`, async () => {
+			const taskArchives: boolean[] = [];
+			const provider = createSandboxProvider({ setArchived: async archived => { taskArchives.push(archived); } });
+			provider.seedSessions([metadata, createSession('sandbox-session', { provider: nativeProvider })]);
+			const other = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === nativeProvider);
+			const task = provider.getSessions().find(session => session instanceof AgentHostSessionAdapter && session.agentProvider === 'copilot');
+			assert.ok(other && task);
+
+			await assert.rejects(provider.archiveSession(other.sessionId), /Connect to the environment/);
+			await provider.archiveSession(task.sessionId);
+			const archived = task.isArchived.get();
+			provider.setSessionArchived('sandbox-session', false);
+
+			assert.deepStrictEqual({
+				taskArchives,
+				archived,
+				unarchived: task.isArchived.get(),
+				otherArchived: other.isArchived.get(),
+				hostActions: connection.dispatchedActions,
+			}, { taskArchives: [true], archived: true, unarchived: false, otherArchived: false, hostActions: [] });
+		});
+	}
+
+	test('archives and unarchives the owning task without connecting or dispatching host actions', async () => {
 		let connectCalls = 0;
-		const provider = createSandboxProvider({ connectOnDemand: async () => { connectCalls++; } });
+		const taskArchives: boolean[] = [];
+		const provider = createSandboxProvider({
+			connectOnDemand: async () => { connectCalls++; },
+			setArchived: async archived => { taskArchives.push(archived); },
+		});
 		provider.seedSessions([metadata]);
 		const session = provider.getSessions()[0];
 		const archivedStates: boolean[] = [];
@@ -4554,12 +4683,125 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 			archivedStates,
 			connectCalls,
 			hostActions: connection.dispatchedActions,
+			taskArchives,
 		}, {
 			archivedStates: [false, true, false],
 			connectCalls: 0,
 			hostActions: [],
+			taskArchives: [true, false],
 		});
 	});
+
+	test('retains archive state when Mission Control rejects a mutation', async () => {
+		const provider = createSandboxProvider({ setArchived: async () => { throw new Error('archive rejected'); } });
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.archiveSession(session.sessionId), /archive rejected/);
+		const afterArchive = session.isArchived.get();
+		provider.setSessionArchived('sandbox-session', true);
+		await assert.rejects(provider.unarchiveSession(session.sessionId), /archive rejected/);
+		assert.deepStrictEqual({ afterArchive, afterUnarchive: session.isArchived.get() }, { afterArchive: false, afterUnarchive: true });
+	});
+
+	test('serializes task mutations and changes local state only after success', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const mutations: boolean[] = [];
+		const provider = createSandboxProvider({
+			setArchived: async archived => {
+				mutations.push(archived);
+				if (archived) {
+					await entered.complete();
+					await pending.p;
+				}
+			}
+		});
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const archive = provider.archiveSession(session.sessionId);
+		await entered.p;
+		const unarchive = provider.unarchiveSession(session.sessionId);
+		const before = { archived: session.isArchived.get(), mutations: [...mutations] };
+		await pending.complete();
+		await Promise.all([archive, unarchive]);
+		assert.deepStrictEqual({ before, after: { archived: session.isArchived.get(), mutations } }, {
+			before: { archived: false, mutations: [true] },
+			after: { archived: false, mutations: [true, false] },
+		});
+	});
+
+	test('cancels queued task mutations when the provider is disposed', async () => {
+		const pending = new DeferredPromise<void>();
+		const entered = new DeferredPromise<void>();
+		const mutations: boolean[] = [];
+		const provider = createSandboxProvider({
+			setArchived: async archived => {
+				mutations.push(archived);
+				await entered.complete();
+				await pending.p;
+			},
+		});
+		provider.seedSessions([metadata]);
+		const session = provider.getSessions()[0];
+		const archive = assert.rejects(provider.archiveSession(session.sessionId), CancellationError);
+		await entered.p;
+		const unarchive = assert.rejects(provider.unarchiveSession(session.sessionId), CancellationError);
+		provider.dispose();
+		await pending.complete();
+		await Promise.all([archive, unarchive]);
+		assert.deepStrictEqual(mutations, [true]);
+	});
+
+	test('applies archive and unarchive discoveries from another client despite conflicting host state', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		provider.seedSessions([metadata]);
+		connection.addSession({ ...metadata, session: backendResource, status: ProtocolSessionStatus.Idle });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.setSessionArchived('sandbox-session', true);
+		connection.fireNotification({
+			channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged,
+			session: backendResource.toString(), changes: { status: ProtocolSessionStatus.Idle },
+		});
+		const archived = session.isArchived.get();
+		provider.setSessionArchived('sandbox-session', false);
+		connection.fireAction({
+			channel: backendResource.toString(),
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 1, origin: undefined,
+		});
+		assert.deepStrictEqual({ archived, unarchived: session.isArchived.get() }, { archived: true, unarchived: false });
+	}));
+
+	test('rejects offline mutations for sessions without an owning task', async () => {
+		const provider = createSandboxProvider();
+		provider.seedSessions([createSession('additional-session')]);
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.archiveSession(session.sessionId), /Connect to the environment/);
+		assert.strictEqual(session.isArchived.get(), false);
+	});
+
+	test('uses AHP for additional sessions sharing the sandbox', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createSandboxProvider();
+		connection.addSession({ ...createSession('additional-session', { provider: 'copilot' }), session: AgentSession.uri('ahp-session', 'additional-session') });
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.archiveSession(session.sessionId);
+		connection.fireAction({
+			channel: 'ahp-session:/additional-session',
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: false },
+			serverSeq: 1, origin: undefined,
+		});
+		assert.deepStrictEqual({
+			archived: session.isArchived.get(),
+			actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+		}, {
+			archived: false,
+			actions: [{ channel: 'ahp-session:/additional-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } }],
+		});
+	}));
 
 	test('restores local archive and unarchive choices through rediscovery and reconnect', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
@@ -4743,12 +4985,127 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		await timeout(0);
 	}
 
+	for (const source of ['session-added notification', 'host listing'] as const) {
+		test(`a provisional rename reaches the host after delayed creation via ${source}`, async () => {
+			const rawId = 'delayed-title';
+			let hostTitle: string | undefined;
+			const rejectedTitles: string[] = [];
+			connection = new class extends MockAgentConnection {
+				override dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+					if (action.type === ActionType.SessionTitleChanged) {
+						if (hostTitle === undefined) {
+							rejectedTitles.push(action.title);
+						} else {
+							hostTitle = action.title;
+							this.addSession(createSession(rawId, { provider: 'ahp-session', summary: hostTitle }));
+						}
+					}
+					super.dispatch(channel, action);
+				}
+			}();
+			const provider = createProvider(disposables, connection, {
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+			}) as CloudSandboxSessionsProvider;
+			const metadata = createSession(rawId, { provider: 'copilot', summary: 'owner/repository' });
+			provider.seedProvisionalSession(metadata);
+			const taskRenames: string[] = [];
+			provider.setTaskRenameHandler(rawId, async title => { taskRenames.push(title); });
+			provider.setConnection(connection);
+			await timeout(0);
+			const session = provider.getCachedSession(rawId)!;
+
+			await provider.renameSession(session.sessionId, 'Fix the login bug');
+			provider.seedSessions([{ ...metadata, summary: 'Discovery title', modifiedTime: metadata.modifiedTime + 1 }], { updateExisting: true });
+			const beforeHostCreation = {
+				localTitle: session.title.get(),
+				actions: [...connection.dispatchedActions],
+				taskRenames: [...taskRenames],
+			};
+
+			hostTitle = 'main';
+			connection.addSession(createSession(rawId, { provider: 'ahp-session', summary: hostTitle }));
+			if (source === 'session-added notification') {
+				fireSessionAdded(connection, rawId, { provider: 'ahp-session', title: hostTitle });
+			} else {
+				await refreshViaTurnComplete(connection, rawId);
+			}
+			await refreshViaTurnComplete(connection, rawId);
+
+			assert.deepStrictEqual({
+				beforeHostCreation,
+				localTitle: session.title.get(),
+				hostTitle,
+				rejectedTitles,
+				taskRenames,
+				actions: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			}, {
+				beforeHostCreation: { localTitle: 'Fix the login bug', actions: [], taskRenames: ['Fix the login bug'] },
+				localTitle: 'Fix the login bug',
+				hostTitle: 'Fix the login bug',
+				rejectedTitles: [],
+				taskRenames: ['Fix the login bug'],
+				actions: [{ channel: `ahp-session:/${rawId}`, action: { type: ActionType.SessionTitleChanged, title: 'Fix the login bug' } }],
+			});
+		});
+	}
+
+	test('a newer rename replaces the queued initial title before host creation', async () => {
+		const provider = createSandboxProvider(disposables, connection, { noConnection: true });
+		provider.seedProvisionalSession(createSession('renamed-before-create', { session: AgentSession.uri('ahp-session', 'renamed-before-create') }));
+		const session = provider.getCachedSession('renamed-before-create')!;
+
+		await provider.renameSession(session.sessionId, 'First prompt');
+		await provider.renameSession(session.sessionId, 'My chosen title');
+		provider.setConnection(connection);
+		await timeout(0);
+		fireSessionAdded(connection, 'renamed-before-create', { session: AgentSession.uri('ahp-session', 'renamed-before-create'), title: 'main' });
+
+		assert.deepStrictEqual({
+			title: session.title.get(),
+			actions: connection.dispatchedActions.map(({ action }) => action),
+		}, {
+			title: 'My chosen title',
+			actions: [{ type: ActionType.SessionTitleChanged, title: 'My chosen title' }],
+		});
+	});
+
+	for (const removal of ['local deletion', 'host removal'] as const) {
+		test(`a queued title is discarded on ${removal}`, async () => {
+			const provider = createSandboxProvider(disposables, connection, { noConnection: true });
+			const metadata = createSession('removed-before-create', { session: AgentSession.uri('ahp-session', 'removed-before-create') });
+			provider.seedProvisionalSession(metadata);
+			const session = provider.getCachedSession('removed-before-create')!;
+			await provider.renameSession(session.sessionId, 'First prompt');
+			provider.setConnection(connection);
+			await timeout(0);
+
+			if (removal === 'local deletion') {
+				provider.removeDeletedSession('removed-before-create');
+			} else {
+				fireSessionRemoved(connection, 'removed-before-create', 'ahp-session');
+			}
+			provider.seedSessions([metadata]);
+			fireSessionAdded(connection, 'removed-before-create', { session: AgentSession.uri('ahp-session', 'removed-before-create'), title: 'main' });
+
+			assert.deepStrictEqual({
+				title: provider.getCachedSession('removed-before-create')?.title.get(),
+				actions: connection.dispatchedActions,
+			}, {
+				title: 'main',
+				actions: [],
+			});
+		});
+	}
+
 	test('a provisional session survives a host listing that does not know it yet', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// The first listing after connecting can legitimately omit a just-minted session.
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createSandboxProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'provisional-1'),
+			session: AgentSession.uri('ahp-session', 'provisional-1'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Just provisioned',
@@ -4759,7 +5116,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		const survivedUnknown = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
 		// Once the host knows it, it reconciles like any other session.
-		connection.addSession(createSession('provisional-1', { summary: 'Just provisioned' }));
+		connection.addSession({ ...createSession('provisional-1', { summary: 'Just provisioned' }), session: AgentSession.uri('ahp-session', 'provisional-1'), provider: 'copilotcli' });
 		await refreshViaTurnComplete(connection, 'other-1');
 		const afterHostKnows = provider.getSessions().map((s: ISession) => AgentSession.id(s.resource)).sort();
 
@@ -4773,7 +5130,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		connection.addSession(createSession('other-1', { summary: 'Someone else' }));
 		const provider = createSandboxProvider(disposables, connection, { isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'never-listed'),
+			session: AgentSession.uri('ahp-session', 'never-listed'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Never materialized',
@@ -4808,7 +5166,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		// the sandbox is awake.
 		const provider = createSandboxProvider(disposables, connection, { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'slow-wake'),
+			session: AgentSession.uri('ahp-session', 'slow-wake'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Slow to wake',
@@ -4828,7 +5187,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		disposables.add(provider.onDidChangeSessions(e => announced.push(e.added.map(s => s.sessionId))));
 
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'withheld-1'),
+			session: AgentSession.uri('ahp-session', 'withheld-1'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Withheld Session',
@@ -4858,7 +5218,8 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 	test('publishing with announce:false lists the session without firing its own event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createSandboxProvider(disposables, new MockAgentConnection(), { noConnection: true, isWebPlatform: false, omitHostFromWorkspaceLabel: true });
 		provider.seedProvisionalSession({
-			session: AgentSession.uri('copilotcli', 'withheld-2'),
+			session: AgentSession.uri('ahp-session', 'withheld-2'),
+			provider: 'copilotcli',
 			startTime: 0,
 			modifiedTime: 0,
 			summary: 'Withheld Session',

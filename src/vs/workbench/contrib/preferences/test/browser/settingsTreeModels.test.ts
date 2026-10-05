@@ -664,6 +664,22 @@ suite('SettingsTree', () => {
 		});
 	});
 
+	test('settingKeyToDisplayFormat - sandbox credential authentication', () => {
+		for (const [key, label] of [
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 'Authenticate git'],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 'Authenticate gh'],
+		] as const) {
+			assert.deepStrictEqual(
+				['', 'chat.agent.sandbox', 'chat.agent.sandbox.credentials'].map(group => settingKeyToDisplayFormat(key, group)),
+				[
+					{ category: 'Chat › Agent › Sandbox › Credentials', label },
+					{ category: 'Credentials', label },
+					{ category: '', label },
+				],
+			);
+		}
+	});
+
 	test('settingKeyToDisplayFormat - sandbox user-configured paths', () => {
 		assert.deepStrictEqual(
 			['', 'chat.agent.sandbox', 'chat.agent.sandbox.fileSystem'].map(group =>

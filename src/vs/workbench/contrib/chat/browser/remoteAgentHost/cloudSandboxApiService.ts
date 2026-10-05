@@ -10,6 +10,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Emitter } from '../../../../../base/common/event.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
@@ -26,9 +27,12 @@ import {
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 	IMissionControlEnvironment,
+	ICloudSandboxModelCatalog,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionModelInfo } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -80,6 +84,20 @@ interface ICachedSandboxTask {
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
+
+interface ICloudModel {
+	readonly id: string;
+	readonly name: string;
+	readonly model_picker_enabled?: boolean;
+	readonly policy?: { readonly state?: string };
+	readonly billing?: unknown;
+	readonly model_picker_category?: string;
+	readonly model_picker_price_category?: string;
+	readonly capabilities?: {
+		readonly limits?: { readonly max_context_window_tokens?: number; readonly max_prompt_tokens?: number; readonly max_output_tokens?: number };
+		readonly supports?: { readonly vision?: boolean; readonly reasoning_effort?: readonly string[] };
+	};
+}
 
 function taskSessionStatus(state: string | undefined, logService: ILogService): SessionStatus | undefined {
 	switch (state) {
@@ -340,7 +358,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		let checkpoint: number | undefined;
 		let latestUpdate: number | undefined;
 		// Separate repository scopes include workspace-less sandboxes as well as repository sessions.
-		for (const withRepository of [true, false]) {
+		for (const { withRepository, archived } of [
+			{ withRepository: true, archived: false }, { withRepository: false, archived: false },
+			{ withRepository: true, archived: true }, { withRepository: false, archived: true },
+		]) {
 			for (let page = 1; page <= DISCOVERY_TASK_PAGE_LIMIT; page++) {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -351,6 +372,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 					sort: 'updated_at',
 					direction: 'desc',
 					with_repo: String(withRepository),
+					is_archived: String(archived),
 					...(since ? { since, include_environment_kinds: 'managed-sandbox' } : {}),
 				};
 				try {
@@ -403,7 +425,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const removedTaskIds: string[] = [];
 		const sandboxTasks: ITaskSummary[] = [];
 		for (const task of tasks.values()) {
-			if (!task.archived_at && isCloudSandboxTask(task)) {
+			if (isCloudSandboxTask(task)) {
 				sandboxTasks.push(task);
 			} else {
 				if (cache.has(task.id) || isCloudSandboxTask(task)) {
@@ -422,16 +444,11 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					let cached = cache.get(task.id);
-					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at) {
+					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at || task.archived_at !== cached.summary.archived_at) {
 						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
 						const full = await this._readJson<ITaskDetail>(context);
 						if (!full) {
 							throw new Error('getTask returned no task');
-						}
-						if (full.archived_at) {
-							removedTaskIds.push(task.id);
-							cache.delete(task.id);
-							return undefined;
 						}
 						const binding = getTaskEnvironmentBinding(full);
 						if (!binding && cached?.session) {
@@ -450,6 +467,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 								updatedAt: full.updated_at ?? task.updated_at,
 								...(status !== undefined ? { status } : {}),
+								...(full.archived_at ? { isArchived: true } : {}),
 							} : undefined,
 						};
 					}
@@ -599,6 +617,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				needsRefresh: true,
 			});
 		}
+		this._discoveryGeneration++;
+	}
+
+	async setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void> {
+		const action = archived ? 'archive' : 'unarchive';
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}/${action}`, `mc.taskClient.${action}`, archived ? 'archiveTask' : 'unarchiveTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'POST');
+		if (!isSuccess(context)) {
+			await this._throwForStatus(`task ${action}`, context);
+		}
+		this._discoveredTasks.delete(taskId);
 		this._discoveryGeneration++;
 	}
 
@@ -829,6 +860,54 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 */
 	private _tasksBaseUrl(): string {
 		return `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents`;
+	}
+
+	async listModels(token: CancellationToken): Promise<ICloudSandboxModelCatalog> {
+		const context = await this._request(`${this._tasksBaseUrl()}/swe/models`, 'mc.models.list', 'listModels', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, DISCOVERY_TIMEOUT_MS);
+		if (!isSuccess(context)) {
+			await this._throwForStatus('model catalog', context);
+		}
+		const catalog = await this._readJson<{ data?: ICloudModel[]; default_model?: string }>(context);
+		if (!catalog || !Array.isArray(catalog.data) || (catalog.default_model !== undefined && typeof catalog.default_model !== 'string')) {
+			throw new Error('Mission Control returned an invalid model catalog.');
+		}
+		const models: SessionModelInfo[] = [];
+		for (const model of catalog.data) {
+			const efforts = model?.capabilities?.supports?.reasoning_effort;
+			if (!model || typeof model.id !== 'string' || !model.id || typeof model.name !== 'string'
+				|| (efforts !== undefined && (!Array.isArray(efforts) || !efforts.every(value => typeof value === 'string')))) {
+				throw new Error('Mission Control returned invalid model metadata.');
+			}
+			if (model.model_picker_enabled === false || model.policy?.state === 'disabled') {
+				continue;
+			}
+			models.push({
+				id: model.id,
+				name: model.name,
+				provider: 'copilot',
+				maxContextWindow: model.capabilities?.limits?.max_context_window_tokens,
+				maxPromptTokens: model.capabilities?.limits?.max_prompt_tokens,
+				maxOutputTokens: model.capabilities?.limits?.max_output_tokens,
+				supportsVision: model.capabilities?.supports?.vision,
+				_meta: createPricingMetaFromBilling(normalizeCAPIBilling(model.billing), model.model_picker_price_category, model.model_picker_category),
+				...(efforts?.length ? {
+					configSchema: {
+						type: 'object',
+						properties: {
+							reasoningEffort: {
+								type: 'string',
+								title: localize('cloudSandbox.reasoningEffort', "Reasoning Effort"),
+								enum: [...efforts],
+							},
+						},
+					},
+				} : {}),
+			});
+		}
+		return { models, defaultModel: catalog.default_model };
 	}
 
 	private async _readJson<T>(context: IRequestContext): Promise<T | undefined> {

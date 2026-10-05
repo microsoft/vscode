@@ -6,6 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
+import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
@@ -15,7 +16,7 @@ import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '.
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, isChatInSessionReadAggregate, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitDataValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
 
 export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
@@ -107,6 +108,7 @@ const sessionMetadata = {
 	gitData: parsedSessionMetadataKey(META_GIT_DATA_STATE, readPersistedGitData),
 	sourceControl: parsedSessionMetadataKey(META_SOURCE_CONTROL_STATE, readPersistedSourceControlState),
 	devContainerWorktree: parsedSessionMetadataKey(AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readPersistedDevContainerWorktree),
+	workingDirectories: parsedSessionMetadataKey(SESSION_WORKING_DIRECTORIES_KEY, parseSessionWorkingDirectories),
 } as const;
 
 const sessionMetadataKeys: readonly ISessionMetadataKey[] = Object.values(sessionMetadata);
@@ -227,6 +229,7 @@ export class AgentHostCatalogSourceResolver {
 		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
 			? persistedDevContainerWorktree
 			: readAgentDevContainerWorktreeMetadata(state.meta) ?? persistedDevContainerWorktree;
+		const codexModel = readCodexSessionModel({ _meta: state.meta });
 		const meta: AgentHostCatalogMetadata = {
 			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
 			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
@@ -242,6 +245,7 @@ export class AgentHostCatalogSourceResolver {
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
 			...(devContainerWorktree ? { [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: devContainerWorktree } : undefined),
+			...(codexModel ? { [CODEX_SESSION_MODEL_META_KEY]: { id: codexModel.id } } : undefined),
 		};
 		const data: AgentHostCatalogData = {
 			modifiedTime: state.modifiedTime,
@@ -253,7 +257,7 @@ export class AgentHostCatalogSourceResolver {
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
 			isChatBacking: !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session),
-			workingDirectories: state.workingDirectories,
+			workingDirectories: (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
 			chats: state.chats.map((chat, order) => {
@@ -301,6 +305,9 @@ export class AgentHostCatalogSourceResolver {
 			[SESSION_META_FOLDER_PICKER_KEY]: folderPicker ? JSON.stringify(folderPicker) : '',
 			[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
 		};
+		if (sessionMetadata.workingDirectories.has(metadata)) {
+			legacyMetadata[SESSION_WORKING_DIRECTORIES_KEY] = JSON.stringify(data.workingDirectories);
+		}
 		if (creationReference || metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_CREATED_BY_SESSION_DB_KEY] = creationReference ? JSON.stringify(creationReference) : '';
 		}

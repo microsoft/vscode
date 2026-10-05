@@ -113,6 +113,7 @@ export interface SandboxSeatbeltPolicy {
  *
  * All platforms share enablement and user-configured paths; legacy per-OS paths are ignored.
  * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
+ * Credential authentication defaults to enabled and uses the effective Copilot-only preferences.
  *
  * `extraReadonlyPaths` grants read access to session attachments and generated
  * shell init scripts when the effective sandbox is applied before each turn.
@@ -168,8 +169,8 @@ export function buildSandboxConfigForSdk(
 		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
 		...(allowBypass !== undefined ? { allowBypass } : {}),
 		auth: {
-			git: true,
-			gh: true,
+			git: sandbox?.[AgentHostSandboxKey.AuthenticateGit] ?? true,
+			gh: sandbox?.[AgentHostSandboxKey.AuthenticateGh] ?? true,
 		},
 		userPolicy: {
 			...(denied.size || readonly.size || readwrite.size ? {
