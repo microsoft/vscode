@@ -191,11 +191,23 @@ export class CodeSearchChunkSearch extends Disposable {
 			}));
 		}
 
-		this._register(Event.any(
-			this._authenticationService.onDidAdoAuthenticationChange,
-			this._adoCodeSearchService.onDidChangeIndexState
-		)(() => {
-			this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoChange'));
+		// Refresh ADO repository authorization when the session or its account/issuer identity changes, deduping no-op token refreshes.
+		{
+			let lastAnyAdoSession = this._authenticationService.anyAdoSession;
+			this._register(this._authenticationService.onDidAdoAuthenticationChange(() => {
+				const anySession = this._authenticationService.anyAdoSession;
+				if (anySession?.id === lastAnyAdoSession?.id
+					&& authenticationSessionIdentityEquals(anySession, lastAnyAdoSession)) {
+					return;
+				}
+				lastAnyAdoSession = anySession;
+				this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoAuthenticationChange'));
+			}));
+		}
+
+		// Always refresh on a real ADO index state change; never dedup this by session identity.
+		this._register(this._adoCodeSearchService.onDidChangeIndexState(() => {
+			this.updateRepoStatuses('ado', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAdoIndexStateChange'));
 		}));
 
 		this._register(Event.any(

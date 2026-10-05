@@ -18,7 +18,7 @@ import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import { EmbeddingType } from '../../../embeddings/common/embeddingsComputer';
-import { GithubRepoId, IGitService } from '../../../git/common/gitService';
+import { AdoRepoId, GithubRepoId, IGitService } from '../../../git/common/gitService';
 import { ILogService, LogServiceImpl } from '../../../log/common/logService';
 import { IAdoCodeSearchService } from '../../../remoteCodeSearch/common/adoCodeSearchService';
 import { IGithubCodeSearchService } from '../../../remoteCodeSearch/common/githubCodeSearchService';
@@ -46,9 +46,11 @@ function session(id: string): AuthenticationSession {
 class TestAuthenticationService extends mock<IAuthenticationService>() {
 	readonly changes = new Emitter<void>();
 	override readonly onDidAuthenticationChange = this.changes.event;
-	override readonly onDidAdoAuthenticationChange = Event.None;
+	readonly adoChanges = new Emitter<void>();
+	override readonly onDidAdoAuthenticationChange = this.adoChanges.event;
 	override anyGitHubSession: AuthenticationSession | undefined = session('any');
 	override permissiveGitHubSession: AuthenticationSession | undefined = session('permissive');
+	override anyAdoSession: AuthenticationSession | undefined = session('ado-any');
 	override readonly copilotToken = undefined;
 }
 
@@ -156,5 +158,109 @@ describe('CodeSearchChunkSearch authentication identity', () => {
 			requests: remote.getRemoteIndexState.mock.calls.length,
 			statuses: search.getRemoteIndexState(false).repos.map(repo => repo.status),
 		}).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] });
+	});
+});
+
+describe('CodeSearchChunkSearch ado authentication identity', () => {
+	const disposables = new DisposableStore();
+	afterEach(() => {
+		disposables.clear();
+		vi.restoreAllMocks();
+	});
+
+	async function create() {
+		const authentication = new TestAuthenticationService();
+		disposables.add(authentication.changes);
+		disposables.add(authentication.adoChanges);
+		const tracker = disposables.add(new TestRepoTracker());
+		const config = disposables.add(new InMemoryConfigurationService(disposables.add(new DefaultsOnlyConfigurationService())));
+		await config.setConfig(ConfigKey.Advanced.WorkspaceEnableCodeSearch, true);
+		const indexStateChanges = disposables.add(new Emitter<void>());
+		const ado = new class extends mock<IAdoCodeSearchService>() {
+			override readonly onDidChangeIndexState = indexStateChanges.event;
+			override getRemoteIndexState = vi.fn<IAdoCodeSearchService['getRemoteIndexState']>().mockResolvedValue(Result.ok({
+				status: RemoteCodeSearchIndexStatus.Ready,
+				indexedCommit: 'test-commit',
+			}));
+		}();
+		const log = disposables.add(new LogServiceImpl([]));
+		const telemetry = new NullTelemetryService();
+		const instantiation = disposables.add(new InstantiationService(new ServiceCollection(
+			[ILogService, log],
+			[IAdoCodeSearchService, ado],
+			[ITelemetryService, telemetry],
+		), true));
+		vi.spyOn(instantiation, 'createInstance').mockReturnValueOnce(tracker);
+		const root = URI.parse('file:///workspace');
+		const search = disposables.add(new CodeSearchChunkSearch(
+			EmbeddingType.text3small_512,
+			instantiation,
+			ado,
+			new class extends mock<IAuthenticationChatUpgradeService>() { }(),
+			authentication,
+			new class extends mock<ICodeSearchAuthenticationService>() { }(),
+			config,
+			instantiation,
+			new NullExperimentationService(),
+			new class extends mock<IGitService>() { }(),
+			log,
+			telemetry,
+			new class extends mock<IWorkspaceFileIndex>() { }(),
+			disposables.add(new NullWorkspaceService([root])),
+		));
+		tracker.add({
+			status: TrackedRepoStatus.Resolved,
+			repo: { rootUri: root },
+			resolvedRemoteInfo: { repoId: new AdoRepoId('org', 'project', 'repo'), fetchUrl: undefined },
+		});
+		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]));
+		expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(1);
+		return { authentication, ado, search, indexStateChanges };
+	}
+
+	test.each(['issuer', 'account', 'session', 'sign-out'] as const)(`anyAdoSession %s changes invalidate repository authorization`, async change => {
+		const { authentication, ado, search } = await create();
+		const previous = authentication.anyAdoSession!;
+		switch (change) {
+			case 'issuer':
+				authentication.anyAdoSession = { ...previous, authorizationServer: URI.parse('https://second.example.com/login/oauth') };
+				break;
+			case 'account':
+				authentication.anyAdoSession = { ...previous, account: { ...previous.account, id: 'other-account' } };
+				break;
+			case 'session':
+				authentication.anyAdoSession = { ...previous, id: 'other-session' };
+				break;
+			case 'sign-out':
+				authentication.anyAdoSession = undefined;
+				break;
+		}
+		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.NotAuthorized]));
+		// A second no-op event (nothing changed since the previous one) must not trigger another refetch.
+		authentication.adoChanges.fire();
+		expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(2);
+	});
+
+	test('token refreshes and equivalent session objects do not recheck repository authorization', async () => {
+		const { authentication, ado, search } = await create();
+		const previous = authentication.anyAdoSession!;
+		authentication.anyAdoSession = { ...previous, accessToken: 'refreshed-token', account: { ...previous.account }, authorizationServer: URI.parse(previous.authorizationServer!.toString()) };
+		// Simulate repeated silent token refreshes (e.g. window focus changes) firing the no-op auth-change event.
+		authentication.adoChanges.fire();
+		authentication.adoChanges.fire();
+		authentication.adoChanges.fire();
+		expect({
+			requests: ado.getRemoteIndexState.mock.calls.length,
+			statuses: search.getRemoteIndexState(false).repos.map(repo => repo.status),
+		}).toEqual({ requests: 1, statuses: [CodeSearchRepoStatus.Ready] });
+	});
+
+	test('a real index state change always rechecks repository authorization, even without a session change', async () => {
+		const { ado, search, indexStateChanges } = await create();
+		indexStateChanges.fire();
+		await vi.waitFor(() => expect(ado.getRemoteIndexState).toHaveBeenCalledTimes(2));
+		expect(search.getRemoteIndexState(false).repos.map(repo => repo.status)).toEqual([CodeSearchRepoStatus.Ready]);
 	});
 });
