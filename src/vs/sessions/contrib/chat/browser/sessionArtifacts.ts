@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
 import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
 import { matchesSomeScheme, Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -17,7 +16,7 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { Action, toAction } from '../../../../base/common/actions.js';
+import { toAction } from '../../../../base/common/actions.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -46,12 +45,9 @@ import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
+import { createSessionCopyAction } from './sessionCopyAction.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
-const COPY_FEEDBACK_DURATION = 1200;
-const copyActionClass = ThemeIcon.asClassName(Codicon.copy);
-const copiedActionClass = ThemeIcon.asClassName(Codicon.check);
-const copiedActionLabel = localize('sessionArtifacts.copied', "Copied");
 
 /** Action id of the references pill. */
 export const SESSION_REFERENCES_PILL_ID = 'sessions.chatPills.references';
@@ -89,33 +85,8 @@ export interface ISessionArtifactActions {
 	remove?(id: string, label: string): Promise<void>;
 }
 
-class CopyAction extends Action {
-
-	private readonly _reset = this._register(new MutableDisposable());
-
-	constructor(
-		id: string,
-		private readonly _copyLabel: string,
-		private readonly _value: string,
-		private readonly _copy: ISessionArtifactActions['copy'],
-	) {
-		super(id, _copyLabel, copyActionClass);
-	}
-
-	override async run(): Promise<void> {
-		await this._copy(this._value);
-		this.label = copiedActionLabel;
-		this.class = copiedActionClass;
-		status(localize('sessionArtifacts.copiedToClipboard', "Copied to clipboard"));
-		this._reset.value = disposableTimeout(() => {
-			this.label = this._copyLabel;
-			this.class = copyActionClass;
-		}, COPY_FEEDBACK_DURATION);
-	}
-}
-
-function createCopyAction(id: string, label: string, value: string, actions: ISessionArtifactActions, store: DisposableStore): CopyAction {
-	return store.add(new CopyAction(id, label, value, actions.copy));
+function createCopyAction(id: string, label: string, value: string, actions: ISessionArtifactActions, store: DisposableStore) {
+	return createSessionCopyAction(store, id, label, () => actions.copy(value));
 }
 
 export interface ISessionArtifactImage {

@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -430,6 +431,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const unresolvedPullRequestEntry = buildSessionPullRequestSections(
@@ -439,6 +441,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 		).flatMap(section => section.entries)[0];
 		const issueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue }],
@@ -447,6 +450,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const issueHoverCache = new WeakMap<IGitHubIssueRef, { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }>();
@@ -457,6 +461,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 			undefined,
 			issueHoverCache,
 		).flatMap(section => section.entries)[0];
@@ -467,6 +472,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 			undefined,
 			issueHoverCache,
 		).flatMap(section => section.entries)[0];
@@ -486,6 +492,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 		).flatMap(section => section.entries)[0];
 		const duplicateIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.Duplicate } }],
@@ -494,6 +501,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 		).flatMap(section => section.entries)[0];
 		const notPlannedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: { ...issue, stateReason: GitHubIssueStateReason.NotPlanned } }],
@@ -502,6 +510,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 		).flatMap(section => section.entries)[0];
 		const unresolvedIssueEntry = buildSessionIssueSections(
 			[{ ref: issueRef, issue: undefined }],
@@ -510,6 +519,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			store,
 		).flatMap(section => section.entries)[0];
 
 		const renderHover = async (entry: IChatPillEntry | undefined) => {
@@ -1165,6 +1175,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<IClipboardService>({}),
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ISessionsService>({}),
+			store,
 		).flatMap(section => section.entries);
 
 		const openDraftHover = typeof entries[0].hover?.content === 'function' ? entries[0].hover.content() : undefined;
@@ -1220,15 +1231,15 @@ suite('SessionChatInputToolbar', () => {
 		const clipboardService = upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } });
 		const openerService = upcastPartial<IOpenerService>({});
 		const sessionsService = upcastPartial<ISessionsService>({});
-		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, {
+		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, store, {
 			remove: async ids => { removed.push(...ids); },
 			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries;
-		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService, {
+		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService, store, {
 			remove: async ids => { removed.push(...ids); },
 			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries[0];
-		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
+		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, store)[0].entries;
 		await entries[0].promotedAction?.run();
 		await entries[1].promotedAction?.run();
 		await issueEntry.promotedAction?.run();
@@ -1264,6 +1275,59 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('shows copied feedback for GitHub issue and pull request rows', async () => {
+		const clipboardService = upcastPartial<IClipboardService>({ writeText: async () => { } });
+		const commandService = upcastPartial<ICommandService>({});
+		const openerService = upcastPartial<IOpenerService>({});
+		const sessionsService = upcastPartial<ISessionsService>({});
+		const issueRef: IGitHubIssueRef = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 42,
+			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
+		};
+		const pullRequestRef: IGitHubPullRequestRef = {
+			owner: 'microsoft',
+			repo: 'vscode',
+			number: 43,
+			uri: URI.parse('https://github.com/microsoft/vscode/pull/43'),
+		};
+		const issueAction = buildSessionIssueSections(
+			[{ ref: issueRef, issue: undefined }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+			store,
+		)[0].entries[0].toolbarActions![0];
+		const pullRequestAction = buildSessionPullRequestSections(
+			[{ ref: pullRequestRef, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }],
+			undefined,
+			commandService,
+			clipboardService,
+			openerService,
+			sessionsService,
+			store,
+		)[0].entries[0].toolbarActions![0];
+
+		const before = [issueAction, pullRequestAction].map(action => ({ label: action.label, class: action.class }));
+		await issueAction.run();
+		await pullRequestAction.run();
+		const after = [issueAction, pullRequestAction].map(action => ({ label: action.label, class: action.class }));
+
+		assert.deepStrictEqual({ before, after }, {
+			before: [
+				{ label: 'Copy issue URL', class: ThemeIcon.asClassName(Codicon.copy) },
+				{ label: 'Copy pull request URL', class: ThemeIcon.asClassName(Codicon.copy) },
+			],
+			after: [
+				{ label: 'Copied', class: ThemeIcon.asClassName(Codicon.check) },
+				{ label: 'Copied', class: ThemeIcon.asClassName(Codicon.check) },
+			],
+		});
+	});
+
 	test('groups issue URLs by repository and number and opens and copies the issue rather than its comments', async () => {
 		const uri = URI.parse('https://github.com/microsoft/vscode/issues/42');
 		const ref: IGitHubIssueRef = { owner: 'microsoft', repo: 'vscode', number: 42, uri: uri.with({ fragment: 'issuecomment-1' }), recordedReferenceId: 'comment-1' };
@@ -1294,6 +1358,7 @@ suite('SessionChatInputToolbar', () => {
 			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
 			upcastPartial<IOpenerService>({}),
 			upcastPartial<ISessionsService>({}),
+			store,
 			{ remove: async ids => { removed.push([...ids]); } },
 		)[0].entries;
 		entries[0].open();
