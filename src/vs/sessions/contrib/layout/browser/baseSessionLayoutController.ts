@@ -296,6 +296,7 @@ export abstract class BaseLayoutController extends Disposable {
 					&& !isEqual(previous.owner.chatResource, current.owner.chatResource)
 					&& session.status.read(undefined) !== SessionStatus.Untitled
 					&& !this._isRestoringSessionLayout) {
+					this._onActiveSessionSwitched(session, session);
 					const key = this._ownerKeyForChat(previous.owner.sessionResource, previous.owner.chatResource, session.mainChat.get().resource);
 					if (key) {
 						this._saveWorkingSet(key);
@@ -1049,7 +1050,9 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _syncPanelVisibility(sessionResource: URI | undefined): void {
 		if (!sessionResource) {
-			this._layoutService.setPartHidden(true, Parts.PANEL_PART);
+			if (!this._chatLayoutEnabled) {
+				this._layoutService.setPartHidden(true, Parts.PANEL_PART);
+			}
 			return;
 		}
 

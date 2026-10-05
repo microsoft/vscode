@@ -473,7 +473,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		) {
 			return undefined;
 		}
-		return session.resource.toString();
+		return this._ctx.ownerKeyFor(session)?.toString();
 	}
 
 	private _readActiveNewSessionKey(reader: IReader): string | undefined {
@@ -487,7 +487,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		) {
 			return undefined;
 		}
-		return session.resource.toString();
+		return this._ctx.ownerKeyFor(session, reader)?.toString();
 	}
 
 	// --- Detail panel ----------------------------------------------------------------------
@@ -532,7 +532,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 				const activeEditor = activeEditorObs.read(reader);
 				const editorPartVisible = editorPartVisibleObs.read(reader);
-				const sessionKey = activeSession.resource.toString();
+				const sessionKey = this._ctx.ownerKeyFor(activeSession, reader)?.toString();
 				const emptyFilesShown = activeEditor instanceof EmptyFileEditorInput
 					&& editorPartVisible
 					&& this._replacementDraftKey !== sessionKey

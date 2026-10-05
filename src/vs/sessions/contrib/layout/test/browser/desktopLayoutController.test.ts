@@ -36,7 +36,7 @@ import { CHANGES_VIEW_CONTAINER_ID } from '../../../changes/common/changes.js';
 import '../../../changes/browser/changesActions.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
-import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
 suite('DesktopLayoutController', () => {
@@ -1796,31 +1796,55 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
-	test('[managed tabs / submit] activates Changes only after a submitted session reports changes', async () => {
-		createDesktopController({ activateAux: true });
-		await settle();
+	for (const mode of ['session', 'chat'] as const) {
+		test(`[managed tabs / submit] ${mode} activates Changes only after a submitted session reports changes`, async () => {
+			createDesktopController({ desktopLayout: true, activateAux: true, chatLayoutMode: mode });
+			await settle();
 
-		const session = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
+			const session = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
+
+			// Submit from the Files tab: visibility and the active tab stay unchanged.
+			harness.activeEditorInput = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
+			(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			await settle();
+
+			const changesResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
+			const changesActiveBeforeChanges = !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource);
+			(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+			await settle();
+
+			assert.deepStrictEqual({
+				chatOwnershipActive: harness.chatLayoutPresentation.state.get().active,
+				hasChangesTab: hasChangesTab(),
+				hasFilesTab: hasFilesTab(),
+				changesActiveBeforeChanges,
+				changesActive: !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource),
+			}, { chatOwnershipActive: mode === 'chat', hasChangesTab: true, hasFilesTab: true, changesActiveBeforeChanges: false, changesActive: true });
+		});
+	}
+
+	test('[managed tabs / chat switch] a peer does not inherit the main chat\'s pending submit activation', async () => {
+		createDesktopController({ desktopLayout: true, activateAux: true, chatLayoutMode: 'chat' });
+		const session = makeSession(URI.parse('session:pending-submit'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
-
-		// Submit from the Files tab: visibility and the active tab stay unchanged.
-		harness.activeEditorInput = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
 		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
 		await settle();
-
-		const changesResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
-		const changesActiveBeforeChanges = !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource);
-		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
+		const peer = addPeerChat(session, URI.parse('chat:pending-submit-peer'));
+		setActiveChat(session, peer);
 		await settle();
-
+		harness.activeEditorInput = harness.activeGroupEditors.find(editor => editor instanceof EmptyFileEditorInput);
+		harness.openChangesEditorCalls = [];
+		(peer.changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/peer.ts')], undefined);
+		await settle();
 		assert.deepStrictEqual({
-			hasChangesTab: hasChangesTab(),
-			hasFilesTab: hasFilesTab(),
-			changesActiveBeforeChanges,
-			changesActive: !!harness.activeEditorInput?.resource && isEqual(harness.activeEditorInput.resource, changesResource),
-		}, { hasChangesTab: true, hasFilesTab: true, changesActiveBeforeChanges: false, changesActive: true });
+			chatOwnershipActive: harness.chatLayoutPresentation.state.get().active,
+			activeChangesRequests: harness.openChangesEditorCalls.filter(call => call.active),
+			filesActive: harness.activeEditorInput instanceof EmptyFileEditorInput,
+		}, { chatOwnershipActive: true, activeChangesRequests: [], filesActive: true });
 	});
 
 	test('[managed tabs / submit] activates Changes after changes arrive on a resource-replace submit', async () => {

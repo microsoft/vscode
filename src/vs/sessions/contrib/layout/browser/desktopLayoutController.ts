@@ -5,7 +5,6 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { IReader } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -85,9 +84,6 @@ export class DesktopLayoutController extends BaseLayoutController {
 	}
 
 	protected override _defaultPanelVisibility(key: URI): boolean {
-		if (!isEqual(key, SHARED_EXISTING_VISIBILITY_KEY)) {
-			return false;
-		}
 		const visible = this._layoutService.isVisible(Parts.PANEL_PART);
 		this._panelVisibilityBySession.set(key, visible);
 		return visible;

@@ -101,6 +101,135 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.visibleEditorsList = harness.activeGroupEditors;
 	}
 
+	for (const composition of [
+		{ editor: false, auxiliaryBar: false },
+		{ editor: true, auxiliaryBar: false },
+		{ editor: false, auxiliaryBar: true },
+		{ editor: true, auxiliaryBar: true },
+	]) {
+		for (const panel of [false, true]) {
+			test(`session/chat default parity: Editor=${composition.editor} Details=${composition.auxiliaryBar} bottom=${panel}`, async () => {
+				const snapshots = [];
+				for (const mode of ['session', 'chat'] as const) {
+					const controller = createDesktopController({
+						chatLayoutMode: mode,
+						sidePaneVisibilityState: { editorVisible: composition.editor, auxiliaryBarVisible: composition.auxiliaryBar },
+						initialPartVisibility: new Map([[Parts.PANEL_PART, panel]]),
+					});
+					const session = makeSession(URI.parse(`session:defaults-${mode}`));
+					harness.activeSessionObs.set(session, undefined);
+					await settle();
+					snapshots.push({ composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART) });
+					if (mode === 'chat') {
+						openOrdinaryEditors('main');
+						setVisible(!composition.editor, !composition.auxiliaryBar);
+						const peer = addPeerChat(session, URI.parse('chat:default-peer'));
+						setActiveChat(session, peer);
+						await settle();
+						snapshots.push({
+							composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART),
+						});
+						assert.deepStrictEqual({
+							editors: harness.activeGroupEditors.map(editor => editor.resource?.path),
+							savedComposition: controller.composition(controller.ownerKeyFor(session)),
+							savedPanel: controller.capturedPanelVisibility(controller.ownerKeyFor(session)),
+						}, { editors: [], savedComposition: composition, savedPanel: panel });
+					}
+					controller.dispose();
+				}
+				assert.deepStrictEqual(snapshots, Array.from({ length: 3 }, () => ({ composition, panel })));
+			});
+		}
+	}
+
+	test('session/chat Details and whole-pane toggles share the same transition sequence', async () => {
+		const snapshots = [];
+		for (const mode of ['session', 'chat'] as const) {
+			const controller = createDesktopController({ chatLayoutMode: mode });
+			harness.activeSessionObs.set(makeSession(URI.parse(`session:toggles-${mode}`)), undefined);
+			await settle();
+			const sequence = [visible()];
+			controller.toggleDetails();
+			await settle();
+			sequence.push(visible());
+			harness.layoutService.toggleSidePane();
+			await settle();
+			sequence.push(visible());
+			harness.layoutService.toggleSidePane();
+			await settle();
+			sequence.push(visible());
+			controller.toggleDetails();
+			await settle();
+			sequence.push(visible());
+			snapshots.push(sequence);
+			controller.dispose();
+		}
+		const expected = [
+			{ editor: true, auxiliaryBar: false },
+			{ editor: true, auxiliaryBar: true },
+			{ editor: false, auxiliaryBar: false },
+			{ editor: true, auxiliaryBar: true },
+			{ editor: true, auxiliaryBar: false },
+		];
+		assert.deepStrictEqual(snapshots, [expected, expected]);
+	});
+
+	test('an unsaved peer initializes bottom visibility from the workbench, then retains its own choice', async () => {
+		const controller = createDesktopController({ chatLayoutMode: 'chat', initialPartVisibility: new Map([[Parts.PANEL_PART, true]]) });
+		const session = makeSession(URI.parse('session:panel-default'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:panel-default-peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		const mainKey = controller.ownerKeyFor(session);
+		setActiveChat(session, peer);
+		await settle();
+		const peerKey = controller.ownerKeyFor(session);
+		const firstVisit = harness.layoutService.isVisible(Parts.PANEL_PART);
+		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
+		setActiveChat(session, main);
+		await settle();
+		const mainVisibility = harness.layoutService.isVisible(Parts.PANEL_PART);
+		setActiveChat(session, peer);
+		await settle();
+		assert.deepStrictEqual({
+			firstVisit, mainVisibility, peerVisibility: harness.layoutService.isVisible(Parts.PANEL_PART),
+			saved: [controller.capturedPanelVisibility(mainKey), controller.capturedPanelVisibility(peerKey)],
+		}, { firstVisit: true, mainVisibility: true, peerVisibility: false, saved: [true, false] });
+	});
+
+	test('draft entry and restore use the same lifecycle for each focused chat', async () => {
+		const controller = createDesktopController({ chatLayoutMode: 'chat', activateAux: true });
+		const session = makeSession(URI.parse('session:draft-peers'), { status: SessionStatus.Untitled, isCreated: false });
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:draft-peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		const initial = visible();
+		setVisible(true, true);
+		const mainKey = controller.ownerKeyFor(session);
+		setActiveChat(session, peer);
+		await settle();
+		const peerInitial = visible();
+		setVisible(true, false);
+		const peerKey = controller.ownerKeyFor(session);
+		setActiveChat(session, main);
+		await settle();
+		const restoredMain = visible();
+		setActiveChat(session, peer);
+		await settle();
+		assert.deepStrictEqual({
+			initial, peerInitial, restoredMain, restoredPeer: visible(),
+			saved: [controller.composition(mainKey), controller.composition(peerKey)],
+		}, {
+			initial: { editor: false, auxiliaryBar: true },
+			peerInitial: { editor: false, auxiliaryBar: true },
+			restoredMain: { editor: true, auxiliaryBar: true },
+			restoredPeer: { editor: true, auxiliaryBar: false },
+			saved: [{ editor: true, auxiliaryBar: true }, { editor: true, auxiliaryBar: false }],
+		});
+	});
+
 	for (const crossSession of [false, true]) {
 		test(`shared ${crossSession ? 'cross-session/cross-workspace' : 'same-session'} A/B/A keeps editors and active tabs per owner but shares composition and bottom visibility`, async () => {
 			const controller = createDesktopController({ chatLayoutMode: 'chat-shared' });
@@ -203,6 +332,26 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			await settle();
 			openOrdinaryEditors('managed-main');
 			setVisible(composition.editor, composition.auxiliaryBar);
+			await settle();
+			setActiveChat(session, peer);
+			await settle();
+			assert.deepStrictEqual({
+				composition: visible(),
+				ordinaryEditors: harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path),
+			}, { composition, ordinaryEditors: [] });
+		});
+
+		test(`chat settled managed tabs use Existing defaults for first-peer Editor=${composition.editor} Details=${composition.auxiliaryBar}`, async () => {
+			createDesktopController({
+				chatLayoutMode: 'chat', activateAux: true,
+				sidePaneVisibilityState: { editorVisible: composition.editor, auxiliaryBarVisible: composition.auxiliaryBar },
+			});
+			const session = makeSession(URI.parse('session:managed-chat'));
+			const peer = addPeerChat(session, URI.parse('chat:managed-chat'));
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			openOrdinaryEditors('managed-main');
+			setVisible(!composition.editor, !composition.auxiliaryBar);
 			await settle();
 			setActiveChat(session, peer);
 			await settle();
@@ -326,7 +475,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		setActiveChat(session, peer);
 		await settle();
 		assert.deepStrictEqual(editorState(), {
-			resources: [], active: undefined, composition: { editor: false, auxiliaryBar: false }, panel: false,
+			resources: [], active: undefined, composition: { editor: true, auxiliaryBar: false }, panel: true,
 		});
 		openOrdinaryEditors('peer');
 		setVisible(true, false);
@@ -749,7 +898,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		setActiveChat(session, peer);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'a peer chat never inherits the main chat\'s composition on first visit');
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'a first-visit peer uses the Existing defaults, not a forced hidden pane or the main chat\'s saved composition');
 
 		setVisible(false, true);
 		await settle();
