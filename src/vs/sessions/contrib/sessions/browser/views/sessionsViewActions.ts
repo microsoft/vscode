@@ -1476,7 +1476,9 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		sessionsManagementService.markAllRead(sessions);
+		for (const session of sessions) {
+			sessionsManagementService.markRead(session);
+		}
 	}
 });
 

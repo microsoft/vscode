@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isDefaultChatUri, isSessionStatusArchived, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isChatInSessionReadAggregate, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -544,6 +544,7 @@ export class AgentHostStateManager extends Disposable {
 				&& chat.title === other.title
 				&& equals(chat.origin, other.origin)
 				&& chat.interactivity === other.interactivity
+				&& chat.status === other.status
 				&& structuralEquals(chat.changes, other.changes);
 		});
 	}
@@ -1074,6 +1075,16 @@ export class AgentHostStateManager extends Disposable {
 		this._summaryNotifier.applyAnnouncedChanges(session, { status });
 	}
 
+	/** Updates passive status metadata and optional exact chat read state for an unloaded session. */
+	setSurfacedSessionStatusAndChats(session: string, status: SessionStatus, chats?: SessionSummary['chats']): void {
+		if (!this._sessionStates.has(session) && this._summaryNotifier.getAnnounced(session)) {
+			this._summaryNotifier.applyAnnouncedChanges(session, {
+				status,
+				...(chats ? { chats } : {}),
+			});
+		}
+	}
+
 	/** Publishes or unpublishes a live session summary without changing its session state. */
 	setSessionSummaryPublished(session: string, published: boolean): void {
 		if (published) {
@@ -1171,7 +1182,7 @@ export class AgentHostStateManager extends Disposable {
 	 * summary (e.g. adoptable-legacy), a `sessionSummaryChanged` delta is emitted
 	 * so clients update the entry in place instead of dropping it.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatModifiedAt?: string; readonly defaultChatWorkingDirectories?: readonly string[] }): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatModifiedAt?: string; readonly defaultChatWorkingDirectories?: readonly string[]; readonly defaultChatIsRead?: boolean }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -1185,7 +1196,7 @@ export class AgentHostStateManager extends Disposable {
 		};
 		const entry = this._newEntry(state, summary, SessionUse.Used);
 		this._sessionStates.set(key, entry);
-		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatModifiedAt, options?.defaultChatWorkingDirectories);
+		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatModifiedAt, options?.defaultChatWorkingDirectories, options?.defaultChatIsRead);
 		for (const chat of summary.chats ?? []) {
 			if (chat.resource === state.defaultChat || isDefaultChatUri(chat.resource)) {
 				continue;
@@ -1194,8 +1205,14 @@ export class AgentHostStateManager extends Disposable {
 				title: chat.title,
 				origin: chat.origin,
 				interactivity: chat.interactivity,
+				archived: chat.status === undefined ? undefined : isSessionStatusArchived(chat.status),
+				isRead: chat.status === undefined ? undefined : isSessionStatusRead(chat.status),
 				changes: chat.changes,
 			});
+		}
+		const restoredState = entry.state;
+		if (restoredState.chats.some(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity) && !isSessionStatusRead(chat.status))) {
+			restoredState.status = withSessionStatusFlag(restoredState.status, SessionStatus.IsRead, false);
 		}
 		// A session that was previously surfaced (e.g. announced as an
 		// adoptable-legacy session) is already known to clients with a different
@@ -1211,7 +1228,7 @@ export class AgentHostStateManager extends Disposable {
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
 
-		return state;
+		return restoredState;
 	}
 
 	/**
@@ -1226,7 +1243,7 @@ export class AgentHostStateManager extends Disposable {
 	 * at creation/restore time, so the snapshot a client later receives on
 	 * subscribe already reflects the default chat.
 	 */
-	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[]): void {
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[], isRead?: boolean): void {
 		const chatUri = buildDefaultChatUri(sessionKey);
 		const changes = summary.chats?.find(chat => chat.resource === chatUri)?.changes;
 		// Empty title means "inherit the session title"; a persisted independent
@@ -1238,6 +1255,9 @@ export class AgentHostStateManager extends Disposable {
 			...(workingDirectories !== undefined ? { workingDirectories: [...workingDirectories] } : {}),
 			...(changes !== undefined ? { changes } : {}),
 		};
+		if (isRead !== undefined) {
+			chatSummary.status = withSessionStatusFlag(chatSummary.status, SessionStatus.IsRead, isRead);
+		}
 		this._chatEntries.set(chatUri, {
 			session: sessionKey,
 			summary: chatSummary,
@@ -1297,7 +1317,7 @@ export class AgentHostStateManager extends Disposable {
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options?.title ?? '',
-			status: SessionStatus.Idle,
+			status: SessionStatus.Idle | SessionStatus.IsRead,
 			...(options?.origin ? { origin: options.origin } : {}),
 			interactivity: options?.interactivity,
 			...(options?.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
@@ -1319,7 +1339,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly isRead?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1330,12 +1350,20 @@ export class AgentHostStateManager extends Disposable {
 		if (existing) {
 			const existingEntry = this._chatEntries.get(chatUri);
 			if (existingEntry && !existingEntry.state && options.resolver) {
+				let status = existing.status ?? SessionStatus.Idle;
+				const hasStatusChange = options.archived !== undefined || options.isRead !== undefined;
+				if (options.archived !== undefined) {
+					status = withSessionStatusFlag(status, SessionStatus.IsArchived, options.archived);
+				}
+				if (options.isRead !== undefined) {
+					status = withSessionStatusFlag(status, SessionStatus.IsRead, options.isRead);
+				}
 				const summary: ChatSummary = {
 					...existing,
 					...(options.modifiedAt !== undefined ? { modifiedAt: options.modifiedAt } : {}),
 					...(options.origin !== undefined ? { origin: options.origin } : {}),
 					interactivity: options.interactivity ?? existing.interactivity,
-					...(options.archived !== undefined ? { status: withSessionStatusFlag(existing.status ?? SessionStatus.Idle, SessionStatus.IsArchived, options.archived) } : {}),
+					...(hasStatusChange ? { status } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
 					...(existing.changes === undefined && options.changes !== undefined ? { changes: options.changes } : {}),
 				};
@@ -1354,7 +1382,11 @@ export class AgentHostStateManager extends Disposable {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
 			...(options.modifiedAt !== undefined ? { modifiedAt: options.modifiedAt } : {}),
-			status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, options.archived === true),
+			status: withSessionStatusFlag(
+				withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, options.archived === true),
+				SessionStatus.IsRead,
+				options.isRead ?? true,
+			),
 			// A persisted catalog entry with no recorded origin is a plain
 			// user-created chat; keep the default rather than restoring it
 			// without provenance.
@@ -1909,6 +1941,17 @@ export class AgentHostStateManager extends Disposable {
 				config: preserveProviderBackedRootConfigValues(this._rootState, action.config),
 			};
 		}
+		if (action.type === ActionType.SessionIsReadChanged && action.isRead) {
+			const state = this._sessionStates.get(channel)?.state;
+			const aggregateChats = state?.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)) ?? [];
+			if (aggregateChats.length > 1 && aggregateChats.some(chat => !isSessionStatusRead(chat.status))) {
+				action = { ...action, isRead: false };
+			} else if (aggregateChats.length === 1 && !isSessionStatusRead(aggregateChats[0].status)) {
+				this.dispatchServerAction(aggregateChats[0].resource, { type: ActionType.ChatIsReadChanged, isRead: true });
+			}
+		}
+		let sessionToMarkUnread: URI | undefined;
+		let singleChatToSynchronize: { readonly chat: URI; readonly isRead: boolean } | undefined;
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
@@ -1941,6 +1984,13 @@ export class AgentHostStateManager extends Disposable {
 				const summaryChanged = !this._summaryFieldsEqual(previousState, newState);
 				entry.state = newState;
 				this._synchronizeChatEntries(key, newState.chats);
+				const aggregateChats = newState.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity));
+				if (sessionAction.type === ActionType.SessionIsReadChanged && !sessionAction.isRead && aggregateChats.length === 1) {
+					const chat = aggregateChats[0];
+					if (isSessionStatusRead(chat.status)) {
+						singleChatToSynchronize = { chat: chat.resource, isRead: false };
+					}
+				}
 
 				if (previousState.title !== newState.title) {
 					this._onDidChangeSessionTitle.fire({ session: key, title: newState.title });
@@ -1986,6 +2036,12 @@ export class AgentHostStateManager extends Disposable {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
 				}
 				this._onChatStateChanged(sessionKey, channel, chat, newChat);
+				if (chatAction.type === ActionType.ChatIsReadChanged && !chatAction.isRead && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
+					const session = this._sessionStates.get(sessionKey)?.state;
+					if (session && isSessionStatusRead(session.status)) {
+						sessionToMarkUnread = sessionKey;
+					}
+				}
 				resultingState = newChat;
 			} else {
 				this._logService.warn(`[AgentHostStateManager] Action for unknown chat: ${channel}, type=${action.type}`);
@@ -2070,6 +2126,12 @@ export class AgentHostStateManager extends Disposable {
 
 		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, channel=${envelope.channel}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
+		if (singleChatToSynchronize) {
+			this.dispatchServerAction(singleChatToSynchronize.chat, { type: ActionType.ChatIsReadChanged, isRead: singleChatToSynchronize.isRead });
+		}
+		if (sessionToMarkUnread) {
+			this.dispatchServerAction(sessionToMarkUnread, { type: ActionType.SessionIsReadChanged, isRead: false });
+		}
 
 		return resultingState;
 	}

@@ -53,7 +53,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -83,7 +83,7 @@ import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangese
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
-import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
@@ -3756,6 +3756,65 @@ suite('AgentService (node dispatcher)', () => {
 				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
 				chatArchived: false,
 				sessionArchived: false,
+			});
+		});
+
+		test('applies independent read actions to the default chat only', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const peerChat = buildChatUri(session, 'peer');
+			getStateManager(svc).addChat(session.toString(), peerChat);
+			getStateManager(svc).dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatIsReadChanged,
+				isRead: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+			const metadata = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatRead: ((getStateManager(svc).getChatState(defaultChat)?.status ?? 0) & SessionStatus.IsRead) !== 0,
+				sessionRead: ((getStateManager(svc).getSessionState(session.toString())?.status ?? 0) & SessionStatus.IsRead) !== 0,
+				listChatReadState: metadata?.chats?.map(chat => ({ kind: chat.kind, isRead: chat.isRead })),
+			}, {
+				rejectionReason: undefined,
+				chatRead: true,
+				sessionRead: false,
+				listChatReadState: [
+					{ kind: 'default', isRead: true },
+					{ kind: 'peer', isRead: false },
+				],
+			});
+		});
+
+		test('rejects independent read actions for an unknown chat', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const unknownChat = buildChatUri(session, 'unknown');
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(unknownChat, {
+				type: ActionType.ChatIsReadChanged,
+				isRead: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chat: getStateManager(svc).getChatState(unknownChat),
+			}, {
+				rejectionReason: 'Only a known chat can change its read state.',
+				chat: undefined,
 			});
 		});
 
@@ -14986,6 +15045,61 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('superseding a turn changeset subscription during cold restore keeps the latest changeset available', async () => {
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			registerTestAgentProvider(localService, copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const chat = buildDefaultChatUri(session);
+			const previous = buildTurnChangesetUri(chat, 'previous');
+			const latest = buildTurnChangesetUri(chat, 'latest');
+			const stateManager = getStateManager(localService);
+			stateManager.deleteSession(session.toString());
+			const restoring = new DeferredPromise<void>();
+			const finishRestore = new DeferredPromise<void>();
+			copilotAgent.getChatCustomizations = async () => {
+				restoring.complete();
+				await finishRestore.p;
+				return [];
+			};
+			const emitted: ActionEnvelope[] = [];
+			disposables.add(localService.onDidAction(envelope => {
+				if (envelope.channel === previous || envelope.channel === latest) {
+					emitted.push(envelope);
+				}
+			}));
+			let isActive = true;
+			const subscribing = localService.subscribe(URI.parse(previous), 'client-turn', () => isActive);
+			const rejected = assert.rejects(subscribing, /Subscription cancelled/);
+			await restoring.p;
+			let snapshot: IStateSnapshot;
+			try {
+				isActive = false;
+				localService.unsubscribe(URI.parse(previous), 'client-turn');
+				snapshot = await localService.subscribe(URI.parse(latest), 'client-turn');
+			} finally {
+				finishRestore.complete();
+			}
+			await rejected;
+
+			assert.deepStrictEqual({
+				snapshotResource: snapshot.resource,
+				previousAvailable: !!stateManager.getSnapshot(previous),
+				latestAvailable: !!stateManager.getSnapshot(latest),
+				previousPublished: emitted.some(envelope => envelope.channel === previous && envelope.action.type === ActionType.ChangesetContentChanged),
+				latestPublished: emitted.some(envelope => envelope.channel === latest && envelope.action.type === ActionType.ChangesetContentChanged),
+			}, {
+				snapshotResource: latest,
+				previousAvailable: true,
+				latestAvailable: true,
+				previousPublished: true,
+				latestPublished: true,
+			});
+			localService.unsubscribe(URI.parse(latest), 'client-turn');
+		});
+
 		for (const cached of [undefined, [], ['file:///wd/cached.ts']]) {
 			test(`subscribe to an uncommitted changeset returns ${cached ? 'cached' : 'uncached'} ${cached?.length ? 'files' : 'empty files'} before its refresh finishes`, async () => {
 				const workingDirectory = URI.from({ scheme: Schemas.inMemory, path: '/wd' });
@@ -17087,6 +17201,7 @@ suite('AgentService (node dispatcher)', () => {
 					persistedTitle: await onDatabase.getMetadata(SESSION_CUSTOM_TITLE_KEY),
 					persistedTitleSource: await onDatabase.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY),
 					persistedIsRead: await onDatabase.getMetadata(AH_META_IS_READ_DB_KEY),
+					persistedDefaultChatIsRead: await onDatabase.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
 					hasCatalogSyncSnapshot: await onDatabase.getCatalogSyncSnapshot() !== undefined,
 				},
 				{
@@ -17097,6 +17212,7 @@ suite('AgentService (node dispatcher)', () => {
 					persistedTitle: 'Adopted Legacy Title',
 					persistedTitleSource: 'user',
 					persistedIsRead: 'true',
+					persistedDefaultChatIsRead: 'true',
 					hasCatalogSyncSnapshot: true,
 				},
 			);
@@ -17462,6 +17578,73 @@ suite('AgentService (node dispatcher)', () => {
 					persisted: 'true',
 					restored: false,
 					publishedStatus: expectedStatus,
+				});
+			}
+		});
+
+		test('a passive read toggle synchronizes a sole default chat and clamps an unread normal peer', async () => {
+			for (const { id, chats, expectedSessionRead, expectedDefaultRead } of [
+				{
+					id: 'single',
+					chats: [{ resource: '', title: '', status: SessionStatus.Idle }],
+					expectedSessionRead: true,
+					expectedDefaultRead: true,
+				},
+				{
+					id: 'multi',
+					chats: [
+						{ resource: '', title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+						{ resource: 'peer', title: 'Peer', status: SessionStatus.Idle },
+					],
+					expectedSessionRead: false,
+					expectedDefaultRead: true,
+				},
+			]) {
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
+				const session = AgentSession.uri('copilot', `passive-read-${id}`);
+				const sessionStr = session.toString();
+				const summary = {
+					resource: sessionStr,
+					provider: 'copilot',
+					title: 'Idle',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					chats: chats.map((chat, index) => ({
+						...chat,
+						resource: index === 0 ? buildDefaultChatUri(sessionStr) : buildChatUri(sessionStr, chat.resource),
+					})),
+				};
+				getStateManager(localService).announceSurfacedSession(summary);
+				getStateManager(localService).prepareSessionSummariesForListing([summary]);
+				const notifications: INotification[] = [];
+				const listener = localService.onDidNotification(notification => notifications.push(notification));
+
+				localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
+					await timeout(0);
+				}
+				listener.dispose();
+
+				const changed = notifications.find(notification => notification.type === 'root/sessionSummaryChanged');
+				assert.deepStrictEqual({
+					id,
+					persistedSession: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+					persistedDefault: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+					publishedSessionRead: changed?.type === 'root/sessionSummaryChanged'
+						? !!(changed.changes.status! & SessionStatus.IsRead)
+						: undefined,
+					publishedChats: changed?.type === 'root/sessionSummaryChanged'
+						? changed.changes.chats?.map(chat => chat.status === undefined ? undefined : isSessionStatusRead(chat.status))
+						: undefined,
+				}, {
+					id,
+					persistedSession: expectedSessionRead ? 'true' : '',
+					persistedDefault: id === 'single' && expectedDefaultRead ? 'true' : undefined,
+					publishedSessionRead: expectedSessionRead,
+					publishedChats: id === 'single' ? [expectedDefaultRead] : undefined,
 				});
 			}
 		});
@@ -20791,6 +20974,8 @@ suite('AgentService (node dispatcher)', () => {
 				const other = URI.parse(buildChatUri(parent, otherId));
 				await localService.createChat(parent, selected, { title: 'Original Selected Chat' });
 				await localService.createChat(parent, other, { title: 'Original Other Chat' });
+				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
+				await peerStore.setRead(parent, other, false);
 				await perSession.database(other).createTurn('original-turn');
 				await perSession.database(other).setTurnEventId('original-turn', 'original-event');
 				const phantom = parent.with({ fragment: selectedId });
@@ -20798,7 +20983,6 @@ suite('AgentService (node dispatcher)', () => {
 				await database.registerRuntimeSession(phantom.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
 				await database.registerRuntimeSession(explicitFragment.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 				await perSession.database(parent).setMetadata('peerChats', '[]');
-				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
 				await peerStore.reconcileLegacy(parent);
 				if (completed) {
 					await peerStore.recoverChatSelectionCorruption(parent, [selectedId]);
@@ -20827,7 +21011,7 @@ suite('AgentService (node dispatcher)', () => {
 					stateManager.removeSession(parent.toString());
 				}
 
-				const membershipBeforeListing = completed ? await database.getSessionChatCatalog(parent.toString()) : undefined;
+				const membershipBeforeListing = completed ? (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat) : undefined;
 				const recoveryBeforeListing = completed ? await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409') : undefined;
 				const listed = await localService.listSessions();
 				const coldParentUnopened = !cold || stateManager.getSessionState(parent.toString()) === undefined;
@@ -20844,14 +21028,16 @@ suite('AgentService (node dispatcher)', () => {
 					registered: registered.map(resource => resource.toString()).sort(),
 					membership: (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat),
 					listed: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.map(chat => ({ uri: chat.chat.toString(), title: chat.summary ?? '' })),
+					listedRecoveredPeerIsRead: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.find(chat => chat.chat.toString() === other.toString())?.isRead,
 					turnEvent: await perSession.database(other).getTurnEventId('original-turn'),
 					providerData: await perSession.database(other).getMetadata('agentHost.chatProviderData'),
 					lazyBeforeOpen,
 					coldParentUnopened,
 					materializedBeforeOpen,
 					projectedAfterFirstList,
+					projectedRecoveredPeerIsRead: catalogDataOf(await database.getSessionV2(parent.toString()))?.chats.find(chat => chat.uri === other.toString())?.isRead,
 					completedRecoveryUnchanged: !completed || recoveryBeforeListing === await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409'),
-					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify(await database.getSessionChatCatalog(parent.toString())),
+					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify((await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat)),
 					restoredTurns: restored?.turns.map(turn => ({ id: turn.id, text: turn.message.text })),
 					materialized: agent.materialized,
 				}, {
@@ -20862,12 +21048,14 @@ suite('AgentService (node dispatcher)', () => {
 						{ uri: selected.toString(), title: 'Original Selected Chat' },
 						{ uri: other.toString(), title: 'Original Other Chat' },
 					],
+					listedRecoveredPeerIsRead: false,
 					turnEvent: 'original-event',
 					providerData: '{"sdkSessionId":"original-sdk-session"}',
 					lazyBeforeOpen: true,
 					coldParentUnopened: true,
 					materializedBeforeOpen: [],
 					projectedAfterFirstList: [buildDefaultChatUri(parent), selected.toString(), other.toString()],
+					projectedRecoveredPeerIsRead: false,
 					completedRecoveryUnchanged: true,
 					completedMembershipUnchanged: true,
 					restoredTurns: [{ id: 'original-turn', text: 'Original peer conversation' }],
@@ -21172,12 +21360,12 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: peer.toString(), title: 'Lazy Central Peer' },
 				],
 				beforeAccess: {
-					peerCatalogReads: 1,
+					peerCatalogReads: 2,
 					legacyEnumerations: 0,
 					peerMaterializations: 0,
 				},
 				afterAccess: {
-					peerCatalogReads: 1,
+					peerCatalogReads: 2,
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},
@@ -21699,6 +21887,58 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores an unread default chat with an unread session aggregate', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+
+			getStateManager(localService).dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+			localService.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
+			localService.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+			await waitForMetadata(db, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, '');
+
+			getStateManager(localService).deleteSession(sessionUri);
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				sessionIsRead: !!(getStateManager(localService).getSessionState(sessionUri)!.status & SessionStatus.IsRead),
+				defaultChatIsRead: !!(getStateManager(localService).getChatState(defaultChat)!.status & SessionStatus.IsRead),
+				persistedDefaultChatIsRead: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			}, {
+				sessionIsRead: false,
+				defaultChatIsRead: false,
+				persistedDefaultChatIsRead: '',
+			});
+		});
+
+		test('restores a legacy read session with its default chat read', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			await db.setMetadata(AH_META_IS_READ_DB_KEY, 'true');
+
+			getStateManager(localService).deleteSession(sessionUri);
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				sessionIsRead: !!(getStateManager(localService).getSessionState(sessionUri)!.status & SessionStatus.IsRead),
+				defaultChatIsRead: !!(getStateManager(localService).getChatState(defaultChat)!.status & SessionStatus.IsRead),
+				persistedDefaultChatIsRead: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			}, {
+				sessionIsRead: true,
+				defaultChatIsRead: true,
+				persistedDefaultChatIsRead: undefined,
+			});
+		});
+
 		test('a session rename retitles the sole default chat in the live session and across restore', async () => {
 			// Separate databases per channel, matching production: the chat-local title
 			// writes must be observable independently of the session's own metadata.
@@ -21804,9 +22044,14 @@ suite('AgentService (node dispatcher)', () => {
 				chatIds: (state?.chats ?? []).map(chat => parseChatUri(chat.resource)?.chatId),
 				summary: (() => {
 					const summary = state?.chats.find(chat => chat.resource.toString() === peerUri.toString());
-					return summary && { title: summary.title, origin: summary.origin };
+					return summary && {
+						title: summary.title,
+						origin: summary.origin,
+						isRead: (summary.status & SessionStatus.IsRead) !== 0,
+					};
 				})(),
 				chatState: getStateManager(localService).getChatState(peerUri.toString()),
+				persistedRead: (JSON.parse(await db.getMetadata('peerChats') ?? '[]') as IPersistedPeerChat[]).find(chat => chat.uri === peerUri.toString())?.isRead,
 			};
 			await localService.subscribe(peerUri, 'first-peer-reader');
 			const hydrated = getStateManager(localService).getChatState(peerUri.toString());
@@ -21827,8 +22072,10 @@ suite('AgentService (node dispatcher)', () => {
 					summary: {
 						title: 'Persisted Peer Title',
 						origin: peerOrigin,
+						isRead: true,
 					},
 					chatState: undefined,
+					persistedRead: true,
 				},
 				firstAccessCalls: [
 					{ call: 'materialize', uri: peerUri.toString(), providerData: 'blob-1' },
@@ -23088,7 +23335,7 @@ suite('AgentService (node dispatcher)', () => {
 				catalog,
 				restoredChats: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource),
 			}, {
-				catalog: [{ uri: peer.toString(), providerData: 'new-peer-backing' }],
+				catalog: [{ uri: peer.toString(), isRead: true, providerData: 'new-peer-backing' }],
 				restoredChats: [buildDefaultChatUri(session), peer.toString()],
 			});
 		});

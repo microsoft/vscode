@@ -29,6 +29,7 @@ import {
 	type ChatInputRequestedAction, type ChatToolCallReadyAction,
 	type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction,
 } from '../../../../common/state/sessionActions.js';
+import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import type { SessionMode } from '../../../../common/agentHostSchema.js';
 import { AgentHostSessionResidencyLimitEnvVar } from '../../../../common/agentService.js';
@@ -541,8 +542,12 @@ export interface IDrivenTurnResult {
 	responseText: string;
 }
 
-export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
-	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq));
+export interface IDriveTurnOptions {
+	expectUnread?: boolean;
+}
+
+export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
+	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAcceptedAnswers, options);
 }
 
 export async function driveChatTurnToCompletion(c: TestProtocolClient, chat: string, turnId: string, text: string, clientSeq: number): Promise<IDrivenTurnResult> {
@@ -583,7 +588,7 @@ export async function driveTurnWithAnswersToCompletion(c: TestProtocolClient, se
 	return driveTurn(c, buildDefaultChatUri(session), turnId, clientSeq, () => dispatchTurn(c, session, turnId, text, clientSeq), ChatInputResponseKind.Accept, getAnswers);
 }
 
-async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers): Promise<IDrivenTurnResult> {
+async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, clientSeq: number, dispatch: () => void, inputResponse = ChatInputResponseKind.Accept, answerProvider = getAcceptedAnswers, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
 	c.clearReceived();
 	dispatch();
 
@@ -591,6 +596,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 	let nextClientSeq = clientSeq + 1;
 	let sawInputRequest = false;
 	let sawPendingConfirmation = false;
+	let terminalNotification!: AhpNotification;
 
 	while (true) {
 		const notification = await c.waitForNotification(n => {
@@ -654,7 +660,18 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 
 		const action = getActionEnvelope(notification).action as { turnId: string };
 		assert.strictEqual(action.turnId, turnId);
+		terminalNotification = notification;
 		break;
+	}
+
+	if (options?.expectUnread !== false) {
+		await c.waitForNotification(n => {
+			const notifications = c.receivedNotifications();
+			return notifications.indexOf(n) > notifications.indexOf(terminalNotification)
+				&& isActionNotification(n, ActionType.ChatIsReadChanged)
+				&& getActionEnvelope(n).channel === chat
+				&& !(getActionEnvelope(n).action as { isRead: boolean }).isRead;
+		}, 90_000);
 	}
 
 	return { sawInputRequest, sawPendingConfirmation, responseText: getMarkdownResponseText(c) };

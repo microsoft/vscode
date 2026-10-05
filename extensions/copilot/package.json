@@ -6867,6 +6867,14 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/migrate-customizations/SKILL.md",
+        "sessionTypes": [
+          "copilotcli",
+          "claude",
+          "codex"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/init/SKILL.md",
         "sessionTypes": [
           "local"

@@ -16,8 +16,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE, renderChatPetAchievementPreview } from '../../../../workbench/contrib/chat/browser/chatPetAchievementPreview.js';
-import { chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, IChatPetAchievement } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
-import { ChatPetVariant, IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { chatPetAchievements, ChatPetAccessoryId, ChatPetAchievementId, getChatPetAchievementRewardLabels, IChatPetAchievement } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { ChatPetColor } from '../../../../workbench/contrib/chat/browser/chatPetColors.js';
+import { ChatPetCustomizationTab } from '../../../../workbench/contrib/chat/browser/chatPetAchievementsEditorInput.js';
 
 export interface ISessionsChatPetAchievementBadge {
 	readonly achievement: IChatPetAchievement;
@@ -43,7 +45,7 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 
 	constructor(
 		parent: HTMLElement,
-		private readonly onOpenAchievements: () => void,
+		private readonly onOpenCustomization: (tab: ChatPetCustomizationTab) => void,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -58,17 +60,17 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 				this.chatPetService.enabled.read(reader),
 				this.chatPetService.unlockedAchievements.read(reader),
 			);
-			const variant = this.chatPetService.variant.read(reader);
+			const color = this.chatPetService.color.read(reader);
 			const selectedAccessory = this.chatPetService.selectedAccessory.read(reader);
 			themeChanged.read(reader);
-			this.render(badges, selectedAccessory, variant);
+			this.render(badges, selectedAccessory, color);
 		}));
 	}
 
-	private render(badges: readonly ISessionsChatPetAchievementBadge[] | undefined, selectedAccessory: ChatPetAccessoryId | undefined, variant: ChatPetVariant): void {
+	private render(badges: readonly ISessionsChatPetAchievementBadge[] | undefined, selectedAccessory: ChatPetAccessoryId | undefined, color: ChatPetColor): void {
 		const activeElement = DOM.getActiveElement();
-		const focusedAccessoryId = DOM.isHTMLElement(activeElement)
-			? activeElement.closest<HTMLElement>('.sessions-chat-pet-achievement-badge')?.dataset.accessoryId
+		const focusedAchievementId = DOM.isHTMLElement(activeElement)
+			? activeElement.closest<HTMLElement>('.sessions-chat-pet-achievement-badge')?.dataset.achievementId
 			: undefined;
 		const restoreViewAchievementsFocus = DOM.isHTMLElement(activeElement) && activeElement.closest('.sessions-chat-pet-achievement-badges-actions') !== null;
 		let focusTarget: HTMLElement | undefined;
@@ -95,17 +97,17 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 				item.setAttribute('aria-label', localize('sessionsChatPetBadgeLockedLabel', "Locked secret achievement badge"));
 			}
 			const badgeElement = unlocked
-				? this.createUnlockedBadgeButton(item, achievement, accessory.id, selectedAccessory === accessory.id)
+				? this.createUnlockedBadgeButton(item, achievement, accessory?.id, !!accessory && selectedAccessory === accessory.id)
 				: DOM.append(item, DOM.$('span.sessions-chat-pet-achievement-badge.locked', { 'aria-hidden': 'true' }));
-			if (accessory.id === focusedAccessoryId) {
+			if (achievement.id === focusedAchievementId) {
 				focusTarget = badgeElement;
 			}
 			const canvas = DOM.append(badgeElement, DOM.$('canvas.sessions-chat-pet-achievement-badge-preview')) as HTMLCanvasElement;
 			canvas.width = CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE;
 			canvas.height = CHAT_PET_ACHIEVEMENT_PREVIEW_SIZE;
 			canvas.setAttribute('aria-hidden', 'true');
-			this.renderDisposables.add(renderChatPetAchievementPreview(canvas, accessory, unlocked, variant, this.themeService, this.logService));
-			this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), badgeElement, unlocked ? accessory.label : localize('sessionsChatPetBadgeLocked', "Locked")));
+			this.renderDisposables.add(renderChatPetAchievementPreview(canvas, accessory, unlocked, color, this.themeService, this.logService));
+			this.renderDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), badgeElement, unlocked ? getChatPetAchievementRewardLabels(achievement).join(', ') : localize('sessionsChatPetBadgeLocked', "Locked")));
 		}
 		const actions = DOM.append(this.element, DOM.$('.sessions-chat-pet-achievement-badges-actions'));
 		const viewAchievements = this.renderDisposables.add(new Button(actions, {
@@ -114,7 +116,7 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 			ariaLabel: localize('sessionsChatPetViewAchievementsAriaLabel', "View Pet Achievements"),
 		}));
 		viewAchievements.label = localize('sessionsChatPetViewAchievements', "View Achievements");
-		this.renderDisposables.add(viewAchievements.onDidClick(() => this.onOpenAchievements()));
+		this.renderDisposables.add(viewAchievements.onDidClick(() => this.onOpenCustomization('achievements')));
 		if (restoreViewAchievementsFocus) {
 			focusTarget = viewAchievements.element;
 		}
@@ -128,23 +130,33 @@ export class SessionsChatPetAchievementBadges extends Disposable {
 		}
 	}
 
-	private createUnlockedBadgeButton(parent: HTMLElement, achievement: IChatPetAchievement, accessoryId: ChatPetAccessoryId, selected: boolean): HTMLElement {
-		const accessory = achievement.accessories[0];
+	private createUnlockedBadgeButton(parent: HTMLElement, achievement: IChatPetAchievement, accessoryId: ChatPetAccessoryId | undefined, selected: boolean): HTMLElement {
+		const reward = getChatPetAchievementRewardLabels(achievement).join(', ');
 		const button = this.renderDisposables.add(new Button(parent, {
-			ariaLabel: selected
-				? localize('sessionsChatPetBadgeSelectedLabel', "{0} achievement badge: {1}, wearing", achievement.title, accessory.label)
-				: localize('sessionsChatPetBadgeLabel', "{0} achievement badge: wear {1}", achievement.title, accessory.label),
+			ariaLabel: achievement.colorCustomization
+				? localize('sessionsChatPetBadgeColorLabel', "{0} achievement badge: change Blobby's color", achievement.title)
+				: selected
+					? localize('sessionsChatPetBadgeSelectedLabel', "{0} achievement badge: {1}, wearing", achievement.title, reward)
+					: localize('sessionsChatPetBadgeLabel', "{0} achievement badge: wear {1}", achievement.title, reward),
 		}));
 		button.element.classList.add('sessions-chat-pet-achievement-badge');
 		button.element.classList.toggle('wearing', selected);
-		button.element.dataset.accessoryId = accessoryId;
-		button.element.setAttribute('aria-pressed', String(selected));
+		button.element.dataset.achievementId = achievement.id;
+		if (accessoryId) {
+			button.element.dataset.accessoryId = accessoryId;
+			button.element.setAttribute('aria-pressed', String(selected));
+		}
 		this.renderDisposables.add(button.onDidClick(() => {
+			if (achievement.colorCustomization) {
+				this.chatPetService.markAchievementSeen(achievement.id);
+				this.onOpenCustomization('color');
+				return;
+			}
 			if (this.chatPetService.selectedAccessory.get() === accessoryId) {
 				return;
 			}
 			this.chatPetService.setAccessory(accessoryId);
-			status(localize('sessionsChatPetBadgeHatSelected', "VS Code pet is now wearing {0}", accessory.label));
+			status(localize('sessionsChatPetBadgeHatSelected', "VS Code pet is now wearing {0}", reward));
 		}));
 		return button.element;
 	}
