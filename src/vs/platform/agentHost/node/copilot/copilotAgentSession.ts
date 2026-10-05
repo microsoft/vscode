@@ -1313,6 +1313,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _shellInitScriptInstanceId = generateUuid().substring(0, 8);
 	private readonly _launchPlan: CopilotSessionLaunchPlan;
 	private readonly _canvasByInstanceId = new Map<string, ICopilotCanvasProjection>();
+	/** Projection eviction does not end a runtime canvas lifetime. */
+	private readonly _reportedCanvasInstanceIds = new Set<string>();
 	private _canvasExtensions: SessionEventPayload<'session.extensions_loaded'>['data']['extensions'] | undefined;
 	private readonly _ignoredRestoredCanvasInstanceIds = new Set<string>();
 	private _canvasProjectionReady = false;
@@ -3070,6 +3072,7 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(wrapper);
 		this._registeredByokConfig = wrapper.launchByokConfig;
 		this._canvasByInstanceId.clear();
+		this._reportedCanvasInstanceIds.clear();
 		this._canvasExtensions = undefined;
 		this._ignoredRestoredCanvasInstanceIds.clear();
 		if (this._launchPlan.kind === 'resume') {
@@ -3184,6 +3187,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _clearCanvasProjection(): void {
+		this._reportedCanvasInstanceIds.clear();
 		const hadCanvases = this._canvasByInstanceId.size > 0;
 		if (!this._canvasProjectionReady && !hadCanvases) {
 			return;
@@ -8640,22 +8644,28 @@ export class CopilotAgentSession extends Disposable {
 			};
 			this._canvasByInstanceId.set(canvas.instanceId, projection);
 			this._publishCanvasState(projection);
-			if (!existing) {
+			if (!this._reportedCanvasInstanceIds.has(canvas.instanceId)) {
+				this._reportedCanvasInstanceIds.add(canvas.instanceId);
 				this._telemetryReporter.canvasOpened(
 					'copilotcli',
 					this._ownerSessionUri.toString(),
 					this._canvasExtensions?.find(extension => extension.id === canvas.extensionId)?.source,
 					this._currentTurn.value?.clientContext,
 				);
+			}
+			if (!existing) {
 				this._publishCanvases();
 			}
 		}));
 
 		this._register(wrapper.onCanvasClosed(e => {
-			if (!wrapper.canvasRuntimeEnabled || e.agentId || !this._canvasByInstanceId.delete(e.data.instanceId)) {
+			if (!wrapper.canvasRuntimeEnabled || e.agentId) {
 				return;
 			}
-			this._publishCanvases();
+			this._reportedCanvasInstanceIds.delete(e.data.instanceId);
+			if (this._canvasByInstanceId.delete(e.data.instanceId)) {
+				this._publishCanvases();
+			}
 		}));
 
 		this._register(wrapper.onCanvasUnavailable(e => {

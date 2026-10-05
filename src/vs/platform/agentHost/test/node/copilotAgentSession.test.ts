@@ -2614,6 +2614,37 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
+	test('deduplicates canvas telemetry across projection eviction until the runtime instance closes', async () => {
+		const telemetryService = new CapturingTelemetryService();
+		const { mockSession } = await createAgentSession(disposables, { telemetryService });
+		const canvas = (index: number) => ({
+			instanceId: `canvas-${index}`,
+			extensionId: 'project:preview',
+			canvasId: 'preview',
+			url: `https://example.test/canvas-${index}`,
+		});
+		const openCount = () => telemetryService.events.filter(event => event.eventName === 'agentHost.canvasOpened').length;
+		for (let index = 0; index < 9; index++) {
+			mockSession.fire('session.canvas.opened', canvas(index));
+		}
+		const counts = [openCount()];
+		mockSession.fire('session.canvas.closed', canvas(0), { agentId: 'agent-1' });
+		mockSession.fire('session.canvas.opened', { ...canvas(0), title: 'Updated after eviction' });
+		counts.push(openCount());
+		mockSession.fire('session.canvas.unavailable', canvas(1));
+		mockSession.fire('session.canvas.opened', canvas(1));
+		counts.push(openCount());
+		// Canvas 2 is no longer projected, but its runtime close must still end the counted lifetime.
+		mockSession.fire('session.canvas.closed', canvas(2));
+		mockSession.fire('session.canvas.opened', canvas(2));
+		counts.push(openCount());
+		mockSession.fire('session.canvas.closed', canvas(2));
+		mockSession.fire('session.canvas.opened', canvas(2));
+		counts.push(openCount());
+
+		assert.deepStrictEqual(counts, [9, 9, 9, 10, 11]);
+	});
+
 	test('reports canvas readiness with zero counts when no extensions are installed', async () => {
 		const telemetryService = new CapturingTelemetryService();
 		await createAgentSession(disposables, { telemetryService });
