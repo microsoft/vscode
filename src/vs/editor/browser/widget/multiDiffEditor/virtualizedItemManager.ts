@@ -87,6 +87,8 @@ export interface IVirtualizedItemDelegate<TItem, TBinding extends IVirtualizedIt
 	getTemplateId(item: TItem): string;
 	getUnboundSize(item: TItem): IObservable<number>;
 	createTemplate(templateId: string, context: ICompressedVirtualizedScrollViewContext): TTemplate;
+	preferUnusedTemplate?(item: TItem, template: TTemplate): boolean;
+	shouldKeepUnusedTemplate?(template: TTemplate, unusedTemplates: ReadonlySet<TTemplate>): boolean;
 	onDidBind?(binding: TBinding, tx: ITransaction): void;
 	onWillUnbind?(binding: TBinding, tx: ITransaction): void;
 }
@@ -119,10 +121,14 @@ export class VirtualizedItemManager<TItem, TBinding extends IVirtualizedItemBind
 		const templateId = this._delegate.getTemplateId(item);
 		let pool = this._pools.get(templateId);
 		if (!pool) {
-			pool = new VirtualizedTemplatePool(() => this._delegate.createTemplate(templateId, this._context));
+			pool = new VirtualizedTemplatePool(
+				() => this._delegate.createTemplate(templateId, this._context),
+				this._delegate.preferUnusedTemplate,
+				(template, unusedTemplates) => this._delegate.shouldKeepUnusedTemplate?.(template, unusedTemplates) ?? unusedTemplates.size < 5,
+			);
 			this._pools.set(templateId, pool);
 		}
-		return pool.acquire();
+		return pool.acquire(item);
 	}
 
 }
@@ -252,10 +258,23 @@ class VirtualizedTemplatePool<TItem, TBinding extends IVirtualizedItemBinding<TI
 	private readonly _unused = new Set<TTemplate>();
 	private readonly _used = new Set<TTemplate>();
 
-	constructor(private readonly _create: () => TTemplate) { }
+	constructor(
+		private readonly _create: () => TTemplate,
+		private readonly _preferUnusedTemplate: ((item: TItem, template: TTemplate) => boolean) | undefined,
+		private readonly _shouldKeepUnusedTemplate: (template: TTemplate, unusedTemplates: ReadonlySet<TTemplate>) => boolean,
+	) { }
 
-	acquire(): IReference<TTemplate> {
-		const template = this._unused.values().next().value ?? this._create();
+	acquire(item: TItem): IReference<TTemplate> {
+		let template = this._unused.values().next().value;
+		if (this._preferUnusedTemplate) {
+			for (const candidate of this._unused) {
+				if (this._preferUnusedTemplate(item, candidate)) {
+					template = candidate;
+					break;
+				}
+			}
+		}
+		template ??= this._create();
 		this._unused.delete(template);
 		if (template.currentBinding.get()) {
 			throw new BugIndicatingError('Cannot acquire a bound virtualized template');
@@ -273,7 +292,7 @@ class VirtualizedTemplatePool<TItem, TBinding extends IVirtualizedItemBinding<TI
 					throw new BugIndicatingError('Cannot pool a virtualized template with a current binding');
 				}
 				this._used.delete(template);
-				if (this._unused.size >= 5) {
+				if (!this._shouldKeepUnusedTemplate(template, this._unused)) {
 					template.dispose();
 				} else {
 					this._unused.add(template);

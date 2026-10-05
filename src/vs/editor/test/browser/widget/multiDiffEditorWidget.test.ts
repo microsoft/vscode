@@ -28,6 +28,7 @@ import { getMultiDiffEditorVariantConfiguration, multiDiffEditorVariants } from 
 import { MultiDiffEditorWidget } from '../../../browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IWorkbenchUIElementFactory } from '../../../browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Range } from '../../../common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProvider } from '../../../common/diff/documentDiffProvider.js';
 import { EditorContextKeys } from '../../../common/editorContextKeys.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
@@ -607,6 +608,129 @@ suite('MultiDiffEditorWidget', () => {
 			viewModel.dispose();
 			widget.dispose();
 			documentItem.dispose();
+		}
+	});
+
+	test('does not bind diff models while scrolling collapsed items', async () => {
+		const services = new ServiceCollection();
+		services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+		services.set(IActionViewItemService, new NullActionViewItemService());
+		services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+			override show() { return emptyProgressRunner; }
+		}());
+		services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+		services.set(IStorageService, disposables.add(new InMemoryStorageService()));
+		services.set(IMenuService, new class extends mock<IMenuService>() {
+			override createMenu(): IMenu {
+				return new class extends mock<IMenu>() {
+					override readonly onDidChange = Event.None;
+					override getActions() { return []; }
+					override dispose(): void { }
+				}();
+			}
+		}());
+		const instantiationService = createCodeEditorServices(disposables, services);
+		const documentItems: RefCounted<IDocumentDiffItem>[] = [];
+		const resources: { original: URI; modified: URI }[] = [];
+		for (let index = 0; index < 20; index++) {
+			const originalUri = URI.parse(`inmemory://original/collapsed-${index}.js`);
+			const modifiedUri = URI.parse(`inmemory://modified/collapsed-${index}.js`);
+			const longLine = index < 2 ? 'x'.repeat(500) : '';
+			const original = disposables.add(instantiateTextModel(instantiationService, `const value = '${longLine}1';`, undefined, undefined, originalUri));
+			const modified = disposables.add(instantiateTextModel(instantiationService, `const value = '${longLine}2';`, undefined, undefined, modifiedUri));
+			documentItems.push(RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+				original: new DiffItemSource(originalUri, original),
+				modified: new DiffItemSource(modifiedUri, modified),
+				options: { accessibilitySupport: 'off' },
+			}, { dispose() { } }));
+			resources.push({ original: originalUri, modified: modifiedUri });
+		}
+		const model: IMultiDiffEditorModel = {
+			documents: ValueWithChangeEvent.const(documentItems),
+		};
+		const setDiffModelSpy = sinon.spy(DiffEditorWidget.prototype, 'setDiffModel');
+		const layoutSpy = sinon.spy(DiffEditorWidget.prototype, 'layout');
+		const container = document.createElement('div');
+		const widget = instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			container,
+			{} satisfies IWorkbenchUIElementFactory,
+			{ variant: 'noCardsNonCompact' },
+		);
+		widget.layout(new Dimension(800, 200));
+		const viewModel = widget.createViewModel(model);
+		await waitForState(viewModel.items, items => items.length === documentItems.length);
+		for (const item of viewModel.items.get()) {
+			item.collapsed.set(true, undefined);
+		}
+		viewModel.items.get()[0].setActive(undefined);
+		widget.setViewModel(viewModel);
+		for (const item of viewModel.items.get()) {
+			item.collapsed.set(true, undefined);
+		}
+
+		try {
+			const boundModelCount = () => setDiffModelSpy.getCalls().filter(call => call.args[0] !== null).length;
+			const bindingsAfterLoad = boundModelCount();
+			const layoutsAfterLoad = layoutSpy.callCount;
+			const editorsAfterLoad = container.querySelectorAll('.monaco-diff-editor').length;
+			widget.reveal(resources[0], { range: new Range(1, 1, 1, 1), highlight: false });
+			const editorsAfterCollapsedRangeReveal = container.querySelectorAll('.monaco-diff-editor').length;
+			widget.reveal(resources.at(-1)!, { highlight: false });
+			const lastItemHasTemplate = widget.getLayoutDebugState().get().items.at(-1)?.hasTemplate;
+			widget.reveal(resources[0], { highlight: false });
+			const entriesAfterFirstRound = container.querySelectorAll('.multiDiffEntry').length;
+			for (let round = 0; round < 5; round++) {
+				widget.reveal(resources.at(-1)!, { highlight: false });
+				widget.reveal(resources[0], { highlight: false });
+			}
+			const entriesAfterRepeatedScroll = container.querySelectorAll('.multiDiffEntry').length;
+			const bindingsAfterScroll = boundModelCount();
+			const layoutsAfterScroll = layoutSpy.callCount;
+			const editorsAfterScroll = container.querySelectorAll('.monaco-diff-editor').length;
+			viewModel.items.get()[0].collapsed.set(false, undefined);
+			const bindingsAfterExpand = boundModelCount();
+			const editorsAfterExpand = container.querySelectorAll('.monaco-diff-editor').length;
+			viewModel.items.get()[0].collapsed.set(true, undefined);
+			assert.deepStrictEqual({
+				editorsAfterLoad,
+				editorsAfterCollapsedRangeReveal,
+				editorsAfterScroll,
+				editorCreatedOnExpand: editorsAfterExpand > editorsAfterScroll,
+				pooledTemplatesStayBounded: entriesAfterRepeatedScroll <= entriesAfterFirstRound + 1,
+				bindingsStayedConstant: bindingsAfterScroll === bindingsAfterLoad,
+				lastItemHasTemplate,
+				layoutSkippedWhileCollapsed: layoutsAfterScroll === layoutsAfterLoad,
+				boundOnExpand: bindingsAfterExpand > bindingsAfterScroll,
+				detachedOnCollapse: setDiffModelSpy.lastCall.args[0] === null,
+			}, {
+				editorsAfterLoad: 0,
+				editorsAfterCollapsedRangeReveal: 0,
+				editorsAfterScroll: 0,
+				editorCreatedOnExpand: true,
+				pooledTemplatesStayBounded: true,
+				bindingsStayedConstant: true,
+				lastItemHasTemplate: true,
+				layoutSkippedWhileCollapsed: true,
+				boundOnExpand: true,
+				detachedOnCollapse: true,
+			});
+			widget.layout(new Dimension(800, 1500));
+			viewModel.items.get()[0].collapsed.set(false, undefined);
+			await waitForState(viewModel.items.get()[0].diffEditorViewModel.isDiffUpToDate, value => value);
+			widget.setViewState({ scrollState: { top: 0, left: 120 } });
+			const horizontalOffset = widget.getViewState().scrollState.left;
+			assert.ok(horizontalOffset > 0);
+			viewModel.items.get()[1].collapsed.set(false, undefined);
+			await waitForState(viewModel.items.get()[1].diffEditorViewModel.isDiffUpToDate, value => value);
+			assert.strictEqual(widget.tryGetCodeEditor(resources[1].modified)?.editor.getScrollLeft(), horizontalOffset);
+		} finally {
+			widget.setViewModel(undefined);
+			viewModel.dispose();
+			widget.dispose();
+			for (const documentItem of documentItems) {
+				documentItem.dispose();
+			}
 		}
 	});
 
