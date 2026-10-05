@@ -5,6 +5,10 @@
 
 import { URI } from '../../../../../base/common/uri.js';
 import { ExtraKnownMarketplacesConfigDict, IExtraKnownMarketplaceConfigValue } from '../../../../../base/common/managedSettings.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { isWindows } from '../../../../../base/common/platform.js';
+import { extUri, extUriIgnorePathCase, joinPath, normalizePath, removeTrailingPathSeparator } from '../../../../../base/common/resources.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../constants.js';
 
@@ -215,6 +219,9 @@ export function parseMarketplaceReference(value: string): IMarketplaceReference 
 		const owner = shorthandMatch[1];
 		const repo = shorthandMatch[2];
 		const ref = shorthandMatch[3];
+		if (hasDotSegments(`${owner}/${repo}`)) {
+			return undefined;
+		}
 		return {
 			rawValue,
 			displayLabel: rawValue,
@@ -286,6 +293,9 @@ function parseUriMarketplaceReference(rawValue: string): IMarketplaceReference |
 	const gitSuffix = '.git';
 	const pathHasGitSuffix = trimmedPath.toLowerCase().endsWith(gitSuffix);
 	const pathWithoutGit = pathHasGitSuffix ? trimmedPath.slice(0, trimmedPath.length - gitSuffix.length) : trimmedPath;
+	if (hasDotSegments(trimmedPath) || hasDotSegments(pathWithoutGit)) {
+		return undefined;
+	}
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	// Always normalize the canonical path to include .git so that URLs with and without the suffix deduplicate.
 	const canonicalPath = pathHasGitSuffix ? trimmedPath.toLowerCase() : `${trimmedPath.toLowerCase()}${gitSuffix}`;
@@ -331,6 +341,9 @@ function parseScpMarketplaceReference(rawValue: string): IMarketplaceReference |
 	}
 
 	const pathWithoutGit = pathWithGit.slice(0, -gitSuffix.length);
+	if (hasDotSegments(pathWithGit) || hasDotSegments(pathWithoutGit)) {
+		return undefined;
+	}
 	const pathSegments = pathWithoutGit.split('/').map(sanitizePathSegment);
 	const githubRepo = extractGitHubRepo(authority, pathWithoutGit);
 
@@ -361,7 +374,7 @@ function extractGitHubRepo(authority: string, pathWithoutGit: string): string | 
 		return undefined;
 	}
 	const parts = pathWithoutGit.split('/');
-	if (parts.length >= 2 && parts[0] && parts[1]) {
+	if (parts.length === 2 && parts[0] && parts[1]) {
 		return `${parts[0]}/${parts[1]}`;
 	}
 	return undefined;
@@ -381,4 +394,40 @@ function getRefCacheSegments(ref: string | undefined): string[] {
 
 function sanitizePathSegment(value: string): string {
 	return value.replace(/[\\/:*?"<>|]/g, '_');
+}
+
+export function hasDotSegments(path: string): boolean {
+	return path.split(/[\\/]/).some(segment => segment === '.' || segment === '..');
+}
+
+export function getGitUrlCacheSegments(url: string): string[] {
+	let parsed: URI;
+	try {
+		parsed = URI.parse(url);
+	} catch {
+		return ['git', sanitizePathSegment(url)];
+	}
+	const authority = sanitizePathSegment(parsed.authority || 'unknown').toLowerCase();
+	const pathPart = parsed.path.replace(/^\/+/, '').replace(/\.git$/i, '').replace(/\/+$/g, '');
+	return [authority, ...pathPart.split('/').map(sanitizePathSegment)];
+}
+
+/** Resolves remote plugin cache segments without permitting traversal or the cache root itself. */
+export function getPluginCacheUri(cacheRoot: URI, segments: readonly string[]): URI {
+	if (segments.some(hasDotSegments)) {
+		throw new Error(localize('invalidPluginCacheSegments', "Invalid plugin cache path '{0}'.", segments.join('/')));
+	}
+	return validatePluginCacheUri(cacheRoot, joinPath(cacheRoot, ...segments));
+}
+
+/** Validates computed and persisted remote repository locations before filesystem access. */
+export function validatePluginCacheUri(cacheRoot: URI, resource: URI): URI {
+	// Revived URI caches must not override the structural path we validate.
+	const directory = removeTrailingPathSeparator(normalizePath(URI.from(resource)));
+	const root = removeTrailingPathSeparator(normalizePath(URI.from(cacheRoot)));
+	const comparer = root.scheme === Schemas.file && isWindows ? extUriIgnorePathCase : extUri;
+	if (!comparer.isEqualOrParent(directory, root) || comparer.isEqual(directory, root)) {
+		throw new Error(localize('invalidPluginCachePath', "Invalid plugin cache path '{0}'.", resource.toString()));
+	}
+	return directory;
 }

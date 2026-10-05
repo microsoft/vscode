@@ -23,6 +23,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import type { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { IAgentPluginRepositoryService, IEnsureRepositoryOptions, IPullRepositoryOptions } from '../common/plugins/agentPluginRepositoryService.js';
+import { getPluginCacheUri, validatePluginCacheUri } from '../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../common/plugins/pluginMarketplaceService.js';
 import { IPluginSource } from '../common/plugins/pluginSource.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
@@ -107,7 +108,13 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 
 		const indexed = this._marketplaceIndex.value.get(marketplace.canonicalId);
 		if (indexed?.repositoryUri) {
-			return indexed.repositoryUri;
+			try {
+				return validatePluginCacheUri(this._cacheRoot, indexed.repositoryUri);
+			} catch (error) {
+				this._logService.warn(`[AgentPluginRepositoryService] Discarding invalid cached marketplace location for ${marketplace.displayLabel}`, error);
+				this._marketplaceIndex.value.delete(marketplace.canonicalId);
+				this._saveMarketplaceIndex();
+			}
 		}
 
 		return this._getRepoCacheDirForReference(marketplace);
@@ -293,7 +300,7 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 	}
 
 	private _getRepoCacheDirForReference(reference: IMarketplaceReference): URI {
-		return joinPath(this._cacheRoot, ...reference.cacheSegments);
+		return getPluginCacheUri(this._cacheRoot, reference.cacheSegments);
 	}
 
 	private _loadMarketplaceIndex(): Map<string, IMarketplaceIndexEntry> {

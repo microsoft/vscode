@@ -15,11 +15,15 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../../base/common/platform.js';
+import { win32 } from '../../../../../../base/common/path.js';
+import { isWeb, OperatingSystem } from '../../../../../../base/common/platform.js';
 import { basename, dirname, isEqual, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -35,6 +39,7 @@ import { IGalleryMcpServer, mcpGalleryServiceUrlConfig } from '../../../../../..
 import { UnsupportedMcpGalleryPackageError } from '../../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
+import { IRemoteAgentEnvironment } from '../../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -42,6 +47,7 @@ import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from
 import { CopilotConnectorsError } from '../../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CopilotConnectorConnectionStatus, CopilotConnectorConnectionStatusDetail, ICopilotConnectorAccount, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { IWorkbenchLocalMcpServer } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
+import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { CustomizationMarketplaceInstallationRecordStore } from '../../../browser/aiCustomization/customizationMarketplaceInstallationRecordStore.js';
 import { CustomizationMarketplaceInstallService } from '../../../browser/aiCustomization/customizationMarketplaceInstallService.js';
@@ -174,6 +180,7 @@ function isStaging(resource: URI): boolean {
 class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 	readonly fileTypes = new Map<string, FileType>();
 	readonly writes: URI[] = [];
+	readonly createdDirectories: URI[] = [];
 	readonly moves: { source: URI; target: URI; overwrite: boolean }[] = [];
 	statCalls = 0;
 	activeStatCalls = 0;
@@ -213,6 +220,11 @@ class SkillFileSystemProvider extends InMemoryFileSystemProvider {
 		await this.beforeWrite?.(resource);
 		await super.writeFile(resource, content, options);
 		await this.afterWrite?.(resource);
+	}
+
+	override async mkdir(resource: URI): Promise<void> {
+		this.createdDirectories.push(resource);
+		await super.mkdir(resource);
 	}
 
 	override async rename(source: URI, target: URI, options: IFileOverwriteOptions): Promise<void> {
@@ -302,6 +314,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 		}();
 		const repositoryService = new class extends mock<IAgentPluginRepositoryService>() {
 			override readonly agentPluginsHome = URI.file('/cache');
+			sourceRepository = repository;
 			readonly calls: { reference: IMarketplaceReference; options: IEnsureRepositoryOptions | undefined }[] = [];
 			onEnsure: (() => Promise<URI>) | undefined;
 			override getPluginSource(): IPluginSource {
@@ -309,11 +322,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 			}
 			override async ensureRepository(reference: IMarketplaceReference, options?: IEnsureRepositoryOptions): Promise<URI> {
 				this.calls.push({ reference, options });
-				return this.onEnsure ? this.onEnsure() : repository;
+				return this.onEnsure ? this.onEnsure() : this.sourceRepository;
 			}
 			override async ensurePluginSource(plugin: IMarketplacePlugin, options?: IEnsureRepositoryOptions): Promise<URI> {
 				this.calls.push({ reference: plugin.marketplaceReference, options });
-				let source = repository;
+				let source = this.sourceRepository;
 				for (const segment of plugin.source ? plugin.source.split('/') : []) {
 					source = joinPath(source, segment);
 				}
@@ -324,6 +337,18 @@ suite('CustomizationMarketplaceInstallService', () => {
 			revision = 'a'.repeat(40);
 			override async revParse(): Promise<string> {
 				return this.revision;
+			}
+		}();
+		const remoteAgentService = new class extends mock<IRemoteAgentService>() {
+			environment: IRemoteAgentEnvironment | null = null;
+			override async getRawEnvironment(): Promise<IRemoteAgentEnvironment | null> {
+				return this.environment;
+			}
+		}();
+		const agentHostConnectionsService = new class extends mock<IAgentHostConnectionsService>() {
+			readonly byAuthority = new Map<string, IAgentConnection>();
+			override getConnectionByAuthority(authority: string): IAgentConnection | undefined {
+				return this.byAuthority.get(authority);
 			}
 		}();
 		const mcpChanges = store.add(new Emitter<IWorkbenchMcpServer | undefined>());
@@ -518,6 +543,8 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IAgentPluginService, agentPluginService);
 		instantiationService.stub(IAgentPluginRepositoryService, repositoryService);
 		instantiationService.stub(IPluginGitService, pluginGitService);
+		instantiationService.stub(IRemoteAgentService, remoteAgentService);
+		instantiationService.stub(IAgentHostConnectionsService, agentHostConnectionsService);
 		instantiationService.stub(IMcpWorkbenchService, mcpService);
 		instantiationService.stub(ICopilotConnectorsService, connectorsService);
 		const mcpGalleryManifestService = new class extends mock<IMcpGalleryManifestService>() {
@@ -545,8 +572,57 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
-			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService,
+			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService, remoteAgentService, agentHostConnectionsService,
 		};
+	}
+
+	const nonPortableSkillNames = [
+		String.raw`..\..\escaped.txt`,
+		String.raw`nested\..\..\..\escaped.txt`,
+		'.. ',
+		'.git ',
+		'asset:stream',
+		'NUL',
+		'asset.txt.',
+		'asset\u0001.txt',
+	];
+
+	async function createCrossPlatformFixture(targetOS = OperatingSystem.Windows, targetScheme = Schemas.vscodeRemote) {
+		const fixture = await createFixture();
+		const sourceProvider = store.add(new InMemoryFileSystemProvider());
+		const targetProvider = store.add(new SkillFileSystemProvider());
+		store.add(fixture.fileService.registerProvider(Schemas.inMemory, sourceProvider));
+		store.add(fixture.fileService.registerProvider(targetScheme, targetProvider));
+		const sourceRepository = URI.from({ scheme: Schemas.inMemory, path: '/catalog' });
+		const source = joinPath(sourceRepository, 'skills', 'demo-skill');
+		const hostPath = targetOS === OperatingSystem.Windows ? '/C:/workspace' : '/workspace';
+		const project = targetScheme === AGENT_HOST_SCHEME
+			? toAgentHostUri(URI.from({ scheme: Schemas.file, path: hostPath }), 'test-agent-host')
+			: URI.from({ scheme: targetScheme, authority: 'ssh-remote+test', path: hostPath });
+		const targetFolder = joinPath(project, '.github', 'skills');
+		const hostConnection = new class extends mock<IAgentConnection>() {
+			operatingSystem = targetOS === OperatingSystem.Windows ? 'win32' : 'linux';
+			diagnosticsError: Error | undefined;
+			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
+				if (this.diagnosticsError) {
+					throw this.diagnosticsError;
+				}
+				return { version: '1.0.0', os: this.operatingSystem, arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
+			}
+		}();
+		fixture.agentHostConnectionsService.byAuthority.set(project.authority, hostConnection);
+		fixture.remoteAgentService.environment = targetScheme === AGENT_HOST_SCHEME ? null : new class extends mock<IRemoteAgentEnvironment>() {
+			override readonly os = targetOS;
+		}();
+		fixture.repositoryService.sourceRepository = sourceRepository;
+		fixture.workspaceService.activeProjectRoot.set(project, undefined);
+		fixture.harnessService.folders = [{ uri: targetFolder, label: 'Remote Workspace', source: PromptsStorage.local }];
+		await fixture.fileService.writeFile(joinPath(source, SKILL_FILENAME), VSBuffer.fromString(skillContent));
+		await fixture.fileService.writeFile(joinPath(source, 'assets', 'safe file.txt'), VSBuffer.fromString('safe'));
+		await fixture.fileService.createFolder(targetFolder);
+		targetProvider.createdDirectories.length = 0;
+		targetProvider.writes.length = 0;
+		return { ...fixture, source, targetFolder, targetProvider, hostConnection, target: joinPath(targetFolder, 'demo-skill') };
 	}
 
 	function fireConfigurationChange(configurationService: TestConfigurationService, key: string): void {
@@ -1165,16 +1241,17 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 
 		test('round-trips file names accepted by the installed package', async () => {
-			const fixture = await createFixture();
+			const fixture = await createCrossPlatformFixture(OperatingSystem.Linux);
 			const candidate = resource({ version: '1.0.0' });
-			await fixture.fileService.writeFile(joinPath(sourceDirectory, 'notes:extra.md'), VSBuffer.fromString('notes'));
+			await fixture.fileService.del(joinPath(fixture.source, 'assets'), { recursive: true });
+			await fixture.fileService.writeFile(joinPath(fixture.source, 'notes:extra.md'), VSBuffer.fromString('notes'));
 			await fixture.service.install(candidate);
 			fixture.service.dispose();
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
 			await timeout(0);
 			assert.deepStrictEqual({
 				state: restored.getInstallState(candidate).kind,
-				files: await readTree(fixture.fileService, skillDestination),
+				files: await readTree(fixture.fileService, fixture.target),
 			}, { state: 'installed', files: [['notes:extra.md', 'notes'], [SKILL_FILENAME, skillContent]] });
 		});
 
@@ -2475,6 +2552,183 @@ suite('CustomizationMarketplaceInstallService', () => {
 	});
 
 	suite('skills', () => {
+		for (const operation of ['installation', 'repair']) {
+			for (const kind of ['file', 'directory']) {
+				test(`uses the agent host OS for skill ${kind} names during ${operation}`, async () => {
+					for (const targetOS of [OperatingSystem.Windows, OperatingSystem.Linux]) {
+						const fixture = await createCrossPlatformFixture(targetOS, AGENT_HOST_SCHEME);
+						const candidate = resource();
+						if (operation === 'repair') {
+							await fixture.service.install(candidate);
+							const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+							await fixture.fileService.del(joinPath(fixture.target, SKILL_FILENAME));
+							await missing;
+						}
+						const name = String.raw`..\..\escaped.txt`;
+						const entry = joinPath(fixture.source, 'assets', name);
+						if (kind === 'directory') {
+							await fixture.fileService.createFolder(entry);
+						} else {
+							await fixture.fileService.writeFile(entry, VSBuffer.fromString('content'));
+						}
+						fixture.targetProvider.createdDirectories.length = 0;
+						fixture.targetProvider.writes.length = 0;
+						const result = operation === 'repair' ? fixture.service.repair(candidate) : fixture.service.install(candidate);
+						if (targetOS === OperatingSystem.Windows) {
+							await assert.rejects(result, /file or folder name that cannot be copied safely/);
+							assert.deepStrictEqual({
+								unsafeDestinations: [...fixture.targetProvider.writes, ...fixture.targetProvider.createdDirectories].filter(uri => uri.path.includes(name)),
+								state: fixture.service.getInstallState(candidate).kind,
+							}, { unsafeDestinations: [], state: operation === 'repair' ? 'missing' : 'available' });
+						} else {
+							await assert.doesNotReject(result);
+							assert.strictEqual(fixture.service.getInstallState(candidate).kind, 'installed');
+						}
+					}
+				});
+			}
+		}
+
+		for (const failure of ['connection', 'unsupported OS', 'diagnostics']) {
+			test(`rejects a skill copy when agent host ${failure} is unavailable`, async () => {
+				const fixture = await createCrossPlatformFixture(OperatingSystem.Windows, AGENT_HOST_SCHEME);
+				let expected: RegExp;
+				if (failure === 'connection') {
+					fixture.agentHostConnectionsService.byAuthority.clear();
+					expected = /destination.*operating system/;
+				} else if (failure === 'unsupported OS') {
+					fixture.hostConnection.operatingSystem = 'unsupported';
+					expected = /Unsupported agent host operating system/;
+				} else {
+					fixture.hostConnection.diagnosticsError = new Error('Host diagnostics unavailable');
+					expected = /Host diagnostics unavailable/;
+				}
+				await assert.rejects(fixture.service.install(resource()), expected);
+				assert.deepStrictEqual({
+					writes: fixture.targetProvider.writes,
+					directories: fixture.targetProvider.createdDirectories,
+					moves: fixture.targetProvider.moves,
+				}, { writes: [], directories: [], moves: [] });
+			});
+		}
+
+		test('rejects a skill copy to an unknown destination filesystem', async () => {
+			const fixture = await createCrossPlatformFixture(OperatingSystem.Windows, 'test-destination');
+			await assert.rejects(fixture.service.install(resource()), /destination.*operating system/);
+			assert.deepStrictEqual({
+				writes: fixture.targetProvider.writes,
+				directories: fixture.targetProvider.createdDirectories,
+				moves: fixture.targetProvider.moves,
+			}, { writes: [], directories: [], moves: [] });
+		});
+
+		for (const name of nonPortableSkillNames) {
+			for (const kind of ['file', 'directory']) {
+				test(`rejects non-portable skill ${kind} names before remote writes: ${JSON.stringify(name)}`, async () => {
+					const fixture = await createCrossPlatformFixture();
+					const unsafe = joinPath(fixture.source, 'assets', name);
+					if (kind === 'directory') {
+						await fixture.fileService.createFolder(unsafe);
+					} else {
+						await fixture.fileService.writeFile(unsafe, VSBuffer.fromString('unsafe'));
+					}
+					await assert.rejects(fixture.service.install(resource()), /file or folder name that cannot be copied safely/);
+					const staging = fixture.targetProvider.createdDirectories.find(isStaging);
+					assert.ok(staging);
+					const operations = [...fixture.targetProvider.writes, ...fixture.targetProvider.createdDirectories];
+					assert.deepStrictEqual({
+						unsafeDestinations: operations.filter(uri => uri.path.split('/').includes(name)),
+						escapedDestinations: operations.filter(uri => {
+							const relative = win32.relative(staging.path.slice(1), uri.path.slice(1));
+							return relative === '..' || relative.startsWith('..\\') || win32.isAbsolute(relative);
+						}),
+						stagingRemains: await fixture.fileService.exists(staging),
+						targetExists: await fixture.fileService.exists(fixture.target),
+						moves: fixture.targetProvider.moves,
+						state: fixture.service.getInstallState(resource()).kind,
+					}, { unsafeDestinations: [], escapedDestinations: [], stagingRemains: false, targetExists: false, moves: [], state: 'available' });
+
+					await fixture.fileService.del(unsafe, { recursive: true });
+					await fixture.service.install(resource());
+					assert.deepStrictEqual(await readTree(fixture.fileService, fixture.target), [
+						['assets', null],
+						['assets/safe file.txt', 'safe'],
+						[SKILL_FILENAME, skillContent],
+					]);
+				});
+			}
+		}
+
+		for (const kind of ['file', 'directory']) {
+			test(`preserves POSIX-only skill ${kind} names during remote installation and repair`, async () => {
+				const fixture = await createCrossPlatformFixture(OperatingSystem.Linux);
+				const candidate = resource();
+				const expected: [string, string | null][] = [['assets', null], ['assets/safe file.txt', 'safe'], [SKILL_FILENAME, skillContent]];
+				for (const name of nonPortableSkillNames) {
+					const entry = joinPath(fixture.source, 'assets', name);
+					if (kind === 'directory') {
+						await fixture.fileService.createFolder(entry);
+					} else {
+						await fixture.fileService.writeFile(entry, VSBuffer.fromString('content'));
+					}
+					expected.push([`assets/${name}`, kind === 'directory' ? null : 'content']);
+				}
+				await assert.doesNotReject(fixture.service.install(candidate));
+				const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+				await fixture.fileService.del(joinPath(fixture.target, SKILL_FILENAME));
+				await missing;
+				await assert.doesNotReject(fixture.service.repair(candidate));
+				assert.deepStrictEqual({
+					state: fixture.service.getInstallState(candidate).kind,
+					files: await readTree(fixture.fileService, fixture.target),
+				}, { state: 'installed', files: expected.sort(([left], [right]) => left.localeCompare(right)) });
+			});
+		}
+
+		test('rejects a skill copy when the remote destination OS is unavailable', async () => {
+			const fixture = await createCrossPlatformFixture();
+			fixture.remoteAgentService.environment = null;
+			await assert.rejects(fixture.service.install(resource()), /remote destination.*operating system/);
+			assert.deepStrictEqual({
+				writes: fixture.targetProvider.writes,
+				directories: fixture.targetProvider.createdDirectories,
+				moves: fixture.targetProvider.moves,
+				state: fixture.service.getInstallState(resource()).kind,
+			}, { writes: [], directories: [], moves: [], state: 'available' });
+		});
+
+		for (const kind of ['file', 'directory']) {
+			test(`rejects non-portable skill ${kind} names during remote repair`, async () => {
+				const fixture = await createCrossPlatformFixture();
+				const candidate = resource();
+				await fixture.service.install(candidate);
+				const missing = Event.toPromise(Event.filter(fixture.service.onDidChange, () => fixture.service.getInstallState(candidate).kind === 'missing'));
+				await fixture.fileService.del(joinPath(fixture.target, SKILL_FILENAME));
+				await missing;
+				const name = String.raw`..\..\escaped.txt`;
+				const unsafe = joinPath(fixture.source, 'assets', name);
+				if (kind === 'directory') {
+					await fixture.fileService.createFolder(unsafe);
+				} else {
+					await fixture.fileService.writeFile(unsafe, VSBuffer.fromString('unsafe'));
+				}
+				fixture.targetProvider.createdDirectories.length = 0;
+				fixture.targetProvider.writes.length = 0;
+				await assert.rejects(fixture.service.repair(candidate), /file or folder name that cannot be copied safely/);
+				const staging = fixture.targetProvider.createdDirectories.find(isStaging);
+				assert.ok(staging);
+				assert.deepStrictEqual({
+					unsafeDestinations: [...fixture.targetProvider.writes, ...fixture.targetProvider.createdDirectories].filter(uri => uri.path.includes(name)),
+					stagingRemains: await fixture.fileService.exists(staging),
+					state: fixture.service.getInstallState(candidate).kind,
+					files: await readTree(fixture.fileService, fixture.target),
+				}, {
+					unsafeDestinations: [], stagingRemains: false, state: 'missing',
+					files: [['assets', null], ['assets/safe file.txt', 'safe']],
+				});
+			});
+		}
+
 		test('confirms provenance and copies the complete directory through an external staging directory', async () => {
 			const fixture = await createFixture();
 			await fixture.fileService.writeFile(joinPath(sourceDirectory, 'scripts', 'run.sh'), VSBuffer.fromString('#!/bin/sh\necho demo\n'));
