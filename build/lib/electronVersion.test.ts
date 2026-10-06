@@ -40,8 +40,11 @@ suite('Electron runtime reuse', () => {
 				await fs.rm(executable);
 				await fs.mkdir(executable);
 				results.push(shouldDownloadElectron(repoRoot, {}, platform));
+				await fs.rm(path.join(electronDir, 'version'));
+				await fs.mkdir(path.join(electronDir, 'version'));
+				results.push(shouldDownloadElectron(repoRoot, {}, platform));
 
-				assert.deepStrictEqual(results, [true, true, false, true, false, true, true]);
+				assert.deepStrictEqual(results, [true, true, false, true, false, true, true, true]);
 			} finally {
 				await fs.rm(repoRoot, { recursive: true, force: true });
 			}

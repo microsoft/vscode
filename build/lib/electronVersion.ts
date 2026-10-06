@@ -37,11 +37,7 @@ export function shouldDownloadElectron(repoRoot = root, environment: NodeJS.Proc
 		}
 		fs.accessSync(executable, platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK);
 		return false;
-	} catch (error) {
-		const code = (error as NodeJS.ErrnoException).code;
-		if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'EACCES') {
-			return true;
-		}
-		throw error;
+	} catch {
+		return true;
 	}
 }
