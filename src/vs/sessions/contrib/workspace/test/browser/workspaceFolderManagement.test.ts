@@ -220,10 +220,12 @@ suite('WorkspaceFolderManagementContribution', () => {
 		const current = new WorkspaceFolder({ uri: URI.file('/current'), name: 'current', index: 0 });
 
 		workspaceFoldersChanged.fire({ added: [previous], removed: [], changed: [] });
+		const afterAdd = historyService.clearRecentlyOpenedCalls;
 		workspaceFoldersChanged.fire({ added: [], removed: [], changed: [previous] });
+		const afterChange = historyService.clearRecentlyOpenedCalls;
 		workspaceFoldersChanged.fire({ added: [current], removed: [previous], changed: [] });
 
-		assert.strictEqual(historyService.clearRecentlyOpenedCalls, 1);
+		assert.deepStrictEqual([afterAdd, afterChange, historyService.clearRecentlyOpenedCalls], [0, 0, 1]);
 	});
 
 	test('mounts a session that does not require workspace trust without granting trust', async () => {
