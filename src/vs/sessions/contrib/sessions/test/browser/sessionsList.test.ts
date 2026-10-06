@@ -31,6 +31,7 @@ import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSetting
 import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -334,6 +335,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
+			const commands: string[] = [];
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
@@ -348,6 +350,12 @@ suite('Sessions - SessionsList', () => {
 			};
 			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
+				instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+					override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+						commands.push(commandId);
+						return undefined;
+					}
+				});
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
 					override readonly automations = constObservable([]);
@@ -453,7 +461,12 @@ suite('Sessions - SessionsList', () => {
 			list.focusAutomations();
 			await timeout(350);
 			const controlNavigationLabels = Array.from(navigationContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
+			const controlTreeShortcuts = Array.from(listContainer.querySelectorAll('.session-section-shortcut .session-section-label'), element => element.textContent);
 			const controlAutomationsFocused = list.isAutomationsFocused();
+			const controlAutomationsRow = listContainer.querySelector<HTMLElement>('.session-section-shortcut');
+			assert.ok(controlAutomationsRow);
+			controlAutomationsRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			await Promise.resolve();
 
 			assert.deepStrictEqual({
 				findInput,
@@ -475,7 +488,9 @@ suite('Sessions - SessionsList', () => {
 				navigationUsesList: navigationContainer.querySelector('.monaco-list') !== null && navigationContainer.querySelector('[role="tree"]') === null,
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
 				controlNavigationLabels,
+				controlTreeShortcuts,
 				controlAutomationsFocused,
+				commands,
 				newSessionKeybindingLookupUsesViewContext: keybindingLookupContexts.length >= 2
 					&& keybindingLookupContexts.every(context => context === harness.instantiationService.get(IContextKeyService)),
 			}, {
@@ -510,8 +525,10 @@ suite('Sessions - SessionsList', () => {
 				stableFindHeaderUnmoved: true,
 				navigationUsesList: true,
 				sessionsUseTree: true,
-				controlNavigationLabels: ['Automations'],
+				controlNavigationLabels: [],
+				controlTreeShortcuts: ['Automations'],
 				controlAutomationsFocused: true,
+				commands: ['sessionsView.manageAutomations'],
 				newSessionKeybindingLookupUsesViewContext: true,
 			});
 		});
