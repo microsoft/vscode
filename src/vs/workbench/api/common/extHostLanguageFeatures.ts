@@ -26,7 +26,7 @@ import { encodeSemanticTokensDto } from '../../../editor/common/services/semanti
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Cache } from './cache.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
@@ -3008,6 +3008,10 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	}
 
 	setLanguageConfiguration(extension: IExtensionDescription, languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
+		if (configuration.autoClosingPairs?.some(pair => pair.beforeText !== undefined)) {
+			checkProposedApiEnabled(extension, 'autoClosingPairBeforeText');
+		}
+
 		const { wordPattern } = configuration;
 
 		// check for a valid word pattern

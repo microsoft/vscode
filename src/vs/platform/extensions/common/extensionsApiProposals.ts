@@ -54,6 +54,9 @@ const _allApiProposals = {
 	authenticationChallenges: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts',
 	},
+	autoClosingPairBeforeText: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.autoClosingPairBeforeText.d.ts',
+	},
 	browser: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.browser.d.ts',
 	},

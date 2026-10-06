@@ -154,6 +154,26 @@ suite('ExtHostLanguageFeatures', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('AutoClosingPair.beforeText requires proposed API', () => {
+		disposables.add(extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', {
+			autoClosingPairs: [{ open: '{', close: '}' }]
+		}));
+
+		const configuration: vscode.LanguageConfiguration = {
+			autoClosingPairs: [{ open: '{', close: '}', beforeText: /\{$/ }]
+		};
+		assert.throws(
+			() => extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', configuration),
+			/CANNOT use API proposal: autoClosingPairBeforeText/
+		);
+
+		disposables.add(extHost.setLanguageConfiguration(
+			{ ...defaultExtension, enabledApiProposals: ['autoClosingPairBeforeText'] },
+			'testLanguage',
+			configuration
+		));
+	});
+
 	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
 		disposables.add(extHost.registerDocumentOnDropEditProvider(defaultExtension, defaultSelector, {
 			provideDocumentDropEdits: () => []
