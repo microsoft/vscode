@@ -414,24 +414,3 @@ export function normalizeTokenPrices(tokenPrices: IRawTokenPrices | undefined): 
 		},
 	};
 }
-
-const CORE_REQUEST_PURPOSE_PATTERN = /^[a-zA-Z]{1,40}$/;
-
-/**
- * Builds the telemetry source and log name for a request made through the language model API.
- *
- * Requests from VS Code core report `api.core/<purpose>` when they name the feature that made
- * them, and `api.undefined` otherwise. The purpose is only honored for core, because any
- * extension can set model options, and only as a short identifier so nothing free-form reaches
- * telemetry. Every source keeps the `api.` prefix, which opts the request out of prompt
- * telemetry.
- *
- * @param extensionId The calling extension, or `undefined` for VS Code core.
- * @param requestPurpose The `_requestPurpose` model option of the request.
- */
-export function getLanguageModelRequestLabels(extensionId: string | undefined, requestPurpose: unknown): { messageSource: string; debugName: string } {
-	if (extensionId === undefined && typeof requestPurpose === 'string' && CORE_REQUEST_PURPOSE_PATTERN.test(requestPurpose)) {
-		return { messageSource: `api.core/${requestPurpose}`, debugName: `copilotLanguageModelWrapper/${requestPurpose}` };
-	}
-	return { messageSource: `api.${extensionId}`, debugName: 'copilotLanguageModelWrapper' };
-}

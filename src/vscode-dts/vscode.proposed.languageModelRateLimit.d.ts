@@ -10,22 +10,15 @@ declare module 'vscode' {
 	export namespace LanguageModelError {
 
 		/**
-		 * The language model provider is rate limiting requests. Consumers should wait before sending
-		 * more requests, honoring {@link LanguageModelError.retryAfter retryAfter} when it is set.
-		 *
-		 * @param message A human-readable message describing the rate limit.
-		 * @param retryAfter How long to wait before retrying, in milliseconds, if the provider knows.
+		 * The provider is rate limiting requests. When set, `retryAfter` is how many
+		 * milliseconds to wait before retrying; convert HTTP `Retry-After` seconds.
 		 */
 		export function RateLimited(message?: string, retryAfter?: number): LanguageModelError;
 	}
 
 	export interface LanguageModelError {
 
-		/**
-		 * How long to wait before retrying, in milliseconds. Only set for
-		 * {@link LanguageModelError.RateLimited RateLimited} errors whose provider supplied retry guidance.
-		 * Providers that receive an HTTP `Retry-After` header, which is in seconds, convert it.
-		 */
+		/** Milliseconds to wait before retrying; only set on {@link LanguageModelError.RateLimited RateLimited} errors. */
 		readonly retryAfter?: number;
 	}
 }

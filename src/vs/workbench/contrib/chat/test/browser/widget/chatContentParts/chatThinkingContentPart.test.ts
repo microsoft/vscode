@@ -1801,7 +1801,7 @@ suite('ChatThinkingContentPart', () => {
 			});
 		});
 
-		test('shows the fallback title while a generated title is delayed, then replaces it', async () => {
+		test('shows the fallback title while a title is queued and caches a title that arrives after dispose', async () => {
 			const clock = sinon.useFakeTimers();
 			try {
 				const title = new DeferredPromise<string>();
@@ -1810,19 +1810,24 @@ suite('ChatThinkingContentPart', () => {
 					stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
 					result: Promise.resolve({}),
 				});
-				const part = createPersistentReasoning(createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**'));
+				const content = createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**');
+				const part = createPersistentReasoning(content);
 				part.finalizeTitleIfDefault();
 				await clock.tickAsync(1999);
 				const beforeDelay = snapshot(part).title;
 				await clock.tickAsync(1);
 				const afterDelay = snapshot(part).title;
+				part.dispose();
 				await title.complete('Reviewed code and build processes');
 				await clock.tickAsync(0);
 
-				assert.deepStrictEqual({ beforeDelay, afterDelay, generated: snapshot(part).title }, {
+				const cacheKey = `${chatSessionResourceToId(createMockRenderContext().element.sessionResource)}:${content.id}`;
+				const cache = instantiationService.get(IStorageService).getObject<Record<string, { title: string }>>('chat.thinkingTitleCache', StorageScope.PROFILE);
+				assert.deepStrictEqual({ beforeDelay, afterDelay, generatedTitle: content.generatedTitle, cachedTitle: cache?.[cacheKey]?.title }, {
 					beforeDelay: 'Thinking',
 					afterDelay: 'Finished with 1 step',
-					generated: 'Reviewed code and build processes',
+					generatedTitle: 'Reviewed code and build processes',
+					cachedTitle: 'Reviewed code and build processes',
 				});
 			} finally {
 				clock.restore();
@@ -2684,41 +2689,6 @@ suite('ChatThinkingContentPart', () => {
 				generatedTitle: 'Analyzed authentication flow',
 				label: 'Analyzed authentication flow',
 				ariaLabel: 'Analyzed authentication flow',
-			});
-		});
-
-		test('finalizeTitleIfDefault should keep a generated title that arrives after the part was disposed', async () => {
-			const title = new DeferredPromise<string>();
-			mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
-			mockLanguageModelsService.sendChatRequest = async () => ({
-				stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
-				result: Promise.resolve({}),
-			});
-			const context = createMockRenderContext(true);
-			const thinkingId = 'reasoning-part-disposed';
-			const content = createThinkingPart('Let me think about how to refactor the renderer', thinkingId);
-			const part = instantiationService.createInstance(
-				ChatThinkingContentPart,
-				content,
-				context,
-				mockMarkdownRenderer,
-				true
-			);
-
-			part.finalizeTitleIfDefault();
-			await timeout(0);
-			part.dispose();
-			await title.complete('Planned renderer refactoring');
-			await timeout(0);
-
-			const cacheKey = `${chatSessionResourceToId(context.element.sessionResource)}:${thinkingId}`;
-			const cache = instantiationService.get(IStorageService).getObject<Record<string, { title: string }>>('chat.thinkingTitleCache', StorageScope.PROFILE);
-			assert.deepStrictEqual({
-				generatedTitle: content.generatedTitle,
-				cachedTitle: cache?.[cacheKey]?.title,
-			}, {
-				generatedTitle: 'Planned renderer refactoring',
-				cachedTitle: 'Planned renderer refactoring',
 			});
 		});
 	});

@@ -36,7 +36,7 @@ import { autorun, IObservable, IReader, observableValue } from '../../../../../.
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
-import { ChatMessageRole } from '../../../common/languageModels.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatUtilityModelService } from '../../../common/chatUtilityModelService.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -236,12 +236,7 @@ const THINKING_SCROLL_MAX_HEIGHT = 200;
 const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
 const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TITLE_CACHE_MAX_ENTRIES = 1000;
-const TITLE_GENERATION_TIMEOUT_MS = 5000;
-/**
- * Generated titles usually arrive within this delay. Requests can wait much longer in the shared
- * queue, e.g. when a long session is restored, so the block shows its fallback title meanwhile
- * rather than a stale in-progress header.
- */
+/** Show the fallback title if the generated one hasn't arrived by then, e.g. while queued. */
 const TITLE_FALLBACK_DELAY_MS = 2000;
 
 const enum WorkingMessageCategory {
@@ -399,7 +394,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly hiddenToolCallIds = new Set<string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
-	/** Cancelled on dispose so queued title requests nobody is waiting for are dropped. */
+	/** Cancelled on dispose so queued title requests nobody waits for are dropped. */
 	private readonly titleGenerationCancellation = new CancellationTokenSource();
 	private readonly titleFallbackTimer = this._register(new MutableDisposable());
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -467,6 +462,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -1770,14 +1766,25 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
-		let context: string;
-		if (this.extractedTitles.length > 0) {
-			context = this.extractedTitles.join(', ');
-		} else {
-			context = this.currentThinkingValue.substring(0, 1000);
+		if (!this.isToolChain) {
+			this.titleFallbackTimer.value = disposableTimeout(() => this.setFallbackTitle(), TITLE_FALLBACK_DELAY_MS);
 		}
 
-		const prompt = `Summarize the following content in a SINGLE sentence (under 10 words) using past tense. Follow these rules strictly:
+		try {
+			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+			if (!models.length) {
+				this.setFallbackTitle();
+				return;
+			}
+
+			let context: string;
+			if (this.extractedTitles.length > 0) {
+				context = this.extractedTitles.join(', ');
+			} else {
+				context = this.currentThinkingValue.substring(0, 1000);
+			}
+
+			const prompt = `Summarize the following content in a SINGLE sentence (under 10 words) using past tense. Follow these rules strictly:
 
 			OUTPUT FORMAT:
 			- MUST be a single sentence
@@ -1869,49 +1876,45 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 			Content: ${context}`;
 
-		const requestCacheId = this.getTitleCacheId();
-		if (!this.isToolChain) {
-			this.titleFallbackTimer.value = disposableTimeout(() => this.setFallbackTitle(), TITLE_FALLBACK_DELAY_MS);
-		}
-		let generatedTitle: string | undefined;
-		try {
-			const result = await this.chatUtilityModelService.sendRequest({
-				purpose: 'thinkingTitle',
-				priority: 'background',
-				messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				key: requestCacheId ? this.getTitleCacheKey(requestCacheId) : undefined,
-				timeout: TITLE_GENERATION_TIMEOUT_MS,
-			}, this.titleGenerationCancellation.token);
-			if (result.kind === 'success' && !result.text.includes('can\'t assist with that')) {
-				generatedTitle = result.text.trim();
-			}
-		} catch {
-			// fall through to default title
-		}
-		this.titleFallbackTimer.clear();
-		if (!generatedTitle) {
-			if (!this._store.isDisposed) {
-				this.setFallbackTitle();
-			}
-			return;
-		}
-
-		// Record the title on the model and in the persisted cache even if this part was disposed
-		// while waiting (e.g. the session was switched) so the next render reuses it instead of
-		// requesting it again.
-		this.content.generatedTitle = generatedTitle;
-		this.setGeneratedTitleOnAllParts(generatedTitle);
-		if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
 			const cacheId = this.getTitleCacheId();
-			if (cacheId) {
-				this.setCachedTitle(cacheId, generatedTitle);
+			const generatedTitle = (await this.chatUtilityModelService.sendRequest({
+				purpose: 'thinkingTitle',
+				model: models[0],
+				messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				background: true,
+				key: cacheId ? this.getTitleCacheKey(cacheId) : undefined,
+			}, this.titleGenerationCancellation.token))?.trim();
+
+			if (generatedTitle?.includes('can\'t assist with that')) {
+				this.setFallbackTitle();
+				return;
 			}
+
+			if (generatedTitle) {
+				// Keep the title even if this part was disposed meanwhile so the next render reuses it.
+				this.content.generatedTitle = generatedTitle;
+				this.setGeneratedTitleOnAllParts(generatedTitle);
+				if (!this._store.isDisposed) {
+					this.currentTitle = generatedTitle;
+					this.setFinalizedTitle(generatedTitle);
+				}
+
+				// Persist to storage for non-local sessions only
+				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+					if (cacheId) {
+						this.setCachedTitle(cacheId, generatedTitle);
+					}
+				}
+
+				return;
+			}
+		} catch (error) {
+			// fall through to default title
+		} finally {
+			this.titleFallbackTimer.clear();
 		}
 
-		if (!this._store.isDisposed) {
-			this.currentTitle = generatedTitle;
-			this.setFinalizedTitle(generatedTitle);
-		}
+		this.setFallbackTitle();
 	}
 
 	private restoreSingleItemToOriginalPosition(): boolean {

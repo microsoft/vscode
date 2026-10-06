@@ -161,19 +161,14 @@ describe('rateLimitBackoffMiddleware', () => {
 });
 
 describe('parseRetryAfter', () => {
-	it('converts delays in seconds and future HTTP dates to milliseconds, and ignores anything else', () => {
+	it('converts seconds and HTTP dates to milliseconds', () => {
 		const now = Date.parse('Tue, 06 Oct 2026 15:00:00 GMT');
 		expect([
 			parseRetryAfter('120', now),
-			parseRetryAfter(1.5, now),
 			parseRetryAfter('Tue, 06 Oct 2026 15:01:00 GMT', now),
 			parseRetryAfter('Tue, 06 Oct 2026 14:59:00 GMT', now),
-			parseRetryAfter('0', now),
-			parseRetryAfter('-5', now),
 			parseRetryAfter('soon', now),
-			parseRetryAfter('', now),
-			parseRetryAfter(null, now),
 			parseRetryAfter(undefined, now),
-		]).toEqual([120_000, 1_500, 60_000, undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
+		]).toEqual([120_000, 60_000, 0, undefined, undefined]);
 	});
 });

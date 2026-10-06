@@ -462,23 +462,6 @@ export interface ILanguageModelChatResponse {
 	result: Promise<any>;
 }
 
-/**
- * A language model provider signalling that requests are rate limited. Providers raise it with
- * `vscode.LanguageModelError.RateLimited`, which reaches the workbench as an error named
- * `LanguageModelError` with code `RateLimited`.
- */
-export interface ILanguageModelRateLimitError extends Error {
-	readonly code: 'RateLimited';
-	/** How long to wait before retrying, in milliseconds, when the provider supplied retry guidance. */
-	readonly retryAfter?: number;
-}
-
-export function isLanguageModelRateLimitError(error: unknown): error is ILanguageModelRateLimitError {
-	return error instanceof Error
-		&& error.name === 'LanguageModelError'
-		&& (error as Partial<ILanguageModelRateLimitError>).code === 'RateLimited';
-}
-
 export async function getTextResponseFromStream(response: ILanguageModelChatResponse): Promise<string> {
 	let responseText = '';
 	const streaming = (async () => {

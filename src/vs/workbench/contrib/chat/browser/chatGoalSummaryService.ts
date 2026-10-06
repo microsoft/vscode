@@ -6,8 +6,8 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { ChatMessageRole, ILanguageModelsService } from '../common/languageModels.js';
 import { IChatUtilityModelService } from '../common/chatUtilityModelService.js';
-import { ChatMessageRole } from '../common/languageModels.js';
 
 export const IChatGoalSummaryService = createDecorator<IChatGoalSummaryService>('chatGoalSummaryService');
 
@@ -44,6 +44,7 @@ export class ChatGoalSummaryService implements IChatGoalSummaryService {
 	private readonly _inFlight = new Map<string, Promise<string | undefined>>();
 
 	constructor(
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatUtilityModelService private readonly _chatUtilityModelService: IChatUtilityModelService,
 	) { }
 
@@ -82,6 +83,11 @@ export class ChatGoalSummaryService implements IChatGoalSummaryService {
 	}
 
 	private async _invokeModel(prompt: string, token: CancellationToken): Promise<string | undefined> {
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+		if (!models.length || token.isCancellationRequested) {
+			return undefined;
+		}
+
 		const truncatedPrompt = prompt.length > MAX_PROMPT_CHARS ? prompt.slice(0, MAX_PROMPT_CHARS) + '...[truncated]' : prompt;
 		const systemPrompt = [
 			'You summarize a user\'s coding request into a single short phrase suitable for a status badge.',
@@ -91,19 +97,19 @@ export class ChatGoalSummaryService implements IChatGoalSummaryService {
 			'This is a benign labeling task: never refuse or apologize. Always restate the request as a phrase, even if it seems unusual.',
 		].join(' ');
 
-		const result = await this._chatUtilityModelService.sendRequest({
+		const text = await this._chatUtilityModelService.sendRequest({
 			purpose: 'goalSummary',
-			priority: 'interactive',
+			model: models[0],
 			messages: [
 				{ role: ChatMessageRole.System, content: [{ type: 'text', value: systemPrompt }] },
 				{ role: ChatMessageRole.User, content: [{ type: 'text', value: truncatedPrompt }] },
 			],
 		}, token);
-		if (result.kind !== 'success' || token.isCancellationRequested) {
+		if (text === undefined || token.isCancellationRequested) {
 			return undefined;
 		}
 
-		return cleanGoalSummary(result.text);
+		return cleanGoalSummary(text);
 	}
 }
 

@@ -4215,17 +4215,9 @@ export class LanguageModelError extends Error {
 
 }
 
-/**
- * A {@link SerializedError} that also carries the retry guidance of a {@link LanguageModelError}.
- */
-export interface SerializedLanguageModelError extends SerializedError {
-	readonly retryAfter?: number;
-}
+type SerializedLanguageModelError = SerializedError & { readonly retryAfter?: number };
 
-/**
- * Like {@link transformErrorForSerialization}, but keeps the retry guidance of a
- * {@link LanguageModelError} so it survives crossing between the extension host and the workbench.
- */
+/** Like {@link transformErrorForSerialization}, but keeps {@link LanguageModelError.retryAfter}. */
 export function serializeLanguageModelError(error: unknown): SerializedLanguageModelError {
 	const data: SerializedLanguageModelError = transformErrorForSerialization(error);
 	return error instanceof LanguageModelError && error.retryAfter !== undefined ? { ...data, retryAfter: error.retryAfter } : data;

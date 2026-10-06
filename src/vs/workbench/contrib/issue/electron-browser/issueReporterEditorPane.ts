@@ -35,8 +35,8 @@ import product from '../../../../platform/product/common/product.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { IChatUtilityModelService } from '../../chat/common/chatUtilityModelService.js';
-import { ChatMessageRole } from '../../chat/common/languageModels.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -92,6 +92,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -379,9 +380,20 @@ export class IssueReporterEditorPane extends EditorPane {
 				// before it has.)
 				await this.extensionService.whenInstalledExtensionsRegistered();
 
-				const result = await this.chatUtilityModelService.sendRequest({
+				// `copilot-utility-small` matches what other utility callers in the
+				// workbench use (chat thinking summaries, tool-risk assessment,
+				// chat-edit explanations). The earlier `copilot-fast` id never
+				// existed and was the root cause of the empty-result regression.
+				const modelIds = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
+				if (modelIds.length === 0) {
+					this.logService.warn('[IssueReporterEditorPane] No language models available for title generation');
+					this.wizard?.resetGenerateButton();
+					return;
+				}
+				const modelId = modelIds[0];
+				const response = await this.chatUtilityModelService.sendRequest({
 					purpose: 'issueTitle',
-					priority: 'interactive',
+					model: modelId,
 					messages: [{
 						role: ChatMessageRole.User,
 						content: [{
@@ -390,12 +402,7 @@ export class IssueReporterEditorPane extends EditorPane {
 						}],
 					}],
 				}, CancellationToken.None);
-				if (result.kind === 'failed') {
-					this.logService.warn(`[IssueReporterEditorPane] Title generation failed (reason=${result.reason})`);
-					this.wizard?.resetGenerateButton();
-					return;
-				}
-				const title = result.text.trim().replace(/^["']|["']$/g, '');
+				const title = (response ?? '').trim().replace(/^["']|["']$/g, '');
 				if (title && this.wizard) {
 					this.wizard.setGeneratedTitle(title);
 				} else {

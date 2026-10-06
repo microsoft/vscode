@@ -10,8 +10,8 @@ import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
-import { ChatMessageRole } from '../../common/languageModels.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
 import { IToolData } from '../../common/tools/languageModelToolsService.js';
 
@@ -64,6 +64,7 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IChatUtilityModelService private readonly _chatUtilityModelService: IChatUtilityModelService,
 	) { }
 
@@ -118,24 +119,23 @@ export class ChatToolRiskAssessmentService implements IChatToolRiskAssessmentSer
 
 	private async _invokeModel(tool: IToolData, parameters: unknown, kind: ToolRiskPromptKind, token: CancellationToken): Promise<IToolRiskAssessment | undefined> {
 		const modelId = this._configurationService.getValue<string>(ChatConfiguration.ToolRiskAssessmentModel) || 'copilot-utility-small';
-		const result = await this._chatUtilityModelService.sendRequest({
-			purpose: 'toolRiskAssessment',
-			priority: 'interactive',
-			models: [modelId],
-			messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: buildPrompt(tool, parameters, kind) }] }],
-		}, token);
-		if (result.kind === 'failed') {
-			if (result.reason === 'noModel') {
-				return undefined;
-			}
-			// Throw so `assess` does not cache a transient failure such as a rate limit.
-			throw result.error ?? new Error(`Tool risk assessment failed: ${result.reason}`);
-		}
-		if (token.isCancellationRequested) {
+
+		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: modelId });
+		if (!models.length || token.isCancellationRequested) {
 			return undefined;
 		}
 
-		return parseAssessment(result.text, tool);
+		const prompt = buildPrompt(tool, parameters, kind);
+		const text = await this._chatUtilityModelService.sendRequest({
+			purpose: 'toolRiskAssessment',
+			model: models[0],
+			messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+		}, token);
+		if (text === undefined || token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return parseAssessment(text, tool);
 	}
 }
 
