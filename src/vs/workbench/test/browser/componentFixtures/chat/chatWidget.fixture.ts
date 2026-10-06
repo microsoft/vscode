@@ -627,6 +627,14 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		if (message.responseComplete !== false) {
 			response.complete();
 		}
+		// Parts are accepted back to back, so a reasoning duration measured here is only the
+		// time spent between two synchronous calls. Without virtual time that reads the real
+		// clock, and a crossed millisecond boundary renders a flaky "- 1s" title suffix.
+		for (const part of response.response.value) {
+			if (part.kind === 'thinking') {
+				part.reasoningDurationMs = undefined;
+			}
+		}
 	}
 
 	const viewModel = disposableStore.add(instantiationService.createInstance(ChatViewModel, model, undefined));

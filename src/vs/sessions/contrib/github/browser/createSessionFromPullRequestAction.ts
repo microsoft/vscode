@@ -27,7 +27,7 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionSection, SessionSectionHasGitHubRepositoryContext, SessionSectionHasNonCloudRepositoryContext, SessionSectionTypeContext } from '../../sessions/browser/views/sessionsList.js';
 import { IGitHubService } from './githubService.js';
 import { IGitHubPullRequestSummary } from '../common/types.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestUrl, getExistingPullRequests, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from './pullRequestPicker.js';
 import { createAndOpenPullRequestSession } from './pullRequestSessionCreation.js';
 
 export const NEW_SESSION_FROM_PULL_REQUEST_COMMAND_ID = 'workbench.agentSessions.newSessionFromPullRequest';
@@ -230,11 +230,7 @@ registerAction2(class NewSessionFromPullRequestAction extends Action2 {
 							};
 						},
 					}, {
-						isolationMode: 'worktree',
-						branch: pullRequest.headRef,
-						worktreeBranchTrack: true,
-						worktreeCreateNewBranch: false,
-						metadata: createPullRequestSessionMetadata(repository.owner, repository.repo, pullRequest),
+						pullRequestUrl: createPullRequestUrl(repository.owner, repository.repo, pullRequest.number, gitHubService.enterpriseHost),
 						onSessionCreated,
 					}, pickerCts.token),
 					resource => sessionsService.showSession(resource),

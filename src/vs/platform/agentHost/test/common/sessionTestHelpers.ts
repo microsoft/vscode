@@ -677,6 +677,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
 		getFetchRemoteUrls: async () => undefined,
+		getFetchRemotes: async () => undefined,
 		getUntrackedPaths: async () => [],
 		getBranchDiffSafetyInfo: async () => undefined,
 		getDiffPatchBetweenRefs: async () => undefined,

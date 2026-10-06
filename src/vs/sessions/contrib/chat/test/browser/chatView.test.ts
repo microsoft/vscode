@@ -21,6 +21,7 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -32,12 +33,14 @@ import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/cha
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { ChatModel, IChatModel, IChatModelInputState, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, ChatResponseModel, IChatModel, IChatModelInputState, IChatRequestModel, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -2867,6 +2870,83 @@ suite('Sessions - Chat View', () => {
 			noActivity: undefined,
 			visibleRequest: undefined,
 		});
+	});
+
+	test('shows live worktree creation phases for a hidden PR bootstrap before showing its ready message', () => {
+		const resource = URI.parse('test:///pull-request');
+		const response = disposables.add(new ChatResponseModel({
+			responseContent: [], session: createChatModel(resource), requestId: 'bootstrap', codeBlockInfos: undefined,
+		}));
+		const request = new class extends mock<IChatRequestModel>() {
+			override readonly isRequestHiddenFromTranscript = true;
+			override readonly isHiddenFromTranscript = true;
+			override readonly response = response;
+			override readonly variableData = {
+				variables: [{
+					kind: 'transcriptContext' as const, id: 'pr', name: 'PR #42', value: '{}', uri: URI.parse('https://github.com/owner/repo/pull/42'),
+					readyMessage: 'Session ready. Pull request #42 is checked out and attached.',
+				}]
+			};
+		}();
+		const model = new class extends mock<IChatModel>() {
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests() { return [request]; }
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.InProgress);
+			override readonly description = constObservable(undefined);
+		}();
+		const container = dom.append(document.body, dom.$('.interactive-session'));
+		disposables.add(toDisposable(() => container.remove()));
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: disposables,
+			container,
+			listContainer: dom.append(container, dom.$('.interactive-list')),
+			instantiationService: workbenchInstantiationService(undefined, disposables),
+			transcriptProgressPart: disposables.add(new MutableDisposable<DisposableStore>()),
+			transcriptProgressAction: observableValue('progressAction', undefined),
+			transcriptProgressActiveContext: ChatContextKeys.transcriptProgressActive.bindTo(contextKeyService),
+			_readOnly: false,
+			updateChatViewVisibility: () => { },
+		});
+		const renderedProgress = () => {
+			const progress = container.querySelector<HTMLElement>('.chat-transcript-progress')!;
+			const status = progress.querySelector<HTMLElement>('[role=status]')!;
+			return {
+				message: status.textContent?.replace(/\u00a0/g, ' '),
+				ariaLabel: status.getAttribute('aria-label'),
+				visible: !progress.hidden,
+				complete: !!progress.querySelector('.show-checkmarks'),
+			};
+		};
+		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResourceObs: constObservable(resource),
+			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
+			_widget: widget,
+		});
+		view._setupTranscriptPreparationProgress(constObservable(model));
+		const snapshots = [renderedProgress()];
+		for (const message of [
+			'Creating isolated worktree (fetching pull request)',
+			'Creating isolated worktree (checking out files, 42%)',
+			'Creating isolated worktree (copying additional files, 100%)',
+		]) {
+			response.updateContent({ kind: 'progressMessage', id: 'agentHostActivity', content: new MarkdownString(message) });
+			snapshots.push(renderedProgress());
+		}
+		response.complete();
+		snapshots.push(renderedProgress());
+
+		assert.deepStrictEqual(snapshots, [
+			{ message: 'Working...', ariaLabel: 'Working...', visible: true, complete: false },
+			{ message: 'Creating isolated worktree (fetching pull request)', ariaLabel: 'Creating isolated worktree (fetching pull request)', visible: true, complete: false },
+			{ message: 'Creating isolated worktree (checking out files, 42%)', ariaLabel: 'Creating isolated worktree (checking out files, 42%)', visible: true, complete: false },
+			{ message: 'Creating isolated worktree (copying additional files, 100%)', ariaLabel: 'Creating isolated worktree (copying additional files, 100%)', visible: true, complete: false },
+			{ message: 'Session ready. Pull request #42 is checked out and attached.', ariaLabel: 'Session ready. Pull request #42 is checked out and attached.', visible: true, complete: true },
+		]);
 	});
 
 	test('shows draft activity with a log link and cancellation before a chat model is loaded', () => {

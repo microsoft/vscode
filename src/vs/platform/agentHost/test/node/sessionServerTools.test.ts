@@ -384,6 +384,41 @@ suite('SessionServerTools', () => {
 		}
 	});
 
+	test('rename_chat is eager only for active agent title generation', () => {
+		const stateManager = new AgentHostStateManager(new NullLogService());
+		const activeAgentSession = 'copilot:/active-agent';
+		const deferredSession = 'copilot:/deferred';
+		for (const resource of [activeAgentSession, deferredSession]) {
+			stateManager.createSession({
+				resource,
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			});
+		}
+		const host = new AgentServerToolHost(stateManager, [
+			createSessionServerToolGroup(createAccessor({
+				getAutomaticTitleGenerationStrategy: session => session === activeAgentSession ? 'activeAgent' : 'deferred',
+			})),
+		]);
+
+		host.advertise(activeAgentSession);
+		host.advertise(deferredSession);
+
+		assert.deepStrictEqual({
+			baseDefinition: sessionServerToolDefinitions.find(tool => tool.name === SessionServerToolName.RenameChat)?.deferLoading,
+			activeAgentDefinition: host.getDefinitionsForSession(activeAgentSession).find(tool => tool.name === SessionServerToolName.RenameChat)?.deferLoading,
+			deferredDefinition: host.getDefinitionsForSession(deferredSession).find(tool => tool.name === SessionServerToolName.RenameChat)?.deferLoading,
+		}, {
+			baseDefinition: true,
+			activeAgentDefinition: false,
+			deferredDefinition: true,
+		});
+		stateManager.dispose();
+	});
+
 	test('set_workspace deferral follows whether the session is workspaceless', () => {
 		const stateManager = new AgentHostStateManager(new NullLogService());
 		const workspacelessSession = 'copilot:/workspaceless';

@@ -22,14 +22,16 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import {
 	DetailPanelTarget,
 	DesktopDetailPanelCoordinator,
 } from './desktopDetailPanelCoordinator.js';
 import {
+	FilesDetailsState,
+	getFilesDetailsState,
 	isChangesEditorInput,
 	isEditorWithoutDockedDetails,
-	isFileEditorInput,
 	isMainPartEmpty,
 } from './desktopSharedHelpers.js';
 import {
@@ -546,6 +548,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					activeEditor,
 					editorMaximizedObs,
 					editorPartVisible,
+					workspace,
 				);
 				const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
@@ -586,14 +589,16 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 		if (
 			target === DetailPanelTarget.Hidden ||
-			target === DetailPanelTarget.EditorHidden
+			target === DetailPanelTarget.EditorHidden ||
+			target === DetailPanelTarget.FilesHidden
 		) {
+			const hiddenByEditor = target === DetailPanelTarget.EditorHidden || target === DetailPanelTarget.FilesHidden;
 			if (
-				(target === DetailPanelTarget.EditorHidden || !revealOnly) &&
+				(hiddenByEditor || !revealOnly) &&
 				detailVisible
 			) {
 				this._detailHiddenTransiently = true;
-				this._detailHiddenByEditor = target === DetailPanelTarget.EditorHidden;
+				this._detailHiddenByEditor = hiddenByEditor;
 				this._layoutService.setAuxiliaryBarHiddenForResize(true);
 			}
 			return;
@@ -616,6 +621,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		activeEditor: EditorInput | undefined,
 		editorMaximizedObs: IObservable<boolean>,
 		editorPartVisible: boolean,
+		workspace: ISessionWorkspace,
 	): DetailPanelTarget {
 		// A New Session's empty editor group is normal (the Files detail is owned by the
 		// managed-tabs reconcile while its Files tab is (re)ensured), unlike an Existing
@@ -638,10 +644,13 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return DetailPanelTarget.ChangesForced;
 		}
 
-		if (isFileEditorInput(activeEditor)) {
-			return DetailPanelTarget.FilesForced;
+		switch (getFilesDetailsState(activeEditor, workspace)) {
+			case FilesDetailsState.Active:
+				return DetailPanelTarget.FilesForced;
+			case FilesDetailsState.Available:
+				return editorPartVisible ? DetailPanelTarget.FilesHidden : DetailPanelTarget.Files;
 		}
 
-		return DetailPanelTarget.Preserve;
+		return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Files;
 	}
 }
