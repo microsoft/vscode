@@ -97,9 +97,13 @@ export class ChatSlashCommandsContribution extends Disposable {
 			clearCommandRegistration.clear();
 			clearCommandRegistration.value = slashCommandService.registerSlashCommand({
 				command: 'clear',
-				detail: wording === ChatSessionArchiveActionWording.MarkAsDone
-					? nls.localize('clear.markDone', "Start a new session and mark the current one as done")
-					: nls.localize('clear.archive', "Start a new session and archive the current one"),
+				detail: this.environmentService.isSessionsWindow
+					? wording === ChatSessionArchiveActionWording.MarkAsDone
+						? nls.localize('clear.markDone.chat', "Start a new chat and mark the current one as done")
+						: nls.localize('clear.archive.chat', "Start a new chat and archive the current one")
+					: wording === ChatSessionArchiveActionWording.MarkAsDone
+						? nls.localize('clear.markDone.session', "Start a new session and mark the current one as done")
+						: nls.localize('clear.archive.session', "Start a new session and archive the current one"),
 				sortText: 'z2_clear',
 				executeImmediately: true,
 				locations: [ChatAgentLocation.Chat]
@@ -223,7 +227,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'fork',
-			detail: nls.localize('fork', "Fork conversation into a new session"),
+			detail: this.environmentService.isSessionsWindow
+				? nls.localize('fork.chat', "Fork conversation into a new chat")
+				: nls.localize('fork.session', "Fork conversation into a new session"),
 			sortText: 'z2_fork',
 			executeImmediately: true,
 			silent: true,
@@ -237,7 +243,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',
-			detail: nls.localize('rename', "Rename this session"),
+			detail: this.environmentService.isSessionsWindow
+				? nls.localize('rename.chat', "Rename this chat")
+				: nls.localize('rename.session', "Rename this session"),
 			sortText: 'z2_rename',
 			executeImmediately: false,
 			silent: true,

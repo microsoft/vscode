@@ -104,6 +104,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (type === 'quickChat') {
 			content.push(localize('chat.overview', 'The quick chat view is comprised of an input box and a request/response list. The input box is used to make requests and the list is used to display responses.'));
 			content.push(localize('chat.differenceQuick', 'The quick chat view is a transient interface for making and viewing requests, while the Sessions view is a persistent interface that also supports navigating suggested follow-up questions.'));
+		} else if (isSessionsWindow) {
+			content.push(localize('chat.differencePanel.agentsWindow', 'The chat view is a persistent interface that also supports navigating suggested follow-up questions, while the quick chat view is a transient interface for making and viewing requests.'));
+			content.push(localize('workbench.action.chat.newChat.agentsWindow', 'To create a new chat, invoke the New Chat command{0}.', '<keybinding:workbench.action.chat.newChat>'));
 		} else {
 			content.push(localize('chat.differencePanel', 'The Sessions view is a persistent interface that also supports navigating suggested follow-up questions, while the quick chat view is a transient interface for making and viewing requests.'));
 			content.push(localize('workbench.action.chat.newChat', 'To create a new session, invoke the New Session command{0}.', '<keybinding:workbench.action.chat.newChat>'));

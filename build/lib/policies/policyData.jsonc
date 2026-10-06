@@ -19,7 +19,7 @@
             "key": "InteractiveSession",
             "name": {
                 "key": "interactiveSessionConfigurationTitle",
-                "value": "Chat"
+                "value": "Sessions"
             }
         },
         {
@@ -46,7 +46,7 @@
             "localization": {
                 "description": {
                     "key": "agents.voice.enabled",
-                    "value": "Enable the Voice Mode panel in the chat view for voice-driven coding conversations."
+                    "value": "Enable the Voice Mode panel in the Sessions view for voice-driven coding conversations."
                 }
             },
             "type": "boolean",
@@ -549,7 +549,7 @@
             "localization": {
                 "description": {
                     "key": "chat.editor.preferCopilotHarness.policy",
-                    "value": "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."
+                    "value": "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor sessions."
                 }
             },
             "type": "boolean",
@@ -865,7 +865,7 @@
             "localization": {
                 "description": {
                     "key": "chat.useHooks.description",
-                    "value": "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness."
+                    "value": "Controls whether session hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness."
                 }
             },
             "type": "boolean",

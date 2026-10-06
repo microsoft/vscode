@@ -64,7 +64,11 @@ suite('Markdown Setting Renderer Test', () => {
 				if (setting.includes('string')) {
 					type = 'string';
 				}
-				return { type, key: setting };
+				return {
+					type,
+					key: setting,
+					settingsDisplayCategory: setting.startsWith('chat.') ? 'Sessions' : undefined,
+				};
 			}
 		};
 		contextMenuService = <IContextMenuService>{};
@@ -93,6 +97,13 @@ suite('Markdown Setting Renderer Test', () => {
 		const actions = settingRenderer.getActions(uri);
 		assert.strictEqual(actions?.length, 2);
 		assert.strictEqual(actions[0].label, 'View "Example: Boolean Setting" in Settings');
+	});
+
+	test('actions use the configured display category', () => {
+		const uri = URI.parse(settingRenderer.settingToUriString('chat.editor.codex.preferAgentHost'));
+		const actions = settingRenderer.getActions(uri);
+		assert.strictEqual(actions?.length, 2);
+		assert.strictEqual(actions[0].label, 'View "Sessions › Editor › Codex: Prefer Agent Host" in Settings');
 	});
 
 	test('actions with value + updating and restoring', async () => {

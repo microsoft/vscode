@@ -1159,6 +1159,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.relayout();
 			}
 		}));
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(ChatConfiguration.HideRedundantSessionsTitle))(() => {
+			this.relayout();
+		}));
 
 		// Track the active chat model and reveal it in the sessions control if side-by-side
 		this._register(chatWidget.onDidChangeViewModel(() => {
@@ -1684,6 +1687,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		this.sessionsViewerOrientation = newSessionsViewerOrientation;
+		setVisibility(
+			this.sessionsViewerOrientation !== AgentSessionsViewerOrientation.Stacked ||
+			this.configurationService.getValue<boolean>(ChatConfiguration.HideRedundantSessionsTitle) !== true,
+			this.sessionsTitle
+		);
 
 		if (newSessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			this.viewPaneContainer.classList.toggle('sessions-control-orientation-sidebyside', true);

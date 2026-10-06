@@ -1011,6 +1011,13 @@ configurationRegistry.registerConfiguration({
 			default: 'sideBySide',
 			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the agent sessions list when it is shown alongside the active session."),
 		},
+		[ChatConfiguration.HideRedundantSessionsTitle]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			description: nls.localize('chat.experimental.hideRedundantSessionsTitle', "Hide the redundant Sessions list title when the list is stacked in the Sessions view."),
+		},
 		[ChatConfiguration.ChatViewProgressBadgeEnabled]: {
 			type: 'boolean',
 			default: false,
