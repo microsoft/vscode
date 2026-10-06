@@ -47,6 +47,7 @@ class TestChatView extends AbstractChatView {
 	override readonly isLoadingTranscript = observableValue(this, false);
 	override readonly isInputBlocked = observableValue(this, false);
 	layoutCount = 0;
+	disposeCount = 0;
 	primary = false;
 	split = false;
 	onInput: (() => void) | undefined;
@@ -80,6 +81,12 @@ class TestChatView extends AbstractChatView {
 
 	override setChat(_chat: IChat, _historyKey?: string, _session?: ISession, onInput?: () => void): void {
 		this.onInput = onInput;
+	}
+
+	override dispose(): void {
+		this.disposeCount++;
+		this.hasVisibleTranscriptContent.set(false, undefined);
+		super.dispose();
 	}
 }
 
@@ -326,6 +333,36 @@ function readRemoteHostUnavailableState(view: ChatGroupsView): { readonly visibl
 suite('Sessions - ChatGroupsView', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const options = {};
+
+	for (const switchingSession of [true, false]) {
+		test(`does not recreate a chat while ${switchingSession ? 'switching sessions' : 'disposing its group'}`, () => {
+			const { view, chatViewFactory } = createHarness(disposables);
+			disposables.add(toDisposable(() => {
+				for (const chatView of chatViewFactory.views) {
+					chatView.dispose();
+				}
+			}));
+			view.setSession(new TestActiveSession([createChat('first')]), options);
+			const outgoingView = chatViewFactory.views.find(chatView => chatView.kind === 'chat')!;
+			outgoingView.hasVisibleTranscriptContent.set(true, undefined);
+
+			if (switchingSession) {
+				view.setSession(new TestActiveSession([createChat('second')]), options);
+			} else {
+				view.dispose();
+			}
+
+			assert.deepStrictEqual(chatViewFactory.views.filter(chatView => chatView.kind === 'chat').map(chatView => ({
+				disposeCount: chatView.disposeCount,
+				isConnected: view.element.contains(chatView.element),
+			})), switchingSession ? [
+				{ disposeCount: 1, isConnected: false },
+				{ disposeCount: 0, isConnected: true },
+			] : [
+				{ disposeCount: 1, isConnected: false },
+			]);
+		});
+	}
 
 	test('aligns transcript overlays with full-width split chats', () => {
 		const workbench = mainWindow.document.createElement('div');

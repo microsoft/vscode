@@ -5,11 +5,15 @@
 
 import assert from 'assert';
 import { EventType } from '../../../base/browser/dom.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../base/common/errors.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { observableValue } from '../../../base/common/observable.js';
+import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
 import { noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
-import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility } from './sessionViewTestUtils.js';
+import { createSessionsPartTestHarness, createTestActiveSession, getSessionPickerVisibility, TestChatView } from './sessionViewTestUtils.js';
 import { Direction } from '../../../base/browser/ui/grid/grid.js';
 import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
 import { ColorScheme } from '../../../platform/theme/common/theme.js';
@@ -17,6 +21,11 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { agentsCardBorder, agentsPanelBorder } from '../../common/theme.js';
+import { ChatViewKind, IChatViewOptions } from '../../browser/parts/chatView.js';
+import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { InstantiationService } from '../../../platform/instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 
 interface ICodiconActivationTestHarness {
 	readonly accessibilityService: {
@@ -33,6 +42,65 @@ suite('Sessions - Sessions Part', () => {
 	const pickerKeys = new Set([SessionWorkspacePickerVisibleContext.key, SessionHarnessPickerVisibleContext.key, SessionIsolationPickerVisibleContext.key]);
 
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
+
+	test('does not render disposed chats when a grid leaf is removed and reopened', () => {
+		class ReactiveChatView extends TestChatView {
+			override readonly hasVisibleTranscriptContent = observableValue(this, true);
+
+			override dispose(): void {
+				this.hasVisibleTranscriptContent.set(false, undefined);
+				super.dispose();
+			}
+		}
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const liveInstantiationService = store.add(new InstantiationService(new ServiceCollection(), false, instantiationService));
+		instantiationService.stub(IInstantiationService, liveInstantiationService);
+		const { part } = createSessionsPartTestHarness(store, false, { instantiationService });
+		const views: ReactiveChatView[] = [];
+		const createView = (kind: ChatViewKind, scopedInstantiationService?: IInstantiationService) => {
+			assert.ok(scopedInstantiationService);
+			const view = scopedInstantiationService.createInstance(ReactiveChatView, kind);
+			views.push(view);
+			return view;
+		};
+		instantiationService.stub(IChatViewFactory, new class extends mock<IChatViewFactory>() {
+			override createNewChatView(isNewChatInSession: boolean, _options: IChatViewOptions, scopedInstantiationService?: IInstantiationService) {
+				return createView(isNewChatInSession ? 'newChatInSession' : 'newSession', scopedInstantiationService);
+			}
+			override createChatView(scopedInstantiationService?: IInstantiationService) {
+				return createView('chat', scopedInstantiationService);
+			}
+		}());
+		store.add(toDisposable(() => views.forEach(view => view.dispose())));
+		const errors: string[] = [];
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => errors.push(String(error)));
+		try {
+			const session = createTestActiveSession('session');
+			part.updateVisibleSessions([session], session);
+			part.layout(1200, 800, 0, 0);
+			part.updateVisibleSessions([], undefined);
+			part.updateVisibleSessions([session], session);
+			assert.deepStrictEqual({
+				errors: [...errors],
+				chats: views.filter(view => view.kind === 'chat').map(view => ({
+					disposals: view.disposeCount,
+					connected: view.element.isConnected,
+					visible: view.visible,
+				})),
+			}, {
+				errors: [],
+				chats: [
+					{ disposals: 1, connected: false, visible: true },
+					{ disposals: 0, connected: true, visible: true },
+				],
+			});
+		} finally {
+			part.dispose();
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
 
 	test('session separators stay subtle at rest and preserve contrast borders across theme changes', () => {
 		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };

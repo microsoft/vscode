@@ -111,9 +111,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _contentContainer: HTMLElement;
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
+	// Stop rendering reactions before chat disposal changes transcript state.
+	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _draftChatResource: URI | undefined;
-	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
 	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
