@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind } from '../../common/state/sessionState.js';
-import { AhpSnapshotRecorder, waitForChatUnreadAfterTurn } from './e2e/harness/ahpSnapshot.js';
+import { AhpSnapshotRecorder, waitForChatUnreadAfterTurn, waitForFinalServerMessage } from './e2e/harness/ahpSnapshot.js';
 
 suite('AhpSnapshotRecorder', () => {
 
@@ -164,5 +164,37 @@ suite('AhpSnapshotRecorder', () => {
 			canonicalCrossChannelOrderMatches: true,
 			canonicalPerChannelOrderMatches: false,
 		});
+	});
+
+	test('a snapshot ending in read state waits for its turn completion and subsequent unread state', async () => {
+		const chat = 'ahp-chat://session/chat';
+		const turnId = 'completed-turn';
+		const notifications: AhpNotification[] = [
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 9, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 10, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId: 'previous-turn', duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 11, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: true } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 12, origin: undefined, action: { type: ActionType.ChatTurnComplete, turnId, duration: 0 } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 13, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: true } } },
+			{ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 14, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } },
+		];
+		const matched: number[] = [];
+		const client = {
+			waitForNotification: async (predicate: (notification: AhpNotification) => boolean) => {
+				const notification = notifications.find(predicate);
+				assert.ok(notification);
+				if (notification.method === 'action') {
+					matched.push(notification.params.serverSeq);
+				}
+				return notification;
+			},
+			takeReplayError: () => undefined,
+		};
+
+		await waitForFinalServerMessage(client, [
+			{ channel: '${chat_0}', action: { type: ActionType.ChatTurnComplete, turnId: '${turn_0}' } },
+			{ channel: '${chat_0}', action: { type: ActionType.ChatIsReadChanged } },
+		], new Set(), new Map([['${chat_0}', chat], ['${turn_0}', turnId]]));
+
+		assert.deepStrictEqual(matched, [12, 14]);
 	});
 });

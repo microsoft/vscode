@@ -947,8 +947,11 @@ function readStringArray(value: unknown, name: string): string[] {
 	return value;
 }
 
-async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
-	const finalEntry = entries.at(-1);
+export async function waitForFinalServerMessage(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
+	const lastEntry = entries.at(-1);
+	const finalEntry = lastEntry?.action?.type === ActionType.ChatIsReadChanged
+		? entries.findLast(entry => entry.channel === lastEntry.channel && entry.action?.type === ActionType.ChatTurnComplete) ?? lastEntry
+		: lastEntry;
 	if (!finalEntry) {
 		throw new Error('[ahp-snapshot] serverToClient must not be empty');
 	}
@@ -970,6 +973,7 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				return finalTurnId === undefined || action.turnId === finalTurnId;
 			}
 			return action.type === finalActionType
+				&& (action.type !== ActionType.ChatIsReadChanged || !action.isRead)
 				&& (finalTurnId === undefined || (action as { turnId?: string }).turnId === finalTurnId);
 		}
 		return candidate.method === finalEntry.method;
