@@ -512,6 +512,14 @@
 		filter: blur(10px);
 	}
 
+	.browser-placeholder-screenshot.browser-placeholder-screenshot--corner-fill {
+		/* Only the enlarged corner pixels are visible beneath the native view's uniform clip. */
+		background-position: center;
+		background-size:
+			calc(100% + max(var(--browser-view-corner-radius), var(--browser-view-bottom-right-corner-radius)) + max(var(--browser-view-corner-radius), var(--browser-view-bottom-right-corner-radius)))
+			calc(100% + max(var(--browser-view-corner-radius), var(--browser-view-bottom-right-corner-radius)) + max(var(--browser-view-corner-radius), var(--browser-view-bottom-right-corner-radius)));
+	}
+
 	.browser-overlay-paused {
 		position: absolute;
 		top: 0;

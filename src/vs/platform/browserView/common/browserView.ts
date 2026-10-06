@@ -213,11 +213,6 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
 	 */
 	format?: 'jpeg' | 'png';
-	/**
-	 * Preserve per-corner geometry when the native view uses a larger uniform enclosing radius.
-	 * Only supported for full-viewport placeholder captures.
-	 */
-	preservePerCornerClip?: boolean;
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**

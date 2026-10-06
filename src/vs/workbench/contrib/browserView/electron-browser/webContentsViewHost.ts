@@ -167,9 +167,15 @@ export class WebContentsViewHost extends Disposable {
 		const pauseActive = !!this._model?.url && this._editorVisible && this._overlayObscured;
 		this._overlayPauseElement.classList.toggle('visible', pauseActive);
 		if (!this._model) {
+			this._placeholderScreenshot.classList.remove('browser-placeholder-screenshot--corner-fill');
 			return;
 		}
 		const show = this._shouldShowPage();
+		if (show) {
+			this._placeholderScreenshot.classList.add('browser-placeholder-screenshot--corner-fill');
+		} else if (!this._model.visible) {
+			this._placeholderScreenshot.classList.remove('browser-placeholder-screenshot--corner-fill');
+		}
 		if (show === this._model.visible) {
 			if (show && restartScreenshot) {
 				void this._captureScreenshot();
@@ -186,6 +192,7 @@ export class WebContentsViewHost extends Disposable {
 			void this._captureScreenshot();
 			this.targetWindow.requestAnimationFrame(() => {
 				if (this._model && !this._shouldShowPage()) {
+					this._placeholderScreenshot.classList.remove('browser-placeholder-screenshot--corner-fill');
 					void this._model.setVisible(false);
 				}
 			});
@@ -213,7 +220,7 @@ export class WebContentsViewHost extends Disposable {
 			return;
 		}
 		try {
-			const screenshot = await model.captureScreenshot({ quality: 80, preservePerCornerClip: true });
+			const screenshot = await model.captureScreenshot({ quality: 80 });
 			if (this._model === model && sequence === this._screenshotSequence && !model.error) {
 				this._setBackgroundImage(screenshot);
 			}

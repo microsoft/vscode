@@ -23,7 +23,7 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { URI } from '../../../base/common/uri.js';
-import { getBrowserViewNativeLayout, getBrowserViewScreenshotClip, IBrowserViewVisualViewport } from './browserViewLayout.js';
+import { getBrowserViewNativeLayout } from './browserViewLayout.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -66,7 +66,6 @@ export class BrowserView extends Disposable {
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
-	private _hasAsymmetricCornerRadii = false;
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
@@ -697,7 +696,6 @@ export class BrowserView extends Disposable {
 		}
 
 		const nativeLayout = getBrowserViewNativeLayout(bounds);
-		this._hasAsymmetricCornerRadii = bounds.cornerRadius !== bounds.bottomRightCornerRadius;
 		this._view.setBorderRadius(nativeLayout.viewCornerRadius);
 
 		if (bounds.emulation) {
@@ -827,10 +825,6 @@ export class BrowserView extends Disposable {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
-		if (options?.preservePerCornerClip && (options.screenRect || options.pageRect || options.fullPage)) {
-			throw new Error('preservePerCornerClip is only supported for full-viewport screenshots');
-		}
-
 		if (!this._view.getVisible()) {
 			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
 			this._view.setVisible(true);
@@ -858,11 +852,6 @@ export class BrowserView extends Disposable {
 		}
 		if (options?.awaitNextPaint) {
 			await this._waitForNextPaint();
-		}
-		if (options?.preservePerCornerClip && this._hasAsymmetricCornerRadii) {
-			const screenshot = await this._captureUnclippedViewportScreenshot(format, quality);
-			this._lastScreenshot = screenshot;
-			return screenshot;
 		}
 		const image = await (async () => {
 			const maxAttempts = 5;
@@ -894,27 +883,6 @@ export class BrowserView extends Disposable {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
-	}
-
-	private async _captureUnclippedViewportScreenshot(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
-		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as {
-			cssVisualViewport?: IBrowserViewVisualViewport;
-		};
-		const viewport = metrics.cssVisualViewport;
-		if (!viewport) {
-			throw new Error('Page.getLayoutMetrics did not return a cssVisualViewport');
-		}
-		const zoomFactor = this._view.webContents.getZoomFactor();
-		// The native WebContentsView is composited above the workbench DOM, so CSS cannot clip the live
-		// surface. Capture without changing the viewport; the workbench underlay only fills the corners
-		// removed by the native view's larger uniform radius.
-		const result = await this.debugger.sendCommand('Page.captureScreenshot', {
-			format,
-			...(format === 'jpeg' ? { quality } : {}),
-			captureBeyondViewport: false,
-			clip: getBrowserViewScreenshotClip(viewport, zoomFactor)
-		}) as { data: string };
-		return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
 	}
 
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.

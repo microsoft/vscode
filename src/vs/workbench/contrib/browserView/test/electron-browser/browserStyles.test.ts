@@ -20,6 +20,7 @@ suite('Browser Styles', () => {
 		const browserContainer = append(root, $('.browser-container'));
 		browserContainer.style.setProperty('--browser-view-bottom-right-corner-radius', '12px');
 		const placeholder = append(browserContainer, $('.browser-placeholder-contents'));
+		const screenshot = append(placeholder, $('.browser-placeholder-screenshot.browser-placeholder-screenshot--corner-fill'));
 
 		const radius = (element: HTMLElement) => {
 			const style = mainWindow.getComputedStyle(element);
@@ -33,9 +34,11 @@ suite('Browser Styles', () => {
 		assert.deepStrictEqual({
 			container: radius(browserContainer),
 			placeholder: radius(placeholder),
+			cornerFillBackgroundSize: mainWindow.getComputedStyle(screenshot).backgroundSize,
 		}, {
 			container: { topLeft: '4px', bottomLeft: '4px', bottomRight: '12px' },
 			placeholder: { topLeft: '4px', bottomLeft: '4px', bottomRight: '12px' },
+			cornerFillBackgroundSize: 'calc(100% + 24px) calc(100% + 24px)',
 		});
 	});
 });

@@ -11,18 +11,6 @@ export interface IBrowserViewNativeLayout {
 	readonly viewCornerRadius: number;
 }
 
-export interface IBrowserViewVisualViewport {
-	readonly pageX: number;
-	readonly pageY: number;
-	readonly clientWidth: number;
-	readonly clientHeight: number;
-	readonly scale: number;
-}
-
-export interface IBrowserViewScreenshotClip extends IBrowserViewRect {
-	readonly scale: number;
-}
-
 /** Computes native bounds and the enclosing radius for the browser view. */
 export function getBrowserViewNativeLayout(bounds: IBrowserViewBounds): IBrowserViewNativeLayout {
 	const x = Math.round(bounds.x * bounds.zoomFactor);
@@ -39,23 +27,5 @@ export function getBrowserViewNativeLayout(bounds: IBrowserViewBounds): IBrowser
 			height,
 		},
 		viewCornerRadius,
-	};
-}
-
-/** Computes the current page viewport before the native view clip is applied. */
-export function getBrowserViewScreenshotClip(viewport: IBrowserViewVisualViewport, zoomFactor: number): IBrowserViewScreenshotClip {
-	if (!Number.isFinite(viewport.scale) || viewport.scale <= 0) {
-		throw new Error(`Invalid visual viewport scale: ${viewport.scale}`);
-	}
-	if (!Number.isFinite(viewport.clientWidth) || viewport.clientWidth <= 0 || !Number.isFinite(viewport.clientHeight) || viewport.clientHeight <= 0) {
-		throw new Error(`Invalid visual viewport dimensions: ${viewport.clientWidth}x${viewport.clientHeight}`);
-	}
-
-	return {
-		x: viewport.pageX * zoomFactor,
-		y: viewport.pageY * zoomFactor,
-		width: viewport.clientWidth * zoomFactor,
-		height: viewport.clientHeight * zoomFactor,
-		scale: 1,
 	};
 }

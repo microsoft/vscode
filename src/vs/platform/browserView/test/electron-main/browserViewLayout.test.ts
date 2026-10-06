@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IBrowserViewBounds } from '../../common/browserView.js';
-import { getBrowserViewNativeLayout, getBrowserViewScreenshotClip } from '../../electron-main/browserViewLayout.js';
+import { getBrowserViewNativeLayout } from '../../electron-main/browserViewLayout.js';
 
 suite('BrowserViewLayout', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,17 +48,4 @@ suite('BrowserViewLayout', () => {
 		});
 	});
 
-	test('captures the visible page viewport without the native clip', () => {
-		assert.deepStrictEqual({
-			defaultZoom: getBrowserViewScreenshotClip({ pageX: 12, pageY: 34, clientWidth: 100, clientHeight: 80, scale: 1 }, 1),
-			browserZoom: getBrowserViewScreenshotClip({ pageX: 12, pageY: 34, clientWidth: 80, clientHeight: 64, scale: 1 }, 1.25),
-			pinchZoom: getBrowserViewScreenshotClip({ pageX: 12, pageY: 34, clientWidth: 40, clientHeight: 32, scale: 2 }, 1.25),
-			emulatedViewport: getBrowserViewScreenshotClip({ pageX: 0, pageY: 0, clientWidth: 390, clientHeight: 844, scale: 1 }, 1),
-		}, {
-			defaultZoom: { x: 12, y: 34, width: 100, height: 80, scale: 1 },
-			browserZoom: { x: 15, y: 42.5, width: 100, height: 80, scale: 1 },
-			pinchZoom: { x: 15, y: 42.5, width: 50, height: 40, scale: 1 },
-			emulatedViewport: { x: 0, y: 0, width: 390, height: 844, scale: 1 },
-		});
-	});
 });
