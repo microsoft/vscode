@@ -1682,6 +1682,71 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		for (const defaultShape of ['canonical', 'advertised'] as const) {
+			test(`legacy synchronization and live listing preserve the stable ${defaultShape} default after routing to an archived peer`, async () => {
+				class MultiChatAgent extends MockAgent {
+					override async createChat(): Promise<void> { }
+				}
+				const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+				const backing = createPerSessionDataService();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
+				registerTestAgentProvider(svc, disposables.add(new MultiChatAgent()));
+				const session = await svc.createSession({ provider: 'mock' });
+				const canonical = buildDefaultChatUri(session);
+				const peer = buildChatUri(session, 'catalog-peer');
+				await svc.createChat(session, URI.parse(peer), { title: 'Peer' });
+				await svc.whenCatalogReconciliationIdle();
+				const before = await catalogDatabase.getSessionV2(session.toString());
+				if (!before) {
+					throw new Error('Missing legacy catalog before routing');
+				}
+				const manager = getStateManager(svc);
+				const stableDefault = defaultShape === 'canonical' ? canonical : peer;
+				const routedPeer = defaultShape === 'canonical' ? peer : canonical;
+				if (defaultShape === 'advertised') {
+					const summary = manager.getSessionSummary(session.toString());
+					if (!summary) {
+						throw new Error('Missing live summary before restoring the advertised default');
+					}
+					manager.deleteSession(session.toString());
+					manager.restoreSession({
+						...summary, defaultChat: stableDefault,
+						chats: [
+							{ resource: canonical, title: 'Canonical peer', status: SessionStatus.IsRead | SessionStatus.IsArchived },
+							{ resource: peer, title: 'Advertised default', status: SessionStatus.IsRead },
+						],
+					}, [], { defaultChatTitle: 'Advertised default' });
+				} else {
+					svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'catalog-client', 1);
+				}
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionDefaultChatChanged, defaultChat: routedPeer }, 'catalog-client', 2);
+				await svc.createChat(session, URI.parse(buildChatUri(session, 'after-routing')), { title: 'After routing' });
+				await svc.whenCatalogReconciliationIdle();
+				const after = await catalogDatabase.getSessionV2(session.toString());
+				const data = catalogDataOf(after);
+				if (!after || !data) {
+					throw new Error('Missing persisted legacy projection after routing');
+				}
+				const [listed] = await svc.listSessions();
+				await svc.whenCatalogReconciliationIdle();
+				assert.deepStrictEqual({
+					stableDefault: manager.getDefaultChatUri(session.toString()),
+					routingDefault: manager.getSessionState(session.toString())?.defaultChat,
+					persisted: after.sourceRevision > before.sourceRevision,
+					defaults: data.chats.filter(chat => chat.kind === 'default').map(chat => chat.uri),
+					archivedPeer: data.chats.find(chat => chat.uri === routedPeer)?.archived,
+					listedDefaults: listed?.chats?.filter(chat => chat.kind === 'default').map(chat => chat.chat.toString()),
+				}, {
+					stableDefault, routingDefault: routedPeer, persisted: true,
+					defaults: [stableDefault], archivedPeer: true, listedDefaults: [stableDefault],
+				});
+			});
+		}
+
 		test('live session title writes use normalized chats instead of stale legacy metadata', async () => {
 			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
 			const local = new TestSessionDatabase();

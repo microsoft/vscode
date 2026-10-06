@@ -60,7 +60,7 @@ import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../co
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, getWorkingDirectoryKey, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
@@ -2251,16 +2251,16 @@ export class AgentService extends Disposable implements IAgentService {
 				: metadata.workingDirectories,
 			changes: liveSummary.changes ?? metadata.changes,
 			changesets: this._stateManager.getSessionState(metadata.session.toString())?.changesets ?? metadata.changesets,
-			chats: this._sessionChatsFromSummary(liveSummary) ?? metadata.chats,
+			chats: this._sessionChatsFromSummary(liveSummary, this._defaultChatUri(metadata.session)) ?? metadata.chats,
 			...(_meta !== undefined ? { _meta } : {}),
 		};
 	}
 
-	private _sessionChatsFromSummary(summary: SessionSummary): IAgentSessionChatMetadata[] | undefined {
+	private _sessionChatsFromSummary(summary: SessionSummary, defaultChat: string): IAgentSessionChatMetadata[] | undefined {
 		return summary.chats?.map(chat => ({
 			chat: URI.parse(chat.resource),
 			summary: chat.title,
-			kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+			kind: defaultChat === chat.resource ? 'default' : 'peer',
 			origin: chat.origin,
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			...(chat.status !== undefined ? {
@@ -2398,7 +2398,7 @@ export class AgentService extends Disposable implements IAgentService {
 				workingDirectories: summary.workingDirectories ?? [],
 				changes: summary.changes,
 				meta: summary._meta,
-				chats: chatsOverride ?? this._catalogChatsFromState(state),
+				chats: chatsOverride ?? this._catalogChatsFromState(state, this._defaultChatUri(sessionKey)),
 			}, metadataOverrides, false, database, {}, normalized && chatCatalogV2ToCatalogChats(normalized), normalized?.header?.revision);
 		});
 		if (result.status === 'pending') {
@@ -2654,17 +2654,17 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._withLiveSessionMetadata(providerMetadata, liveSummary, false, !this._stateManager.getSurfacedSessionSummary(registered.session.toString()));
 	}
 
-	private _catalogChatsFromState(state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>): ICatalogChat[] {
+	private _catalogChatsFromState(state: NonNullable<ReturnType<AgentHostStateManager['getSessionState']>>, defaultChat: string): ICatalogChat[] {
 		return state.chats
 			.map(chat => ({
 				uri: chat.resource,
-				kind: state.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+				kind: defaultChat === chat.resource ? 'default' : 'peer',
 				title: chat.title,
 				origin: chat.origin,
 				...(chat.origin?.kind === ChatOriginKind.Tool || isSubagentChatUri(chat.resource)
 					? { interactivity: ChatInteractivity.Hidden }
 					: chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-				...(isSessionStatusArchived(chat.status) && state.defaultChat !== chat.resource && !isDefaultChatUri(chat.resource) ? { archived: true } : {}),
+				...(isSessionStatusArchived(chat.status) && defaultChat !== chat.resource ? { archived: true } : {}),
 				isRead: isSessionStatusRead(chat.status),
 				inheritedTurnId: this._stateManager.getChatInheritedTurnId(chat.resource),
 				workingDirectories: chat.workingDirectories,
@@ -5421,7 +5421,7 @@ export class AgentService extends Disposable implements IAgentService {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
 				throw new Error(`[AgentService] createChat: session state disappeared for ${sessionKey}`);
 			}
-			const existingCatalogChats = this._catalogChatsFromState(sessionState).map(existing => (
+			const existingCatalogChats = this._catalogChatsFromState(sessionState, this._defaultChatUri(sessionKey)).map(existing => (
 				existing.kind === 'default' && !existing.title && sessionState.title
 					? { ...existing, title: sessionState.title }
 					: existing
@@ -5620,7 +5620,7 @@ export class AgentService extends Disposable implements IAgentService {
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
 								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
-							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
+							this._catalogChatsFromState(state, this._defaultChatUri(sessionKey)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
 					ancillaryCleanupSucceeded = true;
@@ -5662,7 +5662,7 @@ export class AgentService extends Disposable implements IAgentService {
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
 								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
-							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
+							this._catalogChatsFromState(state, this._defaultChatUri(session)).filter(candidate => candidate.uri !== chatKey),
 						);
 					}
 				} catch (error) {
@@ -9669,13 +9669,8 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	/**
-	 * Routes an agent-spawned chat (e.g. a sub-agent delegated by a tool
-	 * call) straight into the chat catalog via {@link IAgentHostStateManager.addChat},
-	 * so harness-spawned chats and user-driven chats share ONE membership path.
-	 * The {@link IAgentSpawnChatEvent.parent} spawn edge is recorded as
-	 * the chat's {@link ChatOriginKind.Tool} origin. Spawned chats are
-	 * not written to the orchestrator's persisted peer-chat catalog — they are
-	 * transient children re-derived from the parent's event log on restore.
+	 * Spawned chats remain outside persisted public peer membership and are re-derived from parent logs on restore.
+	 * Normalized catalogs retain their private lifecycle metadata, including the parent edge.
 	 */
 	private _onChatSpawned(e: IAgentSpawnChatEvent): void {
 		this._stateManager.addChat(e.session.toString(), e.chat.toString(), {
