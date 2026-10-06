@@ -12267,17 +12267,22 @@ Use the attached image as context.
 			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => {
 				const data = event.data as { turnId: string; modelCallCount: number; timeToFirstEdit?: number };
 				return { turnId: data.turnId, modelCallCount: data.modelCallCount, timeToFirstEdit: data.timeToFirstEdit };
-			}), [{ turnId: 'fusion-turn', modelCallCount: 2, timeToFirstEdit: 100 }]);
+			}), [{ turnId: 'fusion-turn', modelCallCount: 2, timeToFirstEdit: undefined }]);
 		});
 
-		test('does not adopt late model calls from an ended turn into a replacement turn\'s Fusion phase', async () => {
+		test('does not attribute late model calls from an ended turn to a replacement turn\'s Fusion phase', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('old-turn');
 			mockSession.fire('user.message', { content: 'first', interactionId: 'interaction-old' });
-			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+			// The old turn's phase is cancelled before its first call finishes, so the host never sees the
+			// phase's interaction id (its turn start is withheld until a commit that never happens).
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, fusionId: 'fusion-old' });
+			mockSession.fire('session.idle', { aborted: true } as SessionEventPayload<'session.idle'>['data']);
 
 			session.resetTurnState('replacement-turn');
-			mockSession.fire('user.message', { content: 'second', interactionId: 'interaction-new' });
+			mockSession.fire('user.message', { content: 'second', interactionId: 'interaction-new', turnId: fusionTestData.resolved.turnId } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.fusion_route_started', fusionTestData.routeStarted);
+			mockSession.fire('session.fusion_resolved', fusionTestData.resolved);
 			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
 			const modelCallFinished = (id: string, interactionId: string | undefined) => mockSession.fireRaw({
 				type: 'model.call_finished',
@@ -12290,9 +12295,10 @@ Use the attached image as context.
 			} as unknown as SessionEventPayload<'assistant.usage'>['data']);
 
 			modelCallFinished('late-old-call', 'interaction-old');
+			modelCallFinished('late-cancelled-phase-call', 'interaction-cancelled-phase');
+			modelCallFinished('late-cancelled-phase-call-2', 'interaction-cancelled-phase');
 			modelCallFinished('late-unidentified-call', undefined);
 			usage('fusion-old', 'late-old-usage');
-			modelCallFinished('phase-call', 'interaction-phase');
 			usage(fusionTestData.started.fusionId, 'phase-call');
 
 			assert.deepStrictEqual(
@@ -12300,7 +12306,6 @@ Use the attached image as context.
 					.filter(signal => signal.kind === 'model_call_finished' || signal.kind === 'model_call_completed')
 					.map(signal => ({ kind: signal.kind, modelCallId: signal.modelCallId, turnId: signal.turnId })),
 				[
-					{ kind: 'model_call_finished', modelCallId: 'phase-call', turnId: 'replacement-turn' },
 					{ kind: 'model_call_completed', modelCallId: 'phase-call', turnId: 'replacement-turn' },
 				],
 			);
@@ -14826,10 +14831,10 @@ Use the attached image as context.
 			const provisional = { ephemeral: true };
 			const replay = (commitId?: string) => {
 				const options = commitId ? undefined : provisional;
-				mockSession.fire('assistant.message', { messageId: 'm1', content: 'Checking the parser', toolRequests: [{ toolCallId: 'tc-view', name: 'view', arguments: {} }], fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('assistant.message', { messageId: 'm1', content: 'Checking the parser', model: 'model-a', toolRequests: [{ toolCallId: 'tc-view', name: 'view', arguments: {} }], fusion: liveFusion('phase-1', commitId) }, options);
 				mockSession.fire('tool.execution_start', { toolCallId: 'tc-view', toolName: 'view', arguments: { path: '/workspace/a.ts' }, fusion: liveFusion('phase-1', commitId) }, options);
 				mockSession.fire('tool.execution_complete', { toolCallId: 'tc-view', success: true, result: { content: 'x' }, fusion: liveFusion('phase-1', commitId) }, options);
-				mockSession.fire('assistant.message', { messageId: 'm2', content: 'Final answer', fusion: liveFusion('phase-1', commitId) }, options);
+				mockSession.fire('assistant.message', { messageId: 'm2', content: 'Final answer', model: 'model-a', fusion: liveFusion('phase-1', commitId) }, options);
 			};
 			const rounds = () => session['_currentTurn'].value?.toolCallRounds;
 
@@ -15474,6 +15479,69 @@ Use the attached image as context.
 				numRequests: 1,
 				modelCallIds: ['msg-part-2'],
 			});
+		});
+
+		test('does not count a synthetic background read as a model call', async () => {
+			const telemetryService = new CapturingTelemetryService();
+			const { session, mockSession, signals } = await createAgentSession(disposables, {
+				telemetryService,
+				clientSnapshot: { tools: [{ name: 'grep' }], plugins: [], mcpServers: {} },
+			});
+			session.resetTurnState('turn-synthetic-read');
+			await session.send('hello agent', undefined, 'turn-synthetic-read');
+			mockSession.fire('user.message', { content: 'hello agent' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-model',
+				content: 'starting a background review',
+				model: 'gpt-x',
+				apiCallId: 'api-model',
+			} as SessionEventPayload<'assistant.message'>['data']);
+			// The runtime injects this tool request itself when a background agent finishes; no model ran.
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-synthetic-read',
+				content: '',
+				toolRequests: [{ toolCallId: 'tc-read', name: 'read_agent', arguments: { agent_id: 'agent-1' } }],
+			} as SessionEventPayload<'assistant.message'>['data']);
+			mockSession.fire('session.idle', { aborted: false } as SessionEventPayload<'session.idle'>['data']);
+
+			const details = telemetryService.events.find(event => event.eventName === 'toolCallDetails')?.data as Record<string, unknown> | undefined;
+			assert.deepStrictEqual({
+				numRequests: details?.numRequests,
+				totalToolCalls: details?.totalToolCalls,
+				modelCallIds: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => signal.kind === 'model_call_completed' ? signal.modelCallId : undefined),
+			}, {
+				numRequests: 1,
+				totalToolCalls: 0,
+				modelCallIds: ['api-model'],
+			});
+		});
+
+		test('still counts model-less subagent messages as subagent model calls', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ahp-subagent');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-subagent',
+				toolName: 'task',
+				arguments: { description: 'Explore tests', agent_type: 'explore' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('subagent.started', {
+				toolCallId: 'tc-subagent',
+				agentName: 'explore',
+				agentDisplayName: 'Explore',
+				agentDescription: 'Explore tests',
+			} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+			// An AHP-executed subagent projects its model's output without a model.
+			mockSession.fire('assistant.message', {
+				messageId: 'msg-ahp-child',
+				content: 'Subagent found the answer.',
+			} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
+
+			assert.deepStrictEqual(
+				signals
+					.filter(signal => signal.kind === 'model_call_completed')
+					.map(signal => signal.kind === 'model_call_completed' ? { modelCallId: signal.modelCallId, parentToolCallId: signal.parentToolCallId } : undefined),
+				[{ modelCallId: 'msg-ahp-child', parentToolCallId: 'tc-subagent' }],
+			);
 		});
 
 		test('tool approval waits for permission outcome and falls back only at completion', async () => {
