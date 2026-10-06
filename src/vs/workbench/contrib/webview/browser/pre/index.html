@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-kDeFUGt/qkBOK/2e99b4MrfjtWG8L4ItdFJVbaTQfpA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -97,6 +97,17 @@
 		}
 
 		const vscodePostMessageFuncName = '__vscode_post_message__';
+		// Extracted cross-origin postMessage no-ops unless this is the parent. Do not use Window.prototype.postMessage.
+		const nativeCall = Function.prototype.call;
+		const invoke = Function.prototype.bind.call(nativeCall, nativeCall);
+		const sendToParent = window.parent.postMessage;
+		const nativePortPostMessage = MessagePort.prototype.postMessage;
+
+		function createKeyEventId() {
+			const bytes = new Uint8Array(16);
+			crypto.getRandomValues(bytes);
+			return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+		}
 
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
@@ -292,6 +303,7 @@
 
 			constructor() {
 				this.channel = new MessageChannel();
+				this.keyEventId = createKeyEventId();
 
 				/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
 				this.handlers = new Map();
@@ -310,7 +322,7 @@
 			}
 
 			postMessage(channel, data, transfer) {
-				this.channel.port1.postMessage({ channel, data }, transfer);
+				invoke(nativePortPostMessage, this.channel.port1, { channel, data }, transfer);
 			}
 
 			onMessage(channel, handler) {
@@ -325,7 +337,7 @@
 			async signalReady() {
 				const start = (/** @type {string} */ parentOrigin) => {
 					perfMark('signalingReady');
-					window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+					invoke(sendToParent, window.parent, { target: ID, channel: 'webview-ready', data: { keyEventId: this.keyEventId, readyId: searchParams.get('readyId') } }, parentOrigin, [this.channel.port2]);
 				};
 
 				const parentOrigin = searchParams.get('parentOrigin');
@@ -616,7 +628,8 @@
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
 				repeat: e.repeat,
-				isTrusted: e.isTrusted
+				isTrusted: e.isTrusted,
+				keyEventId: hostMessaging.keyEventId
 			};
 			hostMessaging.postMessage('did-keydown', data);
 		};
@@ -634,7 +647,8 @@
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
 				repeat: e.repeat,
-				isTrusted: e.isTrusted
+				isTrusted: e.isTrusted,
+				keyEventId: hostMessaging.keyEventId
 			};
 			hostMessaging.postMessage('did-keyup', data);
 		};
