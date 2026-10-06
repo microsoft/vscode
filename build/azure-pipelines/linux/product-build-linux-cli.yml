@@ -12,7 +12,7 @@ parameters:
 
 jobs:
   - job: LinuxCLI_${{ parameters.VSCODE_ARCH }}
-    displayName: Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})
+    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }}) - CLI
     timeoutInMinutes: 60
     pool:
       name: ${{ parameters.VSCODE_POOL_NAME }}

@@ -30,9 +30,9 @@ import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditor/d
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { Menus } from '../../../browser/menus.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
-import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SinglePaneChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
+import { ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache, readSessionChangesStats } from '../../../services/sessions/common/sessionChangesStatsCache.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { IChangesViewService } from '../common/changesViewService.js';
@@ -76,7 +76,7 @@ class ViewAllChangesAction extends Action2 {
 
 		// Opening the Changes editor from the pill is a deliberate user action, so
 		// reveal the (possibly hidden) editor area explicitly — the automatic
-		// single-pane hide rules must not undo it.
+		// desktop hide rules must not undo it.
 		layoutService.revealEditorPartExplicitly();
 
 		// The header pill reflects the default changeset.
@@ -85,13 +85,13 @@ class ViewAllChangesAction extends Action2 {
 }
 registerAction2(ViewAllChangesAction);
 
-// --- Open File action (per-file toolbar in the single-pane session changes editor)
+// --- Open File action (per-file toolbar in the desktop session changes editor)
 
 /**
- * Opens the file shown in a diff row of the Agents window's single-pane session
+ * Opens the file shown in a diff row of the Agents window's desktop session
  * Changes editor ({@link SessionChangesEditor}) as a regular editor. The workbench
  * {@link GoToFileAction} only appears for the generic {@link MultiDiffEditor}, so
- * the custom single-pane editor needs its own entry in the per-file toolbar. It is
+ * the custom desktop editor needs its own entry in the per-file toolbar. It is
  * scoped to the {@link SessionChangesEditor} rather than the shared
  * `changes-multi-diff-source` scheme so it does not duplicate the workbench action
  * when the same changes are shown in the generic multi-file diff editor.
@@ -340,7 +340,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 		const primaryPullRequestOperationKey = SessionPrimaryPullRequestOperationContext.bindTo(contextKeyService);
 		const hasOpenPullRequestKey = SessionHasOpenPullRequestContext.bindTo(contextKeyService);
 		const changesEditorTransitionObs = observableFromEvent(contextKeyService.onDidChangeContext, () =>
-			SinglePaneChangesEditorTransitionContext.getValue(contextKeyService) === true);
+			DesktopChangesEditorTransitionContext.getValue(contextKeyService) === true);
 		let lastPullRequestOperation: string | undefined;
 		this._register(autorun(reader => {
 			if (changesEditorTransitionObs.read(reader)
@@ -413,7 +413,7 @@ class ChangesetOperationsActionControllerContribution extends Disposable impleme
 	}
 }
 
-const NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperation.';
+const CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
 
 class CommitActionViewItem extends MenuEntryActionViewItem {
 
@@ -434,16 +434,26 @@ class CommitActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-export class NewSessionUncommittedChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperationsAction';
+/**
+ * Contributes changeset operations to the Changes editor header toolbar.
+ *
+ * For a new (untitled) session this is every changeset-scoped operation of the
+ * uncommitted changes changeset (except Sync and Checkout). For an existing
+ * session only the Commit operation of the changeset selected in the Changes
+ * view is contributed here; the title bar button bar omits it so that Commit
+ * always lives in the Changes toolbar.
+ */
+export class ChangesHeaderChangesetOperationsActionContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.sessions.changesHeaderChangesetOperationsAction';
 
 	constructor(
 		@ISessionsService sessionsService: ISessionsService,
+		@IChangesViewService changesViewService: IChangesViewService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
 
-		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderLayout, `${NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
+		this._register(actionViewItemService.register(Menus.SessionsEditorHeaderLayout, `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, (action, options, instantiationService) => {
 			return action instanceof MenuItemAction
 				? instantiationService.createInstance(CommitActionViewItem, action, options)
 				: undefined;
@@ -451,17 +461,29 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 
 		this._register(autorun(reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
-			if (activeSession?.status.read(reader) !== SessionStatus.Untitled) {
+			if (!activeSession) {
 				return;
 			}
 
-			const changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
-				?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
-			const operations = changeset?.operations.read(reader)
-				.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
-				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
-				.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
-			const hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
+			let changeset: ISessionChangeset | undefined;
+			let operations: readonly ISessionChangesetOperation[];
+			let hasUncommittedChanges = true;
+			if (activeSession.status.read(reader) === SessionStatus.Untitled) {
+				changeset = (activeSession.activeChat.read(reader) ?? activeSession.mainChat.read(reader)).changesets.read(reader)
+					?.find(candidate => candidate.id === UNCOMMITTED_CHANGES_CHANGESET_ID && candidate.isEnabled.read(reader));
+				operations = changeset?.operations.read(reader)
+					.filter(operation => operation.id !== AGENT_HOST_SYNC_CHANGESET_OPERATION_ID)
+					.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID)
+					.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset)) ?? [];
+				hasUncommittedChanges = (activeSession.workspace.read(reader)?.folders[0]?.gitRepository?.uncommittedChanges ?? 0) > 0;
+			} else {
+				changeset = changesViewService.activeSessionChangesetObs.read(reader);
+				operations = changeset
+					? changesViewService.activeSessionChangesetOperationsObs.read(reader)
+						.filter(operation => operation.id === AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID)
+						.filter(operation => operation.scopes.includes(SessionChangesetOperationScope.Changeset))
+					: [];
+			}
 
 			for (let index = 0; index < operations.length; index++) {
 				const operation = operations[index];
@@ -474,7 +496,7 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 				reader.store.add(registerAction2(class extends Action2 {
 					constructor() {
 						super({
-							id: `${NEW_SESSION_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
+							id: `${CHANGES_HEADER_CHANGESET_OPERATION_ACTION_PREFIX}${operation.id}`,
 							title: operation.label,
 							tooltip: operation.description,
 							icon: operation.icon,
@@ -500,5 +522,5 @@ export class NewSessionUncommittedChangesetOperationsActionContribution extends 
 
 registerWorkbenchContribution2(ChangesMultiDiffSourceResolverContribution.ID, ChangesMultiDiffSourceResolverContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChangesetOperationsActionControllerContribution.ID, ChangesetOperationsActionControllerContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(NewSessionUncommittedChangesetOperationsActionContribution.ID, NewSessionUncommittedChangesetOperationsActionContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChangesHeaderChangesetOperationsActionContribution.ID, ChangesHeaderChangesetOperationsActionContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SessionChangesStatsCacheContribution.ID, SessionChangesStatsCacheContribution, WorkbenchPhase.AfterRestored);

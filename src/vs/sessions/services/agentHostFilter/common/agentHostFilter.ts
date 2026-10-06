@@ -37,6 +37,7 @@ export interface IAgentHostFilterEntry {
 	readonly providerIds: readonly string[];
 	/** Display name for the entry. */
 	readonly label: string;
+	readonly description?: string;
 	/** Whether this entry collapses several providers declaring the same group. */
 	readonly grouped: boolean;
 	/**

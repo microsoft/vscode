@@ -10,11 +10,15 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
+// eslint-disable-next-line local/code-import-patterns
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../sessions/common/sessionConfig.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -40,18 +44,31 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 // Mock helpers
 // ============================================================================
 
-function createMockActiveSession(title: string, workspaceLabel?: string): IActiveSession {
+function createMockActiveSession(title: string, workspaceLabel?: string, branch?: string): IActiveSession {
 	let workspace: ISessionWorkspace | undefined;
 	if (workspaceLabel) {
 		const label = workspaceLabel;
 		workspace = new class extends mock<ISessionWorkspace>() {
 			override readonly label = label;
-			override readonly folders = [];
+			override readonly folders = [{
+				root: URI.file('/src/vscode'),
+				workingDirectory: URI.file(branch ? '/src/vscode.worktrees/feature' : '/src/vscode'),
+				name: label,
+				description: undefined,
+				gitRepository: branch ? {
+					uri: URI.file('/src/vscode'),
+					workTreeUri: URI.file('/src/vscode.worktrees/feature'),
+					branchName: branch,
+					baseBranchName: 'main',
+					gitHubInfo: constObservable(undefined),
+				} : undefined,
+			}];
 			override readonly isVirtualWorkspace = false;
 		}();
 	}
 	// A chat without its own folders shares the session's workspace.
 	const activeChat = new class extends mock<IChat>() {
+		override readonly title: IObservable<string> = constObservable('Current chat');
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 	}();
 	return new class extends mock<IActiveSession>() {
@@ -107,8 +124,9 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 }
 
 interface ITitleBarState {
-	/** The active session shown in the default pill (falls back to "New Session"). */
+	/** The active session whose workspace is shown in the default pill. */
 	activeSession?: IActiveSession;
+	chatTabsMode?: SessionsChatTabsMode;
 	/** Number of blocked sessions (drives the orange "N sessions require input"). */
 	blockedCount?: number;
 	/** Explicit typed blocked sessions (drives the specific requires-input message). */
@@ -134,6 +152,9 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[SESSIONS_CHAT_TABS_SETTING]: state.chatTabsMode ?? SessionsChatTabsMode.Multiple,
+			}));
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
@@ -215,6 +236,36 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsTitleBar_ActiveSession: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+		}),
+	}),
+
+	SessionsTitleBar_SingleChat: defineComponentFixture({
+		expectedVisualDescriptions: [
+			'The command center shows a folder icon and "vscode", without a session or chat title.',
+		],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+			chatTabsMode: SessionsChatTabsMode.Single,
+		}),
+	}),
+
+	SessionsTitleBar_SingleChatWorktree: defineComponentFixture({
+		expectedVisualDescriptions: [
+			'The command center shows a worktree icon, "vscode", and the branch "feature/session-branch", without a session or chat title.',
+		],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode', 'feature/session-branch'),
+			chatTabsMode: SessionsChatTabsMode.Single,
+		}),
+	}),
+
+	SessionsTitleBar_SingleChatNoWorkspace: defineComponentFixture({
+		expectedVisualDescriptions: [
+			'The command center shows a chat icon and "No workspace", without a session or chat title.',
+		],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('General help'),
+			chatTabsMode: SessionsChatTabsMode.Single,
 		}),
 	}),
 

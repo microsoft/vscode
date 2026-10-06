@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { isEqualOrParent } from '../../../../../../base/common/resources.js';
+import { isEqual, isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Location } from '../../../../../../editor/common/languages.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -73,6 +73,7 @@ export const enum AgentHostMcpSupportReason {
 	LaunchNotRepresentable = 'launchNotRepresentable',
 	EnvironmentFileIgnored = 'environmentFileIgnored',
 	WorkingDirectoryNotPortable = 'workingDirectoryNotPortable',
+	GalleryMetadataNotPortable = 'galleryMetadataNotPortable',
 	ServerVersionNotPortable = 'serverVersionNotPortable',
 	SseTransportNotPortable = 'sseTransportNotPortable',
 	SandboxConfigurationIgnored = 'sandboxConfigurationIgnored',
@@ -122,6 +123,11 @@ export interface IAgentHostMcpServerSupport {
 	readonly compatibility: AgentHostMcpServerCompatibility;
 	/** The exact configuration projected through the current Agent Host delivery path. */
 	readonly projectedConfiguration?: IMcpServerConfiguration;
+	/**
+	 * Id of the same-named `.vscode/mcp.json` server in another workspace folder that takes
+	 * precedence over this one, leaving this server unregistered in the client.
+	 */
+	readonly shadowedBy?: string;
 }
 
 export interface IAgentHostMcpServerSupportAssessment {
@@ -210,7 +216,7 @@ export async function mergeInstalledMcpServersIntoAgentHostSupportAssessment(
 	const assessedIds = new Set(servers.map(server => server.id));
 	const missingDisabledServers = await Promise.all(installedServers
 		.filter(server => !assessedIds.has(server.id) && server.runtimeState !== McpServerEnablementState.Enabled)
-		.map(server => assessDisabledInstalledMcpServer(server, configurationResolverService, workingDirectories)));
+		.map(server => assessDisabledInstalledMcpServer(server, configurationResolverService, workingDirectories, getShadowingServerId(server, servers))));
 	return {
 		...assessment,
 		servers: [...servers, ...missingDisabledServers],
@@ -309,7 +315,7 @@ async function resolveMcpServerForAgentHostDelivery(
 		}
 	}
 
-	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode, definition.version);
+	const partialReasons = getPartialSupportReasons(definition.launch, definition.sandboxEnabled, definition.devMode, definition.gallery, definition.version);
 	const unknownReasons = source.kind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
 	const delivery = applicability === AgentHostMcpServerApplicability.Applicable
 		? AgentHostMcpServerDelivery.ClientForwarded
@@ -510,14 +516,34 @@ function getInstalledMcpServerEnablementOverride(runtimeState: McpServerEnableme
 	}
 }
 
+/**
+ * Finds the registered `.vscode/mcp.json` server from another workspace folder that wins the
+ * client's name-based precedence over an unregistered `.vscode/mcp.json` server.
+ */
+function getShadowingServerId(server: IAgentHostInstalledMcpServer, registered: readonly IAgentHostMcpServerSupport[]): string | undefined {
+	if (server.runtimeState !== McpServerEnablementState.Disabled || getInstalledMcpServerSourceKind(server) !== AgentHostMcpServerSourceKind.VscodeWorkspaceFolder) {
+		return undefined;
+	}
+	return registered.find(other => other.name === server.name
+		&& other.source.kind === AgentHostMcpServerSourceKind.VscodeWorkspaceFolder
+		&& other.source.collectionUri !== undefined
+		&& server.configPath?.uri !== undefined
+		&& !isEqual(other.source.collectionUri, server.configPath.uri))?.id;
+}
+
+function getInstalledMcpServerSourceKind(server: IAgentHostInstalledMcpServer): AgentHostMcpServerSourceKind {
+	return getMcpCollectionSourceKind(server.configPath?.provenance ?? getMcpCollectionProvenance(server.configPath?.target), undefined)
+		?? AgentHostMcpServerSourceKind.Unknown;
+}
+
 async function assessDisabledInstalledMcpServer(
 	server: IAgentHostInstalledMcpServer,
 	configurationResolverService: IConfigurationResolverService,
 	workingDirectories: readonly URI[] | undefined,
+	shadowedBy: string | undefined,
 ): Promise<IAgentHostMcpServerSupport> {
-	const sourceKind = getMcpCollectionSourceKind(server.configPath?.provenance ?? getMcpCollectionProvenance(server.configPath?.target), undefined)
-		?? AgentHostMcpServerSourceKind.Unknown;
-	const compatibility = await getInstalledMcpServerCompatibility(server, sourceKind, configurationResolverService);
+	const sourceKind = getInstalledMcpServerSourceKind(server);
+	const { compatibility, projectedConfiguration } = await assessInstalledMcpServerConfiguration(server, sourceKind, configurationResolverService);
 	const collectionId = server.configPath?.collectionId ?? (server.configPath
 		? `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}${server.configPath.id}`
 		: getCollectionIdFromInstalledServer(server));
@@ -542,6 +568,7 @@ async function assessDisabledInstalledMcpServer(
 		applicability: getMcpConfigurationApplicability(server.configPath?.target, server.configPath?.uri, sourceKind, workingDirectories),
 		delivery: AgentHostMcpServerDelivery.NotDelivered,
 		compatibility,
+		...(shadowedBy !== undefined && projectedConfiguration ? { projectedConfiguration, shadowedBy } : {}),
 	};
 }
 
@@ -552,21 +579,21 @@ function getCollectionIdFromInstalledServer(server: IAgentHostInstalledMcpServer
 		: `${MCP_CONFIGURATION_COLLECTION_ID_PREFIX}unknown`;
 }
 
-async function getInstalledMcpServerCompatibility(
+async function assessInstalledMcpServerConfiguration(
 	server: IAgentHostInstalledMcpServer,
 	sourceKind: AgentHostMcpServerSourceKind,
 	configurationResolverService: IConfigurationResolverService,
-): Promise<AgentHostMcpServerCompatibility> {
+): Promise<{ readonly compatibility: AgentHostMcpServerCompatibility; readonly projectedConfiguration?: IMcpServerConfiguration }> {
 	if (sourceKind === AgentHostMcpServerSourceKind.WorkspaceConfiguration) {
-		return unsupported([AgentHostMcpSupportReason.UnsupportedSourceLocation]);
+		return { compatibility: unsupported([AgentHostMcpSupportReason.UnsupportedSourceLocation]) };
 	}
 	const launch = McpServerLaunch.fromServerConfiguration(server.configuration, server.sandbox);
 	if (!launch) {
-		return unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]);
+		return { compatibility: unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]) };
 	}
-	const projectedConfiguration = projectMcpServerConfiguration(launch);
+	let projectedConfiguration = projectMcpServerConfiguration(launch);
 	if (!projectedConfiguration) {
-		return unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]);
+		return { compatibility: unsupported([AgentHostMcpSupportReason.LaunchNotRepresentable]) };
 	}
 
 	const unsupportedReasons: AgentHostMcpSupportReason[] = [];
@@ -574,6 +601,8 @@ async function getInstalledMcpServerCompatibility(
 		const resolved = await resolveMcpConfigurationForSync(configurationResolverService, server.configPath.workspaceFolder, projectedConfiguration);
 		if (resolved.kind === 'error') {
 			unsupportedReasons.push(resolved.reason);
+		} else {
+			projectedConfiguration = resolved.configuration;
 		}
 	} else {
 		const unresolvedReason = getUnresolvedConfigurationReason(projectedConfiguration);
@@ -586,10 +615,14 @@ async function getInstalledMcpServerCompatibility(
 		launch,
 		server.configuration.type === McpServerType.LOCAL ? server.configuration.sandboxEnabled : undefined,
 		server.configuration.dev,
+		server.configuration.gallery,
 		server.configuration.version,
 	);
 	const unknownReasons = sourceKind === AgentHostMcpServerSourceKind.Unknown ? [AgentHostMcpSupportReason.SourceUnknown] : [];
-	return getCompatibility(unsupportedReasons, partialReasons, unknownReasons);
+	return {
+		compatibility: getCompatibility(unsupportedReasons, partialReasons, unknownReasons),
+		...(unsupportedReasons.length === 0 ? { projectedConfiguration } : {}),
+	};
 }
 
 function isPluginCollection(server: IMcpServer, collection: McpCollectionDefinition | undefined): boolean {
@@ -689,7 +722,7 @@ function getExpressionUnresolvedReason(expression: ConfigurationResolverExpressi
 	return hasUnresolved ? AgentHostMcpSupportReason.UnresolvedConfiguration : undefined;
 }
 
-function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode'], version: string | undefined): AgentHostMcpSupportReason[] {
+function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boolean | undefined, devMode: McpServerDefinition['devMode'], gallery: McpServerDefinition['gallery'], version: string | undefined): AgentHostMcpSupportReason[] {
 	const reasons: AgentHostMcpSupportReason[] = [];
 	if (launch.type === McpServerTransportType.Stdio) {
 		if (launch.envFile) {
@@ -711,6 +744,9 @@ function getPartialSupportReasons(launch: McpServerLaunch, sandboxEnabled: boole
 	}
 	if (devMode) {
 		reasons.push(AgentHostMcpSupportReason.DevelopmentModeIgnored);
+	}
+	if (gallery !== undefined) {
+		reasons.push(AgentHostMcpSupportReason.GalleryMetadataNotPortable);
 	}
 	if (version !== undefined) {
 		reasons.push(AgentHostMcpSupportReason.ServerVersionNotPortable);

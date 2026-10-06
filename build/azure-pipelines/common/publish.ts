@@ -601,17 +601,116 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
+interface TimelineRecord {
+	readonly name: string;
+	readonly identifier?: string;
+	readonly type: string;
+	readonly state: string;
+	readonly result: string;
+}
+
 interface Timeline {
-	readonly records: {
-		readonly name: string;
-		readonly type: string;
-		readonly state: string;
-		readonly result: string;
-	}[];
+	readonly records: TimelineRecord[];
+}
+
+/**
+ * Whether the timeline record is the given stage. Stages are matched by their
+ * YAML identifier, since the record name is the stage's display name when one
+ * is set.
+ */
+function isStage(record: TimelineRecord, stage: string): boolean {
+	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
+}
+
+/**
+ * Artifacts that can only be published once a job succeeded, by job name. The
+ * platform test jobs run in parallel with the jobs that produce these artifacts
+ * (see the platform-specific product-build job templates). The tests of a
+ * platform can be sharded across several jobs named `<job name>_<shard>`, in
+ * which case every shard must succeed.
+ */
+const artifactsByGatingJob: Readonly<Record<string, readonly string[]>> = {
+	'Windows_x64_Test': [
+		'vscode_client_win32_x64_setup',
+		'vscode_client_win32_x64_user-setup',
+		'vscode_client_win32_x64_archive',
+		'vscode_server_win32_x64_archive',
+		'vscode_web_win32_x64_archive',
+		'vscode_cli_win32_x64_cli',
+	],
+	'Linux_x64_Test': [
+		'vscode_client_linux_x64_archive-unsigned',
+		'vscode_client_linux_x64_deb-package',
+		'vscode_client_linux_x64_rpm-package',
+		'vscode_client_linux_x64_snap',
+		'vscode_server_linux_x64_archive-unsigned',
+		'vscode_web_linux_x64_archive-unsigned',
+		'vscode_cli_linux_x64_cli',
+	],
+	'macOS_arm64_Test': [
+		'vscode_client_darwin_arm64_archive',
+		'vscode_client_darwin_arm64_dmg',
+		'vscode_server_darwin_arm64_archive',
+		'vscode_web_darwin_arm64_archive',
+		'vscode_cli_darwin_arm64_cli',
+		'vscode_client_darwin_universal_archive',
+		'vscode_client_darwin_universal_dmg',
+	],
+};
+
+interface IGatingJob {
+	/** The job that blocks the publishing, or all gating jobs when none does. */
+	readonly name: string;
+	/** `missing` when the job is not part of the pipeline run, e.g. when tests are skipped. */
+	readonly state: 'succeeded' | 'pending' | 'failed' | 'missing';
+}
+
+/**
+ * Returns the job that gates the publishing of the artifact, if any, see
+ * `artifactsByGatingJob`. When the tests are sharded, returns a failed shard,
+ * else a pending one, else all shards once they all succeeded.
+ */
+function getGatingJob(timeline: Timeline, artifactName: string): IGatingJob | undefined {
+	const name = Object.keys(artifactsByGatingJob).find(job => artifactsByGatingJob[job].includes(artifactName));
+
+	if (!name) {
+		return undefined;
+	}
+
+	// Job identifiers have the form `<stage>.<job>.__default`, and a retried job has a record for each attempt
+	const attemptsByJob = new Map<string, TimelineRecord[]>();
+
+	for (const record of timeline.records) {
+		if (record.type !== 'Job') {
+			continue;
+		}
+
+		const job = record.identifier?.split('.').find(part => part === name || part.startsWith(`${name}_`)) ?? (record.name === name ? name : undefined);
+
+		if (job) {
+			attemptsByJob.set(job, [...attemptsByJob.get(job) ?? [], record]);
+		}
+	}
+
+	if (attemptsByJob.size === 0) {
+		return { name, state: 'missing' };
+	}
+
+	const jobs: IGatingJob[] = [...attemptsByJob].map(([job, attempts]) => {
+		if (attempts.some(r => r.state === 'completed' && (r.result === 'succeeded' || r.result === 'succeededWithIssues'))) {
+			return { name: job, state: 'succeeded' };
+		} else {
+			return { name: job, state: attempts.some(r => r.state !== 'completed') ? 'pending' : 'failed' };
+		}
+	});
+
+	return jobs.find(job => job.state === 'failed')
+		?? jobs.find(job => job.state === 'pending')
+		?? { name: jobs.map(job => job.name).join(', '), state: 'succeeded' };
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
@@ -938,23 +1037,35 @@ async function main() {
 	const stages = new Set<string>(['Quality']);
 
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
-	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
+	if (e('VSCODE_BUILD_STAGE_WINDOWS_ARM64') === 'True') { stages.add('WindowsARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_X64') === 'True') { stages.add('LinuxX64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARM64') === 'True') { stages.add('LinuxARM64'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_ARMHF') === 'True') { stages.add('LinuxARMHF'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
-	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_X64') === 'True') { stages.add('macOSX64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
+	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
 	let timeline: Timeline;
 	let artifacts: Artifact[];
+	let gatingJobs = new Map<string, IGatingJob | undefined>();
+	let artifactsBlocked: string[] = [];
+	const gateMessages = new Map<string, string>();
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
 		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
-		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
+		const stagesCompleted = new Set<string>([...stages].filter(stage => timeline.records.some(r => isStage(r, stage) && r.state === 'completed')));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+		gatingJobs = new Map(artifacts
+			.filter(a => !done.has(a.name) && !processing.has(a.name))
+			.map(a => [a.name, getGatingJob(timeline, a.name)]));
+		artifactsBlocked = [...gatingJobs].filter(([, job]) => job?.state === 'failed').map(([name]) => name);
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length) {
 			break;
 		} else if (stagesInProgress.length > 0) {
 			console.log('Stages in progress:', stagesInProgress.join(', '));
@@ -965,11 +1076,26 @@ async function main() {
 		}
 
 		for (const artifact of artifacts) {
-			if (done.has(artifact.name) || processing.has(artifact.name)) {
+			if (!gatingJobs.has(artifact.name)) {
+				continue;
+			}
+
+			const gatingJob = gatingJobs.get(artifact.name);
+
+			if (gatingJob?.state === 'pending' || gatingJob?.state === 'failed') {
+				const message = gatingJob.state === 'pending' ? `Waiting for job ${gatingJob.name} to succeed` : `Not published, since job ${gatingJob.name} did not succeed`;
+				if (gateMessages.get(artifact.name) !== message) {
+					console.log(`[${artifact.name}] ${message}`);
+					gateMessages.set(artifact.name, message);
+				}
 				continue;
 			}
 
 			console.log(`[${artifact.name}] Found new artifact`);
+
+			if (gatingJob) {
+				console.log(`[${artifact.name}] ${gatingJob.state === 'succeeded' ? `Job ${gatingJob.name} succeeded` : `Job ${gatingJob.name} is not part of this run`}`);
+			}
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
@@ -1012,7 +1138,7 @@ async function main() {
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
 	const artifactsInProgress = operations.filter(o => processing.has(o.name));
 
@@ -1035,11 +1161,17 @@ async function main() {
 		throw new Error('Some artifacts failed to publish');
 	}
 
-	// Also fail the job if any of the stages did not succeed
+	// Also fail the job if any of the stages did not succeed, or if any of the
+	// artifacts was not published because its gating job did not succeed
 	let shouldFail = false;
 
+	for (const name of artifactsBlocked) {
+		shouldFail = true;
+		console.error(`[${name}] Not published, since job ${gatingJobs.get(name)!.name} did not succeed`);
+	}
+
 	for (const stage of stages) {
-		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
 			shouldFail = true;
@@ -1048,7 +1180,7 @@ async function main() {
 	}
 
 	if (shouldFail) {
-		throw new Error('Some stages did not succeed');
+		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);

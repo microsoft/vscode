@@ -8,6 +8,19 @@ import type { SessionView } from '../../../browser/parts/sessionView.js';
 import { IActiveSession } from '../common/sessionsManagement.js';
 import { IProgressIndicator } from '../../../../platform/progress/common/progress.js';
 import { Event } from '../../../../base/common/event.js';
+import { Direction, ISerializedGrid } from '../../../../base/browser/ui/grid/grid.js';
+
+export interface ISessionGridPlacement {
+	readonly reference: string;
+	readonly direction: Direction;
+}
+
+export interface ISessionGridSlot {
+	readonly id: string;
+	readonly placement?: ISessionGridPlacement;
+}
+
+export type SessionGridRequest = { readonly type: 'arrange' } | { readonly type: 'restore'; readonly grid: ISerializedGrid };
 
 export const ISessionsPartService = createDecorator<ISessionsPartService>('sessionsPartService');
 
@@ -29,7 +42,14 @@ export interface ISessionsPartService {
 	 * visible sessions or active session change. The part is a passive renderer:
 	 * it does not observe the model itself.
 	 */
-	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined): void;
+	updateVisibleSessions(visible: readonly (IActiveSession | undefined)[], active: IActiveSession | undefined, slots?: readonly ISessionGridSlot[], request?: SessionGridRequest): void;
+
+	getGridLayout(): ISerializedGrid | undefined;
+	/** `null` identifies the empty composer; `undefined` means there is no neighbor. */
+	getNeighborSession(sessionId: string | undefined, direction: Direction): IActiveSession | null | undefined;
+	getSessionPlacement(sessionId: string): { readonly sessionId: string | undefined; readonly direction: Direction } | undefined;
+	resizeSession(sessionId: string | undefined, direction: Direction, amount: number): void;
+	readonly onDidInteractWithGrid: Event<void>;
 
 	/**
 	 * Controls whether mounted session views may render independently of the part's grid visibility.

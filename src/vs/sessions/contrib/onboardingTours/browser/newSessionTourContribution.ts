@@ -9,7 +9,8 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableValue } from '../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
@@ -17,7 +18,6 @@ import { findOnboardingTarget, pulseOnboardingTarget } from '../../../../workben
 import { ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { TOTAL_SESSIONS_KEY } from '../../sessions/browser/sessionsLifecycleTracker.js';
 import { createNewSessionTour, NEW_SESSION_TOUR_ID } from './tours/newSessionTour.js';
 
 const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';
@@ -27,7 +27,7 @@ const NEW_SESSION_BUTTON_TARGET = 'sessions.newSession.button';
  *
  * The tour targets brand-new users: it only triggers while the number of
  * sessions the user has ever started (persisted by the sessions telemetry
- * tracker under {@link TOTAL_SESSIONS_KEY}) is below {@link MAX_SESSIONS_FOR_TOUR}.
+ * tracker and read via {@link AgentsWindowUsage}) is below {@link MAX_SESSIONS_FOR_TOUR}.
  * When an eligible user sends a request, we wait {@link VISIBILITY_DELAY_MS}
  * and only then pulse the "New Session" button — and only if that session is
  * still visible in the sessions grid (so we don't interrupt a session the user
@@ -53,15 +53,17 @@ export class NewSessionTourContribution extends Disposable implements IWorkbench
 
 	private readonly _pendingCheck = this._register(new MutableDisposable());
 	private readonly _pulse = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _usage: AgentsWindowUsage;
 
 	constructor(
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IOnboardingScenarioService private readonly onboardingScenarioService: IOnboardingScenarioService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this._usage = new AgentsWindowUsage(storageService);
 
 		this._register(onboardingScenarioRegistry.register(createNewSessionTour(this._trigger)));
 
@@ -80,7 +82,7 @@ export class NewSessionTourContribution extends Disposable implements IWorkbench
 		// gate so the tour can be triggered on demand for testing.
 		const developerMode = isOnboardingDeveloperModeEnabled(this.configurationService, NEW_SESSION_TOUR_ID);
 		if (!developerMode) {
-			const sessionsStarted = this.storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+			const sessionsStarted = this._usage.createdSessionCount;
 			if (sessionsStarted > NewSessionTourContribution.MAX_SESSIONS_FOR_TOUR) {
 				return;
 			}

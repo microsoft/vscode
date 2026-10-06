@@ -48,6 +48,7 @@ class TestGitService implements IAgentHostGitService {
 	async getWorktreeRoots(): Promise<URI[]> { return []; }
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
+	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
@@ -67,6 +68,7 @@ class TestGitService implements IAgentHostGitService {
 	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
+	async fetch(): Promise<void> { }
 	async pull(): Promise<void> { }
 	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
@@ -86,6 +88,7 @@ class TestGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<[]> { return []; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
@@ -147,12 +150,15 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		getAuthAccount: () => undefined,
 		getAuthToken: () => token,
 	};
 }

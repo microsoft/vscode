@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
+import type { OperatingSystem } from '../../../base/common/platform.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ConfigurationTarget, type IConfigurationService } from '../../configuration/common/configuration.js';
 import { StorageScope, StorageTarget, type IStorageService } from '../../storage/common/storage.js';
@@ -21,6 +22,7 @@ import { normalizeRemoteAgentHostAddress } from './agentHostUri.js';
 import { getGlobalConfigurationValue } from './agentHostConfigurationSync.js';
 import type { SSHAgentHostLifecycle } from './sshRemoteAgentHost.js';
 import type { AgentHostServerType } from './agentHostEndpointRegistry.js';
+import type { IDevContainerRepository } from './devContainerSamples.js';
 import type { ConnectionDiagnosticObserver, IConnectionDiagnosticEvent, IRemoteConnectionDiagnosticEvent } from './connectionDiagnostics.js';
 
 /**
@@ -218,6 +220,8 @@ export interface IRemoteAgentHostWSLConnection {
  * on demand with freshly-minted, short-lived credentials.
  */
 export interface IRemoteAgentHostCloudSandboxConnection {
+	/** User-local environments use the same MC transport but not sandbox-specific providers. */
+	readonly environmentKind?: 'user-local';
 	readonly type: RemoteAgentHostEntryType.CloudSandbox;
 	/** Synthesized display address: `cloudsandbox:<environmentId>`. */
 	readonly address: string;
@@ -231,15 +235,13 @@ export interface IRemoteAgentHostCloudSandboxConnection {
  * A runtime-only connection to an agent host running inside a Dev Container.
  * The Dev Container integration stages its transport for its connection factory.
  */
-export interface IRemoteAgentHostDevContainerConnection {
+export type IRemoteAgentHostDevContainerConnection = {
 	readonly type: RemoteAgentHostEntryType.DevContainer;
 	/** Stable address for the container connection. */
 	readonly address: string;
-	/** Source folder on the parent host containing the Dev Container configuration. */
-	readonly hostPath: string;
 	/** VS Code SSH, tunnel, or WSL authority of the source host, absent for local containers. */
 	readonly hostAuthority?: string;
-}
+} & ({ readonly hostPath: string; readonly repository?: never } | { readonly repository: IDevContainerRepository; readonly hostPath?: never });
 
 export type RemoteAgentHostConnection = IRemoteAgentHostWebSocketConnection | IRemoteAgentHostSSHConnection | IRemoteAgentHostWSLConnection | IRemoteAgentHostTunnelConnection | IRemoteAgentHostCloudSandboxConnection | IRemoteAgentHostDevContainerConnection;
 
@@ -706,8 +708,20 @@ export interface IRemoteAgentHostService {
 	/** Signals that consumers should re-read pendingConnections, including after configuration reconciliation; the catalog may be unchanged. */
 	readonly onDidChangePendingConnections: Event<void>;
 
-	/** Fires when a remote connection is established or lost. */
+	/** Fires when remote connections change; client-local renames only fire {@link onDidChangeDisplayName}. */
 	readonly onDidChangeConnections: Event<void>;
+
+	/** Fires with the normalized address when its client-local display name changes. */
+	readonly onDidChangeDisplayName: Event<string>;
+
+	/** Gets the client-local display-name override, or undefined to use the configured or discovered name. */
+	getDisplayNameOverride(address: string): string | undefined;
+
+	/** Sets a machine-local display-name override. An empty or undefined name restores the default. */
+	setDisplayName(address: string, name: string | undefined): void;
+
+	/** Delegates local labels to an inventory owner with its own account/profile persistence. */
+	registerDisplayName(address: string, name: IObservable<string | undefined>, setName: (name: string | undefined) => void): IDisposable;
 
 	/**
 	 * Known remote addresses with metadata. This is a status catalog, not a
@@ -812,6 +826,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly clientId?: string;
 	readonly defaultDirectory?: string;
 	readonly status: RemoteAgentHostConnectionStatus;
+	/** Last operating system successfully reported by this host. */
+	readonly operatingSystem?: OperatingSystem;
 }
 
 export interface IRemoteAgentHostPendingConnection {
@@ -825,11 +841,19 @@ export class NullRemoteAgentHostService implements IRemoteAgentHostService {
 	declare readonly _serviceBrand: undefined;
 	getConnectionDiagnostics(): readonly IRemoteConnectionDiagnosticEvent[] { return []; }
 	readonly onDidChangeConnections = Event.None;
+	readonly onDidChangeDisplayName = Event.None;
 	readonly onDidChangePendingConnections = Event.None;
 	readonly pendingConnections: readonly IRemoteAgentHostPendingConnection[] = [];
 	readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 	readonly configuredEntries: readonly IRemoteAgentHostEntry[] = [];
 	readonly onDidChangeConfiguredEntries = Event.None;
+	getDisplayNameOverride(): string | undefined { return undefined; }
+	setDisplayName(): void {
+		throw new Error('Remote agent host display names are not supported in this environment.');
+	}
+	registerDisplayName(): IDisposable {
+		throw new Error('Remote agent host display names are not supported in this environment.');
+	}
 	registerConnectionFactory(): IDisposable {
 		throw new Error('Remote agent host connections are not supported in this environment.');
 	}

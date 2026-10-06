@@ -6,11 +6,52 @@
 import { createMarkdownCommandLink, IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
+import { IReader } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
 import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, isLegacyChatTerminalToolInvocationData, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 
+export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
+		|| (toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.imageGeneration)
+		|| toolInvocation.toolId === 'image_gen.imagegen'
+		|| toolInvocation.toolId === 'image_generation';
+}
+
+export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): boolean {
+	if (toolInvocation.kind !== 'toolInvocation' || !isImageGenerationToolInvocation(toolInvocation) || IChatToolInvocation.isEffectivelyHidden(toolInvocation)) {
+		return false;
+	}
+	const current = state ?? toolInvocation.state.get();
+	return current.type === IChatToolInvocation.StateKind.Streaming || current.type === IChatToolInvocation.StateKind.Executing;
+}
+
+export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): string {
+	if (toolInvocation.kind === 'toolInvocation') {
+		toolInvocation.state.read(reader);
+	}
+	const model = toolInvocation.toolSpecificData?.kind === 'input'
+		? toolInvocation.toolSpecificData.imageGeneration?.requestedModel
+		: undefined;
+	return model
+		? localize('imageGeneration.usingModel', "Using {0} to generate an image", model.name ?? model.id)
+		: localize('imageGeneration.progress', "Generating image");
+}
+
+export function createImageGenerationLabel(message: string): MarkdownString {
+	const label = new MarkdownString().appendText(message);
+	// Character references prevent GFM autolinks without double-escaping Markdown syntax.
+	label.value = label.value.replace(/[.:@]/g, character => `&#${character.charCodeAt(0)};`);
+	return label;
+}
+
 export function hasToolInvocationError(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	if (isImageGenerationToolInvocation(toolInvocation)) {
+		const confirmation = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
+		if (confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped) {
+			return false;
+		}
+	}
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 	if (IChatToolInvocation.resultError(toolInvocation) || (isToolResultInputOutputDetails(resultDetails) && resultDetails.isError)) {
 		return true;
@@ -32,6 +73,7 @@ export function isActiveBackgroundTerminalToolInvocation(toolInvocation: IChatTo
 		&& terminal.terminalCommandState?.exitCode === undefined
 		&& (terminal.isBackground === true || terminal.didContinueInBackground === true);
 }
+
 export function isMcpToolInvocation(toolInvocation: Pick<IChatToolInvocation | IChatToolInvocationSerialized, 'toolId' | 'source'>): boolean {
 	return toolInvocation.source?.type === 'mcp' || toolInvocation.toolId.toLowerCase().includes('mcp');
 }
@@ -54,6 +96,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 		return Codicon.search;
 	}
 
+	const icon = data?.icon && !ThemeIcon.isEqual(data.icon, Codicon.tools) ? data.icon : undefined;
 	const toolSpecificData = data?.toolSpecificData;
 	if (toolSpecificData?.kind === 'search') {
 		return Codicon.search;
@@ -68,16 +111,18 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 				return Codicon.terminalSecure;
 			}
 		}
-		return data?.icon ?? Codicon.terminal;
+		return icon ?? Codicon.terminal;
 	}
 
-	if (data?.icon) {
-		return data.icon;
+	if (icon) {
+		return icon;
 	}
 	if (lowerToolId.includes('comment')) {
 		return Codicon.comment;
 	}
 	if (
+		lowerToolId === 'rg' ||
+		lowerToolId === 'glob' ||
 		lowerToolId.includes('search') ||
 		lowerToolId.includes('grep') ||
 		lowerToolId.includes('find') ||
@@ -90,6 +135,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 		return Codicon.search;
 	}
 	if (
+		lowerToolId === 'view' ||
 		lowerToolId.includes('read') ||
 		lowerToolId.includes('get_file') ||
 		lowerToolId.includes('problems')
@@ -104,7 +150,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 	) {
 		return Codicon.pencil;
 	}
-	if (lowerToolId.includes('terminal')) {
+	if (lowerToolId.includes('terminal') || lowerToolId === 'bash' || lowerToolId === 'powershell' || lowerToolId === 'shell') {
 		return Codicon.terminal;
 	}
 	return Codicon.tools;

@@ -30,4 +30,19 @@ suite('Agent Host Session Artifacts', () => {
 			'artifact-file': toAgentHostUri(artifactFileUri, connectionAuthority).toString(),
 		});
 	});
+
+	test('preserves each artifact owner in the session-wide projection', () => {
+		const defaultChat = URI.parse('remote-chat:/session/default');
+		const peerChat = URI.parse('remote-chat:/session/peer');
+		const result = partitionSessionArtifacts(withSessionArtifacts(undefined, [
+			{ id: 'default', type: SessionArtifactType.Website, label: 'Default', isArtifact: true, link: 'https://example.com/default', chat: defaultChat.toString() },
+			{ id: 'peer', type: SessionArtifactType.Website, label: 'Peer', isArtifact: true, link: 'https://example.com/peer', chat: peerChat.toString() },
+		]));
+
+		assert.deepStrictEqual(result.entries.map(({ artifact }) => ({ id: artifact.id, chat: artifact.chat?.toString() })), [
+			{ id: 'peer', chat: peerChat.toString() },
+			{ id: 'default', chat: defaultChat.toString() },
+		]);
+	});
+
 });

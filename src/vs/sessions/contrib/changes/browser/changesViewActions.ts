@@ -32,7 +32,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
@@ -93,7 +93,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		}));
 
 		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
-		this._register(bindContextKey(SinglePaneDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
+		this._register(bindContextKey(DesktopDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
 	}
 }
 
@@ -138,10 +138,10 @@ const agentsChangesEditorActive = ContextKeyExpr.and(
 	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID)
 );
 
-const singlePaneFileDiffEditorActive = ContextKeyExpr.and(
+const desktopFileDiffEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
-	SinglePaneDiffEditorInputActiveContext,
-	SinglePaneLayoutEnabledContext
+	DesktopDiffEditorInputActiveContext,
+	DesktopLayoutContext
 );
 
 const agentsTextDiffEditorActive = ContextKeyExpr.and(
@@ -170,8 +170,8 @@ const agentsMultiDiffEditorsActive = ContextKeyExpr.or(
 	agentsMultiDiffEditorActive
 );
 
-const singlePaneChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, SinglePaneLayoutEnabledContext);
-const singlePaneTextDiffEditorActive = ContextKeyExpr.and(agentsTextDiffEditorActive, SinglePaneLayoutEnabledContext);
+const desktopChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, DesktopLayoutContext);
+const desktopTextDiffEditorActive = ContextKeyExpr.and(agentsTextDiffEditorActive, DesktopLayoutContext);
 
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
@@ -179,68 +179,68 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: OpenMultiDiffEditorLayoutDebugAction.TITLE,
 		category: Categories.Developer,
 	},
-	when: singlePaneChangesEditorActive
+	when: desktopChangesEditorActive
 });
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
 // visible, so session-level title actions (e.g. Create Pull Request) stay available
 // when the editor area is closed but the docked tab bar is still shown.
-const singlePaneChangesEditorTitle = ContextKeyExpr.and(
-	singlePaneChangesEditorActive,
+const desktopChangesEditorTitle = ContextKeyExpr.and(
+	desktopChangesEditorActive,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
-	singlePaneChangesEditorTitle,
+const desktopChangesEditorTitleVisible = ContextKeyExpr.and(
+	desktopChangesEditorTitle,
 	MainEditorAreaVisibleContext
 );
 
-const singlePaneDiffEditorTitle = ContextKeyExpr.and(
-	ContextKeyExpr.or(singlePaneChangesEditorActive, singlePaneFileDiffEditorActive),
+const desktopDiffEditorTitle = ContextKeyExpr.and(
+	ContextKeyExpr.or(desktopChangesEditorActive, desktopFileDiffEditorActive),
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneTextDiffEditorTitle = ContextKeyExpr.and(
-	singlePaneTextDiffEditorActive,
+const desktopTextDiffEditorTitle = ContextKeyExpr.and(
+	desktopTextDiffEditorActive,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneMultiDiffEditorTitle = ContextKeyExpr.and(
+const desktopMultiDiffEditorTitle = ContextKeyExpr.and(
 	agentsMultiDiffEditorActive,
-	SinglePaneLayoutEnabledContext,
+	DesktopLayoutContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneTextEditorTitle = ContextKeyExpr.and(
+const desktopTextEditorTitle = ContextKeyExpr.and(
 	agentsTextEditorActive,
-	SinglePaneLayoutEnabledContext,
+	DesktopLayoutContext,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
+const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
 	ContextKeyExpr.or(
-		singlePaneChangesEditorTitle,
-		singlePaneTextDiffEditorTitle,
-		singlePaneMultiDiffEditorTitle
+		desktopChangesEditorTitle,
+		desktopTextDiffEditorTitle,
+		desktopMultiDiffEditorTitle
 	),
 	MainEditorAreaVisibleContext
 );
 
-const singlePaneMultiDiffEditorTitleVisible = ContextKeyExpr.and(
+const desktopMultiDiffEditorTitleVisible = ContextKeyExpr.and(
 	ContextKeyExpr.or(
-		singlePaneChangesEditorTitle,
-		singlePaneMultiDiffEditorTitle,
+		desktopChangesEditorTitle,
+		desktopMultiDiffEditorTitle,
 	),
 	MainEditorAreaVisibleContext
 );
 
-const singlePaneTextEditorTitleVisible = ContextKeyExpr.and(
-	singlePaneTextEditorTitle,
+const desktopTextEditorTitleVisible = ContextKeyExpr.and(
+	desktopTextEditorTitle,
 	MainEditorAreaVisibleContext
 );
 
@@ -266,12 +266,12 @@ class ToggleSessionsEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: singlePaneTextEditorTitleVisible,
+				when: desktopTextEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: ContextKeyExpr.and(agentsTextEditorActive, SinglePaneLayoutEnabledContext.negate()),
+				when: ContextKeyExpr.and(agentsTextEditorActive, DesktopLayoutContext.negate()),
 			}],
 			toggled: wordWrapToggled(SESSIONS_EDITOR_WORD_WRAP_SETTING),
 		});
@@ -294,12 +294,12 @@ class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
 				id: Menus.SessionsEditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: singlePaneMultiDiffEditorTitleVisible,
+				when: desktopMultiDiffEditorTitleVisible,
 			}, {
 				id: MenuId.EditorTitle,
 				group: '1_diff',
 				order: 20,
-				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, SinglePaneLayoutEnabledContext.negate()),
+				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, DesktopLayoutContext.negate()),
 			}],
 			toggled: wordWrapToggled(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING),
 		});
@@ -368,7 +368,7 @@ class ChangesHeaderActionsAction extends Action2 {
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
 					CustomViewVisibleContext.negate(),
-					SinglePaneLayoutEnabledContext,
+					DesktopLayoutContext,
 					SessionIsCreatedContext
 				)
 			},
@@ -393,7 +393,7 @@ class SetChangesListViewModeAction extends Action2 {
 				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneDiffEditorTitle,
+					desktopDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
 			}
@@ -422,7 +422,7 @@ class SetChangesTreeViewModeAction extends Action2 {
 				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneDiffEditorTitle,
+					desktopDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
 			}
@@ -451,7 +451,7 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitleVisible,
+					desktopChangesEditorTitleVisible,
 					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
 			}
 		});
@@ -481,7 +481,7 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
+					desktopChangesEditorActive,
 					IsAuxiliaryWindowContext.toNegated(),
 					IsTopRightEditorGroupContext,
 					MainEditorAreaVisibleContext,
@@ -509,14 +509,14 @@ MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
 	title: localize('diffView', "Diff View"),
 	group: 'secondary/1_diff',
 	order: 20,
-	when: singlePaneDiffEditorTitleVisible,
+	when: desktopDiffEditorTitleVisible,
 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	submenu: Menus.SessionsDiffEditorView,
 	title: localize('diffView', "Diff View"),
 	group: '1_diff',
 	order: 10,
-	when: ContextKeyExpr.and(agentsDiffEditorActive, SinglePaneLayoutEnabledContext.negate()),
+	when: ContextKeyExpr.and(agentsDiffEditorActive, DesktopLayoutContext.negate()),
 });
 MenuRegistry.appendMenuItem(Menus.SessionsDiffEditorView, {
 	command: {

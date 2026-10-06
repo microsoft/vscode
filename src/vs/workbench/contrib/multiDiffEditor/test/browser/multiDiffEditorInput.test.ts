@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event, ValueWithChangeEvent } from '../../../../../base/common/event.js';
-import { IReference } from '../../../../../base/common/lifecycle.js';
-import { observableValue, ValueWithChangeEventFromObservable } from '../../../../../base/common/observable.js';
+import { IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, observableFromValueWithChangeEvent, observableValue, ValueWithChangeEventFromObservable, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,6 +17,7 @@ import { IResolvedTextEditorModel, ITextModelService } from '../../../../../edit
 import { ITextResourceConfigurationChangeEvent, ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { TestDiffProviderFactoryService } from '../../../../../editor/test/browser/diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../../../../../editor/test/browser/testCodeEditor.js';
+import { instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ITextFileEditorModelManager, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../../services/textfile/common/textfiles.js';
@@ -103,6 +104,103 @@ suite('MultiDiffEditorInput', () => {
 		await assert.rejects(viewModelPromise, CancellationError);
 		assert.strictEqual(referenceDisposed, true);
 	});
+
+	for (const update of ['replace', 'remove', 'dispose'] as const) {
+		test(`ignores stale document resolutions after ${update}`, async () => {
+			const services = new ServiceCollection();
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const createResource = (name: string) => new MultiDiffEditorItem(
+				URI.parse(`inmemory:/original/${name}.ts`),
+				URI.parse(`inmemory:/modified/${name}.ts`),
+				undefined,
+			);
+			const removed = createResource('removed');
+			const slow = createResource('slow');
+			const current = createResource('current');
+			const resources = observableValue<readonly MultiDiffEditorItem[]>('resources', [removed]);
+			const slowReferenceRequested = new DeferredPromise<void>();
+			const slowReferenceReady = new DeferredPromise<void>();
+			const releasedReferences: string[] = [];
+			const textModelService = new class extends mock<ITextModelService>() {
+				override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
+					if (resource.path.endsWith('/slow.ts')) {
+						void slowReferenceRequested.complete();
+						await slowReferenceReady.p;
+					}
+					const model = disposables.add(instantiateTextModel(instantiationService, resource.path, undefined, undefined, resource));
+					const reference = disposables.add(toDisposable(() => {
+						releasedReferences.push(resource.path);
+						model.dispose();
+					}));
+					return {
+						object: new class extends mock<IResolvedTextEditorModel>() {
+							override readonly textEditorModel = model;
+							override isReadonly() { return true; }
+						}(),
+						dispose: () => reference.dispose(),
+					};
+				}
+			}();
+			const input = disposables.add(new MultiDiffEditorInput(
+				URI.parse('multi-diff-editor:test'),
+				'Test',
+				undefined,
+				false,
+				textModelService,
+				new class extends mock<ITextResourceConfigurationService>() {
+					override readonly onDidChangeConfiguration = Event.None;
+					override getValue<T>(): T { return {} as T; }
+				}(),
+				instantiationService,
+				new class extends mock<IMultiDiffSourceResolverService>() {
+					override resolve() {
+						return Promise.resolve({ resources: new ValueWithChangeEventFromObservable(resources) });
+					}
+				}(),
+				new class extends mock<ITextFileService>() {
+					override readonly files = new class extends mock<ITextFileEditorModelManager>() {
+						override readonly onDidChangeDirty = Event.None;
+					}();
+				}(),
+			));
+			const viewModel = await input.getViewModel();
+			const documents = observableFromValueWithChangeEvent(input, viewModel.model.documents);
+			const publishedDocuments: string[][] = [];
+			disposables.add(autorun(reader => {
+				const value = documents.read(reader);
+				if (value !== 'loading') {
+					publishedDocuments.push(value.map(document => document.object.modified!.uri.path));
+				}
+			}));
+
+			resources.set([removed, slow], undefined);
+			await slowReferenceRequested.p;
+			if (update === 'dispose') {
+				input.dispose();
+			} else {
+				resources.set(update === 'replace' ? [current] : [], undefined);
+				await waitForState(documents, value => value !== 'loading' && (update === 'replace'
+					? value.length === 1 && value[0].object.modified?.uri.path === current.modifiedUri!.path
+					: value.length === 0));
+				await viewModel.waitForDiffOr1s();
+			}
+
+			await slowReferenceReady.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				publishedDocuments,
+				releasedReferences: releasedReferences.sort(),
+			}, {
+				publishedDocuments: [
+					['/modified/removed.ts'],
+					...(update === 'dispose' ? [] : [update === 'replace' ? ['/modified/current.ts'] : []]),
+				],
+				releasedReferences: ['/modified/removed.ts', '/modified/slow.ts', '/original/removed.ts', '/original/slow.ts'],
+			});
+		});
+	}
 
 	test('preserves explicit original line number setting values and updates', async () => {
 		const originalUri = URI.parse('file:///original.ts');

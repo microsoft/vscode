@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
 /**
@@ -12,6 +13,12 @@ import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sand
 export interface SandboxConfig {
 	/** Whether sandboxing is enabled for the session. */
 	enabled: boolean;
+
+	/** Whether MCP servers run inside the sandbox. */
+	sandboxMcpServers?: boolean;
+
+	/** Whether LSP servers run inside the sandbox. */
+	sandboxLspServers?: boolean;
 
 	/** Whether all sandbox restrictions can be bypassed. */
 	allowBypass?: boolean;
@@ -66,6 +73,12 @@ export interface SandboxNetworkPolicy {
 	/** Whether localhost and local-network connections are permitted. */
 	allowLocalNetwork?: boolean;
 
+	/** Hosts that sandboxed processes are allowed to connect to. */
+	allowedHosts?: string[];
+
+	/** Hosts that sandboxed processes are blocked from connecting to. */
+	blockedHosts?: string[];
+
 	/** Optional proxy used by sandboxed processes. */
 	proxy?: SandboxNetworkProxyPolicy;
 }
@@ -91,19 +104,16 @@ export interface SandboxSeatbeltPolicy {
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Mirrors `buildSandboxConfigForCLI` in
- * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
- * so the two surfaces behave the same:
- *  - Path precedence: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`.
+ * Optional capabilities without a host setting are left to the runtime:
+ *  - Path precedence: `deniedPaths` > `readonlyPaths` > `readwritePaths`.
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
- *  - Network: the separate `allowNetwork` policy opens outbound to everything.
- *    Domain allow/deny lists are ignored because the SDK's `SandboxConfig`
- *    does not support host-level rules.
+ *  - Network: the separate `allowNetwork` policy opens outbound to everything,
+ *    while configured domain allow/deny lists are forwarded as host rules.
  *
- * Windows uses its platform-specific enablement and filesystem settings. It
- * does not fall back to the shared enablement setting so Windows rollout is
- * controlled independently.
+ * All platforms share enablement and user-configured paths; legacy per-OS paths are ignored.
+ * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
+ * Credential authentication defaults to enabled and uses the effective Copilot-only preferences.
  *
  * `extraReadonlyPaths` grants read access to session attachments and generated
  * shell init scripts when the effective sandbox is applied before each turn.
@@ -113,71 +123,71 @@ export function buildSandboxConfigForSdk(
 	sandbox: ISandboxConfigValue | undefined,
 	extraReadonlyPaths?: readonly string[],
 ): SandboxConfig | undefined {
-	const enabledRaw = platform === 'win32'
-		? sandbox?.[AgentHostSandboxKey.WindowsEnabled]
-		: sandbox?.[AgentHostSandboxKey.Enabled];
+	const enabledRaw = sandbox?.[AgentHostSandboxKey.Enabled];
 	if (enabledRaw !== AgentSandboxEnabledValue.On) {
 		return undefined;
 	}
 
-	const fsRaw = platform === 'win32'
-		? sandbox?.[AgentHostSandboxKey.WindowsFileSystem]
-		: platform === 'darwin'
-			? sandbox?.[AgentHostSandboxKey.MacFileSystem]
-			: sandbox?.[AgentHostSandboxKey.LinuxFileSystem];
-	const hasFileSystemPolicy = fsRaw !== undefined && typeof fsRaw === 'object';
-	const fs = hasFileSystemPolicy ? fsRaw : {};
-
-	const denied = new Set<string>(fs.denyRead ?? []);
+	const fs = sandbox?.[AgentHostSandboxKey.UserConfiguredPaths];
+	const os = platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+	const denied = new Set((fs?.deniedPaths ?? []).map(path => normalizeSandboxFileSystemPath(path, os)));
 	const readonly = new Set<string>();
 	const readwrite = new Set<string>();
-	for (const p of fs.denyWrite ?? []) {
+	for (const path of fs?.readonlyPaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p)) {
 			readonly.add(p);
 		}
 	}
-	for (const p of fs.allowWrite ?? []) {
+	for (const path of fs?.readwritePaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p)) {
 			readwrite.add(p);
 		}
 	}
-	for (const p of fs.allowRead ?? []) {
-		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
-			readonly.add(p);
-		}
-	}
-	// Host-generated files the shell tool must be able to read (see
-	// `extraReadonlyPaths`). Routed through the same precedence sets as user
-	// paths so an explicit `denyRead` still wins, and so a path the user already
-	// made readwrite is not downgraded.
-	for (const p of extraReadonlyPaths ?? []) {
+	// User denies win over host-generated read grants; existing read/write grants are preserved.
+	for (const path of extraReadonlyPaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
 			readonly.add(p);
 		}
 	}
 
 	const allowNetwork = sandbox?.[AgentHostSandboxKey.AllowNetwork];
-	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] ?? false;
+	const allowLocalNetwork = sandbox?.[AgentHostSandboxKey.AllowLocalNetwork];
+	const allowedHosts = sandbox?.[AgentHostSandboxKey.AllowedNetworkDomains] ?? [];
+	const blockedHosts = sandbox?.[AgentHostSandboxKey.DeniedNetworkDomains] ?? [];
+	const allowBypass = sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands];
+	const sandboxMcpServers = sandbox?.[AgentHostSandboxKey.SandboxMcpServers];
+	const sandboxLspServers = sandbox?.[AgentHostSandboxKey.SandboxLspServers];
+	const allowDevToolAccess = sandbox?.[AgentHostSandboxKey.AllowDevToolAccess];
 	const sandboxConfig: SandboxConfig = {
 		enabled: true,
-		allowBypass,
 		addCurrentWorkingDirectory: true,
-		allowDevToolAccess: true,
+		...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}),
+		...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}),
+		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
+		...(allowBypass !== undefined ? { allowBypass } : {}),
 		auth: {
-			git: true,
-			gh: true,
+			git: sandbox?.[AgentHostSandboxKey.AuthenticateGit] ?? true,
+			gh: sandbox?.[AgentHostSandboxKey.AuthenticateGh] ?? true,
 		},
 		userPolicy: {
-			filesystem: {
-				...(denied.size ? { deniedPaths: [...denied] } : {}),
-				...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
-				...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
-				clearPolicyOnExit: true,
-			},
-			network: {
-				allowOutbound: typeof allowNetwork === 'boolean' ? allowNetwork : false,
-				allowLocalNetwork: false,
-			},
+			...(denied.size || readonly.size || readwrite.size ? {
+				filesystem: {
+					...(denied.size ? { deniedPaths: [...denied] } : {}),
+					...(readonly.size ? { readonlyPaths: [...readonly] } : {}),
+					...(readwrite.size ? { readwritePaths: [...readwrite] } : {}),
+				},
+			} : {}),
+			...(typeof allowNetwork === 'boolean' || allowLocalNetwork !== undefined || allowedHosts.length || blockedHosts.length ? {
+				network: {
+					...(typeof allowNetwork === 'boolean' ? { allowOutbound: allowNetwork } : {}),
+					...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}),
+					...(allowedHosts.length ? { allowedHosts: [...allowedHosts] } : {}),
+					...(blockedHosts.length ? { blockedHosts: [...blockedHosts] } : {}),
+				},
+			} : {}),
 		},
 	};
 	return sandboxConfig;
