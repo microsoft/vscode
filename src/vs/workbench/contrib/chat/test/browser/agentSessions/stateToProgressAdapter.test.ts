@@ -9,7 +9,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -3877,7 +3877,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
-			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b>';
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b> https://evil.example/x www.evil.example admin@evil.example';
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
 				kind: ResponsePartKind.SystemNotification,
 				content: text,
@@ -3895,10 +3895,12 @@ suite('stateToProgressAdapter', () => {
 					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
 					links: rendered.element.querySelectorAll('a').length,
 					text: rendered.element.textContent,
+					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
 				}, {
 					keepVisibleWhenCollapsed: true,
 					links: 0,
 					text,
+					plaintext: text,
 				});
 			} finally {
 				rendered.dispose();
