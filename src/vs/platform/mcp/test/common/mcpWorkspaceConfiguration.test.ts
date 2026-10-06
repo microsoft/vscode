@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { toCopilotMcpServerConfiguration } from '../../common/mcpCopilotConfiguration.js';
 import { IMcpServerConfiguration, McpServerType, McpServerVariableType } from '../../common/mcpPlatformTypes.js';
 import { getWorkspaceRootMcpConfigurationError, parseWorkspaceRootMcpConfiguration } from '../../common/mcpWorkspaceConfiguration.js';
 
@@ -84,6 +85,16 @@ suite('McpWorkspaceConfiguration', () => {
 			{ wrapped: true, servers: [['local', 'stdio'], ['remote', 'http']] },
 			{ wrapped: false, servers: [['local', 'stdio'], ['remote', 'http']] },
 		]);
+	});
+
+	test('reads servers written in the Copilot format by MCP server migration', () => {
+		const local: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'node', args: ['server.js'], env: { TOKEN: 'literal' } };
+		const remote: IMcpServerConfiguration = { type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: { Authorization: 'literal' } };
+		const content = JSON.stringify({ mcpServers: { local: toCopilotMcpServerConfiguration(local), remote: toCopilotMcpServerConfiguration(remote) } }, undefined, '\t');
+		assert.deepStrictEqual(JSON.parse(JSON.stringify(parseWorkspaceRootMcpConfiguration(content))), {
+			wrapped: true,
+			servers: { local, remote },
+		});
 	});
 
 	for (const content of ['', 'null', '[]', '{"mcpServers":null}', '{"mcpServers":[]}', '{"mcpServers":"bad"}', '{"mcpServers":{"good":{"command":"node"}}']) {

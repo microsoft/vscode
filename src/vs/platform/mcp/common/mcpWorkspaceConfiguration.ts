@@ -5,7 +5,7 @@
 
 import { parse, ParseError } from '../../../base/common/json.js';
 import { localize } from '../../../nls.js';
-import { normalizeMcpServerConfiguration } from '../../agentPlugins/common/pluginParsers.js';
+import { fromCopilotMcpServerConfiguration } from './mcpCopilotConfiguration.js';
 import { IInstallableMcpServer } from './mcpManagement.js';
 import { IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 
@@ -82,7 +82,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** Reads either root-file shape; malformed entries do not hide neighboring servers. */
+/**
+ * Reads either root-file shape; malformed entries do not hide neighboring servers.
+ * Copilot's `"local"` stdio type is accepted because migrated servers are written in that format.
+ */
 export function parseWorkspaceRootMcpConfiguration(content: string): { readonly wrapped: boolean; readonly servers: Record<string, IMcpServerConfiguration> } {
 	const errors: ParseError[] = [];
 	const value: unknown = parse(content, errors, { allowTrailingComma: true, allowEmptyContent: false });
@@ -96,7 +99,7 @@ export function parseWorkspaceRootMcpConfiguration(content: string): { readonly 
 	}
 	const servers: [string, IMcpServerConfiguration][] = [];
 	for (const [name, raw] of Object.entries(rawServers)) {
-		const configuration = isObject(raw) ? normalizeMcpServerConfiguration(raw) : undefined;
+		const configuration = isObject(raw) ? fromCopilotMcpServerConfiguration(raw) : undefined;
 		if (configuration) {
 			servers.push([name, configuration]);
 		}
