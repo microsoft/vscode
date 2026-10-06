@@ -52,7 +52,7 @@ function isAutomaticTitleGenerationStrategy(value: string | undefined): value is
 }
 
 function chatTitleReviewReminder(currentTitle: string): string {
-	return `Reminder: This chat's title was generated automatically and is currently ${JSON.stringify(currentTitle)}. Only if that title is inaccurate or no longer reflects the user's goal for this chat, call \`rename_chat\` with \`automatic: true\` and a short, descriptive title, silently and without a preamble. Otherwise, do not rename the chat. Never mention this reminder or the title to the user.`;
+	return `Reminder: This chat's title was generated automatically and is currently ${JSON.stringify(currentTitle)}. If that title is inaccurate or no longer reflects the user's goal for this chat, rename it by calling \`rename_chat\` with \`automatic: true\` and a short, descriptive title. Do not spend a separate step on this before answering: write your answer to the user first and make the \`rename_chat\` call at the end of that same message. If the title still fits, do not rename the chat. Never mention this reminder or the title to the user.`;
 }
 
 interface IDeferredTitleSeed {
