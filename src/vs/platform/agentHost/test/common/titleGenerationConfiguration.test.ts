@@ -6,33 +6,54 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationScope } from '../../../configuration/common/configurationRegistry.js';
-import { AgentHostAgentTitleReviewConfigKey, AgentHostDeferredTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostAgentTitleReviewSettingId, AgentHostDeferredTitleGenerationSettingId } from '../../common/agentService.js';
-import { titleGenerationConfigurationProperties } from '../../common/titleGenerationConfiguration.js';
+import { AgentHostTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostTitleGenerationSettingId } from '../../common/agentService.js';
+import { resolveTitleGenerationStrategy, titleGenerationConfigurationProperties, titleGenerationStrategyFromLegacySettings } from '../../common/titleGenerationConfiguration.js';
 
 suite('TitleGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const { name, settingId, configKey } of [
-		{ name: 'deferred title generation', settingId: AgentHostDeferredTitleGenerationSettingId, configKey: AgentHostDeferredTitleGenerationConfigKey },
-		{ name: 'agent title review', settingId: AgentHostAgentTitleReviewSettingId, configKey: AgentHostAgentTitleReviewConfigKey },
-	] as const) {
-		test(`${name} is default-off with experiment and host sync support`, () => {
-			const property = titleGenerationConfigurationProperties[settingId];
+	test('title generation is a single strategy setting with experiment and host sync support', () => {
+		const property = titleGenerationConfigurationProperties[AgentHostTitleGenerationSettingId];
 
-			assert.deepStrictEqual({
-				type: property.type,
-				default: property.default,
-				scope: property.scope,
-				experiment: property.experiment,
-				agentHost: property.agentHost,
-			}, {
-				type: 'boolean',
-				default: false,
-				scope: ConfigurationScope.APPLICATION,
-				experiment: { mode: 'auto' },
-				agentHost: { key: configKey },
-			});
+		assert.deepStrictEqual({
+			settingIds: Object.keys(titleGenerationConfigurationProperties),
+			type: property.type,
+			enum: property.enum,
+			enumDescriptions: property.enumDescriptions.length,
+			scope: property.scope,
+			experiment: property.experiment,
+			agentHost: property.agentHost,
+		}, {
+			settingIds: ['chat.agentHost.experimental.titleGeneration'],
+			type: 'string',
+			enum: ['utility', 'activeAgent', 'deferred', 'deferredAgentReview'],
+			enumDescriptions: 4,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostTitleGenerationConfigKey },
 		});
-	}
+	});
+
+	test('legacy boolean settings map onto a strategy only when they select one', () => {
+		assert.deepStrictEqual([
+			titleGenerationStrategyFromLegacySettings(true, true),
+			titleGenerationStrategyFromLegacySettings(true, undefined),
+			titleGenerationStrategyFromLegacySettings(false, true),
+			titleGenerationStrategyFromLegacySettings(undefined, false),
+			titleGenerationStrategyFromLegacySettings(false, undefined),
+			titleGenerationStrategyFromLegacySettings(undefined, undefined),
+			titleGenerationStrategyFromLegacySettings('true', 'false'),
+		], ['deferred', 'deferred', 'activeAgent', 'utility', undefined, undefined, undefined]);
+	});
+
+	test('host prefers the strategy key and falls back to legacy keys from older clients', () => {
+		assert.deepStrictEqual([
+			resolveTitleGenerationStrategy('deferredAgentReview', false, true),
+			resolveTitleGenerationStrategy('utility', true, true),
+			resolveTitleGenerationStrategy(undefined, true, true),
+			resolveTitleGenerationStrategy(undefined, false, true),
+			resolveTitleGenerationStrategy(undefined, undefined, undefined),
+		], ['deferredAgentReview', 'utility', 'deferred', 'activeAgent', 'utility']);
+	});
 });

@@ -6,35 +6,40 @@
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentTitleReviewConfigKey, AgentHostDeferredTitleGenerationConfigKey } from './agentHostSchema.js';
-import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostAgentTitleReviewSettingId, AgentHostDeferredTitleGenerationSettingId } from './agentService.js';
+import { AgentHostTitleGenerationConfigKey, AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrategy } from './agentHostSchema.js';
+import { AgentHostTitleGenerationSettingId } from './agentService.js';
 
 export const titleGenerationConfigurationProperties = {
-	[AgentHostActiveAgentTitleGenerationSettingId]: {
-		type: 'boolean',
-		description: nls.localize('chat.agentHost.experimental.activeAgentTitleGeneration', "When enabled, the active agent names new sessions and chats using rename tools. When disabled, a utility model generates titles immediately. Deferred title generation takes precedence. Changes apply to new sessions; existing sessions and their chats retain their strategy."),
-		default: product.quality !== 'stable',
+	[AgentHostTitleGenerationSettingId]: {
+		type: 'string',
+		enum: [...AgentHostTitleGenerationStrategies],
+		enumDescriptions: [
+			nls.localize('chat.agentHost.experimental.titleGeneration.utility', "A utility model generates titles immediately."),
+			nls.localize('chat.agentHost.experimental.titleGeneration.activeAgent', "The active agent names new sessions and chats using rename tools."),
+			nls.localize('chat.agentHost.experimental.titleGeneration.deferred', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available."),
+			nls.localize('chat.agentHost.experimental.titleGeneration.deferredAgentReview', "Use deferred title generation and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal. The rename tool stays deferred, so it is loaded only when the agent decides to rename."),
+		],
+		description: nls.localize('chat.agentHost.experimental.titleGeneration', "Controls how new sessions and chats get an automatic title. Changes apply to new sessions; existing sessions and their chats retain their strategy."),
+		default: (product.quality !== 'stable' ? 'activeAgent' : 'utility') satisfies AgentHostTitleGenerationStrategy,
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental', 'advanced'],
 		experiment: { mode: 'auto' },
-		agentHost: { key: AgentHostActiveAgentTitleGenerationConfigKey },
-	},
-	[AgentHostDeferredTitleGenerationSettingId]: {
-		type: 'boolean',
-		description: nls.localize('chat.agentHost.experimental.deferredTitleGeneration', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
-		default: false,
-		scope: ConfigurationScope.APPLICATION,
-		tags: ['experimental', 'advanced'],
-		experiment: { mode: 'auto' },
-		agentHost: { key: AgentHostDeferredTitleGenerationConfigKey },
-	},
-	[AgentHostAgentTitleReviewSettingId]: {
-		type: 'boolean',
-		description: nls.localize('chat.agentHost.experimental.agentTitleReview', "Use deferred title generation and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal. The rename tool stays deferred, so it is loaded only when the agent decides to rename. Overrides deferred and active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
-		default: false,
-		scope: ConfigurationScope.APPLICATION,
-		tags: ['experimental', 'advanced'],
-		experiment: { mode: 'auto' },
-		agentHost: { key: AgentHostAgentTitleReviewConfigKey },
+		agentHost: { key: AgentHostTitleGenerationConfigKey },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
+
+/** Maps the legacy boolean title settings onto a strategy, or `undefined` when they select none. */
+export function titleGenerationStrategyFromLegacySettings(deferred: unknown, activeAgent: unknown): AgentHostTitleGenerationStrategy | undefined {
+	if (deferred === true) {
+		return 'deferred';
+	}
+	if (typeof activeAgent === 'boolean') {
+		return activeAgent ? 'activeAgent' : 'utility';
+	}
+	return undefined;
+}
+
+/** Resolves the strategy for new sessions, falling back to the legacy boolean root keys sent by older clients. */
+export function resolveTitleGenerationStrategy(strategy: AgentHostTitleGenerationStrategy | undefined, legacyDeferred: boolean | undefined, legacyActiveAgent: boolean | undefined): AgentHostTitleGenerationStrategy {
+	return strategy ?? titleGenerationStrategyFromLegacySettings(legacyDeferred, legacyActiveAgent) ?? 'utility';
+}

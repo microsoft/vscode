@@ -9,6 +9,7 @@ import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrategy } from '../common/agentHostSchema.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
@@ -39,14 +40,7 @@ const DEFERRED_TITLE_SEED_KEY = 'deferredTitleSeed';
 /** Upper bound on review reminders per chat, so an accurate title is not re-reviewed on every turn. */
 const MAX_TITLE_REVIEW_REMINDERS = 3;
 
-/**
- * - `activeAgent`: the active agent names chats through `rename_chat`.
- * - `utility`: a utility model names chats immediately.
- * - `deferred`: the host seeds a title and refines it with a utility model after the first response.
- * - `deferredAgentReview`: `deferred` naming, plus a soft reminder that lets the active agent
- *   rename the chat when the host-generated title no longer fits.
- */
-export type AutomaticTitleGenerationStrategy = 'activeAgent' | 'utility' | 'deferred' | 'deferredAgentReview';
+export type AutomaticTitleGenerationStrategy = AgentHostTitleGenerationStrategy;
 
 /** Whether the host seeds and refines titles itself instead of asking the active agent to name chats. */
 function isDeferredTitleGenerationStrategy(strategy: AutomaticTitleGenerationStrategy | undefined): boolean {
@@ -54,7 +48,7 @@ function isDeferredTitleGenerationStrategy(strategy: AutomaticTitleGenerationStr
 }
 
 function isAutomaticTitleGenerationStrategy(value: string | undefined): value is AutomaticTitleGenerationStrategy {
-	return value === 'activeAgent' || value === 'utility' || value === 'deferred' || value === 'deferredAgentReview';
+	return AgentHostTitleGenerationStrategies.some(strategy => strategy === value);
 }
 
 function chatTitleReviewReminder(currentTitle: string): string {

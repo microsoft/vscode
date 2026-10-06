@@ -21,7 +21,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentTitleReviewConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { resolveTitleGenerationStrategy } from '../common/titleGenerationConfiguration.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
@@ -191,13 +192,11 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			copilotApiService,
 			getInitialTitleGenerationStrategy: () => {
 				const configurationService = foundation.configurationService;
-				if (configurationService.getRootValue(platformRootSchema, AgentHostAgentTitleReviewConfigKey) === true) {
-					return 'deferredAgentReview';
-				}
-				if (configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true) {
-					return 'deferred';
-				}
-				return configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true ? 'activeAgent' : 'utility';
+				return resolveTitleGenerationStrategy(
+					configurationService.getRootValue(platformRootSchema, AgentHostTitleGenerationConfigKey),
+					configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey),
+					configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey),
+				);
 			},
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);

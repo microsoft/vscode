@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAgentTitleReviewConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -31,25 +31,27 @@ suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('automatic title generation root settings are disabled by default', () => {
+	test('automatic title generation root settings default to utility naming', () => {
 		const properties = platformRootSchema.toProtocol().properties;
 		assert.deepStrictEqual({
-			activeAgent: {
+			strategy: {
+				type: properties[AgentHostTitleGenerationConfigKey].type,
+				enum: properties[AgentHostTitleGenerationConfigKey].enum,
+				default: properties[AgentHostTitleGenerationConfigKey].default,
+				rejectsUnknownStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'unknown'),
+			},
+			legacyActiveAgent: {
 				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
 				default: properties[AgentHostActiveAgentTitleGenerationConfigKey].default,
 			},
-			deferred: {
+			legacyDeferred: {
 				type: properties[AgentHostDeferredTitleGenerationConfigKey].type,
 				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
 			},
-			agentReview: {
-				type: properties[AgentHostAgentTitleReviewConfigKey].type,
-				default: properties[AgentHostAgentTitleReviewConfigKey].default,
-			},
 		}, {
-			activeAgent: { type: 'boolean', default: false },
-			deferred: { type: 'boolean', default: false },
-			agentReview: { type: 'boolean', default: false },
+			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'deferred', 'deferredAgentReview'], default: 'utility', rejectsUnknownStrategy: true },
+			legacyActiveAgent: { type: 'boolean', default: false },
+			legacyDeferred: { type: 'boolean', default: false },
 		});
 	});
 
