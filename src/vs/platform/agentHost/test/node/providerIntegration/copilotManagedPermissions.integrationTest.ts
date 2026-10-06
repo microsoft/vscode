@@ -33,8 +33,9 @@ function resultType(result: RuntimeToolResult): string {
 suite('Agent Host Provider Integration - Copilot managed permissions', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const restriction of ['none', 'denied domain', 'terminal ask', 'terminal approval policy'] as const) {
+	for (const restriction of ['none', 'denied domain', 'limitTo', 'terminal ask', 'terminal approval policy'] as const) {
 		const terminalApprovalPolicy = restriction === 'terminal approval policy';
+		const domainRestriction = restriction === 'denied domain' || restriction === 'limitTo';
 		const approvalScope = terminalApprovalPolicy ? 'requires all shell approvals' : 'preserves unrelated approvals';
 		test(`${restriction} ${approvalScope} on create, cold resume, and removal`, async function () {
 			this.timeout(120_000);
@@ -81,7 +82,9 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			const permissions = restriction === 'terminal ask'
 				? { ask: [`Shell(${matchingCommand})`] }
-				: resolveManagedSettingsPermissions(configuration);
+				: restriction === 'limitTo'
+					? { limitTo: ['Domain(unmatched.invalid)'] }
+					: resolveManagedSettingsPermissions(configuration);
 			if (terminalApprovalPolicy) {
 				assert.deepStrictEqual(permissions, { ask: ['Shell'] });
 			}
@@ -143,10 +146,10 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					}, phase);
 
 					requests.length = 0;
-					const matching: RuntimeToolResult = restriction === 'denied domain'
+					const matching: RuntimeToolResult = domainRestriction
 						? await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://blocked.example' } })
 						: await session.rpc.tools.execute({ name: shell, arguments: { command: `${matchingCommand} managed-probe`, description: 'Print managed probe' } });
-					assert.deepStrictEqual({ result: resultType(matching), requests }, restriction === 'denied domain' ? {
+					assert.deepStrictEqual({ result: resultType(matching), requests }, domainRestriction ? {
 						result: phase === 'removed' ? 'rejected' : 'denied',
 						requests: phase === 'removed' ? [{ kind: 'url', managedApprovalRequired: false }] : [],
 					} : {
@@ -164,6 +167,11 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					}
 
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'allow-all' })).success, true);
+					if (domainRestriction && phase !== 'removed') {
+						requests.length = 0;
+						const blocked = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://blocked.example' } });
+						assert.deepStrictEqual({ result: resultType(blocked), requests }, { result: 'denied', requests: [] }, `${phase}: outside domain in Allow All`);
+					}
 					requests.length = 0;
 					const unrestricted: RuntimeToolResult[] = [
 						await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } }),

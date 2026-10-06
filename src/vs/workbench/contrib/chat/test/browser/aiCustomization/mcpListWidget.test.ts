@@ -571,6 +571,7 @@ suite('mcpListWidget', () => {
 	test('groups host-only MCP servers by runtime source without local definitions', () => {
 		const servers = [
 			createAgentHostServer({ name: 'local-memory', source: 'user' }),
+			createAgentHostServer({ name: 'account-server', source: 'account' }),
 			createAgentHostServer({ name: 'github', source: 'user', status: McpServerStatus.Error }),
 			createAgentHostServer({ name: 'workspace-server', source: 'workspace' }),
 			createAgentHostServer({ name: 'plugin-server', source: 'plugin' }),
@@ -584,6 +585,7 @@ suite('mcpListWidget', () => {
 			name: entry.server.name, group: getMcpEntryGroup(entry),
 		})), [
 			{ name: 'local-memory', group: 'user' },
+			{ name: 'account-server', group: 'user' },
 			{ name: 'github', group: 'user' },
 			{ name: 'workspace-server', group: 'workspace' },
 			{ name: 'plugin-server', group: 'plugins' },
@@ -820,6 +822,7 @@ suite('mcpListWidget', () => {
 			provenance({ source: 'plugin', sourcePluginName: 'acme' }),
 			provenance({ source: 'plugin' }),
 			provenance({ source: 'user' }),
+			provenance({ source: 'account' }),
 			provenance({ source: 'workspace' }),
 			provenance({ hostConfiguration }),
 			provenance({ source: 'managed', hostConfiguration }),
@@ -831,6 +834,7 @@ suite('mcpListWidget', () => {
 			'Plugin: acme',
 			undefined,
 			'User configuration',
+			'Account configuration',
 			'Workspace configuration',
 			'Agent host configuration',
 			'Managed by Copilot',

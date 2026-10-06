@@ -13,6 +13,7 @@ const controllingSettingKey = 'vscode.mcpServerControllingSetting';
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.
+	| 'account' // Supplied by the signed-in account.
 	| 'workspace' // Defined in workspace-level configuration.
 	| 'plugin' // Contributed by a plugin.
 	| 'builtin' // Bundled with the provider.
@@ -23,6 +24,7 @@ export function readMcpServerSource(customization: McpServerCustomization | unde
 	const source = customization?._meta?.[sourceKey];
 	switch (source) {
 		case 'user':
+		case 'account':
 		case 'workspace':
 		case 'plugin':
 		case 'builtin':

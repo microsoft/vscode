@@ -1065,6 +1065,7 @@ export function getMcpEntryGroup(entry: IMcpInstalledEntry): 'user' | 'workspace
 	const activeSessionServer = getActiveSessionServer(entry);
 	switch (activeSessionServer?.source) {
 		case 'user':
+		case 'account':
 			return 'user';
 		case 'workspace':
 			return 'workspace';
@@ -1225,6 +1226,8 @@ export function getActiveSessionServerProvenance(server: AgentHostMcpServer, age
 			return { label: localize('mcpSourceWorkspace', "Workspace configuration") };
 		case 'user':
 			return { label: localize('mcpSourceUser', "User configuration") };
+		case 'account':
+			return { label: localize('mcpSourceAccount', "Account configuration") };
 		default:
 			return undefined;
 	}

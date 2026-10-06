@@ -53,6 +53,7 @@ suite('CustomizationsTelemetryService', () => {
 					mcpServer('plugin'),
 					mcpServer('builtin'),
 					mcpServer('managed'),
+					mcpServer('account'),
 					mcpServer(undefined),
 				];
 			}
@@ -102,7 +103,7 @@ suite('CustomizationsTelemetryService', () => {
 				event('prompt', { pluginCount: 1 }),
 				event('skill', { builtinCount: 1 }),
 				event('hook', { userCount: 1 }),
-				event('mcpServer', { userCount: 1, workspaceCount: 1, pluginCount: 1, builtinCount: 2 }),
+				event('mcpServer', { userCount: 2, workspaceCount: 1, pluginCount: 1, builtinCount: 2 }),
 				event('plugin', { pluginCount: 1 }),
 			],
 		});
@@ -187,7 +188,7 @@ function directory(children: ChildCustomization[]): Customization {
 	};
 }
 
-function mcpServer(source: 'user' | 'workspace' | 'plugin' | 'builtin' | 'managed' | undefined) {
+function mcpServer(source: 'user' | 'account' | 'workspace' | 'plugin' | 'builtin' | 'managed' | undefined) {
 	return {
 		id: `server-${source}`,
 		name: `server-${source}`,

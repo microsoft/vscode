@@ -131,6 +131,7 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 					counts.mcpServer.builtinCount++;
 					break;
 				case 'user':
+				case 'account':
 					counts.mcpServer.userCount++;
 					break;
 				case undefined: {
