@@ -1226,6 +1226,8 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		const sockets = new Set<Socket>();
 		const server = createServer(socket => {
 			sockets.add(socket);
+			// Terminating git fetch can reset its TCP connection on Windows.
+			socket.on('error', (error: NodeJS.ErrnoException) => assert.strictEqual(error.code, 'ECONNRESET'));
 			socket.on('close', () => sockets.delete(socket));
 		});
 		disposables.add(toDisposable(() => {
