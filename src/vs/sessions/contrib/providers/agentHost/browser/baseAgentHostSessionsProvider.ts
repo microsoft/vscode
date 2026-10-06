@@ -6230,6 +6230,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		});
 	}
 
+	async handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown> {
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error('Cannot send an MCP request without an agent host connection.');
+		}
+		return connection.handleMcpRequest(channel, method, params);
+	}
+
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined {
 		const connection = this.connection;
 		if (!connection) {
