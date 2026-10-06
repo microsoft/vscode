@@ -27,7 +27,7 @@ import { DesktopDockedTabsCoordinator } from '../../browser/desktop/desktopDocke
 import { DesktopDraftSessionStrategy } from '../../browser/desktop/desktopDraftSessionStrategy.js';
 import { DesktopExistingSessionStrategy } from '../../browser/desktop/desktopExistingSessionStrategy.js';
 import { IDesktopLayoutContext } from '../../browser/desktop/desktopLayoutStrategy.js';
-import { isFileEditorInput } from '../../browser/desktop/desktopSharedHelpers.js';
+import { FilesDetailsState, getFilesDetailsState } from '../../browser/desktop/desktopSharedHelpers.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from '../../browser/desktop/desktopVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
@@ -111,10 +111,21 @@ suite('Desktop layout strategies', () => {
 		return harness.instaService.createInstance(DesktopVisibilityProfileStore);
 	}
 
-	test('untitled editors map to Files Details', () => {
-		const editor = store.add(new TestStubEditorInput(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' })));
+	test('classifies Files Details availability from workspace location and scheme', () => {
+		const workspace = makeSession(URI.parse('session:/workspace')).workspace.get()!;
+		const workspaceEditor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
+		const externalEditor = store.add(new TestStubEditorInput(URI.file('/outside/file.ts')));
+		const untitledEditor = store.add(new TestStubEditorInput(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' })));
 
-		assert.strictEqual(isFileEditorInput(editor), true);
+		assert.deepStrictEqual({
+			workspace: getFilesDetailsState(workspaceEditor, workspace),
+			external: getFilesDetailsState(externalEditor, workspace),
+			untitled: getFilesDetailsState(untitledEditor, workspace),
+		}, {
+			workspace: FilesDetailsState.Active,
+			external: FilesDetailsState.Available,
+			untitled: FilesDetailsState.Unavailable,
+		});
 	});
 
 	function createDraftStrategy(ctx: IDesktopLayoutContext, visibilityStore = createVisibilityStore()): DesktopDraftSessionStrategy {
