@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { PagedModel } from '../../../../../base/common/paging.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { platform } from '../../../../../base/common/platform.js';
 import { arch } from '../../../../../base/common/process.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import * as sinon from 'sinon';
 import { ExtensionsListView } from '../../browser/extensionsViews.js';
 import { ExtensionsViewPaneContainer } from '../../browser/extensionsViewlet.js';
@@ -17,7 +20,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IExtensionsWorkbenchService, VIEWLET_ID } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
-	getTargetPlatform, IExtensionGalleryService, IExtensionManagementService, ILocalExtension, InstallExtensionResult
+	getTargetPlatform, IExtensionGalleryService, IExtensionManagementService, ILocalExtension, InstallExtensionResult, InstallOperation
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionGalleryService.js';
 import {
@@ -97,7 +100,7 @@ suite('Extensions restart-required view (#321178)', () => {
 	function installResult(local: ILocalExtension): InstallExtensionResult {
 		return {
 			identifier: local.identifier,
-			operation: 1, // InstallOperation.Update
+			operation: InstallOperation.Update,
 			local,
 			profileLocation: local.location
 		};
@@ -197,12 +200,12 @@ suite('Extensions restart-required view (#321178)', () => {
 			onDidChangeLocation: Event.None,
 			getViewDescriptorById(): IViewDescriptor | null { return null; },
 			getViewContainerById: (id: string): ViewContainer | null => id === VIEWLET_ID ? { id, title: { value: 'Extensions', original: 'Extensions' }, ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer) } : null,
-			getViewContainerModel: (_viewContainer: ViewContainer): IViewContainerModel => ({ onDidChangeContainerInfo: Event.None }) as IViewContainerModel,
+			getViewContainerModel: (_viewContainer: ViewContainer): IViewContainerModel => ({ onDidChangeContainerInfo: Event.None, visibleViewDescriptors: [] }) as unknown as IViewContainerModel,
 			getViewContainerByViewId: () => null,
 			getDefaultContainerById: () => null
 		});
 		instantiationService.stub(IWorkbenchLayoutService, {});
-		instantiationService.stub(IProgressService, {});
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
 		instantiationService.stub(IEditorGroupsService, {});
 		instantiationService.stub(INotificationService, {});
 		instantiationService.stub(IPaneCompositePartService, { onDidPaneCompositeOpen: Event.None });
@@ -260,7 +263,8 @@ suite('Extensions restart-required view (#321178)', () => {
 		const viewlet = disposableStore.add(instantiationService.createInstance(ExtensionsViewPaneContainer));
 		// The viewlet is not rendered in this test — provide the search box state the "Show" link operates on.
 		let searchValue = '@restartrequired';
-		(viewlet as unknown as { searchBox: { getValue(): string; setValue(value: string): void } }).searchBox = {
+		const viewletAny = viewlet as unknown as { searchBox: { getValue(): string; setValue(value: string): void } };
+		viewletAny.searchBox = {
 			getValue: () => searchValue,
 			setValue: (value: string) => { searchValue = value; }
 		};
@@ -277,6 +281,28 @@ suite('Extensions restart-required view (#321178)', () => {
 			assert.ok(doSearchStub.notCalled);
 		} finally {
 			doSearchStub.restore();
+		}
+	});
+
+	test('doSearch forwards the refresh flag to the list views (#321178)', async () => {
+		const viewlet = disposableStore.add(instantiationService.createInstance(ExtensionsViewPaneContainer));
+		const viewletAny = viewlet as unknown as {
+			searchBox: { getValue(): string; setValue(value: string): void };
+			paneItems: { pane: ExtensionsListView; disposable: unknown }[];
+			doSearch: (refresh?: boolean) => Promise<void>;
+		};
+		viewletAny.searchBox = { getValue: () => '@restartrequired', setValue: () => { } };
+		// Provide a list view so the doSearch -> showExtensionsViews -> view.show chain has a target.
+		viewletAny.paneItems.push({ pane: testableView, disposable: toDisposable(() => { }) });
+
+		const showStub = sinon.stub(testableView, 'show').resolves(new PagedModel([]));
+		try {
+			await viewletAny.doSearch(true);
+			assert.ok(showStub.calledOnce);
+			assert.strictEqual(showStub.firstCall.args[0], '@restartrequired');
+			assert.strictEqual(showStub.firstCall.args[1], true);
+		} finally {
+			showStub.restore();
 		}
 	});
 });
