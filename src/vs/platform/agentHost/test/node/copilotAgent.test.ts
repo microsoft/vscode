@@ -1264,10 +1264,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	configService.updateRootConfig({
-		[AgentHostByokModelsEnabledConfigKey]: true,
-		...options?.rootConfig,
-	});
+	configService.updateRootConfig(options?.rootConfig ?? {});
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	const telemetryService = options?.telemetryService ?? NullTelemetryService;
 	services.set(ILogService, logService);
