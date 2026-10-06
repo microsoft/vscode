@@ -14395,7 +14395,7 @@ Use the attached image as context.
 				return getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []);
 			}
 
-			test('shows progress only while a turn waits for the runtime to admit its message', async () => {
+			test('shows progress only while a turn waits for its message to be admitted', async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);
 				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'Before the turn' });
 				session.resetTurnState('turn-1');
