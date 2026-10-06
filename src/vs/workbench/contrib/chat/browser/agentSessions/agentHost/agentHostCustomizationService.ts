@@ -295,7 +295,16 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			this._mcpAutoAuthentication.delete(key);
 			return false;
 		}
-		const challenge = JSON.stringify([state.reason, state.resource.resource, [...(state.requiredScopes ?? [])].sort(), state.oauthClient?.clientId]);
+		// Every input the silent attempt uses, so republished auth metadata gets a fresh attempt.
+		const challenge = JSON.stringify([
+			state.reason,
+			state.resource.resource,
+			[...(state.resource.authorization_servers ?? [])].sort(),
+			[...(state.resource.scopes_supported ?? [])].sort(),
+			[...(state.requiredScopes ?? [])].sort(),
+			state.oauthClient?.clientId,
+			state.oauthClient?.clientSecret,
+		]);
 		let entry = this._mcpAutoAuthentication.get(key);
 		if (!entry || entry.challenge !== challenge) {
 			entry = { challenge, authenticated: undefined };

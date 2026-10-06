@@ -52,7 +52,6 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { type AgentHostMcpServer } from './mcpServerCount.js';
-import { type AgentHostMcpTool } from '../../../../../sessions/common/agentHostSessionsProvider.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
@@ -109,6 +108,8 @@ interface IToolsConnectedRowEntry {
 }
 
 type IToolsRowEntry = IToolsSetRowEntry | IToolsToolRowEntry | IToolsConnectedRowEntry;
+
+type AgentHostMcpTool = Awaited<ReturnType<NonNullable<AgentHostMcpServer['listTools']>>>[number];
 
 type ConnectedToolsState = { state: 'loading' } | { state: 'loaded'; tools: readonly AgentHostMcpTool[] } | { state: 'error' };
 
@@ -619,7 +620,7 @@ export class ToolsListWidget extends Disposable {
 	private readonly _connectedTools = new Map<string, ConnectedToolsState>();
 	private readonly _connectedToolsChanged = observableSignal(this);
 	private readonly _pendingAutoExpand = new Set<string>();
-	private readonly _agentHostCustomizationsChanged = observableSignalFromEvent(this, this._agentHostCustomizationService.onDidChangeCustomizations);
+	private readonly _agentHostCustomizationsChanged: IObservable<void>;
 
 	/** Read-only tool sets injected for the current session type (e.g. the Copilot CLI built-ins). */
 	private readonly _staticReadOnlySets: readonly IToolSet[];
@@ -647,6 +648,7 @@ export class ToolsListWidget extends Disposable {
 	) {
 		super();
 
+		this._agentHostCustomizationsChanged = observableSignalFromEvent(this, this._agentHostCustomizationService.onDidChangeCustomizations);
 		this._staticReadOnlySets = this._createStaticReadOnlySets();
 
 		this.element = $('.tools-list-widget');

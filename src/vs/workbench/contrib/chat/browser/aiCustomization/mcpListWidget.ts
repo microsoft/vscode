@@ -38,6 +38,7 @@ import { McpCommandIds } from '../../../../contrib/mcp/common/mcpCommandIds.js';
 import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
@@ -1246,7 +1247,8 @@ export function getAgentHostMcpServerSource(server: AgentHostMcpServer, plugin: 
 	const openFileSource = fileSource && openFile ? () => openFile(fileSource) : undefined;
 	if (plugin) {
 		// Client-published plugins carry the client plugin's URI.
-		const clientPlugin = agentPluginService.plugins.get().find(candidate => candidate.uri.toString() === plugin.uri);
+		const pluginUri = URI.parse(plugin.uri);
+		const clientPlugin = agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, pluginUri));
 		if (clientPlugin && openPlugin) {
 			return {
 				label: clientPlugin.label,

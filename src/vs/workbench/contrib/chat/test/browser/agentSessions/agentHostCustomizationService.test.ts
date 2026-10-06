@@ -487,6 +487,39 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('retries silent MCP authentication when the host republishes changed auth metadata', async () => {
+		const sut = createSut(undefined, { authenticationSessions: [] });
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const authRequired = (authorizationServer: string) => [{
+			...mcpServer('server-1', 'Server One'),
+			state: {
+				kind: McpServerStatus.AuthRequired as const,
+				reason: McpAuthRequiredReason.Required,
+				resource: { resource: 'https://mcp.example.com', authorization_servers: [authorizationServer] },
+			},
+		}];
+		sut.setTarget(session, new FakeTarget(authRequired('https://auth.example.com')));
+		let changed = Event.toPromise(sut.onDidChangeCustomizations);
+		sut.getMcpServers(session);
+		await changed;
+		const afterFirstAttempt = sut.getMcpServers(session)[0].authenticating;
+
+		sut.setTarget(session, new FakeTarget(authRequired('https://rotated-auth.example.com')));
+		changed = Event.toPromise(sut.onDidChangeCustomizations);
+		const afterRepublish = sut.getMcpServers(session)[0].authenticating;
+		await changed;
+
+		assert.deepStrictEqual({
+			afterFirstAttempt,
+			afterRepublish,
+			afterSecondAttempt: sut.getMcpServers(session)[0].authenticating,
+		}, {
+			afterFirstAttempt: false,
+			afterRepublish: true,
+			afterSecondAttempt: false,
+		});
+	});
+
 	test('starts an unchanged auth-required server before forwarding root authentication results', async () => {
 		const authenticationTargets: Array<{ id: string; name: string }> = [];
 		const sut = createSut(undefined, { authenticationTargets });
