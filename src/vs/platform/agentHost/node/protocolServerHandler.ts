@@ -1540,7 +1540,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
-		const connectionKind = readClientConnectionKind(meta);
+		const connectionKind = transport.clientConnectionKind ?? readClientConnectionKind(meta);
 		const machineId = readClientMachineId(meta);
 		const devDeviceId = readClientDevDeviceId(meta);
 		return {
@@ -1749,6 +1749,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (createdSession.toString() !== URI.parse(params.channel).toString()) {
 				this._logService.warn(`[ProtocolServer] createSession: provider returned URI ${createdSession.toString()} but client requested ${params.channel}`);
 			}
+			this._telemetryReporter.sessionCreated(this._stateManager.getSessionSummary(createdSession.toString())?.provider ?? params.provider, _client.telemetryContext);
 			return null;
 		},
 		disposeSession: async (_client, params) => {

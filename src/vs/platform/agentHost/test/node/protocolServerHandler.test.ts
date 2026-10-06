@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
 import sodium from 'libsodium-wrappers';
@@ -18,7 +19,7 @@ import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -67,7 +68,7 @@ import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } f
 // ---- Mock helpers -----------------------------------------------------------
 
 class MockProtocolTransport implements IProtocolTransport {
-	constructor(readonly transportKind = AgentHostTransportKind.Unknown, readonly clientId?: string, readonly passive?: boolean) { }
+	constructor(readonly transportKind = AgentHostTransportKind.Unknown, readonly clientId?: string, readonly passive?: boolean, readonly clientConnectionKind?: AgentHostClientConnectionKind) { }
 	get relayClientId(): string | undefined { return this.clientId; }
 	get relayPassive(): boolean | undefined { return this.passive; }
 	relayAuthenticated: boolean | undefined;
@@ -3905,6 +3906,7 @@ suite('ProtocolServerHandler', () => {
 			'vscode.clientMachineId': 'client-machine-id',
 			'vscode.clientDevDeviceId': 'client-dev-device-id',
 		});
+
 		transport1.simulateMessage(notification('dispatchAction', {
 			channel: 'ahp-root://',
 			clientSeq: 1,
@@ -3942,6 +3944,57 @@ suite('ProtocolServerHandler', () => {
 			machineIds: ['client-machine-id', 'client-machine-id'],
 			devDeviceIds: ['client-dev-device-id', 'client-dev-device-id'],
 		});
+	});
+
+	test('attributes Mission Control session creation and reconnected actions to the trusted relay route', async () => {
+		const first = new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl);
+		server.simulateConnection(first);
+		const initialized = waitForResponse(first, 1);
+		first.simulateMessage(request(1, 'initialize', {
+			clientId: 'mission-control-client', protocolVersions: [PROTOCOL_VERSION], clientInfo: agentsWindowAgentHostClientInfo,
+			_meta: { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local },
+		}));
+		await initialized;
+		const created = waitForResponse(first, 2);
+		first.simulateMessage(request(2, 'createSession', { channel: 'ahp-session:/mission-control-session', provider: 'copilot', workingDirectories: [URI.file(process.cwd()).toString()] }));
+		await created;
+		first.simulateClose();
+
+		const second = new MockProtocolTransport(AgentHostTransportKind.WebSocket, undefined, undefined, AgentHostClientConnectionKind.MissionControl);
+		server.simulateConnection(second);
+		const reconnected = waitForResponse(second, 3);
+		second.simulateMessage(request(3, 'reconnect', { clientId: 'mission-control-client', lastSeenServerSeq: stateManager.serverSeq, subscriptions: [] }));
+		await reconnected;
+		second.simulateMessage(notification('dispatchAction', { channel: 'ahp-root://', clientSeq: 1, action: { type: ActionType.RootConfigChanged, config: {} } }));
+		assert.deepStrictEqual({
+			creation: telemetryService.events.filter(event => event.eventName === 'agentHost.sessionCreated').map(event => event.data),
+			action: agentService.handledClientContexts[0],
+		}, {
+			creation: [{ provider: 'copilot', initiatorClientType: 'agents_window', initiatorConnectionKind: 'mission_control', initiatorTransportKind: 'websocket', hostLaunchKind: 'vscode_main_process' }],
+			action: { clientType: 'agents_window', connectionKind: 'mission_control', transportKind: 'websocket', hostLaunchKind: 'vscode_main_process' },
+		});
+	});
+
+	for (const connectionKind of [AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.DevTunnel]) {
+		test(`attributes successful session creation to ${connectionKind}`, async () => {
+			const transport = connectClient('creator', undefined, agentsWindowAgentHostClientInfo, { 'vscode.clientConnectionKind': connectionKind }, AgentHostTransportKind.WebSocket);
+			const created = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', { channel: 'ahp-session:/session', provider: 'copilot' }));
+			await created;
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.sessionCreated').map(event => event.data), [
+				{ provider: 'copilot', initiatorClientType: 'agents_window', initiatorConnectionKind: connectionKind, initiatorTransportKind: 'websocket', hostLaunchKind: 'vscode_main_process' },
+			]);
+		});
+	}
+
+	test('does not count failed session creation', async () => {
+		const createSession = sinon.stub(agentService, 'createSession').rejects(new Error('Provider failed'));
+		disposables.add(toDisposable(() => createSession.restore()));
+		const transport = connectClient('creator');
+		const created = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'createSession', { channel: 'ahp-session:/failed', provider: 'copilot' }));
+		await created;
+		assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.sessionCreated'), []);
 	});
 
 	test('applies telemetry disablement before reporting a reconnected client', async () => {

@@ -23,6 +23,7 @@ export const enum AgentHostClientConnectionKind {
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
 	WebPubSub = 'web_pub_sub',
+	MissionControl = 'mission_control',
 	Unknown = 'unknown',
 }
 
@@ -185,6 +186,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:
 		case AgentHostClientConnectionKind.WebPubSub:
+		case AgentHostClientConnectionKind.MissionControl:
 			return value;
 		default:
 			return AgentHostClientConnectionKind.Unknown;

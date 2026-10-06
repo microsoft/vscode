@@ -9,20 +9,37 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { isObject } from '../../../../../base/common/types.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 const INVENTORY_PREFIX = 'missionControl.userLocalHosts.v1.';
 const CONNECT_TIMEOUT_MS = 60_000;
+
+type MissionControlConnectionAttemptEvent = {
+	outcome: 'success' | 'failure' | 'cancelled' | 'timeout';
+	stage: 'environment' | 'connection';
+	durationMs: number;
+};
+
+export type MissionControlConnectionAttemptClassification = {
+	owner: 'roblourens';
+	comment: 'User-local Mission Control connection attempts, including inventory validation and the end-to-end deadline.';
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Success, failure, caller cancellation or the user-local connection deadline.' };
+	stage: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Environment validation or delegated relay connection.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds for the complete attempt, including environment validation.' };
+};
 
 function isHost(value: unknown): value is IMissionControlHost {
 	const host = value as Partial<IMissionControlHost> | undefined;
@@ -55,6 +72,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		@ILogService private readonly _log: ILogService,
 		@IAuthenticationService authentication: IAuthenticationService,
 		@IRemoteAgentHostService private readonly _remote: IRemoteAgentHostService,
+		@ITelemetryService private readonly _telemetry: ITelemetryService,
 	) {
 		super();
 		this._register(toDisposable(() => this._withdraw()));
@@ -174,6 +192,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	}
 
 	async connect(id: string, token: CancellationToken): Promise<void> {
+		const watch = StopWatch.create(false);
+		let outcome: MissionControlConnectionAttemptEvent['outcome'] = 'success';
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;
@@ -211,6 +231,11 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			this._checkGeneration(generation, source.token);
 			this._requireHost(id);
 		} catch (error) {
+			outcome = timedOut ? 'timeout' : isCancellationError(error) || token.isCancellationRequested ? 'cancelled' : 'failure';
+			if (outcome !== 'cancelled') {
+				const message = `[MissionControl] Connection ${outcome}; stage=${connecting ? 'connection' : 'environment'} durationMs=${watch.elapsed()}`;
+				this._log.warn(timedOut ? message : `${message}: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`);
+			}
 			if (timedOut) {
 				if (connecting && this._connects.get(id) === source) {
 					await this._connections.disconnect(id);
@@ -223,6 +248,11 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				this._connects.deleteAndDispose(id);
 			}
 			operation.dispose();
+			this._telemetry.publicLog2<MissionControlConnectionAttemptEvent, MissionControlConnectionAttemptClassification>('missionControlConnectionAttempt', {
+				outcome,
+				stage: connecting ? 'connection' : 'environment',
+				durationMs: watch.elapsed(),
+			});
 		}
 	}
 

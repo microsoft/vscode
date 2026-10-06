@@ -80,6 +80,16 @@ export interface IAgentHostEventTelemetry extends IAgentHostInitiatorTelemetry, 
 
 export type IAgentHostEventClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification;
 
+type AgentHostSessionCreatedEvent = IAgentHostInitiatorTelemetry & {
+	provider: string | undefined;
+};
+
+type AgentHostSessionCreatedClassification = IAgentHostInitiatorClassification & {
+	owner: 'roblourens';
+	comment: 'Counts successful AHP session allocations by provider and initiating connection route, excluding discovery and restoration.';
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the newly allocated session, when known.' };
+};
+
 type CanvasExtensionSource = 'project' | 'user' | 'plugin' | 'session' | 'unknown';
 
 type CanvasOpenedEvent = IAgentHostEventTelemetry & {
@@ -1237,6 +1247,13 @@ export class AgentHostTelemetryReporter {
 			chatSessionId: getTelemetryChatSessionId(session),
 			turnId,
 			messageOriginKind: getMessageOriginTelemetryKind(message, isEphemeralSession),
+		});
+	}
+
+	sessionCreated(provider: string | undefined, clientContext: IAgentHostClientTelemetryContext): void {
+		this._telemetryService.publicLog2<AgentHostSessionCreatedEvent, AgentHostSessionCreatedClassification>('agentHost.sessionCreated', {
+			provider,
+			...toInitiatorTelemetry(clientContext),
 		});
 	}
 
