@@ -1929,7 +1929,7 @@ suite('SessionDatabase', () => {
 			});
 		});
 
-		test.skip('snapshot persists across a database restart', async () => {
+		test('snapshot persists across a database restart', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-sync-' + generateUuid()));
 			const databasePath = join(tempRoot, 'session.db');
 			try {
@@ -1944,9 +1944,9 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
-		test.skip('the latest snapshot remains pending when relay is interrupted', async () => {
+		test('the latest snapshot remains pending when relay is interrupted', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
 			const databasePath = join(tempRoot, 'session.db');
 			try {
@@ -1968,7 +1968,7 @@ suite('SessionDatabase', () => {
 				db = undefined;
 				await fs.rm(tempRoot, { recursive: true, force: true });
 			}
-		});
+		}).timeout(10_000);
 
 		test('validates snapshot and acknowledgement boundaries', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));
