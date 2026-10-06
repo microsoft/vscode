@@ -1616,9 +1616,7 @@ export class CopilotAgentSession extends Disposable {
 		} else {
 			turnId = turn?.sdkTurnIds.has(event.data.turnId) ? turn.id : undefined;
 		}
-		// A HydraFusion phase's calls stay unmapped until commit replays its turn start, and a
-		// discarded or cancelled phase never maps. The event carries no Fusion attribution, so an
-		// unmapped call cannot be proven to belong to the current turn's run and is dropped.
+		// Fusion phase calls lack Fusion attribution and may belong to a cancelled run, so unmapped calls are dropped.
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
 			return;
@@ -6452,11 +6450,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
 			const isLastMessageChunk = isLastAssistantMessageChunk(e);
-			// Every root model response carries its model. The runtime also injects model-less root
-			// messages, such as the synthetic tool request that reads a finished background agent or
-			// shell; those are not model calls and must not count toward the turn's model calls or
-			// request telemetry. Subagent messages are exempt: an AHP-executed subagent reports its
-			// model's output without a model, and those messages are its only model-call signal.
+			// Model-less root messages (synthetic background reads) are not model calls; AHP subagents omit the model.
 			const isModelResponse = !!e.agentId || stableModelCallId !== undefined || !!e.data.model;
 			const isCompleteModelCall = isModelResponse && (stableModelCallId !== undefined || isLastMessageChunk);
 			const modelCallId = stableModelCallId ?? e.data.messageId;
