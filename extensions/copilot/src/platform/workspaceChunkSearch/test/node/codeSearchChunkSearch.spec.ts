@@ -536,6 +536,97 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 		expect(snapshot()).toEqual({ requests: 3, statuses: [expectedStatus] });
 	});
 
+	test.each(['unauthorized', 'ready'] as const)('chained supersession cannot republish an adopted %s result after a newer refresh', async olderStatus => {
+		const { ado, search, indexStateChanges, snapshot } = await create();
+		const chain = Array.from({ length: 10 }, () => new DeferredPromise<StatusResult>());
+		for (const [index, pending] of chain.entries()) {
+			ado.getRemoteIndexState.mockImplementationOnce(() => pending.p);
+			indexStateChanges.fire();
+			if (index > 0) {
+				await chain[index - 1].complete(ready());
+				await timeout(0);
+			}
+		}
+		const expectedStatus = olderStatus === 'unauthorized' ? CodeSearchRepoStatus.Ready : CodeSearchRepoStatus.NotAuthorized;
+		ado.getRemoteIndexState.mockResolvedValue(olderStatus === 'unauthorized' ? ready() : Result.error({ type: 'not-authorized' }));
+		const publications: CodeSearchRepoStatus[] = [];
+		let latestStarted = false;
+		disposables.add(search.onDidChangeIndexState(() => {
+			publications.push(...snapshot().statuses);
+			if (!latestStarted) {
+				latestStarted = true;
+				indexStateChanges.fire();
+			}
+		}));
+		await chain[chain.length - 1].complete(olderStatus === 'unauthorized' ? Result.error({ type: 'not-authorized' }) : ready());
+		await timeout(0);
+		expect({ ...snapshot(), publications }).toEqual({
+			requests: chain.length + 2,
+			statuses: [expectedStatus],
+			publications: [
+				olderStatus === 'unauthorized' ? CodeSearchRepoStatus.NotAuthorized : CodeSearchRepoStatus.Ready,
+				expectedStatus,
+			],
+		});
+	});
+
+	test('initialization waits for a newer request started during chained result adoption', async () => {
+		const chain = Array.from({ length: 10 }, () => new DeferredPromise<StatusResult>());
+		const { ado, search, indexStateChanges, snapshot } = await create({
+			getRemoteIndexState: () => chain[0].p,
+			initialize: false,
+		});
+		for (let index = 1; index < chain.length; index++) {
+			ado.getRemoteIndexState.mockImplementationOnce(() => chain[index].p);
+			indexStateChanges.fire();
+			await chain[index - 1].complete(ready());
+			await timeout(0);
+		}
+		const latest = new DeferredPromise<StatusResult>();
+		ado.getRemoteIndexState.mockImplementation(() => latest.p);
+		disposables.add(Event.once(search.onDidChangeIndexState)(() => indexStateChanges.fire()));
+		await chain[chain.length - 1].complete(Result.error({ type: 'not-authorized' }));
+		await timeout(0);
+		const beforeCompletion = { ...snapshot(), initialization: search.getRemoteIndexState(false).status };
+		await latest.complete(ready());
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: chain.length + 1, statuses: [CodeSearchRepoStatus.Ready] }));
+		expect(beforeCompletion).toEqual({
+			requests: chain.length + 1,
+			statuses: [],
+			initialization: 'initializing',
+		});
+	});
+
+	test('a new request invalidates completed results before status publication', async () => {
+		const observations = [];
+		for (let microtasks = 0; microtasks < 10; microtasks++) {
+			const { ado, search, indexStateChanges, snapshot } = await create();
+			const previous = new DeferredPromise<StatusResult>();
+			const latest = new DeferredPromise<StatusResult>();
+			ado.getRemoteIndexState.mockImplementationOnce(() => previous.p).mockImplementationOnce(() => latest.p);
+			indexStateChanges.fire();
+			await previous.complete(Result.error({ type: 'not-authorized' }));
+			for (let step = 0; step < microtasks; step++) {
+				await Promise.resolve();
+			}
+			indexStateChanges.fire();
+			const publications: CodeSearchRepoStatus[] = [];
+			disposables.add(search.onDidChangeIndexState(() => publications.push(...snapshot().statuses)));
+			await timeout(0);
+			const beforeCompletion = [...publications];
+			await latest.complete(ready());
+			await timeout(0);
+			observations.push({ microtasks, ...snapshot(), beforeCompletion, publications });
+		}
+		expect(observations).toEqual(Array.from({ length: 10 }, (_, microtasks) => ({
+			microtasks,
+			requests: 3,
+			statuses: [CodeSearchRepoStatus.Ready],
+			beforeCompletion: [],
+			publications: [CodeSearchRepoStatus.Ready],
+		})));
+	});
+
 	test('an index notification is not suppressed by an outstanding credential recovery', async () => {
 		const { authentication, ado, indexStateChanges, snapshot } = await create({
 			getRemoteIndexState: async () => Result.error({ type: 'not-authorized' }),

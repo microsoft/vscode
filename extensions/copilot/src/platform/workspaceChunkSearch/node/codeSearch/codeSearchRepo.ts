@@ -496,6 +496,7 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 	private _credentialsChanged = false;
 	private _latestStatusRequest: Promise<RemoteCodeSearchState> | undefined;
+	private readonly _statusRequestsByState = new WeakMap<RemoteCodeSearchState, Promise<RemoteCodeSearchState>>();
 
 	constructor(
 		repoInfo: RepoInfo,
@@ -529,17 +530,24 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		}
 
 		this._credentialsChanged = false;
-		const promise: Promise<RemoteCodeSearchState> = super.fetchRemoteIndexState(telemetryInfo, token).then(state => {
-			// Older responses must not overwrite a newer status request.
-			const latest = this._latestStatusRequest;
-			return latest && latest !== promise ? latest : state;
+		const promise: Promise<RemoteCodeSearchState> = super.fetchRemoteIndexState(telemetryInfo, token).then(async state => {
+			this._statusRequestsByState.set(state, promise);
+			// A successor can itself be superseded while its result is being adopted.
+			let request = promise;
+			while (this._latestStatusRequest && this._latestStatusRequest !== request) {
+				request = this._latestStatusRequest;
+				state = await request;
+			}
+			return state;
 		});
 		this._latestStatusRequest = promise;
 		return promise;
 	}
 
 	protected override updateState(newState: RemoteCodeSearchState): void {
-		if (this._store.isDisposed) {
+		const request = this._statusRequestsByState.get(newState);
+		// A newer request can start after adoption but before the result reaches this method.
+		if (this._store.isDisposed || (request && request !== this._latestStatusRequest)) {
 			return;
 		}
 		super.updateState(newState);
