@@ -27,6 +27,7 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { INotificationService, Severity as NotificationSeverity } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 
 export async function reconnectRemoteHost(provider: IAgentHostSessionsProvider, remoteAgentHostService: IRemoteAgentHostService): Promise<void> {
 	if (provider.connect) {
@@ -81,6 +82,7 @@ export async function runServerUpgrade(
 	await progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
+			telemetry: NotificationTelemetryId.RemoteAgentHostUpdate,
 			title: localize('workspacePicker.upgradingServer', "Updating {0}...", provider.label),
 		},
 		async (progress) => {
@@ -410,6 +412,7 @@ export async function changeRemoteAgentHostLocationPreference(options: IChangeRe
 	await options.progressService.withProgress(
 		{
 			location: ProgressLocation.Notification,
+			telemetry: NotificationTelemetryId.RemoteAgentHostReconnect,
 			title: localize('workspacePicker.locationPreferenceReconnecting', "Reconnecting to {0}...", options.hostLabel),
 		},
 		async () => {

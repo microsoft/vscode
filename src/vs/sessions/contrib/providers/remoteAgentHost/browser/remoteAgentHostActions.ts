@@ -32,6 +32,7 @@ import { IWSLRemoteAgentHostService, WSL_INSTALL_DOCS_URL, type IWSLDistro } fro
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { IQuickInputButton, IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IRemoteTunnelService, TunnelStatus } from '../../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
@@ -556,6 +557,7 @@ export async function connectWithProgress(
 	}
 
 	const handle = notificationService.notify({
+		telemetry: NotificationTelemetryId.RemoteAgentHostSSHConnect,
 		severity: Severity.Info,
 		message: localize('sshConnecting', "Connecting to {0} via SSH...", displayHost),
 		progress: { infinite: true },
@@ -596,7 +598,7 @@ export async function connectWithProgress(
 			// shown a specific notification with a way to recover.
 			return undefined;
 		}
-		notificationService.error(localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)));
+		notificationService.notify({ severity: Severity.Error, telemetry: NotificationTelemetryId.RemoteAgentHostSSHConnectError, message: localize('sshConnectFailed', "Failed to connect via SSH to {0}: {1}", displayHost, String(err)) });
 		return undefined;
 	} finally {
 		progressListener?.dispose();
@@ -908,7 +910,7 @@ async function promptToConnectViaTunnel(
 		}
 	} catch {
 		store.dispose();
-		notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
+		notificationService.notify({ severity: Severity.Error, telemetry: NotificationTelemetryId.RemoteAgentHostTunnelAuthenticationError, message: localize('tunnelAuthFailed', "Authentication failed. Please try again.") });
 		return;
 	}
 
@@ -1051,6 +1053,7 @@ async function promptToConnectViaTunnel(
 
 	// Step 4: Connect to the tunnel with progress notification
 	const handle = notificationService.notify({
+		telemetry: NotificationTelemetryId.RemoteAgentHostTunnelConnect,
 		severity: Severity.Info,
 		message: localize('tunnelConnecting', "Connecting to tunnel '{0}'...", picked.tunnel.name),
 		progress: { infinite: true },
@@ -1064,7 +1067,7 @@ async function promptToConnectViaTunnel(
 		handle.close();
 	} catch (err) {
 		handle.close();
-		notificationService.error(localize('tunnelConnectFailed', "Failed to connect to tunnel '{0}': {1}", picked.tunnel.name, err instanceof Error ? err.message : String(err)));
+		notificationService.notify({ severity: Severity.Error, telemetry: NotificationTelemetryId.RemoteAgentHostTunnelConnectError, message: localize('tunnelConnectFailed', "Failed to connect to tunnel '{0}': {1}", picked.tunnel.name, err instanceof Error ? err.message : String(err)) });
 		return;
 	}
 
@@ -1237,6 +1240,7 @@ async function promptToConnectViaWSL(
 	}
 
 	const handle = notificationService.notify({
+		telemetry: NotificationTelemetryId.RemoteAgentHostWSLConnect,
 		severity: Severity.Info,
 		message: localize('wslConnecting', "Connecting to WSL distribution '{0}'...", picked.distro.name),
 		progress: { infinite: true },
@@ -1258,7 +1262,7 @@ async function promptToConnectViaWSL(
 			return;
 		}
 		logService.error(`[WSL] Connect to '${picked.distro.name}' failed`, err);
-		notificationService.error(localize('wslConnectFailed', "Failed to connect to WSL distribution '{0}': {1}", picked.distro.name, toErrorMessage(err)));
+		notificationService.notify({ severity: Severity.Error, telemetry: NotificationTelemetryId.RemoteAgentHostWSLConnectError, message: localize('wslConnectFailed', "Failed to connect to WSL distribution '{0}': {1}", picked.distro.name, toErrorMessage(err)) });
 		return;
 	} finally {
 		progressListener?.dispose();

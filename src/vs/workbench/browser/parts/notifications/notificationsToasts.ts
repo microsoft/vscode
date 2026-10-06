@@ -280,6 +280,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
+			telemetrySurface: 'toast',
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
 				if (!item.source) {
@@ -691,6 +692,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 			// Hide or show toast based on context
 			this.updateToastVisibility(toast, makeVisible);
 			toast.container.style.opacity = '';
+			toast.list.setTelemetryVisibility(makeVisible);
 
 			if (makeVisible) {
 				visibleToasts++;
@@ -699,6 +701,9 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	}
 
 	private updateToastVisibility(toast: INotificationToast, visible: boolean): void {
+		if (!visible) {
+			toast.list.setTelemetryVisibility(false);
+		}
 		if (this.isToastInDOM(toast) === visible) {
 			return;
 		}
