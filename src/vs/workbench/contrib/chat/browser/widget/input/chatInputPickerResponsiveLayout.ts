@@ -331,8 +331,6 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				if (item.canShrink && !this._delegate.usePreferredWidth) {
 					minimumItem.style.flexBasis = '0';
 					minimumItem.style.width = 'min-content';
-				} else {
-					minimumItem.style.flexShrink = '0';
 				}
 				measuredItems.push({ item, preferred: measuredItem, minimum: minimumItem });
 			}
@@ -345,11 +343,12 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return { width: measurement.getBoundingClientRect().width };
 			}
 			const laneBounds = minimum.getBoundingClientRect();
-			let width = laneBounds.width;
 			const bounds = measuredItems
 				.filter(item => item.minimum.getClientRects().length > 0)
 				.map(({ item, minimum, preferred }) => ({ item, bounds: minimum.getBoundingClientRect(), preferredWidth: preferred.getBoundingClientRect().width }))
 				.sort((a, b) => a.bounds.left - b.bounds.left);
+			// Preserve the legacy budget: shrinkable lanes fit picker bounds, not trailing fixed actions.
+			let width = bounds.some(({ item }) => item.canShrink) ? 0 : laneBounds.width;
 			for (let index = 0; index < bounds.length; index++) {
 				const current = bounds[index];
 				if (current.bounds.left < laneBounds.left - WIDTH_TOLERANCE

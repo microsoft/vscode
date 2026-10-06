@@ -922,6 +922,124 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
+	test('preserves shrinkable picker fit budgets with trailing fixed actions', () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.cssText = 'display: flex; width: 240px; overflow: hidden';
+		const mode = dom.append(lane, dom.$('.mode-picker'));
+		mode.style.flex = 'none';
+		const modeLabel = dom.append(mode, dom.$('span'));
+		modeLabel.style.width = '80px';
+		const model = dom.append(lane, dom.$('.model-picker'));
+		model.style.flex = '0 1 auto';
+		const modelLabel = dom.append(model, dom.$('span'));
+		modelLabel.style.width = '160px';
+		const fixedAction = dom.append(lane, dom.$('.fixed-action'));
+		fixedAction.style.cssText = 'flex: none; width: 100px';
+
+		let modeCompact = false;
+		let modelCompact = false;
+		let modelMinimal = false;
+		const render = () => {
+			mode.style.width = modeCompact ? '20px' : '80px';
+			modeLabel.style.display = modeCompact ? 'none' : 'block';
+			const modelWidth = modelMinimal ? 20 : modelCompact ? 40 : 160;
+			model.style.width = `${modelWidth}px`;
+			model.style.minWidth = `${modelCompact ? modelWidth : 60}px`;
+			modelLabel.style.display = modelCompact ? 'none' : 'block';
+		};
+		render();
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.shrinkablePickerWithFixedActions', lane, {
+			getItems: () => [
+				{
+					element: mode,
+					isCompact: () => modeCompact,
+					setCompact: value => modeCompact = value,
+				},
+				{
+					element: model,
+					canShrink: true,
+					isCompact: () => modelCompact,
+					isMinimal: () => modelMinimal,
+					setCompact: value => modelCompact = value,
+					setMinimal: value => modelMinimal = value,
+				},
+			],
+			relayout: render,
+		}));
+		const clone = sinon.spy(lane, 'cloneNode');
+		const states = [240, 140, 120, 100, 80, 100, 140, 240].map(width => {
+			lane.style.width = `${width}px`;
+			layout.layout();
+			return { modeCompact, modelCompact, modelMinimal };
+		});
+
+		assert.deepStrictEqual({ states, measurements: clone.callCount }, {
+			states: [
+				{ modeCompact: false, modelCompact: false, modelMinimal: false },
+				{ modeCompact: false, modelCompact: false, modelMinimal: false },
+				{ modeCompact: false, modelCompact: true, modelMinimal: false },
+				{ modeCompact: false, modelCompact: true, modelMinimal: true },
+				{ modeCompact: true, modelCompact: true, modelMinimal: true },
+				{ modeCompact: false, modelCompact: true, modelMinimal: true },
+				{ modeCompact: false, modelCompact: false, modelMinimal: false },
+				{ modeCompact: false, modelCompact: false, modelMinimal: false },
+			],
+			measurements: 4,
+		});
+	});
+
+	for (const constraint of ['width', 'maxWidth'] as const) {
+		test(`preserves constrained nested toolbar ${constraint} when caching picker fits`, () => {
+			const lane = dom.append(host, dom.$('.picker-lane'));
+			lane.style.cssText = 'display: flex; width: 500px';
+			const toolbar = dom.append(lane, dom.$('.picker-toolbar'));
+			toolbar.style.cssText = 'flex: none; min-width: 0';
+			toolbar.style[constraint] = '140px';
+			const actions = dom.append(toolbar, dom.$('.actions-container'));
+			actions.style.display = 'flex';
+			const picker = dom.append(actions, dom.$('.model-picker'));
+			picker.style.cssText = 'flex: 0 1 auto; width: 240px; min-width: 0; overflow: hidden';
+			const label = dom.append(picker, dom.$('span'));
+			label.style.cssText = 'display: block; width: 240px';
+
+			let compact = false;
+			const item = {
+				element: picker,
+				isCompact: () => compact,
+				setCompact: (value: boolean) => {
+					compact = value;
+					picker.style.width = value ? '20px' : '240px';
+					label.style.display = value ? 'none' : 'block';
+				},
+			};
+			const layout = store.add(new ChatInputPickerResponsiveLayout('test.constrainedNestedToolbar', lane, {
+				getItems: () => [item],
+			}));
+			const clone = sinon.spy(lane, 'cloneNode');
+			layout.layout();
+			const initial = { compact, measurements: clone.callCount };
+			const apply = sinon.spy(item, 'setCompact');
+
+			for (const width of [600, 500]) {
+				lane.style.width = `${width}px`;
+				layout.layout();
+			}
+			const resized = { compact, measurements: clone.callCount, applications: apply.callCount };
+			const states = [300, 140].map(width => {
+				toolbar.style[constraint] = `${width}px`;
+				layout.layout();
+				return compact;
+			});
+
+			assert.deepStrictEqual({ initial, resized, states, measurements: clone.callCount }, {
+				initial: { compact: true, measurements: 2 },
+				resized: { compact: true, measurements: 2, applications: 0 },
+				states: [false, true],
+				measurements: 5,
+			});
+		});
+	}
+
 	test('uses a minimal picker state before overflowing', () => {
 		const lane = dom.append(host, dom.$('.picker-lane'));
 		lane.style.display = 'flex';
