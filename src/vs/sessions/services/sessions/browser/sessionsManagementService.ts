@@ -766,7 +766,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			}
 		}
 
-		const isTroubleshoot = /^\s*\/troubleshoot\b/.test(options.query);
+		const isTroubleshoot = /^\s*\/troubleshoot(?=\s|$)/.test(options.query);
 		if (!isTroubleshoot && referencedResources.length === 0) {
 			return options;
 		}
