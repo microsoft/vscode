@@ -295,7 +295,7 @@ suite('AgentHostGitStateService', () => {
 		};
 	}
 
-	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; artifacts?: readonly ISessionArtifact[]; isolation?: 'folder' | 'worktree'; baseBranch?: string; createNewBranch?: boolean; createdAt?: number }): void {
+	function seedSession(stateManager: AgentHostStateManager, options?: { workingDirectory?: string; project?: string; gitState?: ISessionGitState; gitHubState?: ISessionGitHubState; artifacts?: readonly ISessionArtifact[]; isolation?: 'folder' | 'worktree'; baseBranch?: string; pullRequestUrl?: string; createdAt?: number }): void {
 		const summary: SessionSummary = {
 			resource: SESSION,
 			provider: 'mock',
@@ -315,7 +315,7 @@ suite('AgentHostGitStateService', () => {
 				values: {
 					[SessionConfigKey.Isolation]: options.isolation,
 					...(options.baseBranch ? { [SessionConfigKey.Branch]: options.baseBranch } : {}),
-					...(options.createNewBranch !== undefined ? { [SessionConfigKey.WorktreeCreateNewBranch]: options.createNewBranch } : {}),
+					...(options.pullRequestUrl !== undefined ? { [SessionConfigKey.PullRequestUrl]: options.pullRequestUrl } : {}),
 				},
 			});
 		}
@@ -1324,14 +1324,136 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
 	}));
 
-	test('uses the persisted base branch when the selected branch is checked out directly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('uses folder-scoped base branches after moving only the main chat to another workspace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo-a',
+			isolation: 'worktree',
+			baseBranch: 'release-A',
+			gitState: { branchName: 'agents/original', baseBranchName: 'release-A' },
+		});
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const replacement = 'file:///repo-b';
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: replacement });
+		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: replacement });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
+
+		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		await h.service.refreshSessionGitState(main, undefined);
+		await h.service.refreshSessionGitState(peer, undefined);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({
+			resolved,
+			directories: h.gitCalls,
+			baseBranches: h.gitBaseBranches,
+		}, {
+			resolved: ['main', 'release-A', 'release-A'],
+			directories: [replacement, WORKING_DIRECTORY, WORKING_DIRECTORY],
+			baseBranches: ['main', 'release-A', 'release-A'],
+		});
+	}));
+
+	test('uses the destination base after clearing a moved peer baseline without changing its sibling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo-a',
+			isolation: 'worktree',
+			baseBranch: 'release-A',
+		});
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const replacement = 'file:///repo-b';
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [replacement] });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, '');
+
+		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
+	}));
+
+	test('uses folder-scoped base branches after moving only the main chat to another workspace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo-a',
+			isolation: 'worktree',
+			baseBranch: 'release-A',
+			gitState: { branchName: 'agents/original', baseBranchName: 'release-A' },
+		});
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const replacement = 'file:///repo-b';
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [WORKING_DIRECTORY] });
+		h.stateManager.dispatchServerAction(SESSION, { type: ActionType.SessionWorkingDirectorySet, directory: replacement });
+		h.stateManager.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: replacement });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/release-A');
+
+		const resolved = await Promise.all([main, peer, SESSION].map(key => h.service.resolveSessionBaseBranchName(key)));
+		await h.service.refreshSessionGitState(main, undefined);
+		await h.service.refreshSessionGitState(peer, undefined);
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual({
+			resolved,
+			directories: h.gitCalls,
+			baseBranches: h.gitBaseBranches,
+		}, {
+			resolved: ['main', 'release-A', 'release-A'],
+			directories: [replacement, WORKING_DIRECTORY, WORKING_DIRECTORY],
+			baseBranches: ['main', 'release-A', 'release-A'],
+		});
+	}));
+
+	test('uses the destination base after clearing a moved peer baseline without changing its sibling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo-a',
+			isolation: 'worktree',
+			baseBranch: 'release-A',
+		});
+		const main = buildDefaultChatUri(SESSION);
+		const peer = buildChatUri(SESSION, 'peer');
+		const replacement = 'file:///repo-b';
+		h.stateManager.addChat(SESSION, peer, { workingDirectories: [replacement] });
+		await h.service.setFolderGitState(SESSION, [replacement], { branchName: 'feature-b', baseBranchName: 'main' });
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, '');
+
+		assert.deepStrictEqual(await Promise.all([peer, main].map(key => h.service.resolveSessionBaseBranchName(key))), ['main', 'release-A']);
+	}));
+
+	test('uses the persisted pull request base branch for a pull request session', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, {
 			workingDirectory: WORKING_DIRECTORY,
 			project: 'file:///repo',
 			isolation: 'worktree',
 			baseBranch: 'feature/pr',
-			createNewBranch: false,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+		});
+		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/main');
+		h.setGitResult({ branchName: 'feature/pr', baseBranchName: 'main' });
+
+		await h.service.refreshSessionGitState(SESSION, undefined);
+
+		assert.deepStrictEqual(h.gitBaseBranches, ['main']);
+	}));
+
+	test('uses the persisted base branch when a worktree checked out its configured branch', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		// Pull request sessions created before `pullRequestUrl` existed configured the head branch itself.
+		seedSession(h.stateManager, {
+			workingDirectory: WORKING_DIRECTORY,
+			project: 'file:///repo',
+			isolation: 'worktree',
+			baseBranch: 'feature/pr',
+			gitState: { branchName: 'feature/pr', baseBranchName: 'feature/pr' },
 		});
 		await h.db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/main');
 		h.setGitResult({ branchName: 'feature/pr', baseBranchName: 'main' });

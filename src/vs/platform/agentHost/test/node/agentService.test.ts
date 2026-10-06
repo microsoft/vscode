@@ -84,6 +84,7 @@ import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
 import { type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
 import { getWorktreesRoot, WorktreeIsolation, WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
+import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -1248,6 +1249,11 @@ class TransientlyFailingCatalogDatabase extends TestAgentHostOrchestratorDatabas
 		return super.upsertSessionV2(envelope, expectedSessionGeneration);
 	}
 }
+
+const nullPullRequestResolver: IAgentHostPullRequestResolver = {
+	_serviceBrand: undefined,
+	resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+};
 
 suite('AgentService (node dispatcher)', () => {
 	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
@@ -2479,6 +2485,7 @@ suite('AgentService (node dispatcher)', () => {
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
+			nullPullRequestResolver,
 			nullSessionDataService,
 			new NullLogService(),
 		)));
@@ -2546,6 +2553,7 @@ suite('AgentService (node dispatcher)', () => {
 		setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
+			nullPullRequestResolver,
 			nullSessionDataService,
 			new NullLogService(),
 		)));
@@ -2596,8 +2604,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
 				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
-				[SessionConfigKey.WorktreeBranchTrack]: false,
-				[SessionConfigKey.WorktreeCreateNewBranch]: false,
+				[SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1',
 				providerSetting: 'selected',
 			},
 		});
@@ -2615,8 +2622,7 @@ suite('AgentService (node dispatcher)', () => {
 				[SessionConfigKey.WorktreeBranchPrefix]: 'users/test/',
 				[SessionConfigKey.WorktreeIncludeFiles]: ['.env'],
 				[SessionConfigKey.WorktreeSymlinkFolders]: ['node_modules/**'],
-				[SessionConfigKey.WorktreeBranchTrack]: false,
-				[SessionConfigKey.WorktreeCreateNewBranch]: false,
+				[SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1',
 				providerSetting: 'completion',
 			},
 			property: 'providerSetting',
@@ -2652,8 +2658,7 @@ suite('AgentService (node dispatcher)', () => {
 				branchPrefix: selected.values[SessionConfigKey.WorktreeBranchPrefix],
 				includeFiles: selected.values[SessionConfigKey.WorktreeIncludeFiles],
 				symlinkFolders: selected.values[SessionConfigKey.WorktreeSymlinkFolders],
-				branchTrack: selected.values[SessionConfigKey.WorktreeBranchTrack],
-				createNewBranch: selected.values[SessionConfigKey.WorktreeCreateNewBranch],
+				pullRequestUrl: selected.values[SessionConfigKey.PullRequestUrl],
 				providerSetting: selected.values.providerSetting,
 			},
 			folder: {
@@ -2684,7 +2689,7 @@ suite('AgentService (node dispatcher)', () => {
 				agentMergeController: { lastPromptFingerprint: 'fingerprint' },
 				providerSetting: 'initial',
 			},
-			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], symlinkFolders: ['node_modules/**'], branchTrack: false, createNewBranch: false, providerSetting: 'selected' },
+			selected: { isolation: 'worktree', branch: 'feature/config', branchPrefix: 'users/test/', includeFiles: ['.env'], symlinkFolders: ['node_modules/**'], pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1', providerSetting: 'selected' },
 			folder: { isolation: 'folder', branch: 'feature/config', providerSetting: 'folder' },
 		});
 	});
@@ -2745,6 +2750,7 @@ suite('AgentService (node dispatcher)', () => {
 		const isolation = disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
+			nullPullRequestResolver,
 			nullSessionDataService,
 			new NullLogService(),
 		));
@@ -3185,6 +3191,7 @@ suite('AgentService (node dispatcher)', () => {
 		const isolation = disposables.add(new WorktreeIsolation(
 			{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 			gitService,
+			nullPullRequestResolver,
 			sessionDataService,
 			new NullLogService(),
 		));
@@ -3236,6 +3243,13 @@ suite('AgentService (node dispatcher)', () => {
 		}, 'test-client', 3);
 		const readyAfterWorktree = isWorkingDirectoryPending(localService, readySession.toString());
 
+		// A pull request always defers to its first-send worktree checkout, whatever the isolation says.
+		localService.dispatchAction(creatingSession.toString(), {
+			type: ActionType.SessionConfigChanged,
+			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42' },
+		}, 'test-client', 4);
+		const creatingAfterPullRequest = isWorkingDirectoryPending(localService, creatingSession.toString());
+
 		assert.deepStrictEqual({
 			creatingInitially,
 			readyInitially,
@@ -3244,6 +3258,7 @@ suite('AgentService (node dispatcher)', () => {
 			creatingAfterWorktree,
 			creatingAfterFolder,
 			readyAfterWorktree,
+			creatingAfterPullRequest,
 		}, {
 			creatingInitially: false,
 			readyInitially: false,
@@ -3252,6 +3267,7 @@ suite('AgentService (node dispatcher)', () => {
 			creatingAfterWorktree: true,
 			creatingAfterFolder: false,
 			readyAfterWorktree: false,
+			creatingAfterPullRequest: true,
 		});
 	});
 
@@ -15584,6 +15600,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -15630,6 +15647,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(svc, disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -16258,6 +16276,7 @@ suite('AgentService (node dispatcher)', () => {
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
 				getFetchRemoteUrls: async () => undefined,
+				getFetchRemotes: async () => undefined,
 				getUntrackedPaths: async () => [],
 				getBranchDiffSafetyInfo: async () => undefined,
 				getDiffPatchBetweenRefs: async () => undefined,
@@ -16370,6 +16389,7 @@ suite('AgentService (node dispatcher)', () => {
 				diffTreePaths: async () => undefined,
 				computeFileDiffsBetweenRefs: async () => undefined,
 				getFetchRemoteUrls: async () => undefined,
+				getFetchRemotes: async () => undefined,
 				getUntrackedPaths: async () => [],
 				getBranchDiffSafetyInfo: async () => undefined,
 				getDiffPatchBetweenRefs: async () => undefined,
@@ -17548,6 +17568,7 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
+				nullPullRequestResolver,
 				nullSessionDataService,
 				new NullLogService(),
 			));
@@ -23883,6 +23904,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -26759,6 +26781,7 @@ suite('AgentService (node dispatcher)', () => {
 			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/test' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			)));
@@ -27162,6 +27185,7 @@ suite('AgentService (node dispatcher)', () => {
 			const firstIsolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/restart-failure' },
 				firstGitService,
+				nullPullRequestResolver,
 				firstSessionDataService,
 				new NullLogService(),
 			));
@@ -27241,6 +27265,7 @@ suite('AgentService (node dispatcher)', () => {
 			const freshIsolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/must-not-run' },
 				freshGitService,
+				nullPullRequestResolver,
 				freshSessionDataService,
 				new NullLogService(),
 			));
@@ -27343,6 +27368,7 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => { throw new Error('should not generate a branch'); } },
 				gitService,
+				nullPullRequestResolver,
 				nullSessionDataService,
 				new NullLogService(),
 			));
@@ -27357,7 +27383,7 @@ suite('AgentService (node dispatcher)', () => {
 				config: {
 					[SessionConfigKey.Isolation]: 'worktree',
 					[SessionConfigKey.Branch]: 'feature',
-					[SessionConfigKey.WorktreeCreateNewBranch]: false,
+					[SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/1',
 				},
 			});
 			const uncommittedChangeset = buildUncommittedChangesetUri(session.toString());
@@ -27552,6 +27578,7 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/failure' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			));
@@ -27656,6 +27683,7 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/prepared' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			));
@@ -27725,6 +27753,7 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/retry' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			));
@@ -27767,6 +27796,7 @@ suite('AgentService (node dispatcher)', () => {
 			const isolation = disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => 'agents/fallback' },
 				gitService,
+				nullPullRequestResolver,
 				sessionDataService,
 				new NullLogService(),
 			));

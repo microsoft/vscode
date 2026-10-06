@@ -219,6 +219,12 @@ export interface IAddWorktreeOptions {
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
+/** A remote a repository fetches from. */
+export interface IGitRemote {
+	readonly name: string;
+	readonly url: string;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -342,6 +348,8 @@ export interface IAgentHostGitService {
 	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns the repository's fetch remotes in `git remote -v` order. */
+	getFetchRemotes(workingDirectory: URI): Promise<readonly IGitRemote[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
 	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 

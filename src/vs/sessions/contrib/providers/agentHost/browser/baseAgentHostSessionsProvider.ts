@@ -5787,31 +5787,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				values[workspace.isolation.key] = value;
 			}
 		}
-		for (const [key, value] of [
-			[SessionConfigKey.WorktreeBranchTrack, configuration.worktreeBranchTrack],
-			[SessionConfigKey.WorktreeCreateNewBranch, configuration.worktreeCreateNewBranch],
-		] as const) {
-			if (value !== undefined) {
-				if (config.schema.properties[key]) {
-					values[key] = value;
-				} else {
-					this._logService.warn(`[${this.id}] Host does not advertise repository configuration '${key}'; retaining the host default.`);
-				}
+		if (configuration.pullRequestUrl !== undefined) {
+			// Hosts that support pull request sessions always advertise the property.
+			if (!config.schema.properties[SessionConfigKey.PullRequestUrl]) {
+				throw new Error(localize('agentHost.pullRequestSessionsUnsupported', "This agent host does not support creating sessions from pull requests."));
 			}
+			values[SessionConfigKey.PullRequestUrl] = configuration.pullRequestUrl;
 		}
 		if (configuration.branch) {
 			values[workspace.baseBranchKey] = configuration.branch;
 		}
 		const unsetProperties = configuration.isolationMode && !configuration.branch ? [workspace.baseBranchKey] : undefined;
 		await this._setTransientNewSessionConfigValues(sessionId, values, false, unsetProperties);
-	}
-
-	async setWorktreeBranchTrack(sessionId: string, enabled: boolean): Promise<void> {
-		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeBranchTrack, enabled);
-	}
-
-	async setWorktreeCreateNewBranch(sessionId: string, enabled: boolean): Promise<void> {
-		await this._setTransientNewSessionConfigValue(sessionId, SessionConfigKey.WorktreeCreateNewBranch, enabled);
 	}
 
 	async setBranch(sessionId: string, branch: string): Promise<void> {

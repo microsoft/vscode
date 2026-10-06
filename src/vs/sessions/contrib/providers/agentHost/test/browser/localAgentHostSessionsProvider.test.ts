@@ -108,8 +108,7 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
 			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
 			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
-			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
-			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
+			pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
 			sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 			providerOption: { type: 'string', title: 'Provider option', enum: ['remembered'], sessionMutable: true },
 			...overrides,
@@ -916,7 +915,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.target === 'workspace');
-		await provider.setWorktreeConfiguration(session.sessionId, { isolationMode: 'worktree', branch: 'main', worktreeBranchTrack: true, worktreeCreateNewBranch: false });
+		await provider.setWorktreeConfiguration(session.sessionId, { isolationMode: 'worktree', branch: 'main' });
 		assert.deepStrictEqual({
 			requests: agentHost.resolveSessionConfigRequests.map(request => request.config),
 			creation: provider.getCreateSessionConfig(session.sessionId),
@@ -6313,33 +6312,43 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
+	test('maps a pull request to hidden agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
-		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/42';
 
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
-			values: { [SessionConfigKey.WorktreeBranchTrack]: false },
+			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.PullRequestUrl]: pullRequestUrl },
 		};
-		await provider.setWorktreeBranchTrack(session.sessionId, false);
+		await provider.setWorktreeConfiguration(session.sessionId, { pullRequestUrl });
 
 		assert.deepStrictEqual({
-			requests: agentHost.resolveSessionConfigRequests.slice(firstAutomationRequest).map(request => request.config),
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
 			createSessionConfig: provider.getCreateSessionConfig(session.sessionId),
 			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
 		}, {
-			requests: [
-				{
-					[SessionConfigKey.Isolation]: 'worktree',
-					[SessionConfigKey.WorktreeBranchTrack]: false,
-				},
-			],
-			createSessionConfig: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
+			requests: [{ [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.PullRequestUrl]: pullRequestUrl }],
+			createSessionConfig: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.PullRequestUrl]: pullRequestUrl },
 			remembered: {},
 		});
+	});
+
+	test('rejects a pull request when the agent host does not advertise pull request sessions', async () => {
+		const schema = createVSCodeSessionConfigSchema();
+		delete schema.properties[SessionConfigKey.PullRequestUrl];
+		agentHost.resolveSessionConfigResult = { schema, values: { [SessionConfigKey.Isolation]: 'worktree' } };
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await timeout(0);
+
+		await assert.rejects(
+			() => provider.setWorktreeConfiguration(session.sessionId, { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42' }),
+			/does not support creating sessions from pull requests/,
+		);
 	});
 
 	test('waits for schema discovery then applies programmatic worktree configuration in one resolve', async () => {
@@ -6350,17 +6359,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			schema: createVSCodeSessionConfigSchema(),
 			values: {
 				[SessionConfigKey.Isolation]: 'worktree',
-				[SessionConfigKey.WorktreeBranchTrack]: true,
-				[SessionConfigKey.WorktreeCreateNewBranch]: false,
-				[SessionConfigKey.Branch]: 'feature/pull-request',
+				[SessionConfigKey.Branch]: 'feature/base',
 			},
 		};
 
 		const setting = provider.setWorktreeConfiguration(session.sessionId, {
 			isolationMode: 'worktree',
-			worktreeBranchTrack: true,
-			worktreeCreateNewBranch: false,
-			branch: 'feature/pull-request',
+			branch: 'feature/base',
 		});
 		await timeout(0);
 		const requestsBeforeResolve = agentHost.resolveSessionConfigRequests.map(request => request.config);
@@ -6376,9 +6381,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			],
 			config: {
 				[SessionConfigKey.Isolation]: 'worktree',
-				[SessionConfigKey.WorktreeBranchTrack]: true,
-				[SessionConfigKey.WorktreeCreateNewBranch]: false,
-				[SessionConfigKey.Branch]: 'feature/pull-request',
+				[SessionConfigKey.Branch]: 'feature/base',
 			},
 		});
 	});

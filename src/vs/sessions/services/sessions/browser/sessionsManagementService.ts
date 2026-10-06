@@ -473,9 +473,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		let workspace: ISessionWorkspace | undefined;
 		let sessionTypeId: string | undefined;
 		const requiresWorktreeConfiguration = options?.isolationMode === 'worktree'
-			|| options?.worktreeBranchTrack !== undefined
-			|| options?.worktreeCreateNewBranch !== undefined
-			|| options?.branch !== undefined;
+			|| options?.branch !== undefined
+			|| options?.pullRequestUrl !== undefined;
 		const resolveSessionTypeId = (candidate: ISessionsProvider): string | undefined => {
 			const sessionTypes = candidate.getSessionTypes(folderUri);
 			if (options?.sessionTypeId) {
@@ -1041,23 +1040,19 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (createOptions?.permissionLevel) {
 			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 		}
-		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.worktreeBranchTrack !== undefined || createOptions?.worktreeCreateNewBranch !== undefined || createOptions?.branch)) {
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch || createOptions?.pullRequestUrl)) {
 			if (provider.setWorktreeConfiguration) {
 				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
 					isolationMode: createOptions.isolationMode,
-					worktreeBranchTrack: createOptions.worktreeBranchTrack,
-					worktreeCreateNewBranch: createOptions.worktreeCreateNewBranch,
 					branch: createOptions.branch,
+					pullRequestUrl: createOptions.pullRequestUrl,
 				}), token);
 			} else {
+				if (createOptions.pullRequestUrl) {
+					throw new Error(`Sessions provider '${provider.id}' does not support creating sessions from pull requests.`);
+				}
 				if (createOptions.isolationMode && provider.setIsolationMode) {
 					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
-				}
-				if (createOptions.worktreeBranchTrack !== undefined && provider.setWorktreeBranchTrack) {
-					await raceCancellationError(provider.setWorktreeBranchTrack(session.sessionId, createOptions.worktreeBranchTrack), token);
-				}
-				if (createOptions.worktreeCreateNewBranch !== undefined && provider.setWorktreeCreateNewBranch) {
-					await raceCancellationError(provider.setWorktreeCreateNewBranch(session.sessionId, createOptions.worktreeCreateNewBranch), token);
 				}
 				if (createOptions.branch && provider.setBranch) {
 					await raceCancellationError(provider.setBranch(session.sessionId, createOptions.branch), token);
