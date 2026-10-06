@@ -9,6 +9,20 @@ catalogs remain terminal normalized authority.
 The gate is frozen on first use within a host process; changing it requires a
 new host. It cannot restore legacy compatibility writes for an activated catalog.
 
+## Legacy retention and migration markers
+
+Keep the legacy `session_chats` table during migration and subsequent milestones.
+The existing `session_chat_catalogs.authority_version = 2` header is the migration
+marker for its owner session and all chats activated together. The header and V2
+rows are committed atomically; normalization generation/source revision/hash
+record the verified source receipt. No separate flag on each legacy chat row is
+needed. Retained legacy rows are not authoritative after activation and must not
+be merged into V2 reads or used as a fallback.
+
+Table removal is deferred until a separately approved cleanup milestone, after
+remaining migration, consumer and recovery dependencies have been audited.
+Successful activation alone never authorizes dropping the old table.
+
 ## Read contract
 
 `readCatalogSnapshot(sessions?)` uses exactly two SELECT statements in a single
