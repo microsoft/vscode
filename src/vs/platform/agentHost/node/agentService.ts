@@ -7807,22 +7807,24 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._peerChatStore.updateWorkingDirectories(session, URI.parse(chat.summary.resource), workingDirectories);
 			}
 		}
-		for (const chat of resolvedChats) {
-			if (chat.state?.workingDirectories !== undefined) {
-				continue;
-			}
-			for (const workingDirectory of workingDirectories) {
-				this._stateManager.dispatchServerAction(chat.summary.resource, {
-					type: ActionType.ChatWorkingDirectorySet,
-					directory: workingDirectory,
+		this._stateManager.runWithBatchedWorkingDirectoryChanges(() => {
+			for (const chat of resolvedChats) {
+				if (chat.state?.workingDirectories !== undefined) {
+					continue;
+				}
+				for (const workingDirectory of workingDirectories) {
+					this._stateManager.dispatchServerAction(chat.summary.resource, {
+						type: ActionType.ChatWorkingDirectorySet,
+						directory: workingDirectory,
+					});
+				}
+				this._stateManager.dispatchServerAction(sessionKey, {
+					type: ActionType.SessionChatUpdated,
+					chat: chat.summary.resource,
+					changes: { workingDirectories: [...workingDirectories] },
 				});
 			}
-			this._stateManager.dispatchServerAction(sessionKey, {
-				type: ActionType.SessionChatUpdated,
-				chat: chat.summary.resource,
-				changes: { workingDirectories: [...workingDirectories] },
-			});
-		}
+		});
 	}
 
 	/**
