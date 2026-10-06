@@ -26,7 +26,7 @@ import { AgentInstructionFileType, PromptConfig } from '../../common/promptsServ
 import { ExcludeSettingOptions } from '../../../../vscodeTypes';
 
 class TestSearchService extends SnapshotSearchService {
-	override readonly findFiles = vi.fn<ISearchService['findFiles']>().mockResolvedValue([]);
+	override readonly findFiles = vi.fn<SnapshotSearchService['findFiles']>().mockResolvedValue([]);
 }
 
 /**
