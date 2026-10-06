@@ -165,7 +165,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 13);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 14);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
