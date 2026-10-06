@@ -1392,7 +1392,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 
 		const cts = new CancellationTokenSource(token);
 		const cleanupStartMs = Date.now();
-		let phase: 'selectModel' | 'loadInstructions' | 'startRequest' = 'selectModel';
+		let phase: 'selectModel' | 'loadInstructions' | 'startRequest' | 'consumeResponse' = 'selectModel';
 		let timedOut = false;
 		const timer = setTimeout(() => {
 			timedOut = true;

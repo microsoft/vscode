@@ -5,6 +5,7 @@
 
 import { DeferredPromise, Limiter, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -53,7 +54,7 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _backgroundLimiter = this._register(new Limiter<void>(MAX_CONCURRENT_BACKGROUND_REQUESTS));
-	private readonly _pendingByKey = new Map<string, IPendingRequest>();
+	private readonly _pending = new Set<IPendingRequest>();
 	private readonly _rateLimitedUntil = new Map<string, number>();
 
 	constructor(
@@ -67,7 +68,7 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			return Promise.resolve(undefined);
 		}
-		const pending = (request.key !== undefined ? this._pendingByKey.get(request.key) : undefined) ?? this._start(request);
+		const pending = (request.key !== undefined ? Iterable.find(this._pending, p => p.request.key === request.key) : undefined) ?? this._start(request);
 		pending.waitingCallers++;
 		pending.callerListeners.add(token.onCancellationRequested(() => this._onCallerCancelled(pending)));
 		return pending.request.background ? pending.result.p : raceCancellation(pending.result.p, token);
@@ -75,9 +76,7 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 
 	private _start(request: IChatUtilityModelRequest): IPendingRequest {
 		const pending: IPendingRequest = { request, result: new DeferredPromise(), cancellation: new CancellationTokenSource(), callerListeners: new DisposableStore(), waitingCallers: 0, started: false };
-		if (request.key !== undefined) {
-			this._pendingByKey.set(request.key, pending);
-		}
+		this._pending.add(pending);
 		const run = () => this._run(pending).then(text => this._settle(pending, text), error => this._settle(pending, undefined, error));
 		if (request.background) {
 			this._backgroundLimiter.queue(run);
@@ -122,7 +121,7 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 			return text;
 		} catch (error) {
 			if (isRateLimitError(error)) {
-				const until = Date.now() + Math.min(error.retryAfter ?? DEFAULT_RATE_LIMIT_BACKOFF_MS, MAX_RATE_LIMIT_BACKOFF_MS);
+				const until = Date.now() + Math.min(error.retryAfter || DEFAULT_RATE_LIMIT_BACKOFF_MS, MAX_RATE_LIMIT_BACKOFF_MS);
 				this._rateLimitedUntil.set(request.model, Math.max(until, this._rateLimitedUntil.get(request.model) ?? 0));
 			}
 			this._log(request, isRateLimitError(error) ? 'rateLimited' : 'error', ` elapsedMs=${Date.now() - sentAt}`, error);
@@ -133,10 +132,7 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 	}
 
 	private _settle(pending: IPendingRequest, text: string | undefined, error?: unknown): void {
-		const { key } = pending.request;
-		if (key !== undefined && this._pendingByKey.get(key) === pending) {
-			this._pendingByKey.delete(key);
-		}
+		this._pending.delete(pending);
 		pending.callerListeners.dispose();
 		pending.cancellation.dispose();
 		if (error) {
@@ -144,6 +140,14 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 		} else {
 			pending.result.complete(text);
 		}
+	}
+
+	override dispose(): void {
+		for (const pending of [...this._pending]) {
+			pending.cancellation.cancel();
+			this._settle(pending, undefined);
+		}
+		super.dispose();
 	}
 
 	private _log(request: IChatUtilityModelRequest, outcome: string, details = '', error?: unknown): void {
