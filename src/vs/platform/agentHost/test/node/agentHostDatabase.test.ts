@@ -2170,7 +2170,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				readsChats: statements.some(sql => /\bchats_v2\b/.test(sql)),
 				empty: await instance.listLegacyChatCatalogSessions([]),
 				bounded: await instance.listLegacyChatCatalogSessions(Array.from({ length: 400 }, () => owners[0])),
-			}, { selected: [owners[0]], selects: 1, readsChats: false, empty: [], bounded: [owners[0]] });
+			}, { selected: [owners[0], owners[1]], selects: 1, readsChats: false, empty: [], bounded: [owners[0]] });
 			await assert.rejects(instance.listLegacyChatCatalogSessions(Array.from({ length: 401 }, () => owners[0])), /exceeds 400 sessions/);
 		});
 

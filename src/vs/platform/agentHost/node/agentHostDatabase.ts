@@ -2027,7 +2027,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
 				WHERE s.session_uri IN (${sessions.map(() => '?').join(',')})
 					AND COALESCE(h.authority_version, 1) = 1 AND s.is_chat_backing = 0
-					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${provisionalSessionKeyPrefix}' || s.session_uri AND value = 'true')
 					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || s.session_uri AND value = 'true')
 					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${sessionsV2ExcludedKeyPrefix}' || s.provider || ':' || s.session_uri)
 				ORDER BY s.session_uri`, sessions);

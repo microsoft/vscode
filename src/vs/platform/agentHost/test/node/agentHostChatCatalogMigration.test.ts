@@ -109,6 +109,64 @@ suite('AgentHostChatCatalogMigration', () => {
 		});
 	});
 
+	test('normalizes a provisional catalog without creating provider backing or clearing its lifecycle marker', async () => {
+		const database = await createDatabase([{ uri: defaultChat, kind: 'default', order: 0, summary: 'Draft', isRead: true }]);
+		await database.setSessionProvisional(session.toString(), true);
+		const result = await migrateChatCatalogV2(database, createNullSessionDataService(), session);
+		const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+		const beforeMaterialization = {
+			status: result.status,
+			authority: snapshot.authorityVersion,
+			provisional: snapshot.provisional,
+			markers: await database.listProvisionalSessions(),
+			defaultChat: snapshot.header?.defaultChatUri,
+			chats: snapshot.chats.map(chat => ({ chat: chat.chat, summary: chat.metadata?.summary, isRead: chat.isRead })),
+			detail: await database.getChatV2ProviderDetail(defaultChat),
+		};
+		await database.updateChatV2Metadata(defaultChat, { ownershipRevision: 0, metadataRevision: 0 }, { providerData: 'materialized-continuation' });
+		await database.setSessionProvisional(session.toString(), false);
+		const [materialized] = await database.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			beforeMaterialization,
+			afterMaterialization: {
+				provisional: materialized.provisional,
+				markers: await database.listProvisionalSessions(),
+				chats: materialized.chats.map(chat => chat.chat),
+				detail: await database.getChatV2ProviderDetail(defaultChat),
+			},
+		}, {
+			beforeMaterialization: {
+				status: 'applied', authority: 2, provisional: true, markers: [session.toString()],
+				defaultChat, chats: [{ chat: defaultChat, summary: 'Draft', isRead: true }], detail: {},
+			},
+			afterMaterialization: {
+				provisional: false, markers: [], chats: [defaultChat], detail: { providerData: 'materialized-continuation' },
+			},
+		});
+	});
+
+	for (const source of ['dirty', 'missing'] as const) {
+		test(`keeps a provisional catalog pending when its verified source is ${source}`, async () => {
+			const database = source === 'dirty'
+				? await createDatabase([{ uri: defaultChat, kind: 'default', order: 0, summary: 'Unreconciled' }])
+				: store.add(new AgentHostDatabase(':memory:'));
+			if (source === 'missing') {
+				await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			} else {
+				await database.markSessionV2PayloadDirty(session.toString());
+			}
+			await database.setSessionProvisional(session.toString(), true);
+			const result = await migrateChatCatalogV2(database, createNullSessionDataService(), session);
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				result, authority: snapshot.authorityVersion, provisional: snapshot.provisional, chats: snapshot.chats,
+				markers: await database.listProvisionalSessions(),
+			}, {
+				result: { status: 'notReady' }, authority: 1, provisional: true, chats: [], markers: [session.toString()],
+			});
+		});
+	}
+
 	test('requires reconciled legacy clears before normalization and preserves deleted identities', async () => {
 		const peer = buildChatUri(session, 'peer');
 		const deleted = buildChatUri(session, 'deleted');

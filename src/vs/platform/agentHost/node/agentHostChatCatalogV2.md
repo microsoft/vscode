@@ -45,8 +45,13 @@ changes metadata. Metadata uses the existing catalog changes validator, a
 unsupported versions and hash failures are errors, not empty summaries.
 
 `listLegacyChatCatalogSessions(sessions)` selects migration eligibility from live
-session identities and authority headers only, excluding backing and provisional
-sessions. Damaged normalized chat metadata cannot block unrelated legacy conversion
+session identities and authority headers only, excluding backing, tombstoned and
+excluded sessions. Provisional sessions are eligible when their persisted source
+is verified, clean and consistent; normalization preserves the provisional marker
+and does not create provider backing or change listing/restoration visibility.
+Dirty or missing sources remain pending until reconciliation supplies trustworthy
+metadata. Materialization updates the same normalized chat and clears the existing
+session marker through the normal lifecycle. Damaged normalized chat metadata cannot block unrelated legacy conversion
 or reconciliation. Conversion failures remain logged and isolated per owner.
 
 `readChatV2(session, chat)` reads authority and one owner-scoped chat in a single

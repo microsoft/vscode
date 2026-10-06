@@ -9796,6 +9796,37 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('normalizing provisional metadata preserves crash-orphan visibility and restoration behavior', async () => {
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const session = AgentSession.uri('copilot', 'normalized-provisional-orphan');
+				const data = centralData(session, 10, 'Draft');
+				await database.registerRuntimeSession(session.toString(), {
+					provider: 'copilot', startTime: 10, modifiedTime: 10, source: 'explicit',
+				}, { checkTombstone: false, provisional: true });
+				await database.upsertSessionV2(catalogEnvelope(session, data), undefined);
+				await database.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
+				const svc = createCentralCatalogService(createNullSessionDataService(), database);
+				const agent = disposables.add(new DeferredBackingAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const before = await svc.listSessions();
+				await runCatalogReconciliationPass(svc);
+				const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+				const after = await svc.listSessions();
+				const restoreError = await svc.restoreSession(session).then(() => undefined, err => err);
+				assert.deepStrictEqual({
+					before: before.map(metadata => metadata.session.toString()),
+					authority: snapshot.authorityVersion,
+					provisional: snapshot.provisional,
+					chats: snapshot.chats.map(chat => chat.chat),
+					after: after.map(metadata => metadata.session.toString()),
+					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
+				}, {
+					before: [], authority: 2, provisional: true,
+					chats: [buildDefaultChatUri(session)], after: [], restoreCode: AHP_SESSION_NOT_FOUND,
+				});
+			});
+
 			async function runCatalogReconciliationPass(svc: AgentService): Promise<readonly unknown[]> {
 				const report = await (svc as unknown as { _catalogReconciliationService: { runPass(): Promise<{ readonly outcomes: readonly unknown[] }> } })._catalogReconciliationService.runPass();
 				return report.outcomes;
