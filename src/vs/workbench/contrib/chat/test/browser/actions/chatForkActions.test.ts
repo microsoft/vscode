@@ -10,6 +10,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -77,6 +78,7 @@ suite('ForkConversationAction', () => {
 			new class extends mock<IWorkspaceContextService>() { }(),
 			new class extends mock<IChatPetService>() { }(),
 			new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
 		));
 		const resource = URI.parse('contributed:/source');
 
