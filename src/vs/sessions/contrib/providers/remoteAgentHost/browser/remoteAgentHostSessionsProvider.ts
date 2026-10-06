@@ -807,7 +807,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
-			? toAgentHostContentUri(uri, this._connectionAuthority)
+			? toAgentHostContentUri(uri, this._connectionAuthority, options.fileUri)
 			: toAgentHostUri(uri, this._connectionAuthority);
 	}
 
