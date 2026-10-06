@@ -2147,7 +2147,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
-		await this._customizationInstallations.releasePolicySession();
+		const policySessionRelease = this._customizationInstallations.releasePolicySession();
+		if (policySessionRelease) {
+			await policySessionRelease;
+		}
 		this._telemetryAuthenticationGeneration++;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
@@ -2641,7 +2644,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._client = undefined;
 			this._clientConnectorAuthentication = undefined;
 			this._clientStarting = undefined;
-			await this._customizationInstallations.releasePolicySession(client);
+			const policySessionRelease = this._customizationInstallations.releasePolicySession(client);
+			if (policySessionRelease) {
+				await policySessionRelease;
+			}
 			await client?.stop();
 			// The runtime subprocess is now dead, so it is safe to release the BYOK
 			// proxy handle: the next session launch mints a fresh nonce. See the

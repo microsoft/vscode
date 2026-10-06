@@ -751,7 +751,15 @@ export class CopilotCustomizationInstallations extends Disposable {
 		this.policySessionIdle.value = disposableTimeout(() => void this.releasePolicySession(session.client), policySessionIdleTimeoutMs);
 	}
 
-	async releasePolicySession(client?: ICopilotCustomizationInstallationClient): Promise<void> {
+	releasePolicySession(client?: ICopilotCustomizationInstallationClient): Promise<void> | undefined {
+		const current = this.policySession;
+		if ((!current || (client && current.client !== client)) && !this.policySessionCreation) {
+			return undefined;
+		}
+		return this.releasePolicySessionWork(client);
+	}
+
+	private async releasePolicySessionWork(client?: ICopilotCustomizationInstallationClient): Promise<void> {
 		const generation = ++this.policySessionGeneration;
 		this.policySessionIdle.clear();
 		const current = this.policySession;

@@ -68,6 +68,7 @@ suite('CopilotCustomizationInstallations', () => {
 			},
 		));
 
+		assert.strictEqual(service.releasePolicySession(client), undefined);
 		await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), { query: 'first', limit: 10 });
 		await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), { query: 'second', limit: 10 });
 		await service.releasePolicySession(client);
