@@ -333,6 +333,27 @@ suite('Workbench - TerminalInstance', () => {
 			instance.dispose();
 		});
 
+		test('reuseTerminal requests workspace trust and does not relaunch when trust is denied', async () => {
+			const terminalInstanceService = store.add(new TestTerminalInstanceService());
+			const workspaceTrustRequestService = new TestTerminalWorkspaceTrustRequestService();
+			const instance = await createTerminalInstance(terminalInstanceService, undefined, {
+				executable: '/usr/bin/zsh',
+				cwd: URI.file('/home/test'),
+				isTransient: true
+			}, workspaceTrustRequestService);
+
+			await instance.reuseTerminal({ executable: '/usr/bin/zsh' }, true);
+
+			deepStrictEqual({
+				trustRequestCount: workspaceTrustRequestService.requestCount,
+				createProcessCount: terminalInstanceService.createProcessCount
+			}, {
+				trustRequestCount: 1,
+				createProcessCount: 0
+			});
+			instance.dispose();
+		});
+
 		test('should not create a process when workspace trust is denied', async () => {
 			const terminalInstanceService = store.add(new TestTerminalInstanceService());
 			let resolveTrust!: (trusted: boolean) => void;
