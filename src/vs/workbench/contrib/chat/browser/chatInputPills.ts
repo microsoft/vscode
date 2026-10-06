@@ -295,7 +295,9 @@ export class ChatInputPills extends Disposable {
 	}
 
 	private _getVisibilityActions(kindsWithData: ReadonlySet<SessionChatPillKind>, targetKind?: SessionChatPillKind) {
-		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, this._options.offeredKinds);
+		const sourceKinds = new Set(this._options.sources.get().flatMap(source => source.kind ? [source.kind] : []));
+		const offeredKinds = this._options.offeredKinds.filter(kind => sourceKinds.has(kind));
+		const menu = getSessionChatPillMenu(kindsWithData, this._visibility.readHiddenKinds(undefined), targetKind, offeredKinds);
 		const restoreFocus = () => this._row.restoreFocus(() => {
 			const pills = this._pills.getPillElements();
 			const target = targetKind ? pills.find(pill => this._getTargetKind(pill) === targetKind) : undefined;

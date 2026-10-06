@@ -527,7 +527,7 @@ suite('StandardChatInputPillSources', () => {
 		const restoredOptions = pills.openContextMenu(pills.inputPills.getPillElements()[0])
 			.filter(action => action instanceof SubmenuAction).map(action => action.label);
 		const otherKinds = ['Issues', 'Artifacts', 'References', 'Customizations', 'Browsers', 'Subagents'];
-		const toggles = ['Pull Requests', ...otherKinds, '', 'Canvases', 'Background Shells'];
+		const toggles = ['Pull Requests', ...otherKinds];
 		const expectedMenus = [
 			['Pull Requests Options', '', ...toggles],
 			...otherKinds.map(label => [`Hide ${label}`, '', 'Pull Requests Options', '', ...toggles]),
