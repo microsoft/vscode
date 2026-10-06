@@ -93,6 +93,12 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 				connectOnDemand: whileRegistered(options.connectOnDemand),
 				disconnectOnDemand: whileRegistered(options.disconnectOnDemand),
 				removeOnDemand: whileRegistered(options.removeOnDemand),
+				setDisplayName: name => {
+					if (labels.isDisposed) {
+						throw new CancellationError();
+					}
+					options.setDisplayName?.(name);
+				},
 			});
 			this._providerStores.get(address)!.add(labels);
 			return provider;
@@ -117,16 +123,23 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 		const id = entry.connection.environmentId;
 		const account = this._inventory.accountKey!;
-		const forCurrentAccount = async (operation: () => Promise<void>) => {
+		const checkAccount = () => {
 			if (!this._inventory.enabled || this._inventory.accountKey !== account) {
 				throw new CancellationError();
 			}
+		};
+		const forCurrentAccount = async (operation: () => Promise<void>) => {
+			checkAccount();
 			await operation();
 		};
 		return {
 			connectOnDemand: () => forCurrentAccount(() => this._inventory.connect(id, CancellationToken.None)),
 			disconnectOnDemand: () => forCurrentAccount(() => this._inventory.disconnect(id)),
 			removeOnDemand: () => forCurrentAccount(() => this._inventory.hide(id)),
+			setDisplayName: name => {
+				checkAccount();
+				this._inventory.setDisplayName(id, name);
+			},
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			retainSessionsOnDisconnect: true,
 			readOnlyWhenDisconnected: true,

@@ -20,6 +20,7 @@ export interface IEntryDrivenProviderOptions {
 	readonly connectOnDemand?: () => Promise<void>;
 	readonly disconnectOnDemand?: () => Promise<void>;
 	readonly removeOnDemand?: () => Promise<void>;
+	readonly setDisplayName?: (name: string | undefined) => void;
 	readonly sessionCacheKey?: string;
 	readonly retainSessionsOnDisconnect?: boolean;
 	readonly readOnlyWhenDisconnected?: boolean;
@@ -113,6 +114,7 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			connectOnDemand: options.connectOnDemand,
 			disconnectOnDemand: options.disconnectOnDemand,
 			removeOnDemand: options.removeOnDemand,
+			setDisplayName: options.setDisplayName,
 			sessionCacheKey: options.sessionCacheKey,
 			retainSessionsOnDisconnect: options.retainSessionsOnDisconnect,
 			readOnlyWhenDisconnected: options.readOnlyWhenDisconnected,

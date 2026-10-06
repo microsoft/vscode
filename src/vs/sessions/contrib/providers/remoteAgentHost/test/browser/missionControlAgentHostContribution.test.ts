@@ -155,6 +155,7 @@ suite('Mission Control native provider inventory', () => {
 		await assert.rejects(old.connectOnDemand!(), CancellationError);
 		await assert.rejects(old.disconnectOnDemand!(), CancellationError);
 		await assert.rejects(old.removeOnDemand!(), CancellationError);
+		assert.throws(() => old.setDisplayName!('Stale rename'), CancellationError);
 		assert.deepStrictEqual(actions, ['discover']);
 	});
 });

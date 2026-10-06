@@ -41,7 +41,7 @@ registerAction2(class extends Action2 {
 	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<string | undefined> {
 		const inventory = accessor.get(IMissionControlEnvironmentService);
 		if (!inventory.enabled) {
-			throw new Error('User-local Mission Control connections are development-only and require remote AI features.');
+			throw new Error(localize('missionControl.connectionsDisabled', "User-local Mission Control connections are development-only and require remote AI features."));
 		}
 		const picker = accessor.get(IQuickInputService);
 		const notifications = accessor.get(INotificationService);

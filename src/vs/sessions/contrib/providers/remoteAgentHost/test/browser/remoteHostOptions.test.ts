@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -212,7 +213,7 @@ suite('remoteHostOptions', () => {
 	});
 
 	suite('rename remote host', () => {
-		function createRenameHarness(input: string | undefined, fail = false) {
+		function createRenameHarness(input: string | undefined, fail = false, inventoryRename?: (name: string | undefined) => void) {
 			const instantiationService = store.add(new TestInstantiationService());
 			const accept = store.add(new Emitter<void>());
 			const hide = store.add(new Emitter<void>());
@@ -258,6 +259,7 @@ suite('remoteHostOptions', () => {
 			const provider = new class extends mock<IAgentHostSessionsProvider>() {
 				override readonly remoteAddress = 'tunnel:my-host';
 				override readonly label = 'Original Host';
+				override readonly setDisplayName = inventoryRename;
 			}();
 			return { run: () => instantiationService.invokeFunction(showRemoteHostOptions, provider), inputs, saved, errors };
 		}
@@ -286,6 +288,20 @@ suite('remoteHostOptions', () => {
 				saved: [],
 				errors: ['Failed to rename Original Host: Storage unavailable'],
 			});
+		});
+
+		test('inventory-owned rename does not fall back to global display-name storage', async () => {
+			const localNames: (string | undefined)[] = [];
+			const harness = createRenameHarness('Profile label', false, name => localNames.push(name));
+			await harness.run();
+			assert.deepStrictEqual({ localNames, globalNames: harness.saved, errors: harness.errors },
+				{ localNames: ['Profile label'], globalNames: [], errors: [] });
+		});
+
+		test('a stale inventory rename is cancelled without creating a global alias', async () => {
+			const harness = createRenameHarness('Old account label', false, () => { throw new CancellationError(); });
+			await harness.run();
+			assert.deepStrictEqual({ globalNames: harness.saved, errors: harness.errors }, { globalNames: [], errors: [] });
 		});
 	});
 

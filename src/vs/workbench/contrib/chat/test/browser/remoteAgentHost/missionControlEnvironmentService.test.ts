@@ -138,7 +138,7 @@ suite('Mission Control retained inventory', () => {
 		assert.deepStrictEqual({
 			cached, refreshed, restored: reopened.service.hosts.get(), calls: reopened.calls,
 			separateProfile: separateProfile.service.hosts.get(),
-			storedFields: Object.keys(JSON.parse(storage.get(`missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}`, StorageScope.PROFILE)!)[0]).sort(),
+			storedFields: Object.keys(JSON.parse(storage.get(`missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.remote.metadata`, StorageScope.PROFILE)!)).sort(),
 		}, {
 			cached: [{ ...host('remote'), hidden: true, displayName: 'Work Machine' }],
 			refreshed: [{ ...host('remote', 'Remote name'), hidden: true, displayName: 'Work Machine' }],
@@ -163,6 +163,52 @@ suite('Mission Control retained inventory', () => {
 		await late.complete([]);
 		await assert.rejects(refresh, CancellationError);
 		assert.deepStrictEqual(service.hosts.get(), [{ ...host('remote'), hidden: undefined, displayName: 'Local label' }]);
+	});
+
+	test('stale-window preference writes cannot remove newly discovered inventory or overwrite another preference', async () => {
+		const first = fixture();
+		await first.service.refresh(CancellationToken.None);
+		const second = fixture(first.storage);
+		await second.service.initialize();
+		const stale = second.service.hosts.get();
+		first.setList(Promise.resolve([host('remote'), host('new-machine')]));
+		await first.service.refresh(CancellationToken.None);
+		first.service.setDisplayName('remote', 'Current label');
+		second.service.hosts.set(stale, undefined);
+		await second.service.hide('remote');
+		const reopened = fixture(first.storage);
+		await reopened.service.initialize();
+		assert.deepStrictEqual({
+			hosts: reopened.service.hosts.get().map(host => ({ id: host.id, hidden: host.hidden, label: host.displayName })),
+			firstDisconnects: first.calls.disconnects,
+		}, {
+			hosts: [
+				{ id: 'remote', hidden: true, label: 'Current label' },
+				{ id: 'new-machine', hidden: undefined, label: undefined },
+			],
+			firstDisconnects: ['remote'],
+		});
+	});
+
+	test('stale discovery snapshots cannot delete another window inventory or preferences', async () => {
+		const first = fixture();
+		await first.service.refresh(CancellationToken.None);
+		const second = fixture(first.storage);
+		await second.service.initialize();
+		const stale = second.service.hosts.get();
+		first.setList(Promise.resolve([host('remote'), host('first-machine')]));
+		await first.service.refresh(CancellationToken.None);
+		first.service.setDisplayName('first-machine', 'First local label');
+		second.service.hosts.set(stale, undefined);
+		second.setList(Promise.resolve([host('remote'), host('second-machine')]));
+		await second.service.refresh(CancellationToken.None);
+		const reopened = fixture(first.storage);
+		await reopened.service.initialize();
+		assert.deepStrictEqual(reopened.service.hosts.get().map(host => ({ id: host.id, label: host.displayName })), [
+			{ id: 'remote', label: undefined },
+			{ id: 'first-machine', label: 'First local label' },
+			{ id: 'second-machine', label: undefined },
+		]);
 	});
 
 	test('a newer refresh wins, absent known hosts remain offline, and late discovery cannot unhide hosts', async () => {

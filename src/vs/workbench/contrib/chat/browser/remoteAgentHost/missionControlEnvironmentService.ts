@@ -84,7 +84,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}));
 		this._register(_entitlement.onDidChangeSentiment(updateEnabled));
 		this._register(_storage.onDidChangeValue(StorageScope.PROFILE, undefined, this._store)(e => {
-			if (this._accountKey && e.key === this._storageKey) {
+			if (this._accountKey && e.key.startsWith(this._storagePrefix)) {
 				this._restore();
 			}
 		}));
@@ -97,7 +97,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 			&& this._configuration.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
 	}
 
-	private get _storageKey(): string { return `${INVENTORY_PREFIX}${encodeURIComponent(this._accountKey!)}`; }
+	private get _storagePrefix(): string { return `${INVENTORY_PREFIX}${encodeURIComponent(this._accountKey!)}.`; }
 
 	initialize(): Promise<void> {
 		if (!this.enabled || this._store.isDisposed) {
@@ -233,18 +233,19 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	async hide(id: string): Promise<void> {
 		this._requireHost(id);
-		this._updateHost(id, { hidden: true });
+		this.hosts.set(this.hosts.get().map(host => host.id === id ? { ...host, hidden: true } : host), undefined);
+		this._setPreference(id, 'hidden', true);
 		await this.disconnect(id);
 	}
 
 	restore(id: string): void {
 		this._requireHost(id, true);
-		this._updateHost(id, { hidden: undefined });
+		this._setPreference(id, 'hidden', undefined);
 	}
 
 	setDisplayName(id: string, name: string | undefined): void {
 		this._requireHost(id, true);
-		this._updateHost(id, { displayName: name?.trim() || undefined });
+		this._setPreference(id, 'displayName', name?.trim() || undefined);
 	}
 
 	private _requireHost(id: string, includeHidden = false): IMissionControlHost {
@@ -255,30 +256,47 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		return host;
 	}
 
-	private _updateHost(id: string, update: Pick<IMissionControlHost, 'hidden' | 'displayName'>): void {
-		this.hosts.set(this.hosts.get().map(host => host.id === id ? { ...host, ...update } : host), undefined);
-		this._persist();
+	private _setPreference(id: string, preference: 'hidden' | 'displayName', value: boolean | string | undefined): void {
+		const key = `${this._storagePrefix}${id}.${preference}`;
+		if (value === undefined) {
+			this._storage.remove(key, StorageScope.PROFILE);
+		} else {
+			this._storage.store(key, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		this._restore();
 	}
 
 	private _persist(): void {
 		if (this._accountKey) {
-			this._storage.store(this._storageKey, JSON.stringify(this.hosts.get().map(host => ({
-				id: host.id, name: host.name, kind: 'user-local', status: host.status,
-				hidden: host.hidden, displayName: host.displayName,
-			}))), StorageScope.PROFILE, StorageTarget.MACHINE);
+			this._storage.storeAll(this.hosts.get().map(host => ({
+				key: `${this._storagePrefix}${host.id}.metadata`,
+				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status }),
+				scope: StorageScope.PROFILE,
+				target: StorageTarget.MACHINE,
+			})), false);
 		}
 	}
 
 	private _restore(): void {
 		try {
-			const value: unknown = JSON.parse(this._storage.get(this._storageKey, StorageScope.PROFILE, '[]'));
-			if (!Array.isArray(value) || !value.every(isHost)) {
-				throw new Error('Invalid Mission Control host inventory.');
+			const hosts: IMissionControlHost[] = [];
+			for (const key of this._storage.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+				if (!key.startsWith(this._storagePrefix) || !key.endsWith('.metadata')) {
+					continue;
+				}
+				const host: unknown = JSON.parse(this._storage.get(key, StorageScope.PROFILE)!);
+				if (!isHost(host) || key !== `${this._storagePrefix}${host.id}.metadata`) {
+					throw new Error('Invalid Mission Control host inventory.');
+				}
+				if (host.id !== this._ownEnvironment) {
+					hosts.push({
+						id: host.id, name: host.name, kind: 'user-local', status: host.status,
+						hidden: this._storage.getBoolean(`${this._storagePrefix}${host.id}.hidden`, StorageScope.PROFILE),
+						displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
+					});
+				}
 			}
-			this._replaceHosts(value.filter(host => host.id !== this._ownEnvironment).map(host => ({
-				id: host.id, name: host.name, kind: 'user-local', status: host.status,
-				hidden: host.hidden, displayName: host.displayName,
-			})));
+			this._replaceHosts(hosts);
 		} catch (error) {
 			this._log.error('Failed to restore Mission Control host inventory', error);
 		}

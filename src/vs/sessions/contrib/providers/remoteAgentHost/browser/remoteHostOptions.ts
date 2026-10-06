@@ -550,9 +550,15 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			});
 			if (name !== undefined) {
 				try {
-					remoteAgentHostService.setDisplayName(address, name);
+					if (provider.setDisplayName) {
+						provider.setDisplayName(name);
+					} else {
+						remoteAgentHostService.setDisplayName(address, name);
+					}
 				} catch (err) {
-					notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
+					if (!isCancellationError(err)) {
+						notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
+					}
 				}
 			}
 			break;
