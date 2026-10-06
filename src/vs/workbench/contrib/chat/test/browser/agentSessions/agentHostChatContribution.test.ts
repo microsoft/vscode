@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -1177,7 +1178,7 @@ function createSessionListController(disposables: DisposableStore, instantiation
 	return disposables.add(instantiationService.createInstance(AgentHostSessionListController, sessionType, provider, sessionListStore, description, 'local'));
 }
 
-function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean }) {
+function createContribution(disposables: DisposableStore, opts?: { backendSessionScheme?: string; authServiceOverride?: Partial<IAuthenticationService>; workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined; isNewSession?: (sessionResource: URI) => boolean }; languageModels?: ReadonlyMap<string, ILanguageModelChatMetadata>; provisionalServiceOverride?: Partial<IAgentHostUntitledProvisionalSessionService>; languageModelToolsServiceOverride?: Partial<ILanguageModelToolsService>; configOverrides?: Record<string, unknown>; provider?: string; chatSessionsServiceOverride?: Partial<IChatSessionsService>; chatDebugServiceOverride?: Partial<IChatDebugService>; remoteAgentHostServiceOverride?: Partial<IRemoteAgentHostService>; customizationServiceOverride?: IAgentHostCustomizationService; agentHostTerminalServiceOverride?: Partial<IAgentHostTerminalService>; languageModelsServiceOverride?: Partial<ILanguageModelsService>; workspaceFolders?: readonly URI[]; hideAutoExplainability?: boolean; pendingTreatment?: Promise<void>; requiresWorkspaceTrust?: boolean }) {
 	const { instantiationService, agentHostService, chatAgentService, chatWidgetService, chatService, openerService, trustController, modelService, workingCopyService } = createTestServices(disposables, opts?.workingDirectoryResolver, opts?.authServiceOverride, opts?.languageModels, opts?.provisionalServiceOverride, false, opts?.languageModelToolsServiceOverride, opts?.configOverrides, opts?.chatSessionsServiceOverride, opts?.chatDebugServiceOverride, opts?.remoteAgentHostServiceOverride, opts?.customizationServiceOverride, opts?.agentHostTerminalServiceOverride, opts?.languageModelsServiceOverride, opts?.workspaceFolders);
 
 	if (opts?.hideAutoExplainability || opts?.pendingTreatment) {
@@ -1203,6 +1204,7 @@ function createContribution(disposables: DisposableStore, opts?: { authServiceOv
 	}
 	const sessionHandler = disposables.add(instantiationService.createInstance(TestSessionHandler, {
 		provider: opts?.provider ?? 'copilot',
+		backendSessionScheme: opts?.backendSessionScheme,
 		agentId: 'agent-host-copilot',
 		sessionType: 'agent-host-copilot',
 		fullName: 'Agent Host - Copilot',
@@ -1979,6 +1981,22 @@ suite('AgentHostChatContribution', () => {
 	});
 
 	suite('response resource links', () => {
+		for (const backendSessionScheme of ['copilotcli', 'ahp-session', 'custom-session']) {
+			test(`uses the advertised backend scheme ${backendSessionScheme} instead of allocation defaults`, async () => {
+				const { sessionHandler, agentHostService } = createContribution(disposables, {
+					provider: 'copilotcli',
+					backendSessionScheme: 'new-allocation-only',
+				});
+				const backendSession = URI.parse(`${backendSessionScheme}:/remote-session`);
+				agentHostService.seedSessionMetadata(backendSession, 'copilotcli');
+				const subscriptions = sinon.spy(agentHostService, 'getSubscription');
+				disposables.add(toDisposable(() => subscriptions.restore()));
+				await sessionHandler.provideChatSessionContent(URI.parse('agent-host-copilotcli:/remote-session'), CancellationToken.None);
+				assert.deepStrictEqual(subscriptions.getCalls().filter(call => call.args[0] === StateComponents.Session)
+					.map(call => call.args[1].toString()), [backendSession.toString()]);
+			});
+		}
+
 		for (const host of ['local', 'WSL']) {
 			for (const message of ['/sandbox policy', '/SB   policy   ', 'Hello']) {
 				test(`opens the ${host} sandbox policy only for its submitted slash command (${message})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

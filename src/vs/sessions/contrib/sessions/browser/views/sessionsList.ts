@@ -227,6 +227,7 @@ export class SessionChatItem {
 	constructor(
 		readonly session: ISession,
 		readonly chat: IChat,
+		readonly isLast?: boolean,
 	) { }
 }
 
@@ -657,7 +658,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly onDidFinishRename: () => void,
 		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
 		private readonly compact: () => boolean,
-		private readonly showArchivedChats: () => boolean,
+		private readonly onDidChangeUpdatedAt: () => void,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -723,8 +724,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
-		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
-		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		template.container.classList.toggle('last-chat', element.isLast);
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -754,13 +754,20 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
+		let previousUpdatedAtTimestamp = element.chat.updatedAt.get()?.getTime();
 		template.elementDisposables.add(autorun(reader => {
 			const sessionWorkspace = element.session.workspace.read(reader);
 			const chatWorkspace = element.chat.workspace.read(reader);
 			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
 			const status = element.chat.status.read(reader);
 			const statusMessage = getSessionStatusMessage(status, element.chat.description.read(reader));
-			const updatedAt = status === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
+			const sortUpdatedAt = element.chat.updatedAt.read(reader);
+			const updatedAt = status === SessionStatus.InProgress ? undefined : sortUpdatedAt;
+			const updatedAtTimestamp = sortUpdatedAt?.getTime();
+			if (previousUpdatedAtTimestamp !== updatedAtTimestamp) {
+				previousUpdatedAtTimestamp = updatedAtTimestamp;
+				this.onDidChangeUpdatedAt();
+			}
 			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
@@ -3481,6 +3488,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
 	/**
@@ -3737,7 +3745,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.preferencesService,
 			)),
 			() => this.isCompact(),
-			() => !this._excludeArchived,
+			() => {
+				if (this.options.sorting() === SessionsSorting.Updated) {
+					this.nestedSessionOrderUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+						if (this.visible) {
+							this.update();
+						}
+					});
+				}
+			},
 			this.activeGuideSessionIds,
 		);
 		this._chatRenderer = chatRenderer;
@@ -4460,7 +4476,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = getSessionListChats(session, undefined, !this._excludeArchived);
+				const chats = sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -4475,7 +4491,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							? ObjectTreeElementCollapseState.Collapsed
 							: ObjectTreeElementCollapseState.Expanded,
 					children: chats.length > 0
-						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
+						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1) }))
 						: undefined,
 				};
 			});
@@ -6019,6 +6035,16 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
 	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+function sortSessionListChats(chats: readonly IChat[], sorting: SessionsSorting): readonly IChat[] {
+	if (sorting === SessionsSorting.Created) {
+		return chats;
+	}
+	return [...chats].sort((a, b) =>
+		(b.updatedAt.get()?.getTime() ?? b.createdAt.getTime()) -
+		(a.updatedAt.get()?.getTime() ?? a.createdAt.getTime())
+	);
 }
 
 function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {

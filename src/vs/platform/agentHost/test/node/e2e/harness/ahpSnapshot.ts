@@ -205,6 +205,19 @@ export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IA
 	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
 }
 
+export async function waitForChatUnreadAfterTurn(client: Pick<IAhpSnapshotClient, 'waitForNotification'>, chat: string, afterServerSeq: number): Promise<void> {
+	await client.waitForNotification(notification => {
+		if (notification.method !== 'action') {
+			return false;
+		}
+		const envelope = notification.params as ActionEnvelope;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& envelope.action.type === ActionType.ChatIsReadChanged
+			&& !envelope.action.isRead;
+	}, 90_000);
+}
+
 /** Loads client actions from an AHP snapshot, dispatches them, and asserts the resulting traffic. */
 export class AhpSnapshotScenario {
 	private constructor(
@@ -934,8 +947,11 @@ function readStringArray(value: unknown, name: string): string[] {
 	return value;
 }
 
-async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
-	const finalEntry = entries.at(-1);
+export async function waitForFinalServerMessage(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
+	const lastEntry = entries.at(-1);
+	const finalEntry = lastEntry?.action?.type === ActionType.ChatIsReadChanged
+		? entries.findLast(entry => entry.channel === lastEntry.channel && entry.action?.type === ActionType.ChatTurnComplete) ?? lastEntry
+		: lastEntry;
 	if (!finalEntry) {
 		throw new Error('[ahp-snapshot] serverToClient must not be empty');
 	}
@@ -957,6 +973,7 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				return finalTurnId === undefined || action.turnId === finalTurnId;
 			}
 			return action.type === finalActionType
+				&& (action.type !== ActionType.ChatIsReadChanged || !action.isRead)
 				&& (finalTurnId === undefined || (action as { turnId?: string }).turnId === finalTurnId);
 		}
 		return candidate.method === finalEntry.method;
@@ -970,6 +987,10 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				throw replayError;
 			}
 			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.part.error.errorType}: ${action.part.error.message}`);
+		}
+		if (action.type === ActionType.ChatTurnComplete) {
+			const envelope = notification.params as ActionEnvelope;
+			await waitForChatUnreadAfterTurn(client, envelope.channel, envelope.serverSeq);
 		}
 	}
 }

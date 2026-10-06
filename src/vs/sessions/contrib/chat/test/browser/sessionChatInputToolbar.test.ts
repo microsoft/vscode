@@ -5,20 +5,25 @@
 
 import assert from 'assert';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -27,14 +32,17 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { GitHubResourceHoverCache } from '../../../../../workbench/contrib/github/browser/githubResourceHoverCache.js';
+import { ChatDropdownPillActionViewItem } from '../../../../../workbench/browser/chatDropdownPill.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../../canvases/common/sessionCanvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
@@ -68,6 +76,35 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		return { instantiationService, visibility };
 	}
+
+	test('keeps copied feedback stable across section refreshes', async () => {
+		const { instantiationService } = createServices();
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const cache = Reflect.get(toolbar, '_issueCopyActions') as {
+			get(key: string, label: string, copy: () => Promise<void>): IAction;
+			retain(keys: ReadonlySet<string>): void;
+		};
+		const copied: string[] = [];
+		const key = 'microsoft/vscode/42';
+		const first = cache.get(key, 'Copy issue URL', async () => { copied.push('first'); });
+
+		await first.run();
+		cache.retain(new Set([key]));
+		const refreshed = cache.get(key, 'Copy issue URL', async () => { copied.push('refreshed'); });
+		await refreshed.run();
+
+		assert.deepStrictEqual({
+			sameAction: first === refreshed,
+			label: refreshed.label,
+			class: refreshed.class,
+			copied,
+		}, {
+			sameAction: true,
+			label: 'Copied',
+			class: ThemeIcon.asClassName(Codicon.check),
+			copied: ['first', 'refreshed'],
+		});
+	});
 
 	test('uses the active chat projection rather than cached session stats', () => {
 		const chat = upcastPartial<IChat>({
@@ -758,6 +795,88 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('does not update the managed PR hover during metadata or reference identity refreshes', async () => {
+		const { instantiationService } = createServices();
+		const cache = store.add(new GitHubResourceHoverCache());
+		const ref: IGitHubPullRequestRef = {
+			owner: 'microsoft', repo: 'vscode', number: 1,
+			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-artifact',
+		};
+		const pullRequest: IGitHubPullRequest = {
+			number: 1, title: 'Original title', body: 'Description', state: GitHubPullRequestState.Open,
+			author: { login: 'octocat', avatarUrl: '' }, headRef: 'feature', headSha: 'head', baseRef: 'main',
+			isDraft: false, createdAt: '', updatedAt: '', mergedAt: undefined, mergeable: true, mergeableState: 'clean',
+		};
+		const copied: string[] = [];
+		const removed: string[] = [];
+		const build = (title: string) => buildSessionPullRequestSections(
+			[{ ref: { ...ref }, pullRequest: { ...pullRequest, title }, icon: Codicon.gitPullRequest, status: {} }],
+			undefined,
+			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
+			upcastPartial<IOpenerService>({ open: async () => true }),
+			upcastPartial<ISessionsService>({ setActive: () => { } }),
+			{ remove: async () => { removed.push(title); } },
+			cache,
+		);
+		const sections = observableValue('pullRequestSections', build('Original title'));
+		let tooltipUpdates = 0;
+		const viewItem = store.add(instantiationService.createInstance(class extends ChatDropdownPillActionViewItem {
+			protected override updateTooltip(): void {
+				tooltipUpdates++;
+				super.updateTooltip();
+			}
+		}, { id: 'pullRequests', label: 'Pull Requests', tooltip: '', class: undefined, enabled: true, run: () => { } }, {}, sections, {
+			widgetId: 'pullRequests', icon: Codicon.gitPullRequest, title: 'Pull Requests',
+			summaryLabel: count => `${count} Pull Requests`, summaryAriaLabel: count => `Show ${count} pull requests`,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+		tooltipUpdates = 0;
+		let managedUpdates = 0;
+		Reflect.set(viewItem, 'customHover', {
+			show: () => { }, hide: () => { }, dispose: () => { },
+			update: () => { managedUpdates++; },
+		});
+		const firstEntry = sections.get()[0].entries[0];
+		const firstHover = firstEntry.pillHover;
+		assert.ok(isManagedHoverTooltipHTMLElement(firstHover));
+		const element = await firstHover.element(CancellationToken.None);
+		container.appendChild(element);
+		const focusedControl = element.querySelector<HTMLElement>('.sessions-pr-hover-reference')!;
+		focusedControl.focus();
+		for (const title of ['Updated title', 'Latest title']) {
+			sections.set(build(title), undefined);
+		}
+		const updatedEntry = sections.get()[0].entries[0];
+		await firstEntry.toolbarActions?.[0].run();
+		await firstEntry.promotedAction?.run();
+		const snapshot = {
+			tooltipUpdates, managedUpdates,
+			sameDescriptor: firstHover === updatedEntry.pillHover,
+			sameCopyAction: firstEntry.toolbarActions?.[0] === updatedEntry.toolbarActions?.[0],
+			sameRemoveAction: firstEntry.promotedAction === updatedEntry.promotedAction,
+			focusPreserved: mainWindow.document.activeElement === focusedControl,
+			title: element.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+		};
+		element.remove();
+		const reopened = await firstHover.element(CancellationToken.None);
+		assert.deepStrictEqual({
+			snapshot,
+			reopenedTitle: reopened.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+			copied, removed,
+		}, {
+			snapshot: {
+				tooltipUpdates: 0, managedUpdates: 0, sameDescriptor: true,
+				sameCopyAction: true, sameRemoveAction: true, focusPreserved: true, title: 'Original title',
+			},
+			reopenedTitle: 'Latest title',
+			copied: [ref.uri.toString(true)], removed: ['Latest title'],
+		});
+	});
+
 	test('bounds and normalizes GitHub hover descriptions for assistive technology', () => {
 		const description = getGitHubHoverDescription(`<!-- template -->\n## Summary\n\n${'Useful context with [documentation](https://example.com). '.repeat(8)}`, 'No description provided.');
 		const unicodeDescription = getGitHubHoverDescription(`${'a'.repeat(198)}😀xy`, 'No description provided.');
@@ -994,6 +1113,112 @@ suite('SessionChatInputToolbar', () => {
 			opened: [subagents[0], ...subagents].map(subagent => [
 				session, subagent.resource, { referenceChatResource: chat.resource },
 			]),
+		});
+	});
+
+	test('shows a canvas title or count and reveals the selected canvas', async () => {
+		const { instantiationService } = createServices();
+		const configurationService = instantiationService.get(IConfigurationService);
+		assert.ok(configurationService instanceof TestConfigurationService);
+		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+		const commandCalls: { readonly id: string; readonly reference: unknown }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id, reference) => {
+				if (id === REVEAL_SESSION_CANVAS_COMMAND_ID) {
+					commandCalls.push({ id, reference });
+				}
+				return undefined;
+			},
+		}));
+		let entries: { label: string | undefined; select(): void }[] = [];
+		let hideDropdown: (() => void) | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_id, _preview, items, delegate) => {
+				entries = items.map(item => ({
+					label: item.label,
+					select: () => {
+						if (item.item) {
+							delegate.onSelect(item.item);
+						}
+					},
+				}));
+				hideDropdown = () => delegate.onHide?.();
+			},
+			hide: () => hideDropdown?.(),
+		});
+		const preview: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/preview'),
+			instanceId: 'preview',
+			title: 'Preview',
+			source: URI.parse('https://example.test/preview'),
+		};
+		const dashboard: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/dashboard'),
+			instanceId: 'dashboard',
+			title: 'Dashboard',
+			source: URI.parse('https://example.test/dashboard'),
+		};
+		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', [preview]);
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('agent-host-chat:/session/main'),
+			canvases,
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			providerId: 'local-agent-host',
+			sessionId: 'local-agent-host:session',
+			resource: URI.parse('agent-host-session:/session'),
+			capabilities: constObservable({ supportsCanvases: true, supportsMultipleChats: false }),
+			chats: constObservable([chat]),
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		document.body.appendChild(toolbar.element);
+		store.add(toDisposable(() => toolbar.element.remove()));
+		toolbar.setSession(session, chat);
+		const presentation = () => {
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+			return {
+				label: pill?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: pill?.getAttribute('aria-label'),
+			};
+		};
+		const single = presentation();
+		toolbar.getChatPetPlatformElements()[0]?.click();
+		canvases.set([preview, dashboard], undefined);
+		const multiple = presentation();
+		toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
+		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
+		assert.ok(dashboardEntry);
+		dashboardEntry.select();
+
+		assert.deepStrictEqual({ single, multiple, commandCalls }, {
+			single: { label: 'Preview', ariaLabel: 'Open canvas Preview' },
+			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases' },
+			commandCalls: [
+				{
+					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					reference: {
+						providerId: session.providerId,
+						session: session.resource,
+						chat: chat.resource,
+						canvas: preview.resource,
+					},
+				},
+				{
+					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					reference: {
+						providerId: session.providerId,
+						session: session.resource,
+						chat: chat.resource,
+						canvas: dashboard.resource,
+					},
+				},
+			],
 		});
 	});
 
@@ -1534,6 +1759,64 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
+		test(`renders the explicitly selected PR above the main input with automatic association disabled on ${providerId}`, () => {
+			const { instantiationService } = createServices();
+			instantiationService.stub(ISessionsProvidersService, 'getProvider', () => upcastPartial<IAgentHostSessionsProvider>({
+				id: providerId,
+				onDidChangeRootConfig: Event.None,
+				getRootConfig: () => ({
+					schema: { type: 'object', properties: {} },
+					values: { [AgentHostAutoAttachPullRequestsConfigKey]: false },
+				}),
+				getAgentMergeClientStateObservable: () => constObservable(undefined),
+			}));
+			instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+				createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+			}));
+			const selected = {
+				owner: 'owner', repo: 'repo', number: 105, uri: URI.parse('https://github.com/owner/repo/pull/105'),
+				createdByThisSession: true, recordedReferenceId: 'selected-pr',
+			};
+			const root = URI.file('/repo.worktrees/pr-105-session');
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root, workingDirectory: root, name: 'repo', description: undefined,
+					gitRepository: {
+						uri: root, workTreeUri: root, baseBranchName: 'main', gitHubInfo: constObservable({
+							owner: selected.owner, repo: selected.repo,
+							pullRequests: [selected, { owner: selected.owner, repo: selected.repo, number: 106, uri: URI.parse('https://github.com/owner/repo/pull/106'), createdByThisSession: true }],
+						})
+					},
+				}],
+			}));
+			const chat = (id: string) => upcastPartial<IChat>({
+				resource: URI.parse(`custom-chat://host/${id}`), workspace, title: constObservable(id), status: constObservable(SessionStatus.Completed),
+				changesets: constObservable([]), changes: constObservable([]),
+			});
+			const main = chat('main');
+			const peer = chat('peer');
+			const session = upcastPartial<IActiveSession>({
+				providerId, sessionId: 'pr-session', resource: URI.parse('custom-session://host/pr-session'), workspace,
+				artifacts: constObservable([{
+					id: 'selected-pr', chat: main.resource, kind: SessionArtifactKind.PullRequest, label: '', isArtifact: true, isGitHub: true, link: selected.uri,
+				}]), mainChat: constObservable(main), chats: constObservable([main, peer]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const pill = () => toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
+			toolbar.setSession(session, main);
+			const mainPill = pill();
+			toolbar.setSession(session, peer);
+			const peerPill = pill();
+			toolbar.setSession(session, main);
+
+			assert.deepStrictEqual({ mainPill, peerPill, restoredMainPill: pill() }, {
+				mainPill: 'Open Pull Request #105',
+				peerPill: null,
+				restoredMainPill: 'Open Pull Request #105',
+			});
+		});
+
 		test(`PR pills follow chat ownership and react to automatic association on ${providerId}`, () => {
 			const { instantiationService } = createServices();
 			const onDidChangeRootConfig = store.add(new Emitter<void>());
