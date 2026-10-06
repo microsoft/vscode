@@ -3991,4 +3991,23 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
 	});
 
+	test('action item icon and submenu indicator have aria-hidden="true"', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [
+				{
+					...action('branch-item'),
+					group: { title: 'Branches', icon: Codicon.gitBranch },
+					submenuActions: [toAction({ id: 'action', label: 'Action', run: () => { } })],
+				},
+			],
+			listOptions: { showFilter: false },
+		});
+
+		const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .icon');
+		const submenuIndicator = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .action-list-submenu-indicator');
+
+		assert.strictEqual(icon?.getAttribute('aria-hidden'), 'true');
+		assert.strictEqual(submenuIndicator?.getAttribute('aria-hidden'), 'true');
+	});
+
 });
