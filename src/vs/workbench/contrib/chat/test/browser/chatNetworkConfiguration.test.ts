@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { stub } from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
@@ -12,6 +13,24 @@ import { chatNetworkDomainConfigurationMigrations, chatNetworkDomainConfiguratio
 
 suite('Chat network configuration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('presents valid managed allowed hosts and ignores invalid values', () => {
+		const presentation = chatNetworkDomainConfigurationProperties[AgentNetworkDomainSettingId.AllowedNetworkDomains].managedSettingsPresentation!;
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const values = [undefined, '["example.com"]', '[]', '', '[', 'null', '{}', '[123]', true, 123]
+				.map(value => presentation(() => value));
+			assert.deepStrictEqual({
+				values,
+				warnings: consoleWarn.callCount,
+			}, {
+				values: [undefined, ['example.com'], [], undefined, undefined, undefined, undefined, undefined, undefined, undefined],
+				warnings: 7,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
 
 	test('orders sandbox domain settings after user-configured paths and preserves policy names', () => {
 		const properties = {
