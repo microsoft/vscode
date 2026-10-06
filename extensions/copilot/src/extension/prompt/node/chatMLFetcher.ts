@@ -2357,7 +2357,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 function isQuotaExceededErrorCode(code: string): boolean {
 	const codePrefix = code.split(':')[0];
-	return codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached';
+	return codePrefix === 'quota_exceeded' ||
+		codePrefix === 'free_quota_exceeded' ||
+		codePrefix === 'overage_limit_reached' ||
+		codePrefix === 'billing_not_configured' ||
+		codePrefix === 'additional_spend_limit_reached';
 }
 
 /**

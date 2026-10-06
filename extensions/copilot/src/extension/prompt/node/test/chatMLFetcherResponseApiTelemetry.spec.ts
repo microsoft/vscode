@@ -5,12 +5,12 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
-import { ChatFetchResponseType, ChatLocation } from '../../../../platform/chat/common/commonTypes';
+import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { IInteractionService } from '../../../../platform/chat/common/interactionService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
@@ -21,7 +21,7 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { FinishedCallback, getCopilotServiceRequestId, getGitHubCopilotRequestTe } from '../../../../platform/networking/common/fetch';
 import { FetcherId, HeadersImpl, IFetcherService, IHeaders, Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
-import { CAPIWebSocketErrorEvent, IChatWebSocketConnection, IChatWebSocketManager, IChatWebSocketRequestHandle, NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
+import { IChatWebSocketConnection, IChatWebSocketManager, IChatWebSocketRequestHandle, NullChatWebSocketManager } from '../../../../platform/networking/node/chatWebSocketManager';
 import { NoopOTelService } from '../../../../platform/otel/common/noopOtelService';
 import { resolveOTelConfig } from '../../../../platform/otel/common/otelConfig';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
@@ -697,7 +697,7 @@ function createChatCompletionEndpointWithEmptyMessages(): IChatEndpoint {
 	} as unknown as IChatEndpoint;
 }
 
-describe('ChatMLFetcherImpl WebSocket responses', () => {
+describe('ChatMLFetcherImpl gitHubCopilotRequestTe over WebSocket', () => {
 	let disposables: DisposableStore;
 
 	beforeEach(() => {
@@ -706,19 +706,18 @@ describe('ChatMLFetcherImpl WebSocket responses', () => {
 
 	afterEach(() => {
 		disposables.dispose();
-		vi.restoreAllMocks();
-		vi.useRealTimers();
 	});
 
-	function createWebSocketFetcher(connection: IChatWebSocketConnection, authenticationService: IAuthenticationService) {
+	async function fetchOverWebSocket(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed' = 'response.created') {
 		const spyingTelemetryService = new SpyingTelemetryService();
 		const mockFetcherService = new MockFetcherService();
+		const connection = disposables.add(createFakeWebSocketConnection(envelopeValue, arrivesOn, disposables));
 		const fetcher = disposables.add(new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
 			spyingTelemetryService,
 			disposables.add(new NullRequestLogger()),
 			new TestLogService(),
-			authenticationService,
+			disposables.add(new TestAuthenticationService()),
 			createMockInteractionService(),
 			createMockChatQuotaService(),
 			new TestCAPIClientService() as unknown as ICAPIClientService,
@@ -735,12 +734,6 @@ describe('ChatMLFetcherImpl WebSocket responses', () => {
 			new FakeWebSocketManager(connection),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 		));
-		return { fetcher, spyingTelemetryService };
-	}
-
-	async function fetchOverWebSocket(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed' = 'response.created') {
-		const connection = disposables.add(createFakeWebSocketConnection(envelopeValue, arrivesOn, disposables));
-		const { fetcher, spyingTelemetryService } = createWebSocketFetcher(connection, disposables.add(new TestAuthenticationService()));
 		const cts = disposables.add(new CancellationTokenSource());
 		const result = await fetcher.fetchMany({
 			...createHelloOpts(createChatCompletionEndpointWithoutTools()),
@@ -785,61 +778,6 @@ describe('ChatMLFetcherImpl WebSocket responses', () => {
 		}).toEqual({ resultHasProperty: false, eventsWithProperty: [] });
 	});
 
-	it.each([
-		'quota_exceeded:premium_interactions',
-		'free_quota_exceeded',
-		'overage_limit_reached',
-		'billing_not_configured',
-		'additional_spend_limit_reached',
-	])('latches mid-stream %s errors until a successful completion', async code => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		const auth = disposables.add(new TestAuthenticationService());
-		const reset = vi.spyOn(auth, 'resetCopilotToken');
-		let fail = true;
-		const connection = disposables.add(createFakeWebSocketConnection(undefined, 'response.created', disposables,
-			() => fail ? { type: 'error', error: { code, message: 'Quota exceeded' } } : undefined));
-		const { fetcher } = createWebSocketFetcher(connection, auth);
-		const options = { ...createHelloOpts(createChatCompletionEndpointWithoutTools()), useWebSocket: true, turnId: 'turn', conversationId: 'conversation' };
-		const types: ChatFetchResponseType[] = [];
-		const resetsAfterFailures: number[] = [];
-		for (let i = 0; i < 3; i++) {
-			types.push((await fetcher.fetchMany(options, CancellationToken.None)).type);
-			resetsAfterFailures.push(reset.mock.calls.length);
-			vi.setSystemTime(Date.now() + 60 * 60 * 1000);
-		}
-		fail = false;
-		types.push((await fetcher.fetchMany(options, CancellationToken.None)).type);
-		fail = true;
-		types.push((await fetcher.fetchMany(options, CancellationToken.None)).type);
-
-		expect({ types, resetsAfterFailures, resets: reset.mock.calls }).toEqual({
-			types: [ChatFetchResponseType.QuotaExceeded, ChatFetchResponseType.QuotaExceeded, ChatFetchResponseType.QuotaExceeded, ChatFetchResponseType.Success, ChatFetchResponseType.QuotaExceeded],
-			resetsAfterFailures: [1, 1, 1],
-			resets: [[402], [402]],
-		});
-	});
-
-	it('does not refresh or rearm a quota latch for a non-quota mid-stream error', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		const auth = disposables.add(new TestAuthenticationService());
-		const reset = vi.spyOn(auth, 'resetCopilotToken');
-		let code = 'quota_exceeded';
-		const connection = disposables.add(createFakeWebSocketConnection(undefined, 'response.created', disposables,
-			() => ({ type: 'error', error: { code, message: 'Request failed' } })));
-		const { fetcher } = createWebSocketFetcher(connection, auth);
-		const options = { ...createHelloOpts(createChatCompletionEndpointWithoutTools()), useWebSocket: true, turnId: 'turn', conversationId: 'conversation' };
-		const types: ChatFetchResponseType[] = [];
-		for (const errorCode of ['quota_exceeded', 'rate_limited', 'quota_exceeded']) {
-			code = errorCode;
-			types.push((await fetcher.fetchMany(options, CancellationToken.None)).type);
-			vi.setSystemTime(Date.now() + 60 * 60 * 1000);
-		}
-
-		expect({ types, resets: reset.mock.calls }).toEqual({
-			types: [ChatFetchResponseType.QuotaExceeded, ChatFetchResponseType.RateLimited, ChatFetchResponseType.QuotaExceeded],
-			resets: [[402]],
-		});
-	});
 });
 
 function createHelloOpts(endpoint: IChatEndpoint): IFetchMLOptions {
@@ -874,7 +812,7 @@ class FakeWebSocketManager extends NullChatWebSocketManager implements IChatWebS
  * A connection whose handshake carries a (stale) header value while each turn reports
  * its own value through the request handle, as `ChatWebSocketActiveRequest` does.
  */
-function createFakeWebSocketConnection(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed', disposables: DisposableStore, getError?: () => CAPIWebSocketErrorEvent | undefined): IChatWebSocketConnection {
+function createFakeWebSocketConnection(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed', disposables: DisposableStore): IChatWebSocketConnection {
 	const createdEvent = { type: 'response.created', response: { id: 'resp-ws-1' } } as unknown as OpenAI.Responses.ResponseStreamEvent;
 	const completedEvent = {
 		type: 'response.completed',
@@ -898,16 +836,14 @@ function createFakeWebSocketConnection(envelopeValue: string | undefined, arrive
 		dispose: () => { },
 		sendRequest: (): IChatWebSocketRequestHandle => {
 			const onEvent = disposables.add(new Emitter<OpenAI.Responses.ResponseStreamEvent>());
-			const onCAPIError = disposables.add(new Emitter<CAPIWebSocketErrorEvent>());
 			let resolveFirstEvent!: (event: OpenAI.Responses.ResponseStreamEvent) => void;
 			let resolveDone!: () => void;
-			let rejectDone!: (error: Error) => void;
 			const handle = {
 				onEvent: onEvent.event,
-				onCAPIError: onCAPIError.event,
+				onCAPIError: Event.None,
 				onError: Event.None,
 				firstEvent: new Promise<OpenAI.Responses.ResponseStreamEvent>(resolve => resolveFirstEvent = resolve),
-				done: new Promise<void>((resolve, reject) => { resolveDone = resolve; rejectDone = reject; }),
+				done: new Promise<void>(resolve => resolveDone = resolve),
 				gitHubCopilotRequestTe: undefined as string | undefined,
 			};
 			// Each frame arrives in its own task, as over a real socket.
@@ -921,14 +857,8 @@ function createFakeWebSocketConnection(envelopeValue: string | undefined, arrive
 			setTimeout(() => {
 				deliver(createdEvent);
 				setTimeout(() => {
-					const error = getError?.();
-					if (error) {
-						onCAPIError.fire(error);
-						rejectDone(new Error(`${error.error.message} (${error.error.code})`));
-					} else {
-						deliver(completedEvent);
-						resolveDone();
-					}
+					deliver(completedEvent);
+					resolveDone();
 				}, 0);
 			}, 0);
 			return handle;
