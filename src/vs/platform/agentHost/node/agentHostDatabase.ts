@@ -13,7 +13,7 @@ import { URI } from '../../../base/common/uri.js';
 import { stableStringify } from '../../../base/common/objects.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, AgentHostCatalogChat, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
 import { IAgentHostChatV2MetadataData, decodeChatV2Metadata, encodeChatV2Metadata, hashChatV2Metadata, validateChatV2Origin, validateChatV2String, validateChatV2WorkingDirectories } from './agentHostChatCatalogV2.js';
 
@@ -1844,11 +1844,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const chat = this._toChatV2(row);
 			const actual = publicChats[index];
 			const origin = actual.origin === undefined ? undefined : typeof actual.origin === 'string' ? actual.origin : stableStringify(actual.origin);
+			const expectedOrigin = chat.origin === undefined ? undefined : stableStringify(projectAgentHostCatalogChatOrigin(JSON.parse(chat.origin)));
 			return actual.uri === chat.chat && actual.order === chat.order
 				&& actual.kind === (chat.chat === defaultChat ? 'default' : 'peer')
 				&& actual.summary === chat.metadata?.summary && actual.titleSource === chat.metadata?.titleSource
 				&& (actual.interactivity ?? ChatInteractivity.Full) === (chat.metadata?.interactivity ?? ChatInteractivity.Full)
-				&& origin === chat.origin && stableStringify(actual.workingDirectories) === stableStringify(chat.workingDirectories)
+				&& origin === expectedOrigin && stableStringify(actual.workingDirectories) === stableStringify(chat.workingDirectories)
 				&& actual.isRead === chat.isRead && (actual.archived ?? false) === chat.archived
 				&& actual.inheritedTurnId === chat.inheritedTurnId && stableStringify(actual.changes) === stableStringify(chat.metadata?.changes);
 		});
@@ -2198,7 +2199,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					return false;
 				}
 				try {
-					return stableStringify(JSON.parse(value)) === stableStringify(actual.origin);
+					return stableStringify(projectAgentHostCatalogChatOrigin(JSON.parse(value))) === stableStringify(actual.origin);
 				} catch {
 					return false;
 				}
@@ -2222,10 +2223,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			if (legacyChat && chat.providerData !== undefined && chat.providerData !== legacyChat.provider_data) {
 				throw new Error(`Normalization conflicts with central provider detail for ${chat.chat}`);
 			}
+			if (legacyChat?.origin && chat.origin !== undefined
+				&& stableStringify(JSON.parse(chat.origin)) !== stableStringify(JSON.parse(legacyChat.origin as string))) {
+				throw new Error(`Normalization conflicts with central origin detail for ${chat.chat}`);
+			}
 			return {
 				...chat,
 				order: actual.interactivity === ChatInteractivity.Hidden ? undefined : visible.findIndex(entry => entry.uri === chat.chat),
-				origin,
+				origin: chat.origin !== undefined ? stableStringify(JSON.parse(chat.origin))
+					: legacyChat?.origin ? stableStringify(JSON.parse(legacyChat.origin as string)) : origin,
 				metadata,
 				isRead: actual.isRead,
 				archived: actual.archived ?? false,

@@ -14,8 +14,8 @@ import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
-import { ChatInteractivity } from '../../common/state/protocol/channels-chat/state.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from '../../node/agentHostCatalogProjection.js';
+import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
 
 function openDatabase(path: string): Promise<Database> {
@@ -2223,7 +2223,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			const chats: AgentHostCatalogData['chats'] = snapshot.chats.filter(chat => chat.order !== undefined)
 				.sort((a, b) => a.order! - b.order!).map(chat => ({
 					uri: chat.chat, kind: chat.chat === snapshot.header?.defaultChatUri ? 'default' : 'peer', order: chat.order!,
-					...chat.metadata, origin: chat.origin, workingDirectories: chat.workingDirectories,
+					...chat.metadata, origin: chat.origin === undefined ? undefined : projectAgentHostCatalogChatOrigin(JSON.parse(chat.origin)), workingDirectories: chat.workingDirectories,
 					isRead: chat.isRead, archived: chat.archived, inheritedTurnId: chat.inheritedTurnId,
 				}));
 			return {
@@ -2253,6 +2253,77 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, {
 				applied: 'applied', replay: 'replayed', payload: request.envelope.payload, revision: 11,
 				unchanged: true, legacyImport: 'conflict',
+			});
+		});
+
+		for (const knownLegacyDetail of [false, true]) {
+			test(`normalization retains explicit origin detail while verifying bounded provenance (known legacy detail: ${knownLegacyDetail})`, async () => {
+				database = new AgentHostDatabase(':memory:');
+				await seed();
+				const decoded = decodeAgentHostCatalogPayload(envelope().payload);
+				assert.ok(decoded.ok);
+				const origin = {
+					kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'source-turn',
+					selection: { text: 'selected '.repeat(600) },
+				};
+				const source = createEnvelope(session, 'catalog-generation', 11, {
+					payload: stableStringify({
+						payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+						data: {
+							...decoded.value.data,
+							chats: decoded.value.data.chats.map(chat => chat.uri === peer
+								? { ...chat, origin: projectAgentHostCatalogChatOrigin(origin) } : chat),
+						},
+					}),
+				});
+				await database.upsertSessionV2(source, 'catalog-generation');
+				if (knownLegacyDetail) {
+					await database.replaceSessionChatCatalog(session, [{
+						chat: peer, order: 0, origin: JSON.stringify(origin), isRead: false,
+						archived: true, inheritedTurnId: 't'.repeat(4096),
+					}], undefined);
+				}
+				const expected = { ...expectation(knownLegacyDetail ? 1 : 0), sourceRevision: 11, payloadHash: source.payloadHash };
+				const original = candidate();
+				const prepare = (detail: typeof origin) => ({
+					...original, peers: [{ ...original.peers[0], origin: JSON.stringify(detail) }],
+				});
+				await assert.rejects(database.ensureChatCatalogV2(session, expected, prepare({ ...origin, turnId: 'different-turn' })), /Normalization conflicts with verified per-chat source/);
+				if (knownLegacyDetail) {
+					await assert.rejects(database.ensureChatCatalogV2(session, expected, prepare({ ...origin, selection: { text: 'conflicting detail' } })), /Normalization conflicts with central origin detail/);
+				}
+				const activated = await database.ensureChatCatalogV2(session, expected, prepare(origin));
+				const [snapshot] = await database.readCatalogSnapshot([session]);
+				assert.deepStrictEqual({
+					activated, origin: JSON.parse(snapshot.chats.find(chat => chat.chat === peer)!.origin!),
+				}, {
+					activated: { status: 'applied', catalogRevision: knownLegacyDetail ? 2 : 1 }, origin,
+				});
+			});
+		}
+
+		test('aggregate origin comparison uses bounded public provenance and preserves the full selection', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const origin = JSON.stringify({
+				kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'source-turn',
+				selection: { text: 'selected '.repeat(600) },
+			});
+			await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, { origin });
+			const before = await database.readCatalogSnapshot([session]);
+			const request = await aggregateEnvelope(11, { summary: 'Updated aggregate' });
+			const applied = await database.upsertSessionV2FromChatCatalog(request.envelope, 'catalog-generation', request.catalogRevision);
+			const decoded = decodeAgentHostCatalogPayload(request.envelope.payload);
+			assert.ok(decoded.ok);
+			assert.deepStrictEqual({
+				applied,
+				publicOrigin: decoded.value.data.chats.find(chat => chat.uri === peer)?.origin,
+				unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+			}, {
+				applied: 'applied',
+				publicOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'source-turn' },
+				unchanged: true,
 			});
 		});
 

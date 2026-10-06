@@ -65,6 +65,7 @@ import type { IAgentHostCustomizationEnablementService } from '../../node/agentH
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
@@ -286,6 +287,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 			[IAgentHostPeerChatPersistenceService, {
+				...createLegacyChatMetadataPersistence(sessionDataService),
 				_serviceBrand: undefined,
 				setRead: async () => { },
 				setArchived: async () => { },

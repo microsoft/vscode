@@ -124,7 +124,8 @@ export class AgentHostCatalogListReader {
 		if (decoded.value.data.isChatBacking) {
 			return { eligible: false, chatBacking: true };
 		}
-		if (snapshot?.authorityVersion === 2 && (snapshot.header?.sessionGeneration !== catalog.sessionGeneration || snapshot.identity.provider !== registered.provider)) {
+		if (snapshot?.authorityVersion === 2 && ((snapshot.header?.sessionGeneration !== undefined && snapshot.header.sessionGeneration !== catalog.sessionGeneration)
+			|| snapshot.identity.provider !== registered.provider)) {
 			throw new Error(`Normalized chat catalog identity does not match session ${session}`);
 		}
 		const revivedData = reviveAgentHostCatalogData(snapshot?.authorityVersion === 2 ? {

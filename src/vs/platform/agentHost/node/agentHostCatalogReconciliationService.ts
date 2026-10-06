@@ -472,7 +472,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			}
 			// A source that cannot resolve produces no payload, so it must not claim local storage first.
 			if (!this._isSourceAvailable(registered)) {
-				return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+				const [snapshot] = await this._catalogDatabase.readCatalogSnapshot([sessionKey]);
+				if (snapshot?.authorityVersion !== 2) {
+					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+				}
 			}
 			const observedDirty = receipt?.payloadDirty ?? await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey);
 

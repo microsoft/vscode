@@ -1599,6 +1599,29 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('restores the explicit default role instead of inferring it from a chat URI', () => {
+			const oldDefault = buildDefaultChatUri(sessionUri);
+			manager.restoreSession({
+				...makeSessionSummary(),
+				defaultChat: peerChat,
+				chats: [
+					{ resource: peerChat, title: 'Default', changes: { files: 0 } },
+					{ resource: oldDefault, title: 'Peer' },
+				],
+			}, [], { defaultChatTitle: 'Default' });
+			assert.deepStrictEqual({
+				defaultChat: manager.getSessionState(sessionUri)?.defaultChat,
+				chats: manager.getSessionState(sessionUri)?.chats.map(chat => ({ resource: chat.resource, title: chat.title })),
+				state: manager.getSessionState(sessionUri)?.turns,
+				changes: manager.getChatState(peerChat)?.changes,
+			}, {
+				defaultChat: peerChat,
+				chats: [{ resource: peerChat, title: 'Default' }, { resource: oldDefault, title: 'Peer' }],
+				state: [],
+				changes: { files: 0 },
+			});
+		});
+
 		test('catalog-only SessionChatAdded does not create chat state', () => {
 			manager.createSession(makeSessionSummary());
 			manager.dispatchServerAction(sessionUri, {
@@ -1737,6 +1760,25 @@ suite('AgentHostStateManager', () => {
 			}, {
 				canonicalDefaultTitle: 'Test',
 				routingDefaultTitle: '',
+			});
+		});
+
+		test('a recreated catalog default stays stable when the routing default changes', () => {
+			const defaultChat = `${buildDefaultChatUri(sessionUri)}?generation=recreated`;
+			manager.createSession({ ...makeSessionSummary(), defaultChat });
+			manager.addChat(sessionUri, peerChat, { title: 'Peer' });
+			manager.updateChatTitle(sessionUri, defaultChat, '');
+			manager.updateChatTitle(sessionUri, peerChat, '');
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peerChat });
+			manager.addChat(sessionUri, buildChatUri(sessionUri, 'peer-2'), { title: 'Peer 2' });
+
+			assert.deepStrictEqual({
+				catalogDefault: manager.getDefaultChatUri(sessionUri),
+				routingDefault: manager.getSessionState(sessionUri)?.defaultChat,
+				defaultTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === defaultChat)?.title,
+				peerTitle: manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.title,
+			}, {
+				catalogDefault: defaultChat, routingDefault: peerChat, defaultTitle: 'Test', peerTitle: '',
 			});
 		});
 

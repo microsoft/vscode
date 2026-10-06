@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -65,7 +66,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
@@ -91,7 +92,7 @@ import { ArtifactServerToolName, SessionServerToolName } from '../../common/serv
 import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
-import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
+import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 
 /**
@@ -1605,18 +1606,21 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			await catalogDatabase.markSessionV2PayloadClean(session.toString(), source.payloadDirty);
 			const legacy = await catalogDatabase.getSessionChatCatalog(session.toString());
-			const activation = await catalogDatabase.ensureChatCatalogV2(session.toString(), {
-				sessionGeneration: source.sessionGeneration,
-				sourceRevision: source.sourceRevision,
-				payloadHash: source.payloadHash,
-				catalogRevision: legacy?.revision ?? 0,
-			}, {
-				defaultChat: { chat: data.chats[0].uri, order: 0 },
-				peers: [],
-				privateDescendants: [],
-			});
-			if (activation.status !== 'applied') {
-				throw new Error(`Expected catalog activation, got ${activation.status}`);
+			const [beforeActivation] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
+			if (beforeActivation.authorityVersion !== 2) {
+				const activation = await catalogDatabase.ensureChatCatalogV2(session.toString(), {
+					sessionGeneration: source.sessionGeneration,
+					sourceRevision: source.sourceRevision,
+					payloadHash: source.payloadHash,
+					catalogRevision: legacy?.revision ?? 0,
+				}, {
+					defaultChat: { chat: data.chats[0].uri, order: 0 },
+					peers: [],
+					privateDescendants: [],
+				});
+				if (activation.status !== 'applied') {
+					throw new Error(`Expected catalog activation, got ${activation.status}`);
+				}
 			}
 			const [snapshot] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
 			const chat = snapshot.chats[0];
@@ -1651,10 +1655,62 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				warnings: [],
 				sessionTitle: 'Updated session',
-				projectedChatTitle: 'Central chat',
+				projectedChatTitle: 'Updated session',
 				projectedChanges: { files: 0 },
-				chatMetadata: { ...chat.metadata, summary: 'Central chat', titleSource: 'user', changes: { files: 0 } },
+				chatMetadata: { ...chat.metadata, summary: 'Updated session', titleSource: 'user', changes: { files: 0 } },
 				authority: 2,
+			});
+		});
+
+		test('the first chat title write activates a clean catalog with its mutation atomically', async () => {
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const local = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(local), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
+			const agent = disposables.add(new MockAgent());
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'mock' });
+			await svc.whenCatalogReconciliationIdle();
+			const source = await catalogDatabase.getSessionV2(session.toString());
+			if (!source) {
+				throw new Error('Missing source before first-write activation');
+			}
+			await catalogDatabase.upsertSessionV2({ ...source, verified: true }, source.sessionGeneration);
+			const verified = await catalogDatabase.getSessionV2(session.toString());
+			if (!verified) {
+				throw new Error('Missing verified source before first-write activation');
+			}
+			await catalogDatabase.markSessionV2PayloadClean(session.toString(), verified.payloadDirty);
+			const writing = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(local), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const activate = spy(catalogDatabase, 'ensureChatCatalogV2');
+			disposables.add(toDisposable(() => activate.restore()));
+			const chat = buildDefaultChatUri(session);
+			await getTestChatPersistenceService(writing).persistMetadata(session, URI.parse(chat), {
+				[SESSION_CUSTOM_TITLE_KEY]: 'First normalized title',
+				[SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+			});
+			await writing.whenCatalogReconciliationIdle();
+			const [snapshot] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
+			if (snapshot.authorityVersion !== 2) {
+				throw new Error('Expected normalized authority after the first metadata write');
+			}
+			const mutation = activate.args.find(args => args[3] !== undefined)?.[3];
+			assert.deepStrictEqual({
+				authority: snapshot.authorityVersion,
+				title: snapshot.chats[0].metadata?.summary,
+				source: snapshot.chats[0].metadata?.titleSource,
+				firstMutation: mutation?.kind === 'replacePeers' ? 'replacePeers' : mutation?.chat,
+			}, {
+				authority: 2,
+				title: 'First normalized title',
+				source: 'user',
+				firstMutation: chat,
 			});
 		});
 
@@ -4482,7 +4538,11 @@ suite('AgentService (node dispatcher)', () => {
 		test('restores the default chat working directories after session expansion', async () => {
 			const database = new TestSessionDatabase();
 			const sessionDataService = createSessionDataService(database);
-			const creating = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const creating = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
 			const creatingAgent = disposables.add(new DynamicWorkingDirectoryAgent('dynamic'));
 			registerTestAgentProvider(creating, creatingAgent);
 			const primary = URI.file('/workspace/primary');
@@ -4501,7 +4561,10 @@ suite('AgentService (node dispatcher)', () => {
 			}, 'test-client', 1, AgentHostClientType.EditorWindow);
 			await envelopePromise;
 
-			const reopened = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const reopened = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
 			const reopenedAgent = disposables.add(new DynamicWorkingDirectoryAgent('dynamic'));
 			reopenedAgent.sessionMetadataOverrides = { workingDirectories: [primary, secondary] };
 			(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -4509,7 +4572,7 @@ suite('AgentService (node dispatcher)', () => {
 			await reopened.restoreSession(session);
 
 			assert.deepStrictEqual({
-				persisted: await database.getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+				persisted: JSON.stringify((await getTestChatPersistenceService(reopened).readNormalizedChat(session, URI.parse(defaultChat))).chat?.workingDirectories),
 				session: getStateManager(reopened).getSessionSummary(session.toString())?.workingDirectories,
 				defaultChat: getStateManager(reopened).getChatState(defaultChat)?.workingDirectories,
 			}, {
@@ -4820,7 +4883,7 @@ suite('AgentService (node dispatcher)', () => {
 			await completeTitleGenerationTurn(svc, agent, session, 'Please help me fix the TypeScript compile errors');
 
 			await waitForCondition(() => getStateManager(svc).getSessionState(session.toString())?.title === 'Fix TypeScript compile errors', 'generated title should be applied');
-			await waitForCondition(async () => await db.getMetadata('customTitle') !== undefined, 'generated title should be persisted');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Fix TypeScript compile errors', 'generated title should be persisted');
 
 			assert.deepStrictEqual({
 				titles: titleActions,
@@ -4897,6 +4960,7 @@ suite('AgentService (node dispatcher)', () => {
 				message: { text: 'Add dark mode', origin: { kind: MessageKind.User } },
 			}, 'test-client', 1);
 			await waitForCondition(() => agent.sendMessageCalls.length === 1, 'foreground send should proceed');
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Add dark mode', 'fallback title should persist independently');
 			assert.deepStrictEqual({
 				utilityCalls: copilotApiService.utilityCalls.length,
 				title: await db.getMetadata('customTitle'),
@@ -4990,7 +5054,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			await completeTitleGenerationTurn(svc, agent, session, 'Explain workspace search indexing');
 			await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'title generation should be attempted');
-			await Promise.resolve();
+			await waitForCondition(async () => await db.getMetadata('customTitle') === 'Explain workspace search indexing', 'fallback title should be persisted');
 
 			assert.deepStrictEqual({
 				title: getStateManager(svc).getSessionState(session.toString())?.title,
@@ -6272,7 +6336,7 @@ suite('AgentService (node dispatcher)', () => {
 				const session = await svc.createSession({ provider: agent.id, workingDirectories: [original] });
 				const state = getStateManager(svc);
 				state.dispatchServerAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove' } });
-				const peer = URI.parse(buildChatUri(session, 'peer'));
+				let peer = URI.parse(buildChatUri(session, 'peer'));
 				await svc.createChat(session, peer);
 				await svc.addSessionWorkingDirectoryForChat(session, destination, { isolation: 'folder' });
 				const requesterTurn = 'request-turn';
@@ -6289,6 +6353,7 @@ suite('AgentService (node dispatcher)', () => {
 				if (outcome === 'recreated') {
 					await svc.disposeChat(session, peer);
 					await perSession.database(peer).deleteMetadata(['agentHost.chatIsolationQuarantined']);
+					peer = URI.parse(buildChatUri(session, 'replacement'));
 					await svc.createChat(session, peer);
 					state.dispatchServerAction(peer.toString(), { type: ActionType.ChatActivityChanged, activity: 'Replacement activity' });
 				} else if (outcome === 'interrupted') {
@@ -6316,7 +6381,7 @@ suite('AgentService (node dispatcher)', () => {
 						message: { text: 'Next user task', origin: { kind: MessageKind.User } },
 					}, 'client', 2);
 				}
-				const persistedBeforeCompletion = await perSession.database(peer).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY);
+				const persistedBeforeCompletion = JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, peer)).chat?.workingDirectories);
 				release.complete();
 				const completeActiveTurn = () => agent.fireProgress({
 					kind: 'action', resource: peer, action: { type: ActionType.ChatTurnComplete, turnId: state.getActiveTurnId(peer.toString())!, duration: 1 },
@@ -6333,7 +6398,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual({
 					directory: state.getChatState(peer.toString())?.workingDirectories ?? [state.getSessionSummary(session.toString())!.workingDirectories![0]],
 					providerDirectory: providerDirectories.get(peer.toString()),
-					persistedDirectory: await perSession.database(peer).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+					persistedDirectory: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, peer)).chat?.workingDirectories),
 					activity: outcome === 'recreated' ? state.getChatState(peer.toString())?.activity : undefined,
 					queued: state.getChatState(peer.toString())?.queuedMessages?.map(message => message.id) ?? [],
 					sends: agent.sendMessageCalls.map((call, index) => index === 0 ? 'request'
@@ -6461,6 +6526,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const database = new GatedDatabase();
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new MultiChatAgent('copilot', {
 				multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true },
 			}));
@@ -6484,6 +6550,65 @@ suite('AgentService (node dispatcher)', () => {
 				workspace: getStateManager(svc).getChatState(peer.toString())?.workingDirectories,
 				persisted: await database.getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
 			}, { disposedWhilePersisting: [], disposed: [peer.toString()], workspace: undefined, persisted: '' });
+		});
+
+		test('normalized workspace finalization serializes disposal across central metadata persistence', async () => {
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const original = URI.file('/workspace/original');
+			const destination = URI.file('/workspace/destination');
+			let gate = false;
+			const disposed: string[] = [];
+			class GatedCatalogDatabase extends AgentHostDatabase {
+				override async updateChatV2Metadata(...args: Parameters<AgentHostDatabase['updateChatV2Metadata']>) {
+					if (gate && JSON.stringify(args[2].workingDirectories) === JSON.stringify([destination.toString()])) {
+						gate = false;
+						started.complete();
+						await release.p;
+					}
+					return super.updateChatV2Metadata(...args);
+				}
+			}
+			class MultiChatAgent extends MockAgent {
+				override async createChat(_session: URI, chat: URI): Promise<IAgentCreateChatResult> {
+					return { providerData: `backing:${chat.path}` };
+				}
+				override async disposeChat(_session: URI, chat: URI): Promise<void> {
+					disposed.push(chat.toString());
+				}
+			}
+			const catalogDatabase = disposables.add(new GatedCatalogDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const agent = disposables.add(new MultiChatAgent('copilot', {
+				multipleChats: { fork: true }, multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [original] });
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			await svc.createChat(session, peer);
+			await svc.addSessionWorkingDirectoryForChat(session, destination, { isolation: 'folder' });
+			gate = true;
+			const changing = svc.setChatWorkingDirectory(session, peer, destination);
+			await started.p;
+			const deleting = svc.disposeChat(session, peer);
+			await Promise.resolve();
+			const disposedWhilePersisting = [...disposed];
+			release.complete();
+			await Promise.all([changing, deleting]);
+			const replacement = URI.parse(buildChatUri(session, 'replacement'));
+			await svc.createChat(session, replacement);
+			const [snapshot] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				disposedWhilePersisting, disposed,
+				oldChatPresent: snapshot.chats.some(chat => chat.chat === peer.toString()),
+				replacementDirectories: snapshot.chats.find(chat => chat.chat === replacement.toString())?.workingDirectories,
+			}, {
+				disposedWhilePersisting: [], disposed: [peer.toString()],
+				oldChatPresent: false, replacementDirectories: undefined,
+			});
 		});
 
 		test('single-chat workspace replacement waits for an in-flight chat creation and refuses to move its workspace', async () => {
@@ -6533,7 +6658,7 @@ suite('AgentService (node dispatcher)', () => {
 				aggregate: state.getSessionSummary(session.toString())?.workingDirectories,
 				chat: state.getChatState(main.toString())?.workingDirectories,
 				catalog: state.getSessionState(session.toString())?.chats.map(chat => chat.workingDirectories),
-				persisted: await perSession.database(main).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+				persisted: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, main)).chat?.workingDirectories),
 				persistedAggregate: await perSession.database(session).getMetadata(SESSION_WORKING_DIRECTORIES_KEY),
 			}, {
 				aggregate: [worktree.toString()], chat: [worktree.toString()],
@@ -6576,8 +6701,8 @@ suite('AgentService (node dispatcher)', () => {
 					target: state.getChatState(target.toString())?.workingDirectories,
 					other: state.getChatState(other.toString())?.workingDirectories,
 					summaries: state.getSessionState(session.toString())?.chats.map(chat => [chat.resource, chat.workingDirectories]),
-					persistedTarget: await perSession.database(target).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
-					persistedOther: await perSession.database(other).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+					persistedTarget: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, target)).chat?.workingDirectories),
+					persistedOther: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, other)).chat?.workingDirectories),
 					persistedAggregate: await perSession.database(session).getMetadata(SESSION_WORKING_DIRECTORIES_KEY),
 					baseBranches: await Promise.all([session, peer].map(resource => perSession.database(resource).getMetadata(META_DIFF_BASE_BRANCH))),
 					unchangedBaseBranch,
@@ -6669,9 +6794,13 @@ suite('AgentService (node dispatcher)', () => {
 				addedPeer: getStateManager(svc).getChatState(addedPeer.toString())?.workingDirectories,
 				workingDirectoryKeys: Object.fromEntries(readWorkingDirectoryKeys(getStateManager(svc).getSessionState(session.toString())?._meta)),
 				workingDirectoryScopeIds: Object.fromEntries(readWorkingDirectoryScopeIds(getStateManager(svc).getSessionState(session.toString())?._meta)),
-				persistedDefaultChat: await perSession.database(defaultChat).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
-				persistedExistingPeer: await perSession.database(existingPeer).getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
-				persistedPeers: JSON.parse(await perSession.database(session).getMetadata(PEER_CHATS_METADATA_KEY) ?? '[]') as IPersistedPeerChat[],
+				persistedDefaultChat: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, defaultChat)).chat?.workingDirectories),
+				persistedExistingPeer: JSON.stringify((await getTestChatPersistenceService(svc).readNormalizedChat(session, existingPeer)).chat?.workingDirectories),
+				persistedPeers: await Promise.all([existingPeer, addedPeer].map(async chat => ({
+					uri: chat.toString(),
+					providerData: (await getTestAgentHostDatabase(svc).getChatV2ProviderDetail(chat.toString()))?.providerData,
+					workingDirectories: (await getTestChatPersistenceService(svc).readNormalizedChat(session, chat)).chat?.workingDirectories,
+				}))),
 			}, {
 				effectiveDirectory: added.toString(),
 				session: [primary.toString(), added.toString()],
@@ -6749,7 +6878,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				peerProvider: agent.createOptions.get(peerFork.toString())?.workingDirectories?.map(directory => directory.toString()),
 				peerState: getStateManager(svc).getChatState(peerFork.toString())?.workingDirectories,
-				peerPersisted: (JSON.parse(await perSession.database(session).getMetadata(PEER_CHATS_METADATA_KEY) ?? '[]') as IPersistedPeerChat[]).find(entry => entry.uri === peerFork.toString())?.workingDirectories,
+				peerPersisted: (await getTestChatPersistenceService(svc).readNormalizedChat(session, peerFork)).chat?.workingDirectories,
 				defaultProvider: agent.createOptions.get(defaultFork.toString())?.workingDirectories?.map(directory => directory.toString()),
 				defaultState: getStateManager(svc).getChatState(defaultFork.toString())?.workingDirectories,
 			}, {
@@ -13642,7 +13771,6 @@ suite('AgentService (node dispatcher)', () => {
 				agent.catalog = [];
 				registerTestAgentProvider(svc, agent);
 
-				await svc.listSessions();
 				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent);
 
 				assert.deepStrictEqual({
@@ -14453,7 +14581,7 @@ suite('AgentService (node dispatcher)', () => {
 					super.dispose();
 				}
 			}
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const providerA = disposables.add(new CountingAgent('copilot'));
 			const providerB = disposables.add(new FailingThenRecoveringAgent('other'));
@@ -14473,9 +14601,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			providerB.stopFailing();
 			providerB.fireDiscoveredChats([discoveredChat(legacyB)]);
-			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length < 2; i++) {
-				await timeout(0);
-			}
+			await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent): Promise<boolean> })._awaitInitialProviderMigrationForProvider(providerB);
 			const registered = new Set((await svc.listSessions()).map(s => s.session.toString()));
 			assert.deepStrictEqual(registered, new Set([legacyA.toString(), legacyB.toString()]));
 
@@ -15023,12 +15149,19 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('an explicit create at a previously-deleted session URI clears its tombstone and allows reuse', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
 			const reusedUri = AgentSession.uri('copilot', 'reused-after-delete');
 
 			const session = await svc.createSession({ provider: 'copilot', session: reusedUri });
+			await svc.whenCatalogReconciliationIdle();
+			const [original] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
+			const originalDefault = original.chats.find(chat => chat.chat === original.header?.defaultChatUri)!;
 			await svc.disposeSession(session);
 			assert.deepStrictEqual(await svc.getRegisteredSessions(), []);
 
@@ -15041,6 +15174,27 @@ suite('AgentService (node dispatcher)', () => {
 			// A subsequent forced backfill sweep for the same session must also
 			// keep it registered now that the tombstone has been cleared.
 			assert.deepStrictEqual((await svc.listSessions()).map(s => s.session.toString()), [reusedUri.toString()]);
+			await svc.whenCatalogReconciliationIdle();
+			const [current] = await catalogDatabase.readCatalogSnapshot([recreated.toString()]);
+			const freshDefault = current.header!.defaultChatUri!;
+			getStateManager(svc).removeSession(recreated.toString());
+			await svc.restoreSession(recreated);
+			const send = Event.toPromise(agent.onDidSendMessage);
+			svc.dispatchAction(freshDefault, {
+				type: ActionType.ChatTurnStarted, turnId: 'fresh-turn', startedAt: new Date().toISOString(),
+				message: { text: 'Continue the recreated session', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			const sent = await send;
+			assert.deepStrictEqual({
+				freshIdentity: freshDefault !== originalDefault.chat,
+				oldIdentity: await catalogDatabase.updateChatV2Metadata(originalDefault.chat, originalDefault, { isRead: true }),
+				restoredDefault: getStateManager(svc).getSessionState(recreated.toString())?.defaultChat,
+				providerChat: sent.chat?.toString(),
+				providerSession: sent.session.toString(),
+			}, {
+				freshIdentity: true, oldIdentity: { status: 'conflict' }, restoredDefault: freshDefault,
+				providerChat: freshDefault, providerSession: recreated.toString(),
+			});
 		});
 
 		test('a forced discovery sweep cannot re-register a session concurrently, explicitly deleted mid-sweep', async () => {
@@ -15373,13 +15527,17 @@ suite('AgentService (node dispatcher)', () => {
 					return this.metadataAvailable ? super.getChatMetadata(chat, context) : undefined;
 				}
 			}
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
 			const agent = disposables.add(new MissingMetadataAgent('copilot'));
 			registerTestAgentProvider(svc, agent);
 
 			const session = await svc.createSession({ provider: 'copilot' });
 			await svc.whenCatalogReconciliationIdle();
-			getStateManager(svc).deleteSession(session.toString());
+			getStateManager(svc).removeSession(session.toString());
 			agent.metadataAvailable = false;
 
 			// The durable catalog row is authoritative, so the session survives a
@@ -17986,9 +18144,10 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: agent.id });
 			await svc.listSessions();
+			await svc.whenCatalogReconciliationIdle();
 			agent.ambientReads = 0;
 			agent.restoreReads = 0;
-			getStateManager(svc).deleteSession(session.toString());
+			getStateManager(svc).removeSession(session.toString());
 
 			await svc.listSessions();
 			const readsAfterAmbientListing = { ambient: agent.ambientReads, restore: agent.restoreReads };
@@ -19089,6 +19248,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 
 			await localService.restoreSession(session);
+			assert.ok(getStateManager(localService).getSessionState(sessionString), 'adopted session remains restored');
 			localService.dispatchAction(sessionString, { type: ActionType.SessionTitleChanged, title: 'Renamed' }, 'test-client', 1, AgentHostClientType.EditorWindow);
 			getStateManager(localService).dispatchServerAction(sessionString, { type: ActionType.SessionIsReadChanged, isRead: true });
 			getStateManager(localService).dispatchServerAction(sessionString, { type: ActionType.SessionIsArchivedChanged, isArchived: true });
@@ -19263,7 +19423,6 @@ suite('AgentService (node dispatcher)', () => {
 			]) {
 				const db = new TestSessionDatabase();
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-				registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
 				const session = AgentSession.uri('copilot', `passive-read-${id}`);
 				const sessionStr = session.toString();
 				const summary = {
@@ -19288,6 +19447,9 @@ suite('AgentService (node dispatcher)', () => {
 					await timeout(0);
 				}
 				listener.dispose();
+				for (let attempt = 0; id === 'single' && attempt < 20 && await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY) !== 'true'; attempt++) {
+					await timeout(0);
+				}
 
 				const changed = notifications.find(notification => notification.type === 'root/sessionSummaryChanged');
 				assert.deepStrictEqual({
@@ -20227,6 +20389,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('legacy subagent reconstruction restores a persisted custom title', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			registerTestAgentProvider(localService, copilotAgent);
 			const parent = await localService.createSession({ provider: 'copilot' });
 			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
@@ -20583,7 +20746,8 @@ suite('AgentService (node dispatcher)', () => {
 
 			await creating.createChat(session, peerChat, { workingDirectories: [secondary] });
 
-			const reopened = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const reopened = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, getTestAgentHostDatabase(creating)));
 			const reopenedAgent = disposables.add(new MultiWorkspaceChatAgent('copilot'));
 			reopenedAgent.sessionMetadataOverrides = { workingDirectories: [primary, secondary] };
 			(reopenedAgent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(session), session);
@@ -20594,7 +20758,7 @@ suite('AgentService (node dispatcher)', () => {
 				provider: creatingAgent.createdWorkingDirectories?.map(directory => directory.toString()),
 				liveSummary: getStateManager(creating).getSessionState(session.toString())?.chats.find(chat => chat.resource === peerChat.toString())?.workingDirectories,
 				liveChat: getStateManager(creating).getChatState(peerChat.toString())?.workingDirectories,
-				persisted: await database.getMetadata(CHAT_WORKING_DIRECTORIES_METADATA_KEY),
+				persisted: JSON.stringify((await getTestChatPersistenceService(creating).readNormalizedChat(session, peerChat)).chat?.workingDirectories),
 				restoredSummary: getStateManager(reopened).getSessionState(session.toString())?.chats.find(chat => chat.resource === peerChat.toString())?.workingDirectories,
 			}, {
 				provider: [secondary.toString()],
@@ -21400,9 +21564,9 @@ suite('AgentService (node dispatcher)', () => {
 				centralOrigin: central?.chats.find(chat => chat.uri === chatUri.toString())?.origin,
 			}, {
 				liveSelectionMatches: true,
-				legacySelectionMatches: true,
+				legacySelectionMatches: false,
 				peerCatalogSelectionMatches: true,
-				chatMetadataSelectionMatches: true,
+				chatMetadataSelectionMatches: false,
 				centralOrigin: { kind: ChatOriginKind.SideChat, chat: defaultChatUri, turnId: 't1' },
 			});
 		});
@@ -21590,24 +21754,13 @@ suite('AgentService (node dispatcher)', () => {
 			const selection = { text: '  selected text  ', responsePartId: 'response-part-1' };
 			await localService.createChat(session, chatUri, { sideChat: { source: session, turnId: 't1', selection } });
 
-			let persistedEntry: { origin?: unknown; inheritedTurnId?: string } | undefined;
-			for (let i = 0; i < 50; i++) {
-				const raw = await db.getMetadata('peerChats');
-				if (raw !== undefined) {
-					const parsed = JSON.parse(raw) as { uri: string; origin?: unknown }[];
-					persistedEntry = parsed.find(entry => entry.uri === chatUri.toString());
-					if (persistedEntry?.origin) {
-						break;
-					}
-				}
-				await timeout(1);
-			}
+			const persistedEntry = (await getTestChatPersistenceService(localService).readNormalizedChat(session, chatUri)).chat;
 
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
 			assert.deepStrictEqual({
-				persistedOrigin: persistedEntry?.origin,
+				persistedOrigin: persistedEntry?.origin ? JSON.parse(persistedEntry.origin) : undefined,
 				persistedInheritedTurnId: persistedEntry?.inheritedTurnId,
 				restoredOrigin: getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === chatUri.toString())?.origin,
 				restoredInheritedTurnId: getStateManager(localService).getChatInheritedTurnId(chatUri.toString()),
@@ -21630,7 +21783,7 @@ suite('AgentService (node dispatcher)', () => {
 			const source = URI.parse(buildChatUri(session, 'peer-source'));
 			const target = URI.parse(buildChatUri(session, 'peer-side'));
 			agent.chatMessages.set(source.toString(), [completedTurn('source-turn')]);
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: source.toString(), providerData: 'source-blob' }]));
+			await localService.createChat(session, source);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -21861,6 +22014,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('host-restore-slice: restoring a legacy default chat recovers before canonical materialization and persists additively', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 
@@ -21933,6 +22087,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('host-restore-slice: a second restore reads the recovered providerData directly and never re-recovers or re-persists it', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 
@@ -21963,6 +22118,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('host-restore-slice: a canonical default-chat providerData blob is never rewritten by a recovered materializeChat result', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new RecoveringDefaultChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 
@@ -22512,6 +22668,24 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('peer chat catalog persistence', () => {
 
+		class LegacyChatCatalogDatabase extends AgentHostDatabase {
+			override async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> {
+				return { status: 'notReady' };
+			}
+
+			override async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {
+				return { status: 'notReady' };
+			}
+		}
+
+		async function seedNormalizedPeers(service: AgentService, session: URI, peers: readonly IAgentHostDatabaseSessionChat[]): Promise<void> {
+			const database = getTestAgentHostDatabase(service);
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.strictEqual(snapshot?.authorityVersion, 2);
+			const result = await database.replaceSessionChatCatalog(session.toString(), peers, snapshot.header?.revision);
+			assert.strictEqual(result.status, 'applied');
+		}
+
 		for (const malformed of ['backup', 'origin']) {
 			test(`listing isolates malformed recovery ${malformed} and still recovers another parent`, async () => {
 				const perSession = createPerSessionDataService();
@@ -22523,7 +22697,7 @@ suite('AgentService (node dispatcher)', () => {
 					listSessionDataIds: async () => perSession.databaseIds().map(key => dataId(URI.parse(key))),
 					deleteSessionData: async () => { throw new Error('Recovery must not delete any backing data'); },
 				};
-				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const database = disposables.add(new LegacyChatCatalogDatabase(':memory:'));
 				const errors: string[] = [];
 				class RecordingLogService extends NullLogService {
 					override error(_error: string | Error, message?: string): void {
@@ -22602,7 +22776,7 @@ suite('AgentService (node dispatcher)', () => {
 					listSessionDataIds: async () => perSession.databaseIds().map(key => dataId(URI.parse(key))),
 					deleteSessionData: async () => { throw new Error('Recovery must not delete any backing data'); },
 				};
-				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const database = disposables.add(new LegacyChatCatalogDatabase(':memory:'));
 				const localService = disposables.add(createTestAgentService(
 					new NullLogService(), fileService, sessionData,
 					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -22760,8 +22934,18 @@ suite('AgentService (node dispatcher)', () => {
 			};
 		}
 
-		/** Polls the persisted peer-chat catalog blob until it appears or times out. */
-		async function readCatalog(db: TestSessionDatabase): Promise<{ uri: string; providerData?: string }[]> {
+		async function readCatalog(db: TestSessionDatabase, service: AgentService, session: URI): Promise<{ uri: string; providerData?: string }[]> {
+			await service.whenCatalogReconciliationIdle();
+			const database = getTestAgentHostDatabase(service);
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			if (snapshot?.authorityVersion === 2) {
+				const peers = snapshot.chats.filter(chat => chat.order !== undefined && chat.chat !== snapshot.header?.defaultChatUri);
+				peers.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+				return Promise.all(peers.map(async chat => ({
+					uri: chat.chat,
+					providerData: (await database.getChatV2ProviderDetail(chat.chat))?.providerData,
+				})));
+			}
 			for (let i = 0; i < 50; i++) {
 				const raw = await db.getMetadata('peerChats');
 				if (raw !== undefined) {
@@ -22823,7 +23007,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				afterCreate: catalogDataOf(afterCreate)?.chats.map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind, title: chat.summary })),
 				afterDelete: catalogDataOf(afterDelete)?.chats.map(chat => ({ uri: chat.uri, order: chat.order, kind: chat.kind })),
-				legacy: await readCatalog(db),
+				legacy: JSON.parse(await db.getMetadata('peerChats') ?? '[]'),
 				stateTitleAfterCreate,
 				legacyTitleAfterCreate,
 				draft: await db.getChatDraft(peer),
@@ -22838,9 +23022,9 @@ suite('AgentService (node dispatcher)', () => {
 				],
 				legacy: [],
 				stateTitleAfterCreate: 'Central Peer',
-				legacyTitleAfterCreate: 'Central Peer',
+				legacyTitleAfterCreate: undefined,
 				draft: undefined,
-				changesSummary: '',
+				changesSummary: JSON.stringify({ additions: 1, deletions: 0, files: 1 }),
 			});
 		});
 
@@ -23021,12 +23205,12 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: peer.toString(), title: 'Lazy Central Peer' },
 				],
 				beforeAccess: {
-					peerCatalogReads: 2,
+					peerCatalogReads: 0,
 					legacyEnumerations: 0,
 					peerMaterializations: 0,
 				},
 				afterAccess: {
-					peerCatalogReads: 2,
+					peerCatalogReads: 0,
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},
@@ -23110,7 +23294,7 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('lossy cached peer recovery preserves provider backing data from legacy enumeration', async () => {
-			class LossyFallbackDatabase extends AgentHostDatabase {
+			class LossyFallbackDatabase extends LegacyChatCatalogDatabase {
 				hiddenCatalogReads = 0;
 
 				override async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
@@ -23174,8 +23358,8 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				legacyEnumerations: agent.legacyEnumerations,
 				materializedProviderData: agent.materializedProviderData,
-				persistedProviderData: (await readCatalog(db)).find(entry => entry.uri === peer.toString())?.providerData,
-				persistedPeers: (await readCatalog(db)).map(entry => entry.uri),
+				persistedProviderData: (await readCatalog(db, localService, session)).find(entry => entry.uri === peer.toString())?.providerData,
+				persistedPeers: (await readCatalog(db, localService, session)).map(entry => entry.uri),
 			}, {
 				legacyEnumerations: 1,
 				materializedProviderData: ['provider-backing'],
@@ -23203,7 +23387,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 			const db = new TestSessionDatabase();
-			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const catalogDatabase = disposables.add(new LegacyChatCatalogDatabase(':memory:'));
 			const localService = disposables.add(createTestAgentService(
 				new NullLogService(),
 				fileService,
@@ -23253,7 +23437,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('failed peer creation removes chat-local title data before parent deletion', async () => {
+		test('failed peer creation retires normalized metadata before parent deletion', async () => {
 			class FailingCatalogSourceDatabase extends TestSessionDatabase {
 				failMetadataReads = false;
 
@@ -23322,16 +23506,19 @@ suite('AgentService (node dispatcher)', () => {
 			sessionDatabase.failMetadataReads = false;
 			const orphan = await sessionDataService.tryOpenDatabase(peer);
 			orphan?.dispose();
+			const normalizedPeerAfterFailure = (await getTestChatPersistenceService(localService).readNormalizedChat(session, peer)).chat;
 			await localService.disposeSession(session);
 
 			assert.deepStrictEqual({
 				titleWasPersisted: await deletedChatDatabase?.getMetadata(SESSION_CUSTOM_TITLE_KEY),
 				orphanExists: orphan !== undefined,
+				normalizedPeerAfterFailure,
 				disposedPeers: agent.disposedPeers,
 				deleted,
 			}, {
-				titleWasPersisted: 'Temporary Title',
+				titleWasPersisted: undefined,
 				orphanExists: false,
+				normalizedPeerAfterFailure: undefined,
 				disposedPeers: [peer.toString(), buildDefaultChatUri(session)],
 				deleted: [peer.toString(), buildDefaultChatUri(session), session.toString()],
 			});
@@ -23395,6 +23582,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new BackedPeerChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -23500,10 +23688,10 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDb = perSession.database(session);
 			const backingDb = perSession.database(replacement);
 			await waitForMetadata(backingDb, 'peerChatBacking', peerUri.toString());
-			let catalog = await readCatalog(sessionDb);
+			let catalog = await readCatalog(sessionDb, localService, session);
 			for (let i = 0; i < 50 && catalog.find(entry => entry.uri === peerUri.toString())?.providerData !== 'replacement-data'; i++) {
 				await timeout(0);
-				catalog = await readCatalog(sessionDb);
+				catalog = await readCatalog(sessionDb, localService, session);
 			}
 
 			assert.deepStrictEqual({
@@ -23531,7 +23719,8 @@ suite('AgentService (node dispatcher)', () => {
 			await waitForMetadata(db, 'customTitle', 'Default A');
 
 			await localService.createChat(session, peerChat);
-			await waitForMetadata(db, `customChatTitle:${defaultChat}`, 'Default A');
+			await localService.whenCatalogReconciliationIdle();
+			assert.strictEqual((await getTestChatPersistenceService(localService).readNormalizedChat(session, URI.parse(defaultChat))).chat?.metadata?.summary, 'Default A');
 			localService.dispatchAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Session B' }, 'test-client', 2);
 			await waitForMetadata(db, 'customTitle', 'Session B');
 
@@ -23560,7 +23749,7 @@ suite('AgentService (node dispatcher)', () => {
 			getStateManager(localService).dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
 			localService.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
 			localService.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
-			await waitForMetadata(db, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, '');
+			await localService.whenCatalogReconciliationIdle();
 
 			getStateManager(localService).deleteSession(sessionUri);
 			await localService.restoreSession(session);
@@ -23568,17 +23757,18 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				sessionIsRead: !!(getStateManager(localService).getSessionState(sessionUri)!.status & SessionStatus.IsRead),
 				defaultChatIsRead: !!(getStateManager(localService).getChatState(defaultChat)!.status & SessionStatus.IsRead),
-				persistedDefaultChatIsRead: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+				persistedDefaultChatIsRead: (await getTestChatPersistenceService(localService).readNormalizedChat(session, URI.parse(defaultChat))).chat?.isRead,
 			}, {
 				sessionIsRead: false,
 				defaultChatIsRead: false,
-				persistedDefaultChatIsRead: '',
+				persistedDefaultChatIsRead: false,
 			});
 		});
 
 		test('restores a legacy read session with its default chat read', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new MockAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -23601,8 +23791,6 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('a session rename retitles the sole default chat in the live session and across restore', async () => {
-			// Separate databases per channel, matching production: the chat-local title
-			// writes must be observable independently of the session's own metadata.
 			const perSession = createPerSessionDataService();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('copilot'));
@@ -23615,14 +23803,13 @@ suite('AgentService (node dispatcher)', () => {
 
 			// The agent titles the sole default chat, which mirrors onto the session.
 			localService.dispatchAction(defaultChat, { type: ActionType.SessionTitleChanged, title: 'Agent title' }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await waitForMetadata(chatDb, 'customTitle', 'Agent title');
-			await waitForMetadata(sessionDb, `customChatTitle:${defaultChat}`, 'Agent title');
 			await waitForMetadata(sessionDb, 'customTitle', 'Agent title');
+			await localService.whenCatalogReconciliationIdle();
 
 			// Renaming the session from the sessions list must carry the header with it.
 			localService.dispatchAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'User title' }, 'test-client', 2, AgentHostClientType.EditorWindow);
 			await waitForMetadata(sessionDb, 'customTitle', 'User title');
-			await waitForMetadata(chatDb, 'customTitle', 'User title');
+			await localService.whenCatalogReconciliationIdle();
 			const live = getStateManager(localService).getSessionState(sessionUri);
 			const liveTitles = {
 				sessionTitle: live?.title,
@@ -23634,6 +23821,7 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(session);
 
 			const restored = getStateManager(localService).getSessionState(sessionUri);
+			const normalized = (await getTestChatPersistenceService(localService).readNormalizedChat(session, URI.parse(defaultChat))).chat;
 			assert.deepStrictEqual({
 				liveTitles,
 				restoredSessionTitle: restored?.title,
@@ -23643,6 +23831,8 @@ suite('AgentService (node dispatcher)', () => {
 				persistedSessionTitle: await sessionDb.getMetadata('customTitle'),
 				persistedSessionScopedChatTitle: await sessionDb.getMetadata(`customChatTitle:${defaultChat}`),
 				persistedSessionScopedChatTitleSource: await sessionDb.getMetadata(`customChatTitleSource:${defaultChat}`),
+				normalizedTitle: normalized?.metadata?.summary,
+				normalizedTitleSource: normalized?.metadata?.titleSource,
 			}, {
 				liveTitles: {
 					sessionTitle: 'User title',
@@ -23651,11 +23841,13 @@ suite('AgentService (node dispatcher)', () => {
 				},
 				restoredSessionTitle: 'User title',
 				restoredDefaultChatTitle: 'User title',
-				persistedChatLocalTitle: 'User title',
-				persistedChatLocalTitleSource: 'user',
+				persistedChatLocalTitle: undefined,
+				persistedChatLocalTitleSource: undefined,
 				persistedSessionTitle: 'User title',
-				persistedSessionScopedChatTitle: 'User title',
-				persistedSessionScopedChatTitleSource: 'user',
+				persistedSessionScopedChatTitle: undefined,
+				persistedSessionScopedChatTitleSource: undefined,
+				normalizedTitle: 'User title',
+				normalizedTitleSource: 'user',
 			});
 		});
 
@@ -23686,6 +23878,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new MultiChatAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -23811,7 +24004,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-without-metadata'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString() }]));
+			await seedNormalizedPeers(localService, session, [{ chat: peerUri.toString(), order: 0 }]);
 
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
@@ -23853,7 +24046,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			await seedNormalizedPeers(localService, session, [{ chat: peerUri.toString(), order: 0, providerData: 'blob-1' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -23912,7 +24105,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			await seedNormalizedPeers(localService, session, [{ chat: peerUri.toString(), order: 0, providerData: 'blob-1' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -24351,7 +24544,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await localService.createSession({ provider: 'copilot' });
 			const source = URI.parse(buildChatUri(session, 'peer-source'));
 			const target = URI.parse(buildChatUri(session, 'peer-fork'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: source.toString(), providerData: 'source-blob' }]));
+			await seedNormalizedPeers(localService, session, [{ chat: source.toString(), order: 0, providerData: 'source-blob' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -24402,10 +24595,10 @@ suite('AgentService (node dispatcher)', () => {
 			const secondPeer = URI.parse(buildChatUri(session, 'peer-2'));
 			gates.set(firstPeer.toString(), new DeferredPromise<void>());
 			gates.set(secondPeer.toString(), new DeferredPromise<void>());
-			await db.setMetadata('peerChats', JSON.stringify([
-				{ uri: firstPeer.toString(), providerData: 'blob-1' },
-				{ uri: secondPeer.toString(), providerData: 'blob-2' },
-			]));
+			await seedNormalizedPeers(localService, session, [
+				{ chat: firstPeer.toString(), order: 0, providerData: 'blob-1' },
+				{ chat: secondPeer.toString(), order: 1, providerData: 'blob-2' },
+			]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -24442,7 +24635,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			await seedNormalizedPeers(localService, session, [{ chat: peerUri.toString(), order: 0, providerData: 'blob-1' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -24483,7 +24676,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			await seedNormalizedPeers(localService, session, [{ chat: peerUri.toString(), order: 0, providerData: 'blob-1' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -24624,7 +24817,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = AgentSession.uri('copilot', 'reused-session');
 			await localService.createSession({ provider: 'copilot', session });
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
-			await db.setMetadata('peerChats', JSON.stringify([{ uri: peerUri.toString(), providerData: 'blob-1' }]));
+			await seedNormalizedPeers(localService, session, [{ chat: peerUri.toString(), order: 0, providerData: 'blob-1' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -24639,14 +24832,17 @@ suite('AgentService (node dispatcher)', () => {
 			const stateAfterStaleResolution = getStateManager(localService).getChatState(peerUri.toString());
 
 			await localService.createSession({ provider: 'copilot', session });
+			const replacementPeer = URI.parse(buildChatUri(session, 'peer-2'));
+			await seedNormalizedPeers(localService, session, [{ chat: replacementPeer.toString(), order: 0, providerData: 'blob-2' }]);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
-			await localService.subscribe(peerUri, 'second-reader');
+			await assert.rejects(localService.subscribe(peerUri, 'retired-peer-reader'), /unknown resource/);
+			await localService.subscribe(replacementPeer, 'second-reader');
 
 			assert.deepStrictEqual({
 				materializeCalls,
 				stateAfterStaleResolution,
-				recreatedPeerState: !!getStateManager(localService).getChatState(peerUri.toString()),
+				recreatedPeerState: !!getStateManager(localService).getChatState(replacementPeer.toString()),
 			}, {
 				materializeCalls: 3,
 				stateAfterStaleResolution: undefined,
@@ -24677,7 +24873,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await localService.createChat(session, peerUri);
-			const afterCreate = await readCatalog(db);
+			const afterCreate = await readCatalog(db, localService, session);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 			await localService.subscribe(peerUri, 'peer-reader');
@@ -24686,7 +24882,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Wait for the re-persist write to flush.
 			let updated = afterCreate;
 			for (let i = 0; i < 50; i++) {
-				updated = await readCatalog(db);
+				updated = await readCatalog(db, localService, session);
 				if (updated.find(e => e.uri === peerUri.toString())?.providerData === 'v2') {
 					break;
 				}
@@ -24733,14 +24929,14 @@ suite('AgentService (node dispatcher)', () => {
 			onDidChangeChatData.fire({ chat: toolChatUri, providerData: 'tool-backing' });
 			onDidChangeChatData.fire({ chat: peerUri, providerData: 'peer-backing-v2' });
 			for (let i = 0; i < 50; i++) {
-				const persisted = await readCatalog(db);
+				const persisted = await readCatalog(db, localService, session);
 				if (persisted.find(entry => entry.uri === peerUri.toString())?.providerData === 'peer-backing-v2') {
 					break;
 				}
 				await timeout(0);
 			}
 
-			assert.deepStrictEqual((await readCatalog(db)).map(entry => entry.uri), [peerUri.toString()]);
+			assert.deepStrictEqual((await readCatalog(db, localService, session)).map(entry => entry.uri), [peerUri.toString()]);
 		});
 
 		test('disposeChat removes the chat from the persisted catalog', async () => {
@@ -24758,12 +24954,12 @@ suite('AgentService (node dispatcher)', () => {
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await localService.createChat(session, peerUri);
-			const afterCreate = await readCatalog(db);
+			const afterCreate = await readCatalog(db, localService, session);
 
 			await localService.disposeChat(session, peerUri);
 			let afterDispose = afterCreate;
 			for (let i = 0; i < 50; i++) {
-				afterDispose = await readCatalog(db);
+				afterDispose = await readCatalog(db, localService, session);
 				if (!afterDispose.some(e => e.uri === peerUri.toString())) {
 					break;
 				}
@@ -24801,7 +24997,7 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.disposeChat(session, peer);
 
 			assert.deepStrictEqual({
-				catalog: await readCatalog(db),
+				catalog: await readCatalog(db, localService, session),
 				inMemory: getStateManager(localService).getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString()),
 			}, {
 				catalog: [],
@@ -24950,7 +25146,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			assert.deepStrictEqual({
 				retainedAfterFailure,
-				catalog: await readCatalog(db),
+				catalog: await readCatalog(db, localService, session),
 				inMemoryAfterRetry: getStateManager(localService).getSessionState(session.toString())?.chats.some(chat => chat.resource.toString() === peer.toString()),
 			}, {
 				retainedAfterFailure: false,
@@ -24975,6 +25171,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			registerTestAgentProvider(localService, disposables.add(new LegacyAgent('copilot')));
 			const session = await localService.createSession({ provider: 'copilot' });
 			const peer = URI.parse(buildChatUri(session, 'created-during-restore'));
@@ -24988,7 +25185,7 @@ suite('AgentService (node dispatcher)', () => {
 				enumeration.complete([]);
 			}
 			await restoration;
-			const catalog = await readCatalog(db);
+			const catalog = await readCatalog(db, localService, session);
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
 
@@ -25031,6 +25228,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -25044,7 +25242,7 @@ suite('AgentService (node dispatcher)', () => {
 			// No peerChats key exists (undefined catalog) -> migration runs.
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
-			const catalogAfterFirst = await readCatalog(db);
+			const catalogAfterFirst = await readCatalog(db, localService, session);
 
 			// Second restore: catalog now present -> legacy read not consulted again.
 			getStateManager(localService).deleteSession(session.toString());
@@ -25161,7 +25359,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const peerUri = URI.parse(buildChatUri(session, 'peer-1'));
 			await localService.createChat(session, peerUri);
-			await readCatalog(db);
+			await readCatalog(db, localService, session);
 
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
@@ -25200,7 +25398,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const state = getStateManager(localService).getSessionState(session.toString());
 			assert.deepStrictEqual({
-				persistedPeers: await readCatalog(db),
+				persistedPeers: await readCatalog(db, localService, session),
 				restoredToolChats: state?.chats
 					.filter(chat => chat.origin?.kind === ChatOriginKind.Tool)
 					.map(chat => chat.resource),
@@ -25225,6 +25423,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new LegacyAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -25232,7 +25431,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Absent peerChats key => migration runs and must write the full set once.
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
-			const catalog = await readCatalog(db);
+			const catalog = await readCatalog(db, localService, session);
 
 			const restoredIds = (getStateManager(localService).getSessionState(session.toString())?.chats ?? [])
 				.map(c => parseChatUri(c.resource)?.chatId)
@@ -25298,7 +25497,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Second restore repairs the unacknowledged compatibility mirror.
 			getStateManager(localService).deleteSession(session.toString());
 			await localService.restoreSession(session);
-			const catalog = await readCatalog(db);
+			const catalog = await readCatalog(db, localService, session);
 
 			assert.deepStrictEqual({
 				catalogAfterFailedWrite,
@@ -25336,34 +25535,17 @@ suite('AgentService (node dispatcher)', () => {
 		}
 
 		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
-			class RecordingTitleDatabase extends TestSessionDatabase {
-				readonly finalRenamePersisted = new DeferredPromise<void>();
-				finalRenameKey: string | undefined;
-
-				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
-					await super.setMetadataValues(values);
-					if (this.finalRenameKey && values[this.finalRenameKey] === 'Complete replacement peer chat title') {
-						await this.finalRenamePersisted.complete();
-					}
-				}
-
-				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
-					const result = await super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
-					if (this.finalRenameKey && values[this.finalRenameKey] === 'Complete replacement peer chat title') {
-						await this.finalRenamePersisted.complete();
-					}
-					return result;
-				}
-			}
 			class ServerToolAgent extends MockAgent {
 				serverToolHost: IAgentServerToolHost | undefined;
+
+				override async createChat(): Promise<void> { }
 
 				setServerToolHost(host: IAgentServerToolHost): void {
 					this.serverToolHost = host;
 				}
 			}
 
-			const db = new RecordingTitleDatabase();
+			const db = new TestSessionDatabase();
 			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
 			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(db), catalogDatabase));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
@@ -25372,7 +25554,6 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionUri = session.toString();
 			const defaultChat = buildDefaultChatUri(session);
 			const peerChat = buildChatUri(sessionUri, 'peer-rename');
-			db.finalRenameKey = `customChatTitle:${peerChat}`;
 			getStateManager(localService).dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Previous user title' });
 			await db.setMetadata('customTitle', 'Previous user title');
 			await db.setMetadata('customTitleSource', 'user');
@@ -25381,7 +25562,7 @@ suite('AgentService (node dispatcher)', () => {
 				title: 'Single-chat title',
 			});
 
-			getStateManager(localService).addChat(sessionUri, peerChat, { title: 'Previous peer title' });
+			await localService.createChat(session, URI.parse(peerChat), { title: 'Previous peer title' });
 			getStateManager(localService).dispatchServerAction(sessionUri, { type: ActionType.SessionTitleChanged, title: 'Multi-chat session title' });
 			await db.setMetadata('customTitle', 'Multi-chat session title');
 			await db.setMetadata('customTitleSource', 'user');
@@ -25403,9 +25584,8 @@ suite('AgentService (node dispatcher)', () => {
 				chat: `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-rename`,
 				title: 'Complete replacement peer chat title',
 			});
-			await db.finalRenamePersisted.p;
+			await localService.whenCatalogReconciliationIdle();
 			const summaryTitleChange = await summaryTitleChanged.p;
-			await timeout(0);
 			const central = await catalogDatabase.getSessionV2(sessionUri);
 			const centralChats = catalogDataOf(central)?.chats.map(chat => ({
 				uri: chat.uri,
@@ -25437,10 +25617,10 @@ suite('AgentService (node dispatcher)', () => {
 				liveChatTitle: 'Complete replacement peer chat title',
 				persistedSessionTitle: 'Complete replacement default chat title',
 				persistedSessionSource: 'agent',
-				persistedDefaultChatTitle: 'Complete replacement default chat title',
-				persistedDefaultChatSource: 'agent',
-				persistedChatTitle: 'Complete replacement peer chat title',
-				persistedChatSource: 'agent',
+				persistedDefaultChatTitle: undefined,
+				persistedDefaultChatSource: undefined,
+				persistedChatTitle: 'Previous peer title',
+				persistedChatSource: 'user',
 				centralChats: [
 					{ uri: defaultChat, title: 'Complete replacement default chat title', titleSource: 'agent' },
 					{ uri: peerChat, title: 'Complete replacement peer chat title', titleSource: 'agent' },
@@ -25483,6 +25663,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const db = new FailingTitleDatabase();
 			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(db)));
+			getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: false });
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -25536,6 +25717,93 @@ suite('AgentService (node dispatcher)', () => {
 				liveChat: 'Original chat',
 				chatTitle: 'Original chat',
 				chatSource: 'user',
+			});
+		});
+
+		test('local /rename persists normalized default and peer titles across cold restoration', async () => {
+			class NativeChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1 };
+				}
+			}
+			const backing = createPerSessionDataService();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const writing = disposables.add(createRenameTestAgentService(backing.service, database));
+			registerTestAgentProvider(writing, disposables.add(new NativeChatAgent('copilot')));
+			const session = await writing.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'local-rename'));
+			await writing.createChat(session, peer, { title: 'Original peer' });
+			let clientSeq = 0;
+			for (const [chat, title] of [[defaultChat, 'Renamed default'], [peer.toString(), 'Renamed peer']]) {
+				writing.dispatchAction(chat, {
+					type: ActionType.ChatTurnStarted, turnId: `rename-${title}`, startedAt: '2026-01-01T00:00:00Z',
+					message: { text: `/rename ${title}`, origin: { kind: MessageKind.User } },
+				}, 'rename-client', ++clientSeq);
+			}
+			await writing.whenCatalogReconciliationIdle();
+			const [catalog] = await database.readCatalogSnapshot([session.toString()]);
+			const reopened = disposables.add(createRenameTestAgentService(backing.service, database));
+			registerTestAgentProvider(reopened, disposables.add(new NativeChatAgent('copilot')));
+			await reopened.subscribe(URI.parse(defaultChat), 'restored-default');
+			await reopened.subscribe(peer, 'restored-peer');
+			assert.deepStrictEqual({
+				persisted: catalog.chats.map(chat => ({ title: chat.metadata?.summary, source: chat.metadata?.titleSource })),
+				restored: [defaultChat, peer.toString()].map(chat => getStateManager(reopened).getChatState(chat)?.title),
+				legacyPeerTitle: await backing.database(session).getMetadata(customChatTitleMetadataKey(peer.toString())),
+			}, {
+				persisted: [{ title: 'Renamed default', source: 'user' }, { title: 'Renamed peer', source: 'user' }],
+				restored: ['Renamed default', 'Renamed peer'],
+				legacyPeerTitle: undefined,
+			});
+		});
+
+		test('normalized rename failures preserve live titles and catalog metadata', async () => {
+			class FailingTitleDatabase extends AgentHostDatabase {
+				failTitles = false;
+				override async updateChatV2Metadata(...args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> {
+					if (this.failTitles && args[2].metadata?.summary !== undefined) {
+						throw new Error('normalized title persistence failed');
+					}
+					return super.updateChatV2Metadata(...args);
+				}
+			}
+			class ServerToolAgent extends MockAgent {
+				serverToolHost: IAgentServerToolHost | undefined;
+				override async createChat(): Promise<void> { }
+				setServerToolHost(host: IAgentServerToolHost): void { this.serverToolHost = host; }
+			}
+			const database = disposables.add(new FailingTitleDatabase(':memory:'));
+			const localService = disposables.add(createRenameTestAgentService(createPerSessionDataService().service, database));
+			const agent = disposables.add(new ServerToolAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'peer-failure'));
+			await getTestChatPersistenceService(localService).persistMetadata(session, URI.parse(defaultChat), {
+				[SESSION_CUSTOM_TITLE_KEY]: 'Original default', [SESSION_CUSTOM_TITLE_SOURCE_KEY]: 'user',
+			});
+			getStateManager(localService).updateChatTitle(session.toString(), defaultChat, 'Original default');
+			database.failTitles = true;
+			await assert.rejects(async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+				title: 'Replacement',
+			}), /normalized title persistence failed/);
+			database.failTitles = false;
+			await localService.createChat(session, peer, { title: 'Original peer' });
+			database.failTitles = true;
+			for (const chat of [undefined, `agent-host-session://copilot/${AgentSession.id(session)}?chat=peer-failure`]) {
+				await assert.rejects(async () => agent.serverToolHost!.executeTool(defaultChat, SessionServerToolName.RenameChat, {
+					chat, title: 'Replacement',
+				}), /normalized title persistence failed/);
+			}
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				live: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => ({ uri: chat.resource, title: chat.title })),
+				persisted: snapshot.chats.map(chat => ({ uri: chat.chat, title: chat.metadata?.summary, source: chat.metadata?.titleSource })),
+			}, {
+				live: [{ uri: defaultChat, title: 'Original default' }, { uri: peer.toString(), title: 'Original peer' }],
+				persisted: [{ uri: defaultChat, title: 'Original default', source: 'user' }, { uri: peer.toString(), title: 'Original peer', source: 'auto' }],
 			});
 		});
 	});

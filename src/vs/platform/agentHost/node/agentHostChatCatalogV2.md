@@ -2,9 +2,12 @@
 
 Schema 14 adds a global `chats_v2` catalog and extends the existing
 `session_chat_catalogs` header. It retains `session_chats`, `sessions_v2`, and
-their existing consumers. This database foundation does not enable cutover:
-the orchestrator must wire its readers, migration preparation and write-through
-paths before invoking activation.
+their legacy consumers. The orchestrator enables metadata-only migration under
+the existing session-catalog gate after wiring normalized readers, producers
+and restoration. Disabling the gate prevents new activation; already activated
+catalogs remain terminal normalized authority.
+The gate is frozen on first use within a host process; changing it requires a
+new host. It cannot restore legacy compatibility writes for an activated catalog.
 
 ## Read contract
 
@@ -46,14 +49,57 @@ normalized authority; an obsolete chat projection is rebuilt instead of
 reimported. Existing AgentService aggregate synchronization and reconciliation
 use these projections without altering normalized chat metadata.
 
-Metadata-only migration preparation and its bounded reconciliation callback
-are present, but the production callback remains disabled until every producer
-and restoration path has switched. Preparation returns `notReady` when explicit
+The bounded production reconciliation callback prepares unopened sessions
+without starting providers or loading transcripts. It acquires the session-sync
+queue before the peer-store queue, fencing receipt and legacy metadata producers
+without reversing the normal synchronization lock order. Preparation returns
+`notReady` when explicit
 backing clears still contradict the central legacy catalog. Legacy
 reconciliation must first publish those facts and a matching verified source;
 activation must not silently preserve stale provider detail or reinterpret
 an inconsistent receipt. An already normalized session does not reopen legacy
 metadata.
+
+New non-provisional, non-ephemeral sessions with no existing catalog or verified envelope
+register directly in normalized authority. Existing clean sessions can activate
+on their first metadata write: preparation combines the requested typed mutation
+with conversion in the same central transaction. Dirty or unreconciled sessions
+remain legacy and schedule reconciliation before a later bounded retry.
+
+Title/source, read/archive flags, changes summaries, opaque provider detail and
+pinned-directory producers use the peer store's serialized central-aware writer.
+Metadata replacements merge against the current row and compare both revisions.
+Multiple keys for one chat share a CAS update. Unknown summary values remain
+absent; explicit empty changes counts remain zero. Clears do not fall back to
+legacy backing values. Tool and local `/rename` commands use the same writer.
+Deferred title scheduling stays in session metadata, but restoration validates its
+seed against normalized title/source metadata after activation, not legacy title
+mirrors. Default-title snapshots
+fill only absent titles and recheck that condition after a CAS conflict, without
+writing legacy chat-title mirrors. Session-level configuration, aggregate flags, draft and
+transcript metadata remain in their existing session/backing stores.
+
+Restoration reads the header's default role and current public rows. Private
+rows are not mistaken for deleted public membership. Spawned tool chats retain
+their existing read-only protocol presentation while their internal catalog
+role is Hidden; private insertion, provider updates and removal use the private
+lifecycle APIs. No migration cleans unknown historical deletion markers.
+Public origin projections retain bounded navigation provenance; full side-chat
+selection snapshots stay in normalized origin detail. Normalization validates
+the same public projection and preserves explicitly prepared detail, including
+exact agreement with existing central legacy origin facts. Aggregate-only
+updates compare the shared public projection without rewriting origin detail.
+
+Explicit recreation of a deleted session retains its session URI but allocates
+a fresh default-chat URI with a generation query. Old global chat identities
+remain tombstoned. Creation, root-channel routing, provider rollback and
+restoration use the advertised/header default URI rather than deriving identity
+from the session URI.
+The physical catalog default stays stable when a client selects a different
+routing default. Direct registration has no migration generation stamp: its
+first aggregate envelope establishes the lifetime generation. Readers validate
+an explicit header stamp when present, but do not require one for these new
+catalogs.
 
 ## Activation and writes
 
@@ -137,6 +183,5 @@ attempts conflict. Neither operation writes the session aggregate payload.
 
 There are no move, retirement, resource-inventory, retention, cleanup-debt or
 outbox APIs in this foundation. The approved upstream schema has no database
-move/reorder API to migrate. Those product workflows, reader activation,
-provider/session-database migration preparation and changeset/sync wiring
-belong to the orchestrator. Legacy tables are not dropped by schema 14.
+move/reorder API to migrate. Session consumption, provider remapping and resource
+transfer remain a separate delivery. Legacy tables are not dropped by schema 14.

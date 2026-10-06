@@ -10,7 +10,7 @@ import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/stat
 import { chatStorageUri } from '../common/state/sessionState.js';
 import { decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
-import type { AgentHostDatabaseChatV2WriteResult, IAgentHostDatabase, IAgentHostDatabaseChatV2Mutation, IAgentHostDatabaseChatV2NormalizationChat } from './agentHostDatabase.js';
+import type { AgentHostDatabaseChatV2WriteResult, IAgentHostDatabase, IAgentHostDatabaseChatV2Mutation, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseChatV2NormalizationChat } from './agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY } from './agentHostPeerChatStore.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories } from './shared/persistSessionMetadata.js';
 
@@ -19,12 +19,12 @@ export async function migrateChatCatalogV2(
 	database: IAgentHostDatabase,
 	sessionDataService: ISessionDataService,
 	session: URI,
-	mutation?: IAgentHostDatabaseChatV2Mutation,
+	mutation?: IAgentHostDatabaseChatV2Mutation | ((candidate: IAgentHostDatabaseChatV2NormalizationCandidate) => IAgentHostDatabaseChatV2Mutation | undefined),
 ): Promise<AgentHostDatabaseChatV2WriteResult> {
 	const sessionKey = session.toString();
 	const [snapshot] = await database.readCatalogSnapshot([sessionKey]);
 	if (snapshot?.authorityVersion === 2) {
-		if (!mutation) {
+		if (!mutation || typeof mutation === 'function') {
 			return { status: 'alreadyNormalized' };
 		}
 		if (mutation.kind === 'replacePeers') {
@@ -53,6 +53,7 @@ export async function migrateChatCatalogV2(
 		throw new Error(`Cannot migrate chat catalog without a default chat for ${sessionKey}`);
 	}
 	const legacyByChat = new Map(legacyCatalog?.chats.map(chat => [chat.chat, chat]));
+	const visibleOrder = new Map(sourceChats.filter(chat => chat.interactivity !== ChatInteractivity.Hidden).map((chat, order) => [chat.uri, order]));
 	const sessionReference = await sessionDataService.tryOpenDatabase(session);
 	try {
 		const titleKeys: Record<string, true> = {};
@@ -99,10 +100,10 @@ export async function migrateChatCatalogV2(
 					needsLegacyReconciliation = true;
 				}
 				const provenance = fromCatalogChatOrigin(chat.origin);
-				const isPrivate = chat.interactivity === ChatInteractivity.Hidden || provenance?.kind === ChatOriginKind.Tool;
+				const isPrivate = chat.interactivity === ChatInteractivity.Hidden;
 				return {
 					chat: chat.uri,
-					...(isPrivate ? {} : { order: chat.order }),
+					...(isPrivate ? {} : { order: visibleOrder.get(chat.uri) }),
 					storageResource: chatStorageUri(chat.uri)?.toString() ?? chat.uri,
 					...(isPrivate && provenance && provenance.kind !== ChatOriginKind.User ? { parentChat: provenance.chat } : {}),
 					providerData,
@@ -124,17 +125,18 @@ export async function migrateChatCatalogV2(
 		if (!preparedDefault) {
 			throw new Error(`Cannot migrate a deleted default chat for ${sessionKey}`);
 		}
+		const candidate: IAgentHostDatabaseChatV2NormalizationCandidate = {
+			defaultChat: preparedDefault,
+			peers: chats.filter(chat => chat.chat !== defaultChat.uri && chat.order !== undefined),
+			privateDescendants: chats.filter(chat => chat.order === undefined),
+			deletedChats,
+		};
 		return database.ensureChatCatalogV2(sessionKey, {
 			sessionGeneration: source.sessionGeneration,
 			sourceRevision: source.sourceRevision,
 			payloadHash: source.payloadHash,
 			catalogRevision: legacyCatalog?.revision ?? 0,
-		}, {
-			defaultChat: preparedDefault,
-			peers: chats.filter(chat => chat.chat !== defaultChat.uri && chat.order !== undefined),
-			privateDescendants: chats.filter(chat => chat.order === undefined),
-			deletedChats,
-		}, mutation);
+		}, candidate, typeof mutation === 'function' ? mutation(candidate) : mutation);
 	} finally {
 		sessionReference?.dispose();
 	}

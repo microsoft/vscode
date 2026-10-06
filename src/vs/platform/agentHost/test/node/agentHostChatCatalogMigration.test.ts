@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChatInteractivity } from '../../common/state/sessionState.js';
 import { migrateChatCatalogV2 } from '../../node/agentHostChatCatalogMigration.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
@@ -134,6 +134,29 @@ suite('AgentHostChatCatalogMigration', () => {
 			row: { origin: undefined, inherited: undefined, directories: undefined, summary: 'Peer' },
 			peerDetail: {},
 			deletedDetail: undefined,
+		});
+	});
+
+	test('preserves explicit parentless private rows while compacting visible order', async () => {
+		const privateChat = buildChatUri(session, 'private');
+		const peer = buildChatUri(session, 'public');
+		const database = await createDatabase([
+			{ uri: defaultChat, kind: 'default', order: 0 },
+			{ uri: privateChat, kind: 'peer', order: 1, interactivity: ChatInteractivity.Hidden },
+			{ uri: peer, kind: 'peer', order: 2, summary: 'Public' },
+		]);
+		const result = await migrateChatCatalogV2(database, createNullSessionDataService(), session);
+		const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			status: result.status,
+			chats: [...snapshot.chats].sort((a, b) => (a.order ?? 1000) - (b.order ?? 1000)).map(chat => ({ chat: chat.chat, order: chat.order, parent: chat.parentChat, role: chat.metadata?.interactivity })),
+		}, {
+			status: 'applied',
+			chats: [
+				{ chat: defaultChat, order: 0, parent: undefined, role: ChatInteractivity.Full },
+				{ chat: peer, order: 1, parent: undefined, role: ChatInteractivity.Full },
+				{ chat: privateChat, order: undefined, parent: undefined, role: ChatInteractivity.Hidden },
+			],
 		});
 	});
 });
