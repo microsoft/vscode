@@ -56,34 +56,39 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 	};
 }
 
-/**
- * The runtime's text when a command's output was spilled to a file: where the
- * file is, how to read it, and the beginning of the output as the model sees
- * it. Only the preview is output.
- */
-const spilledOutputPattern = /^[^\n]* too large to read at once \([^\n]*\)\. Saved to: [^\n]*\n(?:[^\n]*\n)*?Preview \(first \d+ chars\):\n(?<preview>[\s\S]*)$/;
+/** The runtime's text when output was spilled to a file; the preview length is in UTF-16 code units. */
+const spilledOutputPattern = /^[^\n]* too large to read at once \([^\n]*\)\. Saved to: [^\n]*\n(?:[^\n]*\n)*?Preview \(first (?<length>\d+) chars\):\n/;
+
+/** The exit marker directly after a spilled preview; sandbox notices may follow it. */
+const spilledShellExitPattern = /^\r?\n<shellId: [^>\r\n]+ completed with exit code (?<exitCode>-?\d+)>/;
 
 /**
  * Extracts the command result from the runtime's text for a command whose
- * output was spilled to a file. Session history omits the `shell_exit` block
- * that carries the structured preview, so this text is all that remains of
- * the output once the live channel is gone.
+ * output was spilled to a file, since session history omits the `shell_exit`
+ * block that carries the structured preview.
  */
 export function parseSpilledShellCompletion(text: string | undefined): TerminalCommandResult | undefined {
 	if (!text) {
 		return undefined;
 	}
-	const exit = completedShellPattern.exec(text);
-	const message = exit ? text.slice(0, exit.index).replace(/\r?\n$/, '') : text;
-	const preview = spilledOutputPattern.exec(message)?.groups?.preview;
-	if (preview === undefined) {
+	const header = spilledOutputPattern.exec(text);
+	if (!header?.groups) {
 		return undefined;
 	}
-	return {
-		...(exit?.groups ? { exitCode: Number(exit.groups.exitCode) } : {}),
-		preview,
-		truncated: true,
-	};
+	const length = Number(header.groups.length);
+	const preview = text.slice(header[0].length, header[0].length + length);
+	const trailer = text.slice(header[0].length + length);
+	if (preview.length < length) {
+		return undefined;
+	}
+	if (!trailer.trim()) {
+		return { preview, truncated: true };
+	}
+	const exit = spilledShellExitPattern.exec(trailer);
+	if (!exit?.groups) {
+		return undefined;
+	}
+	return { exitCode: Number(exit.groups.exitCode), preview, truncated: true };
 }
 
 /**

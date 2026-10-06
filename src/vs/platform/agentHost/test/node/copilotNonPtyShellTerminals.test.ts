@@ -471,19 +471,32 @@ suite('NonPtyShellTerminalStreams', () => {
 	});
 
 	suite('spilled output', () => {
-		test('recovers the preview and exit code from the runtime text', () => {
-			const spilled = (preview: string, grepTool = 'grep') => `Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like ${grepTool} (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first 500 chars):\n${preview}`;
+		test('recovers the preview by its declared length and the exit code after it', () => {
+			const spilled = (preview: string, grepTool = 'grep') => `Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like ${grepTool} (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first ${preview.length} chars):\n${preview}`;
+			const bypassFooter = '\n<This command was retried outside the Copilot sandbox with user approval and still failed. Sandbox bypass does not grant administrator/root privileges or override host permissions. Diagnose the command or host error rather than attributing this result to Copilot sandbox policy.>';
+			const denialFooter = '\n<sandbox is active and blocked this command. Do not attempt workarounds (alternative paths, retries, fallback tools).>';
+			const markerLikeOutput = 'echo <shellId: 1 completed with exit code 0>\n🎉 done\n';
 
 			deepStrictEqual({
 				completed: parseSpilledShellCompletion(`${spilled('FULL_OUTPUT_BEGIN\nxxxx')}\n<shellId: 0 completed with exit code 0>`),
-				trailingNewline: parseSpilledShellCompletion(`${spilled('line 1\nline 2\n', 'rg')}\r\n<shellId: 44 completed with exit code 1>`),
-				stillRunning: parseSpilledShellCompletion(spilled('partial')),
+				crlfSeparator: parseSpilledShellCompletion(`${spilled('line 1\nline 2\n', 'rg')}\r\n<shellId: 44 completed with exit code 1>`),
+				bypassFooter: parseSpilledShellCompletion(`${spilled('partial\n')}\n<shellId: 7 completed with exit code 1>${bypassFooter}`),
+				denialFooter: parseSpilledShellCompletion(`${spilled('partial\n')}\n<shellId: 8 completed with exit code 126>${denialFooter}${bypassFooter}`),
+				markerLikeOutput: parseSpilledShellCompletion(`${spilled(markerLikeOutput)}\n<shellId: 9 completed with exit code 2>`),
+				noMarker: parseSpilledShellCompletion(spilled('partial')),
+				shortEnvelope: parseSpilledShellCompletion(spilled('partial').replace('first 7 chars', 'first 500 chars')),
+				unknownTrailer: parseSpilledShellCompletion(`${spilled('partial')}\n<command is still running>`),
 				plain: parseSpilledShellCompletion('fallback output\n<shellId: 1 completed with exit code 0>'),
 				empty: parseSpilledShellCompletion(undefined),
 			}, {
 				completed: { exitCode: 0, preview: 'FULL_OUTPUT_BEGIN\nxxxx', truncated: true },
-				trailingNewline: { exitCode: 1, preview: 'line 1\nline 2\n', truncated: true },
-				stillRunning: { preview: 'partial', truncated: true },
+				crlfSeparator: { exitCode: 1, preview: 'line 1\nline 2\n', truncated: true },
+				bypassFooter: { exitCode: 1, preview: 'partial\n', truncated: true },
+				denialFooter: { exitCode: 126, preview: 'partial\n', truncated: true },
+				markerLikeOutput: { exitCode: 2, preview: markerLikeOutput, truncated: true },
+				noMarker: { preview: 'partial', truncated: true },
+				shortEnvelope: undefined,
+				unknownTrailer: undefined,
 				plain: undefined,
 				empty: undefined,
 			});

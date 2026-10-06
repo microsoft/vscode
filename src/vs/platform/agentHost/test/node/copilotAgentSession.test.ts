@@ -3550,8 +3550,13 @@ suite('CopilotAgentSession', () => {
 	for (const { name, content, result } of [
 		{
 			name: 'a spilled output message',
-			content: 'Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first 500 chars):\nFULL_OUTPUT_BEGIN\nxxxx\n<shellId: 0 completed with exit code 0>',
+			content: 'Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first 22 chars):\nFULL_OUTPUT_BEGIN\nxxxx\n<shellId: 0 completed with exit code 0>',
 			result: { exitCode: 0, preview: 'FULL_OUTPUT_BEGIN\nxxxx', truncated: true },
+		},
+		{
+			name: 'a spilled output message with a sandbox notice after the exit marker',
+			content: 'Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first 22 chars):\nFULL_OUTPUT_BEGIN\nxxxx\n<shellId: 0 completed with exit code 1>\n<This command was retried outside the Copilot sandbox with user approval and still failed. Sandbox bypass does not grant administrator/root privileges or override host permissions. Diagnose the command or host error rather than attributing this result to Copilot sandbox policy.>',
+			result: { exitCode: 1, preview: 'FULL_OUTPUT_BEGIN\nxxxx', truncated: true },
 		},
 		{ name: 'an unrecognized message', content: 'Saved output was temporary', result: { truncated: true, preview: '' } },
 	]) {

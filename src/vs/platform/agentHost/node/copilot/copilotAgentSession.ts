@@ -4556,8 +4556,6 @@ export class CopilotAgentSession extends Disposable {
 				if (await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
 					continue;
 				}
-				// History omits the structured shell completion, so the preview
-				// comes from the runtime's large-output text when it can be parsed.
 				const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
 				const terminalContent: ToolResultTerminalContent = {
 					type: ToolResultContentType.Terminal,
