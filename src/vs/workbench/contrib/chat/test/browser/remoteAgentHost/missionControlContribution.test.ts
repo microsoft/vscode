@@ -24,6 +24,10 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { MissionControlContribution } from '../../../browser/remoteAgentHost/remoteAgentHost.contribution.js';
 
 const enabledSetting = 'chat.agentHost.experimentalMissionControl.enabled';
+const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+const registeredMissionControlSettings = Object.keys(configurationProperties)
+	.filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'))
+	.map(key => ({ key, default: configurationProperties[key].default }));
 const removedSettings = {
 	'chat.agentHost.experimentalMissionControl.endpoint': 'https://example.invalid',
 	'chat.agentHost.experimentalMissionControl.requireConnectionBinding': true,
@@ -81,9 +85,7 @@ suite('Mission Control registration contribution', () => {
 	}
 
 	test('registers only the opt-in setting', () => {
-		const properties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const settings = Object.keys(properties).filter(key => key.startsWith('chat.agentHost.experimentalMissionControl'));
-		assert.deepStrictEqual(settings.map(key => ({ key, default: properties[key].default })), [{ key: enabledSetting, default: false }]);
+		assert.deepStrictEqual(registeredMissionControlSettings, [{ key: enabledSetting, default: false }]);
 	});
 
 	for (const enabled of [false, true]) {
