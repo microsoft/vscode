@@ -167,6 +167,102 @@ suite('AgentHostStorageService', () => {
 		});
 	}
 
+	test('a failed rename preserves storage, removes the temporary file, and permits a later write', async () => {
+		const directory = getRandomTestPath(tmpdir());
+		await mkdir(directory);
+		const path = join(directory, 'storage.json');
+		await writeFile(path, '{"previous":true}', 'utf8');
+		let fail = true;
+		const writer: IAgentHostStorageWriter = {
+			mkdir: async () => { },
+			writeFile: (target, contents) => writeFile(target, contents, 'utf8'),
+			rename: async (from, to) => {
+				if (fail) {
+					throw new Error('storage file is locked');
+				}
+				await rename(from, to);
+			},
+			rm: target => rm(target, { force: true }),
+		};
+		const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+		try {
+			service.set('next', true);
+			await assert.rejects(service.whenIdle(), /storage file is locked/);
+			await assert.rejects(service.whenIdle(), /storage file is locked/);
+			const afterFailure = await readFile(path, 'utf8');
+			const filesAfterFailure = await readdir(directory);
+			const reopened = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+
+			fail = false;
+			service.set('retry', true);
+			await service.whenIdle();
+
+			assert.deepStrictEqual({
+				afterFailure,
+				filesAfterFailure,
+				reopenedLoadError: reopened.loadError,
+				reopenedPrevious: reopened.get('previous'),
+				reopenedNext: reopened.get('next'),
+				afterRetry: await readFile(path, 'utf8'),
+				filesAfterRetry: await readdir(directory),
+			}, {
+				afterFailure: '{"previous":true}',
+				filesAfterFailure: ['storage.json'],
+				reopenedLoadError: undefined,
+				reopenedPrevious: true,
+				reopenedNext: undefined,
+				afterRetry: '{"previous":true,"next":true,"retry":true}',
+				filesAfterRetry: ['storage.json'],
+			});
+		} finally {
+			await Promise.allSettled([service.whenIdle()]);
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('a rejected rename rolls back a flushed replacement without resurrecting it', async () => {
+		const directory = getRandomTestPath(tmpdir());
+		await mkdir(directory);
+		const path = join(directory, 'storage.json');
+		await writeFile(path, '{"value":"previous"}', 'utf8');
+		let fail = true;
+		const writer: IAgentHostStorageWriter = {
+			mkdir: async () => { },
+			writeFile: (target, contents) => writeFile(target, contents, 'utf8'),
+			rename: async (from, to) => {
+				if (fail) {
+					fail = false;
+					throw new Error('storage file is locked');
+				}
+				await rename(from, to);
+			},
+			rm: target => rm(target, { force: true }),
+		};
+		const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+		try {
+			await assert.rejects(service.setAndFlush('value', 'rejected'), /storage file is locked/);
+			await service.whenIdle();
+			const afterRollback = await readFile(path, 'utf8');
+			service.set('unrelated', true);
+			await service.whenIdle();
+
+			assert.deepStrictEqual({
+				value: service.get('value'),
+				afterRollback,
+				afterUnrelatedWrite: await readFile(path, 'utf8'),
+				files: await readdir(directory),
+			}, {
+				value: 'previous',
+				afterRollback: '{"value":"previous"}',
+				afterUnrelatedWrite: '{"value":"previous","unrelated":true}',
+				files: ['storage.json'],
+			});
+		} finally {
+			await Promise.allSettled([service.whenIdle()]);
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('a rejected flushed value cannot be resurrected by a later unrelated write', async () => {
 		let fail = true;
 		const writes: string[] = [];

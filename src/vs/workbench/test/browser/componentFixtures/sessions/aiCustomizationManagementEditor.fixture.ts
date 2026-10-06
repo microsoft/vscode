@@ -874,11 +874,14 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+const connectorIconDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#5b5fc7"/><path d="M13 20h38v27H13z" fill="#fff"/><path d="m13 20 19 16 19-16" fill="none" stroke="#5b5fc7" stroke-width="4"/></svg>')}`;
+
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	{
 		name: 'workiq-mail',
 		displayName: 'Work IQ Mail',
 		description: 'Search and summarize Outlook mail through a connection managed by GitHub Copilot.',
+		icon: URI.parse(connectorIconDataUri),
 		version: '1.0.0',
 		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
 		homepage: URI.parse('https://github.com/features/copilot'),
@@ -2985,13 +2988,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its Connector source and row actions. Disconnected and unavailable connectors are not shown.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			copilotConnectorsEnabled: true,
-			mcpSearchQuery: 'workiq',
-		}),
+		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its catalog icon, Connector source, and row actions. Disconnected and unavailable connectors are not shown.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				copilotConnectorsEnabled: true,
+				mcpSearchQuery: 'workiq',
+			});
+			const icon = ctx.container.querySelector<HTMLImageElement>('.mcp-server-item .mcp-server-icon img');
+			assert(icon !== null, 'The connected Connector row must render its catalog icon.');
+			await icon.decode();
+		},
 	}),
 
 	McpServersCopilotConnectorsEmpty: defineComponentFixture({
