@@ -28,8 +28,8 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 }
 
 class TestWorkbenchToolBar extends WorkbenchToolBar {
-	runAction(action: IAction): Promise<void> {
-		return this.actionBar.actionRunner.run(action);
+	async runAction(action: IAction): Promise<void> {
+		await this.actionBar.actionRunner.run(action);
 	}
 }
 
