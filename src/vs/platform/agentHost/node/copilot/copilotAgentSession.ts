@@ -1305,6 +1305,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingEditContentUris = new Map<string, URI>();
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
+	private _managedPluginActivityVisible = false;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
 	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
 	private _lastAppliedShellInitScripts: string | undefined;
@@ -8791,10 +8792,18 @@ export class CopilotAgentSession extends Disposable {
 			} else {
 				this._logService.trace(message, otelData);
 			}
+			if (!e.agentId && e.data.infoType === 'managed_plugins') {
+				this._managedPluginActivityVisible = true;
+				this._emitAction({ type: ActionType.ChatActivityChanged, activity: e.data.message });
+			}
 		}));
 
 		this._register(wrapper.onSessionWarning(e => {
 			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
+			if (!e.agentId && e.data.warningType === 'managed_plugins') {
+				this._managedPluginActivityVisible = true;
+				this._emitAction({ type: ActionType.ChatActivityChanged, activity: e.data.message });
+			}
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {
@@ -8885,6 +8894,10 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markProviderTurnStarted();
 			turn?.markRunning();
 			if (!e.agentId) {
+				if (this._managedPluginActivityVisible) {
+					this._managedPluginActivityVisible = false;
+					this._emitAction({ type: ActionType.ChatActivityChanged, activity: undefined });
+				}
 				this._dropLateRootTurnEvents = false;
 				if (this._resumingTurnAwaitingProviderStart === turn) {
 					this._resumingTurnAwaitingProviderStart = undefined;

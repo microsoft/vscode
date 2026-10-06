@@ -3413,6 +3413,38 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('projects managed plugin lifecycle messages as chat activity', async () => {
+		const { mockSession, signals } = await createAgentSession(disposables);
+
+		mockSession.fire('session.info', {
+			infoType: 'managed_plugins',
+			message: 'Installing plugins required by your organization admin…',
+		});
+		mockSession.fire('session.warning', {
+			warningType: 'managed_plugins',
+			message: 'Some managed plugins could not be prepared.',
+		});
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+
+		assert.deepStrictEqual(
+			getActions(signals).filter(action => action.type === ActionType.ChatActivityChanged),
+			[
+				{
+					type: ActionType.ChatActivityChanged,
+					activity: 'Installing plugins required by your organization admin…',
+				},
+				{
+					type: ActionType.ChatActivityChanged,
+					activity: 'Some managed plugins could not be prepared.',
+				},
+				{
+					type: ActionType.ChatActivityChanged,
+					activity: undefined,
+				},
+			],
+		);
+	});
+
 	test('maps internal attachment URIs to Copilot SDK path fields', async () => {
 		const fileUri = URI.file('/workspace/file.ts');
 		const selectionUri = URI.file('/workspace/selection.ts');
