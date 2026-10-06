@@ -39,7 +39,7 @@ import { CloudSessionData } from '../../vscode/cloudAgentBackend';
 import { IChatDelegationSummaryService } from '../../copilotcli/common/delegationSummaryService';
 import { IPullRequestFileChangesService } from '../pullRequestFileChangesService';
 import { isActiveTaskState, isFailedTaskState } from '../../vscode/copilotCodingAgentUtils';
-import { NullCloudBackendInstrumentation } from '../cloudBackendTelemetry';
+import { NullCloudBackendInstrumentation, type ICloudBackendInstrumentation } from '../cloudBackendTelemetry';
 import { MockOctoKitService } from '../../../agents/vscode-node/test/mockOctoKitService';
 import { MockChatResponseStream } from '../../../test/node/testHelpers';
 
@@ -1198,6 +1198,25 @@ describe('TaskApiBackend', () => {
 
 		expect(client.listForRepoCalls).toEqual([]);
 		expect(result).toEqual([]);
+	});
+
+	it('fetchSessionList degrades gracefully when the global list request fails', async () => {
+		// A transient Task API failure (e.g. HTTP 500) on the global user-scoped list must not
+		// escape as an unhandled rejection: it should be logged, routed through structured
+		// instrumentation, and surface as an empty session list.
+		const client = new FakeTaskApiClient();
+		client.listTasks = async () => { throw new Error('Task API request failed: 500'); };
+		const failures: unknown[] = [];
+		const instrumentation: ICloudBackendInstrumentation = {
+			...NullCloudBackendInstrumentation,
+			operationFailed: (_operation, error) => { failures.push(error); },
+		};
+		const backend = new TaskApiBackend(client, new TestLogService(), new MockOctoKitService(), instrumentation);
+
+		const result = await backend.fetchSessionList(undefined, true);
+
+		expect({ result, failures: failures.map(e => (e as Error).message) })
+			.toEqual({ result: [], failures: ['Task API request failed: 500'] });
 	});
 
 	it('fetchSessionList does not send creator_id on the user-scoped global list', async () => {
