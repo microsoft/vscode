@@ -13,8 +13,10 @@ import { stableStringify } from '../../../../base/common/objects.js';
 import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
+import { ChatInteractivity } from '../../common/state/protocol/channels-chat/state.js';
+import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
 
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
@@ -236,8 +238,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 13 }],
-				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 14 }],
+				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
 					'session_uri', 'provider', 'start_time', 'external', 'registration_source', 'session_generation',
@@ -535,7 +537,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 13 }],
+					schemaVersion: [{ user_version: 14 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -582,8 +584,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 13 }],
-				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
+				version: [{ user_version: 14 }],
+				tables: ['chats_v2', 'metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 			});
 		} finally {
 			await close(rawDatabase);
@@ -675,7 +677,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 13 }],
+			version: [{ user_version: 14 }],
 		});
 	});
 
@@ -751,7 +753,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 13 }],
+			version: [{ user_version: 14 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -1647,6 +1649,557 @@ suite('AgentHostDatabase sessions_v2', () => {
 			identity: { session, provider: 'copilot', startTime: 10, modifiedTime: 20, external: true, source: 'discovery' },
 			payload: envelope.payloadHash,
 			marker: undefined,
+		});
+	});
+
+	suite('catalog-only normalized authority', () => {
+		const session = 'session://normalized';
+		const defaultChat = `${session}#default`;
+		const peer = `${session}#peer`;
+		const privateChat = `${session}#private`;
+
+		function candidate(): IAgentHostDatabaseChatV2NormalizationCandidate {
+			return {
+				defaultChat: { chat: defaultChat, order: 1, storageResource: 'storage://default' },
+				peers: [{ chat: peer, order: 0, storageResource: 'storage://peer' }],
+				privateDescendants: [{ chat: privateChat, parentChat: peer, storageResource: 'storage://private' }],
+			};
+		}
+
+		function envelope(): IAgentHostDatabaseSessionV2Envelope {
+			return createEnvelope(session, 'catalog-generation', 10, {
+				payload: stableStringify({
+					payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+					data: {
+						modifiedTime: 110, isRead: false, isArchived: true, workingDirectories: [],
+						chats: [
+							{
+								uri: peer, kind: 'peer', order: 0, summary: 'User title', titleSource: 'user', isRead: false,
+								archived: true, inheritedTurnId: 't'.repeat(4096), workingDirectories: ['file:///first', 'file:///second'],
+								origin: { kind: 'subagent' }, interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 }
+							},
+							{
+								uri: privateChat, kind: 'peer', order: 1, summary: 'Private', isRead: true,
+								archived: true, inheritedTurnId: 'private-turn', workingDirectories: [], interactivity: ChatInteractivity.Hidden
+							},
+							{
+								uri: defaultChat, kind: 'default', order: 2, summary: 'Default', titleSource: 'auto',
+								isRead: true, archived: true, inheritedTurnId: 'default-turn', changes: { files: 4 }
+							},
+						],
+					},
+				}),
+			});
+		}
+
+		async function seed(target = database!): Promise<void> {
+			await target.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await target.upsertSessionV2(envelope(), undefined);
+		}
+
+		function expectation(catalogRevision = 0) {
+			const source = envelope();
+			return { sessionGeneration: source.sessionGeneration, sourceRevision: source.sourceRevision, payloadHash: source.payloadHash, catalogRevision };
+		}
+
+		test('activation derives every lightweight field losslessly, including explicit private roles and default semantics', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const activated = await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			const byUri = new Map(snapshot.chats.map(chat => [chat.chat, chat]));
+			assert.deepStrictEqual({
+				activated, header: snapshot.header,
+				peer: byUri.get(peer), private: byUri.get(privateChat), default: byUri.get(defaultChat),
+				detail: await database.getChatV2ProviderDetail(peer),
+				privateDetail: await database.getChatV2ProviderDetail(privateChat),
+			}, {
+				activated: { status: 'applied', catalogRevision: 1 },
+				header: {
+					session, authorityVersion: 2, revision: 1, defaultChatUri: defaultChat,
+					sessionGeneration: 'catalog-generation', normalizationSourceRevision: 10, normalizationPayloadHash: envelope().payloadHash
+				},
+				peer: {
+					chat: peer, ownerSession: session, order: 0, storageResource: 'storage://peer',
+					origin: '{"kind":"subagent"}', workingDirectories: ['file:///first', 'file:///second'],
+					isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096), ownershipRevision: 0, metadataRevision: 0,
+					metadata: { summary: 'User title', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 } }
+				},
+				private: {
+					chat: privateChat, ownerSession: session, storageResource: 'storage://private', parentChat: peer,
+					workingDirectories: [],
+					isRead: true, archived: true, inheritedTurnId: 'private-turn', ownershipRevision: 0, metadataRevision: 0,
+					metadata: { summary: 'Private', interactivity: ChatInteractivity.Hidden }
+				},
+				default: {
+					chat: defaultChat, ownerSession: session, order: 1, storageResource: 'storage://default',
+					isRead: true, archived: true, inheritedTurnId: 'default-turn', ownershipRevision: 0, metadataRevision: 0,
+					metadata: { summary: 'Default', titleSource: 'auto', interactivity: ChatInteractivity.Full, changes: { files: 4 } }
+				},
+				detail: {},
+				privateDetail: {},
+			});
+		});
+
+		test('rejects conflicting private interactivity, source read/archive/lineage, changes and ordered directories before cutover', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const original = candidate();
+			const conflicts: IAgentHostDatabaseChatV2NormalizationCandidate[] = [
+				{ ...original, privateDescendants: [{ ...original.privateDescendants[0], metadata: { interactivity: ChatInteractivity.Full } }] },
+				{ ...original, defaultChat: { ...original.defaultChat, isRead: false } },
+				{ ...original, defaultChat: { ...original.defaultChat, archived: false } },
+				{ ...original, defaultChat: { ...original.defaultChat, inheritedTurnId: 'wrong' } },
+				{ ...original, peers: [{ ...original.peers[0], workingDirectories: ['file:///second', 'file:///first'] }] },
+				{ ...original, peers: [{ ...original.peers[0], metadata: { summary: 'Lost title', changes: { files: 0 } } }] },
+				{ ...original, privateDescendants: [] },
+			];
+			for (const input of conflicts) {
+				await assert.rejects(database.ensureChatCatalogV2(session, expectation(), input));
+			}
+			assert.deepStrictEqual((await database.readCatalogSnapshot([session])).map(entry => ({ header: entry.header, chats: entry.chats })), [
+				{ header: undefined, chats: [] },
+			]);
+		});
+
+		test('source generation, revision, hash, dirty marker and central revision fence activation', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const current = expectation();
+			const results = [];
+			for (const stale of [
+				{ ...current, sessionGeneration: 'other' }, { ...current, sourceRevision: 9 },
+				{ ...current, payloadHash: 'stale' }, { ...current, catalogRevision: 1 },
+			]) {
+				results.push(await database.ensureChatCatalogV2(session, stale, candidate()));
+			}
+			await database.markSessionV2PayloadDirty(session);
+			results.push(await database.ensureChatCatalogV2(session, current, candidate()));
+			assert.deepStrictEqual(results, [{ status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'conflict' }, { status: 'notReady' }]);
+		});
+
+		test('activation and first mutation roll back together on stale CAS and late SQL failure', async () => {
+			const path = join(temporaryDirectory!, 'normalized-rollback.db');
+			database = new AgentHostDatabase(path);
+			await seed();
+			const stale = await database.ensureChatCatalogV2(session, expectation(), candidate(), {
+				chat: peer, expected: { ownershipRevision: 0, metadataRevision: 1 }, patch: { isRead: true },
+			});
+			const raw = await openDatabase(path);
+			try {
+				await exec(raw, `CREATE TRIGGER reject_normalized_patch BEFORE UPDATE ON chats_v2
+					BEGIN SELECT RAISE(ABORT, 'late normalized failure'); END`);
+				await assert.rejects(database.ensureChatCatalogV2(session, expectation(), candidate(), {
+					chat: peer, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch: { isRead: true },
+				}), /late normalized failure/);
+				assert.deepStrictEqual({
+					stale, headers: await all(raw, 'SELECT * FROM session_chat_catalogs'), chats: await all(raw, 'SELECT * FROM chats_v2'),
+				}, { stale: { status: 'conflict' }, headers: [], chats: [] });
+			} finally {
+				await close(raw);
+			}
+		});
+
+		test('terminal import cannot overwrite normalized state and provider-only CAS preserves summaries', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate(), {
+				chat: peer, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch: { providerData: 'new provider', isRead: true },
+			});
+			const before = await database.readCatalogSnapshot([session]);
+			const replay = await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const importer = await database.upsertSessionV2(createEnvelope(session, 'catalog-generation', 11), 'catalog-generation');
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				replay, importer, unchanged: stableStringify(before) === stableStringify([snapshot]),
+				peer: snapshot.chats.find(chat => chat.chat === peer)?.metadata,
+				detail: (await database.getChatV2ProviderDetail(peer))?.providerData,
+			}, {
+				replay: { status: 'replayed', catalogRevision: 2 }, importer: 'conflict', unchanged: true,
+				peer: { summary: 'User title', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 } },
+				detail: 'new provider',
+			});
+		});
+
+		test('dual revisions, true private role, owner boundary and cycles fence lineage CAS', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const zero = { ownershipRevision: 0, metadataRevision: 0 };
+			const stale = await database.updateChatV2Metadata(privateChat, { ...zero, ownershipRevision: 1 }, { parentChat: defaultChat });
+			await assert.rejects(database.updateChatV2Metadata(peer, zero, { parentChat: defaultChat }), /Only private/);
+			await assert.rejects(database.updateChatV2Metadata(privateChat, zero, { parentChat: privateChat }), /cyclic/);
+			await assert.rejects(database.updateChatV2Metadata(privateChat, zero, { parentChat: 'session://foreign#chat' }), /live owner/);
+			const applied = await database.updateChatV2Metadata(privateChat, zero, { parentChat: defaultChat });
+			const oldMetadata = await database.updateChatV2Metadata(privateChat, zero, { isRead: false });
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				stale, applied, oldMetadata,
+				private: snapshot.chats.find(chat => chat.chat === privateChat),
+			}, {
+				stale: { status: 'conflict' }, applied: { status: 'applied', catalogRevision: 2 }, oldMetadata: { status: 'conflict' },
+				private: {
+					chat: privateChat, ownerSession: session, parentChat: defaultChat, storageResource: 'storage://private',
+					workingDirectories: [],
+					isRead: true, archived: true, inheritedTurnId: 'private-turn', ownershipRevision: 0, metadataRevision: 1,
+					metadata: { summary: 'Private', interactivity: ChatInteractivity.Hidden }
+				},
+			});
+		});
+
+		test('existing peer APIs dispatch normalized state, preserving non-first default, private chats and summary metadata', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const read = await database.getSessionChatCatalog(session);
+			const result = await database.replaceSessionChatCatalog(session, [
+				{ ...read!.chats[0], providerData: 'compat provider', isRead: true },
+				{ chat: `${session}#new`, order: 1 },
+			], read!.revision);
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				result, header: snapshot.header?.defaultChatUri,
+				orders: snapshot.chats.filter(chat => chat.order !== undefined).sort((a, b) => a.order! - b.order!).map(chat => [chat.chat, chat.order]),
+				peerMetadata: snapshot.chats.find(chat => chat.chat === peer)?.metadata,
+				private: snapshot.chats.find(chat => chat.chat === privateChat)?.parentChat,
+				provider: (await database.getSessionChatCatalog(session))?.chats[0].providerData,
+			}, {
+				result: { status: 'applied', revision: 2 }, header: defaultChat,
+				orders: [[peer, 0], [defaultChat, 1], [`${session}#new`, 2]],
+				peerMetadata: { summary: 'User title', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 } },
+				private: peer, provider: 'compat provider',
+			});
+		});
+
+		test('lossless central peer provider/origin import requires actual verified source equivalence', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.replaceSessionChatCatalog(session, [{
+				chat: peer, order: 0, providerData: 'opaque provider', origin: '{ "kind": "subagent" }',
+				isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096),
+			}], undefined);
+			await database.ensureChatCatalogV2(session, expectation(1), candidate());
+			assert.deepStrictEqual(await database.getChatV2ProviderDetail(peer), {
+				providerData: 'opaque provider',
+			});
+		});
+
+		test('concurrent activation plus mutation has a single winner and no intervening write-through gap', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const results = await Promise.all(['first', 'second'].map(providerData => database!.ensureChatCatalogV2(session, expectation(), candidate(), {
+				chat: peer, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch: { providerData },
+			})));
+			assert.deepStrictEqual({
+				results, provider: (await database.getChatV2ProviderDetail(peer))?.providerData,
+			}, { results: [{ status: 'applied', catalogRevision: 2 }, { status: 'conflict' }], provider: 'first' });
+		});
+
+		test('new session writes direct normalized authority and lifecycle deletion fences all owned chats', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			const created = await database.registerChatCatalogV2(session, candidate());
+			await database.tombstoneAndUnregisterSession(session);
+			const stale = await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, { isRead: true });
+			assert.deepStrictEqual({
+				created, stale, snapshot: await database.readCatalogSnapshot([session]), detail: await database.getChatV2ProviderDetail(peer),
+			}, { created: { status: 'applied', catalogRevision: 1 }, stale: { status: 'conflict' }, snapshot: [], detail: undefined });
+		});
+
+		test('actual physical schema13 upgrades additively and survives activation, restart and legacy dispatch', async () => {
+			const path = join(temporaryDirectory!, 'physical-schema13.db');
+			const raw = await openDatabase(path);
+			try {
+				await exec(raw, `PRAGMA user_version = 13;
+					CREATE TABLE metadata (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
+					CREATE TABLE sessions (session_uri TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, start_time INTEGER NOT NULL,
+						external INTEGER, registration_source TEXT NOT NULL, modified_time INTEGER NOT NULL DEFAULT 0);
+					CREATE TABLE sessions_v2 (session_uri TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, start_time INTEGER NOT NULL,
+						external INTEGER, registration_source TEXT NOT NULL, session_generation TEXT, source_revision INTEGER,
+						payload_version INTEGER, payload_hash TEXT, verified INTEGER NOT NULL DEFAULT 0, payload TEXT,
+						is_chat_backing INTEGER NOT NULL DEFAULT 0, modified_time INTEGER NOT NULL DEFAULT 0);
+					CREATE TABLE session_chat_catalogs (session_uri TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
+						legacy_mirrored_revision INTEGER NOT NULL DEFAULT 0);
+					CREATE TABLE session_chats (session_uri TEXT NOT NULL REFERENCES session_chat_catalogs(session_uri) ON DELETE CASCADE,
+						chat_uri TEXT NOT NULL, chat_order INTEGER NOT NULL, provider_data TEXT, origin TEXT, inherited_turn_id TEXT,
+						archived INTEGER NOT NULL DEFAULT 0, is_read INTEGER, PRIMARY KEY (session_uri, chat_uri), UNIQUE (session_uri, chat_order));`);
+				assert.deepStrictEqual((await all(raw, 'PRAGMA table_info(session_chat_catalogs)')).map(row => row.name), ['session_uri', 'revision', 'legacy_mirrored_revision']);
+			} finally {
+				await close(raw);
+			}
+			database = new AgentHostDatabase(path);
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const before = await database.readCatalogSnapshot([session]);
+			await database.close();
+			database = new AgentHostDatabase(path);
+			const inspect = await openDatabase(path);
+			try {
+				assert.deepStrictEqual({
+					restarted: await database.readCatalogSnapshot([session]), before,
+					version: await all(inspect, 'PRAGMA user_version'),
+					retained: (await all(inspect, `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('session_chats', 'sessions_v2') ORDER BY name`)).map(row => row.name),
+					legacy: (await database.getSessionChatCatalog(session))?.chats.map(chat => chat.chat),
+				}, {
+					restarted: before, before, version: [{ user_version: 14 }],
+					retained: ['session_chats', 'sessions_v2'], legacy: [peer],
+				});
+			} finally {
+				await close(inspect);
+			}
+		});
+
+		test('bounded metadata uses existing changes validator and rejects unsafe measurements', () => {
+			assert.throws(() => encodeChatV2Metadata({ changes: { files: -1 } }), /Invalid chat metadata/);
+			assert.throws(() => encodeChatV2Metadata({ summary: 'x'.repeat(1025) }), /Invalid chat metadata/);
+			assert.throws(() => encodeChatV2Metadata({ changes: { additions: Number.MAX_SAFE_INTEGER + 1 } }), /Invalid chat metadata/);
+		});
+
+		test('complete snapshot uses exactly two SELECTs including origin and directories but excluding provider detail and session payloads', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
+			const raw = await instance['_ensureDatabase']();
+			const statements: string[] = [];
+			const trace = (sql: string) => statements.push(sql);
+			raw.on('trace', trace);
+			try {
+				const [snapshot] = await instance.readCatalogSnapshot([session]);
+				const selects = statements.filter(sql => /^\s*SELECT\b/i.test(sql));
+				assert.deepStrictEqual({
+					selects: selects.length,
+					readsLargeFields: selects.some(sql => /\b(?:payload|provider_data)\b/.test(sql)),
+					readsOriginAndDirectories: selects.some(sql => /\bc\.origin\b/.test(sql) && /\bc\.working_directories\b/.test(sql)),
+					chats: snapshot.chats.length,
+				}, { selects: 2, readsLargeFields: false, readsOriginAndDirectories: true, chats: 3 });
+			} finally {
+				raw.removeListener('trace', trace);
+			}
+		});
+
+		test('snapshot authority is chosen per session without merging frozen legacy peers', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.replaceSessionChatCatalog(session, [{
+				chat: peer, order: 0, isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096), origin: '{"kind":"subagent"}',
+			}], undefined);
+			await database.ensureChatCatalogV2(session, expectation(1), candidate());
+			await database.replaceSessionChatCatalog(session, [], 2);
+			const legacySession = 'session://legacy';
+			await database.registerSessionV2(legacySession, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.replaceSessionChatCatalog(legacySession, [{ chat: 'chat://legacy-peer', order: 0 }], undefined);
+			const snapshots = await database.readCatalogSnapshot();
+			assert.deepStrictEqual(snapshots.map(entry => ({
+				session: entry.session, authority: entry.header?.authorityVersion, chats: entry.chats.map(chat => chat.chat),
+			})), [
+				{ session: legacySession, authority: 1, chats: [] },
+				{ session, authority: 2, chats: [defaultChat] },
+			]);
+		});
+
+		test('file-backed independent connections serialize activation and typed write-through CAS', async () => {
+			const path = join(temporaryDirectory!, 'independent-connections.db');
+			const first = new AgentHostDatabase(path);
+			const second = new AgentHostDatabase(path);
+			database = first;
+			try {
+				await seed(first);
+				await second.getSessionV2Registration(session);
+				const results = await Promise.all([first, second].map((target, index) => target.ensureChatCatalogV2(session, expectation(), candidate(), {
+					chat: peer, expected: { ownershipRevision: 0, metadataRevision: 0 }, patch: { providerData: `connection-${index}` },
+				})));
+				const [snapshot] = await second.readCatalogSnapshot([session]);
+				assert.deepStrictEqual({
+					statuses: results.map(result => result.status).sort(),
+					revision: snapshot.header?.revision,
+					metadataRevision: snapshot.chats.find(chat => chat.chat === peer)?.metadataRevision,
+				}, { statuses: ['applied', 'conflict'], revision: 2, metadataRevision: 1 });
+			} finally {
+				await second.close();
+			}
+		});
+
+		test('the exact 1000-chat limit includes private chats and compatibility writes cannot exceed it', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await database.registerRuntimeSession(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			const peers = Array.from({ length: 998 }, (_, index) => ({ chat: `chat://bounded-${index}`, order: index + 1 }));
+			await database.registerChatCatalogV2(session, {
+				defaultChat: { chat: defaultChat, order: 0, metadata: { summary: 'x'.repeat(1024), changes: { files: 1 } } },
+				peers,
+				privateDescendants: [{ chat: privateChat, parentChat: defaultChat }],
+			});
+			const before = await database.readCatalogSnapshot([session]);
+			await assert.rejects(database.replaceSessionChatCatalog(session, [
+				...peers.map((chat, order) => ({ ...chat, order })), { chat: 'chat://one-too-many', order: 998 },
+			], 1), /exceeds 1000/);
+			assert.deepStrictEqual({
+				count: before[0].chats.length, unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+			}, { count: 1000, unchanged: true });
+		});
+
+		test('provider and directory clear semantics preserve unrelated summaries and validate ordered pins', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, {
+				providerData: 'detail', workingDirectories: [], inheritedTurnId: null,
+			});
+			const pinned = await database.getChatV2ProviderDetail(peer);
+			const [pinnedSnapshot] = await database.readCatalogSnapshot([session]);
+			await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 1 }, {
+				providerData: null, workingDirectories: null,
+			});
+			const cleared = await database.getChatV2ProviderDetail(peer);
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				pinned, cleared, inherited: snapshot.chats.find(chat => chat.chat === peer)?.inheritedTurnId,
+				pinnedDirectories: pinnedSnapshot.chats.find(chat => chat.chat === peer)?.workingDirectories,
+				clearedDirectories: snapshot.chats.find(chat => chat.chat === peer)?.workingDirectories,
+				metadata: snapshot.chats.find(chat => chat.chat === peer)?.metadata,
+			}, {
+				pinned: { providerData: 'detail' },
+				cleared: {}, inherited: undefined, pinnedDirectories: [], clearedDirectories: undefined,
+				metadata: { summary: 'User title', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { additions: 1, deletions: 2, files: 3 } },
+			});
+		});
+
+		test('origin update and explicit clear use dual CAS without falling back to frozen legacy origin', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const updated = await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, { origin: '{"kind":"user"}' });
+			const stale = await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, { origin: null });
+			const cleared = await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 1 }, { origin: null });
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				updated, stale, cleared, origin: snapshot.chats.find(chat => chat.chat === peer)?.origin,
+				summary: snapshot.chats.find(chat => chat.chat === peer)?.metadata?.summary,
+			}, {
+				updated: { status: 'applied', catalogRevision: 2 }, stale: { status: 'conflict' },
+				cleared: { status: 'applied', catalogRevision: 3 }, origin: undefined, summary: 'User title',
+			});
+		});
+
+		test('default provider detail and absent pinned directories can be explicitly enriched at activation', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const input = candidate();
+			await database.ensureChatCatalogV2(session, expectation(), {
+				...input, defaultChat: { ...input.defaultChat, providerData: 'default-provider', workingDirectories: ['file:///default-primary', 'file:///default-secondary'] },
+			});
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				default: snapshot.header?.defaultChatUri,
+				directories: snapshot.chats.find(chat => chat.chat === defaultChat)?.workingDirectories,
+				detail: await database.getChatV2ProviderDetail(defaultChat),
+			}, { default: defaultChat, directories: ['file:///default-primary', 'file:///default-secondary'], detail: { providerData: 'default-provider' } });
+		});
+
+		test('terminal recovery conflicts for every divergent field and only acknowledges an exact no-op', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const current = (await database.getSessionChatCatalog(session))!;
+			const actual = current.chats[0];
+			const noop = await database.recoverSessionChatCatalog(session, current.chats, current.revision);
+			const before = await database.readCatalogSnapshot([session]);
+			const conflicts = [];
+			for (const divergent of [
+				{ ...actual, providerData: 'different' }, { ...actual, origin: '' }, { ...actual, workingDirectories: [] },
+				{ ...actual, isRead: true }, { ...actual, archived: false }, { ...actual, inheritedTurnId: '' },
+				{ ...actual, metadata: { ...actual.metadata, summary: 'different' } },
+			]) {
+				conflicts.push(await database.recoverSessionChatCatalog(session, [divergent], current.revision));
+			}
+			conflicts.push(await database.recoverSessionChatCatalog(session, [], current.revision));
+			assert.deepStrictEqual({
+				noop, conflicts, unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+			}, {
+				noop: { status: 'applied', revision: 1 }, conflicts: Array.from({ length: 8 }, () => ({ status: 'conflict' })), unchanged: true,
+			});
+		});
+
+		test('explicit legacy both-empty deletion facts preserve global tombstones before legacy keys are cleaned', async () => {
+			const path = join(temporaryDirectory!, 'legacy-deleted-identity.db');
+			const deletedChat = 'chat://deleted-legacy';
+			database = new AgentHostDatabase(path);
+			await seed();
+			await database.replaceSessionChatCatalog(session, [
+				{ chat: peer, order: 0, isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096), origin: '{"kind":"subagent"}' },
+				{ chat: deletedChat, order: 1, providerData: 'leftover-backing' },
+			], undefined);
+			await database.ensureChatCatalogV2(session, expectation(1), {
+				...candidate(), deletedChats: [{ chat: deletedChat, summary: '', titleSource: '' }],
+			});
+			await database.close();
+			database = new AgentHostDatabase(path);
+			const raw = await openDatabase(path);
+			try {
+				const current = (await database.getSessionChatCatalog(session))!;
+				const recovery = await database.recoverSessionChatCatalog(session, [...current.chats, { chat: deletedChat, order: 1 }], current.revision);
+				assert.deepStrictEqual({
+					recovery, detail: await database.getChatV2ProviderDetail(deletedChat),
+					tombstone: await all(raw, `SELECT chat_uri, tombstoned, ownership_revision FROM chats_v2 WHERE chat_uri = '${deletedChat}'`),
+				}, {
+					recovery: { status: 'conflict' }, detail: undefined,
+					tombstone: [{ chat_uri: deletedChat, tombstoned: 1, ownership_revision: 1 }],
+				});
+			} finally {
+				await close(raw);
+			}
+		});
+
+		test('activation and requested peer membership commit together while preserving default and private metadata', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const chats = [
+				{ chat: peer, order: 0, origin: '{"kind":"subagent"}', isRead: false, archived: true, inheritedTurnId: 't'.repeat(4096) },
+				{ chat: 'chat://requested-new', order: 1 },
+			];
+			const result = await database.ensureChatCatalogV2(session, expectation(), candidate(), { kind: 'replacePeers', expectedRevision: 0, chats });
+			const before = await database.readCatalogSnapshot([session]);
+			const stale = await database.ensureChatCatalogV2(session, expectation(), candidate(), { kind: 'replacePeers', expectedRevision: 0, chats: [] });
+			assert.deepStrictEqual({
+				result, stale, count: before[0].chats.length, default: before[0].header?.defaultChatUri,
+				title: before[0].chats.find(chat => chat.chat === peer)?.metadata?.summary,
+				private: before[0].chats.find(chat => chat.chat === privateChat)?.parentChat,
+				unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+			}, {
+				result: { status: 'applied', catalogRevision: 2 }, stale: { status: 'conflict' }, count: 4, default: defaultChat,
+				title: 'User title', private: peer, unchanged: true,
+			});
+		});
+
+		test('late requested membership failure rolls back activation and every normalized row', async () => {
+			const path = join(temporaryDirectory!, 'activation-membership-rollback.db');
+			database = new AgentHostDatabase(path);
+			await seed();
+			const raw = await openDatabase(path);
+			try {
+				await exec(raw, `CREATE TRIGGER reject_requested_peer BEFORE INSERT ON chats_v2
+					WHEN NEW.chat_uri = 'chat://requested-new' BEGIN SELECT RAISE(ABORT, 'membership failure'); END`);
+				await assert.rejects(database.ensureChatCatalogV2(session, expectation(), candidate(), {
+					kind: 'replacePeers', expectedRevision: 0, chats: [{ chat: 'chat://requested-new', order: 0 }],
+				}), /membership failure/);
+				assert.deepStrictEqual({
+					header: await all(raw, 'SELECT * FROM session_chat_catalogs'), chats: await all(raw, 'SELECT * FROM chats_v2'),
+				}, { header: [], chats: [] });
+			} finally {
+				await close(raw);
+			}
+		});
+
+		test('snapshot selector accepts exactly the exported limit and legacy empty catalogs retain an authority discriminator', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			const sessions = [session, ...Array.from({ length: AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT - 1 }, (_, index) => `session://absent-${index}`)];
+			const entries = await database.readCatalogSnapshot(sessions);
+			await assert.rejects(database.readCatalogSnapshot([...sessions, 'session://overflow']), /selector exceeds 400/);
+			assert.deepStrictEqual(entries.map(entry => ({
+				session: entry.session, authority: entry.authorityVersion, header: entry.header, chats: entry.chats,
+			})), [{ session, authority: 1, header: undefined, chats: [] }]);
 		});
 	});
 });

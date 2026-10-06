@@ -304,6 +304,15 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async markSessionsV2PayloadsDirty(): Promise<void> { }
 	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
 	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
+	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: false, provisional: this.provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady' }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady' }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady' }; }
 	async getSessionChatCatalog(_session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> { return undefined; }
 	async replaceSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }
 	async recoverSessionChatCatalog(_session: string, _chats: readonly IAgentHostDatabaseSessionChat[], _expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> { return { status: 'applied', revision: 1 }; }

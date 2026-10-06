@@ -789,6 +789,16 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
 		return this._sessionChats.get(session);
 	}
+	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: this._sessionsV2.get(identity.session)?.isChatBacking ?? false,
+			provisional: this._provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady' }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady' }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady' }; }
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this.sessionChatCatalogReplaceAttempts++;
 		const blocked = this._blockedSessionChatCatalogWrite;
@@ -845,6 +855,16 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
+		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
+			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: this._sessionsV2.get(identity.session)?.isChatBacking ?? false,
+			provisional: this._provisionalSessions.has(identity.session), chats: [],
+		}));
+	}
+	async getChatV2ProviderDetail(..._args: Parameters<IAgentHostDatabase['getChatV2ProviderDetail']>): ReturnType<IAgentHostDatabase['getChatV2ProviderDetail']> { return undefined; }
+	async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> { return { status: 'notReady' }; }
+	async registerChatCatalogV2(..._args: Parameters<IAgentHostDatabase['registerChatCatalogV2']>): ReturnType<IAgentHostDatabase['registerChatCatalogV2']> { return { status: 'notReady' }; }
+	async updateChatV2Metadata(..._args: Parameters<IAgentHostDatabase['updateChatV2Metadata']>): ReturnType<IAgentHostDatabase['updateChatV2Metadata']> { return { status: 'notReady' }; }
 	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		return this.replaceSessionChatCatalog(session, chats, expectedRevision);
 	}
