@@ -35,10 +35,8 @@ export const enum SessionConfigKey {
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
 	/** `'worktreeSymlinkFolders'` — host-owned `.gitignore`-syntax patterns for git-ignored folders symlinked into a new worktree. */
 	WorktreeSymlinkFolders = 'worktreeSymlinkFolders',
-	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
-	WorktreeBranchTrack = 'worktreeBranchTrack',
-	/** `'worktreeCreateNewBranch'` — host-owned choice to create a branch instead of checking out the selected branch. */
-	WorktreeCreateNewBranch = 'worktreeCreateNewBranch',
+	/** `'pullRequestUrl'` — host-owned pull request the session is created from; implies worktree isolation. */
+	PullRequestUrl = 'pullRequestUrl',
 	/** `'agentMerge'` — client-owned Agent Merge enablement and session overrides. */
 	AgentMerge = 'agentMerge',
 	/** `'agentMerge.controller'` — host-owned Agent Merge lifecycle state. */
@@ -54,6 +52,12 @@ export const enum SessionConfigKey {
 }
 
 export type SessionSandboxEnabled = 'default' | 'on' | 'off';
+
+/** Returns the {@link SessionConfigKey.PullRequestUrl} a session is created from, if any. */
+export function getSessionPullRequestUrl(values: Readonly<Record<string, unknown>> | undefined): string | undefined {
+	const value = values?.[SessionConfigKey.PullRequestUrl];
+	return typeof value === 'string' ? value : undefined;
+}
 
 /**
  * The set of enum values the unified permission picker *tolerates* for the
@@ -102,8 +106,7 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
 	SessionConfigKey.WorktreeSymlinkFolders,
-	SessionConfigKey.WorktreeBranchTrack,
-	SessionConfigKey.WorktreeCreateNewBranch,
+	SessionConfigKey.PullRequestUrl,
 	SessionConfigKey.AgentMerge,
 	SessionConfigKey.AgentMergeController,
 	SessionConfigKey.AgentMergeFolders,

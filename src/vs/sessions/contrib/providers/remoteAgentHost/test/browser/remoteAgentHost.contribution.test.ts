@@ -24,6 +24,9 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -38,6 +41,8 @@ import { CloudSandboxAgentHostService } from '../../../../../../workbench/contri
 import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
+import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
+import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthenticationState {
@@ -554,6 +559,16 @@ interface IProviderOwnerHarness {
 	_reconcileProviders(): void;
 }
 
+interface IMissionControlProviderOwnerHarness extends IProviderOwnerHarness {
+	_inventory: IMissionControlEnvironmentService;
+	_profileService: IUserDataProfileService;
+	_getProviderOptions(entry: IRemoteAgentHostEntry): IEntryDrivenProviderOptions;
+	_remoteAgentHostService: IProviderOwnerHarness['_remoteAgentHostService'] & {
+		getConnection(address: string): Pick<IAgentConnection, 'rootState'> | undefined;
+	};
+	_getProviderEntries(): readonly IRemoteAgentHostEntry[];
+}
+
 interface IRemoteAgentRegistrationHarness {
 	_connections: Map<string, {
 		readonly agents: DisposableMap<string, DisposableStore>;
@@ -587,6 +602,38 @@ suite('Remote agent host provider ownership', () => {
 			services.get(ICloudSandboxApiService)?.ctor,
 			services.get(ICloudSandboxAgentHostService)?.ctor,
 		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
+	});
+
+	test('native MC providers use visible account inventory rather than staged managed sandbox entries', () => {
+		const entries: IRemoteAgentHostEntry[] = [
+			{ name: 'Native', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:native', environmentId: 'native', environmentKind: 'user-local' } },
+			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:sandbox', environmentId: 'sandbox' } },
+		];
+		const owner = Object.create(MissionControlAgentHostContribution.prototype) as IMissionControlProviderOwnerHarness;
+		owner._configurationService = { getValue: () => true };
+		owner._entryType = RemoteAgentHostEntryType.CloudSandbox;
+		owner._providerInstances = new Map([['cloudsandbox:native', { label: 'Native', defaultLabel: 'Native' }]]);
+		owner._remoteAgentHostService = { configuredEntries: entries, getConnection: () => undefined };
+		owner._inventory = new class extends mock<IMissionControlEnvironmentService>() {
+			override readonly enabled = true;
+			override readonly accountKey = 'account';
+			override readonly hosts = observableValue(this, [
+				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
+				{ id: 'hidden', name: 'Hidden', kind: 'user-local', status: 'online', hidden: true },
+			]);
+		}();
+		owner._profileService = new class extends mock<IUserDataProfileService>() {
+			override readonly currentProfile = new class extends mock<IUserDataProfile>() {
+				override readonly id = 'profile';
+			}();
+		}();
+		const options = owner._getProviderOptions(entries[0]);
+		assert.deepStrictEqual({
+			entries: owner._getProviderEntries(),
+			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function' && typeof options.removeOnDemand === 'function',
+			retained: options.retainSessionsOnDisconnect,
+			readOnlyOffline: options.readOnlyWhenDisconnected,
+		}, { entries: [entries[0]], connectable: true, retained: true, readOnlyOffline: true });
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {

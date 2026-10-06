@@ -435,6 +435,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
+	private readonly _onDidChangeDraft = this._register(new Emitter<void>());
+	readonly onDidChangeDraft = this._onDidChangeDraft.event;
 	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
 		this.layoutForToolbarChange();
 	}, 0));
@@ -730,6 +732,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Flag to prevent circular updates between view and model
 	private _isSyncingToOrFromInputModel = false;
+	private _isRestoringAttachments = false;
 
 	// Debounced scheduler for syncing text changes
 	private readonly _syncTextDebounced: RunOnceScheduler;
@@ -2200,6 +2203,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
 	}
 
+	private _createDraftChangeListeners(): DisposableStore {
+		const store = new DisposableStore();
+		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidPaste(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidCompositionEnd(() => this._onDidChangeDraft.fire()));
+		store.add(this._attachmentModel.onDidChange(event => {
+			if (event.added.length > 0 && !this._isSyncingToOrFromInputModel && !this._isRestoringAttachments) {
+				this._onDidChangeDraft.fire();
+			}
+		}));
+		return store;
+	}
+
 	/**
 	 * Get the current input state for history
 	 */
@@ -2411,7 +2427,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))).filter(isDefined);
 		}
 
-		this._attachmentModel.clearAndSetContext(...restored);
+		this._isRestoringAttachments = true;
+		try {
+			this._attachmentModel.clearAndSetContext(...restored);
+		} finally {
+			this._isRestoringAttachments = false;
+		}
 	}
 
 	private async navigateHistory(previous: boolean): Promise<void> {
@@ -3586,6 +3607,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Debounced sync to model for text changes
 			this._syncTextDebounced.schedule();
 		}));
+		this._register(this._createDraftChangeListeners());
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged && !this.ignoreInputEditorContentSizeChanges) {
 				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;

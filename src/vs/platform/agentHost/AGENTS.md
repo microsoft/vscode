@@ -86,6 +86,7 @@ Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
 - Reading history (`chats.getMessages`).
 - Emitting progress signals (`onDidChatProgress`).
+- Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
 - Re-attaching a chat's backing on restore (`materializeChat`) — including the session's default chat.
 - Advertising static capability flags (`getDescriptor().capabilities`).
@@ -93,6 +94,14 @@ Responsible for:
 Agents do **not** maintain the chat catalog, persist membership, know whether a chat is the session or a peer, or inject `AgentHostStateManager`. Host facts they genuinely need (subagent origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrive through typed seams — see §8.
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
+
+### Image-generation tools
+
+Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.
+
+Copilot's optional `structuredContent.imageGeneration.requestedModel` maps to `_meta["vscode.imageGeneration"]`, validated by [agentImageGenerationMeta.ts](common/meta/agentImageGenerationMeta.ts). This identifies the requested image engine, not the conversation model or a confirmed serving model. Hosts without this metadata retain generic image labels.
+
+Availability, authorization, and durable tool history remain provider-owned. Inline images use AHP embedded-resource content; resource links must resolve through the host's `resourceRead`. An opaque SDK asset ID alone is not a readable AHP resource.
 
 ### Orchestrator layer
 
@@ -192,6 +201,8 @@ Because listing never opens session storage, migrations the provider/session fal
 
 **Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+Telemetry provider dimensions use the owning agent's id or the session's explicit `provider` metadata, never the standard session URI scheme. Changeset telemetry preserves URI-scheme provider categories for legacy sessions and scoped owners (`ahp-chat:`, `ahp-folder-changeset:`); provider-neutral root sessions capture the explicit provider when computation is queued. Automation run telemetry retains the linked session provider in host-private storage, independently of protocol state, so it survives session removal and host restart. Preserve the existing provider values (`copilotcli`, `claude`, `codex`, or an advertised provider id) independently of addressing.
+
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.** Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so continual external-chat discovery never registers it as a top-level AH session. Providers own native enumeration and push candidates through `onDidDiscoverChats`; Agent Host reconciles those candidates against its registry and suppresses separately enumerable internal backings. Existing AH-created rows retain their provenance. Marking a backing session is a durable metadata write on the backing session's own DB (`_markChatBacking`); a transient failure is retried once, and if it keeps failing the session is suppressed from listing/discovery in-process (`_unpersistedChatBackings`) rather than failing the chat creation that triggered it.
 
 **I8 — Providers are given host facts; they must not re-derive them.** Everything a provider needs about a chat and its owning session is published on a typed seam at the call boundary (see §8). Providers do not inject `AgentHostStateManager` or recover subagent origin or customizations by parsing a chat URI. New provider code must consume the seams.
@@ -230,9 +241,11 @@ Migration returns known native entries as plain metadata. Discovery classifies u
 
 ### Automatic titles
 
-Deferred naming is the default host scheduling strategy for new sessions. There is no title-generation setting or root-config gate.
+`chat.agentHost.experimental.deferredTitleGeneration` (host root key `deferredTitleGeneration`) is an opt-in, default-off host scheduling experiment. It takes precedence over `chat.agentHost.experimental.activeAgentTitleGeneration`. With deferred naming off, the active-agent setting keeps the legacy choice between foreground `rename_chat` naming and immediate utility-model naming; its workbench default is enabled outside Stable, while the standalone root schema defaults to disabled.
 
-The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy. Restore hydrates a persisted strategy before the provider materializes its tool inventory, so existing `activeAgent`, `utility`, and `deferred` sessions retain their behavior. Older sessions without this metadata remain on utility naming, while existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
+The workbench setting opts into automatic experiment overrides via `experiment: { mode: 'auto' }`, using treatment name `config.chat.agentHost.experimental.deferredTitleGeneration`. The effective setting is synced to the host root key; the `experimental` tag alone does not enable experiment overrides.
+
+The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy; root changes affect new sessions only. Restore hydrates the strategy before the provider materializes its tool inventory. Older sessions without this metadata remain on utility naming, never implicitly opting into deferred naming. Existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
 
 Deferred mode synchronously publishes and starts persisting an automatic fallback title, without a utility request, GitHub enrichment, foreground rename reminder, or automatic-naming tool guidance. The existing `SessionTitleContribution` starts at most one non-awaited utility refinement after the first new successful response with nonempty markdown. Forks wait for their first new response rather than titling the inherited history during creation; locally handled commands do not consume this opportunity. A separate `deferredTitleSeed` record preserves the seed and first-response index across restart. Hydration restores eligibility only when that record still matches the persisted title and automatic provenance; it never generates a title itself. Terminal outcomes consume eligibility before any utility call, so completed, failed, cancelled, or empty first turns are not retried after restart. Cancellation, errors, empty responses, unavailable utility credentials, and disposal retain the fallback.
 

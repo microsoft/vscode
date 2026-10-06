@@ -39,7 +39,7 @@ import {
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
 
@@ -146,7 +146,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		if (Date.now() >= deadline) {
 			throw new AggregateError(
 				Array.from(errors.values()),
-				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+				`Failed to remove Agent Host E2E temporary directories: ${Array.from(errors, ([dir, error]) => `${dir}: ${error.message}`).join('; ')}`,
 			);
 		}
 		await timeout(500);
@@ -665,13 +665,7 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 	}
 
 	if (options?.expectUnread !== false) {
-		await c.waitForNotification(n => {
-			const notifications = c.receivedNotifications();
-			return notifications.indexOf(n) > notifications.indexOf(terminalNotification)
-				&& isActionNotification(n, ActionType.ChatIsReadChanged)
-				&& getActionEnvelope(n).channel === chat
-				&& !(getActionEnvelope(n).action as { isRead: boolean }).isRead;
-		}, 90_000);
+		await waitForChatUnreadAfterTurn(c, chat, getActionEnvelope(terminalNotification).serverSeq);
 	}
 
 	return { sawInputRequest, sawPendingConfirmation, responseText: getMarkdownResponseText(c) };

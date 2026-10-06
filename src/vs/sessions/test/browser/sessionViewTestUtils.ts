@@ -30,7 +30,7 @@ import { ISessionsListModelService } from '../../services/sessions/browser/sessi
 import { ISessionsPartService } from '../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { ChatInteractivity, IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISessionCapabilities, ISessionPreparationProgress, SessionStatus } from '../../services/sessions/common/session.js';
 import { ISessionChangesStatsCache } from '../../services/sessions/common/sessionChangesStatsCache.js';
 import { SessionInputPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { IActiveSession, ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
@@ -138,7 +138,10 @@ export function createSessionsPartTestHarness(store: Pick<DisposableStore, 'add'
 	return { ...services, part, container };
 }
 
-export function createTestActiveSession(sessionId: string, isCreated = true) {
+export function createTestActiveSession(sessionId: string, isCreated = true, lifecycle?: {
+	readonly isNewSessionRequestInProgress?: IObservable<boolean>;
+	readonly preparationProgress?: IObservable<ISessionPreparationProgress | undefined>;
+}) {
 	const chat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse(`test-chat://${sessionId}`);
 		override readonly workspace = constObservable(undefined);
@@ -170,7 +173,8 @@ export function createTestActiveSession(sessionId: string, isCreated = true) {
 		override readonly activeChat: IObservable<IChat> = constObservable(chat);
 		override readonly mainChat: IObservable<IChat> = constObservable(chat);
 		override readonly shouldShowChatTabs = constObservable(true);
-		override readonly isNewSessionRequestInProgress = constObservable(false);
+		override readonly isNewSessionRequestInProgress = lifecycle?.isNewSessionRequestInProgress ?? constObservable(false);
+		override readonly preparationProgress = lifecycle?.preparationProgress;
 		override readonly loading = constObservable(false);
 	}();
 }

@@ -11,11 +11,13 @@ import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
+import { AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault } from '../../common/agentHostSchema.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
 const AMBIENT_SETTING = 'test.agentHostSync.ambient';
+const BYOK_SETTING = 'test.agentHostSync.byok';
 const HIDDEN_SETTING = 'test.agentHostSync.hidden';
 const UNSYNCED_SETTING = 'test.agentHostSync.unsynced';
 const ENUM_SETTING = 'test.agentHostSync.enum';
@@ -57,6 +59,11 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'boolean' as const,
 				default: false,
 				agentHost: { key: 'ambientValue', scope: AgentHostConfigurationSyncScope.Ambient },
+			},
+			[BYOK_SETTING]: {
+				type: 'boolean' as const,
+				default: AgentHostByokModelsEnabledDefault,
+				agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 			},
 			[HIDDEN_SETTING]: {
 				type: 'boolean' as const,
@@ -170,6 +177,21 @@ suite('AgentHostConfigurationSync', () => {
 			localValue: true,
 			ambientValue: true,
 			hiddenValue: 'on',
+		});
+	});
+
+	test('mirrors BYOK enabled by default while preserving explicit opt-out', () => {
+		const defaultPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({}), AgentHostConfigurationSyncTarget.Local);
+		const disabledPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[BYOK_SETTING]: { userValue: false },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({
+			defaultValue: defaultPatch[AgentHostByokModelsEnabledConfigKey],
+			explicitlyDisabled: disabledPatch[AgentHostByokModelsEnabledConfigKey],
+		}, {
+			defaultValue: true,
+			explicitlyDisabled: false,
 		});
 	});
 

@@ -47,7 +47,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -86,6 +86,7 @@ import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHost
 import { readSessionAdditionalWorktrees } from '../shared/sessionAdditionalWorktrees.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
+import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
 import { createCopilotCliEnvironment } from './copilotCliEnvironment.js';
 import { ICopilotSessionContext, projectFromCopilotContext } from './copilotGitProject.js';
@@ -921,6 +922,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Fires when persisted chat backing data changes after creation. */
 	private readonly _onDidChangeChatData = this._register(new Emitter<IAgentChatDataChange>());
 	readonly onDidChangeChatData: Event<IAgentChatDataChange> = this._onDidChangeChatData.event;
+	private readonly _onDidChatSessionEvent = this._register(new Emitter<IAgentChatSessionEvent>());
+	readonly onDidChatSessionEvent = this._onDidChatSessionEvent.event;
 	private readonly _sessionLifetimes = new Map<string, CopilotSessionLifetime>();
 	private readonly _pendingChatTurns = this._register(new DisposableMap<string, DisposableSet<CancellationTokenSource>>());
 	/** Provisional chats that defer SDK/session creation until the first send. */
@@ -1119,6 +1122,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
+	private _isLocalMemoryEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true
+			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
+	}
+
 	private _getSkillCharBudget(): number {
 		return normalizeSkillCharBudget(this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SkillCharBudget));
 	}
@@ -1191,6 +1199,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isClaudeAdvisorEnabled(),
 			this._isTgrepEnabled(),
 			this._isHydraFusionEnabled(),
+			this._isLocalMemoryEnabled(),
 			this._getSkillCharBudget(),
 			this._getCopilotSdkLogLevelSetting(),
 			this._getCopilotRuntimePath(),
@@ -1567,6 +1576,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 			layers: result.layers,
 			diagnostics: result.diagnostics,
 		};
+	}
+
+	async getRemoteControlManagedSettings(): Promise<Record<string, unknown> | undefined> {
+		const result = await (await this._ensureClient()).rpc.managedSettings.read();
+		if (result.errorMessage) {
+			throw new Error('Unable to safely read device-managed settings');
+		}
+		const settings = result.settingsJson;
+		if (settings === undefined) {
+			return undefined;
+		}
+		if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+			throw new Error('Invalid device-managed settings document');
+		}
+		const remoteControl = settings['remoteControl'];
+		if (remoteControl === undefined) {
+			return undefined;
+		}
+		if (!remoteControl || typeof remoteControl !== 'object' || Array.isArray(remoteControl)) {
+			throw new Error('Invalid device remote-control policy');
+		}
+		return remoteControl;
 	}
 
 	getCustomizations(): readonly Customization[] {
@@ -3057,6 +3088,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const resource = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'events.jsonl'));
 		return await this._fileService.exists(resource) ? resource : undefined;
+	}
+
+	async *readChatSessionEvents(chat: URI, context: IAgentChatContext, token: CancellationToken, afterEventId?: string, onDidReadEventId?: (id: string) => void): AsyncIterable<IAgentChatSessionEvent> {
+		const resource = await this.getSessionStateFile(context.configurationResource, chat);
+		if (resource) {
+			yield* readCopilotSessionMetadataEvents(chat, resource.fsPath, token, afterEventId, onDidReadEventId);
+		}
+	}
+
+	async synchronizeChatSessionTitle(chat: URI, title: string): Promise<boolean> {
+		const entry = this._findChatByUri(chat);
+		if (!entry) {
+			return false;
+		}
+		await entry.synchronizeTitle(title);
+		return true;
 	}
 
 	private readonly _copilotChatDiscovery: CopilotChatDiscovery;
@@ -5199,6 +5246,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					shellManager,
 					githubCredentials: this._getGitHubSessionCredentials(),
 					fallback: { model, longContextWindow: this._longContextWindowFor(model?.id), freeLongContext: this._isFreeLongContext(model?.id) },
+					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
 			} else {
 				sdkSessionId = chatSdkId;
@@ -5217,6 +5265,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					model,
 					longContextWindow: this._longContextWindowFor(model?.id),
 					freeLongContext: this._isFreeLongContext(model?.id),
+					...(options.isEphemeral ? { isEphemeral: true } : {}),
 				};
 			}
 
@@ -6173,6 +6222,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...(identity?.resource ? { resource: identity.resource } : {}),
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
+				onSessionEvent: event => {
+					if (this._onDidChatSessionEvent.hasListeners()) {
+						const metadata = toCopilotSessionMetadataEvent(chatChannelUri, event);
+						if (metadata) {
+							this._onDidChatSessionEvent.fire(metadata);
+						}
+					}
+				},
 				sessionLauncher: this._sessionLauncher,
 				launchPlan,
 				shellManager: launchPlan.shellManager,

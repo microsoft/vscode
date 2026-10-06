@@ -117,8 +117,8 @@ export interface IChatInputNotification {
 	readonly actions: readonly IChatInputNotificationAction[];
 	/** Controls whether this notification applies to an input. */
 	readonly when?: (context: IChatInputNotificationContext) => boolean;
-	/** Called when the notification first becomes visible in each input. Must be idempotent. */
-	readonly onDidShow?: () => void;
+	/** Called with the rendering input's context when first visible in each input. Must be idempotent. */
+	readonly onDidShow?: (context: IChatInputNotificationContext) => void;
 	/** Resolves the description and actions for an input. */
 	readonly resolveBody?: (context: IChatInputNotificationContext) => IChatInputNotificationBody;
 	readonly dismissible: boolean;

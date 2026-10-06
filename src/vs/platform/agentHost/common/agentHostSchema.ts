@@ -451,6 +451,8 @@ export const AgentHostSessionSyncEnabledConfigKey = 'sessionSyncEnabled';
 
 /** Whether extension-provided BYOK models are enabled. */
 export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
+/** Shared default for the root config and mirrored workbench setting. */
+export const AgentHostByokModelsEnabledDefault = true;
 
 /**
  * Root config key forwarded from the renderer carrying the experiment-aware
@@ -553,6 +555,10 @@ const agentHostProxyConfigDefinition = {
 	}),
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
+
+/** Root config keys forwarded from the renderer for automatic title generation. */
+export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
+export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
 
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
@@ -835,7 +841,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.byokModelsEnabled.title', "BYOK Models"),
 		description: localize('agentHost.config.byokModelsEnabled.description', "Whether extension-provided BYOK models are enabled."),
-		default: false,
+		default: AgentHostByokModelsEnabledDefault,
 	}),
 	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -897,6 +903,18 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
+		default: false,
+	}),
+	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.activeAgentTitleGeneration.title', "Active Agent Title Generation"),
+		description: localize('agentHost.config.activeAgentTitleGeneration.description', "Whether the active agent names sessions and chats with rename tools instead of immediate utility-model title generation. Deferred title generation takes precedence. Changes apply to new sessions."),
+		default: false,
+	}),
+	[AgentHostDeferredTitleGenerationConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.deferredTitleGeneration.title', "Deferred Title Generation"),
+		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
 		default: false,
 	}),
 	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({

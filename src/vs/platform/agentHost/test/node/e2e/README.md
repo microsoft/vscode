@@ -111,6 +111,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
 | `suites/workingDirectoriesSuite.ts` | Multi-root peer scoping, delegated folders, additional worktree ownership, and workspace persistence. |
 | `suites/mcpSideChannelSuite.ts` | Real MCP application requests tunneled over AHP, including resources, tool results, concurrent callers, and lifecycle recovery. |
+| `suites/terminalResilienceSuite.ts` | Client-owned real PTYs: working directory, UTF-8 input, resizing, fragmented output, independent processes, and retained output across subscription changes. |
 | `suites/providerCheckpointSuite.ts` | Provider-executed edits and historical Git checkpoint comparisons, including index preservation and restart. |
 | `suites/providerErrorSuite.ts` | Endpoint-scoped model API failures, provider error classification, retries, and subsequent-turn recovery. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
@@ -136,6 +137,14 @@ Workspace lifecycle tests enable each provider's multi-root capability only for 
 Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 The MCP side-channel scenarios use the `channel` advertised by a real ready server, never a synthesized implementation URI. Copilot and Codex support this surface; Claude does not. Codex additionally exposes resource and template inventories, while Copilot supports stop/start. A recorded no-tool turn materializes the provider; side-channel calls then exercise the actual MCP process without model requests.
+
+The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
+
+Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
+
+Terminal resilience assertions compare filesystem identity rather than Windows short/long path spelling, render VT scrollback through a headless terminal rather than counting ConPTY repaint bytes, and send Unicode to an already-running child rather than relying on a shell editor's locale. Claude history-edit fixtures perform the required `Read` before `Edit`, including after cold resume; replayed success text cannot substitute for that tool prerequisite.
+
+The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
@@ -223,6 +232,9 @@ A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and pr
 Replay is the default — no setup, no token:
 
 ```bash
+# Refresh client output when running from local sources without an existing build task.
+npm run build-fast -- --client-only
+
 # Run conformance and all provider suites in parallel.
 npm run test-agent-host-e2e
 
@@ -232,6 +244,8 @@ npm run test-agent-host-e2e -- --jobs 2
 # Run one provider.
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts
 ```
+
+The complete-suite runner reuses Electron when its installed version matches the repository configuration and the platform's executable is present (and executable on POSIX). Missing or incompatible installations are refreshed. `VSCODE_FORCE_PRELAUNCH=1` forces a refresh; `VSCODE_SKIP_PRELAUNCH=1` explicitly bypasses preparation and takes precedence over the force flag. Output refresh and Electron preparation do not type-check the sources.
 
 The complete-suite runner starts one test process per entrypoint and runs up to five concurrently, including the separate Copilot OTel suite. `AGENT_HOST_E2E_JOBS` or `--jobs` can lower the worker count. Each process's output is printed as one block when it completes, and any Mocha failure details are repeated after the final suite summary so failures remain easy to find. Recording and snapshot-update modes remain per-provider commands so they never make concurrent writes or real CAPI requests.
 
@@ -244,6 +258,10 @@ without creating a session or making a model request. The policy probe still
 fetches server settings afresh and retains the production 4.5-second overall and
 3.5-second query deadlines. Cold-start deadline behavior is covered by the
 Copilot agent unit tests.
+
+The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
+
+The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
 
 Provider availability:
 
@@ -262,8 +280,10 @@ Skip these scenarios while recording so a known early failure cannot overwrite
 a complete fixture with a partial recording. Remove that recording skip together
 with the marker when the upstream fix is adopted.
 
-The managed-telemetry no-restart scenario runs this way by default. Do not
-replace its marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default.
+Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
+managed-telemetry no-restart scenario passes normally with runtime `1.0.92-4`.
+Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
 `{ allowUnconsumedResponses: true }` to the lease's replay verification at
@@ -596,6 +616,14 @@ Keep asserting the real tool result: the replayed assistant text can report the 
 
 When a test times out waiting for a notification and it is **not** platform-specific local execution (above), the failure is usually inside the bundled provider SDK/CLI. Every failed test tails the Agent Host process log into the test output before its temporary user-data directory is removed; look for the `[agent-host-e2e] # …` lines, including provider stderr and pipeline errors. For the **Copilot** provider, the harness additionally tails the most recent Copilot runtime (`@github/copilot` CLI) `process-*.log`, which records startup, auth, model requests, and the turn lifecycle. A turn that started but never produced a model response, a panic, or an out-of-order / protocol error points at the SDK/CLI. Re-record after an SDK bump if the fixture is stale; otherwise treat it as a genuine regression. The Copilot runtime runs at `--log trace` in this harness, and its full logs live under the server's temp home (`${homeDir}/.copilot/logs`) until the suite tears down.
 
+### Session disposal times out
+
+Correlate the protocol request with `[AgentService] disposeSession` trace records. Each cleanup operation has an `operationId`, a `stage` logged before its await, and cumulative `elapsedMs`. The last stage without a following stage identifies the pending cleanup boundary; `complete` is emitted only after successful cleanup. A request with no stage record may still be waiting for an in-flight residency release.
+
+Follow the pending boundary into its owning service or provider runtime before classifying the failure. A completed turn or failed automation run does not establish that session cleanup is finished, and a delayed disposal response alone does not distinguish a product race from worker resource contention.
+
+For a catalog drain, correlate `catalogStateWrite` iteration records with `[AgentHostCatalogSync]` records for the same session. Catalog queue records separate `queueWaitMs` from `executionMs`; synchronization stages identify whether local receipt access, central catalog access, or acknowledgement is pending. These timings include nested queues and native I/O, so a slow database stage alone does not prove filesystem or worker-pool contention.
+
 ### Replayed text is doubled (`VALUEVALUE`)
 
 The Responses (`/responses`) regenerator announces each output item before streaming it. If `response.output_item.added` carries the item's final content, a consumer that accumulates that content *and* the following deltas counts the same text twice, so a recorded `SHELL_VALUE_73` replays as `SHELL_VALUE_73SHELL_VALUE_73`.
@@ -605,6 +633,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 ### A test passes on macOS/Linux but fails on Windows
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
+
+### Codex passes its tests but cannot remove its temporary home
+
+Codex's native plugin marketplace starts a background Git fetch of `openai/plugins` outside the replay proxy. If shutdown interrupts that work, Windows can keep a `.codex/.tmp/plugins-clone-*` directory locked: synchronous removal reports `EPERM`, while asynchronous removal identifies the clone directory with `EBUSY`. This caused the intermittent suite-cleanup failure tracked in [#339760](https://github.com/microsoft/vscode/issues/339760).
+
+Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
 ### Fixture leaks a username / absolute path / token
 
@@ -621,6 +655,18 @@ You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a to
 ### A test passes alone but fails only when run after another test (shared server)
 
 In replay one server serves every test (see [Server lifecycle](#server-lifecycle)), so a test that returns **mid-turn** leaks: the SDK's continuation call fires after the fixture is swapped and lands in a later test's window as an unrecorded call (a `POST /v1/messages` / `POST /responses` cache miss, usually attributed to the *next* test's teardown). Fix the culprit — the test that returned mid-turn — by draining its turn to `turnComplete` before it ends. (Verify by running the suspected test alone via `--grep`, which gives it a clean one-test server; if it passes alone but fails after a sibling, that's the leak.)
+
+### Read or archive state is lost after a graceful host restart
+
+Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
+
+### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
+
+Turn completion precedes the unread lifecycle action. Wait for `chat/isReadChanged` with `isRead: false` on the same chat and a greater `serverSeq` before taking the snapshot. The turn driver and snapshot scenario runner share this barrier; do not remove the unread action from the snapshot or add a sleep.
+
+### A later test fails on unexpected console output after a snapshot mismatch
+
+Check for a `Deleting 1 old snapshots` message from the preceding test. A previous failed iteration leaves a diagnostic `.actual` file; a passing iteration removes it. Diagnostic cleanup must not report a baseline mutation, which CI correctly rejects. The snapshot helper cleans these artifacts silently while continuing to report removal of actual baselines.
 
 ### CI infra flakes (not your code)
 

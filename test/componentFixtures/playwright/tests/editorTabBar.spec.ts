@@ -79,14 +79,14 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 });
 
 for (const [group, expected] of [
-	['ActiveGroup', {
+	['FocusedEditorGroup', {
 		activeTop: { indicator: 'block', capColor: 'rgb(250, 204, 21)', accentColor: 'rgb(34, 211, 238)' },
 		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
 		activeSide: 'rgb(250, 204, 21)',
 		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
 		selectedBorder: 'rgba(0, 0, 0, 0)',
 	}],
-	['InactiveGroup', {
+	['UnfocusedEditorGroup', {
 		activeTop: { indicator: 'block', capColor: 'rgb(250, 204, 21)', accentColor: 'rgb(192, 132, 252)' },
 		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
 		activeSide: 'rgb(250, 204, 21)',
@@ -94,8 +94,8 @@ for (const [group, expected] of [
 		selectedBorder: 'rgba(0, 0, 0, 0)',
 	}],
 ] as const) {
-	test(`connected tabs show legacy border customizations in ${group}`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Colors/ConnectedLegacyBorders/${group}/Dark`, '.tabs-container > .tab.active');
+	test(`connected tabs show border customizations in ${group}`, async ({ page }) => {
+		await openFixture(page, `editor/tabs/Colors/BorderCustomizations/ConnectedMultiSelection/${group}/Dark`, '.tabs-container > .tab.active');
 
 		const colors = await page.locator('.tabs-container').evaluate(tabs => {
 			const active = tabs.querySelector<HTMLElement>('.tab.active');
@@ -161,7 +161,7 @@ for (const [style, expected] of [
 	}],
 ] as const) {
 	test(`${style} tabs retain their border ownership`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Colors/BorderOwnership/${style}/Dark`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/BorderCustomizations/AcrossTabStyles/${style}/Dark`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.tabs-container > .tab.active').evaluate(active => {
 			const top = active.querySelector<HTMLElement>('.tab-border-top-container');
 			const bottom = active.querySelector<HTMLElement>('.tab-border-bottom-container');
@@ -207,7 +207,7 @@ for (const [style, expected] of [
 
 test('default and customized connected tabs share identical geometry', async ({ page }) => {
 	const readGeometry = async (fixture: string) => {
-		await openFixture(page, `editor/tabs/Colors/BorderOwnership/${fixture}/Dark`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/${fixture}/Dark`, '.tabs-container > .tab.active');
 		return page.locator('.tabs-container > .tab.active').evaluate(active => {
 			const fill = active.querySelector<HTMLElement>('.tab-fill');
 			const edge = active.querySelector<HTMLElement>('.tab-connected-edge');
@@ -246,7 +246,7 @@ test('default and customized connected tabs share identical geometry', async ({ 
 		});
 	};
 
-	expect(await readGeometry('Connected')).toEqual(await readGeometry('ConnectedDefault'));
+	expect(await readGeometry('BorderCustomizations/AcrossTabStyles/Connected')).toEqual(await readGeometry('Continuity/DefaultBorders'));
 });
 
 for (const [theme, expected] of [
@@ -254,7 +254,7 @@ for (const [theme, expected] of [
 	['LightHighContrast', { activeTop: 'rgb(0, 107, 189)', accent: 'rgb(0, 107, 189)', tabBorder: 'rgb(15, 74, 133)' }],
 ] as const) {
 	test(`pill borders retain high contrast ownership in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Colors/BorderOwnership/Pill/${theme}`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/BorderCustomizations/AcrossTabStyles/Pill/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.tabs-container').evaluate(tabs => {
 			const activeFill = tabs.querySelector<HTMLElement>('.tab.active > .tab-fill');
 			const inactiveFill = tabs.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
@@ -282,7 +282,7 @@ for (const [theme, expected] of [
 	});
 
 	test(`connected borders retain high contrast ownership in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Colors/BorderOwnership/Connected/${theme}`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Colors/BorderCustomizations/AcrossTabStyles/Connected/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.editor-group-container').evaluate(group => {
 			const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
 			const inactiveFill = group.querySelector<HTMLElement>('.tab:not(.active):not(:first-child) > .tab-fill');
@@ -329,7 +329,7 @@ for (const [theme, expected] of [
 }
 
 test('wrapped upper connected tabs inset customized border accents', async ({ page }) => {
-	await openFixture(page, 'editor/tabs/Colors/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
+	await openFixture(page, 'editor/tabs/Colors/BorderCustomizations/WrappedConnectedRows/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
 	const ownership = await page.locator('.tab.active.connected-tab-upper-row').evaluate(active => {
 		const fill = active.querySelector<HTMLElement>('.tab-fill');
 		const top = active.querySelector<HTMLElement>('.tab-border-top-container');
@@ -372,7 +372,7 @@ test('wrapped upper connected tabs inset customized border accents', async ({ pa
 });
 
 test('wrapped upper connected hover borders use focused and unfocused inset accents', async ({ page }) => {
-	await openFixture(page, 'editor/tabs/Colors/BorderOwnership/ConnectedWrapped/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
+	await openFixture(page, 'editor/tabs/Colors/BorderCustomizations/WrappedConnectedRows/Dark', '.tabs-container > .tab.active.connected-tab-upper-row');
 	const hovered = page.locator('.tabs-container > .tab.connected-tab-upper-row:not(.active)').first();
 	await hovered.hover();
 	const readOwnership = () => hovered.evaluate(tab => {
@@ -426,7 +426,7 @@ test('wrapped upper connected hover borders use focused and unfocused inset acce
 });
 
 test('connected tabs honor all modern editor tab customizations', async ({ page }) => {
-	await openFixture(page, 'editor/tabs/Colors/BorderOwnership/ConnectedModernEditorTokens/Dark', '.tabs-container > .tab.active');
+	await openFixture(page, 'editor/tabs/Colors/TabAndActionCustomizations/SingleRow/Dark', '.tabs-container > .tab.active');
 	const tabs = page.locator('.tabs-container');
 	const active = tabs.locator('> .tab.active');
 	const inactive = tabs.locator('> .tab:not(.active):not(.selected)').first();
@@ -435,13 +435,15 @@ test('connected tabs honor all modern editor tab customizations', async ({ page 
 		const fill = element.querySelector<HTMLElement>('.tab-fill');
 		const label = element.querySelector<HTMLElement>('.tab-label a');
 		const actions = element.querySelector<HTMLElement>('.tab-actions');
-		if (!fill || !label || !actions) {
+		const actionButton = actions?.querySelector<HTMLElement>('.action-label');
+		if (!fill || !label || !actions || !actionButton) {
 			throw new Error('Expected tab fill, label, and actions');
 		}
 		return {
 			background: getComputedStyle(fill).backgroundColor,
 			foreground: getComputedStyle(label).color,
-			actionBackground: getComputedStyle(actions).backgroundColor,
+			actionOverlayBackground: getComputedStyle(actions).backgroundColor,
+			actionButtonBackground: getComputedStyle(actionButton).backgroundColor,
 		};
 	});
 
@@ -450,38 +452,49 @@ test('connected tabs honor all modern editor tab customizations', async ({ page 
 	expect(await readTab(active)).toEqual({
 		background: 'rgb(22, 78, 99)',
 		foreground: 'rgb(207, 250, 254)',
-		actionBackground: 'rgb(14, 55, 71)',
+		actionOverlayBackground: 'rgba(0, 0, 0, 0)',
+		actionButtonBackground: 'rgb(14, 55, 71)',
 	});
 
 	await active.hover();
 	expect(await readTab(active)).toEqual({
 		background: 'rgb(107, 33, 168)',
 		foreground: 'rgb(207, 250, 254)',
-		actionBackground: 'rgb(76, 22, 120)',
+		actionOverlayBackground: 'rgba(0, 0, 0, 0)',
+		actionButtonBackground: 'rgb(76, 22, 120)',
 	});
 
 	await inactive.hover();
+	await inactive.locator('.action-label').hover();
 	expect(await readTab(inactive)).toEqual({
 		background: 'rgb(124, 45, 18)',
 		foreground: 'rgb(255, 237, 213)',
-		actionBackground: 'rgb(90, 31, 12)',
+		actionOverlayBackground: 'rgba(0, 0, 0, 0)',
+		actionButtonBackground: 'rgb(90, 31, 12)',
 	});
 
 	await selected.hover();
-	expect((await readTab(selected)).actionBackground).toBe('rgb(22, 101, 52)');
+	await selected.locator('.action-label').hover();
+	expect(await readTab(selected)).toMatchObject({
+		actionOverlayBackground: 'rgba(0, 0, 0, 0)',
+		actionButtonBackground: 'rgb(22, 101, 52)',
+	});
 
 	await page.locator('.editor-group-container').evaluate(group => group.classList.remove('active'));
 	await active.hover();
 	expect(await readTab(active)).toEqual({
 		background: 'rgb(107, 33, 168)',
 		foreground: 'rgb(207, 250, 254)',
-		actionBackground: 'rgb(76, 22, 120)',
+		actionOverlayBackground: 'rgba(0, 0, 0, 0)',
+		actionButtonBackground: 'rgb(76, 22, 120)',
 	});
 	await inactive.hover();
+	await inactive.locator('.action-label').hover();
 	expect(await readTab(inactive)).toEqual({
 		background: 'rgb(124, 45, 18)',
 		foreground: 'rgb(255, 237, 213)',
-		actionBackground: 'rgb(90, 31, 12)',
+		actionOverlayBackground: 'rgba(0, 0, 0, 0)',
+		actionButtonBackground: 'rgb(90, 31, 12)',
 	});
 });
 

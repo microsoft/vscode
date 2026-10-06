@@ -8,10 +8,12 @@ import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/br
 import { $, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
@@ -32,6 +34,20 @@ import { IEditorGroup } from '../../../../workbench/services/editor/common/edito
 import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
+
+type CanvasLoadEvent = {
+	schemaVersion: number;
+	outcome: 'loaded' | 'error' | 'cancelled' | 'interrupted';
+	durationMs: number;
+};
+
+type CanvasLoadClassification = {
+	owner: 'jruales';
+	comment: 'Measures completed canvas load attempts, not first paint or application readiness. Crashes may leave no completion.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas load event schema version.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the load completed, failed, was cancelled, or became irrelevant after an input, owner, or editor lifetime change.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds from starting browser creation through the load attempt completion.' };
+};
 
 export class SessionCanvasEditor extends EditorPane {
 
@@ -137,10 +153,13 @@ export class SessionCanvasEditor extends EditorPane {
 		this._detach(localize('canvas.loading', "Loading canvas…"));
 		const sequence = ++this.loadSequence;
 		this.loadingKey = key;
+		const stopwatch = StopWatch.create();
+		let outcome: CanvasLoadEvent['outcome'] = 'error';
 		try {
 			const source = canvas.source;
-			const model = await this.browserViewService.createExternalBrowserView(source.toString(true));
+			const model = await this.browserViewService.createExternalBrowserView(source.toString(true), 'canvas');
 			if (!this._isCurrent(input, source, sequence)) {
+				outcome = 'interrupted';
 				model.dispose();
 				return;
 			}
@@ -149,8 +168,11 @@ export class SessionCanvasEditor extends EditorPane {
 			this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
 			this.loadedKey = key;
 			this.message.textContent = model.error ? localize('canvas.pageFailed', "The canvas page failed to load.") : '';
-		} catch {
-			if (this._isCurrent(input, canvas.source, sequence)) {
+			outcome = model.error ? 'error' : 'loaded';
+		} catch (error) {
+			const current = this._isCurrent(input, canvas.source, sequence);
+			outcome = !current ? 'interrupted' : isCancellationError(error) ? 'cancelled' : 'error';
+			if (current) {
 				this._detach(localize('canvas.loadFailed', "The canvas could not be loaded."));
 				this.logService.error('[SessionCanvasEditor] Failed to load canvas');
 			}
@@ -158,6 +180,11 @@ export class SessionCanvasEditor extends EditorPane {
 			if (sequence === this.loadSequence && this.loadingKey === key) {
 				this.loadingKey = undefined;
 			}
+			this.telemetryService.publicLog2<CanvasLoadEvent, CanvasLoadClassification>('agentCanvas.loadCompleted', {
+				schemaVersion: 1,
+				outcome,
+				durationMs: stopwatch.elapsed(),
+			});
 		}
 	}
 
