@@ -17,6 +17,7 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
+import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
 import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
@@ -31,6 +32,7 @@ export interface IModelPickerPresentationOptions {
 }
 
 export interface IModelPickerDelegate {
+	readonly workflow?: IModelPickerWorkflow;
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined>;
 	setModel(model: ILanguageModelChatMetadataAndIdentifier): void;
 	/**
@@ -48,6 +50,11 @@ export interface IModelPickerDelegate {
 	 */
 	getChatSessionId?(): string | undefined;
 	getProvider?(): string | undefined;
+	/**
+	 * The session type (harness) the picker selects models for. Used to scope
+	 * the Manage Models editor to that harness's Copilot models.
+	 */
+	getSessionType?(): string | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it

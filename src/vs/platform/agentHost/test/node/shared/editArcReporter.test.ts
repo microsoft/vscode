@@ -164,6 +164,7 @@ suite('Agent Host Edit ARC Reporter', () => {
 			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] },
 			completionTime: Date.now(),
 		});
+
 		await timeout(10);
 
 		assert.deepStrictEqual({
@@ -175,6 +176,19 @@ suite('Agent Host Edit ARC Reporter', () => {
 			agentSessionId: 'session-1',
 			isSubagentSession: 'true',
 		});
+	});
+
+	test('standard session edit reports retain their explicit provider', async () => {
+		const resource = URI.file('/workspace/standard.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('hello AI'));
+		const service = disposables.add(new EditArcReporterService([0], fileService, new TestDiffComputeService(), createNoopGitService(), config, new NullLogService(), telemetry));
+		await service.reportEdit({
+			sessionUri: 'ahp-session:/standard', provider: 'copilotcli', turnId: 'turn-1', toolCallId: 'tool-1',
+			filePath: resource.fsPath, beforeText: 'hello', afterText: 'hello AI',
+			initialEdit: { replacements: [{ start: 5, endExclusive: 5, text: ' AI' }] }, completionTime: Date.now(),
+		});
+		await timeout(10);
+		assert.deepStrictEqual([telemetry.events[0].data.provider, telemetry.events[0].data.agentSessionId], ['copilotcli', 'standard']);
 	});
 
 	test('updates older reporters before starting the next reporter', async () => {

@@ -147,6 +147,8 @@ export interface ISessionPreparationProgress {
 export const enum ChatInteractivity {
 	/** The user can send messages to the chat (default when unspecified). */
 	Full = 'full',
+	/** The user can compose a draft, but must connect before sending it. */
+	DraftOnly = 'draft-only',
 	/** The chat is visible but read-only — the user can watch but not send messages. */
 	ReadOnly = 'read-only',
 	/** The chat is an internal worker that should not be shown in the UI at all. */
@@ -634,28 +636,18 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
-/** Availability of a live canvas source. */
-export const enum SessionCanvasAvailability {
-	Ready = 'ready',
-	Unavailable = 'unavailable',
-}
-
 /** A model-opened canvas owned by one chat. */
 export interface ISessionCanvas {
 	/** Stable canvas identity within its owning chat. */
 	readonly resource: URI;
-	/** Stable provider-supplied instance identifier. */
-	readonly instanceId: string;
+	/** Stable provider-supplied instance identifier; absent before canvas state hydrates. */
+	readonly instanceId: string | undefined;
 	/** Display title. */
 	readonly title: string;
 	/** Optional provider status text. */
 	readonly status?: string;
-	/** Monotonic instance revision. */
-	readonly revision: number;
-	/** Whether the current source can be resolved. */
-	readonly availability: SessionCanvasAvailability;
-	/** Resolve the current HTTP(S) source for this revision. */
-	resolveSource(): Promise<URI>;
+	/** Current live HTTP(S) source; absent while the provider is unavailable. */
+	readonly source: URI | undefined;
 }
 
 /**
@@ -718,8 +710,8 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
-	/** Live model-opened canvases owned by this chat. */
-	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
+	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
+	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
@@ -744,6 +736,7 @@ export interface IChat {
 	 * not distinguish read-only chats report {@link ChatInteractivity.Full}.
 	 *
 	 * - {@link ChatInteractivity.Full}: the user can send messages (default).
+	 * - {@link ChatInteractivity.DraftOnly}: the composer is editable, but sending is disabled.
 	 * - {@link ChatInteractivity.ReadOnly}: the chat is shown but the composer is
 	 *   hidden (e.g. an agent-team worker chat the user can watch but not steer).
 	 * - {@link ChatInteractivity.Hidden}: the chat is an internal worker that
@@ -938,7 +931,7 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
-	/** Whether this session can expose model-opened canvases. */
+	/** Whether the owning provider permits presenting server-published canvases for this session. */
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;

@@ -13,6 +13,7 @@ export interface ICloudSandboxProject {
 	readonly path: string;
 	readonly git: boolean;
 	readonly status: 'ready' | 'cloning' | 'failed';
+	readonly progress?: number;
 	readonly remoteUrl?: string;
 	readonly error?: string;
 }
@@ -37,6 +38,9 @@ function readProject(value: unknown): ICloudSandboxProject | undefined {
 		path: value.path,
 		git: value.git,
 		status,
+		progress: status === 'cloning' && typeof value.progress === 'number' && Number.isFinite(value.progress)
+			? Math.min(100, Math.max(0, value.progress))
+			: undefined,
 		remoteUrl: typeof value.remoteUrl === 'string' ? value.remoteUrl : undefined,
 		error: typeof value.error === 'string' ? value.error : undefined,
 	};

@@ -7,6 +7,7 @@ import './media/modelPicker.css';
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -177,6 +178,15 @@ export class ModelPickerWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		if (this._delegate.workflow) {
+			this._register(autorun(reader => {
+				this._delegate.workflow?.summary.read(reader);
+				if (!this._delegate.workflow?.available.read(reader)) {
+					this._tabbedPicker.value?.hide();
+				}
+				this._renderLabel();
+			}));
+		}
 		this._configuration = this._instantiationService.createInstance(ModelPickerConfiguration, {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
@@ -430,13 +440,21 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Registers mouse-down and Enter/Space key handlers on a button element.
+	 * Registers mouse-down, touch tap, and Enter/Space key handlers on a button element.
 	 */
 	private _registerButtonAction(element: HTMLElement, action: (fromKeyboard: boolean) => void): void {
-		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+		this._register(dom.addDisposableListener(element, dom.EventType.MOUSE_DOWN, e => {
 			if (e.button !== 0) {
 				return;
 			}
+			dom.EventHelper.stop(e, true);
+			action(false);
+		}));
+		// Touch and pen need an explicit tap handler: an ancestor `Gesture` target
+		// (e.g. the view pane container) cancels the touch, which suppresses the
+		// compatibility `mousedown` the browser would otherwise synthesize.
+		this._register(Gesture.addTarget(element));
+		this._register(dom.addDisposableListener(element, TouchEventType.Tap, e => {
 			dom.EventHelper.stop(e, true);
 			action(false);
 		}));
@@ -596,7 +614,7 @@ export class ModelPickerWidget extends Disposable {
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
-		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
+		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
@@ -630,6 +648,7 @@ export class ModelPickerWidget extends Disposable {
 			const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 			const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 			this._showTabbedPicker(anchorElement, {
+				workflow: this._delegate.workflow,
 				models,
 				selectedModelId: this._selectedModel?.identifier,
 				recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
@@ -812,9 +831,10 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const name = this._selectedModel
+		const workflow = this.isTabbedPickerEnabled() ? this._delegate.workflow?.summary.get() : undefined;
+		const name = workflow ?? (this._selectedModel
 			? getLanguageModelDisplayNameWithSubscriptionSource(this._selectedModel)
-			: undefined;
+			: undefined);
 
 		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
@@ -823,7 +843,7 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = this._selectedModel
+		const modelIcon = workflow ? Codicon.layers : this._selectedModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(this._selectedModel)
 				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
@@ -860,6 +880,9 @@ export class ModelPickerWidget extends Disposable {
 			const opensDetails = tabbed && !showingAuto && !(this._selectedModel && isHydraFusionModel(this._selectedModel));
 			this._configButton.setAttribute('aria-haspopup', opensDetails ? 'dialog' : 'menu');
 			this._configuration.renderButton(this._configButton, minimal || (tabbed && compact), noModelsAvailable, tabbed);
+			if (workflow) {
+				this._configButton.style.display = 'none';
+			}
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('tabbed', this.isTabbedPickerEnabled());

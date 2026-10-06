@@ -56,7 +56,6 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatAgentSandboxEnabled: { status: 'notApplicable' },
 	ChatAgentSandboxAllowNetwork: { status: 'notApplicable' },
 	ChatAgentSandboxAllowUnsandboxedCommands: { status: 'notApplicable' },
-	ChatAgentSandboxAllowAutoApprove: { status: 'notApplicable' },
 	// The default-on bridge covers supported denies and empty-list deny-all, but not allowlists
 	// or every VS Code domain pattern. #337538, #337539
 	ChatAgentNetworkFilter: { status: 'partial' },

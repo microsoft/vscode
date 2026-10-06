@@ -6,6 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -120,14 +121,14 @@ function resources(isArtifact: boolean): ISessionArtifact[] {
 	];
 }
 
-type Scenario = 'single' | 'collections' | 'mixed';
+type Scenario = 'single' | 'collections' | 'copied' | 'mixed';
 
 async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario): Promise<void> {
 	const { container } = ctx;
 	const authored = gitHubArtifacts(true);
 	const entries = scenario === 'single'
 		? [authored[0], authored[2], resources(true)[1]]
-		: scenario === 'collections'
+		: scenario === 'collections' || scenario === 'copied'
 			? authored
 			: [gitHubArtifacts(false)[0], gitHubArtifacts(false)[2], ...resources(false), ...resources(true).map(item => ({ ...item, id: `artifact-${item.id}`, ...(item.uri ? { uri: item.uri.with({ path: item.uri.path.replace('/repo/', '/repo/output/') }) } : {}) }))];
 	const session = createMockSession({ artifacts: entries, removableArtifacts: true });
@@ -157,8 +158,8 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 	let finishHoverConstruction: (() => void) | undefined;
 	try {
 		renderPills(ctx, session, {
-			height: scenario === 'mixed' ? '600px' : scenario === 'collections' ? '280px' : '420px',
-			width: scenario === 'single' ? '660px' : scenario === 'collections' ? '1200px' : '1080px',
+			height: scenario === 'mixed' ? '600px' : scenario === 'collections' || scenario === 'copied' ? '280px' : '420px',
+			width: scenario === 'single' ? '660px' : scenario === 'collections' || scenario === 'copied' ? '1200px' : '1080px',
 			popupPlacement: 'above',
 			prepareServices: services => {
 				const hovers = services.get(IHoverService);
@@ -242,17 +243,25 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			await waitForPreview(container, '.sessions-pr-hover');
 		} else {
-			const label = scenario === 'collections' ? 'Issues' : 'References';
+			const label = scenario === 'collections' || scenario === 'copied' ? 'Issues' : 'References';
 			Array.from(container.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')).find(button => button.textContent?.includes(label))!.click();
 			if (scenario === 'mixed') {
 				await waitForPreview(container, '.monaco-list-row[aria-label^="Open Show rich GitHub"] .action-item-badge');
 			}
-			const row = await waitForPreview(container, scenario === 'collections'
+			const row = await waitForPreview(container, scenario === 'collections' || scenario === 'copied'
 				? '.monaco-list-row[aria-label^="Open Issue #337045:"]'
 				: '.monaco-list-row[aria-label^="Open Commit abc1234"]');
 			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
-			await waitForPreview(container, scenario === 'collections' ? '.sessions-issue-hover' : '.sessions-commit-hover');
+			await waitForPreview(container, scenario === 'collections' || scenario === 'copied' ? '.sessions-issue-hover' : '.sessions-commit-hover');
+			if (scenario === 'copied') {
+				const copyAction = await waitForPreview(row, '[aria-label="Copy issue URL"]');
+				copyAction.click();
+				await waitForPreview(row, '[aria-label="Copied"]');
+				const targetWindow = dom.getWindow(row);
+				const refreshCopiedState = targetWindow.setInterval(() => copyAction.click(), 600);
+				ctx.disposableStore.add(toDisposable(() => targetWindow.clearInterval(refreshCopiedState)));
+			}
 		}
 	}
 }
@@ -282,6 +291,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		virtualTime: { enabled: false },
 		render: ctx => renderReferences(ctx, 'collections'),
 		expectedVisualDescriptions: ['The Issues collection opens above the toolbar with one long-title issue preview beside it. The issue number and actions remain visible. Interactive previews start at rest.'],
+	}),
+	'Copied Feedback': defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: ctx => renderReferences(ctx, 'copied'),
+		expectedVisualDescriptions: ['The copied issue row shows a checkmark action and the fixture status confirms the copied URL. The issue preview remains open and usable.'],
 	}),
 	Mixed: defineComponentFixture({
 		virtualTime: { enabled: false },

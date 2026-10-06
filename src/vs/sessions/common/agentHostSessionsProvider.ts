@@ -15,7 +15,8 @@ import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platfo
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
 import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
-import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
@@ -105,7 +106,25 @@ export type AgentHostMcpTool = {
 export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
+	/** Optional Connector catalog name for presentation only. */
+	readonly displayName?: string;
 	readonly source?: McpServerSource;
+	/**
+	 * Plugin the host reports as the source of this server's configuration. Unlike
+	 * {@link isPluginProvided}, the plugin may be one the client never published,
+	 * such as a plugin bundled with the agent.
+	 */
+	readonly sourcePluginName?: string;
+	/**
+	 * Definition held by the agent host's own MCP server configuration, for a server configured there
+	 * (for example with MCP: Add Server > Add to Current Agent Session) rather than in a file.
+	 */
+	readonly hostConfiguration?: IMcpServerConfiguration;
+	/**
+	 * VS Code setting the host declares as controlling whether it includes this server. Present only when
+	 * the providing host says so; never inferred from the server's name.
+	 */
+	readonly controllingSettingId?: string;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
@@ -187,6 +206,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
+	setDisplayName?(name: string | undefined): void;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
@@ -201,6 +222,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -410,6 +434,10 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return isAgentHostProviderId(provider.id);
+}
+
+export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {
+	return provider.sessionConfig ?? (isAgentHostProvider(provider) ? provider : undefined);
 }
 
 /**

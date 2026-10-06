@@ -10,7 +10,7 @@ import { DefaultConfiguration } from '../../../../../../platform/configuration/c
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { WorkspaceConfigurationModelParser } from '../../../../../services/configuration/common/configurationModels.js';
 import { sandboxAllowNetworkMigration, terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -59,6 +59,8 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 30],
 			[AgentSandboxSettingId.AgentSandboxMcpServers, 40],
 			[AgentSandboxSettingId.AgentSandboxLspServers, 50],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 51],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 52],
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, 60],
 			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, 65],
 			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, 70],
@@ -86,6 +88,25 @@ suite('Terminal chat agent tools configuration', () => {
 		assert.deepStrictEqual(values, [true, false, true]);
 	});
 
+	test('presents managed credential denial without locking allowed or unmanaged preferences', () => {
+		const settings = [
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, COPILOT_SANDBOX_AUTH_GIT_KEY, 'Use your credentials for HTTPS git operations inside the sandbox.'],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, COPILOT_SANDBOX_AUTH_GH_KEY, 'Use your GitHub account for gh commands inside the sandbox.'],
+		] as const;
+		assert.deepStrictEqual(settings.map(([id, managedKey]) => {
+			const setting = terminalChatAgentToolsConfiguration[id];
+			return {
+				description: setting.markdownDescription,
+				policy: setting.policy,
+				presentation: [undefined, false, true].map(value => setting.managedSettingsPresentation?.(key => key === managedKey ? value : undefined)),
+			};
+		}), settings.map(([, , description]) => ({
+			description: `${description} Applies only to the Copilot Agent Host harness.`,
+			policy: undefined,
+			presentation: [undefined, false, undefined],
+		})));
+	});
+
 	test('registers Copilot user-configured paths and warns about legacy filesystem settings', () => {
 		const setting = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths];
 		assert.deepStrictEqual({
@@ -101,17 +122,17 @@ suite('Terminal chat agent tools configuration', () => {
 				AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
 			].map(key => {
 				const legacy = terminalChatAgentToolsConfiguration[key];
-				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings];
+				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings, legacy.deprecated];
 			}),
 		}, {
-			description: 'Customize file path permissions',
-			type: 'object',
+			description: 'Customize file path permissions in the sandbox.',
+			type: ['object'],
 			properties: ['readwritePaths', 'readonlyPaths', 'deniedPaths'].map(key => [key, 'array', { type: 'string' }]),
 			default: { readwritePaths: [], readonlyPaths: [], deniedPaths: [] },
 			restricted: true,
 			additionalProperties: false,
 			legacy: Array.from({ length: 3 }, () => [
-				'This legacy setting is deprecated. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true,
+				'This setting will be deprecated soon. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true, undefined,
 			]),
 		});
 	});
@@ -135,26 +156,27 @@ suite('Terminal chat agent tools configuration', () => {
 		]);
 	});
 
-	test('deprecates legacy sandbox settings without hiding them or changing defaults', () => {
-		const settings = [
-			[AgentSandboxSettingId.AgentSandboxEnabled, 'off'],
-			[AgentSandboxSettingId.AgentSandboxAllowNetwork, true],
-			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true],
-			[AgentSandboxSettingId.AgentSandboxAllowAutoApprove, true],
-			[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true],
-			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [] }],
-			[AgentSandboxSettingId.AgentSandboxMacFileSystem, { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [] }],
-			[AgentSandboxSettingId.AgentSandboxWindowsFileSystem, { denyRead: [], allowRead: [], allowWrite: [] }],
-			[AgentSandboxSettingId.AgentSandboxAdvancedRuntime, { enableWeakerNestedSandbox: false }],
-		] as const;
-		for (const [id, defaultValue] of settings) {
+	test('warns about upcoming sandbox setting deprecation without changing defaults', () => {
+		const settingIds = [
+			AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
+			AgentSandboxSettingId.AgentSandboxAdvancedRuntime,
+		];
+		assert.deepStrictEqual(settingIds.map(id => {
 			const setting = terminalChatAgentToolsConfiguration[id];
-			assert.strictEqual(setting.deprecated, true, id);
-			assert.match(setting.markdownDeprecationMessage ?? '', /is deprecated\./, id);
-			assert.strictEqual(setting.deprecationMessageShowInSettings, true, id);
-			assert.deepStrictEqual(setting.default, defaultValue, id);
-			assert.strictEqual(setting.restricted, true, id);
-		}
+			return {
+				deprecated: setting.deprecated,
+				deprecationMessage: setting.markdownDeprecationMessage,
+				showInSettings: setting.deprecationMessageShowInSettings,
+				default: setting.default,
+				restricted: setting.restricted,
+			};
+		}), [true, { enableWeakerNestedSandbox: false }].map(defaultValue => ({
+			deprecated: undefined,
+			deprecationMessage: 'This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox.',
+			showInSettings: true,
+			default: defaultValue,
+			restricted: true,
+		})));
 	});
 
 	test('marks legacy sandbox device policies deprecated and identifies managed-settings replacements', () => {
@@ -162,7 +184,6 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxEnabled, 'ChatAgentSandboxEnabled', COPILOT_SANDBOX_ENABLED_KEY],
 			[AgentSandboxSettingId.AgentSandboxAllowNetwork, 'ChatAgentSandboxAllowNetwork', COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY],
 			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 'ChatAgentSandboxAllowUnsandboxedCommands', COPILOT_SANDBOX_ALLOW_BYPASS_KEY],
-			[AgentSandboxSettingId.AgentSandboxAllowAutoApprove, 'ChatAgentSandboxAllowAutoApprove', 'managed settings'],
 		] as const;
 		for (const [id, name, replacement] of policies) {
 			const policy = terminalChatAgentToolsConfiguration[id].policy;
@@ -172,11 +193,16 @@ suite('Terminal chat agent tools configuration', () => {
 		}
 	});
 
-	test('keeps new Agent Host sandbox controls available without deprecation', () => {
+	test('keeps Agent Host sandbox controls available without setting deprecation', () => {
 		const settingIds = [
+			AgentSandboxSettingId.AgentSandboxEnabled,
+			AgentSandboxSettingId.AgentSandboxAllowNetwork,
+			AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 			AgentSandboxSettingId.AgentSandboxAllowLocalNetwork,
 			AgentSandboxSettingId.AgentSandboxMcpServers,
 			AgentSandboxSettingId.AgentSandboxLspServers,
+			AgentSandboxSettingId.AgentSandboxAuthenticateGit,
+			AgentSandboxSettingId.AgentSandboxAuthenticateGh,
 			AgentSandboxSettingId.AgentSandboxAllowDevToolAccess,
 			AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
 		];
@@ -202,6 +228,8 @@ suite('Terminal chat agent tools configuration', () => {
 	for (const [key, defaultValue] of [
 		[AgentSandboxSettingId.AgentSandboxMcpServers, true],
 		[AgentSandboxSettingId.AgentSandboxLspServers, true],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGit, true],
+		[AgentSandboxSettingId.AgentSandboxAuthenticateGh, true],
 		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, true],
 		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, false],
 	] as const) {
@@ -218,7 +246,7 @@ suite('Terminal chat agent tools configuration', () => {
 			assert.deepStrictEqual({
 				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
 				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
-			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['preview'], placeholder: false });
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: undefined, placeholder: false });
 		});
 	}
 

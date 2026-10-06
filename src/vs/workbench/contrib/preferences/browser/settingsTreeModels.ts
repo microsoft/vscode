@@ -813,6 +813,12 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 		case AgentSandboxSettingId.AgentSandboxLspServers:
 			displayLabel = localize('agentSandbox.lspServers.label', "Sandbox LSP Servers");
 			break;
+		case AgentSandboxSettingId.AgentSandboxAuthenticateGit:
+			displayLabel = localize('agentSandbox.authenticateGit.label', "Authenticate git");
+			break;
+		case AgentSandboxSettingId.AgentSandboxAuthenticateGh:
+			displayLabel = localize('agentSandbox.authenticateGh.label', "Authenticate gh");
+			break;
 		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
 			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");
 			break;

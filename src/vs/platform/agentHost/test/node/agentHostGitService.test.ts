@@ -566,8 +566,10 @@ suite('AgentHostGitService', () => {
 					resolveDiffBaseBranchName('origin/main', undefined),
 					resolveDiffBaseBranchName('refs/remotes/origin/release', undefined),
 					resolveDiffBaseBranchName(undefined, undefined),
+					resolveDiffBaseBranchName('', 'origin/main'),
+					resolveDiffBaseBranchName('', undefined),
 				],
-				['persisted', 'gitState', 'persisted', 'main', 'release', undefined],
+				['persisted', 'gitState', 'persisted', 'main', 'release', undefined, 'main', undefined],
 			);
 		});
 	});

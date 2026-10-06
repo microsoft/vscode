@@ -24,7 +24,6 @@ suite('agentHostPolicySupport', () => {
 			'ChatAgentSandboxEnabled',
 			'ChatAgentSandboxAllowNetwork',
 			'ChatAgentSandboxAllowUnsandboxedCommands',
-			'ChatAgentSandboxAllowAutoApprove',
 		]) {
 			assert.strictEqual(agentHostPolicySupport[name].status, 'notApplicable', name);
 		}

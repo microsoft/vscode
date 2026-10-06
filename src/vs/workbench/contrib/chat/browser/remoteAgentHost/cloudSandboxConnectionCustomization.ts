@@ -6,6 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
 	CLOUD_SANDBOX_ADDRESS_PREFIX,
@@ -48,33 +49,43 @@ function isGitHubResource(resource: string): boolean {
 export function createCloudSandboxConnectionCustomization(
 	address: string,
 	sandboxService: ICloudSandboxAgentHostService,
+	userLocal = false,
+	sealUserLocal?: (request: IAgentHostAuthenticateRequest) => Promise<IAgentHostAuthenticateRequest>,
 ): IRemoteAgentHostConnectionCustomization | undefined {
 	const environmentId = cloudSandboxEnvironmentId(address);
 	if (environmentId === undefined) {
 		return undefined;
 	}
+	const resolveAuthentication = async (resource: string, scopes: readonly string[] | undefined, renew: boolean): Promise<IAgentHostAuthenticateRequest> => {
+		if (!isGitHubResource(resource)) {
+			throw new Error(`Cloud sandbox cannot authenticate the non-GitHub resource '${resource}'.`);
+		}
+		const sealed = renew
+			? await sandboxService.refreshSealedGitHubToken(environmentId)
+			: sandboxService.getSealedGitHubToken(environmentId);
+		if (!sealed || !isCloudSandboxSealedToken(sealed)) {
+			throw new Error(`No sealed GitHub token is available for cloud sandbox ${address}; refusing to forward a plaintext bearer.`);
+		}
+		return { resource, scopes, token: sealed };
+	};
 	return {
 		requiresWorkspaceTrust: false,
 		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
 			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
 			}
-			// The sandbox host only accepts the sealed GitHub token for GitHub resources; there is no
-			// per-resource sealing for other hosts over the sandbox relay today.
-			if (!isGitHubResource(request.resource)) {
-				throw new Error(`Cloud sandbox cannot authenticate the non-GitHub resource '${request.resource}'.`);
+			if (userLocal && new URL(request.resource).origin !== new URL(GITHUB_COPILOT_PROTECTED_RESOURCE.resource).origin) {
+				if (!sealUserLocal) {
+					throw new Error('User-local Mission Control sealing is unavailable.');
+				}
+				return sealUserLocal(request);
 			}
-			const sealed = reason === AuthRequiredReason.Expired
-				? await sandboxService.refreshSealedGitHubToken(environmentId)
-				: sandboxService.getSealedGitHubToken(environmentId);
-			if (!sealed || !isCloudSandboxSealedToken(sealed)) {
-				throw new Error(`No sealed GitHub token is available for cloud sandbox ${address}; refusing to forward a plaintext bearer.`);
-			}
-			return { resource: request.resource, scopes: request.scopes, token: sealed };
+			return resolveAuthentication(request.resource, request.scopes, reason === AuthRequiredReason.Expired);
 		},
+		renewAuthentication: userLocal ? undefined : resource => resolveAuthentication(resource.resource, resource.scopes_supported, true),
 		backendSessionScheme: (provider: string): string | undefined =>
-			provider === CLOUD_SANDBOX_AGENT_PROVIDER ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
-		createSessionPreparation: (connection, owner) => {
+			provider === CLOUD_SANDBOX_AGENT_PROVIDER || (userLocal && provider === 'copilotcli') ? CLOUD_SANDBOX_SESSION_SCHEME : undefined,
+		createSessionPreparation: userLocal ? undefined : (connection, owner) => {
 			if (!(connection instanceof AgentHostProtocolClient)) {
 				throw new Error('Cloud sandbox session preparation requires a protocol client.');
 			}

@@ -97,7 +97,7 @@ import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/conf
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -687,6 +687,11 @@ const activeSessionMcpServers: FixtureAgentHostMcpServer[] = [
 	{ id: 'mcp-top-level:fixture:session:Remote Search', name: 'Remote Search', enabled: true, status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Fixture error' } }, logOutputChannelId: 'fixture-agent-host', start: mcpLifecycleNoop, stop: mcpLifecycleNoop, setEnabled() { } },
 ];
 
+const reconciledConnectorMcpServers: FixtureAgentHostMcpServer[] = [
+	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-93f713b9a912cfbc0384', name: 'github-copilot-connector-93f713b9a912cfbc0384', displayName: 'Microsoft Learn Docs', source: 'managed', sourceUri: undefined },
+	{ ...activeSessionMcpServers[1], id: 'session/github-copilot-connector-94d26095770df60673dd', name: 'github-copilot-connector-94d26095770df60673dd', displayName: 'Azure Data Explorer', source: 'managed', sourceUri: undefined },
+];
+
 const allStateMcpServers: FixtureAgentHostMcpServer[] = [
 	{ ...activeSessionMcpServers[0] },
 	{ ...activeSessionMcpServers[0], id: 'mcp-top-level:fixture:session:PostgreSQL', name: 'PostgreSQL', status: McpServerStatus.Error, state: { kind: McpServerStatus.Error, error: { errorType: 'fixture', message: 'Connection refused at localhost:5432. Check that the database is running before starting this server again.' } } },
@@ -869,11 +874,14 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+const connectorIconDataUri = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="#5b5fc7"/><path d="M13 20h38v27H13z" fill="#fff"/><path d="m13 20 19 16 19-16" fill="none" stroke="#5b5fc7" stroke-width="4"/></svg>')}`;
+
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	{
 		name: 'workiq-mail',
 		displayName: 'Work IQ Mail',
 		description: 'Search and summarize Outlook mail through a connection managed by GitHub Copilot.',
+		icon: URI.parse(connectorIconDataUri),
 		version: '1.0.0',
 		author: { name: 'Microsoft', url: URI.parse('https://www.microsoft.com') },
 		homepage: URI.parse('https://github.com/features/copilot'),
@@ -924,6 +932,33 @@ const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 		connectionStatusDetail: 'review_required',
 		scopes: [],
 		mcpServers: [],
+	},
+];
+
+const reconciledCopilotConnectors: readonly ICopilotConnector[] = [
+	{
+		name: 'microsoftlearndocsmcpserver',
+		displayName: 'Microsoft Learn Docs',
+		description: 'Search official Microsoft documentation.',
+		tags: ['documentation'],
+		keywords: ['microsoft', 'learn'],
+		capabilities: ['Search documentation'],
+		representativeQueries: [],
+		connectionStatus: 'connected',
+		scopes: [],
+		mcpServers: [{ name: 'microsoftlearndocsmcpserver', type: 'http', url: URI.parse('https://api.github.com/copilot-connectors/api/v1/connectors/microsoftlearndocsmcpserver/mcp') }],
+	},
+	{
+		name: 'kusto',
+		displayName: 'Azure Data Explorer',
+		description: 'Query Azure Data Explorer.',
+		tags: ['data'],
+		keywords: ['kusto'],
+		capabilities: ['Query data'],
+		representativeQueries: [],
+		connectionStatus: 'connected',
+		scopes: [],
+		mcpServers: [{ name: 'kusto', type: 'http', url: URI.parse('https://api.github.com/copilot-connectors/api/v1/connectors/kusto/mcp') }],
 	},
 ];
 
@@ -1011,6 +1046,8 @@ interface IRenderEditorOptions {
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
 	readonly activeSessionMcpServers?: readonly FixtureAgentHostMcpServer[];
+	readonly mcpWorkbenchServers?: readonly IWorkbenchMcpServer[];
+	readonly mcpRuntimeServers?: readonly IMcpServer[];
 	readonly mcpServerCompatibility?: readonly ICustomizationMcpServerCompatibility[];
 	readonly agentHostFiles?: readonly IFixtureFile[];
 	readonly remoteClientSkillName?: string;
@@ -1074,7 +1111,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		},
 	];
 
-	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
+	const allMcpServers = [...(options.mcpWorkbenchServers ?? [...mcpWorkspaceServers, ...mcpUserServers])];
 	const toolSets = options.toolSets ?? fixtureToolSets;
 	const selectedPromptType = options.selectedSection === AICustomizationManagementSection.Agents ? PromptsType.agent
 		: options.selectedSection === AICustomizationManagementSection.Skills ? PromptsType.skill
@@ -1657,7 +1694,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override async install(server: IWorkbenchMcpServer) { return server; }
 			}());
 			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
-				override readonly servers = constObservable(mcpRuntimeServers as never[]);
+				override readonly servers = constObservable((options.mcpRuntimeServers ?? mcpRuntimeServers) as never[]);
 				override readonly enablementModel = {
 					readEnabled: (serverId: string) => {
 						if (serverId.includes('mcp-web-search')) {
@@ -1788,6 +1825,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			|| Math.abs(featuredCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
 			&& Math.abs(featuredCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
 			'The Discover card primary action must cover the entire card behind its independent action.',
+		);
+		const cardActions = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-actions');
+		const lastCardAction = cardActions?.lastElementChild;
+		const cardPaddingRight = featuredCard ? parseFloat(DOM.getWindow(featuredCard).getComputedStyle(featuredCard).paddingRight) : 0;
+		assert(
+			!featuredCard || !cardActions || !(lastCardAction instanceof HTMLElement)
+			|| Math.abs(featuredCard.getBoundingClientRect().right - cardPaddingRight - lastCardAction.getBoundingClientRect().right) <= 1,
+			'Discover card actions must remain right-aligned.',
 		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
 		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
@@ -2643,6 +2688,9 @@ function renderEmbeddedMcpDetail(
 		readonly error?: string;
 		readonly migratable?: boolean;
 		readonly source?: IMcpServerDetailInput['source'];
+		/** Replaces the server's configuration file with a non-file provenance. */
+		readonly provenance?: IMcpServerDetailInput['provenance'];
+		readonly definitionUnavailable?: IMcpServerDetailInput['definitionUnavailable'];
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -2699,7 +2747,9 @@ function renderEmbeddedMcpDetail(
 			...input,
 			error: options.error ? constObservable(options.error) : undefined,
 			migratable: options.migratable,
-			source: options.source ?? input.source,
+			source: options.provenance ? undefined : options.source ?? input.source,
+			provenance: options.provenance,
+			definitionUnavailable: options.definitionUnavailable,
 		});
 	}
 }
@@ -2857,13 +2907,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
+		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; two-column cards keep actions right-aligned and featured cards retain their recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 1200, expectedDiscoveryContentWidth: 840 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column with right-aligned actions, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
@@ -2946,13 +2996,18 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	McpServersCopilotConnectors: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its Connector source and row actions. Disconnected and unavailable connectors are not shown.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: localSessionResource,
-			selectedSection: AICustomizationManagementSection.McpServers,
-			copilotConnectorsEnabled: true,
-			mcpSearchQuery: 'workiq',
-		}),
+		expectedVisualDescriptions: ['The MCP Servers tree includes the connected Work IQ Mail MCP server with its catalog icon, Connector source, and row actions. Disconnected and unavailable connectors are not shown.'],
+		render: async ctx => {
+			await renderEditor(ctx, {
+				sessionResource: localSessionResource,
+				selectedSection: AICustomizationManagementSection.McpServers,
+				copilotConnectorsEnabled: true,
+				mcpSearchQuery: 'workiq',
+			});
+			const icon = ctx.container.querySelector<HTMLImageElement>('.mcp-server-item .mcp-server-icon img');
+			assert(icon !== null, 'The connected Connector row must render its catalog icon.');
+			await icon.decode();
+		},
 	}),
 
 	McpServersCopilotConnectorsEmpty: defineComponentFixture({
@@ -2963,6 +3018,23 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.McpServers,
 			copilotConnectorsEnabled: true,
 			copilotConnectors: [],
+		}),
+	}),
+
+	McpServersReconciledConnectors: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The Plugins group contains one Kusto row and one Microsoft Learn Docs row, each with its Connector provenance and Sign In action. No opaque github-copilot-connector rows or Built-In group appear.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			isSessionsWindow: true,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: reconciledCopilotConnectors,
+			marketplaceVisibilityEnabled: true,
+			activeSessionMcpServers: reconciledConnectorMcpServers,
+			mcpWorkbenchServers: [],
+			mcpRuntimeServers: [],
+			height: 460,
 		}),
 	}),
 
@@ -3866,6 +3938,35 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			type: McpServerType.REMOTE,
 			url: 'https://mcp.example.com/search',
 		})),
+	}),
+
+	EmbeddedMcpDetailBuiltinAgent: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail header shows Built-in: Copilot as plain description text in the proportional font below the server name. There is no Edit Configuration button. Configuration explains that Copilot configures this server automatically so its definition can\'t be viewed or edited, followed by an Open Settings link.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('github-mcp-server', 'github-mcp-server', LocalMcpServerScope.User),
+			{
+				provenance: { label: 'Built-in: Copilot' },
+				definitionUnavailable: {
+					message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.',
+					settingId: 'chat.agentHost.githubMcpServer.enabled',
+				},
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailBuiltinExtension: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['The MCP detail header shows Built-in: GitHub Copilot Chat as a themed link in the proportional font below the server name. There is no Edit Configuration button, and the HTTP configuration is shown below.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('github', 'GitHub', LocalMcpServerScope.User, 'GitHub tools from Copilot', {
+				type: McpServerType.REMOTE,
+				url: 'https://api.githubcopilot.com/mcp/',
+			}),
+			{ provenance: { label: 'Built-in: GitHub Copilot Chat', ariaLabel: 'Open extension details for GitHub Copilot Chat', open: () => { } } },
+		),
 	}),
 
 	EmbeddedMcpDetailErrorUnsupported: defineComponentFixture({

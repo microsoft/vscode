@@ -911,14 +911,13 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			return Promise.resolve(false);
 		}
 
-		let stat: IFileStatWithPartialMetadata | undefined;
-		let statDirname: IFileStatWithPartialMetadata | undefined;
-		try {
-			statDirname = await this.fileService.stat(resources.dirname(uri));
-			stat = await this.fileService.stat(uri);
-		} catch (e) {
-			// do nothing
-		}
+		// A granted workspace root can be accessible even when its parent is not.
+		const [parentResult, targetResult] = await Promise.allSettled([
+			this.fileService.stat(resources.dirname(uri)),
+			this.fileService.stat(uri),
+		]);
+		const statDirname = parentResult.status === 'fulfilled' ? parentResult.value : undefined;
+		const stat = targetResult.status === 'fulfilled' ? targetResult.value : undefined;
 
 		if (this.requiresTrailing) { // save
 			if (stat?.isDirectory) {

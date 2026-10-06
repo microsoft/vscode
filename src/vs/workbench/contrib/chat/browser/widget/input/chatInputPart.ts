@@ -435,6 +435,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
+	private readonly _onDidChangeDraft = this._register(new Emitter<void>());
+	readonly onDidChangeDraft = this._onDidChangeDraft.event;
 	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
 		this.layoutForToolbarChange();
 	}, 0));
@@ -730,6 +732,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Flag to prevent circular updates between view and model
 	private _isSyncingToOrFromInputModel = false;
+	private _isRestoringAttachments = false;
 
 	// Debounced scheduler for syncing text changes
 	private readonly _syncTextDebounced: RunOnceScheduler;
@@ -941,6 +944,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionTypeObservable = observableValue<string | undefined>(this, undefined);
 	private get _currentSessionType(): string | undefined { return this._currentSessionTypeObservable.get(); }
 	private set _currentSessionType(value: string | undefined) { this._currentSessionTypeObservable.set(value, undefined); }
+
+	/** The session type (harness) whose models this input selects from. */
+	get modelTargetSessionType(): string | undefined { return this._currentSessionType ?? this.getCurrentSessionType(); }
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
@@ -1499,6 +1505,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getModels: () => this.getModels(),
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
+			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
@@ -2196,6 +2203,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
 	}
 
+	private _createDraftChangeListeners(): DisposableStore {
+		const store = new DisposableStore();
+		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidPaste(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidCompositionEnd(() => this._onDidChangeDraft.fire()));
+		store.add(this._attachmentModel.onDidChange(event => {
+			if (event.added.length > 0 && !this._isSyncingToOrFromInputModel && !this._isRestoringAttachments) {
+				this._onDidChangeDraft.fire();
+			}
+		}));
+		return store;
+	}
+
 	/**
 	 * Get the current input state for history
 	 */
@@ -2407,7 +2427,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))).filter(isDefined);
 		}
 
-		this._attachmentModel.clearAndSetContext(...restored);
+		this._isRestoringAttachments = true;
+		try {
+			this._attachmentModel.clearAndSetContext(...restored);
+		} finally {
+			this._isRestoringAttachments = false;
+		}
 	}
 
 	private async navigateHistory(previous: boolean): Promise<void> {
@@ -3114,9 +3139,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const store = new DisposableStore();
 		this._contextUsageDisposables.value = store;
 		let lastRequest = model.lastRequest;
+		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				store.add(request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3125,9 +3151,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		store.add(model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
-				observePreviousResponse(lastRequest);
-				lastRequest = e.request;
+				if (e.replacedRequest) {
+					previousResponseListeners.deleteAndDispose(e.replacedRequest.id);
+				}
+				if (lastRequest !== model.lastRequest && lastRequest !== e.replacedRequest) {
+					observePreviousResponse(lastRequest);
+				}
+				if (e.request !== model.lastRequest) {
+					observePreviousResponse(e.request);
+				}
+				lastRequest = model.lastRequest;
 				this.contextUsageWidget?.update(model.lastRequest);
+			} else if (e.kind === 'removeRequest') {
+				previousResponseListeners.deleteAndDispose(e.requestId);
+				if (lastRequest !== model.lastRequest) {
+					lastRequest = model.lastRequest;
+					if (lastRequest) {
+						previousResponseListeners.deleteAndDispose(lastRequest.id);
+					}
+					this.contextUsageWidget?.update(lastRequest);
+				}
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
@@ -3563,6 +3607,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Debounced sync to model for text changes
 			this._syncTextDebounced.schedule();
 		}));
+		this._register(this._createDraftChangeListeners());
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged && !this.ignoreInputEditorContentSizeChanges) {
 				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
@@ -3705,6 +3750,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'last',
 				minItems: 2,
 				actionMinWidth: 48,
+				// Let the pickers yield to the execute toolbar so that a narrow
+				// input never pushes the send button out of view.
+				reserveMinWidth: false,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
 				getOverflowAction: (action, getAnchor) => getOverflowAction(action, inputToolbarMenu, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),
