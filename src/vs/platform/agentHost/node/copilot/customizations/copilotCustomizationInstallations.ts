@@ -79,7 +79,7 @@ type CatalogSearchResult = Awaited<ReturnType<CopilotClient['rpc']['catalog']['s
 type CatalogSearchSucceeded = Extract<CatalogSearchResult, { readonly kind: 'succeeded' }>;
 type CatalogCandidate = CatalogSearchSucceeded['candidates'][number];
 type InstallableCatalogCandidate = Extract<CatalogCandidate, { readonly kind: 'ai-skill' | 'mcp-server' }>;
-type CatalogCandidateKind = 'ai-skill' | 'mcp-server' | 'plugin';
+type CatalogCandidateKind = InstallableCatalogCandidate['kind'];
 
 class RetainedCatalogSelection extends Disposable {
 	constructor(
@@ -183,9 +183,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			const search = await client.rpc.catalog.search({
 				contract: {
 					protocolVersion: 3,
-					requiredCapabilities: kinds.includes('plugin')
-						? [...catalogSearchCapabilities, 'agent-plugin-discovery']
-						: catalogSearchCapabilities,
+					requiredCapabilities: catalogSearchCapabilities,
 				},
 				policySessionId,
 				query,
@@ -202,7 +200,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 				}
 				throw new Error(search.message);
 			}
-			const items = search.candidates.map(candidate => this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate));
+			const items = search.candidates
+				.filter(candidate => this.isInstallableCatalogCandidate(candidate))
+				.map(candidate => this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate));
 			const nextCursor = search.pagination?.hasNextPage
 				? this.retainCatalogCursor(client, policySessionId, query, limit, kinds, search.pagination.token, search.pagination.currentPage + 1)
 				: undefined;
@@ -514,37 +514,22 @@ export class CopilotCustomizationInstallations extends Disposable {
 
 	private getCatalogKinds(mediaType: string | undefined): readonly CatalogCandidateKind[] {
 		switch (mediaType) {
-			case undefined: return ['ai-skill', 'mcp-server', 'plugin'];
+			case undefined: return ['ai-skill', 'mcp-server'];
 			case 'application/ai-skill': return ['ai-skill'];
 			case 'application/mcp-server+json': return ['mcp-server'];
-			case 'application/vnd.github.copilot-plugin': return ['plugin'];
+			case 'application/vnd.github.copilot-plugin': return [];
 			default: return [];
 		}
 	}
 
-	private toCatalogKinds(kinds: readonly CatalogCandidateKind[]): [CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind, CatalogCandidateKind] {
+	private toCatalogKinds(kinds: readonly CatalogCandidateKind[]): [CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind] {
 		switch (kinds.length) {
 			case 1: return [kinds[0]];
-			case 2: return [kinds[0], kinds[1]];
-			default: return [kinds[0], kinds[1], kinds[2]];
+			default: return [kinds[0], kinds[1]];
 		}
 	}
 
-	private retainCatalogCandidate(client: ICopilotCustomizationInstallationClient, policySessionId: string, searchId: string, candidate: CatalogCandidate): IAgentCustomizationMarketplaceSearchItem {
-		if (candidate.kind === 'plugin') {
-			return {
-				selectionId: candidate.identity,
-				kind: 'plugin',
-				displayName: candidate.displayName,
-				description: candidate.description,
-				publisher: candidate.publisher,
-				version: candidate.version,
-				repository: candidate.source.repository,
-				path: candidate.source.path,
-				installable: false,
-				unavailableMessage: localize('copilot.customizationMarketplace.pluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision."),
-			};
-		}
+	private retainCatalogCandidate(client: ICopilotCustomizationInstallationClient, policySessionId: string, searchId: string, candidate: InstallableCatalogCandidate): IAgentCustomizationMarketplaceSearchItem {
 		const selectionId = generateUuid();
 		const retained = new RetainedCatalogSelection(
 			client,
@@ -555,34 +540,20 @@ export class CopilotCustomizationInstallations extends Disposable {
 		);
 		this.catalogSelections.set(selectionId, retained);
 		this.trimRetainedCatalogEntries(this.catalogSelections);
-		const unavailableMessage = this.getCandidateUnavailableMessage(candidate);
 		return {
 			selectionId,
 			kind: candidate.kind === 'ai-skill' ? 'skill' : 'mcp',
 			displayName: candidate.displayName,
 			description: candidate.description,
 			publisher: candidate.publisher,
-			installable: unavailableMessage === undefined,
-			unavailableMessage,
+			installable: true,
 		};
 	}
 
-	private getCandidateUnavailableMessage(candidate: InstallableCatalogCandidate): string | undefined {
-		if (candidate.installability === 'installable' && (candidate.kind !== 'mcp-server' || candidate.source.kind === 'url')) {
-			return undefined;
-		}
-		if (candidate.kind === 'ai-skill') {
-			switch (candidate.installability) {
-				case 'feature-disabled': return localize('copilot.customizationMarketplace.skillFeatureDisabled', "Skill installation is unavailable in this Copilot session.");
-				case 'materialisation-unavailable': return localize('copilot.customizationMarketplace.skillMaterializationUnavailable', "This Skill does not provide verified installation content.");
-				case 'policy-forbids': return localize('copilot.customizationMarketplace.skillPolicyBlocked', "Your organization does not allow installing this Skill.");
-				default: return localize('copilot.customizationMarketplace.skillUnavailable', "The SDK cannot install this Skill.");
-			}
-		}
-		if (candidate.source.kind !== 'url') {
-			return localize('copilot.customizationMarketplace.mcpSourceUnavailable', "This MCP server does not provide a supported remote installation source.");
-		}
-		return localize('copilot.customizationMarketplace.mcpPolicyBlocked', "Your organization does not allow installing this MCP server.");
+	private isInstallableCatalogCandidate(candidate: CatalogCandidate): candidate is InstallableCatalogCandidate {
+		return candidate.kind !== 'plugin'
+			&& candidate.installability === 'installable'
+			&& (candidate.kind !== 'mcp-server' || candidate.source.kind === 'url');
 	}
 
 	private retainCatalogCursor(client: ICopilotCustomizationInstallationClient, policySessionId: string, query: string, limit: number, kinds: readonly CatalogCandidateKind[], token: string, page: number): string {

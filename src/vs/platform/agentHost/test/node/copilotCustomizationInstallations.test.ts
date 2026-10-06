@@ -90,6 +90,106 @@ suite('CopilotCustomizationInstallations', () => {
 		});
 	});
 
+	test('filters non-installable catalog candidates while preserving pagination', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const observedAt = new Date().toISOString();
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async () => ({
+				kind: 'succeeded' as const,
+				searchId: 'search',
+				candidates: [
+					{
+						handle: 'unverified-skill',
+						handleExpiresAt: expiresAt,
+						kind: 'ai-skill' as const,
+						mediaType: 'application/ai-skill' as const,
+						installability: 'materialisation-unavailable' as const,
+						displayName: 'Unverified Skill',
+						source: { kind: 'url' as const, url: 'https://example.test/unverified-skill' },
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/ai-skill' as const },
+					},
+					{
+						handle: 'installable-skill',
+						handleExpiresAt: expiresAt,
+						kind: 'ai-skill' as const,
+						mediaType: 'application/ai-skill' as const,
+						installability: 'installable' as const,
+						displayName: 'Installable Skill',
+						source: { kind: 'url' as const, url: 'https://example.test/installable-skill' },
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/ai-skill' as const },
+					},
+					{
+						handle: 'installable-mcp',
+						handleExpiresAt: expiresAt,
+						kind: 'mcp-server' as const,
+						mediaType: 'application/mcp-server+json' as const,
+						installability: 'installable' as const,
+						displayName: 'Installable MCP',
+						source: { kind: 'url' as const, url: 'https://example.test/installable-mcp' },
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
+					},
+					{
+						handle: 'embedded-mcp',
+						handleExpiresAt: expiresAt,
+						kind: 'mcp-server' as const,
+						mediaType: 'application/mcp-server+json' as const,
+						installability: 'installable' as const,
+						displayName: 'Embedded MCP',
+						source: { kind: 'embedded' as const },
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/mcp-server+json' as const },
+					},
+					{
+						kind: 'plugin' as const,
+						mediaType: 'application/vnd.github.copilot-plugin' as const,
+						identity: 'plugin',
+						displayName: 'Pinned Plugin',
+						source: { repository: 'owner/repository', path: '.github/plugin/plugin.json' },
+						compatibilityTags: ['github-copilot' as const],
+						provenance: { authority: 'agentfinder.github.com', observedAt, mediaType: 'application/vnd.github.copilot-plugin' as const },
+					},
+				],
+				truncated: false,
+				negotiated,
+				pagination: {
+					currentPage: 1,
+					pageSize: 10,
+					totalCount: 10,
+					totalCountRelation: 'unknown' as const,
+					pageCount: 2,
+					maxPage: 100,
+					hasNextPage: true,
+					hasPreviousPage: false,
+					token: 'native-token',
+				},
+			});
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(
+			async () => client,
+			() => 'policy-session',
+		));
+
+		const result = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: 'demo', limit: 10 });
+
+		assert.deepStrictEqual(result.kind === 'page' ? {
+			items: result.items.map(item => ({ kind: item.kind, displayName: item.displayName, installable: item.installable })),
+			hasNextCursor: typeof result.nextCursor === 'string',
+		} : result, {
+			items: [
+				{ kind: 'skill', displayName: 'Installable Skill', installable: true },
+				{ kind: 'mcp', displayName: 'Installable MCP', installable: true },
+			],
+			hasNextCursor: true,
+		});
+	});
+
 	test('keeps SDK pagination tokens private behind workbench cursors', async () => {
 		const expiresAt = new Date(Date.now() + 60_000).toISOString();
 		const requests: unknown[] = [];
@@ -169,13 +269,12 @@ suite('CopilotCustomizationInstallations', () => {
 						'trust-snapshot',
 						'ai-skill-discovery',
 						'skill-confirmed-installation',
-						'agent-plugin-discovery',
 					],
 				},
 				policySessionId: 'sdk-session',
 				query: 'demo',
 				limit: 10,
-				kinds: ['ai-skill', 'mcp-server', 'plugin'],
+				kinds: ['ai-skill', 'mcp-server'],
 				page: { token: 'private-sdk-token', number: 2 },
 			},
 		});
