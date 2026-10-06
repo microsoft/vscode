@@ -703,7 +703,6 @@ suite('Sessions - Actions', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 		assert.deepStrictEqual({
-		assert.deepStrictEqual({
 			chatTabIcon: chatTabClose?.command.icon,
 			chatHeaderIcon: chatHeaderClose?.command.icon,
 			chatHeaderTooltip: chatHeaderClose?.command.tooltip,
