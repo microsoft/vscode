@@ -250,6 +250,7 @@ suite('AgentHostSessionTitleController', () => {
 		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Implemented dark mode.')])]);
 		controller.refineTitleFromFirstTurn(session.toString());
 		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'refinement should persist');
+		await timeout(0);
 		const laterTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
 		controller.markTitleRenamed(session.toString());
 		const afterRenameInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
@@ -283,6 +284,7 @@ suite('AgentHostSessionTitleController', () => {
 		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
 		restored.refineTitleFromFirstTurn(session.toString());
 		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'restored seed should refine');
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			strategy: restored.getAutomaticTitleGenerationStrategy(session.toString()),
@@ -290,6 +292,66 @@ suite('AgentHostSessionTitleController', () => {
 			afterRefinement: (await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('"Generated title"'),
 			calls: copilotApiService.utilityCalls.length,
 		}, { strategy: 'deferredAgentReview', beforeRefinement: undefined, afterRefinement: true, calls: 1 });
+	});
+
+	test('agent review withholds the reminder while first-response refinement is in flight', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		const pendingTitle = new DeferredPromise<string>();
+		copilotApiService.responsePromise = pendingTitle.p;
+		controller.seedTitleFromFirstMessage(session.toString(), 'can you help me figure out why the thing keeps failing');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('can you help me figure out why the thing keeps failing', [textPart('Found it.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(() => copilotApiService.utilityCalls.length === 1, 'refinement should start');
+		const whilePending = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		await pendingTitle.complete('Debug failing build');
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Debug failing build', 'refinement should persist');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			whilePending,
+			afterRefinement: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Debug failing build"'),
+		}, { whilePending: undefined, afterRefinement: true });
+	});
+
+	test('agent review offers the reminder when first-response refinement never starts', async () => {
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		stateManager.seedDefaultChatTurns(session.toString(), [
+			firstTurn('Add dark mode', [textPart('Done')]),
+			{ ...firstTurn('Also add a toggle', [textPart('Done')]), id: 'turn-2' },
+		]);
+		controller.refineTitleFromFirstTurn(session.toString());
+
+		assert.deepStrictEqual({
+			calls: copilotApiService.utilityCalls.length,
+			instruction: (await controller.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('"Add dark mode"'),
+		}, { calls: 0, instruction: true });
+	});
+
+	test('agent review withholds the reminder on the first turn of an auto-titled chat without a seed', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		const firstTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+
+		assert.deepStrictEqual({
+			firstTurnInstruction,
+			secondTurnInstruction: (await controller.prepareInstructionForAgent(session.toString(), defaultChat))?.includes('"Given title"'),
+		}, { firstTurnInstruction: undefined, secondTurnInstruction: true });
+	});
+
+	test('agent review offers at most three reminders per chat', async () => {
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.markTitleAuto(session.toString(), undefined, 'Given title');
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
+		const offered: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			offered.push(await controller.prepareInstructionForAgent(session.toString(), defaultChat) !== undefined);
+		}
+		assert.deepStrictEqual(offered, [true, true, true, false]);
 	});
 
 	for (const { rename, generated } of [

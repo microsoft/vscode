@@ -36,6 +36,8 @@ const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\
 const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.';
 const TITLE_GENERATION_STRATEGY_KEY = 'titleGenerationStrategy';
 const DEFERRED_TITLE_SEED_KEY = 'deferredTitleSeed';
+/** Upper bound on review reminders per chat, so an accurate title is not re-reviewed on every turn. */
+const MAX_TITLE_REVIEW_REMINDERS = 3;
 
 /**
  * - `activeAgent`: the active agent names chats through `rename_chat`.
@@ -168,6 +170,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private readonly _restoringDeferredSeeds = new Map<ProtocolURI, object>();
 	private readonly _deferredRefinementStarted = new Set<ProtocolURI>();
 	private readonly _deferredFirstTurnIndices = new Map<ProtocolURI, number>();
+	private readonly _titleReviewReminderCounts = new Map<ProtocolURI, number>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -533,6 +536,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._renamedTitles.delete(key);
 			this._deferredRefinementStarted.delete(key);
 			this._deferredFirstTurnIndices.delete(key);
+			this._titleReviewReminderCounts.delete(key);
 			this._restoringDeferredSeeds.delete(key);
 		}
 		this._titleGenerationStrategies.delete(session);
@@ -581,7 +585,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 		// Review mode leaves a fresh seed to the host's first-response refinement before inviting a rename.
-		if (strategy === 'deferredAgentReview' && this._deferredFirstTurnIndices.has(key) && !this._deferredRefinementStarted.has(key)) {
+		if (strategy === 'deferredAgentReview' && !this._canOfferTitleReview(channel, independentChat, key)) {
 			return undefined;
 		}
 		const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
@@ -596,9 +600,26 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 
 		if (strategy === 'deferredAgentReview') {
 			const currentTitle = this._currentSeedTitle(channel, independentChat);
-			return currentTitle ? chatTitleReviewReminder(currentTitle) : undefined;
+			if (!currentTitle) {
+				return undefined;
+			}
+			this._titleReviewReminderCounts.set(key, (this._titleReviewReminderCounts.get(key) ?? 0) + 1);
+			return chatTitleReviewReminder(currentTitle);
 		}
 		return CHAT_RENAME_REMINDER;
+	}
+
+	/**
+	 * Whether review mode may invite a rename for `key`: only after the first
+	 * response since the seed has completed, never while a host refinement is
+	 * still in flight, and for at most {@link MAX_TITLE_REVIEW_REMINDERS} turns.
+	 */
+	private _canOfferTitleReview(channel: ProtocolURI, independentChat: ProtocolURI | undefined, key: ProtocolURI): boolean {
+		if ((this._titleReviewReminderCounts.get(key) ?? 0) >= MAX_TITLE_REVIEW_REMINDERS || this._titleGenerationCancellationSources.has(key)) {
+			return false;
+		}
+		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
+		return !!state && state.turns.length > (this._deferredFirstTurnIndices.get(key) ?? 0);
 	}
 
 	private _generateTitleSoon(
@@ -1117,6 +1138,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._restoringDeferredSeeds.clear();
 		this._deferredRefinementStarted.clear();
 		this._deferredFirstTurnIndices.clear();
+		this._titleReviewReminderCounts.clear();
 		super.dispose();
 	}
 }
