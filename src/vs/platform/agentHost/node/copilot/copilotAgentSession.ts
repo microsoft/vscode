@@ -461,7 +461,7 @@ const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
-/** The runtime's `session.info` and `session.warning` category for preparing plugins required by the organization. */
+/** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 
 /** Sources of the session activity, highest precedence first. */
@@ -6393,7 +6393,7 @@ export class CopilotAgentSession extends Disposable {
 			this._dropLateRootTurnEvents = false;
 			// First SDK event for the loop: promote the turn out of `pending`.
 			this._currentTurn.value?.markRunning();
-			// The runtime admits the message only after preparing required plugins.
+			// The message is admitted only after required plugins are prepared.
 			this._publishActivity('managedPlugins', undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
@@ -8341,18 +8341,17 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Returns the current turn while the runtime has not yet admitted its
-	 * message. The runtime prepares plugins required by the organization
-	 * before admitting a message, but also before custom agent requests that
-	 * can arrive outside a turn; only preparation a turn waits on belongs in
-	 * its transcript.
+	 * Returns the current turn while its message has not been admitted yet.
+	 * Plugins required by the organization are prepared before a message is
+	 * admitted, but also before custom agent requests that can arrive outside
+	 * a turn; only preparation a turn waits on belongs in its transcript.
 	 */
 	private _getManagedPluginAdmissionTurn(): CopilotTurn | undefined {
 		const turn = this._currentTurn.value;
 		return turn?.isPending ? turn : undefined;
 	}
 
-	/** Shows the runtime's plugin preparation message as the waiting turn's activity. */
+	/** Shows the plugin preparation message as the waiting turn's activity. */
 	private _reportManagedPluginProgress(message: string): void {
 		if (this._getManagedPluginAdmissionTurn()) {
 			this._publishActivity('managedPlugins', message);
@@ -8360,9 +8359,9 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Ends the plugin preparation activity and adds the runtime's failure to
-	 * the waiting turn. The runtime continues the turn without the plugins it
-	 * could not prepare.
+	 * Ends the plugin preparation activity and adds the failure to the
+	 * waiting turn. The turn continues without the plugins that could not be
+	 * prepared.
 	 */
 	private _reportManagedPluginFailure(message: string): void {
 		this._publishActivity('managedPlugins', undefined);
