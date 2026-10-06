@@ -1849,14 +1849,7 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					? { ...definition, description: createSessionWithSharedWorkspaceDescription, inputSchema: createSessionWithSharedWorkspaceInputSchema }
 					: definition;
 			}
-			if (definition.name !== SessionServerToolName.RenameChat) {
-				return definition;
-			}
-			const titleGenerationStrategy = accessor?.getAutomaticTitleGenerationStrategy(sessionUri);
-			if (titleGenerationStrategy === 'activeAgent') {
-				return { ...definition, deferLoading: false };
-			}
-			if (titleGenerationStrategy !== 'deferred') {
+			if (definition.name !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'deferred') {
 				return definition;
 			}
 			const { automatic: _automatic, ...properties } = renameChatInputSchema.properties ?? {};
