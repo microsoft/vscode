@@ -43,11 +43,9 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
-### Development protocol-version override
+### Protocol version compatibility
 
-For compatibility testing, set `chat.agentHost.experimentalMissionControl.protocolVersionOverride` to a `MAJOR.MINOR.PATCH` string, such as `0.9.0`. An empty string restores the built-in version. Changing the setting withdraws and re-registers Mission Control, disconnecting its relay clients. The override applies only to Mission Control registration/heartbeats and its relay handshake negotiation. Local IPC, local endpoint metadata, other remote hosts, and client-side version offers remain unchanged.
-
-This only changes the relay's declared version; it does not translate messages, add compatibility adapters, or guarantee interoperability. Invalid versions are rejected, and the host logs a warning when the Mission Control relay uses an override. The setting is machine-local and excluded from Settings Sync.
+The VS Code host treats protocol versions `0.9.0`, `0.10.0`, and `1.0.0` as wire-compatible on all transports, including Mission Control. The handshake selects the highest compatible version offered by the client and returns that exact version. Registration and discovery metadata continue advertising the built-in protocol version; no override setting is required. Other versions retain the standard negotiation rules.
 
 ## Security and data handling
 

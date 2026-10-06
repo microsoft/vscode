@@ -80,7 +80,7 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		});
 	});
 
-	test('advertises the built-in protocol version independently of Mission Control', () => {
+	test('advertises the built-in protocol version', () => {
 		assert.strictEqual(createLocalAgentHostEndpointMetadata(userDataPath).protocolVersion, PROTOCOL_VERSION);
 	});
 

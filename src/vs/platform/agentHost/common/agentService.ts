@@ -810,8 +810,6 @@ export interface IMissionControlOptions {
 	readonly roots: readonly string[];
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
-	/** Development-only override for Mission Control advertising and relay negotiation. */
-	readonly protocolVersion?: string;
 }
 
 /** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */

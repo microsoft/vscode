@@ -42,7 +42,7 @@ import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
-import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
+import { getAgentHostSupportedProtocolVersions, negotiateAgentHostProtocolVersion } from '../common/agentHostProtocolCompatibility.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
 import {
@@ -350,8 +350,6 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
  * Configuration for protocol-level concerns outside of IAgentService.
  */
 export interface IProtocolServerConfig {
-	/** Overrides Mission Control relay negotiation for development compatibility testing. */
-	readonly protocolVersion?: string;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 
@@ -422,7 +420,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
-	private readonly _protocolVersion: string;
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -443,7 +440,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
-		this._protocolVersion = this._config.protocolVersion ?? PROTOCOL_VERSION;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._register(this._clientConnections.registerSource(this));
 
@@ -679,10 +675,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const offered = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
 		this._logService.info(`[ProtocolServer] Initialize: clientId=${params.clientId}, protocolVersions=[${offered.join(', ')}]`);
 
-		const negotiated = negotiateProtocolVersion(offered, this._protocolVersion);
+		const negotiated = negotiateAgentHostProtocolVersion(offered);
 		if (!negotiated) {
+			const supportedVersions = getAgentHostSupportedProtocolVersions();
 			const data: UnsupportedProtocolVersionErrorDataEx = {
-				supportedVersions: [`^${this._protocolVersion}`],
+				supportedVersions,
 				// Only advertise the in-band upgrade method when the agent
 				// host was spawned by a VS Code CLI that is listening for
 				// management requests (presence of the env var). Otherwise
@@ -694,7 +691,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			};
 			throw new ProtocolError(
 				AHP_UNSUPPORTED_PROTOCOL_VERSION,
-				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${this._protocolVersion} (server accepts ^${this._protocolVersion}).`,
+				`Client offered protocol versions [${offered.join(', ')}], none of which are compatible with this server's version ${PROTOCOL_VERSION} (server accepts ${supportedVersions.join(', ')}).`,
 				data,
 			);
 		}
@@ -965,7 +962,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
-			protocolVersion: priorProtocolVersion ?? this._protocolVersion,
+			protocolVersion: priorProtocolVersion ?? PROTOCOL_VERSION,
 			transport,
 			connectionStopWatch: StopWatch.create(true),
 			isReconnect,

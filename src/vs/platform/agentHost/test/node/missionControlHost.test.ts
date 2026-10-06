@@ -120,14 +120,13 @@ suite('Mission Control host integration', () => {
 		assert.ok(environmentCreation);
 		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
 		const relay = new class extends mock<MissionControlProtocolServer>() { }();
-		store.add(options.attach(relay, [], () => [], '0.9.0'));
+		store.add(options.attach(relay, [], () => []));
 		const handlerCreation = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler);
 		assert.ok(handlerCreation);
 		const config = handlerCreation.args[4] as IProtocolServerConfig;
 		assert.deepStrictEqual({
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
-			protocolVersion: config.protocolVersion,
-		}, { hostManagement: false, diagnosticLogs: undefined, protocolVersion: '0.9.0' });
+		}, { hostManagement: false, diagnosticLogs: undefined });
 	});
 });

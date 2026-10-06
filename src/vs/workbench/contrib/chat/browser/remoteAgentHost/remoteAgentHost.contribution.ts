@@ -29,7 +29,6 @@ import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.j
 import './missionControlEnvironmentActions.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { MissionControlEnvironmentService } from './missionControlEnvironmentService.js';
-import { getMissionControlProtocolVersion, MissionControlProtocolVersionOverrideSettingId, missionControlProtocolVersionOverridePattern } from '../../../../../platform/agentHost/common/missionControlProtocolVersion.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 
 const missionControlFakeEndpoint = 'chat.agentHost.experimentalMissionControlFakeEndpoint';
@@ -37,7 +36,7 @@ const missionControlEnabled = 'chat.agentHost.experimentalMissionControl.enabled
 const missionControlEndpoint = 'chat.agentHost.experimentalMissionControl.endpoint';
 const missionControlRequireBinding = 'chat.agentHost.experimentalMissionControl.requireConnectionBinding';
 
-export class MissionControlContribution extends Disposable {
+class MissionControlContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.missionControl';
 	private _configured = false;
 	private _generation = 0;
@@ -63,7 +62,7 @@ export class MissionControlContribution extends Disposable {
 			return;
 		}
 		this._register(this._configuration.onDidChangeConfiguration(e => {
-			if ([missionControlFakeEndpoint, missionControlEnabled, missionControlEndpoint, missionControlRequireBinding, MissionControlProtocolVersionOverrideSettingId].some(setting => e.affectsConfiguration(setting))) {
+			if ([missionControlFakeEndpoint, missionControlEnabled, missionControlEndpoint, missionControlRequireBinding].some(setting => e.affectsConfiguration(setting))) {
 				this._withdraw();
 				this._update.schedule();
 			}
@@ -134,7 +133,6 @@ export class MissionControlContribution extends Disposable {
 			}
 			return;
 		}
-		const protocolVersion = getMissionControlProtocolVersion(this._configuration.getValue<string>(MissionControlProtocolVersionOverrideSettingId));
 		const roots = this._workspace.getWorkspace().folders.filter(folder => folder.uri.scheme === Schemas.file).map(folder => folder.uri.fsPath);
 		if (!roots.length && !live) {
 			if (this._configured) {
@@ -168,7 +166,6 @@ export class MissionControlContribution extends Disposable {
 			roots,
 			live,
 			requireConnectionBinding: this._configuration.getValue<boolean>(missionControlRequireBinding),
-			protocolVersion,
 		});
 	}
 }
@@ -192,17 +189,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,
-			tags: ['experimental', 'advanced'],
-		},
-		[MissionControlProtocolVersionOverrideSettingId]: {
-			type: 'string',
-			description: localize('missionControlProtocolVersionOverride', "For development: Override the Agent Host Protocol version advertised to Mission Control and accepted on its relay connections. Local VS Code and other remote agent host connections are unchanged. Use a MAJOR.MINOR.PATCH version, or leave empty to use the built-in version. This does not translate protocol messages or guarantee compatibility. Changing this setting re-registers Mission Control and disconnects its relay clients."),
-			default: '',
-			pattern: missionControlProtocolVersionOverridePattern,
-			patternErrorMessage: localize('missionControlProtocolVersionOverride.invalid', "Enter a MAJOR.MINOR.PATCH version, or leave empty to use the built-in version."),
-			scope: ConfigurationScope.APPLICATION,
-			restricted: true,
-			ignoreSync: true,
 			tags: ['experimental', 'advanced'],
 		},
 		[missionControlEndpoint]: {

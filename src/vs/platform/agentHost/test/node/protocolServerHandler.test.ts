@@ -781,8 +781,10 @@ suite('ProtocolServerHandler', () => {
 		assert.match(resp.error!.message, /0\.0\.0/);
 		assert.match(resp.error!.message, new RegExp(PROTOCOL_VERSION.replace(/\./g, '\\.')));
 		// Without the upgrade-socket env var, no _meta should be advertised.
-		const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
-		assert.strictEqual(data?._meta?.vscodeUpgradeMethod, undefined);
+		const data = resp.error!.data as { supportedVersions: string[]; _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+		assert.deepStrictEqual({ supportedVersions: data?.supportedVersions, upgrade: data?._meta?.vscodeUpgradeMethod }, {
+			supportedVersions: [`^${PROTOCOL_VERSION}`, '1.0.0', '0.9.0'], upgrade: undefined,
+		});
 
 		transport.simulateClose();
 		transport.dispose();
@@ -807,40 +809,21 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
-	test('Mission Control version override leaves other host handshakes unchanged', () => {
-		const offeredVersion = '0.9.0';
-		const defaultTransport = disposables.add(new MockProtocolTransport());
-		server.simulateConnection(defaultTransport);
-		defaultTransport.simulateMessage(request(1, 'initialize', { protocolVersions: [offeredVersion], clientId: 'default-version' }));
-		const defaultResponse = findResponse(defaultTransport.sent, 1) as { error?: { code: number } };
-		defaultTransport.simulateMessage(request(2, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'default-version' }));
-		const defaultAccepted = findResponse(defaultTransport.sent, 2) as { result?: InitializeResult };
-		const relayServer = disposables.add(new MockProtocolServer());
-		disposables.add(new ProtocolServerHandler(
-			agentService, stateManager, relayServer, { protocolVersion: '0.9.5' },
-			fileSystemProvider, logService, agentHostTelemetryService,
-			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
-		));
-		const transport = disposables.add(new MockProtocolTransport());
-		relayServer.simulateConnection(transport);
-		transport.simulateMessage(request(1, 'initialize', { protocolVersions: ['0.9.0', '0.9.5', PROTOCOL_VERSION], clientId: 'override-version' }));
-		const response = findResponse(transport.sent, 1) as { result?: InitializeResult };
-		const incompatible = disposables.add(new MockProtocolTransport());
-		relayServer.simulateConnection(incompatible);
-		incompatible.simulateMessage(request(2, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'incompatible-override-version' }));
-		const rejected = findResponse(incompatible.sent, 2) as { error?: { code: number; message: string; data: { supportedVersions: string[] } } };
-		assert.deepStrictEqual({
-			defaultError: defaultResponse.error?.code,
-			defaultAccepted: defaultAccepted.result?.protocolVersion,
-			negotiated: response.result?.protocolVersion,
-			overrideError: rejected.error?.code,
-			supportedVersions: rejected.error?.data.supportedVersions,
-			messageNamesOverride: rejected.error?.message.includes('server\'s version 0.9.5'),
-		}, {
-			defaultError: AHP_UNSUPPORTED_PROTOCOL_VERSION, defaultAccepted: PROTOCOL_VERSION, negotiated: '0.9.5',
-			overrideError: AHP_UNSUPPORTED_PROTOCOL_VERSION, supportedVersions: ['^0.9.5'], messageNamesOverride: true,
+	for (const kind of [AgentHostTransportKind.MessagePort, AgentHostTransportKind.WebSocket]) {
+		test(`negotiates 0.9.0, 0.10.0 and 1.0.0 on ${kind} connections, including relay clients`, () => {
+			const offered = [['0.9.0'], ['0.10.0'], ['1.0.0'], ['0.9.0', '0.10.0', '1.0.0']];
+			const negotiated = [false, true].flatMap(relay => offered.map((protocolVersions, index) => {
+				const clientId = `compatible-${relay}-${index}`;
+				const transport = disposables.add(new MockProtocolTransport(kind, relay ? clientId : undefined));
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId }));
+				const response = findResponse(transport.sent, 1) as { result?: InitializeResult };
+				transport.simulateClose();
+				return response.result?.protocolVersion;
+			}));
+			assert.deepStrictEqual(negotiated, ['0.9.0', '0.10.0', '1.0.0', '1.0.0', '0.9.0', '0.10.0', '1.0.0', '1.0.0']);
 		});
-	});
+	}
 
 	test('upgrade method advertised when management socket env var is set', () => {
 		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
