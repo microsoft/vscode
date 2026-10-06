@@ -16,7 +16,7 @@ import { buildChatUri, buildSubagentSessionUri, MessageKind, SessionStatus, Tool
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { getCopilotBrowserSandboxNetworkRestrictions, projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
+import { getCopilotBrowserSandboxNetworkRestrictions, getCopilotSandboxConfigSource, projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
@@ -61,6 +61,27 @@ suite('Session sandbox configuration', () => {
 			property: platformSessionSchema.toProtocol().properties.sandboxEnabled.enum,
 			mutable: platformSessionSchema.toProtocol().properties.sandboxEnabled.sessionMutable,
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
+	});
+
+	test('sandbox source distinguishes settings from owning-session choices without reading the managed floor', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('sandbox-source');
+		const peer = buildChatUri(URI.parse(owner), 'peer');
+		const sources = [];
+		for (const enabled of [undefined, 'on', 'off']) {
+			configuration.updateRootConfig({ sandbox: { enabled } });
+			const selections = [];
+			for (const selection of [undefined, 'default', 'on', 'off']) {
+				configuration.updateSessionConfig(owner, { sandboxEnabled: selection });
+				selections.push(getCopilotSandboxConfigSource(configuration, peer));
+			}
+			sources.push(selections);
+		}
+		assert.deepStrictEqual(sources, [
+			['never_configured', 'never_configured', 'session_flag', 'session_disabled'],
+			['user_enabled', 'user_enabled', 'session_flag', 'session_disabled'],
+			['user_disabled', 'user_disabled', 'session_flag', 'session_disabled'],
+		]);
 	});
 
 	test('publishes session-scoped policy changes in serializable subscription state', () => {

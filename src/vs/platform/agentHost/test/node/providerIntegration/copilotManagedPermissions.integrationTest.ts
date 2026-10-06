@@ -243,12 +243,12 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					if (preferenceSandboxConfig) {
 						assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 						for (const sandboxConfigSource of ['never_configured', 'user_enabled', 'user_disabled'] as const) {
-							const updated = await session.rpc.options.update({ sandboxConfig: preferenceSandboxConfig, sandboxConfigSource });
+							const updated = await applySandboxConfig(session, preferenceSandboxConfig, sessionId, new NullLogService(), sandboxConfigSource);
 							requests.length = 0;
 							const outside = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://outside.invalid' } });
 							const inside = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'http://unmatched.invalid:8443/path' } });
 							assert.deepStrictEqual({
-								updated: updated.success,
+								updated,
 								results: [outside, inside].map(resultType),
 								requests,
 							}, {
@@ -261,6 +261,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 							sandboxConfig: { enabled: false },
 							sandboxConfigSource: 'session_disabled',
 						}), /Sandbox configuration update violates managed policy/);
+						assert.strictEqual(await applySandboxConfig(session, { enabled: false }, sessionId, new NullLogService(), 'user_disabled'), false);
 					}
 				}
 			} finally {

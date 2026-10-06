@@ -160,14 +160,14 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
 		let disconnected = false;
 		let captured: ResumeSessionConfig | undefined;
-		const updates: Array<{ sandboxConfig?: SandboxConfig }> = [];
+		const updates: Parameters<CopilotSession['rpc']['options']['update']>[0][] = [];
 		const raw = {
 			sessionId: 'sess-1',
 			on: () => () => { },
 			disconnect: async () => { disconnected = true; },
 			rpc: {
 				options: {
-					update: async (options: { sandboxConfig?: SandboxConfig }) => {
+					update: async (options: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
 						if (options.sandboxConfig && sandboxUpdateError) {
 							throw sandboxUpdateError;
 						}
@@ -223,6 +223,27 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} forwards settings provenance without relabeling an explicit session choice`, async () => {
+			const sources = [];
+			for (const enabled of [undefined, 'on', 'off']) {
+				for (const selection of ['default', 'on']) {
+					const fixture = setup(kind, true, true);
+					fixture.configuration.updateRootConfig({ sandbox: { enabled } });
+					fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: selection });
+					store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+					sources.push(fixture.updates.filter(update => update.sandboxConfig).map(update => ({
+						enabled: update.sandboxConfig?.enabled,
+						source: update.sandboxConfigSource,
+					})));
+				}
+			}
+			assert.deepStrictEqual(sources, [
+				[{ enabled: true, source: 'never_configured' }], [{ enabled: true, source: 'session_flag' }],
+				[{ enabled: true, source: 'user_enabled' }], [{ enabled: true, source: 'session_flag' }],
+				[{ enabled: true, source: 'user_disabled' }], [{ enabled: true, source: 'session_flag' }],
+			]);
+		});
+
 		test(`${kind} blocks custom terminal commands and shuts down existing shells when a resolved boundary tightens`, async () => {
 			const fixture = setup(kind);
 			fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });

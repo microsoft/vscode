@@ -3,12 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SessionEvent } from '@github/copilot-sdk';
+import type { SandboxConfigSource, SessionEvent } from '@github/copilot-sdk';
 import { browserChatToolReferenceNames } from '../../../browserView/common/browserChatToolReferenceNames.js';
 import type { ILogService } from '../../../log/common/log.js';
 import { ISandboxNetworkRestrictions, SandboxSettingsResolutionHelper } from '../../../sandbox/common/sandboxSettingsResolutionHelper.js';
+import { isAgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
+import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/sandboxConfigSchema.js';
 import type { IAgentConfigurationService } from '../agentConfigurationService.js';
-import { getSessionSandboxConfig, type ISessionSandboxPolicy } from '../sessionSandbox.js';
+import { getSessionSandboxConfig, getSessionSandboxSelection, type ISessionSandboxPolicy } from '../sessionSandbox.js';
+
+/** Preserves explicit session choices while letting the runtime floor settings-derived preferences. */
+export function getCopilotSandboxConfigSource(configuration: IAgentConfigurationService, session: string): SandboxConfigSource {
+	const selection = getSessionSandboxSelection(configuration, session);
+	if (selection === 'on') {
+		return 'session_flag';
+	}
+	if (selection === 'off') {
+		return 'session_disabled';
+	}
+	const enabled = configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox)?.enabled;
+	if (enabled === undefined) {
+		return 'never_configured';
+	}
+	return isAgentSandboxEnabledValue(enabled) ? 'user_enabled' : 'user_disabled';
+}
 
 /** Resolves session network restrictions only for Copilot's integrated-browser client tools. */
 export function getCopilotBrowserSandboxNetworkRestrictions(configuration: IAgentConfigurationService, session: string, clientToolName: string): ISandboxNetworkRestrictions | undefined {

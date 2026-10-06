@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SandboxConfigSource, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -686,6 +686,7 @@ class MockCopilotSession {
 				if (params.sandboxConfig !== undefined) {
 					this.operationLog.push('options.update:sandbox');
 					this.sandboxConfigUpdates.push(params.sandboxConfig);
+					this.sandboxConfigSources.push(params.sandboxConfigSource);
 					if (this.sandboxConfigUpdateGate) {
 						await this.sandboxConfigUpdateGate;
 					}
@@ -751,6 +752,7 @@ class MockCopilotSession {
 	};
 
 	readonly sandboxConfigUpdates: unknown[] = [];
+	readonly sandboxConfigSources: (SandboxConfigSource | undefined)[] = [];
 	readonly sandboxDisableRequests: string[] = [];
 	readonly sandboxDisableDecisionContexts: Parameters<CopilotSession['rpc']['sandbox']['disableForSession']>[0]['decisionContext'][] = [];
 	sandboxDisableResult = { success: true, enabled: false };
@@ -10028,18 +10030,21 @@ suite('CopilotAgentSession', () => {
 						fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: selection });
 						await timeout(0);
 						const beforePrompt = [...mockSession.sandboxConfigUpdates];
+						const sourcesBeforePrompt = [...mockSession.sandboxConfigSources];
 						const permissionModesBeforePrompt = [...mockSession.permissionModeSetCalls];
 						await session.send('hello', undefined, 'sandbox-turn');
-						results.push({ beforePrompt, afterPrompt: [...mockSession.sandboxConfigUpdates], permissionModesBeforePrompt });
+						results.push({ beforePrompt, afterPrompt: [...mockSession.sandboxConfigUpdates], sourcesBeforePrompt, sourcesAfterPrompt: [...mockSession.sandboxConfigSources], permissionModesBeforePrompt });
 					}
 
 					assert.deepStrictEqual(results, [
 						{ enabled: false },
 						expectedSessionSandboxConfig(platform, sandbox),
 						expectedSessionSandboxConfig(platform, sandbox),
-					].map(sandboxConfig => ({
+					].map((sandboxConfig, index) => ({
 						beforePrompt: [sandboxConfig],
 						afterPrompt: [sandboxConfig, sandboxConfig],
+						sourcesBeforePrompt: [[undefined], ['session_flag'], ['user_enabled']][index],
+						sourcesAfterPrompt: [[undefined, undefined], ['session_flag', 'session_flag'], ['user_enabled', 'user_enabled']][index],
 						permissionModesBeforePrompt: [],
 					})));
 				});

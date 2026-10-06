@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SandboxConfigSource, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -21,7 +21,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
-import { hasCopilotManagedDomainBoundary, projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
+import { getCopilotSandboxConfigSource, hasCopilotManagedDomainBoundary, projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
@@ -653,9 +653,10 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 }
 
 /** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService): Promise<boolean> {
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, sandboxConfigSource?: SandboxConfigSource): Promise<boolean> {
 	try {
-		const result = await session.rpc.options.update({ sandboxConfig });
+		// A floored disabled update would make callers publish the wrong enabled state.
+		const result = await session.rpc.options.update({ sandboxConfig, ...(sandboxConfig.enabled && sandboxConfigSource !== undefined ? { sandboxConfigSource } : {}) });
 		if (!result.success) {
 			throw new Error('Copilot SDK rejected sandbox config update');
 		}
@@ -709,7 +710,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			const owner = runtime.configurationResource.toString();
 			const config = this._computeSandboxConfig(owner);
-			if (await applySandboxConfig(session, config, plan.sessionId, this._logService)) {
+			if (await applySandboxConfig(session, config, plan.sessionId, this._logService, getCopilotSandboxConfigSource(this._configurationService, owner))) {
 				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
 			}
 		};

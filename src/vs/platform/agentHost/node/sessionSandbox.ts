@@ -37,11 +37,17 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 	return sandbox;
 }
 
+/** Reads the owning session's selection before applying the managed floor. */
+export function getSessionSandboxSelection(configuration: IAgentConfigurationService, session: string) {
+	session = resolveAgentHostSession(URI.parse(session)).toString();
+	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
+	return platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
+}
+
 /** Resolves the owning session's toggle overrides without changing global settings. */
 export function getSessionSandboxOverrides(configuration: IAgentConfigurationService, session: string): Pick<ISandboxConfigValue, AgentHostSandboxKey.Enabled | AgentHostSandboxKey.AllowUnsandboxedCommands | AgentHostSandboxKey.AllowNetwork | AgentHostSandboxKey.AllowLocalNetwork | AgentHostSandboxKey.AllowDevToolAccess | AgentHostSandboxKey.SandboxMcpServers | AgentHostSandboxKey.SandboxLspServers | AgentHostSandboxKey.AuthenticateGit | AgentHostSandboxKey.AuthenticateGh> {
 	session = resolveAgentHostSession(URI.parse(session)).toString();
-	const raw = configuration.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled];
-	const selection = platformSessionSchema.validate(SessionConfigKey.SandboxEnabled, raw) ? raw : undefined;
+	const selection = getSessionSandboxSelection(configuration, session);
 	const policy = configuration.getSessionSandboxPolicy(session);
 	const authorizedDisable = policy?.allowBypass === true && configuration.getSessionSandboxEnabled(session) === false;
 	const localEnabled = selection === 'on' ? AgentSandboxEnabledValue.On
