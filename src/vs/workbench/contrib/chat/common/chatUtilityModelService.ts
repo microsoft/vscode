@@ -121,7 +121,7 @@ export class ChatUtilityModelService extends Disposable implements IChatUtilityM
 			return text;
 		} catch (error) {
 			if (isRateLimitError(error)) {
-				const until = Date.now() + Math.min(error.retryAfter || DEFAULT_RATE_LIMIT_BACKOFF_MS, MAX_RATE_LIMIT_BACKOFF_MS);
+				const until = Date.now() + Math.min(error.retryAfter ?? DEFAULT_RATE_LIMIT_BACKOFF_MS, MAX_RATE_LIMIT_BACKOFF_MS);
 				this._rateLimitedUntil.set(request.model, Math.max(until, this._rateLimitedUntil.get(request.model) ?? 0));
 			}
 			this._log(request, isRateLimitError(error) ? 'rateLimited' : 'error', ` elapsedMs=${Date.now() - sentAt}`, error);

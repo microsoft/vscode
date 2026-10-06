@@ -369,9 +369,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			);
 
 		} catch (err) {
-			// synchronously failed
-			this._pendingCancelCTS.deleteAndDispose(requestId);
-			throw err;
+			// synchronously failed; rate limits are reported like rejections so `retryAfter` survives RPC
+			if (!(err instanceof extHostTypes.LanguageModelError && err.code === extHostTypes.LanguageModelError.RateLimited.name)) {
+				this._pendingCancelCTS.deleteAndDispose(requestId);
+				throw err;
+			}
+			value = Promise.reject(err);
 		}
 
 		Promise.resolve(value).then(() => {
