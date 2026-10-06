@@ -1078,7 +1078,7 @@ export class AgentSideEffects extends Disposable {
 			this._logService.trace(`[AgentSideEffects] Dropping stale model_call_finished for ${sessionKey}: producerTurnId=${signal.turnId}, activeTurnId=${turnId}`);
 			return;
 		}
-		this._turnTracker.modelCallFinished(sessionKey, turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+		this._turnTracker.modelCallFinished(sessionKey, turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest);
 	}
 
 	/**

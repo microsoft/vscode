@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
@@ -14,7 +15,8 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
-import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession } from './layoutControllerTestUtils.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
@@ -22,6 +24,11 @@ class TestBaseLayoutController extends BaseLayoutController { }
 /** Mirrors the desktop panel model: workbench-level visibility, per-session view. */
 class TestWorkbenchPanelLayoutController extends BaseLayoutController {
 	protected override get _isPanelVisibilityPerSession(): boolean { return false; }
+}
+
+class TestRevealEmptyWorkingSetLayoutController extends BaseLayoutController {
+	protected override _shouldRevealEditorPartForEmptyWorkingSet(revealEditorPart: boolean): boolean { return revealEditorPart; }
+	protected override _shouldHideEditorPartOnApply(editorPartHidden: boolean): boolean { return editorPartHidden; }
 }
 
 suite('BaseLayoutController', () => {
@@ -37,6 +44,11 @@ suite('BaseLayoutController', () => {
 	function createWorkbenchPanelController(options: ICreateOptions = {}): TestWorkbenchPanelLayoutController {
 		harness = createTestHarness(store, options);
 		return store.add(harness.instaService.createInstance(TestWorkbenchPanelLayoutController));
+	}
+
+	function createRevealEmptyWorkingSetController(options: ICreateOptions = {}): TestRevealEmptyWorkingSetLayoutController {
+		harness = createTestHarness(store, options);
+		return store.add(harness.instaService.createInstance(TestRevealEmptyWorkingSetLayoutController));
 	}
 
 	teardown(() => store.clear());
@@ -116,6 +128,47 @@ suite('BaseLayoutController', () => {
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
 			'returning to session 1 should not restore a per-session panel state'
 		);
+	});
+
+	test('[R13] a phone transition leaves per-chat panel visibility untouched, then resumes the focused chat\'s own preference', () => {
+		createController({ chatLayoutMode: 'chat', desktopLayout: true });
+		const session = makeSession(URI.parse('session:1'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
+		setActiveChat(session, peer);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+
+		harness.setPartHiddenCalls = [];
+
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
+			'suspending must not sync panel visibility'
+		);
+
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
+
+		setActiveChat(session, main);
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
+			'a chat switch while suspended must not sync panel visibility'
+		);
+
+		harness.setPartHiddenCalls = [];
+
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		const mainPanelCall = harness.setPartHiddenCalls.find(c => c.part === Parts.PANEL_PART);
+		assert.ok(mainPanelCall);
+		assert.strictEqual(mainPanelCall!.hidden, true, 'resuming restores the currently-focused chat\'s own panel visibility');
+
+		harness.setPartHiddenCalls = [];
+		setActiveChat(session, peer);
+		const peerPanelCall = harness.setPartHiddenCalls.find(c => c.part === Parts.PANEL_PART);
+		assert.ok(peerPanelCall);
+		assert.strictEqual(peerPanelCall!.hidden, false, 'the peer chat\'s own panel visibility must be unaffected by a toggle made while suspended');
 	});
 
 	// --- [B6] Panel view (which view the panel shows) ---
@@ -251,6 +304,108 @@ suite('BaseLayoutController', () => {
 		harness.onDidReplaceSession.fire({ from: draft, to: committed });
 
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] a same-resource draft promotion does not block the committed session\'s next outgoing working-set save', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const resource = URI.parse('session:same');
+		const draft = makeSession(resource, { status: SessionStatus.Untitled, isCreated: false });
+		const committed = makeSession(resource, { status: SessionStatus.Completed });
+		const other = makeSession(URI.parse('session:other'));
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(draft, undefined);
+		await timeout(0);
+
+		harness.activeSessionObs.set(committed, undefined);
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+		await timeout(0);
+
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.saveWorkingSetCalls = [];
+		harness.activeSessionObs.set(other, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.saveWorkingSetCalls,
+			[`session-working-set:${resource.toString()}`],
+			'the committed session\'s outgoing working set must still be saved after a same-resource promotion, not suppressed by a stale blacklist entry'
+		);
+	});
+
+	test('[B6] a cross-resource promotion\'s blacklist marker is consumed on the draft\'s own switch-away even though it is Untitled, so it cannot later block an unrelated session reusing that resource', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const draftResource = URI.parse('session:draft');
+		const draft = makeSession(draftResource, { status: SessionStatus.Untitled, isCreated: false });
+		const committed = makeSession(URI.parse('session:committed'));
+
+		harness.activeSessionObs.set(draft, undefined);
+		await timeout(0);
+
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+		harness.activeSessionObs.set(committed, undefined);
+		await timeout(0);
+
+		const laterReuse = makeSession(draftResource, { status: SessionStatus.Completed });
+		const unrelated = makeSession(URI.parse('session:unrelated'));
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(laterReuse, undefined);
+		await timeout(0);
+
+		harness.saveWorkingSetCalls = [];
+		harness.activeSessionObs.set(unrelated, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.saveWorkingSetCalls,
+			[`session-working-set:${draftResource.toString()}`],
+			'a later, unrelated session reusing the promoted draft\'s resource must still have its own outgoing working set saved, not suppressed by a leftover blacklist marker'
+		);
+	});
+
+	test('[R5] same-session A/B/A keeps each chat\'s own editor working set and panel view distinct', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createWorkbenchPanelController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders });
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session = makeSession(URI.parse('session:a'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		harness.visibleEditorsList = [{}];
+		harness.activePaneCompositeId = 'view.main';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.main'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		setActiveChat(session, peer);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls.at(-1), { id: TERMINAL_VIEW_ID, location: ViewContainerLocation.Panel }, 'a peer chat starts with no remembered panel view on first visit');
+
+		harness.visibleEditorsList = [{}, {}];
+		harness.activePaneCompositeId = 'view.peer';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const peerWorkingSetName = harness.saveWorkingSetCalls.at(-1);
+
+		harness.openPaneCompositeCalls = [];
+		harness.applyWorkingSetCalls = [];
+		setActiveChat(session, main);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.main', location: ViewContainerLocation.Panel }], 'returning to the main chat restores its own panel view, not the peer\'s');
+
+		harness.openPaneCompositeCalls = [];
+		harness.applyWorkingSetCalls = [];
+		setActiveChat(session, peer);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.peer', location: ViewContainerLocation.Panel }], 'returning to the peer chat restores its own panel view, not the main chat\'s');
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: peerWorkingSetName, name: peerWorkingSetName }], 'returning to the peer chat restores its own distinct editor working set');
 	});
 
 	// --- [B2] Editor working sets ---
@@ -413,6 +568,49 @@ suite('BaseLayoutController', () => {
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
 	});
 
+	test('[B2] once a held-back workspace folder arrives, the gated apply restores the still-current session\'s own saved working set, not a stale or empty one', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const workspaceFolders = [{ uri: URI.file('/repo') }, { uri: URI.file('/other') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'), { workspace: otherWorkspace });
+
+		harness.visibleEditorsList = [{}];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/other/a.txt')))];
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		harness.workspaceFolders = harness.workspaceFolders.filter(folder => !isEqual(folder.uri, otherWorkspace.uri));
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply must hold back while session 2\'s workspace folder is missing from the catalog');
+
+		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: `session-working-set:${session2.resource.toString()}`, name: `session-working-set:${session2.resource.toString()}` }],
+			'once the previously missing workspace folder arrives, the gated apply must fire for the still-current session\'s own real saved working set, not a stale or empty one'
+		);
+	});
+
 	test('[B2] gates working-set restoration on the active chat workspace', async () => {
 		const chatWorkspace = {
 			uri: URI.file('/chat'),
@@ -449,6 +647,121 @@ suite('BaseLayoutController', () => {
 			id: `session-working-set:${session.resource.toString()}`,
 			name: `session-working-set:${session.resource.toString()}`,
 		}]);
+	});
+
+	test('[R4] a superseded working-set apply does not publish stale reveal/hide once the chat-layout owner has moved on', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const layoutState = [{ sessionResource: 'session:a', editorPartHidden: true }];
+		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders, layoutState });
+
+		const sessionC = makeSession(URI.parse('session:c'));
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		harness.activeSessionObs.set(sessionC, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+		harness.applyWorkingSetCalls = [];
+
+		let raced = false;
+		harness.onApplyWorkingSet = () => {
+			if (!raced) {
+				raced = true;
+				harness.activeSessionObs.set(sessionB, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			['empty', 'empty'],
+			'both the superseded and the superseding apply must still run to completion'
+		);
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART),
+			[],
+			'the superseded (A) apply must not hide the editor part once stale — the still-current (B) owner wants it left visible'
+		);
+	});
+
+	test('[R13] a working-set apply superseded by a phone transition does not publish stale reveal/hide', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const layoutState = [{ sessionResource: 'session:a', editorPartHidden: true }];
+		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders, layoutState });
+
+		const sessionC = makeSession(URI.parse('session:c'));
+		const sessionA = makeSession(URI.parse('session:a'));
+
+		harness.activeSessionObs.set(sessionC, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+		harness.applyWorkingSetCalls = [];
+
+		let raced = false;
+		harness.onApplyWorkingSet = () => {
+			if (!raced) {
+				raced = true;
+				harness.chatLayoutIsPhoneObs.set(true, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			['empty'],
+			'the in-flight apply for A must still run to completion despite the phone transition'
+		);
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART),
+			[],
+			'a phone transition landing mid-apply must suppress the stale reveal/hide, the same as a superseding session switch'
+		);
+	});
+
+	test('[R13] entering and leaving a phone layout freezes the working-set derive, resuming with whichever chat is focused on exit', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', chatLayoutMode: 'chat', desktopLayout: true, workspaceFolders });
+
+		const session = makeSession(URI.parse('session:a'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+		assert.ok(session.activeChat.get() === main);
+
+		harness.visibleEditorsList = [{}];
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const [mainWorkingSetName] = harness.saveWorkingSetCalls;
+
+		setActiveChat(session, peer);
+		await timeout(0);
+		harness.visibleEditorsList = [{}, {}];
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		assert.deepStrictEqual(harness.saveWorkingSetCalls.slice(0, 2), [mainWorkingSetName, mainWorkingSetName]);
+		const peerWorkingSetName = harness.saveWorkingSetCalls.at(-1);
+		assert.notStrictEqual(peerWorkingSetName, mainWorkingSetName, 'each chat must capture its working set under a distinct owner key');
+
+		harness.applyWorkingSetCalls = [];
+
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		await timeout(0);
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'suspending must not itself trigger a working-set apply');
+
+		setActiveChat(session, main);
+		await timeout(0);
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'a chat switch while suspended must not trigger a working-set apply');
+
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		await timeout(0);
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: mainWorkingSetName, name: mainWorkingSetName }],
+			'resuming must apply the currently-focused chat\'s own working set, not the one focused when suspension began'
+		);
 	});
 
 	// --- [B3] Persistence & migration / [B4] Save ---

@@ -16,7 +16,6 @@ import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cl
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -34,14 +33,14 @@ registerAction2(class extends Action2 {
 			id: ConnectMissionControlEnvironmentCommand,
 			title: localize2('connectMissionControlEnvironment', "Connect to Mission Control Environment..."),
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<string | undefined> {
 		const inventory = accessor.get(IMissionControlEnvironmentService);
 		if (!inventory.enabled) {
-			throw new Error(localize('missionControl.connectionsDisabled', "User-local Mission Control connections are development-only and require remote AI features."));
+			throw new Error(localize('missionControl.connectionsDisabled', "User-local Mission Control connections require remote agent hosts and AI features to be enabled."));
 		}
 		const picker = accessor.get(IQuickInputService);
 		const notifications = accessor.get(INotificationService);

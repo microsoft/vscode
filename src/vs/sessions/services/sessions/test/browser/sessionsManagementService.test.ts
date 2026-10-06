@@ -16,6 +16,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -37,12 +38,14 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
+import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
+import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
-import { ISessionsManagementService, IActiveSession, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
+import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
 import { ISessionOpenTelemetryService, SessionOpenTelemetryService } from '../../browser/sessionOpenTelemetryService.js';
 import { ISessionGridSlot, ISessionsPartService, SessionGridRequest } from '../../browser/sessionsPartService.js';
@@ -56,6 +59,7 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Direction } from '../../../../../base/browser/ui/grid/grid.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { createSessionsPartTestHarness } from '../../../../test/browser/sessionViewTestUtils.js';
+import { getChatLayoutOwnerAfterReplacement } from '../../../../common/chatLayout.js';
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -267,6 +271,8 @@ function createSessionsManagementService(
 	instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
 		override moveHistory(): void { }
 	});
+	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ connections: [] }));
 	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 	if (workspaceTrustRequestService) {
 		instantiationService.stub(IWorkspaceTrustRequestService, workspaceTrustRequestService);
@@ -3079,6 +3085,39 @@ suite('SessionsManagementService', () => {
 		assert.strictEqual(view.activeSession.get()?.sessionId, 's1');
 	});
 
+	test('only appends the session log to the exact troubleshoot command', async () => {
+		const chat: IChat = { ...stubChat, resource: URI.parse('test:///chat') };
+		const session = stubSession({
+			sessionId: 'session',
+			providerId: 'test',
+			resource: URI.from({ scheme: COPILOT_CLI_LOCAL_AH_SCHEME, path: '/session' }),
+			chats: constObservable([chat]),
+			mainChat: constObservable(chat),
+		});
+		const sentQueries: string[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+				sentQueries.push(options.query);
+				return session;
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		for (const query of ['/troubleshoot', '  /troubleshoot investigate this', '/troubleshoot-flaky-tests build', '/troubleshooter']) {
+			await service.sendRequest(session, chat, { query });
+		}
+
+		assert.deepStrictEqual(sentQueries.map(query => ({
+			command: query.split('\n', 1)[0],
+			hasSessionLog: query.includes('\n\nSession log:'),
+		})), [
+			{ command: '/troubleshoot', hasSessionLog: true },
+			{ command: '  /troubleshoot investigate this', hasSessionLog: true },
+			{ command: '/troubleshoot-flaky-tests build', hasSessionLog: false },
+			{ command: '/troubleshooter', hasSessionLog: false },
+		]);
+	});
+
 	for (const newSession of [true, false]) {
 		test(`${newSession ? 'new session' : 'peer chat'} forwards the exact response observer through management`, async () => {
 			const session = stubSession({ sessionId: 'observer', providerId: 'test' });
@@ -5498,7 +5537,66 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	suite('chat owner replacement', () => {
+		test('provider-confirmed same-resource graduation maps the main owner and retains sibling identity', () => {
+			const fromMain = { ...stubChat, resource: URI.parse('draft-chat:/main') };
+			const toMain = { ...stubChat, resource: URI.parse('created-chat:/main') };
+			const peer = { ...stubChat, resource: URI.parse('peer-chat:/opaque') };
+			const from = stubSession({ sessionId: 'same', providerId: 'test', mainChat: constObservable(fromMain) });
+			const to = { ...from, mainChat: constObservable(toMain) };
+			const replacement = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidReplaceSession = replacement.event;
+			}(from);
+			const { service } = createSessionsManagementService(from, disposables, provider);
+			const owners = [
+				{ sessionResource: from.resource, chatResource: fromMain.resource },
+				{ sessionResource: from.resource, chatResource: peer.resource },
+			];
+			const transferred: typeof owners = [];
+			disposables.add(service.onDidReplaceSession(event => {
+				transferred.push(...owners.map(owner => getChatLayoutOwnerAfterReplacement(owner, event)));
+			}));
+			replacement.fire({ from, to });
+			assert.deepStrictEqual(transferred, [
+				{ sessionResource: to.resource, chatResource: toMain.resource },
+				{ sessionResource: to.resource, chatResource: peer.resource },
+			]);
+		});
+	});
+
 	suite('deleteChat', () => {
+		test('captures the requested owner before delayed confirmation and does not emit on provider failure', async () => {
+			const main = { ...stubChat, resource: URI.parse('test:///main') };
+			const peer = { ...stubChat, resource: URI.parse('test:///peer') };
+			const chats = observableValue<readonly IChat[]>('chats', [main, peer]);
+			const session = stubSession({ sessionId: 'session', providerId: 'test', chats, mainChat: constObservable(main) });
+			const confirmation = new DeferredPromise<boolean>();
+			let fail = false;
+			const provider = new class extends TestSessionsProvider {
+				override async deleteChat(): Promise<boolean> {
+					if (fail) {
+						throw new Error('provider failure');
+					}
+					return confirmation.p;
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+			const events: IChatDeletedEvent[] = [];
+			disposables.add(service.onDidDeleteChat(event => events.push(event)));
+			const pending = service.deleteChat(session, peer.resource);
+			const beforeConfirmation = events.length;
+			chats.set([], undefined);
+			await confirmation.complete(true);
+			const deleted = await pending;
+			fail = true;
+			await assert.rejects(service.deleteChat(session, main.resource), /provider failure/);
+			assert.deepStrictEqual({ beforeConfirmation, deleted, events }, {
+				beforeConfirmation: 0, deleted: true,
+				events: [{ session, sessionResource: session.resource, chatResource: peer.resource }],
+			});
+		});
+
 		for (const deleted of [true, false]) {
 			test(`returns ${deleted} and fires the delete event only after deletion`, async () => {
 				const session = stubSession({ sessionId: 'session', providerId: 'test' });
@@ -5508,14 +5606,15 @@ suite('SessionsManagementService', () => {
 					}
 				}(session);
 				const { service } = createSessionsManagementService(session, disposables, provider);
-				const deletedSessions: string[] = [];
-				disposables.add(service.onDidDeleteChat(session => deletedSessions.push(session.sessionId)));
+				const events: IChatDeletedEvent[] = [];
+				disposables.add(service.onDidDeleteChat(event => events.push(event)));
 
-				const result = await service.deleteChat(session, URI.parse('test:///chat'));
+				const chatResource = URI.parse('test:///chat');
+				const result = await service.deleteChat(session, chatResource);
 
-				assert.deepStrictEqual({ result, deletedSessions }, {
+				assert.deepStrictEqual({ result, events }, {
 					result: deleted,
-					deletedSessions: deleted ? [session.sessionId] : [],
+					events: deleted ? [{ session, sessionResource: session.resource, chatResource }] : [],
 				});
 			});
 		}

@@ -99,18 +99,22 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
-	for (const { name, built, extensionDevelopment, enabled } of [
-		{ name: 'source', built: false, extensionDevelopment: false, enabled: true },
-		{ name: 'extension development', built: true, extensionDevelopment: true, enabled: true },
-		{ name: 'normal built product', built: true, extensionDevelopment: false, enabled: false },
+	for (const { name, built, extensionDevelopment, hostsEnabled, aiDisabled, hidden, enabled } of [
+		{ name: 'source', built: false, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'extension development', built: true, extensionDevelopment: true, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'normal built product', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'remote hosts disabled', built: true, extensionDevelopment: false, hostsEnabled: false, aiDisabled: false, hidden: false, enabled: false },
+		{ name: 'AI master setting disabled', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: true, hidden: false, enabled: false },
+		{ name: 'AI hidden', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: true, enabled: false },
 	]) {
-		test(`Mission Control accessibility help uses the discovery development gate: ${name}`, () => {
+		test(`Mission Control accessibility help matches discovery availability: ${name}`, () => {
 			const instantiation = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: hostsEnabled, 'chat.disableAIFeatures': aiDisabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiation.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiation, configuration);
 			instantiation.stub(IEnvironmentService, { isBuilt: built, isExtensionDevelopment: extensionDevelopment });
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden } });
 			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
 			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });

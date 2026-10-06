@@ -16,6 +16,7 @@ import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime } from '../..
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
 import { dirname as resourcesDirname, extname as resourcesExtname, extUriBiasedIgnorePathCase, isEqual, isEqualOrParent, joinPath } from '../../../base/common/resources.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -2307,14 +2308,20 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _drainBackgroundCatalogStateWrites(session: URI, initialOverrides: Readonly<Record<string, string>>, write: IBackgroundCatalogStateWrite): Promise<void> {
 		const sessionKey = session.toString();
+		const operationId = generateUuid();
+		const stopWatch = StopWatch.create();
+		let iteration = 0;
 		let metadataOverrides = initialOverrides;
 		try {
 			while (true) {
+				iteration++;
+				this._logService.trace(`[AgentService] catalogStateWrite: ${sessionKey}, operationId=${operationId}, iteration=${iteration}, stage=started, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 				try {
 					await this._persistListVisibleSessionStateNow(session, metadataOverrides);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to persist list-visible session state for ${sessionKey}`, error);
 				}
+				this._logService.trace(`[AgentService] catalogStateWrite: ${sessionKey}, operationId=${operationId}, iteration=${iteration}, stage=settled, trailing=${write.trailing}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 				if (!write.trailing) {
 					return;
 				}
@@ -6016,8 +6023,10 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _createChat(provider: IAgent, chat: URI, session: URI, options: IAgentCreateChatOptions | undefined): Promise<IAgentCreateChatResult | void> {
 		const placement = this._buildChatPlacement(session);
-		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || placement)
+		const isEphemeral = this._stateManager.isEphemeralSession(session.toString());
+		const convOptions: IAgentCreateChatOptions | undefined = (options?.title !== undefined || options?.model !== undefined || options?.workingDirectories !== undefined || placement || isEphemeral)
 			? {
+				...(isEphemeral ? { isEphemeral: true } : {}),
 				...(options?.title !== undefined ? { title: options.title } : {}),
 				...(options?.model !== undefined ? { model: options.model } : {}),
 				...(options?.workingDirectories !== undefined
@@ -6589,8 +6598,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _doDisposeSession(session: URI): Promise<void> {
 		const sessionKey = session.toString();
+		const operationId = generateUuid();
+		const stopWatch = StopWatch.create();
+		const traceStage = (stage: string) => this._logService.trace(`[AgentService] disposeSession: ${sessionKey}, operationId=${operationId}, stage=${stage}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
 		this._cancelPendingSessionGc(session);
 		this._stateManager.invalidateSessionChatResolutions(sessionKey);
+		traceStage('readRegistration');
 		const registered = await this._orchestratorDatabase.getSessionV2Registration(sessionKey);
 		const provider = registered ? this._providerService.getProvider(registered.provider) : this._providerService.getProviderForSession(session);
 		if (registered && !provider) {
@@ -6615,6 +6628,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// session state would silently break the moment `deleteSession` below
 			// is reordered ahead of the data deletion.
 			const sessionId = AgentSession.id(session);
+			traceStage('readPeerChats');
 			const [chatCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
 			if (chatCatalog?.authorityVersion === 2 && !chatCatalog.header?.defaultChatUri) {
 				throw new Error(`Missing normalized default while deleting ${sessionKey}`);
@@ -6633,7 +6647,9 @@ export class AgentService extends Disposable implements IAgentService {
 					workingDirectories.push(directory);
 				}
 			}
+			traceStage('readWorktreeMetadata');
 			const worktree = await this._worktree.prepareSessionDeletion(session, sessionId);
+			traceStage('readAdditionalWorktrees');
 			const additionalWorktrees = await readSessionAdditionalWorktrees(this._sessionDataService, session);
 			const candidateCleanupWorkingDirectoryUris = (worktree?.repositoryRoot
 				? [worktree.repositoryRoot.toString(), ...(workingDirectories?.slice(1) ?? [])]
@@ -6657,6 +6673,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const cleanupWorkingDirectories = cleanupWorkingDirectoryUris.length > 0
 				? cleanupWorkingDirectoryUris.map(directory => directory.toString())
 				: undefined;
+			traceStage('drainPeerChatWrites');
 			await this._peerChatStore.beginSessionDeletion(session);
 			peerChatDeletionBegun = true;
 			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
@@ -6664,12 +6681,16 @@ export class AgentService extends Disposable implements IAgentService {
 				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
 			], defaultChat);
 			// Providers may read host-owned session metadata (including workspaceless) during disposal.
+			traceStage('drainCatalogStateWrites');
 			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
+			traceStage('drainCatalogSync');
 			await catalogDeletionFence.whenDrained;
 			if (provider) {
+				traceStage('disposeProviderChats');
 				chatsToDelete = [...await this._disposeSession(provider, session, persistedPeerChats, defaultChat)];
 			}
 			if (!isEphemeral) {
+				traceStage('tombstone');
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.tombstone(session),
 					`unregistration for ${session.toString()}`,
@@ -6684,7 +6705,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._sideEffects.clearSessionTitleState(session.toString(), sessionChats.map(chat => chat.resource));
 			this._chatContributions.disposeSessionState(session.toString());
+			traceStage('drainSessionData');
 			await this._whenSessionDataIdle(session);
+			traceStage('deleteChatData');
 			for (const chat of chatsToDelete) {
 				await this._sessionDataService.deleteSessionData(chat);
 			}
@@ -6696,10 +6719,13 @@ export class AgentService extends Disposable implements IAgentService {
 			// session the working directory *is* the worktree, so once it is gone
 			// the repository can no longer be resolved and the refs would leak
 			// into the main repository (`refs/agents/*` is shared, not per-worktree).
+			traceStage('deleteAdditionalWorktrees');
 			for (const additionalWorktree of additionalWorktrees) {
 				await this._worktree.deleteDetachedWorktree(additionalWorktree.handle);
 			}
+			traceStage('deleteSessionData');
 			await this._sessionDataService.deleteSessionData(session, cleanupWorkingDirectories);
+			traceStage('removeSessionWorktree');
 			await this._worktree.removeSessionWorktree(sessionId, worktree);
 			this._changesetCoordinator.onSessionDisposed(session.toString());
 			this._sideEffects.clearInputRequestsForSession(session.toString());
@@ -6712,6 +6738,7 @@ export class AgentService extends Disposable implements IAgentService {
 			// mirror listing reads in step with it.
 			this._provisionalSessionKeys.delete(sessionKey);
 			if (isEphemeral) {
+				traceStage('clearEphemeralTombstone');
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.clearTombstone(session),
 					`clearing ephemeral session tombstone for ${session.toString()}`,
@@ -6723,6 +6750,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			catalogDeletionFence.dispose();
 		}
+		traceStage('complete');
 	}
 
 	private async _whenBackgroundCatalogStateWritesIdle(sessionKey: string): Promise<void> {
@@ -7523,14 +7551,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel);
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
-		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
 		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -7574,9 +7601,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
-			}
-			if (action.type === ActionType.ChatTurnStarted && requiresTurnOwnerResolution) {
-				await this._resolvePeerChatsForTurnValidation(sessionChannel);
 			}
 			let rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
 				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
@@ -8142,10 +8166,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			resumedTurn = turn;
 		}
-		if (action.type === ActionType.ChatTurnStarted && this._isTurnIdUsedByAnotherChat(sessionChannel, channel, action.turnId)) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Turn id is already used by another chat in this session.');
-			return;
-		}
 		// Host-owned session config carries merge authorization (bound pull request,
 		// watermark, attempt budgets), so a client must never be able to write it, and
 		// a wholesale replacement must not drop it either.
@@ -8220,41 +8240,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
-		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);
-	}
-
-	private async _resolvePeerChatsForTurnValidation(sessionChannel: string): Promise<void> {
-		const unavailableSubagentTranscripts = new Set<string>();
-		while (true) {
-			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel)?.filter(chat => !unavailableSubagentTranscripts.has(chat));
-			if (!unresolvedChats) { throw new Error('Cannot validate turn id for unknown session'); }
-			if (unresolvedChats.length === 0) { return; }
-			await Promise.all(unresolvedChats.map(async chat => {
-				try {
-					if (!await this._stateManager.resolveChatState(chat)) { throw new Error('Cannot resolve peer chat for turn id validation'); }
-				} catch (error) {
-					if (!(error instanceof SubagentTranscriptUnavailableError)) {
-						throw error;
-					}
-					unavailableSubagentTranscripts.add(chat);
-					this._logService.warn(`[AgentService] Cannot validate turn ids against unavailable subagent transcript: ${chat}`);
-				}
-			}));
-		}
-	}
-	private _isTurnIdUsedByAnotherChat(sessionChannel: string, chatChannel: string, turnId: string): boolean {
-		const sessionState = this._stateManager.getSessionState(sessionChannel);
-		if (!sessionState) { return false; }
-		if (sessionState.defaultChat !== chatChannel && (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId))) { return true; }
-		for (const chat of sessionState.chats ?? []) {
-			if (chat.resource === chatChannel || isDefaultChatUri(chat.resource)) { continue; }
-			const chatState = this._stateManager.getChatState(chat.resource);
-			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) { return true; }
-		}
-		return false;
-	}
-
 	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;

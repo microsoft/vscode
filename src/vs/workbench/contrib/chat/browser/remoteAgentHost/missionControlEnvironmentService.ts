@@ -15,7 +15,6 @@ import { cloudSandboxAddress, ICloudSandboxAgentHostService, ICloudSandboxApiSer
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -50,7 +49,6 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		@IAgentHostService private readonly _local: IAgentHostService,
 		@IStorageService private readonly _storage: IStorageService,
 		@IConfigurationService private readonly _configuration: IConfigurationService,
-		@IEnvironmentService private readonly _environment: IEnvironmentService,
 		@IChatEntitlementService private readonly _entitlement: IChatEntitlementService,
 		@ILogService private readonly _log: ILogService,
 		@IAuthenticationService authentication: IAuthenticationService,
@@ -92,7 +90,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	get accountKey(): string | undefined { return this._accountKey; }
 	get enabled(): boolean {
-		return (!this._environment.isBuilt || this._environment.isExtensionDevelopment) && !this._entitlement.sentiment.hidden
+		return !this._entitlement.sentiment.hidden
 			&& this._configuration.getValue<boolean>('chat.disableAIFeatures') !== true
 			&& this._configuration.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
 	}

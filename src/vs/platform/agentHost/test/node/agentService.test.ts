@@ -4228,50 +4228,6 @@ suite('AgentService (node dispatcher)', () => {
 			return { svc, session, primary, secondary };
 		}
 
-		test('rejects a turn id already used by another chat before applying it', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => agent.dispose()));
-			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ provider: 'copilot' });
-			const defaultChat = buildDefaultChatUri(session.toString());
-			const peerChat = buildChatUri(session, 'peer-1');
-			getStateManager(svc).addChat(session.toString(), peerChat);
-			getStateManager(svc).dispatchServerAction(peerChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'duplicate-turn',
-				startedAt: '2025-01-01T00:00:00.000Z',
-				message: { text: 'peer', origin: { kind: MessageKind.User } },
-			});
-			getStateManager(svc).dispatchServerAction(peerChat, {
-				type: ActionType.ChatTurnComplete,
-				turnId: 'duplicate-turn',
-				duration: 1,
-			});
-			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
-
-			svc.dispatchAction(defaultChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'duplicate-turn',
-				startedAt: '2025-01-01T00:00:01.000Z',
-				message: { text: 'default', origin: { kind: MessageKind.User } },
-			}, 'test-client', 1);
-			const envelope = await envelopePromise;
-			const defaultChatState = getStateManager(svc).getChatState(defaultChat);
-
-			assert.deepStrictEqual({
-				rejected: envelope.rejectionReason !== undefined,
-				activeTurn: defaultChatState?.activeTurn,
-				turns: defaultChatState?.turns,
-				sendMessageCalls: agent.sendMessageCalls,
-			}, {
-				rejected: true,
-				activeTurn: undefined,
-				turns: [],
-				sendMessageCalls: [],
-			});
-		});
-
 		test('rejects independent archive actions for the default chat', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -4447,56 +4403,63 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
-		test('rejects a turn id used by an unresolved restored peer before applying it', async () => {
-			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			const agent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => agent.dispose()));
-			registerTestAgentProvider(svc, agent);
-			const session = await svc.createSession({ provider: 'copilot' });
-			const defaultChat = buildDefaultChatUri(session.toString());
-			const peerChat = buildChatUri(session, 'peer-1');
-			let resolverCalls = 0;
-			getStateManager(svc).registerRestoredChatSummary(session.toString(), peerChat, {
-				resolver: async () => {
-					resolverCalls++;
-					return {
-						turns: [{
-							id: 'duplicate-turn',
-							state: TurnState.Complete,
-							message: { text: 'peer', origin: { kind: MessageKind.User } },
-							responseParts: [],
-							usage: undefined,
-						}],
-					};
-				},
-			});
-			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+		for (const targetIsPeer of [false, true]) {
+			test(`sends to a ${targetIsPeer ? 'restored peer' : 'default'} chat without resolving other restored chats`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = disposables.add(new MockAgent('copilot'));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				const stateManager = getStateManager(svc);
+				const targetChat = targetIsPeer ? buildChatUri(session, 'target-peer') : buildDefaultChatUri(session);
+				let targetResolverCalls = 0;
+				if (targetIsPeer) {
+					stateManager.registerRestoredChatSummary(session.toString(), targetChat, {
+						resolver: async () => {
+							targetResolverCalls++;
+							return { turns: [] };
+						},
+					});
+				}
+				const unopenedChats = [buildChatUri(session, 'unopened-peer'), buildSubagentChatUri(session.toString(), 'unavailable-transcript')];
+				let unrelatedResolverCalls = 0;
+				for (const chat of unopenedChats) {
+					stateManager.registerRestoredChatSummary(session.toString(), chat, {
+						resolver: async () => {
+							unrelatedResolverCalls++;
+							throw new Error('Unrelated chat history must not block prompt dispatch');
+						},
+					});
+				}
+				const turnId = generateUuid();
+				const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				const sendPromise = Event.toPromise(agent.onDidSendMessage);
 
-			svc.dispatchAction(defaultChat, {
-				type: ActionType.ChatTurnStarted,
-				turnId: 'duplicate-turn',
-				startedAt: '2025-01-01T00:00:01.000Z',
-				message: { text: 'default', origin: { kind: MessageKind.User } },
-			}, 'test-client', 1);
-			const envelope = await envelopePromise;
-			const defaultChatState = getStateManager(svc).getChatState(defaultChat);
+				svc.dispatchAction(targetChat, {
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: '2025-01-01T00:00:01.000Z',
+					message: { text: 'New question', origin: { kind: MessageKind.User } },
+				}, 'test-client', 1);
+				const envelope = await envelopePromise;
+				const sent = await sendPromise;
 
-			assert.deepStrictEqual({
-				rejected: envelope.rejectionReason !== undefined,
-				resolverCalls,
-				peerResolved: getStateManager(svc).getChatState(peerChat) !== undefined,
-				activeTurn: defaultChatState?.activeTurn,
-				turns: defaultChatState?.turns,
-				sendMessageCalls: agent.sendMessageCalls,
-			}, {
-				rejected: true,
-				resolverCalls: 1,
-				peerResolved: true,
-				activeTurn: undefined,
-				turns: [],
-				sendMessageCalls: [],
+				assert.deepStrictEqual({
+					rejectionReason: envelope.rejectionReason,
+					targetResolverCalls,
+					unrelatedResolverCalls,
+					unopenedChatsResolved: unopenedChats.map(chat => stateManager.getChatState(chat) !== undefined),
+					activeTurn: stateManager.getChatState(targetChat)?.activeTurn?.id,
+					sent: { chat: sent.chat?.toString(), prompt: sent.prompt },
+				}, {
+					rejectionReason: undefined,
+					targetResolverCalls: targetIsPeer ? 1 : 0,
+					unrelatedResolverCalls: 0,
+					unopenedChatsResolved: [false, false],
+					activeTurn: turnId,
+					sent: { chat: targetChat, prompt: 'New question' },
+				});
 			});
-		});
+		}
 
 		test('rejects working-directory mutations from non-Editor clients', async () => {
 			const { svc, session, primary, secondary } = await createDynamicWorkingDirectorySession();
@@ -7069,6 +7032,35 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('peer chats inherit the owning session ephemeral state', async () => {
+			class CapturingAgent extends MockAgent {
+				readonly createOptions = new Map<string, IAgentCreateChatOptions | undefined>();
+				override async createChat(_session: URI, chat: URI, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> {
+					this.createOptions.set(chat.toString(), options);
+					return { providerData: `backing:${chat.path}` };
+				}
+			}
+			const perSession = createPerSessionDataService();
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new CapturingAgent('copilot', { multipleChats: {} }));
+			registerTestAgentProvider(svc, agent);
+			const ephemeralSession = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/repo')], _meta: withEphemeralSessionMeta(undefined, true) });
+			const durableSession = await svc.createSession({ provider: agent.id, workingDirectories: [URI.file('/repo')] });
+			const ephemeralPeer = URI.parse(buildChatUri(ephemeralSession, 'ephemeral-peer'));
+			const durablePeer = URI.parse(buildChatUri(durableSession, 'durable-peer'));
+
+			await svc.createChat(ephemeralSession, ephemeralPeer);
+			await svc.createChat(durableSession, durablePeer);
+
+			assert.deepStrictEqual({
+				ephemeralPeer: agent.createOptions.get(ephemeralPeer.toString())?.isEphemeral,
+				durablePeer: agent.createOptions.get(durablePeer.toString())?.isEphemeral,
+			}, {
+				ephemeralPeer: true,
+				durablePeer: undefined,
+			});
+		});
+
 		test('forked chats keep inheriting the session folders when the source inherits them or the provider has no per-chat folders', async () => {
 			class ForkingAgent extends MockAgent {
 				readonly createOptions = new Map<string, IAgentCreateChatOptions | undefined>();
@@ -7696,6 +7688,61 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- disposeSession -------------------------------------------------
 
 	suite('disposeSession', () => {
+		for (const fail of [false, true]) {
+			test(`traces the pending disposal stage before awaiting metadata (${fail ? 'failure' : 'success'})`, async () => {
+				const stages: { operationId: string; stage: string; elapsedMs: number }[] = [];
+				const logService = new class extends NullLogService {
+					override trace(message: string): void {
+						const match = /operationId=(?<operationId>[^,]+), stage=(?<stage>[^,]+), elapsedMs=(?<elapsedMs>\d+)$/.exec(message);
+						if (match?.groups) {
+							stages.push({
+								operationId: match.groups.operationId,
+								stage: match.groups.stage,
+								elapsedMs: Number(match.groups.elapsedMs),
+							});
+						}
+					}
+				}();
+				const svc = disposables.add(createTestAgentService(logService, fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(svc, copilotAgent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				const entered = new DeferredPromise<void>();
+				const release = new DeferredPromise<void>();
+				setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+					prepareSessionDeletion: async () => {
+						entered.complete();
+						await release.p;
+						if (fail) {
+							throw new Error('metadata unavailable');
+						}
+						return undefined;
+					},
+				}));
+
+				const deletion = svc.disposeSession(session);
+				await entered.p;
+				const pendingStage = stages.at(-1)?.stage;
+				release.complete();
+				if (fail) {
+					await assert.rejects(deletion, /metadata unavailable/);
+				} else {
+					await deletion;
+				}
+
+				assert.deepStrictEqual({
+					pendingStage,
+					finalStage: stages.at(-1)?.stage,
+					operationCount: new Set(stages.map(stage => stage.operationId)).size,
+					validDurations: stages.every((stage, index) => stage.elapsedMs >= 0 && (index === 0 || stage.elapsedMs >= stages[index - 1].elapsedMs)),
+				}, {
+					pendingStage: 'readWorktreeMetadata',
+					finalStage: fail ? 'readWorktreeMetadata' : 'complete',
+					operationCount: 1,
+					validDurations: true,
+				});
+			});
+		}
+
 		for (const [operation, available] of [['retry', true], ['delete', true], ['delete', false]] as const) {
 			test(`identity operations preserve unresolved legacy provenance (${operation}, ${available})`, async () => {
 				const database = new class extends TestAgentHostOrchestratorDatabase {
@@ -20569,6 +20616,7 @@ suite('AgentService (node dispatcher)', () => {
 				message: { text: 'Start it for me', origin: { kind: MessageKind.User } },
 			}, 'client-test', 1);
 			const [envelope, send] = await Promise.all([envelopePromise, sendPromise]);
+			const childReadsAfterParentSend = agent.messageReads.filter(resource => resource === childChatUri).length;
 			agent.childTranscriptAvailable = true;
 			await service.subscribe(URI.parse(childChatUri), 'child-reader-second');
 			const childState = getStateManager(service).getChatState(childChatUri);
@@ -20576,6 +20624,7 @@ suite('AgentService (node dispatcher)', () => {
 				turnRejected: envelope.rejectionReason !== undefined,
 				parentActiveTurn: getStateManager(service).getChatState(buildDefaultChatUri(sessionResource))?.activeTurn?.id,
 				sentPrompt: send.prompt,
+				childReadsAfterParentSend,
 				childTurnCount: childState?.turns.length,
 				childMessageReads: agent.messageReads.filter(resource => resource === childChatUri).length,
 				legacyChildSession: getStateManager(service).getSessionState(buildSubagentSessionUri(sessionResource.toString(), 'tc-sub')),
@@ -20583,8 +20632,9 @@ suite('AgentService (node dispatcher)', () => {
 				turnRejected: false,
 				parentActiveTurn: 'turn-after-missing-subagent',
 				sentPrompt: 'Start it for me',
+				childReadsAfterParentSend: 1,
 				childTurnCount: 1,
-				childMessageReads: 3,
+				childMessageReads: 2,
 				legacyChildSession: undefined,
 			});
 		});
@@ -25232,7 +25282,7 @@ suite('AgentService (node dispatcher)', () => {
 						materialized,
 						disposed: agent.chatContexts.filter(call => call.boundary === 'disposeChat').map(call => call.chat.toString()),
 						registration: await database.getSessionV2Registration(session.toString()),
-						sent: agent.sendMessageCalls.map(call => call.chat.toString()),
+						sent: agent.sendMessageCalls.map(call => call.chat?.toString()),
 					}, {
 						materialized: [{ chat: physical, providerData: 'cold-backing' }],
 						disposed: [physical], registration: undefined, sent: restore ? [physical] : [],

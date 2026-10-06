@@ -838,7 +838,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstEdit, 700);
-		assert.strictEqual(data.timeToFirstEditClassifierVersion, 1);
 		assert.strictEqual(data.modelCallCount, 0);
 	});
 
@@ -878,7 +877,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return {
 					turnId: data.turnId,
 					timeToFirstEdit: data.timeToFirstEdit,
-					timeToFirstEditClassifierVersion: data.timeToFirstEditClassifierVersion,
 					startedWithSteering: data.startedWithSteering,
 					receivedSteering: data.receivedSteering,
 					hostLaunchKind: data.hostLaunchKind,
@@ -892,7 +890,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
 				turnId,
 				timeToFirstEdit: turnId === 'turn-original' ? 100 : 250,
-				timeToFirstEditClassifierVersion: 1,
 				startedWithSteering: turnId !== 'turn-original',
 				receivedSteering: turnId !== 'turn-steering-2',
 				hostLaunchKind: undefined,
@@ -1048,7 +1045,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstEdit, undefined);
-		assert.strictEqual(data.timeToFirstEditClassifierVersion, undefined);
 	});
 
 	test('does not attribute a stale model-call attempt to the active turn', () => {

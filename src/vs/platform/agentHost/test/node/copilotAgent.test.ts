@@ -93,6 +93,7 @@ import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SU
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agentHostReviewService.js';
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
+import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
@@ -8410,6 +8411,32 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('restarts the runtime only when the effective local memory store changes', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
+				await agent.listChatsToMigrate();
+				const localWithoutMemory = client.stopCallCount;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.Memory]: true });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					localWithoutMemory,
+					localWithMemory: client.stopCallCount,
+				}, {
+					localWithoutMemory: 0,
+					localWithMemory: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('does not duplicate HydraFusion when the runtime advertises it', async () => {
 			const client = new TestCopilotClient([], [{ id: 'hydrafusion', name: 'HydraFusion' }]);
 			const { agent } = createTestAgentContext(disposables, {
@@ -12902,6 +12929,71 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('whole-list customization publishes derive root MCP provenance from the live session through removal, re-add and session replacement', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const workspace = URI.file('/workspace');
+			const { agent, instantiationService, stateManager } = createTestAgentContext(disposables, {
+				fileService,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			try {
+				const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+				await provisionSession(agent, { session: sessionUri, workingDirectories: [workspace] });
+				stateManager.createSession({
+					resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(), workingDirectories: [workspace.toString()],
+				});
+				const publications: Customization[][] = [];
+				disposables.add(agent.onDidChatProgress(signal => {
+					if (signal.kind === 'action' && signal.resource.toString() === sessionUri.toString()) {
+						stateManager.dispatchServerAction(sessionUri.toString(), signal.action as SessionAction);
+						if (signal.action.type === ActionType.SessionCustomizationsChanged) {
+							publications.push(signal.action.customizations);
+						}
+					}
+				}));
+				const activeClient = agent['_getOrCreateActiveClient'](sessionUri, workspace);
+				const { session } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+				const chat = URI.parse(buildDefaultChatUri(sessionUri));
+				agent['_registerLiveChat'](chat, session, activeClient);
+				const inventory = [
+					{ name: 'slack-gh', status: 'connected' as const, source: 'user' as const },
+					{ name: 'plugin-server', status: 'connected' as const, source: 'plugin' as const, sourcePlugin: 'acme' },
+					{ name: 'builtin-server', status: 'connected' as const, source: 'builtin' as const },
+				];
+				session['_applyMcpServerList'](inventory);
+				const snapshot = (customizations: readonly Customization[]) => customizations
+					.filter(item => item.type === CustomizationType.McpServer)
+					.map(item => ({ name: item.name, id: item.id, uri: item.uri, source: readMcpServerSource(item), plugin: readMcpServerSourcePlugin(item) }))
+					.sort((a, b) => a.name.localeCompare(b.name));
+				const expected = snapshot(session.topLevelMcpCustomizations());
+				await activeClient.pluginController.sync('client', []);
+				const afterSync = snapshot(publications.at(-1) ?? []);
+				session['_applyMcpServerList'](inventory.slice(1));
+				await activeClient.pluginController.sync('another-client', []);
+				const afterRemoval = snapshot(publications.at(-1) ?? []);
+				session['_applyMcpServerList'](inventory);
+				session['_mcpCustomizations'].applyOne({ name: 'slack-gh', state: { kind: McpServerStatus.Ready } });
+				activeClient.pluginController.removeClient('another-client');
+				const afterReadd = snapshot(publications.at(-1) ?? []);
+
+				const { session: replacement } = createAgentSessionThroughAgent(agent, instantiationService, { workingDirectory: workspace });
+				agent['_registerLiveChat'](chat, replacement, activeClient);
+				for (const server of inventory) {
+					replacement['_mcpCustomizations'].applyOne({ name: server.name, state: { kind: McpServerStatus.Ready } });
+				}
+				replacement['_applyMcpServerList'](inventory);
+				activeClient.pluginController.removeClient('client');
+				assert.deepStrictEqual({ afterSync, afterRemoval, afterReadd, afterReplacement: snapshot(publications.at(-1) ?? []) }, {
+					afterSync: expected, afterRemoval: expected.filter(server => server.name !== 'slack-gh'), afterReadd: expected, afterReplacement: expected,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('getSessionCustomizations includes root MCP servers before materialization', async () => {
 			const { agent } = createTestAgentContext(disposables, {
 				rootConfig: {
@@ -14192,7 +14284,7 @@ suite('CopilotAgent', () => {
 					clientToken: 'connector-session-token',
 					configToken: undefined,
 					hasTokenProvider: false,
-					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);
