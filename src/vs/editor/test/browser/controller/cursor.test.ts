@@ -5430,6 +5430,53 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('autoClosingPairs - beforeText falls back to a shorter pair', () => {
+		const languageId = 'autoClosingBeforeTextFallback';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/ },
+				{ open: 'n', close: ']' }
+			]
+		}));
+
+		usingCursor({
+			text: ['prefixbegi'],
+			languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.type('n', 'keyboard');
+
+			assert.strictEqual(model.getValue(), 'prefixbegin]');
+		});
+	});
+
+	test('autoClosingPairs - beforeText falls back to a shorter pair after composition', () => {
+		const languageId = 'autoClosingBeforeTextCompositionFallback';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin', close: 'end', beforeText: /(?:^|\s)begin$/ },
+				{ open: 'n', close: ']' }
+			]
+		}));
+
+		usingCursor({
+			text: ['prefixbegi'],
+			languageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 11, 1, 11)]);
+			viewModel.startComposition();
+			viewModel.type('n', 'keyboard');
+			viewModel.compositionType('n', 1, 0, 0, 'keyboard');
+			viewModel.endComposition('keyboard');
+
+			assert.strictEqual(model.getValue(), 'prefixbegin]');
+		});
+	});
+
 	test('autoClosingPairs - doc comments can be turned off', () => {
 		usingCursor({
 			text: [
