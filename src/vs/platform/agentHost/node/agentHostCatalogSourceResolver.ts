@@ -131,12 +131,17 @@ export class AgentHostCatalogSourceResolver {
 		preferPersistedMetadata: boolean,
 		database: IAgentHostCatalogMetadataReference | undefined = undefined,
 		metadataFallbacks: Readonly<Record<string, string>> = {},
+		authoritativeChats?: AgentHostCatalogData['chats'],
 	): Promise<IAgentHostCatalogSyncRequest> {
 		const metadataKeys = createMetadataKeySet(sessionMetadataKeys);
-		for (const chat of state.chats) {
-			metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
-			metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
-			metadataKeys[getChatChangesSummaryMetadataKey(chat.uri)] = true;
+		if (authoritativeChats === undefined) {
+			for (const chat of state.chats) {
+				metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
+				metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
+				metadataKeys[getChatChangesSummaryMetadataKey(chat.uri)] = true;
+			}
+		} else {
+			delete metadataKeys[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY];
 		}
 
 		const persisted: { readonly [key: string]: string | undefined } = database
@@ -208,11 +213,15 @@ export class AgentHostCatalogSourceResolver {
 			? sessionMetadata.isRead.read(metadata) ?? false
 			: stateIsRead;
 		const chatIsRead = (chat: ICatalogSourceState['chats'][number]): boolean | undefined => preferPersistedMetadata
+			&& authoritativeChats === undefined
 			&& chat.kind === 'default'
 			&& sessionMetadata.defaultChatIsRead.has(metadata)
 			? sessionMetadata.defaultChatIsRead.read(metadata)
 			: chat.isRead;
-		const aggregateChats = state.chats.filter(chat => isChatInSessionReadAggregate(chat.uri, chat.origin, chat.interactivity));
+		const aggregateChats = (authoritativeChats?.map(chat => ({
+			...chat,
+			origin: fromCatalogChatOrigin(chat.origin),
+		})) ?? state.chats).filter(chat => isChatInSessionReadAggregate(chat.uri, chat.origin, chat.interactivity));
 		const isRead = aggregateChats.length === 1 && aggregateChats[0].isRead !== undefined
 			? chatIsRead(aggregateChats[0]) ?? persistedSessionIsRead
 			: persistedSessionIsRead && !aggregateChats.some(chat => chatIsRead(chat) === false);
@@ -260,7 +269,7 @@ export class AgentHostCatalogSourceResolver {
 			workingDirectories: (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
-			chats: state.chats.map((chat, order) => {
+			chats: authoritativeChats ?? state.chats.map((chat, order) => {
 				const summary = preferPersistedMetadata
 					? metadata[customChatTitleMetadataKey(chat.uri)]
 					|| chat.title
@@ -358,6 +367,16 @@ export class AgentHostCatalogSourceResolver {
 		}
 		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
 			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
+		}
+		if (authoritativeChats !== undefined) {
+			delete legacyMetadata[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY];
+			for (const key of Object.keys(legacyMetadata)) {
+				if (key.startsWith(customChatTitleMetadataKey(''))
+					|| key.startsWith(customChatTitleSourceMetadataKey(''))
+					|| key.startsWith(getChatChangesSummaryMetadataKey(''))) {
+					delete legacyMetadata[key];
+				}
+			}
 		}
 		return { data, legacyMetadata };
 	}
