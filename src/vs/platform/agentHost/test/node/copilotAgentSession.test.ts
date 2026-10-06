@@ -11195,7 +11195,7 @@ Use the attached image as context.
 							tracker.turnCompleted(chatUri, signal.action.turnId, 'success');
 						}
 					} else if (signal.kind === 'model_call_finished') {
-						tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+						tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest);
 					}
 				}
 
@@ -12275,7 +12275,7 @@ Use the attached image as context.
 				} else if (signal.kind === 'model_call_completed') {
 					tracker.modelCallCompleted(chatUri, signal.turnId, signal.modelCallId);
 				} else if (signal.kind === 'model_call_finished') {
-					tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+					tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest);
 				}
 			}
 
