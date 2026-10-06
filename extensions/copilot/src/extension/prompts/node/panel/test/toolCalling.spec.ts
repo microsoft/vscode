@@ -25,7 +25,9 @@ import { createExtensionUnitTestingServices } from '../../../../test/node/servic
 import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService, type IToolValidationResult } from '../../../../tools/common/toolsService';
 import { renderPromptElement } from '../../base/promptRenderer';
-import { ChatToolCalls } from '../toolCalling';
+import { ChatToolCalls, getInvalidImagePlaceholder } from '../toolCalling';
+import { ChatImageMimeType } from '../../../../conversation/common/languageModelChatMessageHelpers';
+import { nonImages, realImages } from '../../../../../util/common/test/imageFixtures';
 import { URI } from 'vscode-uri';
 
 class CapturingChatHookService implements IChatHookService {
@@ -696,9 +698,6 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 
 	test('labels tool result images by their bytes and omits data that is not an image', async () => {
 		const toolName = 'viewImage';
-		const mislabeledCallId = 'call-mislabeled';
-		const invalidCallId = 'call-invalid';
-
 		const toolInfo: vscode.LanguageModelToolInformation = {
 			name: toolName,
 			description: 'view image tool',
@@ -715,24 +714,23 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
 		await accessor.get(IConfigurationService).setConfig(ConfigKey.EnableChatImageUpload, false);
 
-		// JPEG bytes in a file named `.png`, and text bytes in a file named `.png`
-		const jpegBytes = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]);
-		const notAnImage = new TextEncoder().encode('this is not an image');
-		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
-			[mislabeledCallId]: new LanguageModelToolResult([LanguageModelDataPart.image(jpegBytes, 'image/png')]),
-			[invalidCallId]: new LanguageModelToolResult([LanguageModelDataPart.image(notAnImage, 'image/png')]),
-		};
+		// Every real image declared as every image type (correctly or not), plus every
+		// non-image file declared as each image type.
+		const declaredMimeTypes = Object.values(ChatImageMimeType);
+		const cases = [
+			...Object.entries(realImages).flatMap(([actualMimeType, data]) => declaredMimeTypes.map(declaredMimeType => ({ name: actualMimeType, data, declaredMimeType, actualMimeType }))),
+			...Object.entries(nonImages).flatMap(([name, data]) => declaredMimeTypes.map(declaredMimeType => ({ name, data, declaredMimeType, actualMimeType: undefined }))),
+		].map((c, index) => ({ ...c, callId: `call-${index}` }));
 
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = Object.fromEntries(
+			cases.map(c => [c.callId, new LanguageModelToolResult([LanguageModelDataPart.image(c.data, c.declaredMimeType)])])
+		);
 		const round: IToolCallRound = {
 			id: 'round-1',
 			response: 'viewing images',
 			toolInputRetry: 0,
-			toolCalls: [
-				{ name: toolName, arguments: '{}', id: mislabeledCallId },
-				{ name: toolName, arguments: '{}', id: invalidCallId },
-			],
+			toolCalls: cases.map(c => ({ name: toolName, arguments: '{}', id: c.callId })),
 		};
-
 		const promptContext: IBuildPromptContext = {
 			query: 'test',
 			history: [],
@@ -752,10 +750,22 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 			toolCallResults,
 		});
 
-		const serialized = JSON.stringify(messages);
-		expect(serialized).toContain(`data:image/jpeg;base64,${Buffer.from(jpegBytes).toString('base64')}`);
-		expect(serialized).not.toContain(Buffer.from(notAnImage).toString('base64'));
-		expect(serialized).toContain('its contents are not a valid image (declared type: image/png)');
+		const describeToolResult = (callId: string) => {
+			const message = messages.find(m => m.role === Raw.ChatRole.Tool && m.toolCallId === callId);
+			return message?.content.map(part => part.type === Raw.ChatCompletionContentPartKind.Image
+				? { image: part.imageUrl.url, mediaType: part.imageUrl.mediaType }
+				: part.type === Raw.ChatCompletionContentPartKind.Text ? { text: part.text } : { other: part.type });
+		};
+
+		const actual = cases.map(c => ({ name: c.name, declaredMimeType: c.declaredMimeType, content: describeToolResult(c.callId) }));
+		const expected = cases.map(c => ({
+			name: c.name,
+			declaredMimeType: c.declaredMimeType,
+			content: c.actualMimeType
+				? [{ image: `data:${c.actualMimeType};base64,${Buffer.from(c.data).toString('base64')}`, mediaType: c.actualMimeType }]
+				: [{ text: getInvalidImagePlaceholder(c.declaredMimeType) }],
+		}));
+		expect(actual).toEqual(expected);
 	});
 
 	test('sendInvokedToolTelemetry handles tool results with images without crashing', async () => {

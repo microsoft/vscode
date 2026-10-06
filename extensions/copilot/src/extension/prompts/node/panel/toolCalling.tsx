@@ -569,6 +569,13 @@ enum ToolInvocationOutcome {
 	Cancelled = 'cancelled',
 }
 
+/**
+ * Text sent to the model in place of a tool result image whose bytes are not a supported image.
+ */
+export function getInvalidImagePlaceholder(declaredMimeType: string): string {
+	return `The image could not be included because its contents are not a valid image (declared type: ${declaredMimeType}).`;
+}
+
 export async function imageDataPartToTSX(part: LanguageModelDataPart, githubToken?: string, urlOrRequestMetadata?: string | RequestMetadata, logService?: ILogService, imageService?: IImageService) {
 	if (isImageDataPart(part)) {
 		let imageData: Uint8Array = part.data;
@@ -590,7 +597,7 @@ export async function imageDataPartToTSX(part: LanguageModelDataPart, githubToke
 		const detectedMimeType = getImageMimeTypeFromBytes(imageData);
 		if (!detectedMimeType) {
 			logService?.warn(`Omitting image declared as ${part.mimeType}: data is not a recognized image format`);
-			return `The image could not be included because its contents are not a valid image (declared type: ${part.mimeType}).`;
+			return getInvalidImagePlaceholder(part.mimeType);
 		}
 		if (detectedMimeType !== mimeType) {
 			logService?.trace(`Image declared as ${mimeType} is actually ${detectedMimeType}; using the detected type`);
