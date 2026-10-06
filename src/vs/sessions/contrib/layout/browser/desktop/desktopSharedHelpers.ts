@@ -52,7 +52,7 @@ export function getFilesDetailsState(editor: EditorInput, workspace: ISessionWor
 	if (editor instanceof EmptyFileEditorInput) {
 		return FilesDetailsState.Active;
 	}
-	const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+	const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 	if (!resource) {
 		return FilesDetailsState.Unavailable;
 	}

@@ -115,15 +115,20 @@ suite('Desktop layout strategies', () => {
 		const workspace = makeSession(URI.parse('session:/workspace')).workspace.get()!;
 		const workspaceEditor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
 		const externalEditor = store.add(new TestStubEditorInput(URI.file('/outside/file.ts')));
+		const aliasedWorkspaceEditor = store.add(new class extends TestStubEditorInput {
+			readonly preferredResource = URI.file('/outside/alias.ts');
+		}(URI.file('/repo/aliased.ts')));
 		const untitledEditor = store.add(new TestStubEditorInput(URI.from({ scheme: Schemas.untitled, path: 'Untitled-1' })));
 
 		assert.deepStrictEqual({
 			workspace: getFilesDetailsState(workspaceEditor, workspace),
 			external: getFilesDetailsState(externalEditor, workspace),
+			aliasedWorkspace: getFilesDetailsState(aliasedWorkspaceEditor, workspace),
 			untitled: getFilesDetailsState(untitledEditor, workspace),
 		}, {
 			workspace: FilesDetailsState.Active,
 			external: FilesDetailsState.Available,
+			aliasedWorkspace: FilesDetailsState.Active,
 			untitled: FilesDetailsState.Unavailable,
 		});
 	});
