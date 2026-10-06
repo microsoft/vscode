@@ -65,7 +65,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -5924,8 +5924,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session's own, or no guidance at all for a session that became Opus.
 	 */
 	private _modelChangeAltersSystemPrompt(previousModelId: string | undefined, nextModelId: string): boolean {
-		const subagentModelGuidance = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentModelGuidance);
-		if (subagentModelGuidance === undefined || subagentModelGuidance === 'off') {
+		// Configured is enough to restart on: whether the configured model is
+		// usable is settled by the relaunch, against the models at that moment.
+		if (!this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SubagentGuidanceDefaultModel)?.trim()) {
 			return false;
 		}
 		// Same resolution the launcher uses to pick the prompt contributor: a
@@ -6180,6 +6181,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	/** Instantiates a session; the caller must initialize and register it on success. */
+	/**
+	 * The ids of the models this account can run right now: those the runtime
+	 * lists for it that policy has enabled, or says nothing about. A model an
+	 * organization disabled, or one whose terms the user has not accepted, is
+	 * listed but cannot be run, so it is left out. This is the list the model
+	 * picker is built from, and the runtime builds the `task` tool's `model`
+	 * choices from the same listing.
+	 *
+	 * After sign-in, a token change or a client restart the published list is
+	 * about to be replaced and may still be empty, so an in-flight refresh is
+	 * waited for. The wait is bounded: a session launch must not hang on a
+	 * model listing.
+	 */
+	private async _getAvailableModelIds(): Promise<ReadonlySet<string>> {
+		const pending = this._scheduledModelRefresh?.deferred.p ?? this._modelRefreshInFlight;
+		if (pending) {
+			await raceTimeout(pending, 5000);
+		}
+		return new Set(this._models.get()
+			.filter(model => model.policyState === undefined || model.policyState === PolicyState.Enabled)
+			.map(model => model.id));
+	}
+
 	private _createAgentSession(launchPlan: CopilotSessionLaunchPlan, customizationDirectory: URI | undefined, activeClient: ActiveClient, identity?: ICopilotAgentSessionIdentity): CopilotAgentSession {
 		const sessionUri = identity?.sessionUri ?? AgentSession.uri(this.id, launchPlan.sessionId);
 		const chatChannelUri = identity?.chatChannelUri ?? this._findBoundSessionChatUri(launchPlan.sessionId) ?? URI.parse(buildDefaultChatUri(sessionUri));
@@ -6193,7 +6217,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				rawSessionId: launchPlan.sessionId,
 				onDidSessionProgress: this._onDidChatProgress,
 				sessionLauncher: this._sessionLauncher,
-				launchPlan,
+				launchPlan: { ...launchPlan, getAvailableModelIds: () => this._getAvailableModelIds() },
 				shellManager: launchPlan.shellManager,
 				workingDirectory: launchPlan.workingDirectory,
 				customizationDirectory,

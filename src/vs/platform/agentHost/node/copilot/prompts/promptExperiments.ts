@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { SubagentModelGuidanceSetting } from '../../../common/copilotCliConfig.js';
-
 /**
  * The opt-in system-prompt experiment for Claude Opus sessions: subagent model
- * guidance ({@link CopilotCliConfigKey.SubagentModelGuidance}). It tells the
- * agent which lighter model to run a subagent on, in place of the instructions
- * to leave the `task` tool's `model` parameter unset. It changes that one thing
- * and has its own setting, so an effect can be attributed to it.
+ * guidance. It tells the agent which lighter model to run a subagent on, in
+ * place of the instructions to leave the `task` tool's `model` parameter unset.
+ * It changes that one thing, so an effect can be attributed to it.
+ *
+ * No model is named here. The models come from two settings
+ * (`CopilotCliConfigKey.SubagentGuidanceDefaultModel` and
+ * `CopilotCliConfigKey.SubagentGuidanceLightweightModel`), which an
+ * experiment sets, and each is checked against the models the account can use
+ * before it reaches the prompt (see {@link resolveSubagentModelMix}).
  *
  * Every edit here matches a whole sentence or bullet of the SDK foundation
  * prompt. If the foundation rewords one, the edit leaves the text in place
@@ -26,43 +29,98 @@ export function isClaudeOpusModelId(modelId: string | undefined): boolean {
 
 // #region Subagent model guidance
 
-interface ISubagentModelMix {
+/** The models subagent model guidance names for one session, already checked for that session. */
+export interface ISubagentModelMix {
+	/** The model a subagent runs on unless the work is review or debugging the agent could not explain. */
+	readonly defaultModel: string;
 	/** For searching, reading and summarizing, and running commands and reporting their output. */
-	readonly lightweight: string;
-	/** For a well-defined piece of implementation. */
-	readonly versatile: string;
+	readonly lightweightModel?: string;
+}
+
+export interface ISubagentModelMixRequest {
+	/** The model the session's prompt is resolved for, or `undefined` when none is chosen at launch (e.g. server-side Auto). */
+	readonly sessionModelId: string | undefined;
+	/** The configured default subagent model, as set. */
+	readonly defaultModel: string | undefined;
+	/** The configured lightweight subagent model, as set. */
+	readonly lightweightModel: string | undefined;
+	/** Whether the account can run `modelId`: the provider lists it and policy has not disabled it. */
+	isModelAvailable(modelId: string): boolean;
+}
+
+export interface ISubagentModelMixResolution {
+	/** The models to name, or `undefined` when the guidance is off or does not apply to this session. */
+	readonly mix: ISubagentModelMix | undefined;
+	/** Why a configured model was left out, for the log. Empty when nothing was configured or all of it applies. */
+	readonly notes: readonly string[];
 }
 
 /**
- * The lighter models each mix names. Model ids go stale as the lineup changes;
- * the durable form of this guidance is for the runtime to list the models that
- * cost less than the session's, which it already knows.
+ * Decides which configured models, if any, a session's prompt may name.
+ *
+ * The settings are free text so an experiment can supply any mix, which means
+ * they can name a model the account cannot use: one its plan does not include,
+ * one an organization policy disabled, or a name that no longer exists. The
+ * `task` tool rejects such a model when it is called, so naming it would cost
+ * a failed tool call on every delegation. A model is therefore named only when
+ * {@link ISubagentModelMixRequest.isModelAvailable} accepts it.
+ *
+ * Without a usable default model there is no guidance at all, and the session
+ * keeps the instructions to leave `model` unset. A lightweight model that is
+ * unusable is dropped on its own; the default then covers that work too.
+ *
+ * Claude Opus sessions only: the guidance asks for models lighter than the
+ * session's, and it has only been measured there.
  */
-const SUBAGENT_MODEL_MIXES: Readonly<Record<Exclude<SubagentModelGuidanceSetting, 'off'>, ISubagentModelMix>> = {
-	sameProvider: { lightweight: 'claude-haiku-4.5', versatile: 'claude-sonnet-5.5' },
-	crossProvider: { lightweight: 'gpt-6-luna', versatile: 'gpt-5.6-terra' },
-};
+export function resolveSubagentModelMix(request: ISubagentModelMixRequest): ISubagentModelMixResolution {
+	const defaultModel = request.defaultModel?.trim();
+	const lightweightModel = request.lightweightModel?.trim();
+	if (!defaultModel) {
+		return { mix: undefined, notes: lightweightModel ? [`lightweight model '${lightweightModel}' is set without a default model`] : [] };
+	}
+	if (!isClaudeOpusModelId(request.sessionModelId)) {
+		return { mix: undefined, notes: [] };
+	}
+	const unusable = (modelId: string): string | undefined => {
+		if (modelId === request.sessionModelId) {
+			return `'${modelId}' is the session's own model`;
+		}
+		return request.isModelAvailable(modelId) ? undefined : `'${modelId}' is not available to this account`;
+	};
+	const defaultUnusable = unusable(defaultModel);
+	if (defaultUnusable) {
+		return { mix: undefined, notes: [`default model ${defaultUnusable}`] };
+	}
+	if (!lightweightModel || lightweightModel === defaultModel) {
+		return { mix: { defaultModel }, notes: [] };
+	}
+	const lightweightUnusable = unusable(lightweightModel);
+	return lightweightUnusable
+		? { mix: { defaultModel }, notes: [`lightweight model ${lightweightUnusable}`] }
+		: { mix: { defaultModel, lightweightModel }, notes: [] };
+}
 
 /**
- * The host's subagent lines when model guidance is on, or `undefined` when it
- * is off or the session is not a Claude Opus one (the mixes are lighter than
- * Opus; for a smaller session model they would not be).
+ * The host's subagent lines when model guidance applies. They replace the
+ * default "leave `model` unset" lines; the two are alternatives, never both.
+ *
+ * The lighter model is the default and the session's model is the exception.
+ * An earlier wording did it the other way round ("leave `model` unset for work
+ * that needs your own level of judgment") and the agent then named a model for
+ * about two delegations in five, judging most of a hard task to need its own
+ * model.
  *
  * The last sentence is there because the `task` tool's `model` parameter
  * carries its own "leave unset unless the user asks" description, which the
  * host cannot change. Remove it if that description changes in the runtime.
  */
-export function subagentModelGuidanceLines(setting: SubagentModelGuidanceSetting | undefined, modelId: string | undefined): string | undefined {
-	if (setting === undefined || setting === 'off' || !isClaudeOpusModelId(modelId)) {
-		return undefined;
-	}
-	const mix = SUBAGENT_MODEL_MIXES[setting];
-	if (!mix) {
-		return undefined;
-	}
+export function subagentModelGuidanceLines(mix: ISubagentModelMix): string {
+	const lightweight = mix.lightweightModel
+		? ` Use \`${mix.lightweightModel}\` for searching, for reading and summarizing, and for running commands and reporting what they print.`
+		: '';
 	return [
 		'When launching subagents with the task tool, leave the `reasoning_effort` and `context_tier` parameters unset.',
-		`When you delegate with the task tool, choose the model the subagent runs on. For searching, for reading and summarizing, and for running commands and reporting what they print, set \`model\` to \`${mix.lightweight}\`. For a well-defined piece of implementation with clear inputs and a clear definition of done, set \`model\` to \`${mix.versatile}\`. For work that needs your own level of judgment, such as open-ended implementation, debugging and review, leave \`model\` unset; the subagent then runs on your model. If the user names a model for the subagent, use that one. This guidance applies even though the \`model\` parameter's own description says to leave it unset.`,
+		`When you delegate with the task tool, set \`model\` on the call. Use \`${mix.defaultModel}\` by default: for any work you can hand over with written instructions and a way to tell when it is done, such as implementing a component, writing or extending tests, or building a test harness.${lightweight} Leave \`model\` unset, so the subagent runs on your model, only for reviewing work and for debugging a failure you have already tried and could not explain. Work being intricate is not a reason to leave it unset: say what matters in the subagent's instructions, and take a piece back if the subagent does not finish it. If the user names a model for the subagent, use that one. This guidance applies even though the \`model\` parameter's own description says to leave it unset.`,
 	].join('\n');
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, SystemMessageConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -42,6 +42,7 @@ import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExten
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import { COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS } from '../../node/copilot/prompts/toolInstructions.js';
 import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 
@@ -1950,7 +1951,8 @@ suite('CopilotSessionLauncher resume config', () => {
 		model: ModelSelection | undefined,
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
-	): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> {
+		getAvailableModelIds?: CopilotSessionLaunchPlan['getAvailableModelIds'],
+	): Promise<{ systemMessage?: SystemMessageConfig; model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> {
 		const plan = {
 			kind: 'resume',
 			client: { createSession: async () => { throw new Error('unused'); }, resumeSession: async () => { throw new Error('unused'); } },
@@ -1963,10 +1965,63 @@ suite('CopilotSessionLauncher resume config', () => {
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
+			...(getAvailableModelIds ? { getAvailableModelIds } : {}),
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [] };
-		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> })._buildSessionConfig(plan, runtime, () => { });
+		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ systemMessage?: SystemMessageConfig; model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> })._buildSessionConfig(plan, runtime, () => { });
 	}
+
+	test('subagent model guidance names a configured model only when the account can run it', async () => {
+		const store = disposables.add(new DisposableStore());
+		const configured = {
+			[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'model-default',
+			[CopilotCliConfigKey.SubagentGuidanceLightweightModel]: 'model-light',
+		};
+		let lookups = 0;
+		/** The models the resolved prompt tells the agent to delegate to, and whether it still says to leave `model` unset. */
+		const guidance = async (values: Parameters<typeof createLauncher>[1], model: ModelSelection | undefined, available: readonly string[] | undefined) => {
+			const before = lookups;
+			const config = await buildResumeConfig(createLauncher(store, values), model, undefined, undefined, available && (async () => {
+				lookups++;
+				return new Set(available);
+			}));
+			const systemMessage = config.systemMessage;
+			assert.ok(systemMessage?.mode === 'customize');
+			const section = systemMessage.sections?.tool_instructions;
+			const text = typeof section?.action === 'function' ? await section.action('<task>\n</task>') : section?.content ?? '';
+			return {
+				named: [...text.matchAll(/Use `([^`]+)`/g)].map(match => match[1]),
+				leavesModelUnset: text.includes(COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS),
+				lookedUpModels: lookups > before,
+			};
+		};
+		const opus: ModelSelection = { id: 'claude-opus-5.5' };
+		const off = { named: [], leavesModelUnset: true, lookedUpModels: false };
+
+		assert.deepStrictEqual({
+			bothAvailable: await guidance(configured, opus, ['model-default', 'model-light', 'claude-opus-5.5']),
+			lightweightUnavailable: await guidance(configured, opus, ['model-default']),
+			defaultUnavailable: await guidance(configured, opus, ['model-light']),
+			// A plan that cannot say what the account has is treated as nothing being available.
+			availabilityUnknown: await guidance(configured, opus, undefined),
+			aliasedToOpus: await guidance({ ...configured, modelCapabilityOverrides: { 'preview-model': { family: 'claude-opus-5.5' } } }, { id: 'preview-model' }, ['model-default']),
+			// Sessions the guidance cannot apply to never wait on the account's models.
+			sonnetSession: await guidance(configured, { id: 'claude-sonnet-5.5' }, ['model-default', 'model-light']),
+			noModel: await guidance(configured, undefined, ['model-default', 'model-light']),
+			notConfigured: await guidance({}, opus, ['model-default', 'model-light']),
+			onlyLightweightConfigured: await guidance({ [CopilotCliConfigKey.SubagentGuidanceLightweightModel]: 'model-light' }, opus, ['model-light']),
+		}, {
+			bothAvailable: { named: ['model-default', 'model-light'], leavesModelUnset: false, lookedUpModels: true },
+			lightweightUnavailable: { named: ['model-default'], leavesModelUnset: false, lookedUpModels: true },
+			defaultUnavailable: { named: [], leavesModelUnset: true, lookedUpModels: true },
+			availabilityUnknown: off,
+			aliasedToOpus: { named: ['model-default'], leavesModelUnset: false, lookedUpModels: true },
+			sonnetSession: off,
+			noModel: off,
+			notConfigured: off,
+			onlyLightweightConfigured: off,
+		});
+	});
 
 	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
 		const store = disposables.add(new DisposableStore());

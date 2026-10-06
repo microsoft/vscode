@@ -4804,6 +4804,37 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('the models available for subagent model guidance leave out those policy has not enabled, and wait for a refresh in flight', async () => {
+		const client = new TestCopilotClient([], [
+			{ id: 'model-enabled', name: 'Enabled', policy: { state: 'enabled' } },
+			{ id: 'model-no-policy', name: 'No policy' },
+			{ id: 'model-disabled', name: 'Disabled', policy: { state: 'disabled' } },
+			{ id: 'model-unconfigured', name: 'Unconfigured', policy: { state: 'unconfigured' } },
+		]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const internals = agent as unknown as { _getAvailableModelIds(): Promise<ReadonlySet<string>> };
+			const beforeSignIn = [...await internals._getAvailableModelIds()];
+
+			// A launch that asks while the catalog is being listed gets the
+			// listed catalog, not the empty one published before it.
+			const gate = new DeferredPromise<void>();
+			client.modelListGate = gate.p;
+			await agent.authenticate('https://api.github.com', 'token');
+			const refresh = agent.refreshModels();
+			const duringRefresh = internals._getAvailableModelIds();
+			gate.complete();
+			await refresh;
+
+			assert.deepStrictEqual(
+				{ beforeSignIn, duringRefresh: [...await duringRefresh].sort(), afterRefresh: [...await internals._getAvailableModelIds()].sort() },
+				{ beforeSignIn: [], duringRefresh: ['model-enabled', 'model-no-policy'], afterRefresh: ['model-enabled', 'model-no-policy'] }
+			);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('coalesces concurrent refreshModels calls onto one models.list request', async () => {
 		const client = new TestCopilotClient([], [{
 			id: 'gpt-4o',
@@ -17303,7 +17334,7 @@ suite('CopilotAgent', () => {
 				const offOpusToHaiku = await change('claude-haiku-4.5');
 				const offHaikuToOpus = await change('claude-opus-5.5');
 
-				context.configurationService.updateRootConfig({ [CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider' });
+				context.configurationService.updateRootConfig({ [CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'claude-sonnet-5.5' });
 				const onOpusToOpus = await change('claude-opus-5');
 				const onOpusToHaiku = await change('claude-haiku-4.5');
 				const onHaikuToSonnet = await change('claude-sonnet-5.5');

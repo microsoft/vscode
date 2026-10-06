@@ -7,7 +7,7 @@ import assert from 'assert';
 import type { SectionOverride } from '@github/copilot-sdk';
 import { COPILOT_AGENT_HOST_LARGE_OUTPUT_TOOL_INSTRUCTION, COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS, resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from '../../node/copilot/prompts/toolInstructions.js';
 import type { SchemaValues } from '../../common/agentHostSchema.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, type SubagentModelGuidanceSetting } from '../../common/copilotCliConfig.js';
+import { copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { subagentModelGuidanceLines } from '../../node/copilot/prompts/promptExperiments.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -59,28 +59,16 @@ suite('toolInstructions', () => {
 			]);
 		});
 
-		test('subagent model guidance replaces the "leave model unset" lines only for Claude Opus sessions with the setting on', () => {
-			const render = (setting: SubagentModelGuidanceSetting | undefined, modelId: string | undefined) => universalToolInstructions({
-				...context([], setting === undefined ? {} : { [CopilotCliConfigKey.SubagentModelGuidance]: setting }),
-				modelId,
-			});
-			const guided = (setting: SubagentModelGuidanceSetting, modelId: string) => `${LARGE_OUTPUT_LINE}\n${subagentModelGuidanceLines(setting, modelId)}`;
+		test('subagent model guidance replaces the "leave model unset" lines when a model mix is resolved for the session', () => {
+			const mix = { defaultModel: 'model-default', lightweightModel: 'model-light' };
 			assert.deepStrictEqual({
-				unset: render(undefined, 'claude-opus-5.5'),
-				off: render('off', 'claude-opus-5.5'),
-				sameProvider: render('sameProvider', 'claude-opus-5.5'),
-				crossProvider: render('crossProvider', 'claude-opus-5-5'),
-				sonnetSession: render('sameProvider', 'claude-sonnet-5.5'),
-				gptSession: render('crossProvider', 'gpt-5.6-sol'),
-				noModel: render('sameProvider', undefined),
+				noMix: universalToolInstructions(context()),
+				mix: universalToolInstructions({ ...context(), subagentModelMix: mix }),
+				defaultOnly: universalToolInstructions({ ...context(), subagentModelMix: { defaultModel: 'model-default' } }),
 			}, {
-				unset: UNCONDITIONAL_TOOL_INSTRUCTIONS,
-				off: UNCONDITIONAL_TOOL_INSTRUCTIONS,
-				sameProvider: guided('sameProvider', 'claude-opus-5.5'),
-				crossProvider: guided('crossProvider', 'claude-opus-5-5'),
-				sonnetSession: UNCONDITIONAL_TOOL_INSTRUCTIONS,
-				gptSession: UNCONDITIONAL_TOOL_INSTRUCTIONS,
-				noModel: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				noMix: UNCONDITIONAL_TOOL_INSTRUCTIONS,
+				mix: `${LARGE_OUTPUT_LINE}\n${subagentModelGuidanceLines(mix)}`,
+				defaultOnly: `${LARGE_OUTPUT_LINE}\n${subagentModelGuidanceLines({ defaultModel: 'model-default' })}`,
 			});
 		});
 

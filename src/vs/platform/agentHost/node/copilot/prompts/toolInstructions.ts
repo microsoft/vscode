@@ -7,9 +7,9 @@ import type { SectionOverride } from '@github/copilot-sdk';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { BrowserChatToolReferenceName, browserChatToolReferenceNames } from '../../../../browserView/common/browserChatToolReferenceNames.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
+import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME } from '../../../common/toolSearchConstants.js';
-import { subagentModelGuidanceLines } from './promptExperiments.js';
+import { subagentModelGuidanceLines, type ISubagentModelMix } from './promptExperiments.js';
 
 /**
  * Model-agnostic guidance for the `tool_instructions` system-prompt section.
@@ -42,8 +42,8 @@ export interface IToolInstructionContext {
 	/** The host-level value for a Copilot CLI setting, or `undefined` when unset. */
 	getSetting<K extends keyof CopilotCliConfigDefinition & string>(key: K): SchemaValue<CopilotCliConfigDefinition[K]> | undefined;
 
-	/** The session's model id, or `undefined` when no model is chosen at launch (e.g. server-side Auto). */
-	readonly modelId?: string;
+	/** The models subagent model guidance names for this session, or `undefined` when it does not apply. */
+	readonly subagentModelMix?: ISubagentModelMix;
 }
 
 /**
@@ -70,13 +70,13 @@ export const COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS = [
 	'Only set the task tool\'s `model` parameter when the user explicitly names the model the subagent should run on.',
 ].join('\n');
 /**
- * The default keeps subagents on the harness model. With
- * {@link CopilotCliConfigKey.SubagentModelGuidance} on, a Claude Opus session is
- * told which lighter model to choose instead; the two are alternatives, never
- * both, so the prompt does not say "choose a model" and "leave it unset".
+ * The default keeps subagents on the harness model. When subagent model
+ * guidance applies to the session, it is told which lighter model to choose
+ * instead; the two are alternatives, never both, so the prompt does not say
+ * "choose a model" and "leave it unset".
  */
-const subagentToolInstructions: ToolInstructionLine = ({ getSetting, modelId }) =>
-	subagentModelGuidanceLines(getSetting(CopilotCliConfigKey.SubagentModelGuidance), modelId) ?? COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
+const subagentToolInstructions: ToolInstructionLine = ({ subagentModelMix }) =>
+	subagentModelMix ? subagentModelGuidanceLines(subagentModelMix) : COPILOT_AGENT_HOST_SUBAGENT_TOOL_INSTRUCTIONS;
 
 /**
  * Front-end guidance for the integrated browser tools, ported from the Copilot

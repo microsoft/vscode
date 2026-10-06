@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SectionOverride, SystemMessageSection } from '@github/copilot-sdk';
-import { CopilotCliConfigKey } from '../../../common/copilotCliConfig.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
 import { isClaudeOpusModelId, narrowSubagentHarnessDefaultsRule } from './promptExperiments.js';
 import { agentHostPromptRegistry, type IAgentHostPrompt, type IAgentHostPromptContext } from './promptRegistry.js';
@@ -13,8 +12,8 @@ type SectionOverrides = Partial<Record<SystemMessageSection, SectionOverride>>;
 
 /**
  * Claude Opus agent prompt: the opt-in subagent model guidance experiment in
- * `promptExperiments.ts`, behind its own setting. With it off this contributes
- * nothing and the session gets the default system message.
+ * `promptExperiments.ts`. When it does not apply to the session this
+ * contributes nothing and the session gets the default system message.
  *
  * `customize` mode with a transform, so the SDK foundation prompt, its
  * guardrails and its per-session content all stay as they are; only the named
@@ -29,8 +28,7 @@ class ClaudeOpusPromptResolver implements IAgentHostPrompt {
 
 	resolveSectionOverrides(_model: ModelSelection, context: IAgentHostPromptContext): SectionOverrides | undefined {
 		const overrides: SectionOverrides = {};
-		const subagentModelGuidance = context.getSetting(CopilotCliConfigKey.SubagentModelGuidance);
-		if (subagentModelGuidance !== undefined && subagentModelGuidance !== 'off') {
+		if (context.subagentModelMix) {
 			// The registry appends the host's tool lines, including the model
 			// guidance itself, after this transform's output.
 			overrides.tool_instructions = { action: narrowSubagentHarnessDefaultsRule };

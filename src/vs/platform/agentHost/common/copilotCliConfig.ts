@@ -33,8 +33,10 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
-	/** On Claude Opus models, tell the agent which lighter model to run a subagent on. Off by default. */
-	SubagentModelGuidance = 'subagentModelGuidance',
+	/** On Claude Opus models, the model the agent is told to run a subagent on by default. Empty (the default) leaves subagents on the harness default model. */
+	SubagentGuidanceDefaultModel = 'subagentGuidanceDefaultModel',
+	/** With {@link SubagentGuidanceDefaultModel} set, the model named for search, read and run-and-report subagents. Optional. */
+	SubagentGuidanceLightweightModel = 'subagentGuidanceLightweightModel',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
 	ToolSearchEnabled = 'toolSearchEnabled',
 	/** Minimum tool count before MCP/external tools are deferred behind tool search. 0 = always defer. */
@@ -70,7 +72,9 @@ export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
-export const AgentHostSubagentModelGuidanceSettingId = 'chat.agentHost.subagentModelGuidance';
+export const AgentHostSubagentGuidanceDefaultModelSettingId = 'chat.agentHost.subagentModelGuidance.defaultModel';
+
+export const AgentHostSubagentGuidanceLightweightModelSettingId = 'chat.agentHost.subagentModelGuidance.lightweightModel';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
 
@@ -90,20 +94,6 @@ export const AgentHostCopilotModelCapabilityOverridesSettingId = 'chat.agentHost
 
 export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
-
-/**
- * `off` keeps subagents on the harness default model. The other two tell a
- * Claude Opus session which lighter models to delegate to: `sameProvider`
- * names Claude models, `crossProvider` names GPT models. They are alternatives,
- * so this is one setting rather than two switches.
- */
-export const subagentModelGuidanceSettingValues = ['off', 'sameProvider', 'crossProvider'] as const;
-export type SubagentModelGuidanceSetting = typeof subagentModelGuidanceSettingValues[number];
-
-/** Narrows a raw setting value to a {@link SubagentModelGuidanceSetting}; anything unrecognized is `off`. */
-export function toSubagentModelGuidanceSetting(value: unknown): SubagentModelGuidanceSetting {
-	return subagentModelGuidanceSettingValues.find(candidate => candidate === value) ?? 'off';
-}
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
 export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
@@ -224,17 +214,17 @@ export const copilotCliConfigSchema = createSchema({
 		description: localize('agentHost.config.localIndexEnabled.description', "Whether Copilot SDK sessions use the local cross-session store for Chronicle indexing and retrieval."),
 		default: true,
 	}),
-	[CopilotCliConfigKey.SubagentModelGuidance]: schemaProperty<SubagentModelGuidanceSetting>({
+	[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: schemaProperty<string>({
 		type: 'string',
-		title: localize('agentHost.config.subagentModelGuidance.title', "Subagent Model Guidance"),
-		description: localize('agentHost.config.subagentModelGuidance.description', "Controls whether Copilot SDK sessions running a Claude Opus model are told which lighter model to run a subagent on. When off, subagents use the harness default model."),
-		enum: [...subagentModelGuidanceSettingValues],
-		enumLabels: [
-			localize('agentHost.config.subagentModelGuidance.off', "Off"),
-			localize('agentHost.config.subagentModelGuidance.sameProvider', "Same Provider"),
-			localize('agentHost.config.subagentModelGuidance.crossProvider', "Cross Provider"),
-		],
-		default: 'off',
+		title: localize('agentHost.config.subagentGuidanceDefaultModel.title', "Subagent Guidance: Default Model"),
+		description: localize('agentHost.config.subagentGuidanceDefaultModel.description', "The model that Copilot SDK sessions running a Claude Opus model are told to run a subagent on by default. Applied only when the model is available to the account. When empty, subagents use the harness default model."),
+		default: '',
+	}),
+	[CopilotCliConfigKey.SubagentGuidanceLightweightModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.subagentGuidanceLightweightModel.title', "Subagent Guidance: Lightweight Model"),
+		description: localize('agentHost.config.subagentGuidanceLightweightModel.description', "With a default subagent model set, the model named for subagents that search, read and summarize, or run commands and report what they print. Applied only when the model is available to the account. Optional."),
+		default: '',
 	}),
 	[CopilotCliConfigKey.ToolSearchEnabled]: schemaProperty<boolean>({
 		type: 'boolean',

@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostSubagentModelGuidanceSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostSubagentGuidanceDefaultModelSettingId, AgentHostSubagentGuidanceLightweightModelSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -92,7 +92,8 @@ function makeRootStateWithSchema(properties: Record<string, ConfigPropertySchema
 /** The full schema an up-to-date host advertises for the forwarded keys. */
 const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.CopilotSdkLogLevel]: { type: 'string', title: 'Copilot SDK Log Level' },
-	[CopilotCliConfigKey.SubagentModelGuidance]: { type: 'string', title: 'Subagent Model Guidance' },
+	[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: { type: 'string', title: 'Subagent Guidance: Default Model' },
+	[CopilotCliConfigKey.SubagentGuidanceLightweightModel]: { type: 'string', title: 'Subagent Guidance: Lightweight Model' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
 	[CopilotCliConfigKey.Tgrep]: { type: 'boolean', title: 'Indexed Search (tgrep)' },
 	[CopilotCliConfigKey.LocalIndexEnabled]: { type: 'boolean', title: 'Local Session Index' },
@@ -144,7 +145,9 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		};
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
-			[AgentHostSubagentModelGuidanceSettingId]: 'crossProvider',
+			// Free text, trimmed on the way through; the host decides whether the account can run it.
+			[AgentHostSubagentGuidanceDefaultModelSettingId]: ' model-default ',
+			[AgentHostSubagentGuidanceLightweightModelSettingId]: 'model-light',
 			[CopilotClaudeAdvisorEnabledSettingId]: true,
 			[CopilotTgrepEnabledSettingId]: true,
 			[CopilotLocalIndexEnabledSettingId]: false,
@@ -161,11 +164,12 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 12);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 13);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
-			[CopilotCliConfigKey.SubagentModelGuidance]: 'crossProvider',
+			[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'model-default',
+			[CopilotCliConfigKey.SubagentGuidanceLightweightModel]: 'model-light',
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
 			[CopilotCliConfigKey.Tgrep]: true,
 			[CopilotCliConfigKey.LocalIndexEnabled]: false,
@@ -182,16 +186,17 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 	test('forwards only the keys an older host advertises', async () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
-			[AgentHostSubagentModelGuidanceSettingId]: 'sameProvider',
+			[AgentHostSubagentGuidanceDefaultModelSettingId]: 'model-default',
+			[AgentHostSubagentGuidanceLightweightModelSettingId]: 'model-light',
 		});
 		agentHostService.setRootState(makeRootStateWithSchema({
-			[CopilotCliConfigKey.SubagentModelGuidance]: fullSchema[CopilotCliConfigKey.SubagentModelGuidance],
+			[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: fullSchema[CopilotCliConfigKey.SubagentGuidanceDefaultModel],
 		}));
 		await flush();
 
 		assert.strictEqual(agentHostService.dispatchedActions.length, 1);
 		assert.deepStrictEqual((agentHostService.dispatchedActions[0].action as IRootConfigChangedAction).config, {
-			[CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider',
+			[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'model-default',
 		});
 	});
 
@@ -245,7 +250,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 	test('does not dispatch to a host whose schema does not advertise any key', async () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
-			[AgentHostSubagentModelGuidanceSettingId]: 'sameProvider',
+			[AgentHostSubagentGuidanceDefaultModelSettingId]: 'model-default',
 		});
 		agentHostService.setRootState(makeRootStateWithSchema({}));
 		await flush();
@@ -256,12 +261,15 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 	test('does not re-dispatch when the root config already carries structurally equal values', async () => {
 		const { agentHostService } = setup(disposables, {
 			[AgentHostCopilotSdkLogLevelSettingId]: 'trace',
-			[AgentHostSubagentModelGuidanceSettingId]: 'sameProvider',
+			[AgentHostSubagentGuidanceDefaultModelSettingId]: 'model-default',
+			// Not a string: forwarded as empty, which is what the host already has.
+			[AgentHostSubagentGuidanceLightweightModelSettingId]: 42,
 			[AgentHostCopilotModelCapabilityOverridesSettingId]: { 'preview-model-x': { family: 'claude-opus-4-8' } },
 		});
 		agentHostService.setRootState(makeRootStateWithSchema(fullSchema, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
-			[CopilotCliConfigKey.SubagentModelGuidance]: 'sameProvider',
+			[CopilotCliConfigKey.SubagentGuidanceDefaultModel]: 'model-default',
+			[CopilotCliConfigKey.SubagentGuidanceLightweightModel]: '',
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
 			[CopilotCliConfigKey.Tgrep]: false,
 			[CopilotCliConfigKey.LocalIndexEnabled]: true,

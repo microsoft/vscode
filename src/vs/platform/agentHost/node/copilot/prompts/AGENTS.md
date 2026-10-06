@@ -28,9 +28,9 @@ There are two ways to customize, and a model can use both at once.
 
 ## Lever 1 — universal, all models (`toolInstructions.ts`)
 
-Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as reading offloaded tool output, gated on a client tool as the browser line is, or gated on a host setting and the session's model as the subagent line is.
+Guidance that should apply to **every** model. A line can be unconditional for host-wide behavior such as reading offloaded tool output, gated on a client tool as the browser line is, or driven by something the launcher resolved for the session, as the subagent line is.
 
-1. Write a `ToolInstructionLine` — a function `(context) => string | undefined` that returns one sentence (no surrounding newlines), or `undefined` when its gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)`, `getSetting(key)` (a `CopilotCliConfigKey`) and `modelId` (undefined when no model is chosen at launch).
+1. Write a `ToolInstructionLine` — a function `(context) => string | undefined` that returns one sentence (no surrounding newlines), or `undefined` when its gate does not apply. The `IToolInstructionContext` exposes `hasTool(name)`, `getSetting(key)` (a `CopilotCliConfigKey`) and `subagentModelMix` (the models subagent model guidance names for this session; undefined when it does not apply).
 2. Add it to `TOOL_INSTRUCTION_LINES`.
 
 ```ts
@@ -85,19 +85,36 @@ This branch's OpenAI contributor is unconditional for GPT families, legacy `o1`/
 
 ## Prompt experiments
 
-`promptExperiments.ts` holds the one opt-in change to the Claude Opus prompt, applied by the contributor in `anthropicPrompt.ts`. It changes one thing and has its own setting, off by default and registered for experiment rollout, so an effect can be attributed to it.
+`promptExperiments.ts` holds the one opt-in change to the Claude Opus prompt, applied by the contributor in `anthropicPrompt.ts`. It changes one thing and has its own settings, empty by default and registered for experiment rollout, so an effect can be attributed to it.
 
 | Setting | Config key | What it does |
 | --- | --- | --- |
-| `chat.agentHost.subagentModelGuidance` (`off` / `sameProvider` / `crossProvider`) | `SubagentModelGuidance` | Replaces the host's "leave the `task` tool's `model` unset" lines with guidance naming a lightweight and a mid-sized model, and narrows the foundation's "Trust the harness defaults for subagents" rule to `reasoning_effort` and `context_tier`. The two mixes are alternatives, hence one setting. |
+| `chat.agentHost.subagentModelGuidance.defaultModel` | `SubagentGuidanceDefaultModel` | The model id the session is told to run subagents on by default. Empty turns the guidance off. |
+| `chat.agentHost.subagentModelGuidance.lightweightModel` | `SubagentGuidanceLightweightModel` | Optional. The model id for searching, reading and summarizing, and running commands. Empty leaves that sentence out. |
+
+With a default model set, the host's "leave the `task` tool's `model` unset" lines are replaced with guidance naming the configured models, and the foundation's "Trust the harness defaults for subagents" rule is narrowed to `reasoning_effort` and `context_tier`.
+
+**No model id is written in this code.** The mix comes from the two settings, so an experiment chooses the models and can change them without a code change. `resolveSubagentModelMix` decides once per launch whether the guidance applies, and the launcher puts the result on the prompt context as `subagentModelMix`; the registry, the tool line and the contributor only read it.
+
+**A configured model is named only if this account can run it.** The launcher asks the agent for the ids in the runtime's model list, leaving out models an organization policy has disabled or not yet configured. The runtime builds the `task` tool's `model` choices from that same list and rejects a call naming anything else, so guidance naming an unavailable model would send the agent into failed calls. The outcomes:
+
+| Situation | Result |
+| --- | --- |
+| Session model is not Claude Opus | Guidance off |
+| Default model is empty | Guidance off; the prompt is unchanged |
+| Default model is unavailable, or is the session's own model | Guidance off; the prompt is unchanged and a warning is logged |
+| Lightweight model is empty or the same as the default | Guidance on, without the lightweight sentence |
+| Lightweight model is unavailable, or is the session's own model | Guidance on, without the lightweight sentence; a warning is logged |
+
+The model list is only fetched when a default model is configured and the session is on Opus, so the settings cost nothing while empty. The Opus check uses the effective model id, so a model aliased through `modelCapabilityOverrides.<model>.family` counts.
 
 Rules it follows, and that a new experiment should too:
 
 - **Transforms, never `replace`.** The foundation prompt, its guardrails and its per-session content stay; only the named sentences change.
 - **Each edit matches a whole sentence or bullet.** If the foundation rewords it, the edit leaves the text alone instead of mangling its neighbours. That also means it silently stops applying, so `promptExperiments.test.ts` pins every pattern against the foundation text it targets. Refresh those fixtures from a real request when the runtime is updated.
-- **Checked against the real runtime.** `copilotPromptsE2E.integrationTest.ts` runs a replayed Opus turn with the experiment off and on, and asserts the two prompts differ by exactly these edits. It found something unit tests could not: the runtime renders the `tool_instructions` group's intro sentence inside `<tools>` when the group is transformed. That cannot be avoided from here and is pinned in that test as a known side effect of subagent model guidance.
+- **Checked against the real runtime.** `copilotPromptsE2E.integrationTest.ts` runs a replayed Opus turn with the settings empty, with two available models, and with an unavailable default model. It asserts that the first two prompts differ by exactly these edits, that every model the guidance names is one of the `task` tool's `model` choices in the same request, and that the unavailable model leaves the prompt unchanged. It found something unit tests could not: the runtime renders the `tool_instructions` group's intro sentence inside `<tools>` when the group is transformed. That cannot be avoided from here and is pinned in that test as a known side effect of subagent model guidance.
 - **No contradictions left behind.** Guidance that reverses an existing instruction removes or narrows that instruction in the same change. One contradiction cannot be removed from here: the `task` tool's `model` parameter has its own "leave unset" description, owned by the runtime, so the guidance says it takes precedence.
-- **Model names go stale.** The mixes name specific models. The durable form is for the runtime to list the models that cost less than the session's.
+- **The mix is configuration, not code.** Model ids go stale, and which lighter model is worth delegating to is a measured question that differs by model and by task. The durable form is for the runtime to list the models that cost less than the session's.
 
 ## Related — per-model experimentation knobs (`copilotCliConfig.ts`)
 

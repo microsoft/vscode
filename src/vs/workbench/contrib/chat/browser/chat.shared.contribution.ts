@@ -20,7 +20,7 @@ import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsCon
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
 import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostSubagentModelGuidanceSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, subagentModelGuidanceSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostSubagentGuidanceDefaultModelSettingId, AgentHostSubagentGuidanceLightweightModelSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
 import { reasoningEffortLevels } from '../../../../platform/agentHost/common/reasoningEffort.js';
@@ -1675,19 +1675,21 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
-		[AgentHostSubagentModelGuidanceSettingId]: {
+		[AgentHostSubagentGuidanceDefaultModelSettingId]: {
 			type: 'string',
-			enum: [...subagentModelGuidanceSettingValues],
-			enumDescriptions: [
-				nls.localize('chat.agentHost.subagentModelGuidance.off', "Subagents run on the harness default model."),
-				nls.localize('chat.agentHost.subagentModelGuidance.sameProvider', "The agent is told to run search, read and run-and-report subagents on a lightweight Claude model, and well-defined implementation subagents on a mid-sized Claude model."),
-				nls.localize('chat.agentHost.subagentModelGuidance.crossProvider', "The same, naming GPT models instead of Claude models."),
-			],
-			markdownDescription: nls.localize('chat.agentHost.subagentModelGuidance', "Controls whether Copilot SDK sessions running a Claude Opus model are told which lighter model to run a subagent on. Takes effect for sessions created or resumed after the change."),
-			default: 'off',
+			markdownDescription: nls.localize('chat.agentHost.subagentModelGuidance.defaultModel', "The id of the model that Copilot SDK sessions running a Claude Opus model are told to run a subagent on by default, for example for implementing a component or writing tests. Reviews stay on the session's model. Applied only when the model is available to your account; otherwise, and when empty, subagents use the harness default model. Takes effect for sessions created or resumed after the change."),
+			default: '',
 			tags: ['experimental', 'advanced'],
-			// Rolled out via experiment; the forwarded root-config key re-resolves the
-			// prompt on the next session launch, so `auto` needs no restart.
+			// Rolled out via experiment, which supplies the model id; the forwarded
+			// root-config key re-resolves the prompt on the next session launch, so
+			// `auto` needs no restart.
+			experiment: { mode: 'auto' },
+		},
+		[AgentHostSubagentGuidanceLightweightModelSettingId]: {
+			type: 'string',
+			markdownDescription: nls.localize('chat.agentHost.subagentModelGuidance.lightweightModel', "The id of the model named for subagents that search, read and summarize, or run commands and report what they print. Used only together with `#chat.agentHost.subagentModelGuidance.defaultModel#`, and only when the model is available to your account. Takes effect for sessions created or resumed after the change."),
+			default: '',
+			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 		},
 		[AgentHostToolSearchEnabledSettingId]: {
