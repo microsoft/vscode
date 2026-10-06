@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasKey, isObject, isStringArray } from '../../../../../base/common/types.js';
+import { isObject, isStringArray } from '../../../../../base/common/types.js';
 
 const sandboxPolicyKey = 'vscode.resolvedSandboxPolicy';
 
@@ -33,7 +33,7 @@ export function readSessionSandboxPolicy(source: { readonly _meta?: Record<strin
 	if (!isObject(value)) {
 		return undefined;
 	}
-	const { enabled, allowBypass, allowOutbound, allowLocalNetwork, allowedHosts, blockedHosts, readwritePaths, readonlyPaths, deniedPaths, allowDevToolAccess, sandboxMcpServers, sandboxLspServers, authenticateGit, authenticateGh, failClosed } = value as ISessionSandboxPolicy;
+	const { enabled, allowBypass, allowOutbound, allowLocalNetwork, allowedHosts, blockedHosts, readwritePaths, readonlyPaths, deniedPaths, allowDevToolAccess, addCurrentWorkingDirectory, sandboxMcpServers, sandboxLspServers, authenticateGit, authenticateGh, failClosed } = value as ISessionSandboxPolicy;
 	return {
 		enabled,
 		...(allowBypass !== undefined ? { allowBypass } : {}),
@@ -45,7 +45,7 @@ export function readSessionSandboxPolicy(source: { readonly _meta?: Record<strin
 		...(isStringArray(readonlyPaths) ? { readonlyPaths: [...readonlyPaths] } : {}),
 		...(isStringArray(deniedPaths) ? { deniedPaths: [...deniedPaths] } : {}),
 		...(allowDevToolAccess !== undefined ? { allowDevToolAccess } : {}),
-		...(hasKey(value, { addCurrentWorkingDirectory: true }) && typeof value.addCurrentWorkingDirectory === 'boolean' ? { addCurrentWorkingDirectory: value.addCurrentWorkingDirectory } : {}),
+		...(typeof addCurrentWorkingDirectory === 'boolean' ? { addCurrentWorkingDirectory } : {}),
 		...(sandboxMcpServers !== undefined ? { sandboxMcpServers } : {}),
 		...(sandboxLspServers !== undefined ? { sandboxLspServers } : {}),
 		...(authenticateGit !== undefined ? { authenticateGit } : {}),
