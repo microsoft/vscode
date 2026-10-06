@@ -105,13 +105,13 @@ export class NotebookCellLinkifier extends Disposable implements IDisposable, IC
 
 		this._register(this.workspaceService.onDidOpenNotebookDocument(notebook => updateNbCellIds(notebook)));
 		this._register(this.workspaceService.onDidCloseNotebookDocument(notebook => {
+			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
+			this.notebookCellIds.delete(notebook);
 			if (this.workspaceService.notebookDocuments.length === 0) {
 				this.cells.clear();
 				return;
 			}
-			const ids = this.notebookCellIds.get(notebook) ?? new Set<string>();
 			ids.forEach(id => this.cells.delete(id));
-			this.notebookCellIds.delete(notebook);
 		}));
 		this._register(this.workspaceService.onDidChangeNotebookDocument(e => {
 			if (e.contentChanges.length) {

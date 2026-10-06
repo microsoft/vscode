@@ -11,6 +11,7 @@ import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspa
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { StringSHA1 } from '../../../../util/vs/base/common/hash';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { NotebookCellKind, Uri } from '../../../../vscodeTypes';
 import { LinkifiedPart, LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { NotebookCellLinkifier } from '../../vscode-node/notebookCellLinkifier';
@@ -141,6 +142,38 @@ suite('Notebook Cell Linkifier', () => {
 			]
 		);
 	});
+
+	for (const remainingNotebookCount of [0, 1]) {
+		test(`Should remove closed notebook tracking with ${remainingNotebookCount} notebooks remaining`, async () => {
+			const cellUri = Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1');
+			const notebook = createMockNotebookDocument([createMockNotebookCell(cellUri, 0)]);
+			const notebooks = [notebook, ...Array.from({ length: remainingNotebookCount }, () => createMockNotebookDocument([]))];
+			const store = new DisposableStore();
+			try {
+				const workspaceService = store.add(new TestWorkspaceService([], [], notebooks));
+				const linkifier = store.add(new NotebookCellLinkifier(workspaceService, mockLogger));
+				const tracking = linkifier as unknown as {
+					notebookCellIds: WeakMap<NotebookDocument, Set<string>>;
+					cells: Map<string, WeakRef<NotebookCell>>;
+				};
+				await linkifier.linkify(`Cell Id ${generateCellId(cellUri)}`, { requestId: undefined, references: [] }, CancellationToken.None);
+				assert.strictEqual(tracking.notebookCellIds.has(notebook), true);
+
+				notebooks.shift();
+				workspaceService.didCloseNotebookDocumentEmitter.fire(notebook);
+
+				assert.deepStrictEqual({
+					tracksClosedNotebook: tracking.notebookCellIds.has(notebook),
+					cellCount: tracking.cells.size,
+				}, {
+					tracksClosedNotebook: false,
+					cellCount: 0,
+				});
+			} finally {
+				store.dispose();
+			}
+		});
+	}
 
 	test('Should only subscribe to notebook events once per instance', async () => {
 		const cellUri = Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1');
