@@ -781,8 +781,10 @@ suite('ProtocolServerHandler', () => {
 		assert.match(resp.error!.message, /0\.0\.0/);
 		assert.match(resp.error!.message, new RegExp(PROTOCOL_VERSION.replace(/\./g, '\\.')));
 		// Without the upgrade-socket env var, no _meta should be advertised.
-		const data = resp.error!.data as { _meta?: { vscodeUpgradeMethod?: string } } | undefined;
-		assert.strictEqual(data?._meta?.vscodeUpgradeMethod, undefined);
+		const data = resp.error!.data as { supportedVersions: string[]; _meta?: { vscodeUpgradeMethod?: string } } | undefined;
+		assert.deepStrictEqual({ supportedVersions: data?.supportedVersions, upgrade: data?._meta?.vscodeUpgradeMethod }, {
+			supportedVersions: ['1.0.0', '0.10.0', '0.9.0'], upgrade: undefined,
+		});
 
 		transport.simulateClose();
 		transport.dispose();
@@ -806,6 +808,22 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 		transport.dispose();
 	});
+
+	for (const kind of [AgentHostTransportKind.MessagePort, AgentHostTransportKind.WebSocket]) {
+		test(`negotiates 0.9.0, 0.10.0 and 1.0.0 on ${kind} connections, including relay clients`, () => {
+			const offered = [['0.9.0'], ['0.10.0'], ['1.0.0'], ['0.9.0', '0.10.0', '1.0.0']];
+			const negotiated = [false, true].flatMap(relay => offered.map((protocolVersions, index) => {
+				const clientId = `compatible-${relay}-${index}`;
+				const transport = disposables.add(new MockProtocolTransport(kind, relay ? clientId : undefined));
+				server.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { protocolVersions, clientId }));
+				const response = findResponse(transport.sent, 1) as { result?: InitializeResult };
+				transport.simulateClose();
+				return response.result?.protocolVersion;
+			}));
+			assert.deepStrictEqual(negotiated, ['0.9.0', '0.10.0', '1.0.0', '1.0.0', '0.9.0', '0.10.0', '1.0.0', '1.0.0']);
+		});
+	}
 
 	test('upgrade method advertised when management socket env var is set', () => {
 		const originalEnv = process.env.VSCODE_AGENT_HOST_MANAGEMENT_SOCKET;
