@@ -60,6 +60,7 @@ import { SessionsListRearrangeExperimentState } from '../sessionsListRearrangeEx
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
+import { createSessionsListNotices } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
 
@@ -331,6 +332,28 @@ export class SessionsView extends ViewPane {
 		}));
 		const storageCleanupNotice = this._register(this.instantiationService.createInstance(SessionStorageCleanupNotice, () => sessionsControl.focus(), status));
 		sessionsContent.appendChild(storageCleanupNotice.domNode);
+		for (const notice of createSessionsListNotices(this.instantiationService, {
+			container: sessionsContent,
+			onDidChangeVisibility: this.onDidChangeBodyVisibility,
+			isVisible: () => this.isBodyVisible(),
+			focusSessionsList: () => sessionsControl.focus(),
+			onDidOpenSession: sessionsControl.onDidOpenSession,
+			revealSession: resource => {
+				const session = this.sessionsManagementService.getSession(resource);
+				if (!session) { throw new Error('Session is no longer available'); }
+				const reveal = sessionsControl.revealSessionForOnboarding(session);
+				return {
+					targetId: reveal.targetId,
+					open: async token => {
+						if (token.isCancellationRequested || !await this.sessionsService.canOpenSession(session) || token.isCancellationRequested) { return false; }
+						await this.sessionsService.openSession(session.resource, { forceMainChat: true, source: 'sessionsList' });
+						return true;
+					},
+					dispose: () => reveal.dispose(),
+				};
+			},
+			announce: status,
+		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 		this.archiveNotification = this._register(this.instantiationService.createInstance(SessionsListNotification, sessionsContent, () => sessionsControl.focus()));
 
@@ -587,7 +610,6 @@ export class SessionsView extends ViewPane {
 		));
 		const menuState = derivedOpts<{
 			readonly options: readonly (ISessionFilterOption & { readonly checked: boolean })[];
-			readonly environmentTitle: string;
 			readonly emptySourcesTitle: string | undefined;
 		}>({ owner: this, equalsFn: structuralEquals }, reader => {
 			changed.read(reader);
@@ -606,30 +628,21 @@ export class SessionsView extends ViewPane {
 				}
 			}
 			const includedEnvironments = [...environmentLabels].filter(([id]) => !sessionsControl.filters.isExcluded({ kind: 'environment', id }));
-			let environmentTitle = localize('environment', "Environment");
-			if (includedEnvironments.length === 0) {
-				environmentTitle = localize('environment.none', "Environment (None)");
-			} else if (includedEnvironments.length === 1) {
-				environmentTitle = localize('environment.selected', "Environment ({0})", includedEnvironments[0][1]);
-			} else if (includedEnvironments.length < environmentLabels.size) {
-				environmentTitle = localize('environment.multiple', "Environment ({0} Selected)", includedEnvironments.length);
-			}
 			const scopedOptions = options
 				.filter(option => option.filter.kind !== 'application' || !sessionsControl.filters.isExcluded({ kind: 'environment', id: option.filter.environment }))
 				.map(option => ({ ...option, checked: !sessionsControl.filters.isExcluded(option.filter) }));
 			return {
 				options: scopedOptions,
-				environmentTitle,
 				emptySourcesTitle: scopedOptions.some(option => option.filter.kind === 'application') ? undefined
 					: includedEnvironments.length === 0 ? localize('selectEnvironmentFirst', "Select an Environment First")
 						: localize('noCreatingApplications', "No Applications Found"),
 			};
 		});
 		this._register(autorun(reader => {
-			const { options, environmentTitle, emptySourcesTitle } = menuState.read(reader);
+			const { options, emptySourcesTitle } = menuState.read(reader);
 			reader.store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
 				submenu: Menus.SessionsViewEnvironment,
-				title: environmentTitle,
+				title: localize('environment', "Environment"),
 				group: '2_filters',
 				order: 0,
 			}));

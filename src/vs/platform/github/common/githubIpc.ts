@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { CancellationError } from '../../../base/common/errors.js';
 import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -19,7 +18,7 @@ import { RequestErrorKind } from './types.js';
 export const GITHUB_CHANNEL_NAME = 'github';
 export const ISharedProcessGitHubService = createDecorator<ISharedProcessGitHubService>('sharedProcessGitHubService');
 
-export interface GitHubAnonymousRequest extends GitHubAnonymousClientOptions {
+export interface GitHubAnonymousRequest extends Pick<GitHubAnonymousClientOptions, 'apiBaseUri'> {
 	readonly path: string;
 	readonly options?: GitHubAnonymousReadOptions;
 }
@@ -61,15 +60,10 @@ export class GitHubChannel implements IServerChannel {
 	}
 
 	private async getAnonymous(request: GitHubAnonymousRequest, token: CancellationToken): Promise<GitHubResponse<unknown>> {
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
 		const lifetime = new DisposableStore();
-		const controller = new AbortController();
-		lifetime.add(token.onCancellationRequested(() => controller.abort(new CancellationError())));
 		try {
 			const client = lifetime.add(this.service.acquireAnonymousClient({ apiBaseUri: request.apiBaseUri })).object;
-			return { result: await client.get(request.path, controller.signal, request.options) };
+			return { result: await client.get(request.path, token, request.options) };
 		} catch (error) {
 			if (!(error instanceof GitHubRequestError)) {
 				throw error;

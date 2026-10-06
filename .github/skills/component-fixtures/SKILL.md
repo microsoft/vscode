@@ -175,6 +175,8 @@ The render promise must resolve only when the fixture represents its named state
 - Supply deterministic display data through existing services/options, such as a single custom thinking phrase. A seeded random generator alone does not make labels independent of render order or async callback order.
 - Use bounded, condition-based waits that throw on failure, not fixed sleeps or extra frames that silently accept an incomplete state.
 
+Design fixtures as **state + local inputs + an explicit readiness condition**. Supply local account icons instead of letting a mock fall back to a live avatar URL, and await decoding; `waitForFixtureCondition` polls native browser frames while preserving the virtual clock. Prefer shared DOM spinners over animated SVG backgrounds: ancestor CSS cannot stop animations inside an image. Wait for auto-hiding scrollbars to reach their intended idle state, not merely for content height to stabilize.
+
 Fixtures that depend on native browser image decoding or resize/scroll callbacks can use `virtualTime: { enabled: false }` and explicitly await those operations. Virtual JavaScript time does not advance the browser's image decoder or layout pipeline.
 
 For async fixtures with paint-order-sensitive edges, `deferPaint: true` keeps the headless fixture transparent until rendering has finished, without changing its layout or interactive preview. It prevents intermediate paints from affecting the final rasterization; it does **not** replace awaiting readiness.

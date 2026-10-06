@@ -7,7 +7,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { IStorage, Storage, MigratingStorage } from '../../../../base/parts/storage/common/storage.js';
 import { RemoteStorageService } from '../../../../platform/storage/common/storageService.js';
 import { FallbackApplicationStorageDatabaseClient, ApplicationSharedStorageDatabaseClient } from '../../../../platform/storage/common/storageIpc.js';
-import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -25,6 +25,15 @@ export class NativeWorkbenchStorageService extends RemoteStorageService {
 		super(workspace, { currentProfile: userDataProfileService.currentProfile, defaultProfile: userDataProfilesService.defaultProfile }, mainProcessService, workbenchEnvironmentService);
 
 		this.registerListeners();
+	}
+
+	override readApplicationSharedValue(key: string): Promise<string | undefined> {
+		return this.remoteService.getChannel('storage').call('getValue', { profile: undefined, workspace: undefined, applicationShared: true, key });
+	}
+
+	override async compareAndSwapApplicationSharedValue(key: string, expectedValue: string | undefined, newValue: string): Promise<{ swapped: boolean; currentValue: string | undefined }> {
+		this.updateKeyTarget(key, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+		return this.remoteService.getChannel('storage').call('compareAndSwap', { profile: undefined, workspace: undefined, applicationShared: true, key, expectedValue, newValue });
 	}
 
 	protected override createApplicationSharedStorage(): IStorage {

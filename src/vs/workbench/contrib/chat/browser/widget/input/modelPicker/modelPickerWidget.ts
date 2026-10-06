@@ -7,6 +7,7 @@ import './media/modelPicker.css';
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -50,6 +51,12 @@ import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPic
 import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+
+/** Trusted caller options for opening a searchable picker without toggling it closed. */
+export interface IModelPickerOpenOptions {
+	readonly initialFilterValue?: string;
+	readonly initialFocusItemId?: string;
+}
 
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
@@ -433,13 +440,21 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	/**
-	 * Registers mouse-down and Enter/Space key handlers on a button element.
+	 * Registers mouse-down, touch tap, and Enter/Space key handlers on a button element.
 	 */
 	private _registerButtonAction(element: HTMLElement, action: (fromKeyboard: boolean) => void): void {
-		this._register(dom.addDisposableGenericMouseDownListener(element, e => {
+		this._register(dom.addDisposableListener(element, dom.EventType.MOUSE_DOWN, e => {
 			if (e.button !== 0) {
 				return;
 			}
+			dom.EventHelper.stop(e, true);
+			action(false);
+		}));
+		// Touch and pen need an explicit tap handler: an ancestor `Gesture` target
+		// (e.g. the view pane container) cancels the touch, which suppresses the
+		// compatibility `mousedown` the browser would otherwise synthesize.
+		this._register(Gesture.addTarget(element));
+		this._register(dom.addDisposableListener(element, TouchEventType.Tap, e => {
 			dom.EventHelper.stop(e, true);
 			action(false);
 		}));
@@ -513,7 +528,7 @@ export class ModelPickerWidget extends Disposable {
 		}];
 	}
 
-	private _showTabbedPicker(anchor: HTMLElement, context: ITabbedModelPickerContext, telemetrySession: ModelPickerTelemetrySession, detailsModelId?: string, focusConfiguration = false): void {
+	private _showTabbedPicker(anchor: HTMLElement, context: ITabbedModelPickerContext, telemetrySession: ModelPickerTelemetrySession, detailsModelId?: string, focusConfiguration = false, options?: IModelPickerOpenOptions): void {
 		const picker = this._tabbedPicker.value ?? (this._tabbedPicker.value = this._instantiationService.createInstance(TabbedModelPicker));
 		const previouslyFocusedElement = dom.getActiveElement();
 		const trigger = detailsModelId ? this._configButton : this._nameButton;
@@ -535,27 +550,41 @@ export class ModelPickerWidget extends Disposable {
 			this._configButton?.setAttribute('aria-expanded', 'true');
 		}
 		this._domNode?.classList.add('model-picker-active');
-		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer);
+		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 	}
 
-	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }): void {
-		this._show(anchor, showDetails, focusConfiguration, trigger);
+	canOpenWithFilter(): boolean {
+		return !!this._domNode?.isConnected && !this._domNode.classList.contains('disabled')
+			&& !this.isRestrictedMode() && !this.isSetupRequired();
+	}
+
+	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }, options?: IModelPickerOpenOptions): void {
+		this._show(anchor, showDetails, focusConfiguration, trigger, options);
 	}
 
 	/**
 	 * @param telemetry How the picker was opened, or the session of a flat picker
 	 * that pinning re-shows in place, so it keeps reporting as one interaction.
 	 */
-	private _show(anchor: HTMLElement | undefined, showDetails: boolean, focusConfiguration: boolean, telemetry: IModelPickerOpenTrigger | ModelPickerTelemetrySession): void {
+	private _show(anchor: HTMLElement | undefined, showDetails: boolean, focusConfiguration: boolean, telemetry: IModelPickerOpenTrigger | ModelPickerTelemetrySession, options?: IModelPickerOpenOptions): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
-		if (this._tabbedPicker.value?.isVisible) {
+		if (options && this._tabbedPicker.value?.isVisible) {
+			this._tabbedPicker.value.openWithFilter(options);
+			return;
+		}
+		if (options && this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._actionWidgetService.setFilter(options.initialFilterValue ?? '', options.initialFocusItemId);
+			return;
+		}
+
+		if (!options && this._tabbedPicker.value?.isVisible) {
 			this._tabbedPicker.value.hide();
 			return;
 		}
-		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+		if (!options && this._nameButton?.getAttribute('aria-expanded') === 'true') {
 			this._actionWidgetService.hide(true);
 			return;
 		}
@@ -585,7 +614,7 @@ export class ModelPickerWidget extends Disposable {
 		const manifest = this._languageModelsService.getModelsControlManifest();
 		const controlModelsForTier: IStringDictionary<IModelControlEntry> = getModelPickerControlModels(manifest, this._entitlementService.entitlement, models);
 		const canShowManageModelsAction = presentation.showManageModelsAction && shouldShowManageModelsAction(this._entitlementService);
-		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService) : undefined;
+		const manageModelsAction = canShowManageModelsAction ? createManageModelsAction(this._commandService, this._delegate.getSessionType?.()) : undefined;
 		const logModelPickerInteraction = (interaction: ChatModelPickerInteraction) => {
 			this._telemetryService.publicLog2<ChatModelPickerInteractionEvent, ChatModelPickerInteractionClassification>('chat.modelPickerInteraction', { interaction });
 		};
@@ -655,7 +684,7 @@ export class ModelPickerWidget extends Disposable {
 					link: this.getCacheBreakLearnMoreLink(),
 					dismiss: () => this.dismissCacheBreakHint(),
 				} : undefined,
-			}, telemetrySession, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) && !isHydraFusionModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration);
+			}, telemetrySession, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) && !isHydraFusionModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration, options);
 			return;
 		}
 
@@ -722,6 +751,8 @@ export class ModelPickerWidget extends Disposable {
 			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
 			headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			showFilter: !unavailable,
+			initialFilterValue: options?.initialFilterValue,
+			initialFocusItemId: options?.initialFocusItemId,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
 			filterAsCombobox: !unavailable,

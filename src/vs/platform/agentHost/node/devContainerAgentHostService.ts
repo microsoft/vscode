@@ -27,7 +27,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
-import { asTextOrError, IRequestService } from '../../request/common/request.js';
+import { IRequestService } from '../../request/common/request.js';
+import { IGitHubService } from '../../github/common/githubService.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, VSCODE_REMOTE_CONTAINERS_SESSION_ENV } from '../common/devContainerAgentHost.js';
 import { IRelayMessage } from '../common/relayTransport.js';
@@ -49,7 +50,7 @@ import {
 import { ensureRemoteAgentHostCliInstalled } from './remoteAgentHostCliInstaller.js';
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
-import { DevContainerSample, devContainerSamples, devContainerSampleUri, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
+import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
@@ -210,6 +211,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IRequestService private readonly _requestService: IRequestService,
+		@IGitHubService private readonly _gitHubService: IGitHubService,
 	) {
 		super();
 	}
@@ -419,13 +421,17 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				return result;
 			},
 			devcontainer: args => this._runDevContainer(connectionId, args, token),
-			fetch: async url => {
-				const response = await this._requestService.request({ type: 'GET', url, callSite: 'devContainerSample', headers: { 'User-Agent': 'VSCode' } }, token);
-				const content = await asTextOrError(response);
-				if (!content) {
-					throw new Error(localize('devContainerAgentHost.emptySampleResponse', "Empty response while downloading the Dev Container sample: {0}", url));
+			readSource: async () => {
+				const lifetime = new DisposableStore();
+				try {
+					const client = lifetime.add(this._gitHubService.acquireAnonymousClient()).object;
+					return await client.getFile('microsoft', getDevContainerSampleFolder(sample), '.devcontainer/devcontainer.json', token, {
+						caller: 'devContainerSample',
+						priority: 'interactive',
+					});
+				} finally {
+					lifetime.dispose();
 				}
-				return content;
 			},
 		});
 	}
@@ -1036,8 +1042,9 @@ export class DevContainerAgentHostMainService extends DevContainerAgentHostServi
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly _nativeEnvironmentService: INativeEnvironmentService,
 		@IRequestService requestService: IRequestService,
+		@IGitHubService gitHubService: IGitHubService,
 	) {
-		super(_mainLogService, productService, telemetryService, _nativeEnvironmentService, requestService);
+		super(_mainLogService, productService, telemetryService, _nativeEnvironmentService, requestService, gitHubService);
 	}
 
 	protected override _resolveUserShellEnvironment(): Promise<typeof process.env> {

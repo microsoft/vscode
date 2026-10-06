@@ -127,6 +127,16 @@ export interface ICodexAccountTelemetryContext {
 	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
 	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
 	readonly chatgptWeeklyUsedPercentBucket?: number;
+	readonly chatgptFiveHourQuotaState: 'available' | 'unavailable' | 'missing' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptFiveHourUsedPercentBucket?: number;
+}
+
+export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
+
+export interface IAgentTurnTelemetryCorrelation {
+	readonly agentSessionId: string;
+	readonly chatSessionId: string;
+	readonly turnId: string;
 }
 
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
