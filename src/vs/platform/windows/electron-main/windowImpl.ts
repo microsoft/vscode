@@ -297,8 +297,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		protected readonly configurationService: IConfigurationService,
 		protected readonly stateService: IStateService,
 		protected readonly environmentMainService: IEnvironmentMainService,
-		protected readonly logService: ILogService,
-		private readonly app: Pick<electron.App, 'focus' | 'isHidden'> = electron.app
+		protected readonly logService: ILogService
 	) {
 		super();
 
@@ -424,11 +423,11 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 			case FocusMode.Force:
 				if (isMacintosh) {
-					if (this.app.isHidden()) {
+					if (electron.app.isHidden()) {
 						// Show first: a hidden app ignores window focus and re-focuses its last active window when un-hidden
 						this.win?.show();
 					}
-					this.app.focus({ steal: true });
+					electron.app.focus({ steal: true });
 				}
 				this.doFocusWindow();
 				break;
