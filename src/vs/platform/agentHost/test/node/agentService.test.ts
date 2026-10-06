@@ -18842,6 +18842,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		for (const scenario of ['declined', 'settingDisabled', 'adoptionFailed', 'restoreFailed', 'eligibleRestoreFailed', 'skipped', 'migrated'] as const) {
 			test(`legacy migration diagnostics: ${scenario}`, async () => {
+				const session = AgentSession.uri('copilot', `migration-${scenario}`);
 				const events: { data: Record<string, unknown>; error: boolean }[] = [];
 				const telemetry = new class extends NullTelemetryServiceShape {
 					override publicLog2(name?: string, data?: unknown): void {
@@ -18862,7 +18863,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
 						if (scenario === 'adoptionFailed') {
-							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'adoption failed');
+							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `adoption failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
 						}
 						return scenario === 'declined'
 							? { adopted: false, eligible: false, reason: 'notLegacyChat' }
@@ -18875,7 +18876,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					override async materializeChat(...args: Parameters<MockAgent['materializeChat']>): ReturnType<MockAgent['materializeChat']> {
 						if (scenario === 'restoreFailed' || scenario === 'eligibleRestoreFailed') {
-							throw new Error('restore failed');
+							throw new Error(`restore failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
 						}
 						return super.materializeChat(...args);
 					}
@@ -18883,7 +18884,6 @@ suite('AgentService (node dispatcher)', () => {
 				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
 				registerTestAgentProvider(localService, disposables.add(new MigrationAgent()));
 				getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: scenario !== 'settingDisabled' });
-				const session = AgentSession.uri('copilot', `migration-${scenario}`);
 				if (scenario === 'skipped' || scenario === 'migrated') {
 					await localService.restoreSession(session);
 				} else {
@@ -18896,16 +18896,88 @@ suite('AgentService (node dispatcher)', () => {
 					outcome: data.outcome,
 					stage: data.stage,
 					reason: data.reason,
+					diagnosticCategory: data.diagnosticCategory,
+					eligible: data.eligible,
+					advertisedAsAdoptable: data.advertisedAsAdoptable,
 					errorCode: data.errorCode,
-					hasErrorMessage: typeof data.errorMessage === 'string' && data.errorMessage.includes('failed'),
+					errorMessage: data.errorMessage,
 				})), [{
 					error: failed,
 					migrationSessionId: getTelemetryMigrationSessionId(session),
 					outcome: failed ? 'failed' : scenario === 'settingDisabled' ? 'declined' : scenario,
 					stage: scenario === 'adoptionFailed' ? 'adoption' : failed ? 'restore' : scenario === 'declined' || scenario === 'settingDisabled' ? 'eligibility' : 'complete',
 					reason: scenario === 'adoptionFailed' ? 'unknown' : scenario === 'declined' ? 'notLegacyChat' : scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'skipped' || scenario === 'eligibleRestoreFailed' ? 'workingDirectoryMissing' : 'adopted',
+					diagnosticCategory: scenario === 'migrated' ? 'notApplicable' : scenario === 'settingDisabled' ? 'configurationDisabled' : scenario === 'declined' ? 'unknown' : 'needsInvestigation',
+					eligible: scenario === 'adoptionFailed' || scenario === 'settingDisabled' ? undefined : scenario !== 'declined',
+					advertisedAsAdoptable: false,
 					errorCode: scenario === 'adoptionFailed' ? String(JSON_RPC_INTERNAL_ERROR) : undefined,
-					hasErrorMessage: failed,
+					errorMessage: failed ? `${scenario === 'adoptionFailed' ? 'adoption' : 'restore'} failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]` : undefined,
+				}]);
+			});
+		}
+
+		const declineCases: {
+			name: string;
+			diagnostics: IAgentChatAdoptionResult['diagnostics'];
+			advertised: boolean;
+			category: string;
+		}[] = [
+			{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
+			{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
+			{ name: 'cached external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: true }, advertised: false, category: 'expectedExclusion' },
+			{ name: 'missing marker', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
+			{ name: 'ambiguous origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
+			{ name: 'invalid marker', diagnostics: { markerStatus: 'invalid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'needsInvestigation' },
+			{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
+			{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+			{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+		];
+		for (const { name, diagnostics, advertised, category } of declineCases) {
+			test(`legacy migration decline evidence: ${name}`, async () => {
+				const events: { data: Record<string, unknown>; error: boolean }[] = [];
+				const telemetry = new class extends NullTelemetryServiceShape {
+					override publicLog2(name?: string, data?: unknown): void {
+						if (name === 'agentHost.legacyCopilotCliMigration') {
+							events.push({ data: data as Record<string, unknown>, error: false });
+						}
+					}
+					override publicLogError2(name?: string, data?: unknown): void {
+						if (name === 'agentHost.legacyCopilotCliMigration') {
+							events.push({ data: data as Record<string, unknown>, error: true });
+						}
+					}
+				};
+				class DecliningAgent extends MockAgent {
+					constructor() { super('copilot'); }
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						return [];
+					}
+					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
+						return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics };
+					}
+				}
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(), undefined, telemetry));
+				registerTestAgentProvider(localService, disposables.add(new DecliningAgent()));
+				getConfigurationService(localService).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+				const session = AgentSession.uri('copilot', 'decline-evidence');
+				if (advertised) {
+					getStateManager(localService).announceSurfacedSession({
+						resource: session.toString(), provider: 'copilot', title: 'Legacy',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						_meta: withSessionEhcliAdoptable(undefined),
+					});
+				}
+				await assert.rejects(() => localService.restoreSession(session), /reason=notLegacyChat/);
+				assert.deepStrictEqual(events.map(({ data, error }) => ({
+					error, outcome: data.outcome, category: data.diagnosticCategory,
+					advertised: data.advertisedAsAdoptable, eligible: data.eligible,
+					markerStatus: data.markerStatus, provenance: data.provenance, markerFromCache: data.markerFromCache,
+					errorCode: data.eligibilityErrorCode, errorMessage: data.eligibilityErrorMessage,
+				})), [{
+					error: diagnostics?.errorMessage !== undefined, outcome: 'declined', category,
+					advertised, eligible: false,
+					markerStatus: diagnostics?.markerStatus, provenance: diagnostics?.provenance, markerFromCache: diagnostics?.markerFromCache,
+					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
 				}]);
 			});
 		}

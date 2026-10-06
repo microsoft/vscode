@@ -13,7 +13,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
+import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { adoptLegacyCopilotCliResource, reportLegacyMigrationOpen } from '../../../browser/agentSessions/agentHost/agentHostLegacyMigration.js';
 import { COPILOT_CLI_AGENT_PROVIDER, COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
@@ -54,13 +54,13 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 	const backendChannel = AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, RAW_ID);
 
 	/** A subscription that either already carries state, or errors when probed. */
-	function createConnection(outcome: 'adopted' | 'refused' | 'pending' | 'initialError' | 'noErrorEvent' | 'emptyState' | 'throw'): { connection: IAgentConnection; subscribed: URI[] } {
+	function createConnection(outcome: 'adopted' | 'refused' | 'pending' | 'initialError' | 'noErrorEvent' | 'emptyState' | 'throw', errorMessage = 'session not found'): { connection: IAgentConnection; subscribed: URI[] } {
 		const subscribed: URI[] = [];
 		const errorEmitter = disposables.add(new Emitter<Error>());
 		const connection = new class extends mock<IAgentConnection>() {
 			override getSubscription<T>(_kind: never, resource: URI): IReference<IAgentSubscription<T>> {
 				subscribed.push(resource);
-				const error = new ProtocolError(-32001, 'session not found');
+				const error = new ProtocolError(-32001, errorMessage);
 				if (outcome === 'throw') {
 					throw error;
 				}
@@ -132,6 +132,20 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		});
 	});
 
+	test('redacts raw and encoded session identifiers without losing error context', () => {
+		const resource = URI.from({ scheme: 'copilotcli', path: '/private session+id' });
+		const error = new Error(`ENOENT: ${resource}; agent-host-copilotcli:/private%20session%2Bid; copilot:/private session+id; id=private session+id`);
+		assert.deepStrictEqual({
+			message: getTelemetryMigrationErrorMessage(error, resource),
+			noError: getTelemetryMigrationErrorMessage(undefined, resource),
+			original: error.message,
+		}, {
+			message: 'ENOENT: [REDACTED: session]; [REDACTED: session]; [REDACTED: session]; id=[REDACTED: session]',
+			noError: undefined,
+			original: `ENOENT: ${resource}; agent-host-copilotcli:/private%20session%2Bid; copilot:/private session+id; id=private session+id`,
+		});
+	});
+
 	test('retries after a refusal instead of pinning the session to the legacy path', async () => {
 		const { connection, subscribed } = createConnection('refused');
 
@@ -178,7 +192,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 		{ state: 'throw', outcome: 'failed', reason: 'exception', hasError: true },
 	] as const) {
 		test(`reports diagnostic details for ${reason}`, async () => {
-			const { connection } = createConnection(state);
+			const { connection } = createConnection(state, `session not found: ${backendChannel}; frontend ${twinResource}; id ${RAW_ID}`);
 			const resolved = await adoptLegacyCopilotCliResource(connection, legacyResource, new NullLogService(), migrationOn, telemetry, 'restore', 100);
 			const { durationMs, ...data } = events[0].data;
 			assert.deepStrictEqual({ resolved, count: events.length, error: events[0].error, durationType: typeof durationMs, data }, {
@@ -190,7 +204,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 					source: 'restore', outcome, reason,
 					migrationSessionId: getTelemetryMigrationSessionId(backendChannel),
 					errorCode: hasError ? '-32001' : undefined,
-					errorMessage: hasError ? 'session not found' : undefined,
+					errorMessage: hasError ? 'session not found: [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]' : undefined,
 					settingEnabledAtStartup: true, settingEnabledNow: true, timeoutMs: 100,
 				},
 			});
@@ -232,7 +246,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 
 	test('correlates open failures and preserves exception details', () => {
 		reportLegacyMigrationOpen(telemetry, 'open', twinResource, false);
-		reportLegacyMigrationOpen(telemetry, 'restore', twinResource, false, new ProtocolError(-32603, 'resolution failed'));
+		reportLegacyMigrationOpen(telemetry, 'restore', twinResource, false, new ProtocolError(-32603, `resolution failed for ${twinResource}; backend ${backendChannel}; id ${RAW_ID}`));
 		assert.deepStrictEqual(events, [
 			{
 				name: 'agentHost.legacyCopilotCliMigrationOpen', error: false,
@@ -240,7 +254,7 @@ suite('AgentHost legacy Copilot CLI migration', () => {
 			},
 			{
 				name: 'agentHost.legacyCopilotCliMigrationOpen', error: true,
-				data: { source: 'restore', surfaced: false, migrationSessionId: getTelemetryMigrationSessionId(backendChannel), reason: 'resolveFailed', errorCode: '-32603', errorMessage: 'resolution failed' },
+				data: { source: 'restore', surfaced: false, migrationSessionId: getTelemetryMigrationSessionId(backendChannel), reason: 'resolveFailed', errorCode: '-32603', errorMessage: 'resolution failed for [REDACTED: session]; backend [REDACTED: session]; id [REDACTED: session]' },
 			},
 		]);
 	});

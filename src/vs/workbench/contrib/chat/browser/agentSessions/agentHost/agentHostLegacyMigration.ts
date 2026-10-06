@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { raceTimeout } from '../../../../../../base/common/async.js';
-import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { getErrorCode } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -13,7 +12,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { AgentSession, IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
+import { getTelemetryMigrationErrorMessage, getTelemetryMigrationSessionId } from '../../../../../../platform/agentHost/common/agentTelemetryCorrelation.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { SessionState } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
@@ -132,7 +131,7 @@ export async function adoptLegacyCopilotCliResource(
 			reason,
 			migrationSessionId,
 			errorCode: getErrorCode(error),
-			errorMessage: error === undefined ? undefined : toErrorMessage(error),
+			errorMessage: getTelemetryMigrationErrorMessage(error, resource),
 			settingEnabledAtStartup,
 			settingEnabledNow,
 			durationMs: Date.now() - startedAt,
@@ -199,7 +198,7 @@ type LegacyMigrationOpenClassification = {
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Entry point that opened: open (user opened a session) or restore (startup/editor restore).' };
 	surfaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the migrated session was found and opened. False means the open fell back to the legacy session the host had just migrated away from.' };
 	migrationSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'SHA-1 of the backend session URI, shared with probe and host diagnostics; not an attempt identifier.' };
-	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether resolution succeeded, returned no session, or threw.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether resolution succeeded, returned no session, or encountered a provider/resolution error.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Exception or protocol error code when resolving the migrated session failed.' };
 	errorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error message when resolving the migrated session failed, cleaned by the telemetry service.' };
 	owner: 'vijayupadya';
@@ -219,7 +218,7 @@ export function reportLegacyMigrationOpen(telemetryService: ITelemetryService, s
 		migrationSessionId: rawId ? getTelemetryMigrationSessionId(AgentSession.uri(COPILOT_CLI_AGENT_PROVIDER, rawId)) : undefined,
 		reason: error !== undefined ? 'resolveFailed' : surfaced ? 'surfaced' : 'sessionNotSurfaced',
 		errorCode: getErrorCode(error),
-		errorMessage: error === undefined ? undefined : toErrorMessage(error),
+		errorMessage: getTelemetryMigrationErrorMessage(error, resource),
 	};
 	if (error !== undefined) {
 		telemetryService.publicLogError2<LegacyMigrationOpenEvent, LegacyMigrationOpenClassification>('agentHost.legacyCopilotCliMigrationOpen', data);
