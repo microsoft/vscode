@@ -20,6 +20,7 @@ import { createReporter } from './lib/reporter.ts';
 import * as task from './lib/gulp/task.ts';
 import * as tsb from './lib/tsb/index.ts';
 import { createTsgoStream, spawnTsgo } from './lib/tsgo.ts';
+import { getCompilerOptionsFromTsConfig } from './lib/tsconfigUtils.ts';
 import * as util from './lib/util.ts';
 import watcher from './lib/watch/index.ts';
 
@@ -125,7 +126,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const src = path.join(srcBase, '**');
 	const srcOpts = { cwd: root, base: srcBase, dot: true };
 
-	const out = path.join(srcRoot, 'out');
+	const out = path.relative(root, getCompilerOptionsFromTsConfig(absolutePath).outDir ?? path.join(root, srcRoot, 'out'));
 	const baseUrl = getBaseUrl(out);
 
 	function createPipeline(build: boolean, emitError?: boolean, transpileOnly?: boolean) {
@@ -134,7 +135,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithEsbuild: true }, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileWithEsbuild: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -180,7 +181,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 
 	const transpileTask = task.define(`transpile-extension:${name}`, task.series(cleanTask, () => {
 		const pipeline = createPipeline(false, true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
+		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts'], { dot: true }));
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
 
 		return input
