@@ -48,6 +48,8 @@ The cross-provider ownership, routing, persistence, and run-lifecycle contract i
 
 Within that contract, Agent Host providers expose the host's `ahp-automations://` channel when negotiated capabilities include Automations. `AgentHostAutomationStore` projects AHP state and maps host session resources into the local or remote Sessions resource scheme. `ReconnectableAgentHostAutomationStore` owns connection and capability transitions. The Agent Host owns execution, scheduling, and recovery without a renderer activation handshake; this provider owns only adaptation and connection-specific identity. Disconnected or unsupported hosts cannot fall back to a browser store or executor.
 
+Standard run references resolve through the owning connection's advertised session identities. They wait for that metadata when necessary; editing an Automation's provider cannot change a historical run's frontend identity.
+
 Imported prompts retain Automation provenance through `MessageKind.Automation`. The projection converts editor-qualified model identifiers to provider-native `ModelSelection.id` values at the AHP boundary while preserving the editor identity exposed to Sessions. The provider also mirrors `chat.automations.enabled` and `chat.automations.runTimeoutMinutes` into host configuration; disabling Automations removes new run authority without deleting definitions or terminating sessions already running.
 
 `AutomationDefinition.session` is authoritative for host-owned model, custom-agent, and provider configuration. The projection removes target-owned working directory, isolation, and branch values from the editor-facing template and restores them only at the AHP boundary. Unknown provider values remain opaque and survive same-target edits.
@@ -66,6 +68,12 @@ The local provider uses:
 | Session types | Dynamically derived from advertised agents |
 
 Agent provider names form logical session-type identifiers. Resource URI schemes remain the routing identity for content and model providers. Consumers must not derive one identifier by parsing another.
+
+Native backend resources are immutable: historical provider-scheme sessions keep their addresses, while new allocations may use `ahp-session:/<uuid>`. The advertised provider is separate from the backend resource. Both forms adapt to the same stable local `agent-host-<provider>` or remote `remote-<authority>-<provider>` frontend scheme. Adapter caches retain the exact backend resource and provider across offline reloads; frontend state is not rekeyed.
+
+Native SDK catalog entries are provider backing references, not protocol session identities until the local Agent Host admits them. Discovery resolves a provider and backing ID to an existing exact registered URI; a previously unseen backing defaults to `ahp-session:/<backing-id>`. Explicit predecessor-adoption flows retain their provider-scheme identity. This resolution is local-host behavior only: remote and third-party host-advertised resources remain opaque and are preserved verbatim.
+
+Native hosts and capable VS Code clients declare `_meta["vscode.ahpSessionUris"] = true`. Creation uses standard addressing when supported, or legacy addressing for an identified native host without that capability. New hosts declare `_meta["vscode.agentHost"] = true`; older hosts are identified by their validated root `hostBuild` metadata, without comparing version numbers. Unmarked conforming hosts remain standard AHP peers. Identified legacy VS Code connections see legacy sessions only; this does not change host state or project backend URI aliases onto the wire. Reconnection retains or renegotiates connection capabilities without readdressing any session.
 
 ## Session adaptation
 

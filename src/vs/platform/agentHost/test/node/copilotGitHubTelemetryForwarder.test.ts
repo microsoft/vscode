@@ -92,6 +92,39 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
+	test('reuses standard runtime canvas tool and authoring events without requiring restricted telemetry', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		for (const toolName of ['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload']) {
+			forwarder.forward({
+				sessionId: 'sdk-session', restricted: false,
+				event: { kind: 'tool_call_executed', properties: { tool_name: toolName, invoke_outcome: 'success' }, metrics: { duration_ms: 42 } },
+			});
+		}
+		const skillNameHash = '33b7d9f0b8715b9f10e8185fb3fd5405e7ca6ac4e5e005885982b019378097f1';
+		forwarder.forward({
+			sessionId: 'sdk-session', restricted: false,
+			event: { kind: 'skill_invoked', properties: { skill_name_hash: skillNameHash }, metrics: { skill_content_length: 200, allowed_tools_count: 0 } },
+		});
+		forwarder.forward({
+			sessionId: 'sdk-session', restricted: true,
+			event: { kind: 'skill_invoked', properties: { skill_name: 'create-canvas', skill_path: '/private/skill.md' }, metrics: {} },
+		});
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName, restricted: data?.restricted, toolName: data?.tool_name, durationMs: data?.duration_ms,
+			skillNameHash: data?.skill_name_hash, skillContentLength: data?.skill_content_length, allowedToolsCount: data?.allowed_tools_count,
+		})), [
+			...['list_canvas_capabilities', 'open_canvas', 'invoke_canvas_action', 'extensions_reload'].map(toolName => ({
+				eventName: 'copilotSdk/tool_call_executed', restricted: false, toolName, durationMs: 42,
+				skillNameHash: undefined, skillContentLength: undefined, allowedToolsCount: undefined,
+			})),
+			{
+				eventName: 'copilotSdk/skill_invoked', restricted: false, toolName: undefined, durationMs: undefined,
+				skillNameHash, skillContentLength: 200, allowedToolsCount: 0,
+			},
+		]);
+	});
+
 	test('forwards HydraFusion route, failure, phase, and turn events', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
@@ -100,7 +133,6 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 			restricted: false,
 			event: { kind, properties, metrics },
 		});
-
 		forwarder.forward(notification('hydrafusion_route', {
 			fusion_id: 'fusion-1',
 			synthetic_model: 'hydrafusion',

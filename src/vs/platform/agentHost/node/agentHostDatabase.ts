@@ -8,8 +8,10 @@ import type { Database, RunResult } from '@vscode/sqlite3';
 import { Sequencer } from '../../../base/common/async.js';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentProvider } from '../common/agent.js';
+import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
@@ -40,6 +42,12 @@ export interface IAgentHostDatabaseSessionOptions {
 
 export interface IAgentHostDatabaseRegisterOptions {
 	readonly checkTombstone: boolean;
+	/**
+	 * Exact provider backing URI for a discovery admission. When present,
+	 * backing tombstones and cross-provider identity exclusions are checked in
+	 * the same transaction that claims `session`.
+	 */
+	readonly discoveryBackingSession?: string;
 	/**
 	 * Marks the session registered-but-not-yet-materialized in the same
 	 * transaction as the registration, so a crash cannot leave a durable row
@@ -167,6 +175,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	getSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined>;
 	/** Lists one provider's current-v2 exclusions without opening session databases. */
 	listSessionsV2Exclusions(provider: AgentProvider): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]>;
+	/** Lists every provider's current-v2 exclusions without opening session databases. */
+	listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]>;
 	/** Clears a current-v2 exclusion when a session becomes eligible again. */
 	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void>;
 	/** Whether `session` was explicitly deleted and must not be resurrected by backfill. */
@@ -486,6 +496,21 @@ function tombstoneKey(session: string): string {
 	return `sessionTombstone:${session}`;
 }
 
+function sessionIdentityCounterpart(provider: AgentProvider, session: string): string | undefined {
+	if (provider !== COPILOT_CLI_AGENT_PROVIDER_ID && provider !== CODEX_AGENT_PROVIDER_ID && provider !== CLAUDE_AGENT_PROVIDER_ID) {
+		return undefined;
+	}
+	const resource = URI.parse(session);
+	const backingId = AgentSession.id(resource);
+	if (isEqual(resource, AgentSession.uri(provider, backingId))) {
+		return AgentSession.uri('ahp-session', backingId).toString();
+	}
+	if (isEqual(resource, AgentSession.uri('ahp-session', backingId))) {
+		return AgentSession.uri(provider, backingId).toString();
+	}
+	return undefined;
+}
+
 const agentMergeEnabledKeyPrefix = 'agentMergeEnabled:';
 
 /** Metadata key marking a session as Agent-Merge-enabled. */
@@ -764,13 +789,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
 				for (const exclusion of exclusions) {
+					const counterpart = sessionIdentityCounterpart(exclusion.provider, exclusion.session);
 					await run(database, `INSERT INTO metadata (key, value)
 						SELECT ?, ?
-						WHERE NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = ?)
+						WHERE NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri IN (?, ?))
 						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
 						sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
 						JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
 						exclusion.session,
+						counterpart ?? exclusion.session,
 					]);
 				}
 				await exec(database, 'COMMIT');
@@ -826,6 +853,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return rows.map(row => this._toSessionsV2Exclusion(provider, (row.key as string).slice(prefix.length), row.value as string));
 	}
 
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		const prefix = sessionsV2ExcludedKeyPrefix;
+		const upperBound = `${prefix.slice(0, -1)};`;
+		const rows = await all(
+			await this._ensureDatabase(),
+			'SELECT key, value FROM metadata WHERE key >= ? AND key < ? ORDER BY key',
+			[prefix, upperBound],
+		);
+		return rows.map(row => {
+			const suffix = (row.key as string).slice(prefix.length);
+			const separator = suffix.indexOf(':');
+			if (separator <= 0) {
+				throw new Error(`Invalid sessions_v2 exclusion key ${row.key as string}`);
+			}
+			return this._toSessionsV2Exclusion(suffix.slice(0, separator), suffix.slice(separator + 1), row.value as string);
+		});
+	}
+
 	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void> {
 		return this._run('DELETE FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(provider, session)]);
 	}
@@ -853,6 +898,31 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
+				if (registerOptions.discoveryBackingSession !== undefined) {
+					const backingTombstone = await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ? AND value = ?', [tombstoneKey(registerOptions.discoveryBackingSession), 'true']);
+					const claimedIdentities = await all(database, `SELECT session_uri, provider FROM sessions_v2 WHERE session_uri IN (?, ?)
+						UNION ALL
+						SELECT session_uri, provider FROM sessions WHERE session_uri IN (?, ?)`, [
+						session, registerOptions.discoveryBackingSession,
+						session, registerOptions.discoveryBackingSession,
+					]);
+					const backingClaimed = registerOptions.discoveryBackingSession !== session
+						&& claimedIdentities.some(row => row.session_uri === registerOptions.discoveryBackingSession);
+					const claimedByAnotherProvider = claimedIdentities.some(row => row.provider !== provider);
+					const identityExclusions = [
+						...await this._listSessionsV2ExclusionsForSession(database, session),
+						...(registerOptions.discoveryBackingSession === session
+							? []
+							: await this._listSessionsV2ExclusionsForSession(database, registerOptions.discoveryBackingSession)),
+					].filter(exclusion => exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal');
+					const backingExcluded = registerOptions.discoveryBackingSession !== session
+						&& identityExclusions.some(exclusion => exclusion.session === registerOptions.discoveryBackingSession);
+					const excludedByAnotherProvider = identityExclusions.some(exclusion => exclusion.provider !== provider);
+					if (backingTombstone || backingClaimed || claimedByAnotherProvider || backingExcluded || excludedByAnotherProvider) {
+						await exec(database, 'COMMIT');
+						return false;
+					}
+				}
 				const existing = await get(database, `SELECT provider FROM sessions_v2 WHERE session_uri = ?
 					UNION ALL SELECT provider FROM sessions WHERE session_uri = ?
 					LIMIT 1`, [session, session]);
@@ -1587,9 +1657,34 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						WHEN excluded.registration_source = 'explicit' THEN 'explicit'
 						WHEN sessions_v2.registration_source = 'explicit' THEN 'explicit'
 						ELSE excluded.registration_source
-					END`,
-			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+					END
+				WHERE ? = 0 OR sessions_v2.provider = excluded.provider`,
+			[
+				session, provider, startTime, modifiedTime, source, source,
+				registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session),
+				registerOptions.discoveryBackingSession === undefined ? 0 : 1,
+			],
 		);
+	}
+
+	private async _listSessionsV2ExclusionsForSession(database: Database, session: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		const prefix = sessionsV2ExcludedKeyPrefix;
+		const upperBound = `${prefix.slice(0, -1)};`;
+		const rows = await all(
+			database,
+			`SELECT key, value FROM metadata
+				WHERE key >= ? AND key < ?
+					AND substr(key, length(key) - length(?) + 1) = ?`,
+			[prefix, upperBound, session, session],
+		);
+		return rows.map(row => {
+			const suffix = (row.key as string).slice(prefix.length);
+			const separator = suffix.indexOf(':');
+			if (separator <= 0) {
+				throw new Error(`Invalid sessions_v2 exclusion key ${row.key as string}`);
+			}
+			return this._toSessionsV2Exclusion(suffix.slice(0, separator), suffix.slice(separator + 1), row.value as string);
+		}).filter(exclusion => exclusion.session === session);
 	}
 
 	/**

@@ -27,6 +27,8 @@ export interface IOnboardingTargetOptions {
 
 	/** Reports a user selection and resolves once it is accepted or rejected. */
 	readonly onDidSelect?: Event<Promise<boolean>>;
+	/** Reports mouse, keyboard, or touch activation through the owning control. */
+	readonly onDidActivate?: Event<void>;
 	/** Identifies the prepared UI instance that owns this target. */
 	readonly scope?: string | (() => string | undefined);
 }
@@ -36,6 +38,7 @@ export interface IOnboardingTarget {
 	readonly open?: () => Promise<void> | void;
 	/** Accepted selections supplied by a scoped adapter, without replacing the owner's DOM marker. */
 	readonly onDidSelect?: Event<Promise<boolean>>;
+	readonly onDidActivate?: Event<void>;
 }
 
 interface IOnboardingTargetRegistration {
@@ -70,6 +73,7 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 		return {
 			element: target.element,
 			onDidSelect: target.onDidSelect,
+			onDidActivate: target.onDidActivate,
 			open: () => {
 				if (onboardingTargetProviders.get(id) === provider) {
 					const current = provider.resolve(scope);
@@ -82,7 +86,7 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 		};
 	}
 	const element = findOnboardingTarget(targetWindow, id, scope);
-	return element ? { element, open: () => openOnboardingTarget(element) } : undefined;
+	return element ? { element, open: () => openOnboardingTarget(element), onDidActivate: onboardingTargetRegistrations.get(element)?.options.onDidActivate } : undefined;
 }
 
 /**

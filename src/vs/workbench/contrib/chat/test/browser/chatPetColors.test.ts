@@ -15,6 +15,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -307,6 +308,7 @@ suite('Chat Pet Colors', () => {
 			new class extends mock<IWorkspaceContextService>() { }(),
 			createService(),
 			new class extends mock<IWorkbenchEnvironmentService>() { override readonly isSessionsWindow = false; }(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
 		));
 		const blobby = slashCommands.find(command => command.command === 'blobby');
 		const changeColor = MenuRegistry.getCommand(CHAT_PET_CHANGE_COLOR_COMMAND_ID);

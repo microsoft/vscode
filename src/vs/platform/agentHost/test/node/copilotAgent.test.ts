@@ -1264,10 +1264,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	const fileService = options?.fileService ?? disposables.add(new FileService(logService));
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	configService.updateRootConfig({
-		[AgentHostByokModelsEnabledConfigKey]: true,
-		...options?.rootConfig,
-	});
+	configService.updateRootConfig(options?.rootConfig ?? {});
 	const managedSettingsService = disposables.add(new AgentHostManagedSettingsService());
 	const telemetryService = options?.telemetryService ?? NullTelemetryService;
 	services.set(ILogService, logService);
@@ -1571,6 +1568,27 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP authentication during session initialization', () => {
+		test('standard host sessions reserve independent Copilot backing IDs without changing their address', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const session = URI.parse('ahp-session:/new-copilot');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				assert.deepStrictEqual({
+					session: result.session.toString(),
+					provisional: result.provisional,
+					backingProvider: result.backingSession?.scheme,
+					separateBacking: result.backingSession && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				}, { session: session.toString(), provisional: true, backingProvider: 'copilotcli', separateBacking: true });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		const authenticationParams = (scopes: readonly string[] = TEST_MCP_SCOPES): AuthenticateParams => ({
 			resource: TEST_MCP_RESOURCE,
 			scopes,
