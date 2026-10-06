@@ -6,9 +6,11 @@
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { AuthenticationSession } from 'vscode';
 import { Result } from '../../../../util/common/result';
+import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise, timeout } from '../../../../util/vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
@@ -32,7 +34,7 @@ import { NullTelemetryService } from '../../../telemetry/common/nullTelemetrySer
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { NullWorkspaceService } from '../../../workspace/common/workspaceService';
 import { CodeSearchChunkSearch } from '../../node/codeSearch/codeSearchChunkSearch';
-import { CodeSearchRepoStatus } from '../../node/codeSearch/codeSearchRepo';
+import { AdoCodeSearchRepo, CodeSearchRepoStatus } from '../../node/codeSearch/codeSearchRepo';
 import { TrackedRepoState, TrackedRepoStatus } from '../../node/codeSearch/repoTracker';
 import { IWorkspaceFileIndex } from '../../node/workspaceFileIndex';
 
@@ -201,7 +203,7 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 			[IAuthenticationService, authentication],
 			[ITelemetryService, telemetry],
 		), true));
-		vi.spyOn(instantiation, 'createInstance').mockReturnValueOnce(tracker);
+		const createInstance = vi.spyOn(instantiation, 'createInstance').mockReturnValueOnce(tracker);
 		const root = URI.parse('file:///workspace');
 		const search = disposables.add(new CodeSearchChunkSearch(
 			EmbeddingType.text3small_512,
@@ -238,7 +240,8 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 			requests: ado.getRemoteIndexState.mock.calls.length,
 			statuses: search.getRemoteIndexState(false).repos.map(repo => repo.status),
 		});
-		return { authentication, ado, search, indexStateChanges, snapshot };
+		const repos = createInstance.mock.results.flatMap(result => result.type === 'return' && result.value instanceof AdoCodeSearchRepo ? [result.value] : []);
+		return { authentication, ado, search, indexStateChanges, snapshot, repos };
 	}
 
 	test.each(['issuer', 'account', 'session', 'sign-out'] as const)(`anyAdoSession %s changes invalidate repository authorization`, async change => {
@@ -595,6 +598,100 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 			statuses: [],
 			initialization: 'initializing',
 		});
+	});
+
+	test.each(['auth', 'index'] as const)('initialization waits for an %s refresh started before status publication', async trigger => {
+		const observations = [];
+		let reachedPublication = false;
+		for (let microtasks = 0; microtasks < 10; microtasks++) {
+			const previous = new DeferredPromise<StatusResult>();
+			const latest = new DeferredPromise<StatusResult>();
+			const { authentication, ado, search, indexStateChanges, snapshot } = await create({
+				getRemoteIndexState: () => previous.p,
+				initialize: false,
+			});
+			let published = false;
+			disposables.add(search.onDidChangeIndexState(() => { published = true; }));
+			await previous.complete(Result.error({ type: 'not-authorized' }));
+			for (let step = 0; step < microtasks; step++) {
+				await Promise.resolve();
+			}
+			if (published) {
+				reachedPublication = true;
+				break;
+			}
+			ado.getRemoteIndexState.mockImplementationOnce(() => latest.p);
+			if (trigger === 'auth') {
+				authentication.anyAdoSession = { ...authentication.anyAdoSession!, id: 'other-session' };
+				authentication.adoChanges.fire();
+			} else {
+				indexStateChanges.fire();
+			}
+			await timeout(0);
+			const beforeCompletion = { ...snapshot(), initialization: search.getRemoteIndexState(false).status };
+			await latest.complete(ready());
+			await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.Ready] }));
+			observations.push({ microtasks, beforeCompletion });
+		}
+		expect(observations.length).toBeGreaterThan(1);
+		expect({ reachedPublication, observations }).toEqual({
+			reachedPublication: true,
+			observations: observations.map(({ microtasks }) => ({
+				microtasks,
+				beforeCompletion: { requests: 2, statuses: [], initialization: 'initializing' },
+			})),
+		});
+	});
+
+	test('refresh completion follows successive updates without cached checks replacing them', async () => {
+		const { ado, indexStateChanges, repos: [repo] } = await create();
+		const first = new DeferredPromise<StatusResult>();
+		const second = new DeferredPromise<StatusResult>();
+		const latest = new DeferredPromise<StatusResult>();
+		ado.getRemoteIndexState.mockImplementationOnce(() => first.p).mockImplementationOnce(() => second.p).mockImplementationOnce(() => latest.p);
+		let publications = 0;
+		disposables.add(repo.onDidChangeStatus(() => {
+			if (publications++ < 2) {
+				indexStateChanges.fire();
+			}
+		}));
+		let completed = false;
+		const telemetryInfo = new TelemetryCorrelationId('test');
+		const completion = repo.refreshStatusFromEndpoint(true, telemetryInfo, CancellationToken.None).then(state => {
+			completed = true;
+			return state;
+		});
+		await first.complete(ready());
+		await timeout(0);
+		await second.complete(ready());
+		await timeout(0);
+		const cached = await repo.refreshStatusFromEndpoint(false, telemetryInfo, CancellationToken.None);
+		const beforeCompletion = { completed, requests: ado.getRemoteIndexState.mock.calls.length, cached };
+		await latest.complete(Result.ok({ status: RemoteCodeSearchIndexStatus.Ready, indexedCommit: 'latest-commit' }));
+		expect({ beforeCompletion, state: await completion, indexedCommit: repo.indexedCommit }).toEqual({
+			beforeCompletion: { completed: false, requests: 4, cached: undefined },
+			state: { status: CodeSearchRepoStatus.Ready, indexedCommit: 'latest-commit' },
+			indexedCommit: 'latest-commit',
+		});
+	});
+
+	test('waiting for a successor refresh remains cancellable without cancelling the successor', async () => {
+		const { ado, indexStateChanges, snapshot, repos: [repo] } = await create();
+		const first = new DeferredPromise<StatusResult>();
+		const latest = new DeferredPromise<StatusResult>();
+		ado.getRemoteIndexState.mockImplementationOnce(() => first.p).mockImplementationOnce(() => latest.p);
+		disposables.add(Event.once(repo.onDidChangeStatus)(() => indexStateChanges.fire()));
+		const cancellation = disposables.add(new CancellationTokenSource());
+		const completion = repo.refreshStatusFromEndpoint(true, new TelemetryCorrelationId('test'), cancellation.token);
+		await first.complete(ready());
+		await timeout(0);
+		cancellation.cancel();
+		try {
+			await expect(completion).rejects.toThrow(CancellationError);
+		} finally {
+			await latest.complete(ready());
+		}
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 3, statuses: [CodeSearchRepoStatus.Ready] }));
 	});
 
 	test('a new request invalidates completed results before status publication', async () => {

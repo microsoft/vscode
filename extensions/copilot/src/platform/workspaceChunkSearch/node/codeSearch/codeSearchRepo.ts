@@ -496,6 +496,7 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 	private _credentialsChanged = false;
 	private _latestStatusRequest: Promise<RemoteCodeSearchState> | undefined;
+	private _latestStatusRefresh: Promise<RemoteCodeSearchState | undefined> | undefined;
 	private readonly _statusRequestsByState = new WeakMap<RemoteCodeSearchState, Promise<RemoteCodeSearchState>>();
 
 	constructor(
@@ -522,6 +523,26 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 			this._credentialsChanged = true;
 			this.refreshStatusForCredentials(identityChanged);
 		}));
+	}
+
+	public override async refreshStatusFromEndpoint(force = false, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<RemoteCodeSearchState | undefined> {
+		const previousRequest = this._latestStatusRequest;
+		let refresh = super.refreshStatusFromEndpoint(force, telemetryInfo, token);
+		// Cached no-op refreshes must not replace an in-flight completion.
+		if (this._latestStatusRequest === previousRequest) {
+			return refresh;
+		}
+		this._latestStatusRefresh = refresh;
+		let state = await refresh;
+		// A rejected stale publication must wait for the successor's complete refresh.
+		while (this._latestStatusRefresh && this._latestStatusRefresh !== refresh) {
+			if (this._store.isDisposed || token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			refresh = this._latestStatusRefresh;
+			state = await raceCancellationError(refresh, token);
+		}
+		return state;
 	}
 
 	protected override fetchRemoteIndexState(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<RemoteCodeSearchState> {
