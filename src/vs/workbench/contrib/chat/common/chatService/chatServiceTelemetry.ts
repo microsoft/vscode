@@ -488,13 +488,22 @@ interface IChatSessionTelemetryContext {
 /** Preserves workbench chat IDs while resolving the owning Agent Host session, without its connection authority. */
 export function getChatSessionTelemetryIds(sessionResource: URI, connectionsService: Pick<IAgentHostConnectionsService, 'resolveSessionResourceIdentity'>): { chatSessionId: string; agentSessionId?: string } {
 	const chatSessionId = getChatSessionIdForTelemetry(sessionResource);
-	if (!isAgentHostSessionResource(sessionResource) || isUntitledChatSession(sessionResource)) {
+	if (!isAgentHostSessionResource(sessionResource)) {
 		return { chatSessionId };
 	}
 	const identity = connectionsService.resolveSessionResourceIdentity(sessionResource);
+	if (!identity) {
+		return { chatSessionId };
+	}
+	// Advertised backend resources are opaque; only a legacy fallback can be a provisional draft.
+	const isProvisionalFallback = !identity.backendSessionIsAdvertised
+		&& (isUntitledChatSession(sessionResource) || isUntitledChatSession(identity.backendSession));
+	if (isProvisionalFallback) {
+		return { chatSessionId };
+	}
 	return {
 		chatSessionId,
-		...(identity && !isUntitledChatSession(identity.backendSession) ? { agentSessionId: AgentSession.id(identity.backendSession.toString()) } : {}),
+		agentSessionId: AgentSession.id(identity.backendSession),
 	};
 }
 

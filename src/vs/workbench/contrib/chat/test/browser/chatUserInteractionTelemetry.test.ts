@@ -253,13 +253,40 @@ suite('ChatUserInteractionTelemetry', () => {
 		assert.deepStrictEqual(getChatSessionTelemetryIds(URI.parse('remote-unknown-host-copilot:/session'), instantiation.get(IAgentHostConnectionsService)), { chatSessionId: 'session' });
 	});
 
-	test('does not invent an Agent Host owner for local or provisional sessions', () => {
-		for (const resource of [LocalChatSessionUri.forSession('local-session'), URI.parse('agent-host-copilotcli:/untitled-123')]) {
-			assert.deepStrictEqual(getChatSessionTelemetryIds(resource, { resolveSessionResourceIdentity: () => assert.fail('Unexpected owner resolution') }), {
-				chatSessionId: getChatSessionTelemetryContext(resource).chatSessionId,
+	test('does not resolve an Agent Host owner for local sessions', () => {
+		const resource = LocalChatSessionUri.forSession('local-session');
+		assert.deepStrictEqual(getChatSessionTelemetryIds(resource, { resolveSessionResourceIdentity: () => assert.fail('Unexpected owner resolution') }), {
+			chatSessionId: 'local-session',
+		});
+	});
+
+	for (const scheme of ['agent-host-copilotcli', 'remote-private-host-copilotcli']) {
+		for (const [frontendPath, backendPath, advertised, owner] of [
+			['/untitled-host-session', '/untitled-host-session', true, 'untitled-host-session'],
+			['/frontend-session', '/untitled-backend-session', true, 'untitled-backend-session'],
+			['/untitled-frontend-session', '/backend-session', true, 'backend-session'],
+			['/untitled-draft', '/untitled-draft', false, undefined],
+			['/frontend-session', '/untitled-draft', false, undefined],
+			['/untitled-draft', '/backend-session', false, undefined],
+		] as const) {
+			test(`honors advertised identity before draft conventions (${scheme}, ${frontendPath}, ${backendPath}, advertised: ${advertised})`, () => {
+				const resource = URI.from({ scheme, path: frontendPath, fragment: 'peer-chat' });
+				assert.deepStrictEqual(getChatSessionTelemetryIds(resource, {
+					resolveSessionResourceIdentity: resolvedResource => {
+						assert.strictEqual(resolvedResource, resource);
+						return {
+							connectionAuthority: 'private-host',
+							backendSession: URI.from({ scheme: 'ahp-session', path: backendPath }),
+							...(advertised ? { backendSessionIsAdvertised: true } as const : {}),
+						};
+					},
+				}), {
+					chatSessionId: getChatSessionTelemetryContext(resource).chatSessionId,
+					...(owner !== undefined ? { agentSessionId: owner } : {}),
+				});
 			});
 		}
-	});
+	}
 
 	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'queued', 'navigated', 'hidden', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
 		test(`reports ${result} with only a termination duration`, () => {
