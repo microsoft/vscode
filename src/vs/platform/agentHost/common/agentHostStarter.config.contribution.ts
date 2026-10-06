@@ -58,6 +58,7 @@ import {
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -191,6 +192,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
+		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
