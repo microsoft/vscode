@@ -549,6 +549,10 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
 	}
 
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		return [...this._sessionsV2Exclusions.values()];
+	}
+
 	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
 		this._beforeWrite();
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
@@ -570,6 +574,15 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		this._beforeWrite();
+		if (registerOptions.discoveryBackingSession !== undefined
+			&& (this._tombstones.has(registerOptions.discoveryBackingSession)
+				|| registerOptions.discoveryBackingSession !== session && (this._sessionV2Registrations.has(registerOptions.discoveryBackingSession) || this._sessions.has(registerOptions.discoveryBackingSession))
+				|| [...this._sessionsV2Exclusions.values()].some(exclusion =>
+					(exclusion.session === session && exclusion.provider !== sessionOptions.provider
+						|| registerOptions.discoveryBackingSession !== session && exclusion.session === registerOptions.discoveryBackingSession)
+					&& (exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal')))) {
+			return false;
+		}
 		if (registerOptions.checkTombstone && this._tombstones.has(session)) {
 			return false;
 		}
@@ -659,6 +672,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const existing = this._sessionV2Registrations.get(session);
+		if (existing && existing.provider !== provider && source === 'discovery') {
+			return false;
+		}
 		this._sessionV2Registrations.set(session, existing ?? { session, provider, startTime, modifiedTime, external: source === 'discovery', source });
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 		if (!registerOptions.checkTombstone) {
@@ -967,6 +983,10 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		return [...this._sessionsV2Exclusions.values()].filter(exclusion => exclusion.provider === provider);
 	}
 
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		return [...this._sessionsV2Exclusions.values()];
+	}
+
 	async clearSessionsV2Exclusion(provider: string, session: string): Promise<void> {
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 	}
@@ -984,6 +1004,15 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	}
 
 	async registerRuntimeSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
+		if (registerOptions.discoveryBackingSession !== undefined
+			&& (this._tombstones.has(registerOptions.discoveryBackingSession)
+				|| registerOptions.discoveryBackingSession !== session && (this._sessionV2Registrations.has(registerOptions.discoveryBackingSession) || this._sessions.has(registerOptions.discoveryBackingSession))
+				|| [...this._sessionsV2Exclusions.values()].some(exclusion =>
+					(exclusion.session === session && exclusion.provider !== sessionOptions.provider
+						|| registerOptions.discoveryBackingSession !== session && exclusion.session === registerOptions.discoveryBackingSession)
+					&& (exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal')))) {
+			return false;
+		}
 		const registered = await this.registerSessionV2(session, sessionOptions, registerOptions);
 		if (registered) {
 			this._sessions.set(session, this._sessionV2Registrations.get(session)!);
@@ -1045,6 +1074,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 		}
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
 		const existing = this._sessionV2Registrations.get(session);
+		if (existing && existing.provider !== provider && source === 'discovery') {
+			return false;
+		}
 		this._sessionV2Registrations.set(session, existing ?? { session, provider, startTime, modifiedTime, external: source === 'discovery', source });
 		this._sessionsV2Exclusions.delete(`${provider}:${session}`);
 		if (!registerOptions.checkTombstone) {
@@ -8715,7 +8747,8 @@ suite('AgentService (node dispatcher)', () => {
 			const notifications: INotification[] = [];
 			disposables.add(svc.onDidNotification(notification => notifications.push(notification)));
 			const now = Date.now();
-			const session = agent.addSession('external-live', now, undefined, 'Initial title');
+			const backing = agent.addSession('external-live', now, undefined, 'Initial title');
+			const session = AgentSession.uri('ahp-session', AgentSession.id(backing));
 			const publish = async () => {
 				agent.fireDiscoveredChats((await agent.listExternalChats()).map(chat => ({ ...chat, external: true })));
 				await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
@@ -8724,13 +8757,13 @@ suite('AgentService (node dispatcher)', () => {
 			};
 			await publish();
 			const initial = getStateManager(svc).getSurfacedSessionSummary(session.toString());
-			agent.catalog.set('external-live', { session, modifiedTime: now + 60_000, summary: 'Initial title' });
+			agent.catalog.set('external-live', { session: backing, modifiedTime: now + 60_000, summary: 'Initial title' });
 			await publish();
 			const recent = getStateManager(svc).getSurfacedSessionSummary(session.toString());
-			agent.catalog.set('external-live', { session, modifiedTime: now + 60_000, summary: 'Renamed', workingDirectories: [URI.file('/new-project')] });
+			agent.catalog.set('external-live', { session: backing, modifiedTime: now + 60_000, summary: 'Renamed', workingDirectories: [URI.file('/new-project')] });
 			await publish();
 			const renamed = getStateManager(svc).getSurfacedSessionSummary(session.toString());
-			agent.catalog.set('external-live', { session, modifiedTime: now + 60_000, summary: 'Renamed', workingDirectories: [URI.file('/moved-project')] });
+			agent.catalog.set('external-live', { session: backing, modifiedTime: now + 60_000, summary: 'Renamed', workingDirectories: [URI.file('/moved-project')] });
 			await publish();
 			const metadata = getStateManager(svc).getSurfacedSessionSummary(session.toString());
 			const additions = notifications.filter(notification => notification.type === NotificationType.SessionAdded);
@@ -8760,7 +8793,8 @@ suite('AgentService (node dispatcher)', () => {
 				svc.markStartupComplete();
 				await svc.whenDeferredWorkSettled();
 				const now = Date.UTC(2026, 0, 1);
-				const session = agent.addSession(`restored-external-${customTitle ?? 'auto'}`, now, undefined, 'Before');
+				const backing = agent.addSession(`restored-external-${customTitle ?? 'auto'}`, now, undefined, 'Before');
+				const session = AgentSession.uri('ahp-session', AgentSession.id(backing));
 				const publish = async () => {
 					agent.fireDiscoveredChats((await agent.listExternalChats()).map(chat => ({ ...chat, external: true })));
 					await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
@@ -8774,7 +8808,7 @@ suite('AgentService (node dispatcher)', () => {
 				const stateManager = getStateManager(svc);
 				await svc.restoreSession(session);
 				const history = stateManager.getDefaultChatState(session.toString())?.turns;
-				agent.catalog.set(AgentSession.id(session), { session, modifiedTime: now + 60_000, summary: 'After' });
+				agent.catalog.set(AgentSession.id(session), { session: backing, modifiedTime: now + 60_000, summary: 'After' });
 				await publish();
 				const summary = stateManager.getSessionSummary(session.toString());
 				results.push({ title: summary?.title, modifiedAt: summary?.modifiedAt, historyPreserved: history === stateManager.getDefaultChatState(session.toString())?.turns });
@@ -11390,7 +11424,7 @@ suite('AgentService (node dispatcher)', () => {
 			await register(agent, [discoveredChat(registered), discoveredChat(deleted)]);
 			await (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry.tombstone(deleted);
 
-			const known = await (svc as unknown as { _filterKnownSessions(sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions([registered, deleted, unknown]);
+			const known = await (svc as unknown as { _filterKnownSessions(provider: string, sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions(agent.id, [registered, deleted, unknown]);
 			const reRegistered = await register(agent, [discoveredChat(deleted)]);
 
 			assert.deepStrictEqual({
@@ -11401,6 +11435,109 @@ suite('AgentService (node dispatcher)', () => {
 				known: [registered.toString()],
 				reRegistered: false,
 				sessions: [registered.toString()],
+			});
+		});
+
+		test('native discovery preserves registered identities and defaults new backings to standard URIs', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('claude'));
+			registerTestAgentProvider(svc, agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const legacy = AgentSession.uri('claude', 'legacy-discovery');
+			const standard = AgentSession.uri('ahp-session', 'standard-discovery');
+			const standardBacking = AgentSession.uri('claude', AgentSession.id(standard));
+			const unknownBacking = AgentSession.uri('claude', 'new-discovery');
+			await registry.register(legacy, { provider: agent.id, startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await registry.register(standard, { provider: agent.id, startTime: 2, source: 'explicit' }, { checkTombstone: false });
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+
+			const changed = await register(agent, [
+				discoveredChat(legacy),
+				discoveredChat(standardBacking),
+				discoveredChat(unknownBacking),
+			]);
+			const known = await (svc as unknown as { _filterKnownSessions(provider: string, sessions: readonly URI[]): Promise<ReadonlySet<string>> })._filterKnownSessions(agent.id, [legacy, standardBacking, unknownBacking]);
+
+			assert.deepStrictEqual({
+				changed,
+				known: [...known],
+				registered: (await registry.list()).map(entry => entry.session.toString()).sort(),
+			}, {
+				changed: true,
+				known: [legacy.toString(), standardBacking.toString(), unknownBacking.toString()],
+				registered: [legacy.toString(), standard.toString(), 'ahp-session:/new-discovery'].sort(),
+			});
+		});
+
+		test('native discovery respects legacy tombstones when defaulting to standard URIs', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('claude'));
+			registerTestAgentProvider(svc, agent);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const legacy = AgentSession.uri(agent.id, 'deleted-legacy-discovery');
+			await registry.tombstone(legacy);
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+
+			const changed = await register(agent, [discoveredChat(legacy)]);
+
+			assert.deepStrictEqual({
+				changed,
+				registered: await registry.list(),
+			}, {
+				changed: false,
+				registered: [],
+			});
+		});
+
+		test('explicit legacy adoption and non-native discovery keep provider-specific identities', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const copilot = disposables.add(new MockAgent('copilotcli'));
+			const custom = disposables.add(new MockAgent('custom-provider'));
+			registerTestAgentProvider(svc, copilot);
+			registerTestAgentProvider(svc, custom);
+			const registry = (svc as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const legacy = AgentSession.uri(copilot.id, 'adoptable-legacy');
+			const customSession = AgentSession.uri(custom.id, 'custom-discovery');
+			const register = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats.bind(svc);
+
+			await register(copilot, [{ ...discoveredChat(legacy, false), _meta: withSessionEhcliAdoptable(undefined) }]);
+			await register(custom, [discoveredChat(customSession)]);
+
+			assert.deepStrictEqual(
+				(await registry.list()).map(entry => entry.session.toString()).sort(),
+				[legacy.toString(), customSession.toString()].sort(),
+			);
+		});
+
+		test('discovery registers a delivered batch after two migration failures', async () => {
+			class FailTwiceCatalogAgent extends MockAgent {
+				catalogCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					this.catalogCalls++;
+					if (this.catalogCalls <= 2) {
+						throw new Error('catalog temporarily unavailable');
+					}
+					return this.listExternalChats();
+				}
+			}
+
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new FailTwiceCatalogAgent('claude'));
+			const backing = AgentSession.uri('claude', 'twice-failed-migration');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(backing), backing);
+			registerTestAgentProvider(svc, agent);
+
+			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				catalogCalls: agent.catalogCalls,
+				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+			}, {
+				catalogCalls: 2,
+				registered: ['ahp-session:/twice-failed-migration'],
 			});
 		});
 
@@ -14058,16 +14195,17 @@ suite('AgentService (node dispatcher)', () => {
 
 			const late = disposables.add(new MockAgent('claude'));
 			const legacy = AgentSession.uri('claude', 'legacy-late');
+			const standard = AgentSession.uri('ahp-session', AgentSession.id(legacy));
 			(late as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			registerTestAgentProvider(svc, late);
 
 			// A subsequent listSessions call awaits the late provider's own
 			// discovery pass alongside the already-registered provider.
 			const listed = new Set((await svc.listSessions()).map(s => s.session.toString()));
-			assert.deepStrictEqual(listed, new Set([legacy.toString()]));
+			assert.deepStrictEqual(listed, new Set([standard.toString()]));
 
 			const registered = new Set((await svc.getRegisteredSessions()).map(s => s.toString()));
-			assert.deepStrictEqual(registered, new Set([legacy.toString()]));
+			assert.deepStrictEqual(registered, new Set([standard.toString()]));
 		});
 
 		test('waits for initial provider migration before refreshing Automations', async () => {
@@ -14349,6 +14487,71 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('legacy import preserves an excluded standard identity', async () => {
+			const database = new TransientRegistryWriteDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database,
+			));
+			const providerSession = AgentSession.uri('claude', 'excluded-standard');
+			const standard = AgentSession.uri('ahp-session', AgentSession.id(providerSession));
+			await database.registerRuntimeSession(standard.toString(), {
+				provider: 'claude',
+				startTime: 1,
+				modifiedTime: 1,
+				source: 'discovery',
+			}, { checkTombstone: true });
+			await database.excludeSessionV2(
+				{ provider: 'claude', session: standard.toString(), reason: 'providerAbsent', fingerprint: 'test' },
+				{
+					identity: { session: standard.toString(), provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+					catalog: undefined,
+				},
+			);
+			const agent = disposables.add(new class extends MockAgent {
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					return [{ chat: URI.parse(buildDefaultChatUri(providerSession)), startTime: 1, modifiedTime: 2 }];
+				}
+			}('claude'));
+
+			const sessions = await (svc as unknown as { _enumerateLegacyProviderSessions(provider: IAgent): Promise<readonly IAgentSessionMetadata[]> })._enumerateLegacyProviderSessions(agent);
+
+			assert.deepStrictEqual(sessions.map(session => session.session.toString()), [standard.toString()]);
+		});
+
+		test('discovery awaits the replacement for a failed initial migration', async () => {
+			class FailOnceCatalogAgent extends MockAgent {
+				catalogCalls = 0;
+
+				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					this.catalogCalls++;
+					if (this.catalogCalls === 1) {
+						throw new Error('catalog temporarily unavailable');
+					}
+					return this.listExternalChats();
+				}
+			}
+
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new FailOnceCatalogAgent('claude'));
+			const legacy = AgentSession.uri('claude', 'failed-initial-migration');
+			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
+			registerTestAgentProvider(svc, agent);
+
+			for (let i = 0; i < 50 && (await svc.getRegisteredSessions()).length === 0; i++) {
+				await timeout(0);
+			}
+
+			assert.deepStrictEqual({
+				catalogCalls: agent.catalogCalls,
+				registered: (await svc.getRegisteredSessions()).map(session => session.toString()),
+			}, {
+				catalogCalls: 2,
+				registered: [legacy.toString()],
+			});
+		});
+
 		test('a failed deferred migration remains retryable on the next list refresh', async () => {
 			class DeferredCatalogAgent extends MockAgent {
 				ready = false;
@@ -14547,6 +14750,7 @@ suite('AgentService (node dispatcher)', () => {
 			const claude = disposables.add(new CatalogAgent('claude'));
 			const copilotSession = AgentSession.uri('copilot', 'complete-provider');
 			const claudeSession = AgentSession.uri('claude', 'unavailable-provider');
+			const canonicalClaudeSession = AgentSession.uri('ahp-session', AgentSession.id(claudeSession));
 			(copilot as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(copilotSession), copilotSession);
 			(claude as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(claudeSession), claudeSession);
 			claude.available = false;
@@ -14575,8 +14779,8 @@ suite('AgentService (node dispatcher)', () => {
 				callsAfterFailure: { copilot: 1, claude: 2 },
 				finalCalls: { copilot: 1, claude: 3 },
 				backfilled: { copilot: true, claude: true },
-				first: [claudeSession.toString(), copilotSession.toString()].sort(),
-				second: [claudeSession.toString(), copilotSession.toString()].sort(),
+				first: [canonicalClaudeSession.toString(), copilotSession.toString()].sort(),
+				second: [canonicalClaudeSession.toString(), copilotSession.toString()].sort(),
 			});
 		});
 
