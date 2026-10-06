@@ -679,10 +679,13 @@ function withConfigureToolsLink(hostText: string): MarkdownString {
 
 /**
  * HTML-encodes and then markdown-escapes host text, so autolinks, HTML and
- * markdown links in it render as plain text.
+ * markdown links in it render as plain text. It also escapes the characters
+ * that would turn bare URLs, `www.` addresses and email addresses into GFM
+ * autolinks.
  */
 function escapeHostText(hostText: string): string {
-	return escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+	return escapeMarkdownSyntaxTokens(hostText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'))
+		.replace(/:(?=\/\/)|(?<=www)\.|@/gi, '\\$&');
 }
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
