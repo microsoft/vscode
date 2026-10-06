@@ -227,7 +227,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<Dto<AuthenticationSession> | undefined>;
 	$getAccounts(providerId: string): Promise<ReadonlyArray<Dto<AuthenticationSessionAccount>>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
-	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
+	$waitForUriHandler(expectedUri: UriComponents, token?: CancellationToken): Promise<UriComponents>;
 	$showContinueNotification(message: string): Promise<boolean>;
 	$showDeviceCodeModal(userCode: string, verificationUri: string): Promise<boolean>;
 	$promptForClientRegistration(authorizationServerUrl: string): Promise<{ clientId: string; clientSecret?: string } | undefined>;

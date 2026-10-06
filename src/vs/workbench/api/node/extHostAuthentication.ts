@@ -21,6 +21,7 @@ import { raceCancellationError } from '../../../base/common/async.js';
 import { IExtHostProgress } from '../common/extHostProgress.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { URI } from '../../../base/common/uri.js';
 import { LoopbackAuthServer } from './loopbackServer.js';
 
@@ -129,8 +130,11 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		authorizationUrl.searchParams.set('state', server.state);
 
 		const promise = server.waitForOAuthResponse();
-		// Set up a Uri Handler but it's just to redirect not to handle the code
-		void this._proxy.$waitForUriHandler(appUri);
+		// Set up a URI handler as a fallback redirect path, but the loopback server is the primary
+		// channel for the code. Cancel it once this flow settles so the main thread stops waiting
+		// (and disposes the handler) instead of letting it reject after the 5 minute timeout.
+		const uriHandlerCts = new CancellationTokenSource();
+		this._proxy.$waitForUriHandler(appUri, uriHandlerCts.token).catch(() => { /* fallback path, loopback server handles the response */ });
 
 		try {
 			// Open the browser for user authorization
@@ -163,6 +167,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			const tokenResponse = await this.exchangeCodeForToken(code, codeVerifier, server.redirectUri);
 			return tokenResponse;
 		} finally {
+			uriHandlerCts.dispose(true);
 			// Clean up the server
 			setTimeout(() => {
 				void server.stop();
