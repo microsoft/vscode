@@ -278,19 +278,38 @@ function foldSession(session: string, entry: ISessionReplayState): IReplayedSess
 		// are intentionally skipped.
 	}
 
-	// With no announced default, the main chat is the one recorded chat that the catalogue does
-	// not describe as a peer. A peer chat — a fork, a side chat, or a tool-spawned subagent — is
-	// announced with `chatAdded` and carries an origin naming the chat it came from, so it can be
-	// set aside; the main chat itself is never announced (it travels in the subscribe snapshot
-	// the mirror does not see). A removed chat, or a user chat advertised or named beside the
-	// candidate, leaves the choice ambiguous.
-	const isPeer = (chat: string) => state.chats.some(summary =>
-		summary.resource === chat && !!summary.origin && summary.origin.kind !== ChatOriginKind.User);
+	const catalogue = new Map(state.chats.map(chat => [chat.resource, chat]));
+	const isPeer = (chat: string) => {
+		const origin = catalogue.get(chat)?.origin;
+		return !!origin && origin.kind !== ChatOriginKind.User;
+	};
 	const candidates = [...chats.keys()].filter(chat => !removed.has(chat) && !isPeer(chat));
 	const [candidate] = candidates;
+	const reachesCandidateCache = new Map<string, boolean>();
+	const reachesCandidate = (chat: string): boolean => {
+		const visited = new Set<string>();
+		let current = chat;
+		while (current !== candidate && !reachesCandidateCache.has(current)) {
+			if (visited.has(current) || removed.has(current)) {
+				break;
+			}
+			visited.add(current);
+			const origin = catalogue.get(current)?.origin;
+			if (origin?.kind !== ChatOriginKind.Tool && origin?.kind !== ChatOriginKind.Fork && origin?.kind !== ChatOriginKind.SideChat) {
+				break;
+			}
+			current = origin.chat;
+		}
+		const result = current === candidate || reachesCandidateCache.get(current) === true;
+		for (const resource of visited) {
+			reachesCandidateCache.set(resource, result);
+		}
+		return result;
+	};
+	// Only infer a default when every retained peer's ancestry leads to the candidate.
 	const unambiguousChat = candidates.length === 1
-		&& state.chats.every(chat => chat.resource === candidate || isPeer(chat.resource))
-		&& [...mentioned].every(chat => chat === candidate || isPeer(chat))
+		&& state.chats.every(chat => reachesCandidate(chat.resource))
+		&& [...mentioned].every(reachesCandidate)
 		? candidate : undefined;
 	const defaultChat = state.defaultChat || unambiguousChat || `${session}/chat`;
 	if (!chats.has(defaultChat)) {
