@@ -1270,6 +1270,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		// Set up streaming first so event listeners are registered before we
 		// await the first event — AsyncIterableObject runs its executor eagerly.
 		const chatCompletions = new AsyncIterableObject<ChatCompletion>(async emitter => {
+			let completed = false;
+			let capiError: CAPIWebSocketErrorEvent | undefined;
 			try {
 				await new Promise<void>((resolve, reject) => {
 					handle.onEvent(event => {
@@ -1281,6 +1283,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						}
 
 						if (event.type === 'response.completed') {
+							completed = true;
 							const snapshots = (event as any).copilot_quota_snapshots;
 							if (snapshots && typeof snapshots === 'object') {
 								this._chatQuotaService.processQuotaSnapshots(snapshots);
@@ -1289,6 +1292,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					});
 
 					handle.onCAPIError(event => {
+						capiError = event;
 						// Mid-stream CAPI error — throw so the caller can handle it
 						const error = new Error(`${event.error.message} (${event.error.code})`);
 						(error as any).gitHubRequestId = modelRequestId.gitHubRequestId;
@@ -1324,11 +1328,19 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					handle.done.then(resolve, reject);
 				});
 
+				if (completed) {
+					quotaRequest.onSuccess();
+				}
 				const totalTimeMs = Date.now() - requestStart;
 				telemetryData.measurements.totalTimeMs = totalTimeMs;
 				syncGitHubCopilotRequestTe();
 				this._logService.debug(`request.response: [websocket], took ${totalTimeMs} ms`);
 				this._telemetryService.sendGHTelemetryEvent('request.response', telemetryData.properties, telemetryData.measurements);
+			} catch (error) {
+				if (capiError && isQuotaExceededErrorCode(capiError.error.code)) {
+					await quotaRequest.onQuotaExceeded(this._authenticationService.copilotToken?.isChatQuotaExceeded ?? false);
+				}
+				throw error;
 			} finally {
 				let messagesToLog = request.messages;
 				if ((!messagesToLog || messagesToLog.length === 0) && (request as OpenAI.Responses.ResponseCreateParams).input) {
@@ -1361,8 +1373,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			this._telemetryService.sendGHTelemetryEvent('request.error', telemetryData.properties, telemetryData.measurements);
 			return { result: await this._handleWebSocketCAPIError(firstEvent, modelRequestId, quotaRequest) };
 		}
-
-		quotaRequest.onSuccess();
 
 		return {
 			result: {
@@ -2251,7 +2261,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				data: { capiError },
 			};
 		}
-		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
+		if (isQuotaExceededErrorCode(code)) {
 			await quotaRequest.onQuotaExceeded(this._authenticationService.copilotToken?.isChatQuotaExceeded ?? false);
 			return {
 				type: FetchResponseKind.Failed,
@@ -2319,7 +2329,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		if (codePrefix === 'rate_limited' || codePrefix === 'user_model_rate_limited' || codePrefix === 'user_global_rate_limited' || codePrefix === 'integration_rate_limited' || codePrefix === 'model_overloaded' || codePrefix === 'agent_mode_limit_exceeded') {
 			return { type: ChatFetchResponseType.RateLimited, reason: message, requestId, serverRequestId, retryAfter: undefined, rateLimitKey: '', isAuto, capiError };
 		}
-		if (codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached') {
+		if (isQuotaExceededErrorCode(code)) {
 			return { type: ChatFetchResponseType.QuotaExceeded, reason: message, requestId, serverRequestId, capiError, retryAfter: undefined };
 		}
 		if (code === 'content_filter') {
@@ -2343,6 +2353,11 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		}
 		return errorDetail.replaceAll(/(?<=logged in as )(?!<login>)[^\s]+/ig, '!<login>!'); // marking fallback with !
 	}
+}
+
+function isQuotaExceededErrorCode(code: string): boolean {
+	const codePrefix = code.split(':')[0];
+	return codePrefix === 'quota_exceeded' || codePrefix === 'free_quota_exceeded' || codePrefix === 'overage_limit_reached' || codePrefix === 'billing_not_configured' || codePrefix === 'additional_spend_limit_reached';
 }
 
 /**

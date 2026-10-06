@@ -109,9 +109,10 @@ const token = await authService.getCopilotToken();
 ```
 
 For quota rejections, create a `QuotaTokenRefreshRequest` before sending, keyed by
-endpoint/model (shared across HTTP and WebSocket). Call `onQuotaExceeded` with the
-known-exhausted flag and `onSuccess` for accepted requests. It refreshes once per
-account/scope quota episode, coalesces attempts, and ignores stale responses.
+endpoint/model (shared across HTTP and WebSocket). Report initial and mid-stream
+quota errors via `onQuotaExceeded(knownQuotaExceeded)`; call `onSuccess` only after
+confirmed success (including WebSocket completion). Refreshes are coalesced and
+latched per account/scope; stale responses are ignored.
 Success rearms only its scope; a five-minute backstop bounds failed refreshes
 and recovery retries. Neither token rotation nor elapsed time clears the latch.
 
