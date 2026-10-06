@@ -18,9 +18,12 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../../platform/agentHost/common/agentHostSchema.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { RootConfigState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -37,8 +40,9 @@ import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionChangesStatsCache } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, SESSION_CHANGES_CHANGESET_ID, SessionArtifactKind, SessionStatus, type IChat, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionArtifact, type ISessionCanvas, type ISessionChangeset, type ISessionFolder, type ISessionGitRepository, type ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../../canvases/common/sessionCanvas.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../../../changes/common/sessionChangesService.js';
 import { getGitHubHoverDate, getGitHubHoverDescription, getGitHubHoverTitle, getGitHubHoverTitleParts } from '../../../github/browser/githubHover.js';
 import { createIssueHoverElement } from '../../../github/browser/issueHover.js';
@@ -1109,6 +1113,112 @@ suite('SessionChatInputToolbar', () => {
 			opened: [subagents[0], ...subagents].map(subagent => [
 				session, subagent.resource, { referenceChatResource: chat.resource },
 			]),
+		});
+	});
+
+	test('shows a canvas title or count and reveals the selected canvas', async () => {
+		const { instantiationService } = createServices();
+		const configurationService = instantiationService.get(IConfigurationService);
+		assert.ok(configurationService instanceof TestConfigurationService);
+		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
+		const commandCalls: { readonly id: string; readonly reference: unknown }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (id, reference) => {
+				if (id === REVEAL_SESSION_CANVAS_COMMAND_ID) {
+					commandCalls.push({ id, reference });
+				}
+				return undefined;
+			},
+		}));
+		let entries: { label: string | undefined; select(): void }[] = [];
+		let hideDropdown: (() => void) | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_id, _preview, items, delegate) => {
+				entries = items.map(item => ({
+					label: item.label,
+					select: () => {
+						if (item.item) {
+							delegate.onSelect(item.item);
+						}
+					},
+				}));
+				hideDropdown = () => delegate.onHide?.();
+			},
+			hide: () => hideDropdown?.(),
+		});
+		const preview: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/preview'),
+			instanceId: 'preview',
+			title: 'Preview',
+			source: URI.parse('https://example.test/preview'),
+		};
+		const dashboard: ISessionCanvas = {
+			resource: URI.parse('agent-host-canvas:/dashboard'),
+			instanceId: 'dashboard',
+			title: 'Dashboard',
+			source: URI.parse('https://example.test/dashboard'),
+		};
+		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', [preview]);
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('agent-host-chat:/session/main'),
+			canvases,
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const session = upcastPartial<IActiveSession>({
+			providerId: 'local-agent-host',
+			sessionId: 'local-agent-host:session',
+			resource: URI.parse('agent-host-session:/session'),
+			capabilities: constObservable({ supportsCanvases: true, supportsMultipleChats: false }),
+			chats: constObservable([chat]),
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		document.body.appendChild(toolbar.element);
+		store.add(toDisposable(() => toolbar.element.remove()));
+		toolbar.setSession(session, chat);
+		const presentation = () => {
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+			return {
+				label: pill?.querySelector('.chat-pill-label')?.textContent,
+				ariaLabel: pill?.getAttribute('aria-label'),
+			};
+		};
+		const single = presentation();
+		toolbar.getChatPetPlatformElements()[0]?.click();
+		canvases.set([preview, dashboard], undefined);
+		const multiple = presentation();
+		toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button')?.click();
+		const dashboardEntry = entries.find(entry => entry.label === dashboard.title);
+		assert.ok(dashboardEntry);
+		dashboardEntry.select();
+
+		assert.deepStrictEqual({ single, multiple, commandCalls }, {
+			single: { label: 'Preview', ariaLabel: 'Open canvas Preview' },
+			multiple: { label: '2 Canvases', ariaLabel: 'Show 2 canvases' },
+			commandCalls: [
+				{
+					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					reference: {
+						providerId: session.providerId,
+						session: session.resource,
+						chat: chat.resource,
+						canvas: preview.resource,
+					},
+				},
+				{
+					id: REVEAL_SESSION_CANVAS_COMMAND_ID,
+					reference: {
+						providerId: session.providerId,
+						session: session.resource,
+						chat: chat.resource,
+						canvas: dashboard.resource,
+					},
+				},
+			],
 		});
 	});
 
