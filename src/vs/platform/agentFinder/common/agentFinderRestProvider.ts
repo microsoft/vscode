@@ -39,6 +39,16 @@ const mcpIconRequestTimeout = 5_000;
 
 class AgentFinderError extends Error { }
 
+function getLatestMcpServerUrl(name: string): string {
+	return `${agentFinderMcpRegistryManifest.url}/${encodeURIComponent(name)}/versions/latest`;
+}
+
+function shouldResolveMcpMetadata(item: ICustomizationMarketplaceEntry): boolean {
+	const installation = item.installation;
+	return installation?.kind === 'mcp' && !!item.externalUrl &&
+		(item.externalUrl === getLatestMcpServerUrl(installation.name) || !item.icon || !item.publisher);
+}
+
 export class AgentFinderRestProvider implements ICustomizationMarketplaceProvider {
 	readonly id = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
 
@@ -122,7 +132,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 	}
 
 	private async resolveMcpIcons(page: ICustomizationMarketplaceSourcePage, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
-		if (!page.items.some(item => (!item.icon || !item.publisher) && item.installation?.kind === 'mcp' && item.externalUrl)) {
+		if (!page.items.some(shouldResolveMcpMetadata)) {
 			return page;
 		}
 
@@ -137,7 +147,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 
 		try {
 			const items = await Promise.all(page.items.map(item =>
-				(!item.icon || !item.publisher) && item.installation?.kind === 'mcp' && item.externalUrl
+				shouldResolveMcpMetadata(item)
 					? limiter.queue(() => this.resolveMcpMetadata(item, token, cancellation.token))
 					: item
 			));
@@ -170,8 +180,22 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 			const repository = githubRepository(parseHttpUri(server?.repositoryUrl));
 			const repositoryOwner = repository?.path.split('/')[1];
 			const publisherUrl = parseHttpUri(server?.publisherUrl) ?? (repositoryOwner ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repositoryOwner}` }) : undefined);
-			return icon || publisher || publisherUrl || repository
-				? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}), ...(publisherUrl ? { publisherUrl } : {}), ...(repository ? { repository } : {}) }
+			const resolvedVersion = item.externalUrl === getLatestMcpServerUrl(installation.name) &&
+				server?.name === installation.name && isValidAgentFinderMcpIdentity(server.name, server.version)
+				? server.version
+				: undefined;
+			return icon || publisher || publisherUrl || repository || resolvedVersion
+				? {
+					...item,
+					...(icon ? { icon } : {}),
+					...(publisher ? { publisher } : {}),
+					...(publisherUrl ? { publisherUrl } : {}),
+					...(repository ? { repository } : {}),
+					...(resolvedVersion ? {
+						version: resolvedVersion,
+						installation: { ...installation, version: resolvedVersion },
+					} : {}),
+				}
 				: item;
 		} catch (error) {
 			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {
@@ -347,7 +371,7 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		const name = metadata.serverName;
 		const version = metadata.version;
 		if (typeof name === 'string' && typeof version === 'string' && isValidAgentFinderMcpIdentity(name, version) &&
-			(externalUrl === `${agentFinderMcpRegistryManifest.url}/${encodeURIComponent(name)}/versions/latest` ||
+			(externalUrl === getLatestMcpServerUrl(name) ||
 				externalUrl === getAgentFinderMcpServerUrl(name, version))) {
 			return { kind: 'mcp', name, version };
 		}

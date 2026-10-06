@@ -221,6 +221,28 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
+	test('refreshes MCP installation identity from a dynamic latest registry result', async () => {
+		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
+			getMcpServer: async () => upcastPartial<IGalleryMcpServer>({
+				name: 'io.github.pgEdge/postgres-mcp',
+				version: '1.1.0',
+				publisher: 'pgEdge',
+				configuration: {},
+			}),
+		});
+		const staleItem = { ...mcpServer, metadata: { ...mcpServer.metadata, sourceSet: 'pgEdge/postgres-mcp' } };
+		const { service } = createService({ results: [staleItem], total: 1, offset: 0, pageSize: 30 }, 200, mcpGalleryService);
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			version: page.items[0].version,
+			installation: page.items[0].installation,
+		}, {
+			version: '1.1.0',
+			installation: { kind: 'mcp', name: 'io.github.pgEdge/postgres-mcp', version: '1.1.0' },
+		});
+	});
+
 	test('keeps the MCP result and logs when registry metadata resolution fails', async () => {
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async () => { throw new Error('offline'); },
