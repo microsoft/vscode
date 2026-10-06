@@ -20026,6 +20026,13 @@ suite('AgentService (node dispatcher)', () => {
 				message: { text: 'Start it for me', origin: { kind: MessageKind.User } },
 			}, 'client-test', 1);
 			const [envelope, send] = await Promise.all([envelopePromise, sendPromise]);
+			assert.deepStrictEqual({
+				childStateAfterParentTurn: getStateManager(service).getChatState(childChatUri),
+				childReadsAfterParentTurn: agent.messageReads.filter(resource => resource === childChatUri).length,
+			}, {
+				childStateAfterParentTurn: undefined,
+				childReadsAfterParentTurn: 1,
+			});
 			agent.childTranscriptAvailable = true;
 			await service.subscribe(URI.parse(childChatUri), 'child-reader-second');
 			const childState = getStateManager(service).getChatState(childChatUri);
@@ -20041,7 +20048,7 @@ suite('AgentService (node dispatcher)', () => {
 				parentActiveTurn: 'turn-after-missing-subagent',
 				sentPrompt: 'Start it for me',
 				childTurnCount: 1,
-				childMessageReads: 3,
+				childMessageReads: 2,
 				legacyChildSession: undefined,
 			});
 		});
