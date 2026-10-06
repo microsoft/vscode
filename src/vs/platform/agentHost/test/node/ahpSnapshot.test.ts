@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import type { AhpNotification } from '../../common/state/sessionProtocol.js';
 import { ResponsePartKind } from '../../common/state/sessionState.js';
-import { AhpSnapshotRecorder } from './e2e/harness/ahpSnapshot.js';
+import { AhpSnapshotRecorder, waitForChatUnreadAfterTurn } from './e2e/harness/ahpSnapshot.js';
 
 suite('AhpSnapshotRecorder', () => {
 
@@ -28,6 +30,7 @@ suite('AhpSnapshotRecorder', () => {
 				},
 			},
 		});
+
 		recorder.record('s2c', {
 			method: 'action',
 			params: {
@@ -52,6 +55,40 @@ suite('AhpSnapshotRecorder', () => {
 		}, {
 			normalizedToolName: true,
 			includesSuccess: false,
+		});
+	});
+
+	test('waits for an unread action on the completed chat after the turn outcome', async () => {
+		const unread = new DeferredPromise<AhpNotification>();
+		const chat = 'ahp-chat://session/chat';
+		const matching: boolean[] = [];
+		const client = {
+			waitForNotification: (predicate: (notification: AhpNotification) => boolean) => {
+				for (const [channel, serverSeq, isRead] of [
+					[chat, 9, false],
+					['ahp-chat://session/other', 11, false],
+					[chat, 12, true],
+					[chat, 13, false],
+				] as const) {
+					matching.push(predicate({
+						jsonrpc: '2.0',
+						method: 'action',
+						params: { channel, serverSeq, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead } },
+					}));
+				}
+				return unread.p;
+			},
+		};
+		let complete = false;
+		const wait = waitForChatUnreadAfterTurn(client, chat, 10).then(() => { complete = true; });
+		const completeBeforeUnread = complete;
+		unread.complete({ jsonrpc: '2.0', method: 'action', params: { channel: chat, serverSeq: 13, origin: undefined, action: { type: ActionType.ChatIsReadChanged, isRead: false } } });
+		await wait;
+
+		assert.deepStrictEqual({ matching, completeBeforeUnread, complete }, {
+			matching: [false, false, false, true],
+			completeBeforeUnread: false,
+			complete: true,
 		});
 	});
 

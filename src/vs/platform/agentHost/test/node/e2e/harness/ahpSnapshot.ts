@@ -205,6 +205,19 @@ export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IA
 	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
 }
 
+export async function waitForChatUnreadAfterTurn(client: Pick<IAhpSnapshotClient, 'waitForNotification'>, chat: string, afterServerSeq: number): Promise<void> {
+	await client.waitForNotification(notification => {
+		if (notification.method !== 'action') {
+			return false;
+		}
+		const envelope = notification.params as ActionEnvelope;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& envelope.action.type === ActionType.ChatIsReadChanged
+			&& !envelope.action.isRead;
+	}, 90_000);
+}
+
 /** Loads client actions from an AHP snapshot, dispatches them, and asserts the resulting traffic. */
 export class AhpSnapshotScenario {
 	private constructor(
@@ -970,6 +983,10 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 				throw replayError;
 			}
 			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.part.error.errorType}: ${action.part.error.message}`);
+		}
+		if (action.type === ActionType.ChatTurnComplete) {
+			const envelope = notification.params as ActionEnvelope;
+			await waitForChatUnreadAfterTurn(client, envelope.channel, envelope.serverSeq);
 		}
 	}
 }

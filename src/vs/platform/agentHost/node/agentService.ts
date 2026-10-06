@@ -1195,14 +1195,19 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async whenCatalogReconciliationIdle(): Promise<void> {
 		while (true) {
-			await this._catalogReconciliationService.whenIdle();
-			if (this._backgroundCatalogStateWrites.size === 0 && this._backgroundPassiveSessionMetadataWrites.size === 0) {
-				return;
+			try {
+				await this._catalogReconciliationService.whenIdle();
+				if (this._backgroundCatalogStateWrites.size === 0 && this._backgroundPassiveSessionMetadataWrites.size === 0) {
+					return;
+				}
+			} finally {
+				while (this._backgroundCatalogStateWrites.size > 0 || this._backgroundPassiveSessionMetadataWrites.size > 0) {
+					await Promise.allSettled([
+						...[...this._backgroundCatalogStateWrites.values()].map(write => write.promise),
+						...[...this._backgroundPassiveSessionMetadataWrites.values()].map(write => write.promise),
+					]);
+				}
 			}
-			await Promise.allSettled([
-				...[...this._backgroundCatalogStateWrites.values()].map(write => write.promise),
-				...[...this._backgroundPassiveSessionMetadataWrites.values()].map(write => write.promise),
-			]);
 		}
 	}
 
@@ -10059,11 +10064,14 @@ export class AgentService extends Disposable implements IAgentService {
 				await this._providerService.shutdown();
 			}
 		} finally {
-			await this.whenCatalogReconciliationIdle();
-			await this._replayPendingPassiveSessionMetadata();
-			await this._debugLogsCollector?.cleanup();
-			await this._orchestratorDatabase.close();
-			this._downloadProgressInterest.clear();
+			try {
+				await this.whenCatalogReconciliationIdle();
+			} finally {
+				await this._replayPendingPassiveSessionMetadata();
+				await this._debugLogsCollector?.cleanup();
+				await this._orchestratorDatabase.close();
+				this._downloadProgressInterest.clear();
+			}
 		}
 	}
 
