@@ -338,7 +338,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		itemProvider.setDraftCustomAgents(ambientScope.customAgents);
 		itemProvider.setDraftCustomizations(ambientScope.customizations);
 		const marketplaceInstallProvider = agent.provider === 'copilotcli'
-			? store.add(this._instantiationService.createInstance(AgentHostCustomizationMarketplaceInstallProvider, agent.provider))
+			? store.add(this._instantiationService.createInstance(
+				AgentHostCustomizationMarketplaceInstallProvider,
+				agent.provider,
+				() => this._resolveAuthenticationInteractively(this._protectedResourcesService.getProtectedResources(agent.provider) ?? []),
+			))
 			: undefined;
 		store.add(this._customizationHarnessService.registerExternalHarness({
 			id: sessionType,
@@ -498,7 +502,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * creates a session (which triggers the login UI), and pushes the token
 	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
+	private async _resolveAuthenticationInteractively(protectedResources: readonly ProtectedResourceMetadata[]): Promise<boolean> {
 		const generation = this._authenticationGeneration;
 		if (!this._isAuthenticationCurrent(generation)) {
 			return false;

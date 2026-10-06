@@ -39,6 +39,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	constructor(
 		private readonly providerId: string,
+		private readonly resolveAuthentication: () => Promise<boolean>,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IAgentHostCustomizationService private readonly agentHostCustomizationService: IAgentHostCustomizationService,
@@ -203,6 +204,10 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		if (installation?.kind !== 'skill' && installation?.kind !== 'mcp') {
 			throw new Error(localize('agentHost.customizationInstall.unsupported', "The selected agent does not support installing this customization through its SDK."));
 		}
+		if (!await this.resolveAuthentication()) {
+			throw new CancellationError();
+		}
+		this.throwIfCancelled(token);
 		const review = await this.prepare(sessionResource, {
 			mediaType: resource.mediaType,
 			identifier: resource.identifier,

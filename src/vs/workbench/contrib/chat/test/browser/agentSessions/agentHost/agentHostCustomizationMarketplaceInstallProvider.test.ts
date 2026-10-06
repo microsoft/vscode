@@ -28,6 +28,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const calls: { provider: string; session: string }[] = [];
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
+			async () => true,
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
@@ -66,6 +67,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
+			async () => true,
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
@@ -142,9 +144,14 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const requests: unknown[] = [];
 		const applied: string[] = [];
+		let authenticationRequests = 0;
 		let installed = false;
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
+			async () => {
+				authenticationRequests++;
+				return true;
+			},
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
@@ -214,6 +221,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const inventory = await provider.getInstallations(session, CancellationToken.None);
 
 		assert.deepStrictEqual({
+			authenticationRequests,
 			requests,
 			applied,
 			inventory: inventory.map(item => ({
@@ -222,6 +230,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				installation: item.resource.installation,
 			})),
 		}, {
+			authenticationRequests: 0,
 			requests: [{
 				mediaType: 'application/ai-skill',
 				identifier: 'selection',
@@ -241,6 +250,67 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('authenticates before preparing a public Browse installation', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const calls: string[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			async () => {
+				calls.push('authenticate');
+				return true;
+			},
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async prepareCustomizationInstallation() {
+					calls.push('prepare');
+					return {
+						operationId: 'operation',
+						action: 'install' as const,
+						kind: 'mcp' as const,
+						displayName: 'Demo MCP',
+						serverName: 'owner/demo',
+						target: 'owner/demo',
+						configurationFields: [],
+					};
+				}
+				override async applyCustomizationInstallation() {
+					calls.push('apply');
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/backend-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() {
+				override async confirm() { return { confirmed: true }; }
+			}(),
+			new NullLogService(),
+		));
+
+		await provider.install(session, {
+			sourceId: 'agentFinder',
+			identifier: 'demo',
+			displayName: 'Demo MCP',
+			description: 'Demo',
+			mediaType: 'application/mcp-server+json',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			externalUrl: 'https://api.mcp.github.com/oss/v0.1/servers/owner%2Fdemo/versions/latest',
+			installation: { kind: 'mcp', name: 'owner/demo', version: '1.0.0' },
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(calls, ['authenticate', 'prepare', 'apply']);
+	});
+
 	test('preserves SDK plugin inventory when session-bound receipt inventory is unavailable', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const plugin = new class extends mock<IAgentPlugin>() {
@@ -250,6 +320,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		}();
 		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
 			'copilotcli',
+			async () => true,
 			new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
 				override readonly onAgentHostExit = Event.None;
