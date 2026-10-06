@@ -28,7 +28,7 @@ suite('Webview shell messaging', () => {
 		}, {
 			capturesInvokeBeforePort: true,
 			portSend: 'invoke(nativePortPostMessage, this.channel.port1, { channel, data }, transfer);',
-			readySend: '{ target: ID, channel: \'webview-ready\', data: { keyEventId: this.keyEventId, readyId: searchParams.get(\'readyId\') } }',
+			readySend: '{ target: ID, channel: \'webview-ready\', data: { keyEventToken, mountId: searchParams.get(\'mountId\') } }',
 			portPropertyCall: false,
 			readyPropertyPostMessage: false,
 		});

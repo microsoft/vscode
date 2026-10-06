@@ -16,7 +16,7 @@ type KeyEvent = {
 	readonly metaKey: boolean;
 	readonly repeat: boolean;
 	readonly isTrusted: boolean;
-	readonly keyEventId: string;
+	readonly keyEventToken: string;
 }
 
 type WebViewDragEvent = {

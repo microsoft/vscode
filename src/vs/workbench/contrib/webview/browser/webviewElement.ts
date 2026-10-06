@@ -37,7 +37,6 @@ import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js
 import { WebviewThemeDataProvider } from './themeing.js';
 import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
-import { isAcceptedWebviewReady, shouldForwardWebviewKeyEvent } from './webviewKeyForwarding.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
 
 interface WebviewContent {
@@ -151,8 +150,8 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	protected readonly onDidHtmlChange = this._onDidHtmlChange.event;
 
 	private _messagePort?: MessagePort;
-	private _keyEventId: string | undefined;
-	private _expectedReadyId: string | undefined;
+	private _keyEventToken: string | undefined;
+	private _mountId: string | undefined;
 	private readonly _readyListener = this._register(new MutableDisposable());
 	private readonly _messageHandlers = new Map<string, Set<(data: any, e: MessageEvent) => void>>();
 
@@ -350,7 +349,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		this._element = undefined;
 
 		this.resetHostChannel();
-		this._expectedReadyId = undefined;
+		this._mountId = undefined;
 		this._readyListener.clear();
 
 		if (this._state.type === WebviewState.Type.Initializing) {
@@ -451,7 +450,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
 			parentOrigin: targetWindow.origin,
-			readyId: this._expectedReadyId ?? '',
+			mountId: this._mountId ?? '',
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -481,7 +480,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		}
 
 		this._windowId = targetWindow.vscodeWindowId;
-		this._expectedReadyId = generateUuid();
+		this._mountId = generateUuid();
 		this._encodedWebviewOriginPromise = parentOriginHash(targetWindow.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 		this._encodedWebviewOriginPromise.then(encodedWebviewOrigin => {
 			if (!this._disposed) {
@@ -518,7 +517,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 			this._messagePort.close();
 		}
 		this._messagePort = undefined;
-		this._keyEventId = undefined;
+		this._keyEventToken = undefined;
 	}
 
 	private _registerMessageHandler(targetWindow: CodeWindow) {
@@ -537,22 +536,19 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 					return;
 				}
 
-				const keyEventId = e.data?.data?.keyEventId;
-				if (typeof keyEventId !== 'string' || !isAcceptedWebviewReady({
-					expectedReadyId: this._expectedReadyId,
-					readyId: e.data?.data?.readyId,
-					keyEventId,
-					source: e.source,
-					contentWindow: this.element?.contentWindow ?? null,
-					hasMessagePort: !!e.ports[0],
-				})) {
+				// The mount id rejects stale handshakes; the shell token authenticates subsequent key events.
+				const keyEventToken = e.data?.data?.keyEventToken;
+				if (!this._mountId || e.data?.data?.mountId !== this._mountId
+					|| typeof keyEventToken !== 'string' || keyEventToken.length === 0
+					|| !this.element?.contentWindow || e.source !== this.element.contentWindow
+					|| !e.ports[0]) {
 					return;
 				}
 
 				this.perfMark('webview-ready');
 				this._logService.trace(`Webview(${this.id}): webview ready`);
 
-				this._keyEventId = keyEventId;
+				this._keyEventToken = keyEventToken;
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
@@ -743,7 +739,11 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 	}
 
 	private shouldForwardKeyEvent(event: KeyEvent): boolean {
-		return shouldForwardWebviewKeyEvent(this._keyEventId, event, !!this._content.options.forwardUntrustedKeypressEvents);
+		// Serialized isTrusted is meaningful only for events authenticated by the shell.
+		if (!this._keyEventToken || event.keyEventToken !== this._keyEventToken) {
+			return false;
+		}
+		return event.isTrusted || !!this._content.options.forwardUntrustedKeypressEvents;
 	}
 
 	private isActiveElement(): boolean {
