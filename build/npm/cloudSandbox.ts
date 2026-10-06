@@ -26,10 +26,14 @@ const packages = [
 	'xvfb', 'rpm',
 ];
 
+export function isCloudSandbox(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): boolean {
+	return platform === 'linux' && Boolean(env.GITHUB_ENVIRONMENT_ID?.trim());
+}
+
 function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOptions | undefined {
 	const env = overrides.env ?? process.env;
 	const platform = overrides.platform ?? process.platform;
-	if (platform !== 'linux' || !env.GITHUB_ENVIRONMENT_ID?.trim()) {
+	if (!isCloudSandbox(env, platform)) {
 		return undefined;
 	}
 
@@ -52,7 +56,6 @@ function sandboxOptions(overrides: Partial<SandboxSetupOptions>): SandboxSetupOp
 
 /**
  * Prepare native-build and graphical prerequisites only in Mission Control cloud sandboxes.
- * install-fast calls this before npm; root preinstall can run after dependency build scripts.
  */
 export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}): boolean {
 	const options = sandboxOptions(overrides);
@@ -123,7 +126,7 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 	}
 
 	const bin = `'${path.join(nodeDirectory, 'bin').replaceAll('\'', '\'\\\'\'')}'`;
-	throw new Error(`Cloud Sandbox: installed Node.js ${requiredVersion}. The running npm process still uses ${nodeVersion}.\nRun this in your shell, then rerun npm install or npm run install-fast:\nexport PATH=${bin}:"$PATH"\nhash -r`);
+	throw new Error(`Cloud Sandbox: installed Node.js ${requiredVersion}. The running process still uses ${nodeVersion}.\nRun this in your shell, then rerun node build/npm/cloudSandboxSetup.ts before installing dependencies:\nexport PATH=${bin}:"$PATH"\nhash -r`);
 }
 
 /**

@@ -335,7 +335,7 @@ suite('Cloud Sandbox install setup', () => {
 		});
 	});
 
-	test('npm install, npm ci and the install-fast cache path invoke sandbox setup', t => {
+	test('the startup hook prepares cold npm install and npm ci before dependency scripts', t => {
 		const root = fixture(t);
 		const npmDirectory = path.join(root, 'build/npm');
 		fs.mkdirSync(npmDirectory, { recursive: true });
@@ -344,6 +344,7 @@ suite('Cloud Sandbox install setup', () => {
 		}
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 			import fs from 'node:fs';
+			export function isCloudSandbox() { return false; }
 			export function prepareCloudSandbox() { fs.appendFileSync('calls', 'prepare\\n'); return true; }
 			export function finishCloudSandbox() { fs.appendFileSync('calls', 'finish\\n'); }
 		`);
@@ -380,7 +381,7 @@ suite('Cloud Sandbox install setup', () => {
 			results.push(fs.readFileSync(path.join(root, 'calls'), 'utf8'));
 			fs.unlinkSync(path.join(root, 'calls'));
 		}
-		assert.deepStrictEqual(results, ['prepare\nfinish\n', 'prepare\nfinish\n', 'prepare\nfinish\n']);
+		assert.deepStrictEqual(results, ['finish\n', 'finish\n', 'finish\n']);
 
 		if (process.platform === 'win32') {
 			return; // The cold sandbox path is Linux-only and preinstall checks the host's Visual Studio on Windows.
@@ -435,10 +436,58 @@ suite('Cloud Sandbox install setup', () => {
 		assert.notEqual(coldInstall.status, 0);
 		assert.match(coldInstall.stderr, /Native prerequisite not prepared/);
 		fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
-		const fastInstall = spawnSync('npm', ['run', 'install-fast', '--', '--force'], options);
-		assert.equal(fastInstall.status, 0, fastInstall.stdout + fastInstall.stderr);
-		assert.deepStrictEqual(fs.readFileSync(path.join(root, 'calls'), 'utf8').split('\n').filter(Boolean), [
-			'prepare', 'prepare', 'headers', 'native', 'prepare', 'headers', 'finish',
-		]);
+
+		const hook = JSON.parse(fs.readFileSync(path.join(repositoryRoot, '.github/hooks/cloud-sandbox.json'), 'utf8')) as {
+			hooks: { sessionStart: { bash: string }[] };
+		};
+		fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
+		const hookCommand = hook.hooks.sessionStart[0].bash;
+		const hookOptions = {
+			...options,
+			env: { ...options.env, GITHUB_ENVIRONMENT_ID: 'test-environment' },
+		};
+		// Simulate the Linux sandbox while keeping these offline fixtures runnable on macOS.
+		for (const args of [['install'], ['ci'], ['run', 'install-fast', '--', '--force']]) {
+			const startup = spawnSync('bash', ['-c', `uname() { printf 'Linux\\n'; }\n${hookCommand}`], hookOptions);
+			assert.equal(startup.status, 0, startup.stdout + startup.stderr);
+			const installAfterStartup = spawnSync('npm', args, options);
+			assert.equal(installAfterStartup.status, 0, installAfterStartup.stdout + installAfterStartup.stderr);
+			assert.deepStrictEqual(fs.readFileSync(path.join(root, 'calls'), 'utf8').split('\n').filter(Boolean), [
+				'prepare', 'headers', 'native', ...(args.includes('install-fast') ? ['headers'] : []), 'finish',
+			]);
+			fs.unlinkSync(path.join(root, 'calls'));
+			fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
+		}
+		fs.writeFileSync(path.join(gyp, 'install.ts'), 'throw new Error("Header setup failed");');
+		const failedStartup = spawnSync('bash', ['-c', `uname() { printf 'Linux\\n'; }\n${hookCommand}`], hookOptions);
+		assert.notEqual(failedStartup.status, 0);
+		assert.match(failedStartup.stderr, /Header setup failed/);
+		assert.ok(!failedStartup.stdout.includes('prerequisites are ready'));
+	});
+
+	test('the session-start hook does not invoke Node for local sessions or non-Linux hosts', t => {
+		if (process.platform === 'win32') {
+			t.skip('The hook uses bash only.');
+			return;
+		}
+		const root = fixture(t);
+		const hook = JSON.parse(fs.readFileSync(path.join(repositoryRoot, '.github/hooks/cloud-sandbox.json'), 'utf8')) as {
+			hooks: { sessionStart: { bash: string }[] };
+		};
+		const results = [
+			{ environmentId: '', platform: 'Linux' },
+			{ environmentId: 'environment', platform: 'Darwin' },
+		].map(({ environmentId, platform }) => {
+			const result = spawnSync('bash', ['-c', `
+				uname() { printf '${platform}\\n'; }
+				node() { printf 'Unexpected setup invocation\\n' >&2; return 1; }
+				${hook.hooks.sessionStart[0].bash}
+			`], {
+				cwd: root, encoding: 'utf8',
+				env: { ...process.env, GITHUB_ENVIRONMENT_ID: environmentId },
+			});
+			return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ status: 0, stdout: '', stderr: '' })));
 	});
 });
