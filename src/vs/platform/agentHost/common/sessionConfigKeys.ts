@@ -110,7 +110,10 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.AgentMergeInjectedConfiguration,
 ] as const;
 
-/** Removes session/target-owned values; sandbox preferences remain in the template and are revalidated by runtime policy. */
+/**
+ * Removes values owned by a concrete session or target rather than a reusable Automation template.
+ * Sandbox selection stays so a saved preference survives reopening, and managed policy can still force it on at run time.
+ */
 export function omitAutomationSessionTemplateConfigValues<T>(values: Record<string, T>): Record<string, T> {
 	const result = omitTransientSessionConfigValues(values);
 	for (const key of automationDefinitionOwnedConfigKeys) {

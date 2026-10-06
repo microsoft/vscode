@@ -1272,7 +1272,7 @@ suite('AgentHostAutomationStore', () => {
 	});
 
 	for (const selection of ['on', 'off', 'default']) {
-		test(`Automation templates round-trip sandbox selection ${selection}`, async () => {
+		test(`automation templates round-trip sandbox selection ${selection}`, async () => {
 			const connection = disposables.add(new TestAutomationConnection());
 			const storage = disposables.add(new InMemoryStorageService());
 			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
@@ -1302,7 +1302,7 @@ suite('AgentHostAutomationStore', () => {
 		});
 	}
 
-	test('Automation template reset clears sandbox preference while preserving definition-owned permissions', async () => {
+	test('automation template reset clears sandbox preference while preserving definition-owned permissions', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
@@ -1326,7 +1326,7 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
-	test('Host-authored sandbox preferences survive unrelated Automation updates', async () => {
+	test('host-authored sandbox preferences survive an Automation template round-trip', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
 		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
@@ -1336,14 +1336,14 @@ suite('AgentHostAutomationStore', () => {
 			schedule: { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
 			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'copilotcli' },
 		});
-		const definitionConfig = {
+		const hostConfig = {
 			sandboxEnabled: 'off',
 			[SessionConfigKey.Permissions]: { allow: ['Shell(echo *)'], deny: [] },
 			[SessionConfigKey.WorktreeBranchPrefix]: 'host-prefix/',
 			[SessionConfigKey.AgentMerge]: true,
 		};
 		connection.setFirstAutomationSessionConfig({
-			...definitionConfig,
+			...hostConfig,
 			[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 		});
 		const projected = store.getAutomation(automation.id)?.sessionTemplate;
@@ -1356,7 +1356,7 @@ suite('AgentHostAutomationStore', () => {
 			reopened: store.getAutomation(automation.id)?.sessionTemplate,
 		}, {
 			projected: { config: { sandboxEnabled: 'off' } },
-			updated: definitionConfig,
+			updated: hostConfig,
 			reopened: { config: { sandboxEnabled: 'off' } },
 		});
 	});
