@@ -1770,10 +1770,16 @@ export function mapChatFetcherErrorToNoNextEditReason(fetchError: ChatFetchError
 		case ChatFetchResponseType.AgentUnauthorized:
 		case ChatFetchResponseType.AgentFailedDependency:
 		case ChatFetchResponseType.InvalidStatefulMarker:
+		// Transient server-side / resource-exhaustion failures (HTTP 5xx such as "Server error: 500",
+		// or environment conditions like "too many open files" / EMFILE surfaced as type 'failed') are
+		// not client defects. They are already logged at the fetch layer and tracked via NES telemetry,
+		// so treat them like the other server-side conditions above (rate limiting, quota) rather than
+		// throwing: a background next-edit fetch must not escalate a transient failure into an unhandled
+		// error.
+		case ChatFetchResponseType.Failed:
 			return new NoNextEditReason.Uncategorized(ErrorUtils.fromUnknown(fetchError));
 		case ChatFetchResponseType.BadRequest:
 		case ChatFetchResponseType.NotFound:
-		case ChatFetchResponseType.Failed:
 		case ChatFetchResponseType.NetworkError:
 		case ChatFetchResponseType.Unknown:
 			return new NoNextEditReason.FetchFailure(ErrorUtils.fromUnknown(fetchError));
