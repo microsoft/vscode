@@ -406,6 +406,11 @@ export class EditOperationResult {
 	readonly commands: Array<ICommand | null>;
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
+	/**
+	 * An optional edit operation which is computed from the selections resulting
+	 * from executing this edit operation, and which is executed right after it.
+	 */
+	readonly followUp: ((selections: Selection[]) => EditOperationResult) | undefined;
 
 	constructor(
 		type: EditOperationType,
@@ -413,12 +418,14 @@ export class EditOperationResult {
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
+			followUp?: (selections: Selection[]) => EditOperationResult;
 		}
 	) {
 		this.type = type;
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;
+		this.followUp = opts.followUp;
 	}
 }
 

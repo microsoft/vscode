@@ -5389,6 +5389,71 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338693: undo after multi-character autoclose first removes only the auto-closed characters', () => {
+		usingCursor({
+			text: [
+				'begi begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			const states: [string, string[]][] = [];
+			const recordState = () => states.push([model.getLineContent(1), viewModel.getSelections().map(s => s.toString())]);
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)]);
+			viewModel.type('n', 'keyboard');
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+
+			assert.deepStrictEqual(states, [
+				['beginend beginend', ['[1,6 -> 1,6]', '[1,15 -> 1,15]']],
+				['begin begin', ['[1,6 -> 1,6]', '[1,12 -> 1,12]']],
+				['begi begi', ['[1,5 -> 1,5]', '[1,10 -> 1,10]']],
+			]);
+		});
+	});
+
+	test('issue #338693: undo after multi-character autoclose with auto-indentation first removes only the auto-closed characters', () => {
+		const languageId = 'autoClosingWithIndentRulesLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin', close: 'end' }],
+			indentationRules: {
+				increaseIndentPattern: /^\s*procedure\b/,
+				decreaseIndentPattern: /^\s*begin\b/
+			}
+		}));
+		usingCursor({
+			text: [
+				'\tfoo',
+				'\tbegi',
+			],
+			languageId,
+			editorOpts: { autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+
+			const states: [string, string[]][] = [];
+			const recordState = () => states.push([model.getLineContent(2), viewModel.getSelections().map(s => s.toString())]);
+
+			viewModel.setSelections('test', [new Selection(2, 6, 2, 6)]);
+			viewModel.type('n', 'keyboard');
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+
+			assert.deepStrictEqual(states, [
+				['beginend', ['[2,6 -> 2,6]']],
+				['begin', ['[2,6 -> 2,6]']],
+				['\tbegi', ['[2,6 -> 2,6]']],
+			]);
+		});
+	});
+
 	test('autoClosingPairs - doc comments can be turned off', () => {
 		usingCursor({
 			text: [
