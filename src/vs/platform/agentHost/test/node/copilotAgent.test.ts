@@ -5473,6 +5473,7 @@ suite('CopilotAgent', () => {
 				const sessionDataService = disposables.add(new TestSessionDataService());
 				const worktreeIsolation = new NullAgentHostWorktreeIsolation();
 				const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
+				disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
 				const bindChats = async (target: CopilotAgent) => {
 					await target.authenticate('https://api.github.com', 'token');
 					for (const [index, chat] of chats.entries()) {
@@ -5518,7 +5519,7 @@ suite('CopilotAgent', () => {
 					pluginDirectory: () => activeClient.pluginController.directory?.toString(),
 					restore: async () => {
 						await disposeAgent(agent);
-						const { agent: restored } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
+						const { agent: restored } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig, fileService });
 						await bindChats(restored);
 						return restored;
 					},
@@ -6023,6 +6024,7 @@ suite('CopilotAgent', () => {
 						useRealResumePath: true,
 						worktreeIsolation: fixture.worktreeIsolation,
 						rootConfig: { [AgentHostCopilotMultiRootEnabledConfigKey]: true },
+						fileService: fixture.fileService,
 					}).agent;
 					await restored.authenticate('https://api.github.com', 'token');
 					await restored.materializeChat(chats[0], context, JSON.stringify({ sdkSessionId: 'session-wide' }));
@@ -19021,10 +19023,11 @@ suite('CopilotAgent', () => {
 				return new MockCopilotSession() as unknown as CopilotSession;
 			};
 
-			const { agent } = createTestAgentContext(disposables, {
+			const { agent, fileService } = createTestAgentContext(disposables, {
 				sessionDataService: disposables.add(new TestSessionDataService()),
 				copilotClient: client,
 			});
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new TestDiskFileSystemProvider(new NullLogService()))));
 
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
