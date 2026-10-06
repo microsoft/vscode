@@ -2392,16 +2392,6 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'test/cold-build-validation/**',
-					'restrictions': [
-						'test/cold-build-validation/**',
-						'build/**',
-						'node:*/**',
-						'@vscode/*',
-						'*'
-					]
-				},
-				{
 					'target': 'test/scenario/**',
 					'restrictions': [
 						'test/automation',

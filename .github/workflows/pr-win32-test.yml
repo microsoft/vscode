@@ -139,15 +139,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Transpile client and extensions
-        if: ${{ !(inputs.electron_tests && inputs.unit_tests && !inputs.integration_tests) }}
         shell: pwsh
         run: npm run gulp "transpile-client-esbuild" "transpile-extensions"
-
-      - name: Validate cold full build-fast
-        if: ${{ inputs.electron_tests && inputs.unit_tests && !inputs.integration_tests }}
-        timeout-minutes: 15
-        shell: pwsh
-        run: node test/cold-build-validation/run.ts build
 
       - name: Setup Electron
         if: ${{ inputs.electron_tests || inputs.remote_tests }}
@@ -183,12 +176,6 @@ jobs:
               Start-Sleep -Seconds 2
             }
           }
-
-      - name: Validate cold-built desktop extensions and language servers
-        if: ${{ inputs.electron_tests && inputs.unit_tests && !inputs.integration_tests }}
-        timeout-minutes: 5
-        shell: pwsh
-        run: node test/cold-build-validation/run.ts launch
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
