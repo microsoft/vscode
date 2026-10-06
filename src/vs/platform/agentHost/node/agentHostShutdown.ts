@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises, raceTimeout } from '../../../base/common/async.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import type { ILogService } from '../../log/common/log.js';
 
 /**
@@ -34,18 +34,21 @@ export async function shutdownAgentHostBeforeDispose(
 }
 
 /**
- * Waits for every persistence flush, even when one fails, without letting stalled writes block process exit indefinitely.
+ * Flushes Agent Host persistence without allowing a failed or stalled write to
+ * prevent process cleanup and exit.
  */
 export async function flushAgentHostPersistenceBeforeShutdown(
 	flushes: readonly Promise<unknown>[],
 	timeoutMs: number,
 	logService: Pick<ILogService, 'error' | 'warn'>,
 ): Promise<void> {
-	try {
-		await raceTimeout(Promises.settled([...flushes]), timeoutMs, () => {
-			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
-		});
-	} catch (error) {
-		logService.error('[AgentHostServer] Failed to flush persistence writes during shutdown; exiting anyway.', error);
-	}
+	await raceTimeout(Promise.all(flushes.map(async flush => {
+		try {
+			await flush;
+		} catch (error) {
+			logService.error('[AgentHostServer] Failed to flush persistence writes during shutdown; exiting anyway.', error);
+		}
+	})), timeoutMs, () => {
+		logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
+	});
 }

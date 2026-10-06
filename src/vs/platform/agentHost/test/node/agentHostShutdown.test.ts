@@ -20,23 +20,34 @@ suite('AgentHostShutdown', () => {
 		));
 	});
 
-	test('a failed persistence flush still waits for other stores before shutdown', async () => {
-		const sessionWrite = new DeferredPromise<void>();
-		const steps: string[] = [];
-		const logService = new class extends NullLogService {
-			override error(): void {
-				steps.push('flush error');
-			}
-		};
-		const shutdown = flushAgentHostPersistenceBeforeShutdown([
-			sessionWrite.p.then(() => { steps.push('session flush'); }),
-			Promise.reject(new Error('storage unavailable')),
-		], 3000, logService).then(() => { steps.push('shutdown'); });
-		await timeout(0);
-		await sessionWrite.complete();
-		await shutdown;
-
-		assert.deepStrictEqual(steps, ['session flush', 'flush error', 'shutdown']);
+	test('a failed persistence flush still waits for the other writes', async () => {
+		const pending = new DeferredPromise<void>();
+		const errors: unknown[] = [];
+		let flushed = false;
+		const flush = flushAgentHostPersistenceBeforeShutdown(
+			[Promise.reject(new Error('storage unavailable')), pending.p],
+			3000,
+			{ error: (_message, error) => errors.push(error), warn: () => { } },
+		).then(() => { flushed = true; });
+		try {
+			await timeout(0);
+			const flushedBeforeWrite = flushed;
+			const errorsBeforeWrite = errors.length;
+			pending.complete();
+			await flush;
+			assert.deepStrictEqual({
+				flushedBeforeWrite,
+				errorsBeforeWrite,
+				errors: errors.map(error => error instanceof Error ? error.message : String(error)),
+			}, {
+				flushedBeforeWrite: false,
+				errorsBeforeWrite: 1,
+				errors: ['storage unavailable'],
+			});
+		} finally {
+			pending.complete();
+			await flush;
+		}
 	});
 
 	test('providers shut down before persistence is flushed', async () => {
