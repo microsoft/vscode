@@ -6567,6 +6567,43 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('pins inherited multi-root chats without invalidating their effective scopes', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot', {
+				multipleChats: { fork: true },
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const workingDirectories = Array.from({ length: 15 }, (_, index) => URI.file(`/workspace/root-${index}`));
+			const session = await svc.createSession({ provider: agent.id, workingDirectories });
+			const state = getStateManager(svc);
+			for (let index = 1; index < 32; index++) {
+				state.addChat(session.toString(), buildChatUri(session, `peer-${index}`));
+			}
+			const workingDirectoryChanges: string[] = [];
+			let chatWorkingDirectoryActions = 0;
+			disposables.add(state.onDidChangeSessionWorkingDirectories(({ session }) => workingDirectoryChanges.push(session)));
+			disposables.add(state.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatWorkingDirectorySet) {
+					chatWorkingDirectoryActions++;
+				}
+			}));
+
+			await svc.addSessionWorkingDirectoryForChat(session, URI.file('/workspace/added'), { isolation: 'folder' });
+
+			assert.deepStrictEqual({
+				chats: state.getSessionState(session.toString())?.chats.length,
+				pinnedChats: state.getSessionState(session.toString())?.chats.filter(chat => chat.workingDirectories?.length === workingDirectories.length).length,
+				chatWorkingDirectoryActions,
+				workingDirectoryChanges,
+			}, {
+				chats: 32,
+				pinnedChats: 32,
+				chatWorkingDirectoryActions: 480,
+				workingDirectoryChanges: [session.toString()],
+			});
+		});
+
 		test('forked chats snapshot the source working directories', async () => {
 			class ForkingAgent extends MockAgent {
 				readonly createOptions = new Map<string, IAgentCreateChatOptions | undefined>();
