@@ -227,6 +227,7 @@ export class SessionChatItem {
 	constructor(
 		readonly session: ISession,
 		readonly chat: IChat,
+		readonly isLast?: boolean,
 	) { }
 }
 
@@ -657,7 +658,6 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly onDidFinishRename: () => void,
 		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
 		private readonly compact: () => boolean,
-		private readonly showArchivedChats: () => boolean,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -723,8 +723,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
-		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
-		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		template.container.classList.toggle('last-chat', element.isLast);
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -3737,7 +3736,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.preferencesService,
 			)),
 			() => this.isCompact(),
-			() => !this._excludeArchived,
 			this.activeGuideSessionIds,
 		);
 		this._chatRenderer = chatRenderer;
@@ -4264,7 +4262,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
-				getSessionListChats(session, reader, !this._excludeArchived);
+				for (const chat of getSessionListChats(session, reader, !this._excludeArchived)) {
+					chat.updatedAt.read(reader);
+				}
 				session.isExternal?.read(reader);
 				session.application.read(reader);
 			}
@@ -4460,7 +4460,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = getSessionListChats(session, undefined, !this._excludeArchived);
+				const chats = sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -4475,7 +4475,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							? ObjectTreeElementCollapseState.Collapsed
 							: ObjectTreeElementCollapseState.Expanded,
 					children: chats.length > 0
-						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
+						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1) }))
 						: undefined,
 				};
 			});
@@ -6019,6 +6019,16 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
 	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+function sortSessionListChats(chats: readonly IChat[], sorting: SessionsSorting): readonly IChat[] {
+	if (sorting === SessionsSorting.Created) {
+		return chats;
+	}
+	return [...chats].sort((a, b) =>
+		(b.updatedAt.get()?.getTime() ?? b.createdAt.getTime()) -
+		(a.updatedAt.get()?.getTime() ?? a.createdAt.getTime())
+	);
 }
 
 function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
