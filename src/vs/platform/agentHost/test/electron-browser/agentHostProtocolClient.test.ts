@@ -28,6 +28,7 @@ import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePe
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
+import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
@@ -1954,6 +1955,30 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
+		test(`forwards policy-owned domain boundaries only to the local host and clears removed policy (${String(identity)})`, async () => {
+			const configuration = new class extends TestConfigurationService {
+				policyActive = true;
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: this.policyActive && (key === AgentNetworkDomainSettingId.NetworkFilter || key === AgentNetworkDomainSettingId.AllowedNetworkDomains) ? inspected.value : undefined };
+				}
+			}({
+				[AgentNetworkDomainSettingId.NetworkFilter]: true,
+				[AgentNetworkDomainSettingId.AllowedNetworkDomains]: ['*.example.com'],
+			});
+			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configuration);
+			await connectClient(client, transport);
+			assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+				jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions',
+				params: { permissions: identity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY ? { limitTo: ['Domain(*.example.com)'] } : {} },
+			});
+			configuration.policyActive = false;
+			fireConfigurationChange(configuration, AgentNetworkDomainSettingId.AllowedNetworkDomains);
+			assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
+				jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions: {} },
+			});
+		});
+
 		test(`does not forward a legacy sandbox policy requirement (${String(identity)})`, async () => {
 			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
 			const configurationService = new class extends TestConfigurationService {

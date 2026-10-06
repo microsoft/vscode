@@ -15,12 +15,18 @@ import type { IConfigurationValue } from '../../../../configuration/common/confi
 import { TestConfigurationService } from '../../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../../networkFilter/common/settings.js';
+import { AgentSandboxEnabledValue } from '../../../../sandbox/common/settings.js';
 import type { IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { resolveManagedSettingsPermissions } from '../../../common/agentHostManagedSettings.js';
 import { TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from '../../../common/agentHostSchema.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
+import { AgentHostManagedSettingsService } from '../../../node/agentHostManagedSettingsService.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
+import { projectCopilotSandboxPolicy } from '../../../node/copilot/copilotSandboxPolicy.js';
+import { applySandboxConfig } from '../../../node/copilot/copilotSessionLauncher.js';
+import { buildSandboxConfigForSdk } from '../../../node/copilot/sandboxConfigForSdk.js';
+import type { ISessionSandboxPolicy } from '../../../node/sessionSandbox.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 type RuntimeToolResult = Awaited<ReturnType<CopilotSession['rpc']['tools']['execute']>>;
@@ -33,9 +39,10 @@ function resultType(result: RuntimeToolResult): string {
 suite('Agent Host Provider Integration - Copilot managed permissions', function () {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const restriction of ['none', 'denied domain', 'limitTo', 'terminal ask', 'terminal approval policy'] as const) {
+	for (const restriction of ['none', 'denied domain', 'limitTo', 'bridged limitTo', 'disjoint limitTo', 'terminal ask', 'terminal approval policy'] as const) {
 		const terminalApprovalPolicy = restriction === 'terminal approval policy';
-		const domainRestriction = restriction === 'denied domain' || restriction === 'limitTo';
+		const bridgedBoundary = restriction === 'bridged limitTo' || restriction === 'disjoint limitTo';
+		const domainRestriction = restriction === 'denied domain' || restriction === 'limitTo' || bridgedBoundary;
 		const approvalScope = terminalApprovalPolicy ? 'requires all shell approvals' : 'preserves unrelated approvals';
 		test(`${restriction} ${approvalScope} on create, cold resume, and removal`, async function () {
 			this.timeout(120_000);
@@ -69,27 +76,39 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 			const configuration = new class extends TestConfigurationService {
 				override inspect<T>(key: string): IConfigurationValue<T> {
 					const inspected = super.inspect<T>(key);
-					return terminalApprovalPolicy && key === TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID
+					return (terminalApprovalPolicy && key === TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID) || (bridgedBoundary && (key === AgentNetworkDomainSettingId.NetworkFilter || key === AgentNetworkDomainSettingId.AllowedNetworkDomains))
 						? { ...inspected, policyValue: inspected.value, userValue: undefined, userLocalValue: undefined }
 						: inspected;
 				}
 			}(restriction === 'denied domain' ? {
 				[AgentNetworkDomainSettingId.NetworkFilter]: true,
 				[AgentNetworkDomainSettingId.DeniedNetworkDomains]: ['blocked.example'],
+			} : bridgedBoundary ? {
+				[AgentNetworkDomainSettingId.NetworkFilter]: true,
+				[AgentNetworkDomainSettingId.AllowedNetworkDomains]: ['*.unmatched.invalid'],
 			} : terminalApprovalPolicy ? {
 				[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 			} : {});
 			store.add(configuration.onDidChangeConfigurationEmitter);
-			const permissions = restriction === 'terminal ask'
+			const managedSettings = store.add(new AgentHostManagedSettingsService());
+			managedSettings.setClientPermissions('first', restriction === 'terminal ask'
 				? { ask: [`Shell(${matchingCommand})`] }
 				: restriction === 'limitTo'
 					? { limitTo: ['Domain(unmatched.invalid)'] }
-					: resolveManagedSettingsPermissions(configuration);
+					: resolveManagedSettingsPermissions(configuration, new NullLogService()));
+			if (bridgedBoundary) {
+				managedSettings.setClientPermissions('second', { limitTo: [restriction === 'disjoint limitTo' ? 'Domain(other.invalid)' : 'Domain(unmatched.invalid)'] });
+			}
+			const permissions = managedSettings.permissions;
+			if (bridgedBoundary) {
+				assert.deepStrictEqual(permissions, { limitTo: restriction === 'disjoint limitTo' ? [] : ['Domain(unmatched.invalid)'] });
+			}
 			if (terminalApprovalPolicy) {
 				assert.deepStrictEqual(permissions, { ask: ['Shell'] });
 			}
 			const requests: { kind: PermissionRequest['kind']; managedApprovalRequired: boolean }[] = [];
 			const sessionId = `managed-permissions-${restriction.replaceAll(' ', '-')}`;
+			let resolvedPolicy: ISessionSandboxPolicy | undefined;
 			const config: SessionConfig = {
 				sessionId,
 				workingDirectory: directory,
@@ -102,6 +121,11 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					bearerToken: `${handle.nonce}.${sessionId}`,
 				},
 				managedSettings: { permissions },
+				onEvent: event => {
+					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+						resolvedPolicy = projectCopilotSandboxPolicy(event.data, sessionId, new NullLogService());
+					}
+				},
 				onPermissionRequest: request => {
 					requests.push({ kind: request.kind, managedApprovalRequired: request.managedApprovalRequired === true });
 					// Observe URL permissions without making external network requests.
@@ -116,18 +140,41 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 				await session.sendAndWait({ prompt: 'Reply ready.' }, 30_000);
 				const shell = isWindows ? 'powershell' : 'bash';
 				for (const phase of ['fresh', 'resumed', 'removed'] as const) {
+					const denyAll = restriction === 'disjoint limitTo' && phase !== 'removed';
 					const terminalPolicyActive = terminalApprovalPolicy && phase !== 'removed';
 					const managedShellApprovalRequired = (restriction === 'terminal ask' || terminalApprovalPolicy) && phase !== 'removed';
 					if (phase !== 'fresh') {
 						await session.disconnect();
 						await client.stop();
 						await client.start();
+						resolvedPolicy = undefined;
 						session = await client.resumeSession(sessionId, {
 							...config,
 							managedSettings: phase === 'removed' ? undefined : config.managedSettings,
 						});
 					}
 					await session.rpc.tools.initializeAndValidate();
+					assert.ok(resolvedPolicy, `${phase}: authoritative policy snapshot`);
+					if ((restriction === 'limitTo' || bridgedBoundary) && phase !== 'removed') {
+						assert.strictEqual(resolvedPolicy.enabled, true);
+						assert.strictEqual(resolvedPolicy.allowBypass, false);
+						const sandboxConfig = buildSandboxConfigForSdk(process.platform, {
+							enabled: AgentSandboxEnabledValue.On,
+							allowUnsandboxedCommands: resolvedPolicy.allowBypass,
+							allowNetwork: resolvedPolicy.allowOutbound,
+							allowLocalNetwork: resolvedPolicy.allowLocalNetwork,
+						});
+						assert.ok(sandboxConfig);
+						const warnings: string[] = [];
+						const log = new class extends NullLogService {
+							override warn(message: string): void { warnings.push(message); }
+						}();
+						const applied = await applySandboxConfig(session, sandboxConfig, sessionId, log);
+						// The runtime rejects replacing its nonempty host floor with an
+						// options document that omits that floor. Keep its existing sandbox.
+						assert.strictEqual(applied, denyAll, `${phase}: preserve runtime domain floor`);
+						assert.deepStrictEqual(warnings.map(message => message.includes('conflicts with managed policy')), denyAll ? [] : [true]);
+					}
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 					requests.length = 0;
 					const shellResult = await session.rpc.tools.execute({ name: shell, arguments: { command: isWindows ? 'Get-Location' : 'pwd', description: 'Read working directory' } });
@@ -140,10 +187,18 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						written: await readFile(outputPath, 'utf8'),
 						requests,
 					}, {
-						results: ['success', 'success', 'success', 'rejected'],
+						results: ['success', 'success', 'success', denyAll ? 'denied' : 'rejected'],
 						written: phase,
-						requests: ['shell', 'read', 'write', 'url'].map(kind => ({ kind, managedApprovalRequired: kind === 'shell' && terminalPolicyActive })),
+						requests: ['shell', 'read', 'write', ...denyAll ? [] : ['url']].map(kind => ({ kind, managedApprovalRequired: kind === 'shell' && terminalPolicyActive })),
 					}, phase);
+
+					if ((restriction === 'limitTo' || bridgedBoundary) && phase !== 'removed') {
+						requests.length = 0;
+						const hostOnly = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'http://unmatched.invalid:8443/path' } });
+						assert.deepStrictEqual({ result: resultType(hostOnly), requests }, denyAll
+							? { result: 'denied', requests: [] }
+							: { result: 'rejected', requests: [{ kind: 'url', managedApprovalRequired: false }] });
+					}
 
 					requests.length = 0;
 					const matching: RuntimeToolResult = domainRestriction

@@ -9,7 +9,7 @@
  *
  * Scope and limits, all deliberate:
  *
- * - **Restrictions only.** Mappings may add `deny`, `ask`, or the bypass lock;
+ * - **Restrictions only.** Mappings may add `deny`, `ask`, `limitTo`, or the bypass lock;
  *   they never widen what a session may do. In particular no `allow` list is
  *   contributed, even to narrow another rule's reach: the SDK's managed `allow`
  *   is not a scoping hint, since a covered request resolves to `managed_allow`,
@@ -26,8 +26,8 @@
  *   the root-config path so global and session Allow All can override them.
  * - **Only what survives translation.** A setting is mapped only when its VS
  *   Code semantics can be expressed exactly in the SDK's rule grammar. Where
- *   they cannot — a regular-expression terminal rule, an allow list that blocks
- *   what it omits — the restriction is skipped rather than approximated, since a
+ *   they cannot — a regular-expression terminal rule or unsupported domain
+ *   boundary — the restriction is skipped rather than approximated, since a
  *   near-miss silently changes what an administrator configured.
  * - **One deliberate exception, erring more restrictive.**
  *   `chat.tools.eligibleForAutoApproval` marks individual tools ineligible for
@@ -52,9 +52,10 @@
  */
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
+import type { ILogService } from '../../log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
 import { normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
-import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
+import { buildManagedDomainBoundary, buildManagedFamilyRule, buildManagedRule, intersectManagedDomainBoundaries, isManagedDomainBoundaryRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules, type AgentHostTerminalAutoApproveRuleValue } from './agentHostSchema.js';
 
@@ -66,13 +67,14 @@ export interface IAgentHostManagedSettingsPermissions {
 	disableBypassPermissionsMode?: 'disable';
 	deny?: string[];
 	ask?: string[];
+	limitTo?: string[];
 }
 
 interface IManagedPermissionsSettingMapping {
 	readonly settingId: string;
 	/** Further settings whose changes must also re-resolve this mapping. */
 	readonly additionalSettingIds?: readonly string[];
-	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
+	contribute(configurationService: IConfigurationService, logService: ILogService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
 function managedPermissionsPolicy<T>(
@@ -104,7 +106,7 @@ function managedPermissionsPolicy<T>(
 function managedPermissionsCompositeSetting(
 	settingId: string,
 	additionalSettingIds: readonly string[],
-	contribute: (configurationService: IConfigurationService) => IAgentHostManagedSettingsPermissions | undefined,
+	contribute: IManagedPermissionsSettingMapping['contribute'],
 ): IManagedPermissionsSettingMapping {
 	return { settingId, additionalSettingIds, contribute };
 }
@@ -112,19 +114,27 @@ function managedPermissionsCompositeSetting(
 /**
  * Translates VS Code's agent network filter into managed domain rules.
  *
- * Only the blocking half is expressible. VS Code denies any domain outside a
- * populated allow list, but a managed `allow` entry does not block what it omits
- * — unmatched requests fall through to a prompt the user can approve — so
- * mapping the allow list would quietly downgrade a block into a prompt. The deny
- * list and the "filter on with nothing configured" case both mean block, and
- * both survive the translation intact.
+ * A populated, policy-owned allowlist becomes a host-only `limitTo` boundary
+ * only when the filter is also policy-owned. Personal lists never become
+ * mandatory shell sandbox policy. Existing deny-only and empty-list behavior
+ * is preserved; ordinary Domain denies remain URL-aware in the runtime.
  */
-function contributeNetworkDomainRules(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined {
+function contributeNetworkDomainRules(configurationService: IConfigurationService, logService: ILogService): IAgentHostManagedSettingsPermissions | undefined {
 	if (getGlobalConfigurationValue<boolean>(configurationService, AgentNetworkDomainSettingId.NetworkFilter) !== true) {
 		return undefined;
 	}
 	const allowed = getGlobalConfigurationValue<string[]>(configurationService, AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
 	const denied = getGlobalConfigurationValue<string[]>(configurationService, AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
+	let limitTo: string[] | undefined;
+	const policyAllowed = configurationService.inspect<unknown>(AgentNetworkDomainSettingId.AllowedNetworkDomains).policyValue;
+	if (configurationService.inspect<boolean>(AgentNetworkDomainSettingId.NetworkFilter).policyValue === true && policyAllowed !== undefined) {
+		if (!Array.isArray(policyAllowed) || policyAllowed.length > 0) {
+			limitTo = Array.isArray(policyAllowed) ? buildManagedDomainBoundary(policyAllowed) : undefined;
+			if (limitTo === undefined) {
+				logService.warn('[AgentHost] Managed network allowlist contains unsupported patterns; the entire limitTo contribution is omitted. Network policy coverage remains partial.');
+			}
+		}
+	}
 
 	// VS Code's restrictive default: with the filter on and neither list
 	// configured, every domain is blocked.
@@ -155,7 +165,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 			deny.push(rule);
 		}
 	}
-	return deny.length > 0 ? { deny } : undefined;
+	return { ...(deny.length > 0 ? { deny } : {}), ...(limitTo !== undefined ? { limitTo } : {}) };
 }
 
 /**
@@ -267,12 +277,13 @@ export function isManagedSettingsPermissions(value: unknown): value is IAgentHos
 		return false;
 	}
 	const permissions = value as Record<string, unknown>;
-	if (Object.keys(permissions).some(key => key !== 'disableBypassPermissionsMode' && key !== 'deny' && key !== 'ask')) {
+	if (Object.keys(permissions).some(key => key !== 'disableBypassPermissionsMode' && key !== 'deny' && key !== 'ask' && key !== 'limitTo')) {
 		return false;
 	}
 	return (permissions.disableBypassPermissionsMode === undefined || permissions.disableBypassPermissionsMode === 'disable')
 		&& isStringArrayOrUndefined(permissions.deny)
-		&& isStringArrayOrUndefined(permissions.ask);
+		&& isStringArrayOrUndefined(permissions.ask)
+		&& (permissions.limitTo === undefined || (Array.isArray(permissions.limitTo) && permissions.limitTo.every(isManagedDomainBoundaryRule)));
 }
 
 function isStringArrayOrUndefined(value: unknown): boolean {
@@ -286,12 +297,13 @@ function isStringArrayOrUndefined(value: unknown): boolean {
  * Client-injected managed permissions are non-activating, so these rules bind
  * without forcing unmatched requests to prompt. See the module comment.
  */
-export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions {
+export function resolveManagedSettingsPermissions(configurationService: IConfigurationService, logService: ILogService): IAgentHostManagedSettingsPermissions {
 	const deny = new Set<string>();
 	const ask = new Set<string>();
 	let disableBypassPermissionsMode: 'disable' | undefined;
+	let limitTo: string[] | undefined;
 	for (const mapping of managedPermissionsSettings) {
-		const contribution = mapping.contribute(configurationService);
+		const contribution = mapping.contribute(configurationService, logService);
 		if (!contribution) {
 			continue;
 		}
@@ -300,6 +312,7 @@ export function resolveManagedSettingsPermissions(configurationService: IConfigu
 		}
 		contribution.deny?.forEach(rule => deny.add(rule));
 		contribution.ask?.forEach(rule => ask.add(rule));
+		limitTo = intersectManagedDomainBoundaries(limitTo, contribution.limitTo);
 	}
 
 	const permissions: IAgentHostManagedSettingsPermissions = {};
@@ -311,6 +324,9 @@ export function resolveManagedSettingsPermissions(configurationService: IConfigu
 	}
 	if (ask.size > 0) {
 		permissions.ask = [...ask];
+	}
+	if (limitTo !== undefined) {
+		permissions.limitTo = limitTo;
 	}
 	return permissions;
 }

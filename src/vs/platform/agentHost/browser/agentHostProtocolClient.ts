@@ -2478,7 +2478,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			return;
 		}
 		const permissions = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			? resolveManagedSettingsPermissions(this._configurationService)
+			? resolveManagedSettingsPermissions(this._configurationService, this._logService)
 			: {};
 		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
 	}

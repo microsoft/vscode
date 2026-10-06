@@ -511,6 +511,39 @@ suite('CopilotShellTools', () => {
 		assert.match(terminalManager.writes[1].data, /^echo "<<<COPILOT_SENTINEL_[a-f0-9]+_EXIT_\$\?>>>"\r$/);
 	});
 
+	test('managed boundaries block primary commands, bypass requests, and stdin before creating or writing a terminal', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), undefined, () => false);
+		for (const name of ['bash', 'write_bash']) {
+			const tool = tools.find(tool => tool.name === name);
+			assert.ok(tool?.handler);
+			const args = { command: 'echo blocked', requestUnsandboxedExecution: true };
+			const result = await tool.handler(args, { sessionId: 'session-1', toolCallId: name, toolName: name, arguments: args }) as ToolResultObject;
+			assert.strictEqual(result.resultType, 'failure');
+			assert.match(result.textResultForLlm, /managed domain boundary/);
+		}
+		assert.deepStrictEqual({ created: terminalManager.created, writes: terminalManager.writes }, { created: [], writes: [] });
+	});
+
+	test('rechecks the managed boundary after asynchronous shell acquisition', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		let allowed = true;
+		const createTerminal = terminalManager.createTerminal.bind(terminalManager);
+		terminalManager.createTerminal = async (params, options) => {
+			await createTerminal(params, options);
+			allowed = false;
+		};
+		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), undefined, () => allowed);
+		const tool = tools.find(tool => tool.name === 'bash');
+		assert.ok(tool?.handler);
+		const args = { command: 'echo blocked' };
+		const result = await tool.handler(args, { sessionId: 'session-1', toolCallId: 'race', toolName: 'bash', arguments: args }) as ToolResultObject;
+		assert.strictEqual(result.resultType, 'failure');
+		assert.deepStrictEqual(terminalManager.writes, []);
+	});
+
 	test('primary shell tool ignores echoed sentinel command text', async () => {
 		const { instantiationService, terminalManager } = createServices();
 

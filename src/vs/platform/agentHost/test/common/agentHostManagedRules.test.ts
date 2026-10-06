@@ -5,11 +5,38 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
+import { buildManagedDomainBoundary, buildManagedFamilyRule, buildManagedRule, intersectManagedDomainBoundaries, ManagedRuleFamily } from '../../common/agentHostManagedRules.js';
 
 suite('AgentHostManagedRules', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('canonicalizes complete legacy allowlists without emitting permission grants', () => {
+		assert.deepStrictEqual(buildManagedDomainBoundary(['https://EXAMPLE.com/path', 'example.com:8443', '*.sub.example.com', '127.1']), [
+			'Domain(*.sub.example.com)', 'Domain(127.0.0.1)', 'Domain(example.com)',
+		]);
+		assert.deepStrictEqual(buildManagedDomainBoundary(['*', 'example.com']), ['Domain']);
+		assert.deepStrictEqual(buildManagedDomainBoundary([]), []);
+		assert.strictEqual(buildManagedDomainBoundary(['example.com', 'bad*.example.com']), undefined);
+	});
+
+	test('intersects domain boundaries semantically in either client order', () => {
+		const cases: { left: string[] | undefined; right: string[] | undefined; expected: string[] | undefined }[] = [
+			{ left: undefined, right: undefined, expected: undefined },
+			{ left: undefined, right: [], expected: [] },
+			{ left: ['Domain'], right: ['Domain(example.com)'], expected: ['Domain(example.com)'] },
+			{ left: [], right: ['Domain'], expected: [] },
+			{ left: ['Domain(*.example.com)'], right: ['Domain(example.com)'], expected: ['Domain(example.com)'] },
+			{ left: ['Domain(*.example.com)'], right: ['Domain(*.sub.example.com)'], expected: ['Domain(*.sub.example.com)'] },
+			{ left: ['Domain(example.com)'], right: ['Domain(*.sub.example.com)'], expected: [] },
+			{ left: ['Domain(*.example.com)'], right: ['Domain(badexample.com)'], expected: [] },
+			{ left: ['Domain(*.example.com)', 'Domain(elsewhere.com)'], right: ['Domain(sub.example.com)', 'Domain(elsewhere.com)', 'Domain(other.com)'], expected: ['Domain(elsewhere.com)', 'Domain(sub.example.com)'] },
+		];
+		for (const { left, right, expected } of cases) {
+			assert.deepStrictEqual(intersectManagedDomainBoundaries(left, right), expected);
+			assert.deepStrictEqual(intersectManagedDomainBoundaries(right, left), expected);
+		}
+	});
 
 	test('builds family rules that match every request in the family', () => {
 		assert.strictEqual(buildManagedFamilyRule(ManagedRuleFamily.Shell), 'Shell');

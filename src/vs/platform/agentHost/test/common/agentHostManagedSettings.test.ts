@@ -6,7 +6,8 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { resolveManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
+import { isManagedSettingsPermissions, resolveManagedSettingsPermissions as resolvePermissions } from '../../common/agentHostManagedSettings.js';
+import { NullLogService } from '../../../log/common/log.js';
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID } from '../../common/agentHostSchema.js';
 
@@ -14,6 +15,10 @@ function createConfigurationService(values: Record<string, IConfigurationValue<u
 	return {
 		inspect: <T>(key: string) => (values[key] ?? {}) as IConfigurationValue<T>,
 	} as IConfigurationService;
+}
+
+function resolveManagedSettingsPermissions(configuration: IConfigurationService, logService = new NullLogService()) {
+	return resolvePermissions(configuration, logService);
 }
 
 suite('AgentHostManagedSettings', () => {
@@ -207,7 +212,60 @@ suite('AgentHostManagedSettings', () => {
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
 			deny: ['Domain(evil.com)', 'Domain(*.tracker.example)'],
+			limitTo: ['Domain(github.com)'],
 		});
+	});
+
+	test('requires both the filter and populated allowlist to be policy-owned', () => {
+		for (const filterSource of ['policyValue', 'userValue', 'applicationValue', 'workspaceValue'] as const) {
+			for (const listSource of ['policyValue', 'userValue', 'applicationValue', 'workspaceValue'] as const) {
+				const configuration = createConfigurationService({
+					[AgentNetworkDomainSettingId.NetworkFilter]: { [filterSource]: true },
+					[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { [listSource]: ['https://EXAMPLE.com:8443/path', '*.sub.example.com'] },
+					[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { policyValue: ['blocked.example'] },
+				});
+				const permissions = resolveManagedSettingsPermissions(configuration);
+				assert.deepStrictEqual(permissions.limitTo, filterSource === 'policyValue' && listSource === 'policyValue'
+					? ['Domain(*.sub.example.com)', 'Domain(example.com)']
+					: undefined, `${filterSource}/${listSource}`);
+			}
+		}
+	});
+
+	test('does not turn an empty legacy allowlist into an empty boundary', () => {
+		const configuration = createConfigurationService({
+			[AgentNetworkDomainSettingId.NetworkFilter]: { policyValue: true },
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { policyValue: [] },
+			[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { policyValue: ['blocked.example'] },
+		});
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configuration), { deny: ['Domain(blocked.example)'] });
+	});
+
+	test('diagnoses unsupported allowlists without silently dropping individual entries', () => {
+		for (const policyValue of [['example.com', '[::1]'], ['example.com', 'prefix*.example.com'], ['example.com', 42], 'example.com']) {
+			const warnings: string[] = [];
+			const log = new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			const configuration = createConfigurationService({
+				[AgentNetworkDomainSettingId.NetworkFilter]: { policyValue: true },
+				[AgentNetworkDomainSettingId.AllowedNetworkDomains]: { policyValue },
+				[AgentNetworkDomainSettingId.DeniedNetworkDomains]: { policyValue: ['blocked.example'] },
+			});
+			assert.deepStrictEqual(resolveManagedSettingsPermissions(configuration, log), { deny: ['Domain(blocked.example)'] });
+			assert.strictEqual(warnings.length, 1);
+			assert.match(warnings[0], /entire limitTo contribution is omitted/);
+		}
+	});
+
+	test('validates only the canonical bridge boundary subset and preserves explicit empty lists', () => {
+		for (const limitTo of [[], ['Domain'], ['Domain(example.com)', 'Domain(*.sub.example.com)']]) {
+			assert.strictEqual(isManagedSettingsPermissions({ limitTo }), true);
+		}
+		for (const limitTo of [null, 'Domain', [1], ['Shell'], ['Domain(*)'], ['Domain(https://example.com)'], ['Domain(example.com:443)'], ['Domain(example.com/path)'], ['Domain(EXAMPLE.com)'], ['Domain([::1])']]) {
+			assert.strictEqual(isManagedSettingsPermissions({ limitTo }), false, JSON.stringify(limitTo));
+		}
+		assert.strictEqual(isManagedSettingsPermissions({ allow: ['Domain'] }), false);
 	});
 
 	test('denies every domain when the filter is on and neither list is configured', () => {

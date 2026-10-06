@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, ToolResultObject, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -223,6 +223,36 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} blocks custom terminal commands and shuts down existing shells when a resolved boundary tightens`, async () => {
+			const fixture = setup(kind);
+			fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });
+			const stopped: string[] = [];
+			const engine = new class extends mock<TerminalSandboxEngine>() {
+				override async isEnabled(): Promise<boolean> { return false; }
+			}();
+			const shellManager = new class extends mock<ShellManager>() {
+				override async getResolvedExecutable(): Promise<string> { return '/bin/bash'; }
+				override getOrCreateSandboxEngine(): TerminalSandboxEngine { return engine; }
+				override listShells() { return [{ id: 'existing', terminalUri: 'terminal:/existing', shellType: 'bash' as const, executable: '/bin/bash' }]; }
+				override shutdownShell(id: string): boolean { stopped.push(id); return true; }
+			}();
+			store.add(await fixture.launcher.launch({ ...fixture.plan, shellManager }, testRuntime));
+			for (const limitTo of [['Domain(example.com)'], []]) {
+				fixture.captured?.onEvent?.({
+					id: 'boundary', parentId: null, timestamp: '2026-01-01T00:00:00Z',
+					type: 'session.managed_settings_resolved', ephemeral: true,
+					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['permissions'], settings: { permissions: { limitTo } } },
+				});
+				const tool = fixture.captured?.tools?.find(tool => tool.name === 'bash');
+				assert.ok(tool?.handler);
+				const args = { command: 'echo blocked' };
+				const result = await tool.handler(args, { sessionId: 'sess-1', toolCallId: 'boundary', toolName: 'bash', arguments: args }) as ToolResultObject;
+				assert.strictEqual(result.resultType, 'failure');
+				assert.strictEqual(fixture.configuration.getSessionSandboxPolicy(fixture.owner)?.allowBypass, false);
+			}
+			assert.deepStrictEqual(stopped, ['existing', 'existing']);
+		});
+
 		test(`${kind} exposes native events before the SDK session is returned without changing policy handling`, async () => {
 			const fixture = setup(kind);
 			const events: string[] = [];

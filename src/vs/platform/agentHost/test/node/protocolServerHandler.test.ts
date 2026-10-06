@@ -5675,17 +5675,23 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
-			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'], limitTo: ['Domain(*.example.com)'] },
 		}));
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { allow: ['Shell'] },
+		}));
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
+			permissions: { limitTo: ['Domain(*)'] },
 		}));
 		await Promise.resolve();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {
 			disableBypassPermissionsMode: 'disable',
 			ask: ['Shell'],
+			limitTo: ['Domain(*.example.com)'],
 		});
+		transport.simulateMessage(notification('setClientManagedSettingsPermissions', { permissions: { limitTo: [] } }));
+		assert.deepStrictEqual(managedSettingsService.permissions, { limitTo: [] });
 	});
 
 	test('scopes managed settings contributions to each protocol handler', () => {

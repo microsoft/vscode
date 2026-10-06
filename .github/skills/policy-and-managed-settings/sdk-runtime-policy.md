@@ -54,12 +54,15 @@ Bridge invariants:
 - the bridge is unconditional; the former `chat.agentHost.copilot.mapLegacySettingsToManagedSettings` setting is removed and stale values cannot disable mapped restrictions;
 - add mappings only for legacy settings that already exist; never create a new setting for this bridge;
 - mappings select one VS Code setting and use a callback typed against the host-owned managed permissions DTO;
-- mappings contribute only fields that can be flattened restrictively (`disable`, `deny`, and `ask`); do not flatten independent `allow` lists in VS Code;
+- mappings contribute only restrictive fields (`disable`, `deny`, `ask`, and `limitTo`); do not flatten independent `allow` lists in VS Code;
 - approval-setting mappings use only exact enterprise `policyValue`; user, application, default, workspace, and folder values do not become managed approval restrictions;
 - the network-domain composite retains global precedence (policy, user, then application) and registered global defaults to preserve the filter's empty-list deny-all behavior;
+- a populated legacy domain allowlist becomes `permissions.limitTo` only when both the filter and the allowlist have an exact enterprise `policyValue`; personal lists never create a mandatory managed boundary;
+- bridge boundaries support normalized DNS/IPv4 hosts, leading `*.` wildcards, and bare `*` (emitted as neutral `Domain`). URLs and ports are reduced using the existing legacy host-only normalizer. Unsupported entries, including IPv6 in this initial bridge subset, cause the entire boundary contribution to be omitted with a warning, never a partial list;
+- boundary lists union internally but intersect semantically across clients: a wildcard intersected with a covered exact host retains that host. Omission is neutral, an explicit empty boundary denies all, and empty legacy allowlists retain their previous behavior rather than producing an empty boundary;
 - personal approval settings remain on the ordinary root-config path, where session/global Allow All overrides them and default mode honors them; user/application settings are not an administrator enforcement boundary;
 - administrator terminal approval restrictions become managed asks and still require confirmation under Allow All or assisted approval;
-- contributions aggregate restrictively and are transported without parsing their rule grammar in VS Code;
+- contributions aggregate restrictively; validate only the bridge's canonical boundary subset, not arbitrary runtime-native rules or native source composition;
 - the aggregate is supplied on SDK create and resume;
 - an empty aggregate is forwarded when settings are removed so stale restrictions clear across JSON/AHP serialization;
 - contributions use a typed, client-owned AHP extension notification and a dedicated Agent Host managed-settings service; do not route them through root configuration;
@@ -77,6 +80,10 @@ without changing rollout or harness selection. Report-only gaps do not disable
 supported bridge restrictions.
 
 The runtime composes managed sandbox floors. While sandbox configuration remains host-driven, verify that Agent Host applies the effective floor to session `sandboxConfig`; policy state and containment must not diverge.
+
+`limitTo` binds before approval, including Allow All, without itself making unrelated shell/file operations managed asks. A restrictive resolved boundary requires sandboxing with no bypass even when no `settings.sandbox` was authored. An empty boundary forces both outbound and local networking off; an empty sandbox host list is not a deny-all representation.
+
+The initial custom-terminal integration fails closed until the runtime policy is resolved and while a restrictive boundary is active. It blocks command execution and stdin, rechecks after asynchronous preparation, and shuts down existing session shells on tightening. Use the native runtime shell to exercise domain-scoped shell access. Integrated-browser enforcement and full Local-harness native policy coverage remain separate work; keep network parity partial. Host-wide client intersection is not tenant/account isolation.
 
 Do not log raw enterprise rules or values.
 

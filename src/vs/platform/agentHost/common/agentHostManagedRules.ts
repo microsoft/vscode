@@ -11,12 +11,66 @@
  * than just the offending entry. Because VS Code sends this document as part of
  * session create/resume, an untranslatable rule derived from a user's settings
  * would fail the session outright. Everything this bridge emits therefore goes
- * through {@link buildManagedRule}, which returns `undefined` for anything the
+ * through {@link buildManagedRule} or {@link buildManagedDomainBoundary}, which return `undefined` for anything the
  * SDK would reject so the caller can drop it and continue.
  *
  * The grammar mirrored here is `parse_managed_rule` in the agent runtime
  * (`src/runtime/src/permissions/managed.rs`).
  */
+
+import { matchesDomainPattern, normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
+
+/**
+ * Emits the bridge's canonical hostname-only subset of `permissions.limitTo`.
+ * Unlike ordinary Domain rules, these are boundaries, not URL-aware approvals.
+ * Reject the entire list if any entry is unsupported; never drop individual entries.
+ */
+export function buildManagedDomainBoundary(patterns: readonly unknown[]): string[] | undefined {
+	const rules = new Set<string>();
+	for (const pattern of patterns) {
+		const domain = typeof pattern === 'string' ? normalizeDomainPattern(pattern) : undefined;
+		if (!domain || (domain !== '*' && !/^(?:\*\.)?[a-z0-9_-]+(?:\.[a-z0-9_-]+)*$/.test(domain))) {
+			return undefined;
+		}
+		rules.add(domain === '*' ? 'Domain' : `Domain(${domain})`);
+	}
+	return rules.has('Domain') ? ['Domain'] : [...rules].sort();
+}
+
+/** Only accepts canonical rules the bridge itself can emit, not arbitrary native policy. */
+export function isManagedDomainBoundaryRule(rule: unknown): rule is string {
+	if (rule === 'Domain') {
+		return true;
+	}
+	if (typeof rule !== 'string' || !rule.startsWith('Domain(') || !rule.endsWith(')')) {
+		return false;
+	}
+	const argument = rule.slice(7, -1);
+	return argument !== '*' && buildManagedDomainBoundary([argument])?.[0] === rule;
+}
+
+/** Omission is neutral; an empty boundary is deny-all. Contributions intersect, never union. */
+export function intersectManagedDomainBoundaries(left: readonly string[] | undefined, right: readonly string[] | undefined): string[] | undefined {
+	if (left === undefined) {
+		return right === undefined ? undefined : [...new Set(right)].sort();
+	}
+	if (right === undefined) {
+		return [...new Set(left)].sort();
+	}
+	const isSubset = (a: string, b: string): boolean => a === b || b === 'Domain'
+		|| (a !== 'Domain' && b.startsWith('Domain(*.') && matchesDomainPattern(a.slice(7, -1).replace(/^\*\./, ''), b.slice(7, -1)));
+	const result = new Set<string>();
+	for (const a of left) {
+		for (const b of right) {
+			if (isSubset(a, b)) {
+				result.add(a);
+			} else if (isSubset(b, a)) {
+				result.add(b);
+			}
+		}
+	}
+	return [...result].sort();
+}
 
 /**
  * Rule families the SDK understands. Any other family is a parse error for the

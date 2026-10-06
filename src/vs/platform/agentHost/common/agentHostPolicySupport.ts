@@ -56,11 +56,11 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatAgentSandboxEnabled: { status: 'notApplicable' },
 	ChatAgentSandboxAllowNetwork: { status: 'notApplicable' },
 	ChatAgentSandboxAllowUnsandboxedCommands: { status: 'notApplicable' },
-	// The default-on bridge covers supported denies and empty-list deny-all, but not allowlists
-	// or every VS Code domain pattern. #337538, #337539
+	// The bridge covers supported denies, empty-list deny-all, and policy-owned hostname
+	// boundaries. Unsupported patterns and browser/native-source coverage remain. #337538, #337539
 	ChatAgentNetworkFilter: { status: 'partial' },
-	// Shared browser tools and the custom terminal sandbox consume the lists; native SDK
-	// sandboxing ignores them, and the permissions bridge does not translate allowlists.
+	// Policy-owned allowlists reach native shell containment through limitTo; the custom
+	// terminal fails closed. URL-aware denies and browser coverage are not full host parity.
 	ChatAgentAllowedNetworkDomains: { status: 'partial' },
 	ChatAgentDeniedNetworkDomains: { status: 'partial' },
 

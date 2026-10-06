@@ -414,6 +414,7 @@ export async function createShellTools(
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
 	confirmUnsandboxedExecution?: UnsandboxedCommandConfirmationHandler,
+	canExecuteWithManagedSettings?: () => boolean,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<Tool<any>[]> {
 	const executable = await shellManager.getResolvedExecutable();
@@ -421,6 +422,13 @@ export async function createShellTools(
 	const engine = shellManager.getOrCreateSandboxEngine();
 	const sandboxEnabled = await engine.isEnabled();
 	const networkDomains = sandboxEnabled ? engine.getResolvedNetworkDomains() : undefined;
+	const checkManagedSettings = (): ToolResultObject | undefined => {
+		if (canExecuteWithManagedSettings?.() === false) {
+			logService.warn('[CopilotShellTools] Custom terminal execution blocked by an active or unresolved managed domain boundary.');
+			return makeFailureResult('Custom terminal execution cannot enforce the managed domain boundary. Use the native runtime shell instead.', 'managed_network_boundary');
+		}
+		return undefined;
+	};
 
 	const primaryTool: Tool<IShellToolArgs> = {
 		name: shellType,
@@ -447,6 +455,10 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		handler: async (args, invocation) => {
+			const managedFailure = checkManagedSettings();
+			if (managedFailure) {
+				return managedFailure;
+			}
 			const timeoutMs = args.timeout ?? DEFAULT_SHELL_COMMAND_TIMEOUT_MS;
 			const ref = await shellManager.getOrCreateShell(
 				shellType,
@@ -528,6 +540,10 @@ export async function createShellTools(
 					}
 					commandToRun = wrapped.command;
 				}
+				const managedFailure = checkManagedSettings();
+				if (managedFailure) {
+					return managedFailure;
+				}
 				const result = await executeCommandInShell(ref.object, commandToRun, timeoutMs, terminalManager, logService);
 				if (result.keepShellBusy) {
 					shouldReleaseShell = false;
@@ -582,6 +598,10 @@ export async function createShellTools(
 		overridesBuiltInTool: true,
 		skipPermission: true,
 		handler: async (args) => {
+			const managedFailure = checkManagedSettings();
+			if (managedFailure) {
+				return managedFailure;
+			}
 			const shells = shellManager.listShells();
 			const shell = shells[shells.length - 1];
 			if (!shell) {

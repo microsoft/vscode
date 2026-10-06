@@ -25,6 +25,21 @@ import { createSessionDataService } from '../common/sessionTestHelpers.js';
 suite('Session sandbox configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('projects a mandatory sandbox floor for resolved domain boundaries without authored sandbox settings', () => {
+		for (const limitTo of [[], ['Domain(example.com)'], ['Domain(*.example.com)'], ['Domain'], ['Domain', 'Domain(example.com)'], undefined, null]) {
+			const policy = projectCopilotSandboxPolicy({
+				source: 'server', serverManaged: true, deviceManaged: false,
+				failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['permissions'],
+				settings: { permissions: limitTo === undefined ? {} : { limitTo } },
+			}, 'boundary-session', new NullLogService());
+			const restricted = limitTo !== undefined && !limitTo?.includes('Domain');
+			assert.deepStrictEqual(policy, {
+				enabled: restricted, allowBypass: restricted ? false : undefined,
+				...(limitTo?.length === 0 ? { allowOutbound: false, allowLocalNetwork: false } : {}),
+			});
+		}
+	});
+
 	function setupSession() {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));

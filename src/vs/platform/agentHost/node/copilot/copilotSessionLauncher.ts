@@ -21,7 +21,7 @@ import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias,
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
-import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
+import { hasCopilotManagedDomainBoundary, projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
@@ -994,12 +994,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(hydraFusionEnabled ? { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true } : {}),
 		};
 		const enableCustomTerminalTool = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
+		let canExecuteCustomTerminal = false;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);
 		if (enableCustomTerminalTool) {
 			if (!plan.shellManager) {
 				throw new Error(`ShellManager is required to launch Copilot session '${plan.sessionId}'`);
 			}
-			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
+			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request), () => canExecuteCustomTerminal);
 		}
 		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
@@ -1122,6 +1123,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				runtime.onSessionEvent?.(event);
 				const owner = runtime.configurationResource.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+					canExecuteCustomTerminal = !event.data.failClosed && event.data.sandboxEnabledByUndeterminedPolicy !== true && !hasCopilotManagedDomainBoundary(event.data);
+					if (enableCustomTerminalTool && !canExecuteCustomTerminal && plan.shellManager) {
+						for (const shell of plan.shellManager.listShells()) {
+							plan.shellManager.shutdownShell(shell.id);
+						}
+					}
 					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data, plan.sessionId, this._logService));
 					onManagedSettingsResolved();
 				} else if (event.type === 'session.managed_settings_enforced' && event.data.setting === 'sandbox.enabled') {
