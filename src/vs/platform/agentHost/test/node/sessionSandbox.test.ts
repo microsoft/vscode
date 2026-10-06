@@ -63,7 +63,7 @@ suite('Session sandbox configuration', () => {
 		}, { values: {}, property: ['default', 'on', 'off'], mutable: true });
 	});
 
-	test('sandbox source distinguishes settings from owning-session choices without reading the managed floor', () => {
+	test('sandbox source distinguishes settings from owning-session choices without a managed floor', () => {
 		const { configuration, create } = setupSession();
 		const owner = create('sandbox-source');
 		const peer = buildChatUri(URI.parse(owner), 'peer');
@@ -82,6 +82,26 @@ suite('Session sandbox configuration', () => {
 			['user_enabled', 'user_enabled', 'session_flag', 'session_disabled'],
 			['user_disabled', 'user_disabled', 'session_flag', 'session_disabled'],
 		]);
+	});
+
+	test('mandatory sandboxing composes settings for explicit On and policy-promoted Off selections', () => {
+		const { configuration, create } = setupSession();
+		const sources = [];
+		for (const enabled of [undefined, 'on', 'off']) {
+			configuration.updateRootConfig({ sandbox: { enabled } });
+			for (const selection of ['on', 'off']) {
+				const owner = create(`mandatory-source-${enabled}-${selection}`, { sandboxEnabled: selection });
+				configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
+				sources.push({
+					selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+					source: getCopilotSandboxConfigSource(configuration, buildChatUri(URI.parse(owner), 'peer')),
+				});
+			}
+		}
+		assert.deepStrictEqual(sources, ['never_configured', 'user_enabled', 'user_disabled'].flatMap(source => [
+			{ selection: 'on', source },
+			{ selection: 'on', source },
+		]));
 	});
 
 	test('publishes session-scoped policy changes in serializable subscription state', () => {

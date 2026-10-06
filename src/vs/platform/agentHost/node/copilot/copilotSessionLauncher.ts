@@ -652,8 +652,8 @@ export function mergeByokSessionConfig(applied: ICopilotByokSessionConfig, curre
 	return objectsEqual(merged, registered) ? undefined : merged;
 }
 
-/** Applies sandbox configuration, returning false when the runtime retains its policy after a managed conflict. */
-export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, sandboxConfigSource?: SandboxConfigSource): Promise<boolean> {
+/** Applies sandbox configuration or rejects before executing with unapplied restrictions. */
+export async function applySandboxConfig(session: CopilotSessionWrapper['session'], sandboxConfig: SandboxConfig, sessionId: string, logService: ILogService, sandboxConfigSource?: SandboxConfigSource): Promise<void> {
 	try {
 		// A floored disabled update would make callers publish the wrong enabled state.
 		const result = await session.rpc.options.update({ sandboxConfig, ...(sandboxConfig.enabled && sandboxConfigSource !== undefined ? { sandboxConfigSource } : {}) });
@@ -661,14 +661,7 @@ export async function applySandboxConfig(session: CopilotSessionWrapper['session
 			throw new Error('Copilot SDK rejected sandbox config update');
 		}
 		logService.info(`[Copilot:${sessionId}] Applied SDK sandboxConfig via session.options.update`);
-		return true;
 	} catch (err) {
-		const data = isObject(err) ? err.data : undefined;
-		if ((isObject(data) && data.code === 'managed_sandbox_policy_conflict')
-			|| (err instanceof Error && err.message.includes('Sandbox configuration update violates managed policy. Contact your administrator for more information.'))) {
-			logService.warn(`[Copilot:${sessionId}] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime's existing sandbox configuration`, err);
-			return false;
-		}
 		logService.warn(`[Copilot:${sessionId}] Failed to apply SDK sandboxConfig`, err);
 		throw err;
 	}
@@ -710,9 +703,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			const owner = runtime.configurationResource.toString();
 			const config = this._computeSandboxConfig(owner);
-			if (await applySandboxConfig(session, config, plan.sessionId, this._logService, getCopilotSandboxConfigSource(this._configurationService, owner))) {
-				this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
-			}
+			await applySandboxConfig(session, config, plan.sessionId, this._logService, getCopilotSandboxConfigSource(this._configurationService, owner));
+			this._configurationService.setSessionSandboxEnabled(owner, config.enabled);
 		};
 		if (plan.kind === 'create') {
 			return this._createSession(plan, config, sandboxConfig, runtime);

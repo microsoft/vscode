@@ -12,9 +12,10 @@ import { AgentHostSandboxConfigKey, sandboxConfigSchema } from '../../common/san
 import type { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getSessionSandboxConfig, getSessionSandboxSelection, type ISessionSandboxPolicy } from '../sessionSandbox.js';
 
-/** Preserves explicit session choices while letting the runtime floor settings-derived preferences. */
+/** Composes settings under a mandatory floor while preserving effective session choices elsewhere. */
 export function getCopilotSandboxConfigSource(configuration: IAgentConfigurationService, session: string): SandboxConfigSource {
-	const selection = getSessionSandboxSelection(configuration, session);
+	const policy = configuration.getSessionSandboxPolicy(session);
+	const selection = policy?.enabled && policy.allowBypass !== true ? undefined : getSessionSandboxSelection(configuration, session);
 	if (selection === 'on') {
 		return 'session_flag';
 	}

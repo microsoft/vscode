@@ -18,15 +18,19 @@ import { AgentNetworkDomainSettingId } from '../../../../networkFilter/common/se
 import { AgentSandboxEnabledValue } from '../../../../sandbox/common/settings.js';
 import type { IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
 import { resolveManagedSettingsPermissions } from '../../../common/agentHostManagedSettings.js';
-import { TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from '../../../common/agentHostSchema.js';
+import { platformSessionSchema, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID } from '../../../common/agentHostSchema.js';
+import { AgentHostSandboxKey } from '../../../common/sandboxConfigSchema.js';
+import { SessionStatus } from '../../../common/state/sessionState.js';
+import { AgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { ByokLmBridgeRegistry } from '../../../node/byokLmBridgeRegistry.js';
 import { AgentHostManagedSettingsService } from '../../../node/agentHostManagedSettingsService.js';
+import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { ByokLmProxyService } from '../../../node/copilot/byokLmProxyService.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
-import { projectCopilotSandboxPolicy } from '../../../node/copilot/copilotSandboxPolicy.js';
+import { getCopilotSandboxConfigSource, projectCopilotSandboxPolicy } from '../../../node/copilot/copilotSandboxPolicy.js';
 import { applySandboxConfig } from '../../../node/copilot/copilotSessionLauncher.js';
 import { buildSandboxConfigForSdk } from '../../../node/copilot/sandboxConfigForSdk.js';
-import type { ISessionSandboxPolicy } from '../../../node/sessionSandbox.js';
+import { getSessionSandboxConfig, type ISessionSandboxPolicy } from '../../../node/sessionSandbox.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
 type RuntimeToolResult = Awaited<ReturnType<CopilotSession['rpc']['tools']['execute']>>;
@@ -166,15 +170,11 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 							allowLocalNetwork: resolvedPolicy.allowLocalNetwork,
 						});
 						assert.ok(sandboxConfig);
-						const warnings: string[] = [];
-						const log = new class extends NullLogService {
-							override warn(message: string): void { warnings.push(message); }
-						}();
-						const applied = await applySandboxConfig(session, sandboxConfig, sessionId, log);
-						// The runtime rejects replacing its nonempty host floor with an
-						// options document that omits that floor. Keep its existing sandbox.
-						assert.strictEqual(applied, denyAll, `${phase}: preserve runtime domain floor`);
-						assert.deepStrictEqual(warnings.map(message => message.includes('conflicts with managed policy')), denyAll ? [] : [true]);
+						if (denyAll) {
+							await applySandboxConfig(session, sandboxConfig, sessionId, new NullLogService());
+						} else {
+							await assert.rejects(applySandboxConfig(session, sandboxConfig, sessionId, new NullLogService()), /Sandbox configuration update violates managed policy/);
+						}
 						preferenceSandboxConfig = sandboxConfig;
 					}
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
@@ -243,25 +243,54 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					if (preferenceSandboxConfig) {
 						assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 						for (const sandboxConfigSource of ['never_configured', 'user_enabled', 'user_disabled'] as const) {
-							const updated = await applySandboxConfig(session, preferenceSandboxConfig, sessionId, new NullLogService(), sandboxConfigSource);
+							await applySandboxConfig(session, preferenceSandboxConfig, sessionId, new NullLogService(), sandboxConfigSource);
 							requests.length = 0;
 							const outside = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://outside.invalid' } });
 							const inside = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'http://unmatched.invalid:8443/path' } });
 							assert.deepStrictEqual({
-								updated,
 								results: [outside, inside].map(resultType),
 								requests,
 							}, {
-								updated: true,
 								results: ['denied', denyAll ? 'denied' : 'rejected'],
 								requests: denyAll ? [] : [{ kind: 'url', managedApprovalRequired: false }],
 							}, `${phase}: ${sandboxConfigSource} preserves the runtime domain floor`);
+						}
+						if (restriction === 'limitTo') {
+							const manager = store.add(new AgentHostStateManager(new NullLogService()));
+							const hostConfiguration = store.add(new AgentConfigurationService(manager, new NullLogService()));
+							const owner = `copilot:/${sessionId}`;
+							manager.createSession({
+								resource: owner, provider: 'copilot', title: 'sandbox composition', status: SessionStatus.Idle,
+								createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+							});
+							for (const selection of ['on', 'off']) {
+								const name = `${phase}-${selection}-restricted.txt`;
+								const marker = 'sandbox-filesystem-denial-probe';
+								await writeFile(join(directory, name), marker);
+								const command = isWindows ? `Get-Content -LiteralPath '${name}' -ErrorAction Stop` : `cat '${name}'`;
+								const readable = await session.rpc.tools.execute({ name: shell, arguments: { command, description: 'Read filesystem probe' } });
+								assert.ok(typeof readable !== 'string' && readable.textResultForLlm.includes(marker), JSON.stringify(readable));
+								manager.setSessionConfig(owner, { schema: platformSessionSchema.toProtocol(), values: { sandboxEnabled: selection } });
+								hostConfiguration.updateRootConfig({
+									sandbox: { enabled: 'off', [AgentHostSandboxKey.UserConfiguredPaths]: { deniedPaths: [join(directory, name)] } },
+								});
+								hostConfiguration.setSessionSandboxPolicy(owner, resolvedPolicy);
+								const config = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(hostConfiguration, owner));
+								assert.ok(config);
+								await applySandboxConfig(session, config, sessionId, new NullLogService(), getCopilotSandboxConfigSource(hostConfiguration, owner));
+								const denied = await session.rpc.tools.execute({ name: shell, arguments: { command, description: 'Read denied filesystem probe' } });
+								assert.ok(typeof denied !== 'string');
+								assert.deepStrictEqual({
+									read: denied.textResultForLlm.includes(marker),
+									exitCode: denied.contents?.find(content => content.type === 'shell_exit')?.exitCode,
+								}, { read: false, exitCode: 1 }, `${phase}: ${selection}: ${JSON.stringify(denied)}`);
+							}
 						}
 						await assert.rejects(session.rpc.options.update({
 							sandboxConfig: { enabled: false },
 							sandboxConfigSource: 'session_disabled',
 						}), /Sandbox configuration update violates managed policy/);
-						assert.strictEqual(await applySandboxConfig(session, { enabled: false }, sessionId, new NullLogService(), 'user_disabled'), false);
+						await assert.rejects(applySandboxConfig(session, { enabled: false }, sessionId, new NullLogService(), 'user_disabled'), /Sandbox configuration update violates managed policy/);
 					}
 				}
 			} finally {

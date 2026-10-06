@@ -81,6 +81,8 @@ supported bridge restrictions.
 
 The runtime composes managed sandbox floors. While sandbox configuration remains host-driven, verify that Agent Host applies the effective floor to session `sandboxConfig`; policy state and containment must not diverge.
 
+When policy requires sandboxing without bypass, submit the host document with settings-derived provenance even for an On selection: policy can promote Off to On, and a strict `session_flag` replacement can reject the entire document, including filesystem denials. Propagate rejected updates; retaining the runtime's floor does not mean the host's restrictions were applied.
+
 `limitTo` binds before approval, including Allow All, without itself making unrelated shell/file operations managed asks. A restrictive resolved boundary requires sandboxing with no bypass even when no `settings.sandbox` was authored. An empty boundary forces both outbound and local networking off; an empty sandbox host list is not a deny-all representation.
 
 The initial custom-terminal integration fails closed until the runtime policy is resolved and while a restrictive boundary is active. It blocks command execution and stdin, rechecks after asynchronous preparation, and shuts down existing session shells on tightening. Use the native runtime shell to exercise domain-scoped shell access. Integrated-browser enforcement and full Local-harness native policy coverage remain separate work; keep network parity partial. Host-wide client intersection is not tenant/account isolation.

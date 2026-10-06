@@ -223,10 +223,10 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
-		test(`${kind} forwards settings provenance without relabeling an explicit session choice`, async () => {
+		test(`${kind} composes settings under a mandatory floor for default, explicit On, and promoted Off`, async () => {
 			const sources = [];
 			for (const enabled of [undefined, 'on', 'off']) {
-				for (const selection of ['default', 'on']) {
+				for (const selection of ['default', 'on', 'off']) {
 					const fixture = setup(kind, true, true);
 					fixture.configuration.updateRootConfig({ sandbox: { enabled } });
 					fixture.configuration.updateSessionConfig(fixture.owner, { sandboxEnabled: selection });
@@ -237,11 +237,9 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					})));
 				}
 			}
-			assert.deepStrictEqual(sources, [
-				[{ enabled: true, source: 'never_configured' }], [{ enabled: true, source: 'session_flag' }],
-				[{ enabled: true, source: 'user_enabled' }], [{ enabled: true, source: 'session_flag' }],
-				[{ enabled: true, source: 'user_disabled' }], [{ enabled: true, source: 'session_flag' }],
-			]);
+			assert.deepStrictEqual(sources, ['never_configured', 'user_enabled', 'user_disabled'].flatMap(source =>
+				Array.from({ length: 3 }, () => [{ enabled: true, source }])
+			));
 		});
 
 		test(`${kind} blocks custom terminal commands and shuts down existing shells when a resolved boundary tightens`, async () => {
@@ -315,11 +313,11 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 			['wrapped message', new Error('Request session.options.update failed with message: Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
 		] as const) {
-			test(`${kind} logs a ${format} sandbox conflict without disconnecting or publishing the rejected state`, async () => {
+			test(`${kind} rejects a ${format} sandbox conflict and disconnects without publishing the rejected state`, async () => {
 				const fixture = setup(kind, true, false, false, undefined, error);
 				fixture.configuration.setSessionSandboxEnabled(fixture.owner, true);
 
-				store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+				await assert.rejects(fixture.launcher.launch(fixture.plan, testRuntime), error);
 
 				assert.deepStrictEqual({
 					disconnected: fixture.disconnected,
@@ -328,11 +326,11 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 					warnings: fixture.logService.warnings,
 					loggedSuccess: fixture.logService.infos.some(message => message.includes('Applied SDK sandboxConfig')),
 				}, {
-					disconnected: false,
+					disconnected: true,
 					published: { enabled: true },
 					applied: [],
 					warnings: [{
-						message: '[Copilot:sess-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						message: '[Copilot:sess-1] Failed to apply SDK sandboxConfig',
 						args: [error],
 					}],
 					loggedSuccess: false,

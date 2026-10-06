@@ -10076,8 +10076,43 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('composes updated filesystem denials under a mandatory floor for default and peer chats', async () => {
+			const results = [];
+			for (const peerChat of [false, true]) {
+				const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
+				const resource = peerChat ? URI.parse(buildChatUri(sessionUri, 'sandbox-peer')) : undefined;
+				const sandbox = {
+					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+					[AgentHostSandboxKey.UserConfiguredPaths]: { deniedPaths: ['/private/new-denial'] },
+				};
+				const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+					sessionUri, chatChannelUri: resource, resource,
+					sandboxPolicy: { enabled: true, allowBypass: false },
+					configValues: { [SessionConfigKey.SandboxEnabled]: 'on' },
+					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: { enabled: 'off' } },
+				});
+				setRootValue(AgentHostSandboxConfigKey.Sandbox, sandbox);
+				fireRootConfigChange();
+				await timeout(0);
+				await session.send('hello', undefined, 'sandbox-turn');
+				results.push({
+					sources: mockSession.sandboxConfigSources,
+					configs: mockSession.sandboxConfigUpdates,
+				});
+			}
+			const expected = expectedSessionSandboxConfig('linux', {
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.AllowUnsandboxedCommands]: false,
+				[AgentHostSandboxKey.UserConfiguredPaths]: { deniedPaths: ['/private/new-denial'] },
+			});
+			assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({
+				sources: ['user_disabled', 'user_disabled'],
+				configs: [expected, expected],
+			})));
+		});
+
 		for (const activeTurn of [false, true]) {
-			test(`logs sandbox conflicts without aborting or publishing rejected state with active turn ${activeTurn}`, async () => {
+			test(`rejects sandbox conflicts before continuing and aborts only an active turn ${activeTurn}`, async () => {
 				const logService = new CapturingLogService();
 				const { session, mockSession, setConfigValue, fireSessionConfigChange, sandboxResults } = await createAgentSession(disposables, { logService });
 				setConfigValue(SessionConfigKey.SandboxEnabled, 'on');
@@ -10092,7 +10127,7 @@ suite('CopilotAgentSession', () => {
 				setConfigValue(SessionConfigKey.SandboxEnabled, 'off');
 				fireSessionConfigChange({ [SessionConfigKey.SandboxEnabled]: 'off' });
 				await timeout(0);
-				await session.send('continue', undefined, 'conflict-turn');
+				await assert.rejects(session.send('continue', undefined, 'conflict-turn'), error);
 
 				assert.deepStrictEqual({
 					hadActiveTurn,
@@ -10101,23 +10136,23 @@ suite('CopilotAgentSession', () => {
 					sendCount: mockSession.sendRequests.length,
 					rejectedUpdates: mockSession.sandboxConfigUpdates.slice(1),
 					warnings: logService.warnings.filter(entry => entry.args.includes(error)),
-					errors: logService.errors,
+					errors: logService.errors.map(entry => entry.first instanceof Error ? entry.first.message : entry.first),
 				}, {
 					hadActiveTurn: activeTurn,
-					sandboxResults: [true],
-					abortCalls: 0,
-					sendCount: 1,
+					sandboxResults: [true, error.message],
+					abortCalls: activeTurn ? 1 : 0,
+					sendCount: 0,
 					rejectedUpdates: [{ enabled: false }, { enabled: false }],
 					warnings: Array.from({ length: 2 }, () => ({
-						message: '[Copilot:test-session-1] SDK sandboxConfig update conflicts with managed policy; continuing with the runtime\'s existing sandbox configuration',
+						message: '[Copilot:test-session-1] Failed to apply SDK sandboxConfig',
 						args: [error],
 					})),
-					errors: [],
+					errors: [error.message],
 				});
 
 				mockSession.sandboxConfigUpdateError = undefined;
 				await session.send('retry', undefined, 'retry-turn');
-				assert.deepStrictEqual(sandboxResults, [true, false]);
+				assert.deepStrictEqual(sandboxResults, [true, error.message, false]);
 			});
 		}
 
