@@ -156,24 +156,31 @@ suite('ExtHostLanguageFeatures', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('AutoClosingPair.beforeText requires proposed API', () => {
-		disposables.add(extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', {
-			autoClosingPairs: [{ open: '{', close: '}' }]
-		}));
+	test('AutoClosingPair.beforeText requires proposed API', async () => {
+		const setLanguageConfiguration = sinon.stub(mainThread, '$setLanguageConfiguration');
+		try {
+			disposables.add(extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', {
+				autoClosingPairs: [{ open: '{', close: '}' }]
+			}));
 
-		const configuration: vscode.LanguageConfiguration = {
-			autoClosingPairs: [{ open: '{', close: '}', beforeText: /\{$/ }]
-		};
-		assert.throws(
-			() => extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', configuration),
-			/CANNOT use API proposal: autoClosingPairBeforeText/
-		);
+			const configuration: vscode.LanguageConfiguration = {
+				autoClosingPairs: [{ open: '{', close: '}', beforeText: /\{$/ }]
+			};
+			assert.throws(
+				() => extHost.setLanguageConfiguration(defaultExtension, 'testLanguage', configuration),
+				/CANNOT use API proposal: autoClosingPairBeforeText/
+			);
 
-		disposables.add(extHost.setLanguageConfiguration(
-			{ ...defaultExtension, enabledApiProposals: ['autoClosingPairBeforeText'] },
-			'testLanguage',
-			configuration
-		));
+			disposables.add(extHost.setLanguageConfiguration(
+				{ ...defaultExtension, enabledApiProposals: ['autoClosingPairBeforeText'] },
+				'testLanguage',
+				configuration
+			));
+			await rpcProtocol.sync();
+			assert.strictEqual(setLanguageConfiguration.callCount, 2);
+		} finally {
+			setLanguageConfiguration.restore();
+		}
 	});
 
 	test('DocumentDropEdits does not cache an empty edit array without release IDs', async () => {
