@@ -1803,14 +1803,18 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .marketplace-detail-query-list {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size20);
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size40);
 	margin: 0;
 	padding: var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: var(--vscode-textCodeBlock-background);
 	list-style: none;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-list > li {
+	min-width: 0;
 }
 
 .ai-customization-management-editor .monaco-button.marketplace-detail-query-button {
@@ -1830,6 +1834,9 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .marketplace-detail-query-text {
 	flex: 1;
 	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 .ai-customization-management-editor .marketplace-detail-query-action {

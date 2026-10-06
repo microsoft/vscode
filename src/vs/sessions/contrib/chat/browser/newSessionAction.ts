@@ -59,7 +59,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean; prompt?: string; noWorkspace?: boolean; sessionTypeId?: string }): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean; prompt?: string; prefillPrompt?: boolean; noWorkspace?: boolean; sessionTypeId?: string }): Promise<void> {
 		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
@@ -73,7 +73,11 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (!sessionView) {
 				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
 			}
-			sessionView.sendQuery(options.prompt);
+			if (options.prefillPrompt) {
+				sessionView.prefillInput(options.prompt);
+			} else {
+				sessionView.sendQuery(options.prompt);
+			}
 		};
 		if (options?.noWorkspace) {
 			sessionsService.openQuickChat({ sessionTypeId: options.sessionTypeId }, true);

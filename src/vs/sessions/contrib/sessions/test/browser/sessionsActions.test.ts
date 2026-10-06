@@ -1310,7 +1310,7 @@ suite('Sessions - Actions', () => {
 		});
 	}
 
-	test('New Session sends a supplied prompt through the new session view', async () => {
+	test('New Session prefills a supplied prompt through the new session view', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		const { session } = createTestSession('prompted');
@@ -1340,7 +1340,7 @@ suite('Sessions - Actions', () => {
 			getSessionView: sessionId => {
 				viewSessionIds.push(sessionId);
 				return upcastPartial<SessionView>({
-					sendQuery: query => queries.push(query),
+					prefillInput: query => queries.push(query),
 				});
 			},
 		}));
@@ -1355,7 +1355,7 @@ suite('Sessions - Actions', () => {
 				return instantiationService.get(id);
 			},
 		};
-		await command.handler(invocationAccessor, { prompt: 'Review this change', noWorkspace: true, sessionTypeId: 'copilotcli' });
+		await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true, sessionTypeId: 'copilotcli' });
 
 		assert.deepStrictEqual({ quickChatRequests, openNewSessionCalls, viewSessionIds, queries }, {
 			quickChatRequests: [{ options: { sessionTypeId: 'copilotcli' }, preserveNavigation: true }],

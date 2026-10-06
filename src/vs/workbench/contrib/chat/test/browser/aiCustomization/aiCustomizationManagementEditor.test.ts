@@ -208,6 +208,9 @@ suite('aiCustomizationManagementEditor', () => {
 			isSessionsWindow: boolean;
 		};
 		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
+		chatWidgetService: {
+			getWidgetBySessionResource(resource: URI): { setInput(value: string): void; focusInput(): void } | undefined;
+		};
 		viewsService: { openView(viewId: string, focus?: boolean): Promise<{ prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined> };
 		editorDisplayMode: 'preview' | 'raw';
 		currentCustomizationDetail: boolean;
@@ -407,6 +410,7 @@ suite('aiCustomizationManagementEditor', () => {
 			isSessionsWindow: false,
 		};
 		editor.commandService = { executeCommand: async () => undefined };
+		editor.chatWidgetService = { getWidgetBySessionResource: () => undefined };
 		editor.viewsService = { openView: async () => undefined };
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
@@ -518,7 +522,7 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.deepStrictEqual(calls, [{
 			commandId: 'workbench.action.sessions.newChat',
-			args: [{ prompt: 'Review this change', noWorkspace: true, sessionTypeId: 'copilotcli' }],
+			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true, sessionTypeId: 'copilotcli' }],
 		}]);
 	});
 
@@ -526,18 +530,32 @@ suite('aiCustomizationManagementEditor', () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		const sessionResource = URI.parse('agent-host-test:/marketplace-prompt');
+		const inputValues: string[] = [];
+		let focused = false;
 		editor.commandService = {
 			executeCommand: async (commandId, ...args) => {
 				calls.push({ commandId, args });
+				return sessionResource;
 			},
+		};
+		editor.chatWidgetService = {
+			getWidgetBySessionResource: resource => resource.toString() === sessionResource.toString() ? {
+				setInput: value => inputValues.push(value),
+				focusInput: () => { focused = true; },
+			} : undefined,
 		};
 
 		await editor.runMarketplacePrompt('Review this change');
 
-		assert.deepStrictEqual(calls, [{
-			commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
-			args: [{ prompt: 'Review this change' }],
-		}]);
+		assert.deepStrictEqual({ calls, inputValues, focused }, {
+			calls: [{
+				commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+				args: [],
+			}],
+			inputValues: ['Review this change'],
+			focused: true,
+		});
 	});
 
 	function createContributedSectionEditor(enablementSettings?: readonly string[]) {

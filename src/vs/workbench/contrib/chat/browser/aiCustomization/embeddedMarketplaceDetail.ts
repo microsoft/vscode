@@ -28,6 +28,7 @@ import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallS
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 const $ = DOM.$;
+const maxRepresentativeQueries = 3;
 
 export interface IEmbeddedMarketplaceDetailOptions {
 	readonly getSourceLabel: (sourceId: string) => string;
@@ -101,7 +102,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.installStateDetailsEl = DOM.append(this.installStateCardEl, $('.mcp-detail-diagnostic-details'));
 
 		const queriesSection = DOM.append(this.root, $('section.embedded-detail-section.marketplace-detail-queries'));
-		DOM.append(queriesSection, $('h3.embedded-detail-section-title')).textContent = localize('marketplaceDetail.tryThis', "Try this");
+		DOM.append(queriesSection, $('h3.embedded-detail-section-title')).textContent = localize('marketplaceDetail.getStarted', "Get started");
 		this.queriesEl = DOM.append(queriesSection, $('ul.marketplace-detail-query-list'));
 
 		const factsSection = DOM.append(this.root, $('section.embedded-detail-section.marketplace-detail-source-facts'));
@@ -169,7 +170,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			resource.publisher,
 			resource.description,
 			statePresentation ? [statePresentation.summary, ...statePresentation.details].join('\n') : undefined,
-			formatList(localize('marketplaceDetail.queries', "Try this"), resource.representativeQueries),
+			formatList(localize('marketplaceDetail.queries', "Get started"), resource.representativeQueries.slice(0, maxRepresentativeQueries)),
 			localize('marketplaceDetail.typeAccessible', "Type: {0}", getMarketplaceTypeLabel(resource)),
 			resource.publisher ? localize('marketplaceDetail.publisherAccessible', "Publisher: {0}", resource.publisher) : undefined,
 			resource.version ? localize('marketplaceDetail.versionAccessible', "Version: {0}", resource.version) : undefined,
@@ -292,18 +293,19 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		if (section) {
 			section.style.display = resource.representativeQueries.length ? '' : 'none';
 		}
-		for (const query of resource.representativeQueries) {
+		for (const query of resource.representativeQueries.slice(0, maxRepresentativeQueries)) {
 			const item = DOM.append(this.queriesEl, $('li'));
 			const button = this.renderDisposables.add(new Button(item, {
 				...defaultButtonStyles,
 				secondary: true,
 				buttonSecondaryBackground: 'transparent',
 				supportIcons: true,
-				ariaLabel: localize('marketplaceDetail.runQueryAria', "Install {0} and run prompt: {1}", resource.displayName, query),
+				ariaLabel: localize('marketplaceDetail.runQueryAria', "Install {0} and start a new Copilot session with prompt: {1}", resource.displayName, query),
 			}));
 			button.label = query;
 			button.element.classList.add('marketplace-detail-query-button');
 			button.element.firstElementChild?.classList.add('marketplace-detail-query-text');
+			this.renderDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: query }));
 			const action = DOM.append(button.element, $('span.marketplace-detail-query-action'));
 			const icon = DOM.append(action, $(`span.codicon.codicon-${Codicon.arrowUpCompact.id}`));
 			icon.setAttribute('aria-hidden', 'true');

@@ -8,11 +8,13 @@ import * as DOM from '../../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestContext } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -43,6 +45,16 @@ suite('EmbeddedMarketplaceDetail', () => {
 		let repairCount = 0;
 		let uninstallCount = 0;
 		const openedExternal: Array<URI | string> = [];
+		const queryHovers: string[] = [];
+		instantiationService.stub(IHoverService, new class extends mock<IHoverService>() {
+			override setupDelayedHover(...[target, options]: Parameters<IHoverService['setupDelayedHover']>): IDisposable {
+				const resolvedOptions = typeof options === 'function' ? options() : options;
+				if (target.classList.contains('marketplace-detail-query-button') && typeof resolvedOptions.content === 'string') {
+					queryHovers.push(resolvedOptions.content);
+				}
+				return Disposable.None;
+			}
+		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 			override error(message: NotificationMessage | NotificationMessage[]): void {
 				errors.push(String(message));
@@ -90,11 +102,12 @@ suite('EmbeddedMarketplaceDetail', () => {
 			getActionCounts: () => ({ installCount, repairCount, uninstallCount }),
 			getOpenedExternal: () => openedExternal.map(resource => typeof resource === 'string' ? resource : resource.toString()),
 			getErrors: () => errors,
+			getQueryHovers: () => queryHovers,
 		};
 	}
 
 	test('renders ordered metadata and representative queries', async () => {
-		const { detail, parent, getOpenedExternal } = render({
+		const { detail, parent, getOpenedExternal, getQueryHovers } = render({
 			sourceId: 'test',
 			identifier: 'review',
 			displayName: 'Repository review',
@@ -105,7 +118,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			stars: 42,
 			tags: ['review'],
 			capabilities: ['Find risks'],
-			representativeQueries: ['Review this change'],
+			representativeQueries: ['Review this change', 'Find security risks', 'Summarize this repository', 'Explain the architecture'],
 			url: URI.parse('https://example.com/review'),
 			repository: URI.parse('https://github.com/example/review'),
 			icon: URI.parse('https://example.com/review.svg'),
@@ -120,6 +133,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
 			queries: [...parent.querySelectorAll('.marketplace-detail-query-text')].map(element => element.textContent),
 			queryActionIcons: [...parent.querySelectorAll('.marketplace-detail-query-action .codicon')].map(element => element.className),
+			queryHovers: getQueryHovers(),
 			links: [...parent.querySelectorAll('.embedded-detail-fact-link')].map(element => element.textContent),
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			openedExternal: getOpenedExternal(),
@@ -130,12 +144,13 @@ suite('EmbeddedMarketplaceDetail', () => {
 			publisherHref: 'https://github.com/example',
 			icon: 'https://example.com/review.svg',
 			facts: ['Type', 'Skill', 'Publisher', 'Example', 'Version', '1.2.0', 'Source', 'Marketplace', 'Tags', 'review', 'Repository', 'example/review'],
-			queries: ['Review this change'],
-			queryActionIcons: ['codicon codicon-arrow-up-compact'],
+			queries: ['Review this change', 'Find security risks', 'Summarize this repository'],
+			queryActionIcons: ['codicon codicon-arrow-up-compact', 'codicon codicon-arrow-up-compact', 'codicon codicon-arrow-up-compact'],
+			queryHovers: ['Review this change', 'Find security risks', 'Summarize this repository'],
 			links: ['Example', 'Marketplace', 'example/review'],
 			actions: ['Install'],
 			openedExternal: ['https://github.com/example'],
-			accessible: 'Repository review\n\nExample\n\nReviews pull requests.\n\nTry this: Review this change\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
+			accessible: 'Repository review\n\nExample\n\nReviews pull requests.\n\nGet started: Review this change, Find security risks, Summarize this repository\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
 		});
 	});
 
@@ -167,7 +182,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		}, {
 			calls: ['install:review', 'prompt:Review this change'],
 			label: 'Review this change',
-			ariaLabel: 'Install Repository review and run prompt: Review this change',
+			ariaLabel: 'Install Repository review and start a new Copilot session with prompt: Review this change',
 			ariaBusy: null,
 		});
 	});

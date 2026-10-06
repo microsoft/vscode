@@ -1004,10 +1004,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private async runMarketplacePrompt(prompt: string): Promise<void> {
 		if (this.workspaceService.isSessionsWindow) {
-			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, noWorkspace: true, sessionTypeId: 'copilotcli' });
+			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, prefillPrompt: true, noWorkspace: true, sessionTypeId: 'copilotcli' });
 			return;
 		}
-		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`, { prompt });
+		const sessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`);
+		const widget = sessionResource ? this.chatWidgetService.getWidgetBySessionResource(sessionResource) : undefined;
+		if (!widget) {
+			throw new Error(localize('marketplaceDetail.chatUnavailable', "The new Copilot session input is unavailable."));
+		}
+		widget.setInput(prompt);
+		widget.focusInput();
 	}
 
 	private createBackArrowButton(
