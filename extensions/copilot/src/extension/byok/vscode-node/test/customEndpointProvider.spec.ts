@@ -176,7 +176,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
-		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean): Promise<IChatEndpoint> {
+		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean, statefulResponses?: boolean): Promise<IChatEndpoint> {
 			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
 			const modelConfiguration: CustomEndpointModelConfig = {
@@ -191,6 +191,9 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			};
 			if (zeroDataRetentionEnabled !== undefined) {
 				modelConfiguration.zeroDataRetentionEnabled = zeroDataRetentionEnabled;
+			}
+			if (statefulResponses !== undefined) {
+				modelConfiguration.statefulResponses = statefulResponses;
 			}
 			const [model] = await provider.provideLanguageModelChatInformation({
 				silent: true,
@@ -277,8 +280,23 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		});
 
-		it('enables store and previous_response_id for Custom Endpoint Responses requests when zeroDataRetentionEnabled is false', async () => {
+		it('enables store but not previous_response_id when zeroDataRetentionEnabled is false without statefulResponses', async () => {
 			const endpoint = await createConfiguredResponsesEndpoint(false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: undefined,
+			});
+		});
+
+		it('chains via previous_response_id when statefulResponses is true', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false, true);
 			const body = createResponsesBody(endpoint);
 
 			expect({
@@ -293,7 +311,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 		});
 
 		it('disables store and previous_response_id for Custom Endpoint ZDR Responses requests', async () => {
-			const endpoint = await createConfiguredResponsesEndpoint(true);
+			const endpoint = await createConfiguredResponsesEndpoint(true, true);
 			const body = createResponsesBody(endpoint);
 
 			expect({

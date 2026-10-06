@@ -107,6 +107,7 @@ interface _CustomEndpointModelConfig {
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
 	zeroDataRetentionEnabled?: boolean;
+	statefulResponses?: boolean;
 	supportsReasoningEffort?: string[];
 	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
@@ -173,6 +174,7 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
 			requestHeaders: modelConfiguration?.requestHeaders,
 			modelOptions: modelConfiguration?.modelOptions,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled,
+			statefulResponses: modelConfiguration?.statefulResponses,
 			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			reasoningEffortFormat: modelConfiguration?.reasoningEffortFormat
 		};
@@ -206,6 +208,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    conflicting credentials.
  * 4. Omits the Responses API `store` property when Zero Data Retention was not
  *    explicitly configured, allowing custom implementations to use their own default.
+ * 5. Sends full Responses history instead of chaining via `previous_response_id`
+ *    unless the user declares the server stateful with `statefulResponses: true`.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	/**
@@ -258,11 +262,10 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 
 	/**
 	 * Many OpenAI-compatible Responses implementations (e.g. DeepSeek) are stateless and
-	 * ignore `previous_response_id`, so only chain when the user explicitly sets
-	 * `zeroDataRetentionEnabled: false`.
+	 * ignore `previous_response_id`, so only chain when the user opts in via `statefulResponses`.
 	 */
 	protected override get supportsStatefulResponses(): boolean {
-		return this.modelMetadata.zeroDataRetentionEnabled === false;
+		return this.modelMetadata.statefulResponses === true;
 	}
 
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
