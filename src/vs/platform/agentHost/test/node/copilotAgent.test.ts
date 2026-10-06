@@ -2054,6 +2054,72 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('admits session extension launch before SDK initialization and revokes it with its session and client', async () => {
+		const directory = await fs.mkdtemp(join(os.tmpdir(), 'copilot-session-launch-'));
+		const userHome = URI.file(directory);
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client, userHome });
+		const sessionDisposables = disposables.add(new DisposableStore());
+		const sessionId = 'launch-owner';
+		const modulePath = join(getCopilotHomePath(directory, process.env), 'session-state', sessionId, 'extensions', 'preview', 'extension.mjs');
+		const request = { id: `session:${sessionId}:preview`, name: 'preview', modulePath, source: 'session' as const };
+		const internals = agent as unknown as {
+			_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
+			_stopClient(): Promise<void>;
+		};
+		let launchDuringInitialization: string | undefined;
+		try {
+			await fs.mkdir(dirname(modulePath), { recursive: true });
+			await fs.writeFile(modulePath, '');
+			await agent.listChatsToMigrate();
+			const launchProvider = getCreatedClientOptions(agent).at(-1)?.extensionLaunchProvider;
+			assert.ok(launchProvider);
+			const before = await launchProvider.resolve(request);
+			const session = {
+				sessionId,
+				extensionLaunchClient: client,
+				extensionLaunchDirectories: [],
+				setExtensionLaunchAdmission: (admission: IDisposable) => { sessionDisposables.add(admission); },
+				initializeSession: async () => { launchDuringInitialization = (await launchProvider.resolve(request)).launch?.env.EXTENSION_PATH; },
+				dispose: () => sessionDisposables.dispose(),
+			} as unknown as CopilotAgentSession;
+			await internals._initializeAndRegisterSession(session, () => { });
+			const during = launchDuringInitialization;
+			await internals._stopClient();
+			const stopped = await launchProvider.resolve(request);
+			await agent.listChatsToMigrate();
+			const replacementProvider = getCreatedClientOptions(agent).at(-1)?.extensionLaunchProvider;
+			assert.ok(replacementProvider);
+			const beforeReplacementAdmission = await replacementProvider.resolve(request);
+			await internals._initializeAndRegisterSession(session, () => { });
+			const staleClient = await launchProvider.resolve(request);
+			const replacement = await replacementProvider.resolve(request);
+			session.dispose();
+			const after = await replacementProvider.resolve(request);
+			assert.deepStrictEqual({
+				before: before.launch,
+				during,
+				stopped: stopped.launch,
+				beforeReplacementAdmission: beforeReplacementAdmission.launch,
+				staleClient: staleClient.launch,
+				replacement: replacement.launch?.env.EXTENSION_PATH,
+				after: after.launch,
+			}, {
+				before: undefined,
+				during: await fs.realpath(modulePath),
+				stopped: undefined,
+				beforeReplacementAdmission: undefined,
+				staleClient: undefined,
+				replacement: await fs.realpath(modulePath),
+				after: undefined,
+			});
+		} finally {
+			sessionDisposables.dispose();
+			await disposeAgent(agent);
+			await fs.rm(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('launches a configured local Copilot runtime executable', async () => {
 		const directory = await fs.mkdtemp(`${os.tmpdir()}/copilot-runtime-override-`);
 		const runtimePath = join(directory, process.platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime');

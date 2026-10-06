@@ -928,6 +928,10 @@ export class CopilotAgentSession extends Disposable {
 		];
 	}
 
+	get extensionLaunchClient(): CopilotSessionLaunchPlan['client'] {
+		return this._launchPlan.client;
+	}
+
 	setExtensionLaunchAdmission(admission: IDisposable): void {
 		this._register(admission);
 	}
