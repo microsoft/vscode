@@ -1,0 +1,16 @@
+{
+	"compilerOptions": {
+		"target": "es2024",
+		"module": "nodenext",
+		"strict": true,
+		"types": ["node"],
+		"skipLibCheck": true,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"paths": {
+			"vscode": ["../../src/vscode-dts/vscode.d.ts"],
+			"esbuild": ["../../build/node_modules/esbuild/lib/main.d.ts"]
+		}
+	},
+	"include": ["*.ts"]
+}
