@@ -312,7 +312,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	submenu: Menus.SessionsViewFilter,
 	title: localize2('filterSessions', "Filter Sessions"),
-	icon: Codicon.settings,
+	icon: Codicon.filter,
 	group: 'navigation',
 	order: 10,
 });
@@ -327,47 +327,27 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	order: 20,
 });
 
-for (const option of [
-	{ value: SessionsSorting.Created, label: localize('created', "Created") },
-	{ value: SessionsSorting.Updated, label: localize('updated', "Updated") },
-]) {
-	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-		submenu: Menus.SessionsViewOrdering,
-		title: localize2('ordering', "Ordering ({0})", option.label),
-		when: SessionsViewSortingContext.isEqualTo(option.value),
-		group: '1_presentation',
-		order: 0,
-	});
-}
+MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+	submenu: Menus.SessionsViewOrdering,
+	title: localize2('ordering', "Ordering"),
+	group: '1_presentation',
+	order: 0,
+});
 
-for (const option of [
-	{ value: SessionsGrouping.Date, label: localize('time', "Time") },
-	{ value: SessionsGrouping.Workspace, label: localize('workspace', "Workspace") },
-]) {
-	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-		submenu: Menus.SessionsViewGrouping,
-		title: localize2('grouping', "Grouping ({0})", option.label),
-		when: SessionsViewGroupingContext.isEqualTo(option.value),
-		group: '1_presentation',
-		order: 1,
-	});
-}
+MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+	submenu: Menus.SessionsViewGrouping,
+	title: localize2('grouping', "Grouping"),
+	group: '1_presentation',
+	order: 1,
+});
 
-for (const option of [
-	{ capped: true, label: localize('recent', "Recent") },
-	{ capped: false, label: localize('all', "All") },
-]) {
-	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-		submenu: Menus.SessionsViewShow,
-		title: localize2('showSessions', "Show ({0})", option.label),
-		when: ContextKeyExpr.and(
-			SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
-			IsWorkspaceGroupCappedContext.isEqualTo(option.capped),
-		),
-		group: '1_presentation',
-		order: 2,
-	});
-}
+MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+	submenu: Menus.SessionsViewShow,
+	title: localize2('showSessions', "Show"),
+	when: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
+	group: '1_presentation',
+	order: 2,
+});
 
 for (const [index, item] of [
 	{ submenu: Menus.SessionsViewSource, title: localize2('createdIn', "Created In") },
@@ -380,7 +360,7 @@ for (const [index, item] of [
 	});
 }
 
-registerExternalSessionsFilterMenu(Menus.SessionsViewFilter, Menus.SessionsViewExternalFilter, '3_visibility', true, localize2('createdExternally', "Created Externally"));
+registerExternalSessionsFilterMenu(Menus.SessionsViewFilter, Menus.SessionsViewExternalFilter, '3_visibility', false, localize2('createdExternally', "Created Externally"));
 
 registerAction2(class ToggleExternalSessionsSectionAction extends Action2 {
 	constructor() {
@@ -494,10 +474,10 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			toggled: SessionsViewCompactContext,
 			menu: [{
-				id: Menus.SessionsViewFilter,
-				group: '4_view',
+				id: Menus.SidebarSessionsHeader,
+				group: 'view',
 				order: 0,
-				when: IsPhoneLayoutContext.negate(),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}
@@ -564,7 +544,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: Menus.SessionsViewFilter, group: '4_view', order: 1 }]
+			menu: [{ id: Menus.SidebarSessionsHeader, group: 'view', order: 1, when: ChatContextKeys.enabled }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {

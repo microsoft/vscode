@@ -1618,6 +1618,23 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.deepStrictEqual(applications, ['github/autopilot', 'github/cli']);
 	});
 
+	test('formats unknown cloud application labels without changing event_type identities through refresh and adoption', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/custom-application' });
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { event_type: 'CUSTOM_cloud_app', external: true } }));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const applications = [session.application.get()];
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { event_type: 'another_APPLICATION', external: true } }));
+		applications.push(session.application.get());
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: {} }));
+		applications.push(session.application.get());
+		assert.deepStrictEqual(applications, [
+			{ id: 'CUSTOM_cloud_app', label: 'Custom Cloud App' },
+			{ id: 'another_APPLICATION', label: 'Another Application' },
+			{ id: 'another_APPLICATION', label: 'Another Application' },
+		]);
+	});
+
 	test('cloud session refreshes linked issue artifacts and pill references atomically and removes stale links', () => {
 		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/session-1' });
 		const metadata = { owner: 'microsoft', name: 'vscode', pullRequestUrl: 'https://github.com/microsoft/vscode/pull/336399' };
