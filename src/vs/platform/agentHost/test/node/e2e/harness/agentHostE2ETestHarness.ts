@@ -121,11 +121,23 @@ export function initTestGitRepo(cwd: string): void {
 	execSync('git config gc.auto 0', { cwd });
 }
 
-export async function removeTempDirs(tempDirs: string[]): Promise<void> {
+function describeTempDirCleanupError(error: Error): string {
+	const fileError = error as NodeJS.ErrnoException;
+	return [
+		fileError.code ? `code=${fileError.code}` : undefined,
+		typeof fileError.errno === 'number' ? `errno=${fileError.errno}` : undefined,
+		fileError.path ? `path=${fileError.path}` : undefined,
+		error.message,
+	].filter(Boolean).join(', ');
+}
+
+export async function removeTempDirs(tempDirs: string[], timeoutMs = TEMP_DIR_CLEANUP_TIMEOUT_MS): Promise<void> {
 	const pendingDirs = tempDirs.splice(0);
 	const errors = new Map<string, Error>();
-	const deadline = Date.now() + TEMP_DIR_CLEANUP_TIMEOUT_MS;
+	const deadline = Date.now() + timeoutMs;
+	let attempts = 0;
 	while (pendingDirs.length > 0) {
+		attempts++;
 		for (let index = pendingDirs.length - 1; index >= 0; index--) {
 			const dir = pendingDirs[index];
 			try {
@@ -143,13 +155,14 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		if (pendingDirs.length === 0) {
 			return;
 		}
-		if (Date.now() >= deadline) {
+		if (attempts >= 2 && Date.now() >= deadline) {
+			const details = pendingDirs.map(dir => `${dir}: ${describeTempDirCleanupError(errors.get(dir)!)}`).join('; ');
 			throw new AggregateError(
 				Array.from(errors.values()),
-				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+				`Failed to remove Agent Host E2E temporary directories: ${details}`,
 			);
 		}
-		await timeout(500);
+		await timeout(Math.min(500, Math.max(0, deadline - Date.now())));
 	}
 }
 
