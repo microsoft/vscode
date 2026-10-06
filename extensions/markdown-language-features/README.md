@@ -19,6 +19,14 @@ without bundling Zod's full API and locale tables. HubRPC and Zod are developmen
 dependencies: the desktop extension, browser extension, and rich-editor builds
 bundle the runtime code they use.
 
+Presentation updates (providers, gutters, comments, and rich links),
+theme invalidation, rich-link subscriptions, and code-block diagnostics use
+notifications without acknowledgement messages. Their handlers are synchronous;
+send and handler failures are logged at the observing endpoint. Requests remain
+for returned data, document synchronization and edit/history barriers, persistent
+state changes, command completion, link navigation, and embedded-transport lifecycle operations.
+Returning `void` does not by itself mean an acknowledgement is unnecessary.
+
 Embedded web-editor support is loaded on demand when a fenced block is rendered
 and code-block providers are registered. Until loading completes, blocks use
 their normal rendering. Provider updates and completed loading refresh the

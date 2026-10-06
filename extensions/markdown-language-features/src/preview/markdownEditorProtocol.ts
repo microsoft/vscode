@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { defineInterface, requestType, type InterfaceClient } from '@vscode/hubrpc';
+import { defineInterface, notificationType, requestType, type InterfaceClient } from '@vscode/hubrpc';
 import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
@@ -83,12 +83,12 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
-	richLinkTargets: requestType(z.object({ hrefs: z.readonly(z.array(z.string())) }), z.void()),
+	richLinkTargets: notificationType(z.object({ hrefs: z.readonly(z.array(z.string())) })),
 	resolveCodeBlockEditor: requestType(z.object({ providerId: z.string(), language: z.string() }), z.object({ descriptor: z.optional(resolvedCodeBlockEditor) })),
 	createCodeBlockEditorHostTransport: requestType(z.extend(runtime, { providerId: z.string(), runtimeKey: z.string() }), z.void()),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
 	disposeCodeBlockEditorHostTransport: requestType(runtime, z.void()),
-	codeBlockEditorDiagnostic: requestType(z.object({ message: z.string() }), z.void()),
+	codeBlockEditorDiagnostic: notificationType(z.object({ message: z.string() })),
 	addComment: requestType(z.extend(range, { text: z.string() }), z.void()),
 	deleteComment: requestType(z.object({ id: z.string() }), z.void()),
 	highlight: requestType(z.object({ source: z.string(), languageId: z.string() }), highlightResult),
@@ -108,20 +108,20 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.renderer' }, {
 	diagnosticsChanged: requestType(z.object({}), z.void()),
 	update: requestType(z.object({ content: z.string(), editEpoch: offset }), z.void()),
-	codeBlockEditorProviders: requestType(z.object({ codeBlockEditorProviders: z.readonly(z.array(codeBlockEditorProvider)) }), z.void()),
+	codeBlockEditorProviders: notificationType(z.object({ codeBlockEditorProviders: z.readonly(z.array(codeBlockEditorProvider)) })),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
-	gutterMarkers: requestType(z.object({
+	gutterMarkers: notificationType(z.object({
 		markers: z.readonly(z.array(z.extend(range, { type: z.enum(['added', 'modified', 'deleted']) }))),
-	}), z.void()),
-	comments: requestType(z.object({
+	})),
+	comments: notificationType(z.object({
 		comments: z.readonly(z.array(z.extend(range, { id: z.string(), body: z.string(), author: z.optional(z.string()) }))),
 		acceptsComments: z.boolean(),
-	}), z.void()),
-	revealComment: requestType(z.object({ id: z.string() }), z.void()),
+	})),
+	revealComment: notificationType(z.object({ id: z.string() })),
 	revealLinkTarget: requestType(z.extend(range, { selectionStart: offset }), z.void()),
 	command: requestType(z.object({ command: z.string() }), z.void()),
-	highlightThemeChanged: requestType(z.object({}), z.void()),
-	richLinkPresentations: requestType(z.object({ presentations: z.readonly(z.array(richLinkPresentationUpdate)) }), z.void()),
+	highlightThemeChanged: notificationType(z.object({})),
+	richLinkPresentations: notificationType(z.object({ presentations: z.readonly(z.array(richLinkPresentationUpdate)) })),
 });
 
 export type MarkdownEditorHost = InterfaceClient<typeof markdownEditorHost>;

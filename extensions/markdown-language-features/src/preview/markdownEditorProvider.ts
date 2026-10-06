@@ -22,7 +22,7 @@ import type {
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
-import { MarkdownEditorRpcTransport } from './markdownEditorRpc';
+import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
@@ -94,11 +94,15 @@ class AuthenticatedWebview implements vscode.Disposable {
 	}
 
 	#connect(): HubRpcConnection<undefined> {
-		return HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
+		return createMarkdownEditorRpcConnection(new MarkdownEditorRpcTransport(
 			this.#messageSecret,
 			message => this.webview.postMessage(message),
 			listener => this.webview.onDidReceiveMessage(listener),
-		));
+		), (operation, error) => {
+			if (!this.#disposed) {
+				this.logger.trace('Markdown editor RPC', operation, error);
+			}
+		});
 	}
 
 	get renderer() {
@@ -136,8 +140,8 @@ class AuthenticatedWebview implements vscode.Disposable {
 		return this.#messageSecret;
 	}
 
-	report(operation: string, request: Promise<void>): void {
-		void request.catch(error => {
+	report(operation: string, request: Promise<void> | void): void {
+		void request?.catch(error => {
 			if (!this.#disposed) {
 				this.logger.trace('Markdown editor RPC', operation, error);
 			}
@@ -401,18 +405,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			this.#logger,
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
-		const postCodeBlockEditorProviders = async (): Promise<void> => {
+		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
-				await editorWebview.renderer.codeBlockEditorProviders({ codeBlockEditorProviders });
+				editorWebview.renderer.codeBlockEditorProviders({ codeBlockEditorProviders });
 			}
 		};
 		const initialContributionUpdate = contributionUpdate;
-		void initialCodeBlockEditorProviders.then(async providers => {
+		void initialCodeBlockEditorProviders.then(providers => {
 			if (initialContributionUpdate !== contributionUpdate || resolveCancellation.token.isCancellationRequested) {
 				return;
 			}
 			codeBlockEditorProviders = providers;
-			await postCodeBlockEditorProviders();
+			postCodeBlockEditorProviders();
 		}).catch(error => {
 			if (!resolveCancellation.token.isCancellationRequested) {
 				this.#logger.trace('Markdown code block editor', 'Failed to initialize contributed editors', error);
@@ -455,7 +459,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				}
 				signal.throwIfAborted();
 				editorWebview.publishReady();
-				await postCodeBlockEditorProviders();
+				postCodeBlockEditorProviders();
 				diagnosticsChanged();
 			},
 
@@ -633,7 +637,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				return;
 			}
 			codeBlockEditorProviders = updatedCodeBlockEditorProviders;
-			await postCodeBlockEditorProviders();
+			postCodeBlockEditorProviders();
 		};
 		const onContributionsChanged = this.#contributions.onContributionsChanged(() => {
 			void refreshCodeBlockEditorProviders(true, false);
@@ -975,7 +979,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version) {
 				return;
 			}
-			await editorWebview.renderer.gutterMarkers({ markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
+			editorWebview.renderer.gutterMarkers({ markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
 		};
 
 		const publishMarkers = () => editorWebview.report('Publish document diff', postMarkers());

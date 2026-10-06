@@ -16,7 +16,7 @@ import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
-import { MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
+import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
 import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
@@ -158,7 +158,11 @@ class Editor extends Disposable {
 				return { dispose: () => window.removeEventListener('message', onMessage) };
 			},
 		);
-		this.#connection = HubRpcConnection.fromTransport(this.#transport);
+		this.#connection = createMarkdownEditorRpcConnection(this.#transport, (operation, error) => {
+			if (!this.#disposed) {
+				console.error(`Markdown editor ${operation} failed`, error);
+			}
+		});
 		this.#host = this.#connection.get(markdownEditorHost);
 		this.#syntaxHighlighter = new WebviewSyntaxHighlighter(this.#host);
 		this.#editEpoch = initialState.editEpoch;
@@ -258,8 +262,8 @@ class Editor extends Disposable {
 
 	readonly #onPageHide = (): void => this.dispose();
 
-	#send(operation: string, request: Promise<void>): void {
-		void request.catch(error => {
+	#send(operation: string, request: Promise<void> | void): void {
+		void request?.catch(error => {
 			if (!this.#disposed) {
 				console.error(`Markdown editor ${operation} failed`, error);
 			}
