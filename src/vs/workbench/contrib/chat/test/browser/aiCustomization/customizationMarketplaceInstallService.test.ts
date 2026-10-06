@@ -2572,7 +2572,9 @@ suite('CustomizationMarketplaceInstallService', () => {
 			fixture.service.dispose();
 
 			const restored = store.add(fixture.instantiationService.createInstance(CustomizationMarketplaceInstallService));
-			await timeout(0);
+			if (!recordedResources(restored).some(resource => resource.identifier === 'mail')) {
+				await Event.toPromise(Event.filter(restored.onDidChange, () => recordedResources(restored).some(resource => resource.identifier === 'mail')));
+			}
 
 			assert.deepStrictEqual({
 				recorded: recordedResources(restored).map(resource => resource.identifier),
