@@ -10,10 +10,13 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IsDevelopmentContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -25,6 +28,9 @@ import { MissionControlAgentHostContribution } from '../../browser/missionContro
 import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
+import { Menus } from '../../../../../browser/menus.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
@@ -39,6 +45,37 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 
 suite('Mission Control native provider inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('labels the remote picker entry and connect command as Environments', () => {
+		const labels = [Menus.SessionWorkspaceManage, MenuId.CommandPalette].map(menu => {
+			const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === ConnectMissionControlEnvironmentCommand);
+			assert.ok(item);
+			return typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
+		});
+		assert.deepStrictEqual(labels, ['Environments', 'Connect to Environment...']);
+	});
+
+	for (const { name, development, hostsEnabled, chatEnabled, aiDisabled, available } of [
+		{ name: 'source', development: true, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'normal built product', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: false, available: true },
+		{ name: 'remote hosts disabled', development: false, hostsEnabled: false, chatEnabled: true, aiDisabled: false, available: false },
+		{ name: 'chat disabled', development: false, hostsEnabled: true, chatEnabled: false, aiDisabled: false, available: false },
+		{ name: 'AI master setting disabled', development: false, hostsEnabled: true, chatEnabled: true, aiDisabled: true, available: false },
+	]) {
+		test(`command and workspace picker availability: ${name}`, () => {
+			const context = new Context(0, null);
+			context.setValue(IsDevelopmentContext.key, development);
+			context.setValue(ChatContextKeys.enabled.key, chatEnabled);
+			context.setValue(`config.${RemoteAgentHostsEnabledSettingId}`, hostsEnabled);
+			context.setValue('config.chat.disableAIFeatures', aiDisabled);
+			const availability = [MenuId.CommandPalette, Menus.SessionWorkspaceManage].map(menu => {
+				const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === ConnectMissionControlEnvironmentCommand);
+				assert.ok(item);
+				return (item.when?.evaluate(context) ?? true) && (item.command.precondition?.evaluate(context) ?? true);
+			});
+			assert.deepStrictEqual(availability, [available, available]);
+		});
+	}
 
 	function fixture(profileId = 'profile') {
 		const instantiation = store.add(new TestInstantiationService());
@@ -70,10 +107,6 @@ suite('Mission Control native provider inventory', () => {
 			override async refresh() { actions.push('discover'); }
 			override async connect(id: string) { actions.push(`connect:${id}`); }
 			override async disconnect(id: string) { actions.push(`disconnect:${id}`); }
-			override async hide(id: string) {
-				actions.push(`hide:${id}`);
-				hosts.set(hosts.get().map(host => ({ ...host, hidden: true })), undefined);
-			}
 		}());
 		const contribution = store.add(instantiation.createInstance(class extends MissionControlAgentHostContribution {
 			protected override _createProvider(address: string, name: string, options: IEntryDrivenProviderOptions) {
@@ -90,7 +123,40 @@ suite('Mission Control native provider inventory', () => {
 		return { hosts, created, actions, contribution, changeAccount: () => { hosts.set([], undefined); account = 'second'; } };
 	}
 
-	test('registers disconnected native hosts before AHP and preserves provider lifetime across rename and hide/restore', async () => {
+	test('connection UI uses environment terminology without relay jargon', () => {
+		const { hosts, created } = fixture();
+		hosts.set([{ id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' }], undefined);
+		const labels = created[0].options.connectionLabels!;
+		assert.deepStrictEqual({ ...labels, reconnectingIn: labels.reconnectingIn!(5) }, {
+			unavailableTitle: 'Environment Disconnected',
+			unavailableDescription: 'Start the environment\'s owning application, then reconnect. This does not start or replace its compute.',
+			unavailable: 'Environment disconnected.',
+			connectingTitle: 'Connecting to Environment',
+			connecting: 'Connecting to the environment...',
+			reconnecting: 'Reconnecting to the environment...',
+			reconnectingIn: 'Reconnecting to the environment in 5s...',
+			incompatibleTitle: 'Environment Incompatible',
+			incompatible: 'The environment\'s Agent Host Protocol version is incompatible.',
+		});
+	});
+
+	test('host descriptions contain only availability even for duplicate names', () => {
+		const { hosts, created } = fixture();
+		const host: IMissionControlHost = { id: 'env_11111111', name: 'Machine', kind: 'user-local', status: 'online' };
+		hosts.set([host], undefined);
+		const description = created[0].options.hostDescription!;
+		const online = description.get();
+		hosts.set([{ ...host, status: 'offline' }], undefined);
+		const offline = description.get();
+		hosts.set([host, { ...host, id: 'env_22222222' }], undefined);
+		const duplicates = created.map(entry => entry.options.hostDescription!.get());
+		hosts.set([{ ...host, displayName: 'Renamed' }, { ...host, id: 'env_22222222' }], undefined);
+		assert.deepStrictEqual({ online, offline, duplicates, renamed: description.get() }, {
+			online: 'Online', offline: 'Offline', duplicates: ['Online', 'Online'], renamed: 'Online',
+		});
+	});
+
+	test('registers disconnected native hosts before AHP, preserves them across rename and disconnect, and withdraws deleted hosts', async () => {
 		const { hosts, created, actions } = fixture();
 		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'offline' };
 		hosts.set([host], undefined);
@@ -100,16 +166,17 @@ suite('Mission Control native provider inventory', () => {
 		await created[0].options.connectOnDemand!();
 		await created[0].options.disconnectOnDemand!();
 		const disconnected = { count: created.length, disposed: original.disposed };
-		await created[0].options.removeOnDemand!();
-		hosts.set([host], undefined);
+		const canRemove = created[0].options.canRemove;
+		const removal = created[0].options.removeOnDemand;
+		hosts.set([], undefined);
 		assert.deepStrictEqual({
-			status: original.connectionStatus.get().kind, renamed, disconnected, hiddenProviderDisposed: original.disposed,
-			restoredProviders: created.length, actions, alias: created[0].options.sessionSchemeAlias,
+			status: original.connectionStatus.get().kind, renamed, disconnected, deletedProviderDisposed: original.disposed,
+			providers: created.length, canRemove, removal, actions, alias: created[0].options.sessionSchemeAlias,
 			retained: created[0].options.retainSessionsOnDisconnect, readOnly: created[0].options.readOnlyWhenDisconnected,
 		}, {
 			status: 'disconnected', renamed: { label: 'Renamed Machine', count: 1, disposed: false },
-			disconnected: { count: 1, disposed: false }, hiddenProviderDisposed: true, restoredProviders: 2,
-			actions: ['discover', 'connect:environment', 'disconnect:environment', 'hide:environment'],
+			disconnected: { count: 1, disposed: false }, deletedProviderDisposed: true, providers: 1, canRemove: false, removal: undefined,
+			actions: ['discover', 'connect:environment', 'disconnect:environment'],
 			alias: undefined, retained: true, readOnly: true,
 		});
 	});
@@ -145,7 +212,7 @@ suite('Mission Control native provider inventory', () => {
 		});
 	});
 
-	test('old-account host actions cannot connect, hide or disconnect the replacement account host', async () => {
+	test('old-account host actions cannot connect or disconnect the replacement account host', async () => {
 		const { hosts, created, changeAccount, actions } = fixture();
 		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
 		hosts.set([host], undefined);
@@ -154,7 +221,6 @@ suite('Mission Control native provider inventory', () => {
 		hosts.set([host], undefined);
 		await assert.rejects(old.connectOnDemand!(), CancellationError);
 		await assert.rejects(old.disconnectOnDemand!(), CancellationError);
-		await assert.rejects(old.removeOnDemand!(), CancellationError);
 		assert.throws(() => old.setDisplayName!('Stale rename'), CancellationError);
 		assert.deepStrictEqual(actions, ['discover']);
 	});

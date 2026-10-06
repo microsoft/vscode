@@ -13,19 +13,17 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Leave `chat.agentHost.experimentalMissionControlFakeEndpoint` empty.
-3. Enable `chat.agentHost.experimentalMissionControl.enabled`.
-4. Keep the default `chat.agentHost.experimentalMissionControl.endpoint` (`https://api.github.com`) unless an explicitly trusted environment requires a different HTTPS API origin. The local registration credential is sent to this origin; redirects and credential-bearing/unsafe origin shapes are refused.
-5. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
-6. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
+2. Enable `chat.agentHost.experimentalMissionControl.enabled`.
+3. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
+4. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
-An empty window can register the host without advertising a home-directory default. Disable the registration setting to withdraw remote access. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
+Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable the registration setting to withdraw remote access. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
 
-### The local test-endpoint setting
+### Local integration testing
 
-`chat.agentHost.experimentalMissionControlFakeEndpoint` selects a **loopback HTTP integration-test server**, not Azure or a production MC server. It is retained for deterministic registration/relay tests. The local GitHub credential is sent to that endpoint, so use only a test server you trust. It must be empty for real-service registration; enabling real MC while it is set is refused. Ordinary users do not need to configure it.
+Backend tests supply `IMissionControlOptions` directly to `MissionControlEnvironment.configure`, with a loopback HTTP `baseUrl` and `live` omitted or false. Test credentials and injected HTTP/relay implementations keep registration and authentication tests independent of the real service.
 
-The existing setting keys are retained so current opt-in continues working. Classes and local management methods use ordinary Mission Control names; the setting keys and experimental feature tags are not a second runtime or a build restriction.
+The registration setting's experimental name and feature tags do not restrict availability to development builds.
 
 ## Environment identity, name and ownership
 
@@ -51,7 +49,7 @@ Remote owner access includes native sessions, tools, and granted workspace resou
 
 Native authoritative AHP actions and selected genuine SDK metadata are mirrored to MC for history and task title/activity. Approval/input metadata may contain commands, diffs, plans and questions. The SDK adapter excludes assistant/system messages, auth/configuration, subagents, per-token deltas and routine backing shutdown events; AHP mirroring still carries authoritative conversation content.
 
-`chat.agentHost.experimentalMissionControl.requireConnectionBinding` defaults to false for compatibility with deployed pre-sealed tokens. Supplied bindings are verified; unbound envelopes remain replayable. Optional MCP resource context and the shared native provider credential store have the limitations described in the matrix. Do not infer stronger guarantees from successful transport authentication.
+Registration accepts unbound sealed tokens for compatibility with deployed pre-sealed clients. Supplied bindings are verified; unbound envelopes remain replayable. Backend tests can require binding through `IMissionControlOptions.requireConnectionBinding`. Optional MCP resource context and the shared native provider credential store have the limitations described in the matrix. Do not infer stronger guarantees from successful transport authentication.
 
 The SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
 

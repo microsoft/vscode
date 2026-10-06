@@ -23,6 +23,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
 import { FileSystemProviderCapabilities, IFileService, type IWriteFileOptions } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -11194,7 +11195,7 @@ Use the attached image as context.
 							tracker.turnCompleted(chatUri, signal.action.turnId, 'success');
 						}
 					} else if (signal.kind === 'model_call_finished') {
-						tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+						tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest);
 					}
 				}
 
@@ -12274,7 +12275,7 @@ Use the attached image as context.
 				} else if (signal.kind === 'model_call_completed') {
 					tracker.modelCallCompleted(chatUri, signal.turnId, signal.modelCallId);
 				} else if (signal.kind === 'model_call_finished') {
-					tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+					tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest);
 				}
 			}
 
@@ -21790,6 +21791,206 @@ Use the attached image as context.
 				{ name: 'plugin-server', source: 'plugin' },
 				{ name: 'github-mcp-server', source: 'builtin' },
 				{ name: 'unknown-server', source: undefined },
+			]);
+		});
+
+		for (const resume of [false, true]) {
+			test(`attributes early MCP lifecycle events before inventory settles in ${resume ? 'restored' : 'new'} sessions`, async () => {
+				const inventoryGate = new DeferredPromise<void>();
+				let sourcesRead = false;
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					resume,
+					clientSnapshot: {
+						tools: [],
+						mcpServers: {},
+						plugins: [{
+							format: PluginFormat.Copilot, hooks: [], agents: [], skills: [], instructions: [],
+							sourceUri: URI.file('/plugins/acme'),
+							mcpServers: [{
+								name: 'plugin-server',
+								uri: URI.file('/plugins/acme/.mcp.json'),
+								configuration: { type: McpServerType.LOCAL, command: 'node', args: [] },
+								sdkRegistration: 'sessionConfig',
+								customization: {
+									type: CustomizationType.McpServer, id: 'plugin-child', uri: 'file:///plugins/acme/.mcp.json',
+									name: 'plugin-server', state: { kind: McpServerStatus.Stopped },
+								},
+							}],
+						}],
+					},
+					getUserMcpServerNames: async () => {
+						sourcesRead = true;
+						return new Set(['slack-gh', 'same-name', 'plugin-server']);
+					},
+					beforeLaunch: () => assert.strictEqual(sourcesRead, true),
+					configureMockSession: m => {
+						m.mcpListGates.push(inventoryGate.p);
+						m.mcpListResult = {
+							servers: [
+								{ name: 'slack-gh', status: 'connected' },
+								{ name: 'same-name', status: 'connected', source: 'builtin' },
+								{ name: 'plugin-server', status: 'connected', source: 'plugin', sourcePlugin: 'acme' },
+								{ name: 'unknown', status: 'connected' },
+							]
+						};
+					},
+				});
+				const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
+					name: server.name, uri: server.uri, source: readMcpServerSource(server), plugin: readMcpServerSourcePlugin(server),
+				}));
+				mockSession.fire('session.mcp_server_status_changed', { serverName: 'slack-gh', status: 'pending' });
+				mockSession.fire('session.mcp_server_status_changed', { serverName: 'same-name', status: 'pending' });
+				mockSession.fire('session.mcp_server_status_changed', { serverName: 'plugin-server', status: 'pending' });
+				const early = snapshot();
+				inventoryGate.complete();
+				await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)
+					&& s.action.type === ActionType.SessionCustomizationUpdated
+					&& s.action.customization.name === 'unknown');
+				const authoritative = snapshot();
+				for (const name of ['slack-gh', 'same-name', 'plugin-server', 'unknown']) {
+					mockSession.fire('session.mcp_server_status_changed', { serverName: name, status: 'stopped' });
+				}
+				const userUri = URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString();
+				const expected = [
+					{ name: 'slack-gh', uri: userUri, source: 'user', plugin: undefined },
+					{ name: 'same-name', uri: 'mcp-top-level:copilotcli:test-session-1:same-name', source: 'builtin', plugin: undefined },
+					{ name: 'plugin-server', uri: 'mcp-top-level:copilotcli:test-session-1:plugin-server', source: 'plugin', plugin: 'acme' },
+					{ name: 'unknown', uri: 'mcp-top-level:copilotcli:test-session-1:unknown', source: undefined, plugin: undefined },
+				];
+				assert.deepStrictEqual({ early, authoritative, afterLifecycle: snapshot() }, {
+					early: [
+						expected[0],
+						{ name: 'same-name', uri: userUri, source: 'user', plugin: undefined },
+						{ ...expected[2], plugin: undefined },
+					],
+					authoritative: expected,
+					afterLifecycle: expected,
+				});
+			});
+		}
+
+		test('refreshes user MCP sources independently of slow inventory after deletion and re-add', async () => {
+			let names = new Set(['slack-gh']);
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				getUserMcpServerNames: async () => names,
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'slack-gh', status: 'connected' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			names = new Set();
+			mockSession.mcpListResult = { servers: [] };
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationRemoved));
+			const removed = session.topLevelMcpCustomizations();
+
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'slack-gh', status: 'pending' });
+			const withoutConfig = session.topLevelMcpCustomizations().map(server => readMcpServerSource(server));
+			const inventoryGate = new DeferredPromise<void>();
+			mockSession.mcpListGates.push(inventoryGate.p);
+			mockSession.mcpListResult = { servers: [{ name: 'slack-gh', status: 'connected' }] };
+			names = new Set(['slack-gh']);
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			await timeout(0);
+			const readded = session.topLevelMcpCustomizations().map(server => ({
+				name: server.name, uri: server.uri, source: readMcpServerSource(server), state: server.state.kind,
+			}));
+			inventoryGate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ removed, withoutConfig, readded }, {
+				removed: [],
+				withoutConfig: [undefined],
+				readded: [{
+					name: 'slack-gh',
+					uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString(),
+					source: 'user',
+					state: McpServerStatus.Starting,
+				}],
+			});
+		});
+
+		test('attributes MCP authentication before inventory or lifecycle status arrives', async () => {
+			const inventoryGate = new DeferredPromise<void>();
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
+				getUserMcpServerNames: async () => new Set(['slack-gh']),
+				configureMockSession: m => {
+					m.mcpListGates.push(inventoryGate.p);
+					m.mcpListResult = { servers: [{ name: 'slack-gh', status: 'needs-auth' }] };
+				},
+			});
+			const resource = 'https://mcp.example.com';
+			const auth = runtime.handleMcpAuthRequest({
+				requestId: 'auth-slack', serverName: 'slack-gh', serverUrl: resource, reason: 'upscope',
+			}, { sessionId: 'test-session-1' });
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const snapshot = session.topLevelMcpCustomizations().map(server => ({
+				name: server.name, uri: server.uri, source: readMcpServerSource(server), state: server.state.kind,
+			}));
+			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'test-token' });
+			inventoryGate.complete();
+			assert.deepStrictEqual({ snapshot, result: await auth }, {
+				snapshot: [{
+					name: 'slack-gh', uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString(),
+					source: 'user', state: McpServerStatus.AuthRequired,
+				}],
+				result: { kind: 'token', accessToken: 'test-token' },
+			});
+		});
+
+		test('prefers SDK plugin provenance over user configuration and replaces inventory provenance wholesale', async () => {
+			const inventoryGate = new DeferredPromise<void>();
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				getUserMcpServerNames: async () => new Set(['plugin-server', 'builtin-server']),
+				configureMockSession: m => {
+					m.mcpListGates.push(inventoryGate.p);
+					m.mcpListResult = {
+						servers: [
+							{ name: 'plugin-server', status: 'connected', sourcePlugin: 'acme' },
+							{ name: 'builtin-server', status: 'connected', source: 'builtin' },
+						]
+					};
+				},
+			});
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'plugin-server', status: 'pending' });
+			inventoryGate.complete();
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated)
+				&& s.action.type === ActionType.SessionCustomizationUpdated
+				&& readMcpServerSource(s.action.customization.type === CustomizationType.McpServer ? s.action.customization : undefined) === 'plugin');
+			mockSession.mcpListResult = {
+				servers: [
+					{ name: 'plugin-server', status: 'stopped', sourcePlugin: 'acme' },
+					{ name: 'builtin-server', status: 'stopped', source: 'workspace' },
+				]
+			};
+			mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+			await timeout(0);
+			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({
+				name: server.name, uri: server.uri, source: readMcpServerSource(server), plugin: readMcpServerSourcePlugin(server),
+			})), [
+				{ name: 'plugin-server', uri: 'mcp-top-level:copilotcli:test-session-1:plugin-server', source: 'plugin', plugin: 'acme' },
+				{ name: 'builtin-server', uri: 'mcp-top-level:copilotcli:test-session-1:builtin-server', source: 'workspace', plugin: undefined },
+			]);
+		});
+
+		test('a failed user configuration lookup does not discard authoritative SDK MCP inventory', async () => {
+			const { session, waitForSignal } = await createAgentSession(disposables, {
+				getUserMcpServerNames: async () => { throw new Error('Configuration RPC unavailable'); },
+				configureMockSession: m => {
+					m.mcpListResult = {
+						servers: [
+							{ name: 'slack-gh', status: 'connected', source: 'user' },
+							{ name: 'unknown', status: 'connected' },
+						]
+					};
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			assert.deepStrictEqual(session.topLevelMcpCustomizations().map(server => ({
+				name: server.name, uri: server.uri, source: readMcpServerSource(server),
+			})), [
+				{ name: 'slack-gh', uri: URI.file(getCopilotMcpConfigurationPath('/mock-home', process.env)).toString(), source: 'user' },
+				{ name: 'unknown', uri: 'mcp-top-level:copilotcli:test-session-1:unknown', source: undefined },
 			]);
 		});
 

@@ -19,7 +19,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
@@ -32,10 +32,10 @@ function host(id: string, name = 'Machine', status = 'online'): IMissionControlE
 	return { id, name, kind: 'user-local', status };
 }
 
-suite('Mission Control retained inventory', () => {
+suite('Mission Control inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = false, extensionDevelopment = false) {
+	function fixture(storage = store.add(new InMemoryStorageService()), initialAccount: string | undefined = firstAccount, built = true, extensionDevelopment = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const accountChanged = store.add(new Emitter<string | undefined>());
 		const authenticationChanged = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
@@ -131,7 +131,7 @@ suite('Mission Control retained inventory', () => {
 		const { service, calls } = fixture();
 		await service.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ hosts: service.hosts.get(), calls }, {
-			hosts: [{ ...host('remote'), hidden: undefined, displayName: undefined }],
+			hosts: [{ ...host('remote'), displayName: undefined }],
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [] },
 		});
 	});
@@ -148,11 +148,10 @@ suite('Mission Control retained inventory', () => {
 		assert.deepStrictEqual({ hosts: service.hosts.get(), connects: calls.connects }, { hosts: [], connects: [] });
 	});
 
-	test('restores account/profile-local metadata before network and preserves hide and rename on refresh', async () => {
+	test('restores account/profile-local metadata before network and preserves rename on refresh', async () => {
 		const { service, storage } = fixture();
 		await service.refresh(CancellationToken.None);
 		service.setDisplayName('remote', '  Work Machine  ');
-		await service.hide('remote');
 		service.dispose();
 		const reopened = fixture(storage);
 		await reopened.service.initialize();
@@ -160,7 +159,6 @@ suite('Mission Control retained inventory', () => {
 		reopened.setList(Promise.resolve([host('remote', 'Remote name')]));
 		await reopened.service.refresh(CancellationToken.None);
 		const refreshed = reopened.service.hosts.get();
-		reopened.service.restore('remote');
 		reopened.service.setDisplayName('remote', undefined);
 		const separateProfile = fixture();
 		await separateProfile.service.initialize();
@@ -169,11 +167,29 @@ suite('Mission Control retained inventory', () => {
 			separateProfile: separateProfile.service.hosts.get(),
 			storedFields: Object.keys(JSON.parse(storage.get(`missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.remote.metadata`, StorageScope.PROFILE)!)).sort(),
 		}, {
-			cached: [{ ...host('remote'), hidden: true, displayName: 'Work Machine' }],
-			refreshed: [{ ...host('remote', 'Remote name'), hidden: true, displayName: 'Work Machine' }],
-			restored: [{ ...host('remote', 'Remote name'), hidden: undefined, displayName: undefined }],
+			cached: [{ ...host('remote'), displayName: 'Work Machine' }],
+			refreshed: [{ ...host('remote', 'Remote name'), displayName: 'Work Machine' }],
+			restored: [{ ...host('remote', 'Remote name'), displayName: undefined }],
 			calls: { lists: 1, lookups: [], connects: [], disconnects: [] }, separateProfile: [],
 			storedFields: ['id', 'kind', 'name', 'status'],
+		});
+	});
+
+	test('previously hidden hosts are restored and connectable without losing local names', async () => {
+		const { service, storage, calls } = fixture();
+		const prefix = `missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.remote`;
+		storage.storeAll([
+			{ key: `${prefix}.metadata`, value: JSON.stringify(host('remote')), scope: StorageScope.PROFILE, target: StorageTarget.MACHINE },
+			{ key: `${prefix}.hidden`, value: true, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE },
+			{ key: `${prefix}.displayName`, value: 'Local name', scope: StorageScope.PROFILE, target: StorageTarget.MACHINE },
+		], false);
+		await service.initialize();
+		const restored = service.hosts.get();
+		await service.refresh(CancellationToken.None);
+		await service.connect('remote', CancellationToken.None);
+		assert.deepStrictEqual({ restored, refreshed: service.hosts.get(), connects: calls.connects.length }, {
+			restored: [{ ...host('remote'), displayName: 'Local name' }],
+			refreshed: [{ ...host('remote'), displayName: 'Local name' }], connects: 1,
 		});
 	});
 
@@ -191,10 +207,53 @@ suite('Mission Control retained inventory', () => {
 		cancellation.cancel();
 		await late.complete([]);
 		await assert.rejects(refresh, CancellationError);
-		assert.deepStrictEqual(service.hosts.get(), [{ ...host('remote'), hidden: undefined, displayName: 'Local label' }]);
+		assert.deepStrictEqual(service.hosts.get(), [{ ...host('remote'), displayName: 'Local label' }]);
 	});
 
-	test('stale-window preference writes cannot remove newly discovered inventory or overwrite another preference', async () => {
+	test('successful refresh removes absent hosts from memory, other windows and persisted metadata', async () => {
+		const first = fixture();
+		first.setList(Promise.resolve([host('remote'), host('deleted'), host('another-deleted')]));
+		await first.service.refresh(CancellationToken.None);
+		first.service.setDisplayName('remote', 'Local label');
+		const second = fixture(first.storage);
+		await second.service.initialize();
+		first.setList(Promise.resolve([host('remote', 'Remote name', 'offline')]));
+		await first.service.refresh(CancellationToken.None);
+		first.service.setDisplayName('remote', 'Updated label');
+		const reopened = fixture(first.storage);
+		await reopened.service.initialize();
+		assert.deepStrictEqual({
+			hosts: [first, second, reopened].map(context => context.service.hosts.get()),
+			metadata: ['deleted', 'another-deleted'].map(id => first.storage.get(`missionControl.userLocalHosts.v1.${encodeURIComponent(firstAccount)}.${id}.metadata`, StorageScope.PROFILE)),
+			disconnects: [first.calls.disconnects, second.calls.disconnects],
+		}, {
+			hosts: Array.from({ length: 3 }, () => [{ ...host('remote', 'Remote name', 'offline'), displayName: 'Updated label' }]),
+			metadata: [undefined, undefined],
+			disconnects: [['deleted', 'another-deleted'], ['deleted', 'another-deleted']],
+		});
+	});
+
+	test('an empty endpoint list clears cached inventory without removing another account or local preferences', async () => {
+		const first = fixture();
+		await first.service.refresh(CancellationToken.None);
+		first.service.setDisplayName('remote', 'Local label');
+		const otherAccount = fixture(first.storage, secondAccount);
+		await otherAccount.service.refresh(CancellationToken.None);
+		first.setList(Promise.resolve([]));
+		await first.service.refresh(CancellationToken.None);
+		const empty = first.service.hosts.get();
+		const reopened = fixture(first.storage);
+		await reopened.service.initialize();
+		const cached = reopened.service.hosts.get();
+		await reopened.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ empty, cached, rediscovered: reopened.service.hosts.get(), otherAccount: otherAccount.service.hosts.get() }, {
+			empty: [], cached: [],
+			rediscovered: [{ ...host('remote'), displayName: 'Local label' }],
+			otherAccount: [{ ...host('remote'), displayName: undefined }],
+		});
+	});
+
+	test('stale-window rename cannot remove newly discovered inventory or overwrite another host label', async () => {
 		const first = fixture();
 		await first.service.refresh(CancellationToken.None);
 		const second = fixture(first.storage);
@@ -202,24 +261,24 @@ suite('Mission Control retained inventory', () => {
 		const stale = second.service.hosts.get();
 		first.setList(Promise.resolve([host('remote'), host('new-machine')]));
 		await first.service.refresh(CancellationToken.None);
-		first.service.setDisplayName('remote', 'Current label');
+		first.service.setDisplayName('new-machine', 'Current label');
 		second.service.hosts.set(stale, undefined);
-		await second.service.hide('remote');
+		second.service.setDisplayName('remote', 'Remote label');
 		const reopened = fixture(first.storage);
 		await reopened.service.initialize();
 		assert.deepStrictEqual({
-			hosts: reopened.service.hosts.get().map(host => ({ id: host.id, hidden: host.hidden, label: host.displayName })),
+			hosts: reopened.service.hosts.get().map(host => ({ id: host.id, label: host.displayName })),
 			firstDisconnects: first.calls.disconnects,
 		}, {
 			hosts: [
-				{ id: 'remote', hidden: true, label: 'Current label' },
-				{ id: 'new-machine', hidden: undefined, label: undefined },
+				{ id: 'remote', label: 'Remote label' },
+				{ id: 'new-machine', label: 'Current label' },
 			],
-			firstDisconnects: ['remote'],
+			firstDisconnects: [],
 		});
 	});
 
-	test('stale discovery snapshots cannot delete another window inventory or preferences', async () => {
+	test('endpoint inventory replaces another window cache without erasing local preferences', async () => {
 		const first = fixture();
 		await first.service.refresh(CancellationToken.None);
 		const second = fixture(first.storage);
@@ -233,26 +292,51 @@ suite('Mission Control retained inventory', () => {
 		await second.service.refresh(CancellationToken.None);
 		const reopened = fixture(first.storage);
 		await reopened.service.initialize();
-		assert.deepStrictEqual(reopened.service.hosts.get().map(host => ({ id: host.id, label: host.displayName })), [
-			{ id: 'remote', label: undefined },
-			{ id: 'first-machine', label: 'First local label' },
-			{ id: 'second-machine', label: undefined },
-		]);
+		const refreshed = reopened.service.hosts.get().map(host => ({ id: host.id, label: host.displayName }));
+		reopened.setList(Promise.resolve([host('remote'), host('first-machine'), host('second-machine')]));
+		await reopened.service.refresh(CancellationToken.None);
+		assert.deepStrictEqual({ refreshed, rediscovered: reopened.service.hosts.get().map(host => ({ id: host.id, label: host.displayName })) }, {
+			refreshed: [
+				{ id: 'remote', label: undefined },
+				{ id: 'second-machine', label: undefined },
+			],
+			rediscovered: [
+				{ id: 'remote', label: undefined },
+				{ id: 'second-machine', label: undefined },
+				{ id: 'first-machine', label: 'First local label' },
+			],
+		});
 	});
 
-	test('a newer refresh wins, absent known hosts remain offline, and late discovery cannot unhide hosts', async () => {
+	test('a newer refresh removes absent hosts and late discovery cannot restore them', async () => {
 		const { service, setList } = fixture();
 		await service.refresh(CancellationToken.None);
 		const late = new DeferredPromise<readonly IMissionControlEnvironment[]>();
 		const listed = setList(late.p);
 		const oldRefresh = service.refresh(CancellationToken.None);
 		await listed;
-		await service.hide('remote');
 		setList(Promise.resolve([]));
 		await service.refresh(CancellationToken.None);
 		await late.complete([host('remote', 'Stale name')]);
 		await assert.rejects(oldRefresh, CancellationError);
-		assert.deepStrictEqual(service.hosts.get(), [{ ...host('remote', 'Machine', 'unavailable'), hidden: true, displayName: undefined }]);
+		assert.deepStrictEqual(service.hosts.get(), []);
+	});
+
+	test('deleting a host during an in-flight connection cancels admission and withdraws its relay', async () => {
+		const { service, calls, setConnecting, setList } = fixture();
+		await service.refresh(CancellationToken.None);
+		const relay = new DeferredPromise<void>();
+		setConnecting(relay.p);
+		const connected = service.connect('remote', CancellationToken.None);
+		while (!calls.connects.length) {
+			await Promise.resolve();
+		}
+		const rejected = assert.rejects(connected, CancellationError);
+		setList(Promise.resolve([]));
+		await service.refresh(CancellationToken.None);
+		await relay.complete();
+		await rejected;
+		assert.deepStrictEqual({ hosts: service.hosts.get(), disconnects: calls.disconnects }, { hosts: [], disconnects: ['remote'] });
 	});
 
 	test('account switch and sign-out withdraw hosts, reject late results and isolate preferences', async () => {
@@ -276,8 +360,8 @@ suite('Mission Control retained inventory', () => {
 		const firstAgain = fixture(storage);
 		await firstAgain.service.initialize();
 		assert.deepStrictEqual({ switched, secondHosts, signedOut, firstAgain: firstAgain.service.hosts.get() }, {
-			switched: [], secondHosts: [{ ...host('remote'), hidden: undefined, displayName: undefined }], signedOut: [],
-			firstAgain: [{ ...host('remote'), hidden: undefined, displayName: 'First account label' }],
+			switched: [], secondHosts: [{ ...host('remote'), displayName: undefined }], signedOut: [],
+			firstAgain: [{ ...host('remote'), displayName: 'First account label' }],
 		});
 	});
 
@@ -328,13 +412,19 @@ suite('Mission Control retained inventory', () => {
 		}));
 	}
 
-	test('built extension-development windows use the same development gate as the command and menu', async () => {
-		const { service, calls } = fixture(undefined, firstAccount, true, true);
-		await service.refresh(CancellationToken.None);
-		await service.connect('remote', CancellationToken.None);
-		assert.deepStrictEqual({ enabled: service.enabled, lists: calls.lists, connections: calls.connects.length },
-			{ enabled: true, lists: 1, connections: 1 });
-	});
+	for (const { name, built, extensionDevelopment } of [
+		{ name: 'source', built: false, extensionDevelopment: false },
+		{ name: 'extension development', built: true, extensionDevelopment: true },
+		{ name: 'normal built product', built: true, extensionDevelopment: false },
+	]) {
+		test(`discovers and connects hosts in ${name} windows`, async () => {
+			const { service, calls } = fixture(undefined, firstAccount, built, extensionDevelopment);
+			await service.refresh(CancellationToken.None);
+			await service.connect('remote', CancellationToken.None);
+			assert.deepStrictEqual({ enabled: service.enabled, lists: calls.lists, connections: calls.connects.length },
+				{ enabled: true, lists: 1, connections: 1 });
+		});
+	}
 
 	test('connect, disconnect and reconnect retain inventory and revalidate availability', async () => {
 		const { service, calls } = fixture();
@@ -362,7 +452,7 @@ suite('Mission Control retained inventory', () => {
 		});
 	}
 
-	test('hiding cancels an in-flight relay connection and late responses cannot republish it', async () => {
+	test('disconnect cancels an in-flight relay connection without removing its host', async () => {
 		const { service, calls, setConnecting } = fixture();
 		await service.refresh(CancellationToken.None);
 		const relay = new DeferredPromise<void>();
@@ -371,10 +461,10 @@ suite('Mission Control retained inventory', () => {
 		while (!calls.connects.length) {
 			await Promise.resolve();
 		}
-		await service.hide('remote');
+		await service.disconnect('remote');
 		await assert.rejects(connected, CancellationError);
 		await relay.complete();
-		assert.deepStrictEqual({ hidden: service.hosts.get()[0].hidden, disconnects: calls.disconnects }, { hidden: true, disconnects: ['remote'] });
+		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), disconnects: calls.disconnects }, { hosts: ['remote'], disconnects: ['remote'] });
 	});
 
 	test('removing the account clears hosts immediately before async identity resolution', async () => {
@@ -400,7 +490,7 @@ suite('Mission Control retained inventory', () => {
 		}, { enabled: false, hosts: [], disconnects: ['remote'], connects: 1 });
 	});
 
-	test('a hide from another window cancels admission and withdraws the live relay locally', async () => {
+	test('deletion discovered by another window cancels admission and withdraws the live relay locally', async () => {
 		const first = fixture();
 		await first.service.refresh(CancellationToken.None);
 		const second = fixture(first.storage);
@@ -412,16 +502,17 @@ suite('Mission Control retained inventory', () => {
 			await Promise.resolve();
 		}
 		const rejection = assert.rejects(connected, CancellationError);
-		await first.service.hide('remote');
+		first.setList(Promise.resolve([]));
+		await first.service.refresh(CancellationToken.None);
 		await relay.complete();
 		await rejection;
 		assert.deepStrictEqual({
-			hidden: second.service.hosts.get()[0].hidden,
+			hosts: second.service.hosts.get(),
 			disconnects: second.calls.disconnects,
-		}, { hidden: true, disconnects: ['remote'] });
+		}, { hosts: [], disconnects: ['remote'] });
 	});
 
-	for (const boundary of ['account-switch', 'AI-disabled', 'remote-disabled', 'disposed', 'hide-restore'] as const) {
+	for (const boundary of ['account-switch', 'AI-disabled', 'remote-disabled', 'disposed', 'disconnect'] as const) {
 		test(`${boundary} during live availability lookup never mints relay credentials`, async () => {
 			const context = fixture();
 			await context.service.refresh(CancellationToken.None);
@@ -442,9 +533,8 @@ suite('Mission Control retained inventory', () => {
 					}());
 					break;
 				case 'disposed': context.service.dispose(); break;
-				case 'hide-restore':
-					await context.service.hide('remote');
-					context.service.restore('remote');
+				case 'disconnect':
+					await context.service.disconnect('remote');
 					break;
 			}
 			await availability.complete({ id: 'remote', status: 'online' });
@@ -453,13 +543,15 @@ suite('Mission Control retained inventory', () => {
 		});
 	}
 
-	for (const gate of ['built', 'remote-disabled', 'AI-disabled'] as const) {
+	for (const gate of ['remote-disabled', 'AI-disabled', 'AI-master-setting'] as const) {
 		test(`${gate} never discovers or connects hosts`, async () => {
-			const { service, calls, configuration, disableAI } = fixture(undefined, firstAccount, gate === 'built');
+			const { service, calls, configuration, disableAI } = fixture();
 			if (gate === 'remote-disabled') {
 				await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
 			} else if (gate === 'AI-disabled') {
 				disableAI();
+			} else {
+				await configuration.setUserConfiguration('chat.disableAIFeatures', true);
 			}
 			await service.refresh(CancellationToken.None);
 			await assert.rejects(service.connect('remote', CancellationToken.None), CancellationError);

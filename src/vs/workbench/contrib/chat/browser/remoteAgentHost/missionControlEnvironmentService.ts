@@ -17,9 +17,8 @@ import { IMissionControlEnvironmentService, IMissionControlHost } from '../../..
 import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
@@ -47,7 +46,6 @@ function isHost(value: unknown): value is IMissionControlHost {
 		&& typeof host.id === 'string' && /^[A-Za-z0-9_-]+$/.test(host.id)
 		&& typeof host.name === 'string' && !!host.name.trim()
 		&& host.kind === 'user-local' && typeof host.status === 'string'
-		&& (host.hidden === undefined || typeof host.hidden === 'boolean')
 		&& (host.displayName === undefined || typeof host.displayName === 'string');
 }
 
@@ -67,7 +65,6 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		@IAgentHostService private readonly _local: IAgentHostService,
 		@IStorageService private readonly _storage: IStorageService,
 		@IConfigurationService private readonly _configuration: IConfigurationService,
-		@IEnvironmentService private readonly _environment: IEnvironmentService,
 		@IChatEntitlementService private readonly _entitlement: IChatEntitlementService,
 		@ILogService private readonly _log: ILogService,
 		@IAuthenticationService authentication: IAuthenticationService,
@@ -110,7 +107,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	get accountKey(): string | undefined { return this._accountKey; }
 	get enabled(): boolean {
-		return (!this._environment.isBuilt || this._environment.isExtensionDevelopment) && !this._entitlement.sentiment.hidden
+		return !this._entitlement.sentiment.hidden
 			&& this._configuration.getValue<boolean>('chat.disableAIFeatures') !== true
 			&& this._configuration.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === true;
 	}
@@ -177,14 +174,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				const retained = previous.get(environment.id);
 				next.set(environment.id, {
 					id: environment.id, name: environment.name, kind: 'user-local', status: environment.status,
-					hidden: retained?.hidden, displayName: retained?.displayName,
+					displayName: retained?.displayName,
 				});
-			}
-		}
-		// Absence is not remote deletion: retained hosts and their history stay manageable.
-		for (const host of previous.values()) {
-			if (!next.has(host.id) && host.id !== this._ownEnvironment) {
-				next.set(host.id, { ...host, status: 'unavailable' });
 			}
 		}
 		this._replaceHosts([...next.values()]);
@@ -218,7 +209,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				throw new CancellationError();
 			}
 			if (environment.status !== 'online') {
-				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Mission Control will not start or replace this machine.", host.displayName ?? host.name));
+				throw new Error(localize('missionControl.hostOffline', "{0} is not online. Start its owning application before connecting. Connecting will not start or replace this machine.", host.displayName ?? host.name));
 			}
 			const connection = this._remote.connections.find(connection => connection.address === cloudSandboxAddress(id));
 			if (connection && connection.status.kind !== 'connected') {
@@ -240,7 +231,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				if (connecting && this._connects.get(id) === source) {
 					await this._connections.disconnect(id);
 				}
-				throw new Error(localize('missionControl.connectTimedOut', "Connecting to the Mission Control host timed out. Ensure its owning application is running, then reconnect."));
+				throw new Error(localize('missionControl.connectTimedOut', "Connecting to the environment timed out. Ensure its owning application is running, then reconnect."));
 			}
 			throw error;
 		} finally {
@@ -261,33 +252,10 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		await this._connections.disconnect(id);
 	}
 
-	async hide(id: string): Promise<void> {
-		this._requireHost(id);
-		this.hosts.set(this.hosts.get().map(host => host.id === id ? { ...host, hidden: true } : host), undefined);
-		this._setPreference(id, 'hidden', true);
-		await this.disconnect(id);
-	}
-
-	restore(id: string): void {
-		this._requireHost(id, true);
-		this._setPreference(id, 'hidden', undefined);
-	}
-
 	setDisplayName(id: string, name: string | undefined): void {
-		this._requireHost(id, true);
-		this._setPreference(id, 'displayName', name?.trim() || undefined);
-	}
-
-	private _requireHost(id: string, includeHidden = false): IMissionControlHost {
-		const host = this.hosts.get().find(host => host.id === id && (includeHidden || !host.hidden));
-		if (!this.enabled || !this._accountKey || !host) {
-			throw new CancellationError();
-		}
-		return host;
-	}
-
-	private _setPreference(id: string, preference: 'hidden' | 'displayName', value: boolean | string | undefined): void {
-		const key = `${this._storagePrefix}${id}.${preference}`;
+		this._requireHost(id);
+		const key = `${this._storagePrefix}${id}.displayName`;
+		const value = name?.trim() || undefined;
 		if (value === undefined) {
 			this._storage.remove(key, StorageScope.PROFILE);
 		} else {
@@ -296,14 +264,29 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		this._restore();
 	}
 
+	private _requireHost(id: string): IMissionControlHost {
+		const host = this.hosts.get().find(host => host.id === id);
+		if (!this.enabled || !this._accountKey || !host) {
+			throw new CancellationError();
+		}
+		return host;
+	}
+
 	private _persist(): void {
 		if (this._accountKey) {
-			this._storage.storeAll(this.hosts.get().map(host => ({
+			const entries: IStorageEntry[] = this.hosts.get().map(host => ({
 				key: `${this._storagePrefix}${host.id}.metadata`,
 				value: JSON.stringify({ id: host.id, name: host.name, kind: 'user-local', status: host.status }),
 				scope: StorageScope.PROFILE,
 				target: StorageTarget.MACHINE,
-			})), false);
+			}));
+			const currentKeys = new Set(entries.map(entry => entry.key));
+			for (const key of this._storage.keys(StorageScope.PROFILE, StorageTarget.MACHINE)) {
+				if (key.startsWith(this._storagePrefix) && key.endsWith('.metadata') && !currentKeys.has(key)) {
+					entries.push({ key, value: undefined, scope: StorageScope.PROFILE, target: StorageTarget.MACHINE });
+				}
+			}
+			this._storage.storeAll(entries, false);
 		}
 	}
 
@@ -321,7 +304,6 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 				if (host.id !== this._ownEnvironment) {
 					hosts.push({
 						id: host.id, name: host.name, kind: 'user-local', status: host.status,
-						hidden: this._storage.getBoolean(`${this._storagePrefix}${host.id}.hidden`, StorageScope.PROFILE),
 						displayName: this._storage.get(`${this._storagePrefix}${host.id}.displayName`, StorageScope.PROFILE),
 					});
 				}
@@ -333,9 +315,9 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 	}
 
 	private _replaceHosts(hosts: readonly IMissionControlHost[]): void {
-		const visible = new Set(hosts.filter(host => !host.hidden).map(host => host.id));
+		const visible = new Set(hosts.map(host => host.id));
 		for (const previous of this.hosts.get()) {
-			if (!previous.hidden && !visible.has(previous.id)) {
+			if (!visible.has(previous.id)) {
 				void this.disconnect(previous.id).catch(error => this._log.error('Failed to withdraw Mission Control host', error));
 			}
 		}

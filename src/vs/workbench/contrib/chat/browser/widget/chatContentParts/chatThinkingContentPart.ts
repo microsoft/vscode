@@ -1612,6 +1612,11 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return;
 		}
 
+		if (this.isToolChain) {
+			this.setFallbackTitle();
+			return;
+		}
+
 		// A leading summary header removed from the rows must remain the title, even when a restored generated title exists.
 		if (this.droppedSummaryHeader) {
 			this.currentTitle = this.droppedSummaryHeader;
@@ -1680,9 +1685,6 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return;
 		}
 
-		if (this.isToolChain) {
-			this.setFallbackTitle();
-		}
 		this.generateTitleViaLLM();
 	}
 
@@ -2016,6 +2018,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	private getFallbackTitle(): string {
+		if (this.isPersistentReasoning) {
+			return localize('chat.thinking.finishedThinking', "Finished thinking");
+		}
+
 		const visibleItemCount = this.appendedItemCount - this.hiddenToolCallIds.size;
 		return visibleItemCount > 0
 			? visibleItemCount === 1

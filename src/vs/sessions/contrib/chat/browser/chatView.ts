@@ -942,7 +942,8 @@ export class ChatView extends AbstractChatView {
 			return;
 		}
 		const { width, height } = this._lastLayout;
-		const widgetTop = this._widgetContainer.offsetTop;
+		// Only the external-session banner precedes the widget in normal flow.
+		const widgetTop = this._externalSessionBanner.domNode.classList.contains('hidden') ? 0 : this._widgetContainer.offsetTop;
 		const widgetHeight = Math.max(0, height - widgetTop);
 		const progressContainer = Array.from(this.element.children).find(element => element.classList.contains('monaco-progress-container'));
 		if (isHTMLElement(progressContainer)) {

@@ -493,6 +493,21 @@ suite('Mission Control environment discovery', () => {
 		assert.strictEqual((await service.listEnvironments(CancellationToken.None, { refresh: true }))[0].status, 'online');
 	});
 
+	test('explicit inventory refresh removes deleted environments from the API cache', async () => {
+		let environments = [{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' }];
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse(environments) : undefined,
+		});
+		await service.listEnvironments(CancellationToken.None);
+		environments = [];
+		const refreshed = await service.listEnvironments(CancellationToken.None, { refresh: true });
+		assert.deepStrictEqual({
+			refreshed, cached: service.getCachedEnvironments(),
+			requests: requestedUrls.filter(url => url.endsWith('/agents/environments')).length,
+		}, { refreshed: [], cached: [], requests: 2 });
+	});
+
 	test('does not publish a late inventory from a previous account', async () => {
 		const started = new DeferredPromise<void>();
 		const response = new DeferredPromise<IRequestContext>();

@@ -38,26 +38,35 @@ import {
 suite('remoteHostOptions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('inventory-owned hosts offer local hide and disconnect without SSH location controls', () => {
+	test('inventory-owned hosts offer disconnect and rename without local removal or SSH location controls', () => {
 		const snapshot = (isConnected: boolean) => buildRemoteHostOptionItems({
-			address: 'cloudsandbox:environment', isConnected, removeLabel: 'Hide in This Profile', disconnectLabel: 'Disconnect',
+			address: 'cloudsandbox:environment', isConnected, canRemove: false, disconnectLabel: 'Disconnect',
 		}).map(item => ({ id: item.id, label: item.label }));
 		assert.deepStrictEqual({ connected: snapshot(true), disconnected: snapshot(false) }, {
 			connected: [
 				{ id: 'disconnect', label: '$(debug-disconnect) Disconnect' },
 				{ id: 'rename', label: '$(edit) Rename...' },
-				{ id: 'remove', label: '$(trash) Hide in This Profile' },
 				{ id: 'copy', label: '$(copy) Copy Address' },
 				{ id: 'settings', label: '$(settings-gear) Open Settings' },
 			],
 			disconnected: [
 				{ id: 'reconnect', label: '$(debug-restart) Reconnect' },
 				{ id: 'rename', label: '$(edit) Rename...' },
-				{ id: 'remove', label: '$(trash) Hide in This Profile' },
 				{ id: 'copy', label: '$(copy) Copy Address' },
 				{ id: 'settings', label: '$(settings-gear) Open Settings' },
 			],
 		});
+	});
+
+	test('externally owned inventory cannot be removed or disconnected through the removal fallback', async () => {
+		const calls: string[] = [];
+		const provider = new class extends mock<IAgentHostSessionsProvider>() {
+			override readonly canRemove = false;
+			override async remove() { calls.push('remove'); }
+			override async disconnect() { calls.push('disconnect'); }
+		}();
+		await assert.rejects(removeRemoteHost(provider, new class extends mock<IRemoteAgentHostService>() { }(), new TestConfigurationService()), /cannot be removed locally/);
+		assert.deepStrictEqual(calls, []);
 	});
 
 	for (const hasRemove of [false, true]) {
