@@ -23,6 +23,7 @@ import { IStorageService, StorageScope } from '../../../../../platform/storage/c
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../../workbench/common/editor.js';
 import { CanvasInput, ICanvasContextService, ICanvasService } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAuxiliaryWindowService } from '../../../../../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { EditorService } from '../../../../../workbench/services/editor/browser/editorService.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -74,6 +75,7 @@ suite('Session canvas working sets', () => {
 		const configurationService = harness.instaService.invokeFunction(accessor => accessor.get(IConfigurationService)) as TestConfigurationService;
 		await configurationService.setUserConfiguration(CanvasesEnabledSettingId, true);
 		harness.instaService.stub(INotificationService, new TestNotificationService());
+		harness.instaService.stub(IChatService, upcastPartial<IChatService>({ chatModels: constObservable([]), getSession: () => undefined }));
 		store.add(harness.instaService.createInstance(TestCanvasLayoutController));
 		harness.instaService.stub(ICanvasContextService, store.add(harness.instaService.createInstance(SessionCanvasContextService)));
 		const canvasService = store.add(harness.instaService.createInstance(CanvasService));

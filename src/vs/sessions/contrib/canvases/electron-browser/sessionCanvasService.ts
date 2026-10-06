@@ -9,6 +9,7 @@ import { constObservable, derived, IReader } from '../../../../base/common/obser
 import { isEqual } from '../../../../base/common/resources.js';
 import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession } from '../../../services/sessions/common/session.js';
@@ -30,6 +31,7 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISessionEditorWorkingSetService editorWorkingSetService: ISessionEditorWorkingSetService,
 		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@IChatService chatService: IChatService,
 	) {
 		super();
 		this.workingSets = {
@@ -45,7 +47,9 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 			}
 			const owner: ICanvasOwner = { providerId: session.providerId, session: session.resource, chat: chat.resource };
 			this.knownOwners.set(canvasOwnerKey(owner), owner);
-			return [{ owner, canvases: session.capabilities.read(reader).supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]) }];
+			chatService.chatModels.read(reader);
+			const openRequests = chatService.getSession(chat.resource)?.canvasContext?.read(reader)?.openRequests;
+			return [{ owner, canvases: session.capabilities.read(reader).supportsCanvases ? chat.canvases ?? constObservable(undefined) : constObservable([]), openRequests }];
 		});
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			const archived = event.changed.filter(session => session.isArchived.read(undefined));
