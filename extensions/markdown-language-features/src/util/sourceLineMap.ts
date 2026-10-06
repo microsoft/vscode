@@ -34,3 +34,29 @@ export class SourceLineMap<T extends { readonly line: number }> {
 		return { previous };
 	}
 }
+
+interface SourceLineElement {
+	getAttribute(name: string): string | null;
+	setAttribute(name: string, value: string): void;
+	querySelectorAll(selector: string): ArrayLike<SourceLineElement>;
+}
+
+export function updateSourceLineAttributes(from: SourceLineElement, to: SourceLineElement): void {
+	const update = (from: SourceLineElement, to: SourceLineElement) => {
+		const line = to.getAttribute('data-line');
+		if (line !== null && from.getAttribute('data-line') !== line) {
+			from.setAttribute('data-line', line);
+		}
+	};
+	update(from, to);
+	const fromLines = from.querySelectorAll('[data-line]');
+	const toLines = to.querySelectorAll('[data-line]');
+	if (fromLines.length !== toLines.length) {
+		console.log('unexpected line number change');
+	}
+	for (let i = 0; i < fromLines.length; ++i) {
+		if (toLines[i]) {
+			update(fromLines[i], toLines[i]);
+		}
+	}
+}
