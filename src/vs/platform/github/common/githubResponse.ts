@@ -61,6 +61,15 @@ export function requiredString(value: object, key: string): string {
 	return property;
 }
 
+/** Reads a 40-character lowercase hexadecimal Git SHA. */
+export function requiredSha(value: object, key: string): string {
+	const property = requiredString(value, key);
+	if (property.length !== 40 || /[^a-f0-9]/.test(property)) {
+		throw new GitHubRequestError(`GitHub response property ${key} was not a valid SHA`, 'malformedResponse');
+	}
+	return property;
+}
+
 export function stringProperty(value: object, key: string): string | undefined {
 	const property = Reflect.get(value, key);
 	return typeof property === 'string' ? property : undefined;

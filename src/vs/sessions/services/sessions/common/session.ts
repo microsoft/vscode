@@ -147,6 +147,8 @@ export interface ISessionPreparationProgress {
 export const enum ChatInteractivity {
 	/** The user can send messages to the chat (default when unspecified). */
 	Full = 'full',
+	/** The user can compose a draft, but must connect before sending it. */
+	DraftOnly = 'draft-only',
 	/** The chat is visible but read-only — the user can watch but not send messages. */
 	ReadOnly = 'read-only',
 	/** The chat is an internal worker that should not be shown in the UI at all. */
@@ -734,6 +736,7 @@ export interface IChat {
 	 * not distinguish read-only chats report {@link ChatInteractivity.Full}.
 	 *
 	 * - {@link ChatInteractivity.Full}: the user can send messages (default).
+	 * - {@link ChatInteractivity.DraftOnly}: the composer is editable, but sending is disabled.
 	 * - {@link ChatInteractivity.ReadOnly}: the chat is shown but the composer is
 	 *   hidden (e.g. an agent-team worker chat the user can watch but not steer).
 	 * - {@link ChatInteractivity.Hidden}: the chat is an internal worker that

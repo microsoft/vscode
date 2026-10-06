@@ -17,10 +17,11 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { buildSubagentChatUri, getTurnError, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildSubagentChatUri, getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -36,6 +37,7 @@ import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
@@ -68,7 +70,7 @@ function getToolKind(call: ToolCallState) {
 }
 
 const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
-const imageGenerationToolName = 'image_gen.imagegen';
+const imageGenerationToolNames = new Set(['image_gen.imagegen', 'image_generation']);
 
 function isAgentHostAskUserTool(toolName: string): boolean {
 	return agentHostAskUserToolNames.has(toolName);
@@ -221,16 +223,35 @@ export function convertProtocolPlanReviewResult(planReview: IAgentHostPlanReview
 	};
 }
 
+function getInputQuestionText(question: ChatInputQuestion): { readonly title: string; readonly message: string } {
+	if (question.title) {
+		return { title: question.title, message: question.message };
+	}
+	const endOfLine = question.message.indexOf('\n');
+	return endOfLine === -1
+		? { title: question.message, message: '' }
+		: { title: question.message.substring(0, endOfLine).trim(), message: question.message.substring(endOfLine + 1).trim() };
+}
+
+/** Wraps Agent Host link targets while preserving labels used for plain-text and accessible question text. */
+function rewriteQuestionMarkdownLinks(markdown: string, connectionAuthority: string): string {
+	return rewriteMarkdownSource(markdown, {
+		rewriteLink: token => {
+			const href = rewriteAgentHostLinkTarget(token.href, connectionAuthority);
+			if (href === token.href) {
+				return undefined;
+			}
+			const prefix = token.type === 'image' ? '![' : '[';
+			return `${prefix}${escapeMarkdownLinkLabel(token.text ?? '')}](${href})`;
+		},
+	});
+}
+
 export function createInputRequestCarousel(inputReq: ChatInputRequest, connectionAuthority: string): ChatQuestionCarouselData {
 	const questions: IChatQuestion[] = (inputReq.questions ?? []).map((question): IChatQuestion => {
-		let title = question.title;
-		let message = question.message;
-		if (!title) {
-			const endOfLine = question.message.indexOf('\n');
-			title = endOfLine === -1 ? question.message : question.message.substring(0, endOfLine).trim();
-			message = endOfLine === -1 ? '' : question.message.substring(endOfLine + 1).trim();
-		}
-		const detailedMessage = new MarkdownString(message, { isTrusted: false });
+		const questionText = getInputQuestionText(question);
+		const title = rewriteQuestionMarkdownLinks(questionText.title, connectionAuthority);
+		const detailedMessage = new MarkdownString(rewriteQuestionMarkdownLinks(questionText.message, connectionAuthority), { isTrusted: false });
 
 		switch (question.kind) {
 			case ChatInputQuestionKind.SingleSelect:
@@ -291,18 +312,26 @@ export function createInputRequestCarousel(inputReq: ChatInputRequest, connectio
 		questions.push({
 			id: 'answer',
 			type: 'text',
-			title: inputReq.message ?? '',
+			title: rewriteQuestionMarkdownLinks(inputReq.message ?? '', connectionAuthority),
 			required: true,
 		});
 	}
 
+	const message = inputReq.message;
+	const firstQuestion = inputReq.questions?.[0];
+	const carouselMessage = message
+		&& firstQuestion
+		&& message.trim() !== getInputQuestionText(firstQuestion).title.trim()
+		&& message.trim() !== firstQuestion.message.trim()
+		? rawMarkdownToString(message, connectionAuthority)
+		: undefined;
 	const carousel = new ChatQuestionCarouselData(
 		questions,
 		true,
 		inputReq.id,
 		undefined,
 		undefined,
-		inputReq.message ? rawMarkdownToString(inputReq.message, connectionAuthority) : undefined,
+		carouselMessage,
 	);
 	carousel.answerPresentation = 'conversation';
 	return carousel;
@@ -398,9 +427,15 @@ function getSubagentAgentName(tc: ToolCallState): string | undefined {
 	return v && v.length > 0 ? v : undefined;
 }
 
-/** Surfaces `_meta.progressMessage` of a running tool call as the invocation's progress step. */
+/** Surfaces host progress and image-model attribution as the invocation's progress step. */
 function applyToolCallProgress(invocation: ChatToolInvocation, tc: ToolCallState): void {
-	const progressMessage = tc.status === ToolCallStatus.Running ? readToolCallMeta(tc).progressMessage : undefined;
+	if (tc.status !== ToolCallStatus.Running) {
+		return;
+	}
+	const imageModel = readImageGenerationToolMetadata(tc)?.requestedModel;
+	const progressMessage = imageModel
+		? localize('imageGenerationModelProgress', "Generating image with {0}", imageModel.name ?? imageModel.id)
+		: readToolCallMeta(tc).progressMessage;
 	if (progressMessage !== undefined) {
 		invocation.acceptProgress({ message: progressMessage });
 	}
@@ -1083,7 +1118,7 @@ export function usageInfoToQuotas(usage: UsageInfo | undefined): IAgentHostQuota
  * Requests preserve the selected model. Response details use the actual model, except for Fusion's workflow label.
  * The `lookup` callback supplies the session-level fallback for missing model metadata.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), logicalSessionScheme: string = backendSession.scheme, errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string, lookup?: TurnModelLookup, errorContext?: IChatErrorContext, terminalCommandPrefix?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), errorDetailsProvider?: (turn: Turn) => IChatResponseErrorDetails | undefined, contextUsage?: IAgentContextUsage): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		const rawModelId = turn.usage?.model;
@@ -1092,7 +1127,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 
 		// Request
 		const variableData = messageToVariableData(turn.message, connectionAuthority);
-		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, logicalSessionScheme);
+		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
 		// A message runs as a terminal command when it starts with the host's
@@ -1212,22 +1247,20 @@ export function messageToRequestSource(message: Message): ChatRequestSource | un
 	return undefined;
 }
 
-export function messageToRequestOrigin(backendSession: URI, message: Message, participantId: string, logicalSessionScheme: string = backendSession.scheme): IChatRequestOrigin | undefined {
+export function messageToRequestOrigin(backendSession: URI, message: Message, participantId: string, connectionAuthority?: string): IChatRequestOrigin | undefined {
 	const delegation = readAgentMessageDelegationMeta(message);
 	if (!delegation) {
 		return undefined;
 	}
 	if (hasKey(delegation, { sourceSession: true })) {
 		const sourceSession = URI.parse(delegation.sourceSession);
-		const logicalSourceSession = sourceSession.scheme === backendSession.scheme
-			? sourceSession.with({ scheme: logicalSessionScheme })
-			: sourceSession;
 		return {
 			kind: ChatRequestOriginKind.Delegation,
 			sourceSessionResource: URI.parse(buildOpenSessionLinkUri(
-				logicalSourceSession,
-				delegation.sourceChat ? parseChatUri(delegation.sourceChat)?.chatId : undefined,
+				sourceSession,
+				delegation.sourceChat ? getAgentHostChatId(delegation.sourceChat) : undefined,
 				delegation.sourceTurnId,
+				connectionAuthority,
 			)),
 			delegationScope: isEqual(sourceSession, backendSession) ? 'chat' : 'session',
 		};
@@ -1825,10 +1858,7 @@ function buildTerminalToolSpecificData(
 
 function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined, includeMcpOutput: boolean, connectionAuthority: string): IToolResultInputOutputDetails | undefined {
 	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
-	if (!toolInput) {
-		return undefined;
-	}
-
+	const isImageGeneration = isImageGenerationTool(tc);
 	const output: IToolResultInputOutputDetails['output'] = [];
 	if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running) {
 		for (const block of tc.content ?? []) {
@@ -1851,12 +1881,16 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		}
 	}
 
-	if (output.length === 0 && errorString) {
+	if (output.length === 0 && errorString && (toolInput || isImageGeneration)) {
 		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
 	}
 
+	if (!toolInput && (!isImageGeneration || output.length === 0)) {
+		return undefined;
+	}
+
 	return {
-		input: toolInput,
+		input: toolInput ?? '',
 		inputLanguage: 'json',
 		output,
 		isError,
@@ -1929,14 +1963,9 @@ function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string
 	}
 }
 
-/**
- * Wraps a tool-result resource URI (string) via {@link toAgentHostUri} so it
- * resolves through the agent host filesystem provider on the client. The
- * underlying helper has a fast-path that returns the URI unchanged when it's
- * already a local `file://` resource, so the wrap is safe for all cases.
- */
+/** Routes tool-result content references through `resourceRead`, without requiring filesystem resolution. */
 function wrapResourceUri(uri: string, connectionAuthority: string): URI {
-	return toAgentHostUri(URI.parse(uri), connectionAuthority);
+	return toAgentHostContentUri(URI.parse(uri), connectionAuthority);
 }
 
 function getToolErrorString(tc: ToolCallState): string | undefined {
@@ -1976,14 +2005,32 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	return { kind: 'sessionCreated', openLink, label, fullTitle, ...(isChat ? { isChat: true } : {}) };
 }
 
+function isImageGenerationTool(tc: ToolCallState): boolean {
+	return imageGenerationToolNames.has(tc.toolName) || readImageGenerationToolMetadata(tc) !== undefined;
+}
+
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
-	if (tc.status !== ToolCallStatus.Completed || !tc.success || tc.toolName !== imageGenerationToolName) {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success || !isImageGenerationTool(tc)) {
 		return undefined;
 	}
-	const hasImage = tc.content?.some(block => block.type === ToolResultContentType.EmbeddedResource
-		&& block.contentType.startsWith('image/')
-		&& block.data.length > 0);
+	const hasImage = tc.content?.some(block =>
+		block.type === ToolResultContentType.EmbeddedResource
+			? block.contentType.startsWith('image/') && block.data.length > 0
+			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
 	return hasImage ? { kind: 'generatedImage' } : undefined;
+}
+
+function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
+	const imageGeneration = readImageGenerationToolMetadata(tc);
+	if (!isImageGenerationTool(tc)) {
+		return undefined;
+	}
+	return {
+		kind: 'input',
+		rawInput: tc.status === ToolCallStatus.Streaming ? tc.partialInput : getInlineToolInput(tc.toolInput),
+		editable: false,
+		imageGeneration: imageGeneration ?? {},
+	};
 }
 
 function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationConfiguredData | undefined {
@@ -2049,6 +2096,23 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 	return { type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied };
 }
 
+function getImageGenerationTerminalMessage(tc: ToolCallState): string | undefined {
+	const imageModel = readImageGenerationToolMetadata(tc)?.requestedModel;
+	if (!isImageGenerationTool(tc)) {
+		return undefined;
+	}
+	if (tc.status === ToolCallStatus.Cancelled) {
+		return localize('imageGenerationCancelled', "Image generation cancelled");
+	}
+	if (tc.status === ToolCallStatus.Completed && !tc.success) {
+		return localize('imageGenerationFailed', "Generated image failed");
+	}
+	if (tc.status === ToolCallStatus.Completed && imageModel) {
+		return localize('imageGenerationModelCompleted', "Generated image with {0}", imageModel.name ?? imageModel.id);
+	}
+	return undefined;
+}
+
 /**
  * Converts a completed tool call from the protocol state into a serialized
  * tool invocation suitable for history replay.
@@ -2056,8 +2120,9 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
+	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
 	const presentation = readToolCallPresentation(tc);
-	let invocationMsg = stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority) ?? tc.displayName;
+	let invocationMsg = imageTerminalMessage ?? stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority) ?? tc.displayName;
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
@@ -2103,15 +2168,15 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc);
+		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (!toolSpecificData) {
 			toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 		}
 	}
 
-	let pastTenseMsg = isSuccess
+	let pastTenseMsg = imageTerminalMessage ?? (isSuccess
 		? stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority) ?? invocationMsg
-		: invocationMsg;
+		: invocationMsg);
 	// Tools that render a bespoke, client-authored message override both the
 	// invocation and past-tense text here. Add new per-tool cases alongside.
 	if (isAddCommentTool(tc.toolName)) {
@@ -2121,7 +2186,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			pastTenseMsg = ref;
 		}
 	}
-	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && toolSpecificData.mcpAppData)
+	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && (toolSpecificData.mcpAppData || toolSpecificData.imageGeneration))
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
@@ -2675,7 +2740,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	} else if (getToolKind(tc) === 'search') {
 		invocation.toolSpecificData = { kind: 'search' };
 	} else if (tc.status !== ToolCallStatus.Streaming) {
-		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
+		invocation.toolSpecificData = buildImageGenerationInputData(tc) ?? buildMcpAppToolInputData(tc, connectionAuthority);
 	}
 
 	return invocation;
@@ -2824,6 +2889,19 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 		existing.invocationMessage = addCommentReference(tc, resourceUris) ?? existing.invocationMessage;
 	}
 	applyToolCallProgress(existing, tc);
+
+	const imageInput = buildImageGenerationInputData(tc);
+	if (imageInput) {
+		const previous = existing.toolSpecificData?.kind === 'input' ? existing.toolSpecificData : undefined;
+		if (previous?.rawInput !== imageInput.rawInput
+			|| previous?.imageGeneration?.requestedModel?.id !== imageInput.imageGeneration?.requestedModel?.id
+			|| previous?.imageGeneration?.requestedModel?.name !== imageInput.imageGeneration?.requestedModel?.name
+			|| !previous?.imageGeneration) {
+			existing.toolSpecificData = imageInput;
+			existing.notifyToolSpecificDataChanged();
+		}
+		return;
+	}
 
 	if (getToolKind(tc) === 'fusionPhase') {
 		updateFusionPhaseToolSpecificData(existing, tc, sessionResource);
@@ -3021,14 +3099,19 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	if (isCompleted && !isTerminal) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
 	}
+	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
+	if (imageTerminalMessage) {
+		invocation.invocationMessage = imageTerminalMessage;
+		invocation.pastTenseMessage = imageTerminalMessage;
+	}
 	// Tools that render a bespoke, client-authored message override the
 	// past-tense text here. Add new per-tool cases alongside this branch.
 	if (isCompleted && isAddCommentTool(tc.toolName)) {
 		invocation.pastTenseMessage = addCommentReference(tc, resourceUris) ?? invocation.pastTenseMessage;
 	}
 
-	if (isCompleted) {
-		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc);
+	if (isCompleted || isCancelled) {
+		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (resultToolSpecificData) {
 			// The tool required confirmation, so it was created with
 			// `HiddenAfterComplete`; clear it so the result pill stays visible.
@@ -3088,12 +3171,20 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		: undefined;
 	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
 	invocation.acceptProgress({ message: undefined });
-	const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
-		{ type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied },
-		tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
-	);
-	if (!cancelledFromStreaming) {
-		invocation.didExecuteTool(result);
+	if (isCancelled && isImageGenerationTool(tc)) {
+		invocation.didCancelTool(
+			{ type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied },
+			tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
+			resultDetails,
+		);
+	} else {
+		const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
+			{ type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied },
+			tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
+		);
+		if (!cancelledFromStreaming) {
+			invocation.didExecuteTool(result);
+		}
 	}
 
 	return fileEdits;

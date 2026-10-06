@@ -9,6 +9,7 @@ import { IReader } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 
 export type SessionFilter =
@@ -47,6 +48,7 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 			options.push({ filter: { kind: 'environment', id: environment.id }, label: environment.label, group: '2_environments' });
 		}
 	}
+	const vscodeApplication = getSessionApplication('vscode');
 	for (const [index, environment] of ordered.entries()) {
 		const applications = new Map<string, string>();
 		for (const session of sessions) {
@@ -54,6 +56,9 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 				const application = session.application.read(reader);
 				applications.set(application.id, application.label);
 			}
+		}
+		if (applications.size > 0 || environment.isConnected?.read(reader) !== false) {
+			applications.set(vscodeApplication.id, vscodeApplication.label);
 		}
 		for (const [id, label] of [...applications].sort((a, b) => a[1].localeCompare(b[1]) || a[0].localeCompare(b[0]))) {
 			options.push({
@@ -96,7 +101,7 @@ export class SessionsListFilters extends Disposable {
 	isExcluded(filter: SessionFilter): boolean {
 		return this.excluded.get(sessionFilterKey(filter))
 			?? (filter.kind === 'application' && (
-				(filter.environment === 'local' && filter.id !== 'vscode') ||
+				(filter.environment !== 'cloud' && filter.id !== 'vscode') ||
 				(filter.environment === 'cloud' && (filter.id === 'slack' || filter.id === 'teams'))
 			));
 	}

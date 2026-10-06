@@ -111,7 +111,6 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
-import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -228,6 +227,7 @@ export class SessionChatItem {
 	constructor(
 		readonly session: ISession,
 		readonly chat: IChat,
+		readonly isLast?: boolean,
 	) { }
 }
 
@@ -658,7 +658,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly onDidFinishRename: () => void,
 		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
 		private readonly compact: () => boolean,
-		private readonly showArchivedChats: () => boolean,
+		private readonly onDidChangeUpdatedAt: () => void,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -724,8 +724,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		template.elementDisposables.clear();
 		template.titleToolbar.context = element;
 		template.elementDisposables.add(toDisposable(() => template.container.classList.remove('renaming')));
-		const chats = getSessionListChats(element.session, undefined, this.showArchivedChats());
-		template.container.classList.toggle('last-chat', isEqual(chats.at(-1)?.resource, element.chat.resource));
+		template.container.classList.toggle('last-chat', element.isLast);
 		template.elementDisposables.add(autorun(reader => {
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
@@ -755,13 +754,20 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
+		let previousUpdatedAtTimestamp = element.chat.updatedAt.get()?.getTime();
 		template.elementDisposables.add(autorun(reader => {
 			const sessionWorkspace = element.session.workspace.read(reader);
 			const chatWorkspace = element.chat.workspace.read(reader);
 			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
 			const status = element.chat.status.read(reader);
 			const statusMessage = getSessionStatusMessage(status, element.chat.description.read(reader));
-			const updatedAt = status === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
+			const sortUpdatedAt = element.chat.updatedAt.read(reader);
+			const updatedAt = status === SessionStatus.InProgress ? undefined : sortUpdatedAt;
+			const updatedAtTimestamp = sortUpdatedAt?.getTime();
+			if (previousUpdatedAtTimestamp !== updatedAtTimestamp) {
+				previousUpdatedAtTimestamp = updatedAtTimestamp;
+				this.onDidChangeUpdatedAt();
+			}
 			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
@@ -2115,7 +2121,6 @@ interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly label: HTMLElement;
 	readonly count: HTMLElement;
 	readonly countLabel: HTMLElement;
-	readonly newBadge: HTMLElement;
 	readonly keybindingHint: HTMLElement;
 	readonly keybindingLabel: KeybindingLabel;
 	readonly chevron: HTMLElement;
@@ -2175,7 +2180,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly contextKeyService: IContextKeyService,
 		private readonly automationService: IAutomationService,
 		private readonly automationSessions: IObservable<readonly ISession[]>,
-		private readonly automationNewBadgePresentation: IObservable<AutomationsNewBadgeStyle | undefined>,
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
@@ -2204,9 +2208,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const label = DOM.append(labelContainer, $('span.session-section-label'));
 		const count = DOM.append(container, $('span.session-section-count'));
 		const countLabel = DOM.append(count, $('span.session-section-count-label'));
-		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
-		newBadge.setAttribute('aria-hidden', 'true');
-		newBadge.textContent = localize('automationsNewBadge', "New");
 		const keybindingHint = DOM.append(container, $('span.session-section-keybinding'));
 		keybindingHint.setAttribute('aria-hidden', 'true');
 		const keybindingLabel = disposables.add(new KeybindingLabel(keybindingHint, OS, {
@@ -2264,7 +2265,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, count, countLabel, newBadge, keybindingHint, keybindingLabel, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, collapsed: observableValue(this, false), label, count, countLabel, keybindingHint, keybindingLabel, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -2290,12 +2291,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('active');
 		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
-		template.newBadge.style.display = 'none';
-		template.newBadge.classList.remove(
-			'session-section-new-badge-accent',
-			'session-section-new-badge-soft',
-			'session-section-new-badge-outline',
-		);
 		template.keybindingHint.classList.remove('visible');
 		template.keybindingLabel.set(undefined);
 		const shortcut = isShortcutSection(element.id);
@@ -2335,16 +2330,10 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
 				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID && !this.customizationsActive.read(reader));
-				const badgeStyle = this.automationNewBadgePresentation.read(reader);
-				template.newBadge.style.display = badgeStyle && badgeStyle !== 'unread' ? 'inline-flex' : 'none';
-				template.newBadge.classList.toggle('session-section-new-badge-accent', badgeStyle === 'accent');
-				template.newBadge.classList.toggle('session-section-new-badge-soft', badgeStyle === 'soft');
-				template.newBadge.classList.toggle('session-section-new-badge-outline', badgeStyle === 'outline');
 			}));
 			const statusIcon = template.elementDisposables.add(this.instantiationService.createInstance(SessionStatusIcon, template.icon));
 			template.elementDisposables.add(autorun(reader => {
 				const automationStatus = this.automationStatus.read(reader);
-				const badgeStyle = this.automationNewBadgePresentation.read(reader);
 				if (automationStatus === SessionStatus.NeedsInput) {
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.NeedsInput, true, false);
@@ -2352,9 +2341,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.InProgress, true, false);
 				} else if (automationStatus === SessionStatus.Completed) {
-					template.icon.className = 'session-section-icon';
-					statusIcon.setStatus(SessionStatus.Completed, false, false);
-				} else if (badgeStyle === 'unread') {
 					template.icon.className = 'session-section-icon';
 					statusIcon.setStatus(SessionStatus.Completed, false, false);
 				} else {
@@ -2763,7 +2749,6 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly getComparisonAttemptLabel?: (session: ISession) => string | undefined;
 	readonly isRenderedInExternalSection?: (session: ISession) => boolean;
 	readonly includeQuickChatInAriaLabel?: boolean;
-	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly newSessionKeybindingAriaLabel?: IObservable<string | undefined>;
@@ -2849,9 +2834,7 @@ class SessionsAccessibilityProvider {
 							label = localize('automationsUnreadRunAria', "{0}, unread run", element.label);
 							break;
 					}
-					return this.options?.automationNewBadgeVisible?.read(reader)
-						? localize('automationsNewFeatureAria', "{0}, new feature", label)
-						: label;
+					return label;
 				});
 			}
 			if (element.id === CUSTOMIZATIONS_SECTION_ID) {
@@ -3505,6 +3488,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
 	/**
@@ -3517,7 +3501,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly chatRowHeightReconcile = this._register(new MutableDisposable());
 	private readonly automationSessions = observableValue<readonly ISession[]>(this, []);
 	private readonly collapsedSessionIds = observableValue<ReadonlySet<string>>(this, new Set());
-	private readonly automationsNewBadgeState: AutomationsNewBadgeState;
 	/**
 	 * Session IDs whose hierarchy indent/connector guides should be visible:
 	 * the union of the currently-hovered session (if any) and every session
@@ -3592,6 +3575,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
+	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
+	readonly onDidOpenSession = this._onDidOpenSession.event;
 
 	private readonly _onDidChangeFindOpenState = this._register(new Emitter<boolean>());
 	readonly onDidChangeFindOpenState: Event<boolean> = this._onDidChangeFindOpenState.event;
@@ -3600,13 +3585,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private isCompact(): boolean {
 		return (this.options.compact?.() ?? false) && !IsPhoneLayoutContext.getValue(this.contextKeyService);
-	}
-
-	async resetAutomationsNewBadge(): Promise<void> {
-		if (this.customViewService.activeCustomView.get()?.id === AUTOMATIONS_CUSTOM_VIEW_ID) {
-			this.customViewService.hideCustomView();
-		}
-		await this.automationsNewBadgeState.reset();
 	}
 
 	constructor(
@@ -3642,8 +3620,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 	) {
 		super();
-		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
-
 		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
 		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
 			this.storageService.remove(key, StorageScope.PROFILE);
@@ -3769,7 +3745,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.preferencesService,
 			)),
 			() => this.isCompact(),
-			() => !this._excludeArchived,
+			() => {
+				if (this.options.sorting() === SessionsSorting.Updated) {
+					this.nestedSessionOrderUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+						if (this.visible) {
+							this.update();
+						}
+					});
+				}
+			},
 			this.activeGuideSessionIds,
 		);
 		this._chatRenderer = chatRenderer;
@@ -3809,7 +3793,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			contextKeyService,
 			this.automationService,
 			this.automationSessions,
-			this.automationsNewBadgeState.presentation,
 			this.uriIdentityService,
 			this.customViewService,
 			this.menuService,
@@ -3861,7 +3844,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 						grouping: this.options.grouping,
 						isPinned: session => this.isSessionPinned(session),
 						widgetAriaLabel: localize('sessionsNavigation', "Sessions Navigation"),
-						automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 						customizationsCount,
 						customizationMigrationsAvailable,
 						newSessionKeybindingAriaLabel,
@@ -4494,7 +4476,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		const toSessionChildren = (sessions: readonly ISession[]): IObjectTreeElement<SessionListItem>[] =>
 			sessions.map(session => {
-				const chats = getSessionListChats(session, undefined, !this._excludeArchived);
+				const chats = sortSessionListChats(getSessionListChats(session, undefined, !this._excludeArchived), sorting);
 				const resource = session.resource.toString();
 				const wasNested = this.nestedSessionResources.has(resource);
 				const persistedCollapsed = this.collapsedSessionResources.has(resource);
@@ -4509,7 +4491,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 							? ObjectTreeElementCollapseState.Collapsed
 							: ObjectTreeElementCollapseState.Expanded,
 					children: chats.length > 0
-						? chats.map(chat => ({ element: new SessionChatItem(session, chat) }))
+						? chats.map((chat, index) => ({ element: new SessionChatItem(session, chat, index === chats.length - 1) }))
 						: undefined,
 				};
 			});
@@ -4615,7 +4597,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('newSession', "New Session"), sessions: [] });
 		}
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
-			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
 			navigationSections.push({ id: AUTOMATIONS_SECTION_ID, label: localize('automations', "Automations"), sessions: [] });
 		}
 		if (showNavigationShortcuts) {
@@ -5225,9 +5206,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private invokeOpenRequest(request: IListOpenRequest): void {
 		request.started = true;
 		const invocation = ++request.invocation;
-		const finish = () => {
+		const finish = (opened: boolean) => {
 			if (this.pendingOpenRequest === request && request.invocation === invocation) {
 				this.pendingOpenRequest = undefined;
+				if (opened) { this._onDidOpenSession.fire(request.chat?.resource ?? request.session.resource); }
 			}
 		};
 
@@ -5241,16 +5223,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 				open = this.options.onSessionOpen(request.session.resource, request.preserveFocus, request.sideBySide);
 			}
 		} catch (error) {
-			finish();
+			finish(false);
 			throw error;
 		}
 
 		if (!open) {
-			finish();
+			finish(true);
 			return;
 		}
-		open.then(finish, error => {
-			finish();
+		open.then(() => finish(true), error => {
+			finish(false);
 			onUnexpectedError(error);
 		});
 	}
@@ -6053,6 +6035,16 @@ function sessionMatchesFolder(session: ISession, folder: URI): boolean {
 export function sortSessions(sessions: ISession[], sorting: SessionsSorting, getSortKey?: (session: ISession, sorting: SessionsSorting) => number): ISession[] {
 	const key = getSortKey ?? defaultSortKey;
 	return [...sessions].sort((a, b) => key(b, sorting) - key(a, sorting));
+}
+
+function sortSessionListChats(chats: readonly IChat[], sorting: SessionsSorting): readonly IChat[] {
+	if (sorting === SessionsSorting.Created) {
+		return chats;
+	}
+	return [...chats].sort((a, b) =>
+		(b.updatedAt.get()?.getTime() ?? b.createdAt.getTime()) -
+		(a.updatedAt.get()?.getTime() ?? a.createdAt.getTime())
+	);
 }
 
 function sortComparisonGroupMembers(comparison: ISessionComparison, sessions: ISession[], sorting: SessionsSorting, getSortKey: (session: ISession, sorting: SessionsSorting) => number): ISession[] {

@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustUriInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkspaceEditingService } from '../../../../../workbench/services/workspaces/common/workspaceEditing.js';
@@ -118,11 +118,11 @@ class TestWorkspaceEditing extends mock<IWorkspaceEditingService>() {
 	readonly removeFoldersCalls: URI[][] = [];
 	readonly updateFoldersCalls: IWorkspaceFolderCreationData[][] = [];
 	/** The currently-mounted folders, read back by the context service. */
-	folders: URI[] = [];
+	folders: IWorkspaceFolderCreationData[] = [];
 
 	override async addFolders(folders: IWorkspaceFolderCreationData[]): Promise<void> {
 		this.addFoldersCalls.push([...folders]);
-		this.folders = folders.map(folder => folder.uri);
+		this.folders = [...folders];
 	}
 
 	override async removeFolders(folders: URI[]): Promise<void> {
@@ -132,7 +132,7 @@ class TestWorkspaceEditing extends mock<IWorkspaceEditingService>() {
 
 	override async updateFolders(_index: number, _deleteCount: number, folders: IWorkspaceFolderCreationData[] | undefined): Promise<void> {
 		this.updateFoldersCalls.push(folders ? [...folders] : []);
-		this.folders = (folders ?? []).map(folder => folder.uri);
+		this.folders = [...(folders ?? [])];
 	}
 }
 
@@ -172,14 +172,18 @@ suite('WorkspaceFolderManagementContribution', () => {
 		};
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace(): IWorkspace {
-				return { folders: workspaceEditing.folders.map(uri => ({ uri })) } as unknown as IWorkspace;
+				return {
+					folders: workspaceEditing.folders.map((folder, index) =>
+						new WorkspaceFolder({ uri: folder.uri, name: folder.name ?? folder.uri.path, index }))
+				} as unknown as IWorkspace;
 			}
 		};
 		const uriIdentityService = new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUri;
 		};
 		const folderLabel = new class extends mock<IWorkspaceFolderLabelService>() {
-			override getWorkspaceFolderLabel(): string { return 'label'; }
+			label = 'label';
+			override getWorkspaceFolderLabel(): string { return this.label; }
 		};
 
 		const contribution = disposables.add(new WorkspaceFolderManagementContribution(
@@ -191,7 +195,7 @@ suite('WorkspaceFolderManagementContribution', () => {
 			folderLabel,
 		));
 
-		return { contribution, activeSession, workspaceEditing, workspaceTrust };
+		return { contribution, activeSession, workspaceEditing, workspaceTrust, folderLabel };
 	}
 
 	// Lets the reactive autorun's queued folder-management work run to completion.
@@ -268,6 +272,27 @@ suite('WorkspaceFolderManagementContribution', () => {
 		}, {
 			added: [[primary.workingDirectory.toString()]],
 			updated: [[secondary.workingDirectory.toString()]],
+		});
+	});
+
+	test('updates a mounted workspace folder when its label changes', async () => {
+		const { activeSession, workspaceEditing, folderLabel } = createContribution();
+		const folder = worktreeFolder('/repo', '/repo.worktrees/session');
+
+		folderLabel.label = 'repo (main)';
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
+		await settle();
+
+		folderLabel.label = 'repo (session-branch)';
+		activeSession.set(makeActiveSession('a', makeWorkspace(folder, false)), undefined);
+		await settle();
+
+		assert.deepStrictEqual({
+			added: workspaceEditing.addFoldersCalls,
+			updated: workspaceEditing.updateFoldersCalls,
+		}, {
+			added: [[{ uri: folder.workingDirectory, name: 'repo (main)' }]],
+			updated: [[{ uri: folder.workingDirectory, name: 'repo (session-branch)' }]],
 		});
 	});
 
