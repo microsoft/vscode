@@ -1606,7 +1606,7 @@ suite('DesktopLayoutController', () => {
 	});
 
 	for (const editorVisible of [false, true]) {
-		test(`[managed tabs / session switch] preserves the Changes header until a non-quick session workspace hydrates with Editor visible=${editorVisible}`, async () => {
+		test(`[managed tabs / session switch] preserves the Changes header until workspace hydration restores defaults into an empty group with Editor visible=${editorVisible}`, async () => {
 			createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 			await settle();
 
@@ -1635,19 +1635,21 @@ suite('DesktopLayoutController', () => {
 			await settle();
 			harness.activeEditorInput = undefined;
 			harness.onDidActiveEditorChange.fire();
+			harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			const beforeHydration = harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key);
 			workspace.set(first.workspace.get(), undefined);
 			await settle();
 			const afterHydration = {
 				keepChangesHeader: harness.contextKeyService.getContextKeyValue(DesktopChangesEditorTransitionContext.key),
 				editorVisible: harness.layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+				detailsVisible: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 				hasIncomingChangesTab: harness.activeGroupEditors.some(editor =>
 					!!editor.resource && isEqual(harness.sessionChangesService.getSessionResource(editor.resource), pending.resource)),
 			};
 
 			assert.deepStrictEqual({ beforeHydration, afterHydration }, {
 				beforeHydration: true,
-				afterHydration: { keepChangesHeader: false, editorVisible, hasIncomingChangesTab: !editorVisible },
+				afterHydration: { keepChangesHeader: false, editorVisible, detailsVisible: true, hasIncomingChangesTab: true },
 			});
 		});
 	}
