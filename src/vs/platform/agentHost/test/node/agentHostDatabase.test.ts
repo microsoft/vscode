@@ -1419,6 +1419,55 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('non-native provider exclusions do not alias standard session identities', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const standard = 'ahp-session:/shared';
+		const custom = 'custom-provider:/shared';
+		await database.registerRuntimeSession(standard, { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+
+		await database.markSessionsV2Excluded({
+			provider: 'custom-provider',
+			session: custom,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		assert.deepStrictEqual(await database.listAllSessionsV2Exclusions(), [{
+			provider: 'custom-provider',
+			session: custom,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		}]);
+	});
+
+	test('discovery ignores exclusion keys whose session only has a matching suffix', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const canonical = 'ahp-session:/x';
+		await database.markSessionsV2Excluded({
+			provider: 'custom-provider',
+			session: 'custom:/prefixahp-session:/x',
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const registered = await database.registerRuntimeSession(canonical, {
+			provider: 'codex',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: 'codex:/x',
+		});
+
+		assert.deepStrictEqual({
+			registered,
+			registration: await database.getSessionV2Registration(canonical),
+		}, {
+			registered: true,
+			registration: { session: canonical, provider: 'codex', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+		});
+	});
+
 	test('payload-versioned markers do not alter old marker semantics', async () => {
 		database = new AgentHostDatabase(':memory:');
 		await database.markSessionRegistryBackfilled();

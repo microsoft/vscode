@@ -11,7 +11,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentProvider, AgentSession } from '../common/agent.js';
+import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
@@ -497,6 +497,9 @@ function tombstoneKey(session: string): string {
 }
 
 function sessionIdentityCounterpart(provider: AgentProvider, session: string): string | undefined {
+	if (provider !== COPILOT_CLI_AGENT_PROVIDER_ID && provider !== CODEX_AGENT_PROVIDER_ID && provider !== CLAUDE_AGENT_PROVIDER_ID) {
+		return undefined;
+	}
 	const resource = URI.parse(session);
 	const backingId = AgentSession.id(resource);
 	if (isEqual(resource, AgentSession.uri(provider, backingId))) {
@@ -1681,7 +1684,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				throw new Error(`Invalid sessions_v2 exclusion key ${row.key as string}`);
 			}
 			return this._toSessionsV2Exclusion(suffix.slice(0, separator), suffix.slice(separator + 1), row.value as string);
-		});
+		}).filter(exclusion => exclusion.session === session);
 	}
 
 	/**
