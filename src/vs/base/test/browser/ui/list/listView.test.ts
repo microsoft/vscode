@@ -302,8 +302,7 @@ suite('ListView', function () {
 			disposeTemplate() { }
 		};
 
-		// Subclass to force offscreen items into the render range so the batched
-		// probe path (probeDynamicHeights) reuses a cache node instead of a live row.
+		// Subclass forces offscreen items into the render range so probeDynamicHeights reuses a cache node instead of a live row.
 		class TestListView extends ListView<TestElement> {
 			expandRenderRange = false;
 			protected override getRenderRange(renderTop: number, renderHeight: number): IRange {
