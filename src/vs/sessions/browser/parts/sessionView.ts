@@ -212,7 +212,11 @@ export class SessionView extends Disposable implements ISerializableView {
 					return;
 				}
 				if (session.isCreated.read(reader)) {
+					const moveFocus = restoreComposerFocus || isAncestorOfActiveElement(view.element);
 					this._showSessionGroups(session, options);
+					if (moveFocus) {
+						this._groupsView.focus();
+					}
 				} else if (session.isNewSessionRequestInProgress?.read(reader) && hasPreparationProgress.read(reader)) {
 					// Keep the composer alive so failure or cancellation restores its prompt and attachments.
 					const moveFocus = isAncestorOfActiveElement(view.element);

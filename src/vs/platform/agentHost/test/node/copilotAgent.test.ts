@@ -67,6 +67,7 @@ import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } f
 
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
+import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
@@ -360,6 +361,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<[]> { return []; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
@@ -5653,7 +5655,10 @@ suite('CopilotAgent', () => {
 						git.existingBranches.add('peer-branch');
 						const isolation = disposables.add(new WorktreeIsolation({
 							_serviceBrand: undefined, generateBranchName: async () => 'unused',
-						}, git, sessionDataService, new NullLogService()));
+						}, git, {
+							_serviceBrand: undefined,
+							resolve: async () => { throw new Error('Pull request resolution is not expected.'); },
+						} satisfies IAgentHostPullRequestResolver, sessionDataService, new NullLogService()));
 						if (archived) {
 							await isolation.setDetachedWorktreeArchived(handle, true);
 						} else {
@@ -8399,6 +8404,32 @@ suite('CopilotAgent', () => {
 				}, {
 					models: ['gpt-5'],
 					stopCallCount: 1,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the runtime only when the effective local memory store changes', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalMemory]: true });
+				await agent.listChatsToMigrate();
+				const localWithoutMemory = client.stopCallCount;
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.Memory]: true });
+				await agent.listChatsToMigrate();
+
+				assert.deepStrictEqual({
+					localWithoutMemory,
+					localWithMemory: client.stopCallCount,
+				}, {
+					localWithoutMemory: 0,
+					localWithMemory: 1,
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -14187,7 +14218,7 @@ suite('CopilotAgent', () => {
 					clientToken: 'connector-session-token',
 					configToken: undefined,
 					hasTokenProvider: false,
-					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);

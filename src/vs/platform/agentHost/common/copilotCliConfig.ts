@@ -43,6 +43,10 @@ export const enum CopilotCliConfigKey {
 	ClaudeDefaultReasoningEffort = 'claudeDefaultReasoningEffort',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
+	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
+	Memory = 'memory',
+	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
+	LocalMemory = 'localMemory',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
@@ -77,6 +81,10 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
+
+export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
+
+export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
@@ -232,6 +240,18 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
 		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.memory.title', "Copilot Memory"),
+		description: localize('agentHost.config.memory.description', "When enabled, Copilot SDK sessions can store and recall Copilot Memory."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
+		description: localize('agentHost.config.localMemory.description', "When enabled together with Copilot Memory, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; Copilot Memory policies configured on GitHub do not apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

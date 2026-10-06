@@ -278,6 +278,7 @@ suite('CloudSandboxAgentHostService', () => {
 		const options = call.args[3] as IAgentHostProtocolClientOptions;
 		assert.ok(options.prepareReconnect);
 		assert.ok(options.resolveInitialAuthentication);
+		assert.strictEqual(options.reconnectPolicy?.maxElapsedTimeMs, 120_000);
 		fixture.setReconnectResult({ kind: 'token', token: { ...clientToken(undefined), access_token: 'fresh-ticket' } });
 		await options.prepareReconnect();
 		const makeTransport = call.args[2] as () => IProtocolTransport;

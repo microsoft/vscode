@@ -1867,6 +1867,20 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('display names', () => {
+		test('delegates inventory-owned labels without writing global overrides or connecting', () => {
+			const name = observableValue<string | undefined>('name', undefined);
+			const registration = disposables.add(service.registerDisplayName('cloudsandbox:environment', name, value => name.set(value, undefined)));
+			service.setDisplayName('cloudsandbox:environment', '  Profile Label  ');
+			const renamed = service.getDisplayNameOverride('cloudsandbox:environment');
+			service.setDisplayName('cloudsandbox:environment', '');
+			const restored = service.getDisplayNameOverride('cloudsandbox:environment');
+			registration.dispose();
+			assert.deepStrictEqual({
+				renamed, restored, removed: service.getDisplayNameOverride('cloudsandbox:environment'),
+				machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), createdClients: createdClients.length,
+			}, { renamed: 'Profile Label', restored: undefined, removed: undefined, machineKeys: [], createdClients: 0 });
+		});
+
 		test('persists normalized overrides only in this client without changing connection settings', () => {
 			const addresses = ['ws://host:8080', 'wss://host:8080', 'ssh:my-host', 'me@host:22', 'tunnel:my-tunnel', 'wsl:Ubuntu', 'devcontainer:repo'];
 			for (const address of addresses) {

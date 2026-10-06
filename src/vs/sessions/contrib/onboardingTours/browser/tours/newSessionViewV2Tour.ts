@@ -13,13 +13,11 @@ import { NEW_SESSION_ONBOARDING_SEEN_KEY } from './newSessionTour.js';
 import { createNewSessionViewRecentTourWhen, createNewSessionViewWorkspaceStep } from './newSessionViewTourShared.js';
 
 export const NEW_SESSION_VIEW_V2_TOUR_ID = 'sessions.onboarding.newSessionViewV2';
-export const NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID = 'sessions.onboarding.newSessionViewV2.parallelWork';
 export const NEW_SESSION_VIEW_V2_VARIATION_TREATMENT = 'onb.newSessionViewV2.variation';
 export const NEW_SESSION_VIEW_V2_VARIATIONS = ['default', 'workspaceAndModel'] as const;
 export type NewSessionViewV2Variation = typeof NEW_SESSION_VIEW_V2_VARIATIONS[number];
 
 onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V2_TOUR_ID, developerModeVariations: NEW_SESSION_VIEW_V2_VARIATIONS });
-onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID });
 
 const NEW_SESSION_VIEW_V2_EXPERIMENT = {
 	behaviorFlag: 'onb.newSessionViewV2.show',
@@ -91,28 +89,6 @@ export function createNewSessionViewV2Tour(
 			payload: {
 				...newSessionViewV2Payload,
 				resolveSteps: resolveVariation ? async () => (await resolveVariation() === 'workspaceAndModel' ? workspaceAndModelPayload : newSessionViewV2Payload).steps : undefined,
-			},
-		},
-	};
-}
-
-export function createNewSessionViewV2ParallelWorkTour(targetId: string, onBeforeShow: () => Promise<void>): IOnboardingScenario<ISpotlightPayload> {
-	return {
-		id: NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID,
-		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		trigger: { kind: 'command', commandId: NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID },
-		presentation: {
-			kind: SPOTLIGHT_PRESENTATION_KIND,
-			payload: {
-				steps: [{
-					id: 'runningSession',
-					targetId,
-					title: localize('sessions.onboarding.newSessionViewV2.runningSession.title', "Your session is here"),
-					description: localize('sessions.onboarding.newSessionViewV2.runningSession.description', "Keep track of your running session in the sessions list while you start another task. Your agent can keep working in parallel."),
-					placement: 'right',
-					missingTarget: { kind: 'wait', timeoutMs: 5_000, onTimeout: 'abort' },
-					onBeforeShow,
-				}, ...workspaceAndModelPayload.steps],
 			},
 		},
 	};
