@@ -673,7 +673,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		return { service, get starts() { return starts; }, get disposes() { return disposes; } };
 	}
 
-	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled = true): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled?: boolean): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmProxyService, proxy);
@@ -727,14 +727,26 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		}
 	});
 
-	for (const authInfo of [
-		{ type: 'token-provider' as const, host: 'https://github.com', registrationId: 'registration-1', copilotUser: { login: 'octocat' } },
-		{ type: 'account' as const, host: 'https://github.com', login: 'octocat' },
+	for (const { authInfo, reconcileError } of [
+		{ authInfo: { type: 'token-provider' as const, host: 'https://github.com', registrationId: 'registration-1', copilotUser: { login: 'octocat' } } },
+		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' } },
+		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' }, reconcileError: new Error('MCP server requires authentication') },
 	]) {
-		test(`reconciles connector MCP servers through the Copilot runtime before launch completes (${authInfo.type})`, async () => {
+		test(`${reconcileError ? 'recovers connector MCP names when reconciliation requires authentication' : 'reconciles connector MCP servers through the Copilot runtime before launch completes'} (${authInfo.type})`, async () => {
 			const connectorCalls: string[] = [];
 			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
 			let featureFlags: Record<string, boolean> | undefined;
+			const connectorStatus = {
+				apiVersion: 1,
+				availability: 'enabled' as const,
+				catalog: {
+					revision: 1,
+					refreshedAtMs: 1,
+					connectors: [{ name: 'mail', displayName: 'Work IQ Mail', status: 'connected' as const, runtimeServerIds: ['connector-mail'] }],
+				},
+				runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
+				pendingConnections: 0,
+			};
 			const session = {
 				sessionId: 'connector-session',
 				on: () => () => { },
@@ -752,19 +764,16 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 							connectorCalls.push('capabilities');
 							return { availability: 'enabled' as const };
 						},
+						getStatus: async () => {
+							connectorCalls.push('status');
+							return connectorStatus;
+						},
 						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
 							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
-							return {
-								apiVersion: 1,
-								availability: 'enabled' as const,
-								catalog: {
-									revision: 1,
-									refreshedAtMs: 1,
-									connectors: [{ name: 'mail', displayName: 'Work IQ Mail', status: 'connected' as const, runtimeServerIds: ['connector-mail'] }],
-								},
-								runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
-								pendingConnections: 0,
-							};
+							if (reconcileError) {
+								throw reconcileError;
+							}
+							return connectorStatus;
 						},
 					},
 				},
@@ -817,7 +826,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
 				}, {
 					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
-					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
+					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
 					connectorDisplayName: 'Work IQ Mail',
 				});
 			} finally {

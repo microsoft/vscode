@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFile, unlink, writeFile } from 'fs/promises';
+import { mkdir, readFile, readdir, rename, rm, unlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
@@ -25,6 +27,8 @@ suite('AgentHostStorageService', () => {
 		const writer: IAgentHostStorageWriter = {
 			mkdir: async () => { },
 			writeFile: async (_path, contents) => { writes.push(contents); },
+			rename: async () => { },
+			rm: async () => { },
 		};
 		const service = disposables.add(new AgentHostStorageService(
 			URI.file('/agent-host-storage-service-test.json'),
@@ -61,6 +65,8 @@ suite('AgentHostStorageService', () => {
 					throw new Error('disk is unavailable');
 				}
 			},
+			rename: async () => { },
+			rm: async () => { },
 		};
 		const service = disposables.add(new AgentHostStorageService(
 			URI.file('/agent-host-storage-service-test.json'),
@@ -106,6 +112,61 @@ suite('AgentHostStorageService', () => {
 		}
 	});
 
+	for (const fail of [false, true]) {
+		test(`a ${fail ? 'failed' : 'pending'} write preserves the previous complete storage file`, async () => {
+			const directory = getRandomTestPath(tmpdir());
+			await mkdir(directory);
+			const path = join(directory, 'storage.json');
+			await writeFile(path, '{"previous":true}', 'utf8');
+			const writeStarted = new DeferredPromise<void>();
+			const releaseWrite = new DeferredPromise<void>();
+			const writer: IAgentHostStorageWriter = {
+				mkdir: async () => { },
+				writeFile: async (target, contents) => {
+					await writeFile(target, '{', 'utf8');
+					writeStarted.complete();
+					await releaseWrite.p;
+					if (fail) {
+						throw new Error('interrupted write');
+					}
+					await writeFile(target, contents, 'utf8');
+				},
+				rename,
+				rm: path => rm(path, { force: true }),
+			};
+			const service = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService(), writer));
+			try {
+				service.set('next', true);
+				await writeStarted.p;
+				const before = await readFile(path, 'utf8');
+				const reopened = disposables.add(new AgentHostStorageService(URI.file(path), new NullLogService()));
+				releaseWrite.complete();
+				if (fail) {
+					await assert.rejects(service.whenIdle(), /interrupted write/);
+				} else {
+					await service.whenIdle();
+				}
+				assert.deepStrictEqual({
+					before,
+					reopenedLoadError: reopened.loadError,
+					reopenedPrevious: reopened.get('previous'),
+					after: await readFile(path, 'utf8'),
+					files: await readdir(directory),
+				}, {
+					before: '{"previous":true}',
+					reopenedLoadError: undefined,
+					reopenedPrevious: true,
+					after: fail ? '{"previous":true}' : '{"previous":true,"next":true}',
+					files: ['storage.json'],
+				});
+			} finally {
+				releaseWrite.complete();
+				await Promise.allSettled([service.whenIdle()]);
+				await rm(directory, { recursive: true, force: true });
+			}
+		});
+	}
+
 	test('a rejected flushed value cannot be resurrected by a later unrelated write', async () => {
 		let fail = true;
 		const writes: string[] = [];
@@ -118,6 +179,8 @@ suite('AgentHostStorageService', () => {
 				}
 				writes.push(contents);
 			},
+			rename: async () => { },
+			rm: async () => { },
 		};
 		const service = disposables.add(new AgentHostStorageService(
 			URI.file('/agent-host-storage-service-test.json'),

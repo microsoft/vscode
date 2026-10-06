@@ -103,6 +103,8 @@ suite('AgentHostAutomationService', () => {
 					throw new Error('storage unavailable');
 				}
 			},
+			rename: async () => { },
+			rm: async () => { },
 		};
 		storageService = disposables.add(new AgentHostStorageService(
 			URI.file(`/agent-host-automation-service-${generateUuid()}.json`),

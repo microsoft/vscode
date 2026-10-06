@@ -916,7 +916,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		// Tool membership is only a compatibility fallback for sessions materialized before strategy snapshots.
 		const strategy = state?.serverTools
 			? state.serverTools.some(tool => tool.name === SessionServerToolName.RenameChat) ? 'activeAgent' : 'utility'
-			: this._options.getInitialTitleGenerationStrategy?.() ?? 'deferred';
+			: this._options.getInitialTitleGenerationStrategy?.() ?? 'utility';
 		if (channel && !this._isEphemeralSession(channel)) {
 			this._titleGenerationStrategies.set(channel, strategy);
 			if (state) {
@@ -928,7 +928,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		return strategy;
 	}
 
-	/** Restores scheduling without changing the strategy of legacy sessions. */
+	/** Restores scheduling without opting legacy sessions into the deferred experiment. */
 	async restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void> {
 		await this._restoreTitleGenerationStrategy(channel);
 		if (chatChannel && this._titleGenerationStrategies.get(channel) === 'deferred') {

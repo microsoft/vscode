@@ -57,7 +57,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
@@ -548,6 +548,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private readonly _editingSession = observableValue<IChatEditingSession | undefined>(this, undefined);
 	private readonly _viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
+	// Requests must not retain the widget through this observable's debug owner.
+	private readonly _requestToolsWidget = observableValue<ChatWidget | undefined>('requestToolsWidget', this);
+	// Request-owned keys keep original tool sources alive only while their requests are retained.
+	private _requestToolsSources = new WeakMap<object, IObservable<UserSelectedTools>>();
 
 	private parsedChatRequest: IParsedChatRequest | undefined;
 	get parsedInput() {
@@ -3915,22 +3919,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const sessionResource = this.viewModel?.sessionResource;
 		const capturedModeId = this.input.currentModeObs.get().id;
+		const widgetReference = this._requestToolsWidget;
 		const userSelectedTools = this.input.selectedToolsModel.userSelectedTools;
+		const toolsKey = {};
+		this._requestToolsSources.set(toolsKey, userSelectedTools);
 
 		let lastToolsSnapshot = userSelectedTools.get();
 
 		// When the widget has loaded a new session, return a snapshot of the tools for this session.
 		// Only sync with the tools model when this session is shown with the same mode.
 		const scopedTools = derived(reader => {
-			if (this._store.isDisposed) {
+			const widget = widgetReference.read(reader);
+			if (!widget) {
 				return lastToolsSnapshot;
 			}
-			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
-			const currentModeId = this.input.currentModeObs.read(reader).id;
+			const activeSession = widget._viewModelObs.read(reader)?.sessionResource;
+			const currentModeId = widget.input.currentModeObs.read(reader).id;
 			if (isEqual(activeSession, sessionResource) && currentModeId === capturedModeId) {
-				const tools = userSelectedTools.read(reader);
-				lastToolsSnapshot = tools;
-				return tools;
+				const tools = widget._requestToolsSources.get(toolsKey)?.read(reader);
+				if (tools) {
+					lastToolsSnapshot = tools;
+				}
 			}
 			return lastToolsSnapshot;
 		});
@@ -4229,6 +4238,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
+
+	override dispose(): void {
+		this._requestToolsSources = new WeakMap();
+		this._requestToolsWidget.set(undefined, undefined);
+		super.dispose();
 	}
 }
 
