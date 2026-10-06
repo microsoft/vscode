@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { retry, timeout } from '../../../../../../base/common/async.js';
@@ -31,11 +32,11 @@ import { IChatAccessibilityService, isChatContextMenuActionContext } from '../..
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
 import { ChatEditorOptions } from '../../../browser/widget/chatOptions.js';
-import { IChatService } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { IChatSideChatService } from '../../../common/chatSideChatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, ThinkingDisplayMode } from '../../../common/constants.js';
-import { ChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, ChatRequestModel } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatAgentService, IChatAgentService } from '../../../common/participants/chatAgents.js';
@@ -1374,50 +1375,89 @@ suite('ChatListWidget', () => {
 	});
 
 	suite('persistent progress streaming', () => {
-		for (const fontSize of [13, 14]) {
+		async function createStreamingProgress(fontSize: number, incrementalRendering: boolean, pendingKind?: ChatRequestQueueKind) {
+			const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+				configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+				configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Evaluating'] });
+			}, true);
+			disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
+			container.classList.add('interactive-list');
+			container.style.fontSize = `${fontSize}px`;
+			container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize}px`);
+			container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize - 1}px`);
+			container.style.setProperty('--vscode-spacing-size160', '16px');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const addRequest = () => model.addRequest({
+				text: 'test',
+				parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			}, { variables: [] }, 0);
+			const previousRequest = addRequest();
+			model.acceptResponseProgress(previousRequest, {
+				kind: 'markdownContent',
+				content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+			});
+			previousRequest.response?.complete();
+			const request = addRequest();
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
+			widget.refresh();
+			widget.layout(300, 500);
+			await retry(async () => assert.ok(container.textContent?.includes('Starting response.')), 10, 100);
+			if (pendingKind !== undefined) {
+				const text = 'Pending request';
+				model.addPendingRequest(new ChatRequestModel({
+					session: model,
+					message: {
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					},
+					variableData: { variables: [] },
+					timestamp: Date.now(),
+				}), pendingKind, {});
+				widget.refresh();
+			}
+			await waitForStableLayout(widget);
+			widget.scrollToEnd();
+			await waitForStableLayout(widget);
+			const response = viewModel.getItems().findLast(isResponseVM);
+			const progress = container.querySelector<HTMLElement>('.chat-working-progress');
+			const label = progress?.querySelector<HTMLElement>('.progress-step');
+			const icon = progress?.querySelector<HTMLElement>('.chat-progress-icon');
+			assert.ok(response && progress && label && icon && widget.scrollTop > 0 && widget.isScrolledToBottom);
+			assert.ok(progress.getBoundingClientRect().height > 0 && label.textContent === 'Evaluating');
+			const measure = () => ({
+				progress: progress.getBoundingClientRect().top,
+				label: label.getBoundingClientRect().top,
+				icon: icon.getBoundingClientRect().top,
+			});
+			return { disposables, model, viewModel, container, widget, request, response, progress, measure };
+		}
+
+		test('incremental progress alignment avoids a synchronous row measurement on rerender', async () => {
+			const { disposables, widget, progress } = await createStreamingProgress(13, true);
+			const row = progress.closest<HTMLElement>('.interactive-response');
+			assert.ok(row);
+			const measurement = sinon.spy(row, 'getBoundingClientRect');
+			disposables.add(toDisposable(() => measurement.restore()));
+
+			widget.rerender();
+
+			assert.deepStrictEqual({
+				synchronousMeasurements: measurement.callCount,
+				rowRounding: row.style.getPropertyValue('--chat-response-height-rounding'),
+				progressHasRounding: progress.style.getPropertyValue('--chat-response-height-rounding') !== '',
+			}, {
+				synchronousMeasurements: 0,
+				rowRounding: '',
+				progressHasRounding: true,
+			});
+		});
+
+		for (const { fontSize, pendingKind } of [13, 14].flatMap(fontSize => [undefined, ChatRequestQueueKind.Queued, ChatRequestQueueKind.Steering].map(pendingKind => ({ fontSize, pendingKind })))) {
 			for (const incrementalRendering of [false, true]) {
-				test(`keeps the bottom progress position while paragraphs stream (font size: ${fontSize}, incremental: ${incrementalRendering})`, async () => {
-					const { disposables, model, viewModel, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
-						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
-						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
-						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
-						configurationService.setUserConfiguration(ChatConfiguration.ThinkingPhrases, { mode: 'replace', phrases: ['Evaluating'] });
-					}, true);
-					disposables.add(Event.runAndSubscribe(Event.accumulate(viewModel.onDidChange), () => widget.refresh()));
-					container.classList.add('interactive-list');
-					container.style.fontSize = `${fontSize}px`;
-					container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize}px`);
-					container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize - 1}px`);
-					container.style.setProperty('--vscode-spacing-size160', '16px');
-					container.style.setProperty('--vscode-spacing-size60', '6px');
-					const addRequest = () => model.addRequest({
-						text: 'test',
-						parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
-					}, { variables: [] }, 0);
-					const previousRequest = addRequest();
-					model.acceptResponseProgress(previousRequest, {
-						kind: 'markdownContent',
-						content: new MarkdownString(Array.from({ length: 16 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
-					});
-					previousRequest.response?.complete();
-					const request = addRequest();
-					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Starting response.') });
-					widget.refresh();
-					widget.layout(300, 500);
-					await retry(async () => assert.ok(container.textContent?.includes('Starting response.')), 10, 100);
-					await waitForStableLayout(widget);
-					widget.scrollToEnd();
-					await waitForStableLayout(widget);
-					const progress = container.querySelector<HTMLElement>('.chat-working-progress');
-					const label = progress?.querySelector<HTMLElement>('.progress-step');
-					const icon = progress?.querySelector<HTMLElement>('.chat-progress-icon');
-					assert.ok(progress && label && icon && widget.scrollTop > 0 && widget.isScrolledToBottom);
-					assert.ok(progress.getBoundingClientRect().height > 0 && label.textContent === 'Evaluating');
-					const measure = () => ({
-						progress: progress.getBoundingClientRect().top,
-						label: label.getBoundingClientRect().top,
-						icon: icon.getBoundingClientRect().top,
-					});
+				test(`keeps the bottom progress position while paragraphs stream (font size: ${fontSize}, incremental: ${incrementalRendering}, pending: ${pendingKind ?? 'none'})`, async () => {
+					const { model, viewModel, container, widget, request, progress, measure } = await createStreamingProgress(fontSize, incrementalRendering, pendingKind);
 					const before = measure();
 					const positions = [before];
 					for (let index = 0; index < 6; index++) {
@@ -1441,9 +1481,9 @@ suite('ChatListWidget', () => {
 					await retry(async () => assert.ok(container.textContent?.includes('Streamed while scrolled away.')), 10, 100);
 					await waitForStableLayout(widget);
 					const scrolledAway = {
-						scrollTop: widget.scrollTop,
+						scrollTop: pendingKind === undefined ? widget.scrollTop : undefined,
 						atBottom: widget.isScrolledToBottom,
-						movedWithContent: Math.abs(progress.getBoundingClientRect().top - away.top - (progress.parentElement!.getBoundingClientRect().height - away.height)) < 0.01,
+						movedWithContent: Math.abs(progress.getBoundingClientRect().top - away.top + widget.scrollTop - away.scrollTop - (progress.parentElement!.getBoundingClientRect().height - away.height)) < 0.01,
 					};
 					widget.scrollToEnd();
 					await waitForStableLayout(widget);
@@ -1465,19 +1505,73 @@ suite('ChatListWidget', () => {
 						scrolledAway,
 						returnedToBottom,
 						toolPositions,
+						pendingKinds: viewModel.getItems().filter(isRequestVM).flatMap(item => item.pendingKind === undefined ? [] : [item.pendingKind]),
 						atBottom: widget.isScrolledToBottom,
 						sameProgress: container.querySelector('.chat-working-progress') === progress,
 					}, {
 						positions: Array.from({ length: 31 }, () => ({ ...before })),
-						scrolledAway: { scrollTop: away.scrollTop, atBottom: false, movedWithContent: true },
+						scrolledAway: { scrollTop: pendingKind === undefined ? away.scrollTop : undefined, atBottom: false, movedWithContent: true },
 						returnedToBottom: before,
 						toolPositions: [{ ...before }, { ...before }],
+						pendingKinds: pendingKind === undefined ? [] : [pendingKind],
 						atBottom: true,
 						sameProgress: true,
 					});
 				});
 			}
 		}
+
+		test('keeps retained progress aligned while completed buffered content drains', async () => {
+			const { disposables, model, container, widget, request, response, progress, measure } = await createStreamingProgress(13, false);
+			const before = measure();
+			const text = Array.from({ length: 30 }, (_, index) => `Buffered paragraph ${index}.`).join('\n\n');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`) });
+			const timings = response.contentUpdateTimings;
+			assert.ok(timings);
+			const streamTimings = sinon.stub(response, 'contentUpdateTimings').get(() => ({ ...timings, impliedWordLoadRate: 80 }));
+			disposables.add(toDisposable(() => streamTimings.restore()));
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 2, renderedParts: [] };
+			request.response?.complete();
+			widget.refresh();
+			assert.ok(response.isComplete && response.renderData && progress.isConnected);
+
+			const samples = [];
+			const heights = new Set<number>();
+			const fractions = new Set<number>();
+			const row = progress.closest<HTMLElement>('.interactive-response');
+			assert.ok(row);
+			await retry(async () => {
+				await nextFrame();
+				await timeout(0);
+				// Only sample sizes already reconciled with the list, not pending resize notifications.
+				if (progress.isConnected && Math.ceil(row.getBoundingClientRect().height) === response.currentRenderedHeight) {
+					samples.push(measure());
+					const height = progress.parentElement!.getBoundingClientRect().height;
+					heights.add(height);
+					fractions.add(height % 1);
+				}
+				assert.strictEqual(progress.isConnected, false);
+			}, 10, 200);
+			assert.deepStrictEqual({
+				renderedSeveralHeights: heights.size > 1,
+				fractions: [...fractions].sort(),
+				progressPositions: [...new Set(samples.map(sample => sample.progress))],
+				labelPositions: [...new Set(samples.map(sample => sample.label))],
+				iconPositions: [...new Set(samples.map(sample => sample.icon))],
+				progressRemoved: !progress.isConnected,
+				renderingFinished: response.renderData === undefined,
+				finalText: container.textContent?.includes('Buffered paragraph 29.'),
+			}, {
+				renderedSeveralHeights: true,
+				fractions: [0, 0.5],
+				progressPositions: [before.progress],
+				labelPositions: [before.label],
+				iconPositions: [before.icon],
+				progressRemoved: true,
+				renderingFinished: true,
+				finalText: true,
+			});
+		});
 	});
 
 	suite('persistent progress completion', () => {

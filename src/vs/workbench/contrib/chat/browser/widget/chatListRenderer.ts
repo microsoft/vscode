@@ -678,6 +678,7 @@ export interface IChatRendererDelegate {
 }
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
+const progressScrollTargetClassName = 'chat-progress-scroll-target';
 
 export function shouldHideChatUserIdentity(username: string, sessionResource: URI, isResponse: boolean, isSessionsWindow: boolean, isSystemInitiatedRequest: boolean): boolean {
 	const sessionType = getChatSessionType(sessionResource);
@@ -1063,9 +1064,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private updateWorkingProgressRounding(template: IChatListItemTemplate, measuredHeight?: number): void {
-		if (template.renderedPersistentProgress && template.currentElement && isResponseVM(template.currentElement) && !template.currentElement.isComplete && template.rowContainer.isConnected) {
-			const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
-			template.rowContainer.style.setProperty('--chat-response-height-rounding', `${Math.ceil(height) - height}px`);
+		if (!template.renderedPersistentProgress || !template.currentElement || !isResponseVM(template.currentElement) || !template.rowContainer.isConnected) {
+			return;
+		}
+		const progress = this.getWorkingProgressContentPart(template);
+		if (!progress) {
+			return;
+		}
+		const height = measuredHeight ?? template.rowContainer.getBoundingClientRect().height;
+		const rounding = `${Math.ceil(height) - height}px`;
+		if (progress.domNode.style.getPropertyValue('--chat-response-height-rounding') !== rounding) {
+			progress.domNode.style.setProperty('--chat-response-height-rounding', rounding);
 		}
 	}
 
@@ -1575,8 +1584,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._elementBeingRendered = node.element;
 		try {
 			this.renderChatTreeItem(node.element, index, templateData);
-			if (this.delegate.isScrolledToBottom?.() && templateData.rowContainer.classList.contains(mostRecentResponseClassName)) {
-				// Keep the anchor current before the list measures and scrolls the newly rendered row.
+			const usesIncrementalRendering = isResponseVM(node.element) && !node.element.renderData && this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
+			if (!usesIncrementalRendering && this.delegate.isScrolledToBottom?.() && templateData.rowContainer.classList.contains(progressScrollTargetClassName)) {
+				// Incremental markdown updates alignment through its height-change event after rendering.
 				this.updateWorkingProgressRounding(templateData);
 			}
 		} finally {
@@ -1901,6 +1911,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// response keeps rendering (and the view keeps following it) even when queued or steering
 		// rows are shown below it.
 		const isStickyScrollTargetItem = getStickyScrollTargetItem(this.viewModel?.getItems() ?? []) === element;
+		templateData.rowContainer.classList.toggle(progressScrollTargetClassName, isResponseVM(element) && isStickyScrollTargetItem);
 
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = (isResponseVM(element) && !this.rendererOptions.noHeader) && !isSystemInitiatedRequest;

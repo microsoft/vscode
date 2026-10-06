@@ -229,7 +229,7 @@
 }
 
 /* Anchor the footer to the list's integer-sized row, not the fractional streaming content height. */
-.interactive-session .chat-list-scrolled-to-bottom .interactive-response.chat-persistent-progress.chat-most-recent-response > .value > .chat-working-progress {
+.interactive-session .chat-list-scrolled-to-bottom .interactive-response.chat-persistent-progress.chat-progress-scroll-target > .value > .chat-working-progress {
 	translate: 0 var(--chat-response-height-rounding, 0px);
 }
 
