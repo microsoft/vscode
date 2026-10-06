@@ -791,7 +791,6 @@ class CopilotTurn extends Disposable {
 		readonly clientContext: IAgentHostClientTelemetryContext,
 		readonly telemetryContext: IAgentTelemetryContext | undefined,
 		readonly providerInitiated = false,
-		private readonly _onWillDispose?: (turn: CopilotTurn) => void,
 	) {
 		super();
 		// Most turns are never waited on; avoid an uncaught rejection.
@@ -846,7 +845,6 @@ class CopilotTurn extends Disposable {
 	 * Rejects {@link eventId} before disposal so pending fork-boundary checks do not hang.
 	 */
 	override dispose(): void {
-		this._onWillDispose?.(this);
 		this.sdkTurnIds.clear();
 		this.interactionIds.clear();
 		this.activeSdkTurnId = undefined;
@@ -1048,8 +1046,6 @@ export class CopilotAgentSession extends Disposable {
 	 * replacing or clearing it disposes the old turn.
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
-	/** Interaction ids of ended host turns; bounded, oldest first. See {@link _emitModelCallFinished}. */
-	private readonly _endedTurnInteractionIds = new Set<string>();
 	private readonly _idleWaiters = new Set<DeferredPromise<boolean>>();
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
@@ -1605,19 +1601,6 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	private _retireTurnInteractionIds(turn: CopilotTurn): void {
-		for (const interactionId of turn.interactionIds) {
-			this._endedTurnInteractionIds.delete(interactionId);
-			this._endedTurnInteractionIds.add(interactionId);
-		}
-		for (const interactionId of this._endedTurnInteractionIds) {
-			if (this._endedTurnInteractionIds.size <= 256) {
-				break;
-			}
-			this._endedTurnInteractionIds.delete(interactionId);
-		}
-	}
-
 	private _emitModelCallFinished(event: ICopilotModelCallFinishedEvent): void {
 		const parentToolCallId = this._parentToolCallIdForSubagentEvent(event);
 		if (event.agentId && !parentToolCallId) {
@@ -1633,15 +1616,9 @@ export class CopilotAgentSession extends Disposable {
 		} else {
 			turnId = turn?.sdkTurnIds.has(event.data.turnId) ? turn.id : undefined;
 		}
-		// Each HydraFusion phase runs its own SDK turn under a fresh interaction id, but the runtime
-		// stages the phase's `assistant.turn_start` until commit and never delivers it for a discarded
-		// or cancelled phase. Attribute an unmapped call to the turn running the phase, unless its
-		// interaction belongs to an ended turn (a late call must not be adopted by its replacement).
-		const interactionId = event.data.interactionId;
-		if (!turnId && turn && !event.agentId && interactionId && !this._endedTurnInteractionIds.has(interactionId) && this._fusionProgress.runningPhaseToolCallId !== undefined) {
-			turnId = turn.id;
-			turn.interactionIds.add(interactionId);
-		}
+		// A HydraFusion phase's calls stay unmapped until commit replays its turn start, and a
+		// discarded or cancelled phase never maps. The event carries no Fusion attribution, so an
+		// unmapped call cannot be proven to belong to the current turn's run and is dropped.
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
 			return;
@@ -2350,7 +2327,7 @@ export class CopilotAgentSession extends Disposable {
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
-		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated, turn => this._retireTurnInteractionIds(turn));
+		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated);
 	}
 
 	async hasRunningDetachedShells(): Promise<boolean> {
@@ -6475,7 +6452,11 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
 			const isLastMessageChunk = isLastAssistantMessageChunk(e);
-			const isCompleteModelCall = stableModelCallId !== undefined || isLastMessageChunk;
+			// Every model response carries its model. The runtime also injects model-less messages,
+			// such as the synthetic tool request that reads a finished background agent or shell; those
+			// are not model calls and must not count toward the turn's model calls or request telemetry.
+			const isModelResponse = stableModelCallId !== undefined || !!e.data.model;
+			const isCompleteModelCall = isModelResponse && (stableModelCallId !== undefined || isLastMessageChunk);
 			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
@@ -6486,7 +6467,7 @@ export class CopilotAgentSession extends Disposable {
 			// agent-host's per-model-call boundary; we correlate on its client-minted `x-request-id`.
 			// Main agent only: `_appliedSnapshot.tools` is the session's tool set, which does not
 			// describe a subagent's model call, so subagent messages (mapped or dropped) are skipped.
-			if (!e.agentId) {
+			if (!e.agentId && isModelResponse) {
 				const clientType = this._currentTurn.value?.clientType ?? AgentHostClientType.Unknown;
 				void this._telemetryReporter.assistantMessageReceived(this.resourceUri.toString(), this._chatChannelUri.toString(), clientType, e.data.clientRequestId, this._appliedSnapshot.tools).catch(err => this._logService.trace(`[Copilot:${this.sessionId}] Telemetry emission failed: ${getErrorMessage(err)}`));
 				// Restricted `conversation.messageText` (source=model): the model's raw response text.
