@@ -90,7 +90,7 @@ suite('WebviewElement', () => {
 		assert.ok(webview.element);
 		const frame = webview.element;
 		// Capture the shell URL without navigating away from the test document.
-		const setSource = sinon.stub(frame, 'setAttribute').withArgs('src');
+		const setSource = sinon.stub(frame, 'setAttribute').withArgs('src', sinon.match.string);
 		webview.mountTo(container, mainWindow);
 		const origin = await initialized.p;
 
@@ -201,7 +201,7 @@ suite('WebviewElement', () => {
 				]) {
 					port.postMessage({ channel: `did-${type}`, data: event });
 				}
-				const drained = Event.toPromise(webview.onMessage, store);
+				const drained = Event.toPromise(webview.onMessage, store.add(new DisposableStore()));
 				port.postMessage({ channel: 'onmessage', data: { message: 'done' } });
 				await drained;
 
@@ -220,7 +220,8 @@ suite('WebviewElement', () => {
 			channel.port2.close();
 		}));
 		const ready = createReadyEvent(channel.port1, 'new-shell-token');
-		mainWindow.dispatchEvent(new MessageEvent('message', { ...oldReady, ports: [channel.port1] }));
+		// Keep the current source window so rejection specifically tests the stale mount id.
+		mainWindow.dispatchEvent(new MessageEvent('message', { ...ready, data: oldReady.data }));
 		const rejectedStaleMount = channel.port1.onmessage === null;
 		mainWindow.dispatchEvent(new MessageEvent('message', ready));
 		const acceptedNewMount = channel.port1.onmessage !== null;
@@ -234,7 +235,7 @@ suite('WebviewElement', () => {
 		for (const keyEventToken of [oldReady.data.data.keyEventToken, ready.data.data.keyEventToken]) {
 			channel.port2.postMessage({ channel: 'did-keydown', data: { key: keyEventToken, keyEventToken, isTrusted: true } });
 		}
-		const drained = Event.toPromise(webview.onMessage, store);
+		const drained = Event.toPromise(webview.onMessage, store.add(new DisposableStore()));
 		channel.port2.postMessage({ channel: 'onmessage', data: { message: 'done' } });
 		await drained;
 
