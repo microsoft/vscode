@@ -112,7 +112,7 @@ import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
 import { resolveCopilotRuntimePaths } from './copilotRuntimePaths.js';
 import { SessionMcpDiscovery } from '../shared/sessionMcpDiscovery.js';
-import { hasClientPluginMcpDefaultCwd, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
+import { hasClientPluginMcpDefaultCwd, isClientPluginStandalone, readClientPluginMcpDefaultCwd } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { classifyCopilotClientOperationFailure, CopilotClientStartupConfigChangedError, createCopilotFailureCorrelation, isRecognizedCopilotClientStartupFailure, reportCopilotClientOperationFailure, reportCopilotClientRecovery, reportCopilotClientRecoveryTurn, reportCopilotClientStartup, type CopilotClientOperation, type CopilotClientOperationFailureKind, type ICopilotFailureCorrelation } from './copilotFailureTelemetry.js';
 
 const COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS = 3500;
@@ -230,6 +230,11 @@ export type ICopilotMcpServerInfo = IMcpServerDefinition & {
 export type ICopilotPluginInfo = Omit<IParsedPlugin, 'mcpServers'> & {
 	readonly mcpServers: readonly ICopilotMcpServerInfo[];
 	readonly pluginDir?: URI;
+	/**
+	 * Local directory with the plugin's files when they are not delivered
+	 * through `pluginDirectories`, so reads of its resources stay trusted.
+	 */
+	readonly resourceDir?: URI;
 	readonly sourceUri?: URI;
 	readonly disabledMcpServers?: readonly string[];
 };
@@ -7501,10 +7506,17 @@ class SessionPluginController extends Disposable {
 		const primaryCwd = this._directory;
 		const withClientDefaults = (item: IResolvedCustomization): ICopilotPluginInfo => {
 			const plugin = item.plugin!;
+			// Standalone customizations must not reach the SDK as plugin content: without a
+			// plugin directory they are passed through `skillDirectories`, `customAgents`,
+			// and session `mcpServers`, where the runtime applies
+			// `strictPluginOnlyCustomization`.
+			const standalone = item.input !== undefined && isClientPluginStandalone(item.input);
+			const pluginDir = standalone ? undefined : item.pluginDir;
 			return {
 				...plugin,
-				pluginDir: item.pluginDir,
-				mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, item.pluginDir, item.input, primaryCwd)),
+				pluginDir,
+				...(standalone && item.pluginDir ? { resourceDir: item.pluginDir } : {}),
+				mcpServers: plugin.mcpServers.map(definition => resolveCopilotMcpServerInfo(definition, pluginDir, item.input, primaryCwd)),
 			};
 		};
 		const allWorkspaceDefinitions = mcpDiscovery?.definitions ?? [];

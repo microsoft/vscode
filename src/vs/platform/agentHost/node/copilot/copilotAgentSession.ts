@@ -1479,7 +1479,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._agentMergeRestrictedMcpServerNames = getAgentMergeRestrictedMcpServerNames(this._launchPlan);
 		this._appliedPluginSources = new Set(this._appliedSnapshot.plugins.flatMap(plugin => plugin.sourceUri ? [plugin.sourceUri.toString()] : []));
-		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => plugin.pluginDir?.scheme === Schemas.file ? [plugin.pluginDir] : []);
+		this._appliedPluginDirectories = this._appliedSnapshot.plugins.flatMap(plugin => {
+			const directory = plugin.pluginDir ?? plugin.resourceDir;
+			return directory?.scheme === Schemas.file ? [directory] : [];
+		});
 		const disabledMcpServers = new Set([
 			...this._appliedSnapshot.plugins.flatMap(plugin => plugin.disabledMcpServers ?? []),
 			...(this._launchPlan.disabledRootMcpServers ?? []),
