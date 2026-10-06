@@ -481,6 +481,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			this.activeSession,
 			this.sessionsManagementService,
 			this._recencyHistory,
+			this.customViewService,
 			this.contextKeyService,
 			this.logService,
 		));
@@ -803,6 +804,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 		if (intent === 'explicit') {
 			if (!preserveNavigation) {
 				this._recordNavigation(token);
+				this._navigation.onWillNavigateExplicitly();
 			}
 			this.customViewService.hideCustomView();
 		}
