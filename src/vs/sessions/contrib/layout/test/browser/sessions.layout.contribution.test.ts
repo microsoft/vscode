@@ -18,20 +18,22 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { SessionsLayoutContribution } from '../../browser/sessions.layout.contribution.js';
 
+// Capture registration before configuration tests reset the shared registry.
+const registeredProperties = { ...Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties() };
+
 suite('Sessions chat layout configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('registers a session-default experimental window enum with descriptions', () => {
-		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[SESSIONS_LAYOUT_SCOPE_SETTING];
+	test('registers a session-shared-default experimental window enum with descriptions', () => {
+		const property = registeredProperties[SESSIONS_LAYOUT_SCOPE_SETTING];
 		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
 			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
 		});
 	});
 
 	test('does not register the unreleased former settings', () => {
-		const properties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => properties[key]), [undefined, undefined]);
+		assert.deepStrictEqual(['sessions.experimental.chatSpecificLayout', 'sessions.layout.mode'].map(key => registeredProperties[key]), [undefined, undefined]);
 	});
 
 	test('keeps effective presentation unchanged until reload without listening for configuration changes', async () => {
