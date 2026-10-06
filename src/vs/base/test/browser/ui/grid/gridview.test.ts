@@ -25,6 +25,97 @@ suite('Gridview', function () {
 		return gridview;
 	}
 
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		for (const participation of ['minimized', 'disabled', 'proportional']) {
+			for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
+				test(`nested constrained distribution preserves descendant geometry (${orientation}, ${participation}, ${sizing.type})`, () => {
+					class EditorView extends TestView {
+						get proportionalLayout(): boolean {
+							return participation !== 'minimized' || this.width === 0 || !(this.width === this.minimumWidth || this.height === this.minimumHeight);
+						}
+					}
+					const horizontal = orientation === Orientation.HORIZONTAL;
+					const grid = store.add(new GridView({ proportionalLayout: participation !== 'disabled' }));
+					grid.orientation = orientation;
+					grid.layout(horizontal ? 2400 : 1000, horizontal ? 1000 : 2400);
+					const views = Array.from({ length: 6 }, () => store.add(new EditorView(
+						horizontal ? 220 : 70, Number.POSITIVE_INFINITY,
+						horizontal ? 70 : 220, Number.POSITIVE_INFINITY
+					)));
+					const [a, b, d, e, f, n] = views;
+					grid.addView(a, 800, [0]);
+					grid.addView(b, 800, [1]);
+					grid.addView(d, 800, [2]);
+					grid.addView(f, 500, [2, 1]);
+					grid.addView(e, 400, [2, 0, 1]);
+					grid.resizeView([0], horizontal ? { width: 800 } : { height: 800 });
+					grid.resizeView([1], horizontal ? { width: 800 } : { height: 800 });
+					grid.resizeView([2, 0, 0], { width: horizontal ? 400 : 70, height: horizontal ? 70 : 400 });
+					const initial = [d, e].map(view => horizontal ? view.width : view.height);
+
+					grid.addView(n, sizing, [1]);
+
+					assert.deepStrictEqual({
+						initial,
+						root: [0, 1, 2, 3].map(index => {
+							const size = grid.getViewSize([index]);
+							return horizontal ? size.width : size.height;
+						}),
+						nested: [d, e].map(view => horizontal ? view.width : view.height),
+						cross: [d, e].map(view => horizontal ? view.height : view.width)
+					}, {
+						initial: [400, 400],
+						root: [600, 600, 600, 600],
+						nested: participation === 'proportional' ? [300, 300] : [360, 240],
+						cross: [70, 70]
+					});
+				});
+			}
+		}
+	}
+
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		test(`nested constrained removal preserves descendant geometry (${orientation})`, () => {
+			class EditorView extends TestView {
+				get proportionalLayout(): boolean {
+					return this.width === 0 || !(this.width === this.minimumWidth || this.height === this.minimumHeight);
+				}
+			}
+			const horizontal = orientation === Orientation.HORIZONTAL;
+			const grid = store.add(new GridView());
+			grid.orientation = orientation;
+			grid.layout(horizontal ? 2400 : 1000, horizontal ? 1000 : 2400);
+			const createView = (maximum = Number.POSITIVE_INFINITY) => store.add(new EditorView(
+				horizontal ? 220 : 70, horizontal ? maximum : Number.POSITIVE_INFINITY,
+				horizontal ? 70 : 220, horizontal ? Number.POSITIVE_INFINITY : maximum
+			));
+			const [a, b, d, f, n] = Array.from({ length: 5 }, () => createView());
+			const e = createView(350);
+			grid.addView(a, 600, [0]);
+			grid.addView(b, 600, [1]);
+			grid.addView(d, 600, [2]);
+			grid.addView(n, 600, [1]);
+			grid.addView(f, 500, [3, 1]);
+			grid.addView(e, 300, [3, 0, 1]);
+			for (let index = 0; index < 3; index++) {
+				grid.resizeView([index], horizontal ? { width: 600 } : { height: 600 });
+			}
+			grid.resizeView([3, 0, 0], { width: horizontal ? 300 : 70, height: horizontal ? 70 : 300 });
+			const initial = [d, e].map(view => horizontal ? view.width : view.height);
+
+			grid.removeView([1], Sizing.Distribute);
+
+			assert.deepStrictEqual({
+				initial,
+				nested: [d, e].map(view => horizontal ? view.width : view.height),
+				root: [0, 1, 2].map(index => {
+					const size = grid.getViewSize([index]);
+					return horizontal ? size.width : size.height;
+				})
+			}, { initial: [300, 300], nested: [580, 220], root: [800, 800, 800] });
+		});
+	}
+
 	test('empty gridview is empty', function () {
 		const gridview = createGridView();
 		assert.deepStrictEqual(nodesToArrays(gridview.getView()), []);
