@@ -2207,6 +2207,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const store = new DisposableStore();
 		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
 		store.add(this._inputEditor.onDidPaste(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidCompositionEnd(() => this._onDidChangeDraft.fire()));
 		store.add(this._attachmentModel.onDidChange(event => {
 			if (event.added.length > 0 && !this._isSyncingToOrFromInputModel && !this._isRestoringAttachments) {
 				this._onDidChangeDraft.fire();

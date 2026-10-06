@@ -1014,9 +1014,10 @@ suite('ChatWidget', () => {
 		});
 	});
 
-	test('draft input events exclude focus, restored content, and restored attachments', async () => {
+	test('draft input events include IME and exclude focus, restored content, and restored attachments', async () => {
 		const typed = store.add(new Emitter<string>());
 		const pasted = store.add(new Emitter<void>());
+		const compositionEnded = store.add(new Emitter<void>());
 		const focused = store.add(new Emitter<void>());
 		const contentChanged = store.add(new Emitter<void>());
 		const attachments = store.add(new Emitter<IChatAttachmentChangeEvent>());
@@ -1027,6 +1028,7 @@ suite('ChatWidget', () => {
 			_inputEditor: {
 				onDidType: typed.event,
 				onDidPaste: pasted.event,
+				onDidCompositionEnd: compositionEnded.event,
 				onDidFocusEditorText: focused.event,
 				onDidChangeModelContent: contentChanged.event,
 			},
@@ -1048,6 +1050,8 @@ suite('ChatWidget', () => {
 		input._isSyncingToOrFromInputModel = false;
 		await input.restoreAttachments(added.added);
 		const recalled = changes;
+		compositionEnded.fire();
+		const composedWithIme = changes;
 		typed.fire('a');
 		pasted.fire();
 		attachments.fire(added);
@@ -1056,9 +1060,10 @@ suite('ChatWidget', () => {
 		listeners.dispose();
 		typed.fire('b');
 		pasted.fire();
+		compositionEnded.fire();
 		attachments.fire(added);
 
-		assert.deepStrictEqual({ restored, recalled, composed, disposed: changes }, { restored: 0, recalled: 0, composed: 3, disposed: 3 });
+		assert.deepStrictEqual({ restored, recalled, composedWithIme, composed, disposed: changes }, { restored: 0, recalled: 0, composedWithIme: 1, composed: 4, disposed: 4 });
 	});
 
 	test('a visible read-only composer refuses send and queue operations', async () => {
