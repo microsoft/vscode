@@ -1012,6 +1012,7 @@
 		"--mobile-diff-tok-keyword",
 		"--mobile-diff-tok-number",
 		"--session-view-background",
+		"--tools-connected-depth",
 		"--session-view-foreground",
 		"--session-view-centered-content-max-width",
 		"--session-view-content-horizontal-padding",

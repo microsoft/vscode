@@ -329,6 +329,8 @@ export class AgentHostStateManager extends Disposable {
 
 	private readonly _onDidChangeSessionWorkingDirectories = this._register(new Emitter<{ session: string }>());
 	readonly onDidChangeSessionWorkingDirectories: Event<{ session: string }> = this._onDidChangeSessionWorkingDirectories.event;
+	private _workingDirectoryChangeBatchDepth = 0;
+	private readonly _batchedWorkingDirectoryChanges = new Map<string, { previous: readonly string[] | undefined; current: readonly string[] | undefined }>();
 	private readonly _onDidChangeSessionSummary = this._register(new Emitter<{ session: string; changes: SessionSummaryChangedParams['changes']; previous: SessionSummary }>());
 	readonly onDidChangeSessionSummary: Event<{ session: string; changes: SessionSummaryChangedParams['changes']; previous: SessionSummary }> = this._onDidChangeSessionSummary.event;
 
@@ -968,11 +970,9 @@ export class AgentHostStateManager extends Disposable {
 		// summary see the resolved working directory. We don't need to schedule a
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
-		const workingDirectoriesChanged = !equals(entry.state.workingDirectories, summary.workingDirectories);
+		const previousWorkingDirectories = entry.state.workingDirectories;
 		entry.state = { ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories, _meta: summary._meta };
-		if (workingDirectoriesChanged) {
-			this._onDidChangeSessionWorkingDirectories.fire({ session: key });
-		}
+		this._recordWorkingDirectoryChange(key, previousWorkingDirectories, summary.workingDirectories);
 		entry.project = summary.project;
 		entry.modifiedAt = summary.modifiedAt;
 		entry.changes = summary.changes;
@@ -2005,13 +2005,7 @@ export class AgentHostStateManager extends Disposable {
 				if (sessionAction.type === ActionType.SessionConfigChanged) {
 					this._onDidChangeSessionConfig.fire({ session: key, previous: previousState.config, current: newState.config, clientContext });
 				}
-				// The reducer returns the SAME state object when a working-directory
-				// action is a no-op, so a reference change here means the effective
-				// set actually changed. Multi-root operation suppression (turn /
-				// compare-turns) depends on this set, so consumers refresh operations.
-				if (previousState.workingDirectories !== newState.workingDirectories) {
-					this._onDidChangeSessionWorkingDirectories.fire({ session: key });
-				}
+				this._recordWorkingDirectoryChange(key, previousState.workingDirectories, newState.workingDirectories);
 
 				// When the reducer touched a summary-relevant field, notify
 				// root-channel clients of the derived-summary delta.
@@ -2217,6 +2211,37 @@ export class AgentHostStateManager extends Disposable {
 		}
 	}
 
+	/** Defers working-directory notifications until synchronous related actions have reached their final effective scopes. */
+	runWithBatchedWorkingDirectoryChanges(callback: () => void): void {
+		this._workingDirectoryChangeBatchDepth++;
+		try {
+			callback();
+		} finally {
+			this._workingDirectoryChangeBatchDepth--;
+			if (this._workingDirectoryChangeBatchDepth === 0) {
+				const changes = [...this._batchedWorkingDirectoryChanges];
+				this._batchedWorkingDirectoryChanges.clear();
+				for (const [session, change] of changes) {
+					if (!equals(change.previous, change.current)) {
+						this._onDidChangeSessionWorkingDirectories.fire({ session });
+					}
+				}
+			}
+		}
+	}
+
+	private _recordWorkingDirectoryChange(session: string, previous: readonly string[] | undefined, current: readonly string[] | undefined): void {
+		if (equals(previous, current)) {
+			return;
+		}
+		if (this._workingDirectoryChangeBatchDepth > 0) {
+			const change = this._batchedWorkingDirectoryChanges.get(session);
+			this._batchedWorkingDirectoryChanges.set(session, { previous: change ? change.previous : previous, current });
+			return;
+		}
+		this._onDidChangeSessionWorkingDirectories.fire({ session });
+	}
+
 	/**
 	 * Bridges a default-chat state transition back onto its owning session.
 	 *
@@ -2234,9 +2259,12 @@ export class AgentHostStateManager extends Disposable {
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
-		if (prev.workingDirectories !== next.workingDirectories) {
-			this._onDidChangeSessionWorkingDirectories.fire({ session: chatUri });
-		}
+		const sessionWorkingDirectories = this._sessionStates.get(sessionKey)?.state.workingDirectories;
+		this._recordWorkingDirectoryChange(
+			chatUri,
+			prev.workingDirectories ?? sessionWorkingDirectories,
+			next.workingDirectories ?? sessionWorkingDirectories,
+		);
 
 		// Any turn activity permanently retires the session's unused-draft
 		// status, so a later truncate-to-zero cannot make it look collectable.

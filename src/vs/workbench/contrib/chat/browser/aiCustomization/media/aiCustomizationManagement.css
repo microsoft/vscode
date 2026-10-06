@@ -1478,6 +1478,18 @@ per-word capitalization does not survive translation. */
 	outline-offset: -1px;
 }
 
+.ai-customization-management-editor .tools-list-widget .tools-list-connected-row.tools-list-setrow {
+	padding-inline-start: calc(var(--tools-connected-depth) * var(--vscode-spacing-size240));
+}
+
+.ai-customization-management-editor .tools-list-widget .tools-list-connected-row.tools-list-toolrow {
+	padding-inline-start: calc(var(--vscode-spacing-size400) + var(--vscode-spacing-size40) + (var(--tools-connected-depth) - 1) * var(--vscode-spacing-size240));
+}
+
+.ai-customization-management-editor .tools-list-widget .tools-list-connected-row.message {
+	color: var(--vscode-descriptionForeground);
+}
+
 .ai-customization-management-editor .tools-tree-empty-row {
 	display: flex;
 	align-items: center;
@@ -1517,7 +1529,8 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-descriptionForeground);
 }
 
-.ai-customization-management-editor .tools-list-toolrow.readonly {
+.ai-customization-management-editor .tools-list-toolrow.readonly,
+.ai-customization-management-editor .tools-list-connected-row.readonly {
 	cursor: default;
 }
 
@@ -2781,23 +2794,27 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
-.mcp-server-item .mcp-server-source-path.source-link {
+.mcp-server-item .mcp-server-source-path.source-link,
+.tools-list-connected-row .source-link {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 	text-decoration: none;
 }
 
-.mcp-server-item .mcp-server-source-path.source-link:hover {
+.mcp-server-item .mcp-server-source-path.source-link:hover,
+.tools-list-connected-row .source-link:hover {
 	color: var(--vscode-textLink-activeForeground);
 	text-decoration: underline;
 }
 
-.mcp-server-item .mcp-server-source-path.source-link:focus-visible {
+.mcp-server-item .mcp-server-source-path.source-link:focus-visible,
+.tools-list-connected-row .source-link:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
 
-.mcp-server-item .mcp-server-actions {
+.mcp-server-item .mcp-server-actions,
+.tools-list-connected-row .tools-list-connected-actions {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
@@ -2812,19 +2829,23 @@ per-word capitalization does not survive translation. */
 	white-space: nowrap;
 }
 
-.plugin-list-widget .mcp-server-error-actions {
+.plugin-list-widget .mcp-server-error-actions,
+.tools-list-connected-row .mcp-server-error-actions {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 }
 
-.mcp-server-item .mcp-server-error-actions .mcp-server-status {
+.mcp-server-item .mcp-server-error-actions .mcp-server-status,
+.tools-list-connected-row .mcp-server-error-actions .mcp-server-status {
 	width: var(--vscode-codiconFontSize);
 }
 
 .mcp-server-item .mcp-server-sign-in.monaco-button,
 .mcp-server-item .mcp-server-start.monaco-button,
 .mcp-server-item .mcp-server-show-output.monaco-button,
+.tools-list-connected-row .mcp-server-sign-in.monaco-button,
+.tools-list-connected-row .mcp-server-start.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-show-output.monaco-button {
@@ -2840,6 +2861,8 @@ per-word capitalization does not survive translation. */
 .mcp-server-item .mcp-server-sign-in.monaco-button:hover,
 .mcp-server-item .mcp-server-start.monaco-button:hover,
 .mcp-server-item .mcp-server-show-output.monaco-button:hover,
+.tools-list-connected-row .mcp-server-sign-in.monaco-button:hover,
+.tools-list-connected-row .mcp-server-start.monaco-button:hover,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-sign-in.monaco-button:hover,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-start.monaco-button:hover,
 .plugin-list-widget .mcp-installed-home-row .mcp-server-show-output.monaco-button:hover,
@@ -2847,7 +2870,8 @@ per-word capitalization does not survive translation. */
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
-.mcp-server-item .mcp-server-status {
+.mcp-server-item .mcp-server-status,
+.tools-list-connected-row .mcp-server-status {
 	flex-shrink: 0;
 	width: var(--vscode-spacing-size240);
 	height: var(--vscode-spacing-size240);
@@ -2857,25 +2881,41 @@ per-word capitalization does not survive translation. */
 	font-size: var(--vscode-codiconFontSize);
 }
 
-.mcp-server-item .mcp-server-status.starting {
+.mcp-server-item .mcp-server-status.starting,
+.tools-list-connected-row .mcp-server-status.starting {
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
+}
+
+.mcp-server-status.mcp-server-status-action {
+	cursor: pointer;
+	background: none;
+	border: none;
+	padding: 0;
+}
+
+.mcp-server-status.mcp-server-status-action:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 .mcp-server-item.disabled {
 	opacity: 0.5;
 }
 
-.plugin-list-widget .mcp-server-state-icon {
+.plugin-list-widget .mcp-server-state-icon,
+.tools-list-connected-row .mcp-server-state-icon {
 	flex-shrink: 0;
 	font-size: var(--vscode-codiconFontSize);
 	color: var(--vscode-disabledForeground);
 }
 
-.plugin-list-widget .mcp-server-state-icon.error {
+.plugin-list-widget .mcp-server-state-icon.error,
+.tools-list-connected-row .mcp-server-state-icon.error {
 	color: var(--vscode-errorForeground);
 }
 
-.plugin-list-widget .mcp-server-state-icon.starting {
+.plugin-list-widget .mcp-server-state-icon.starting,
+.tools-list-connected-row .mcp-server-state-icon.starting {
 	color: var(--vscode-progressBar-background, var(--vscode-icon-foreground));
 }
 

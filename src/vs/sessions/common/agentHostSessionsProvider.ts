@@ -91,6 +91,13 @@ export interface IAgentHostGroup {
 	readonly sessionCreationProviderId?: string;
 }
 
+/** A tool reported by an agent-host MCP server's `tools/list`. */
+export type AgentHostMcpTool = {
+	readonly name: string;
+	readonly title?: string;
+	readonly description?: string;
+};
+
 /**
  * A rich view of a single MCP server exposed by an agent host session.
  * Encapsulates the dispatch plumbing so consumers can present and toggle
@@ -121,10 +128,17 @@ export interface IAgentHostMcpServer {
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
+	/** Raw id of the plugin customization that declares this server, when it is published as a plugin child. */
+	readonly pluginId?: string;
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
 	readonly status: McpServerStatus;
+	/**
+	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
+	 * and is waiting for the host to pick up the token). Clients show progress instead of a sign-in prompt.
+	 */
+	readonly authenticating?: boolean;
 	readonly state: McpServerState;
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
@@ -135,6 +149,12 @@ export interface IAgentHostMcpServer {
 	stop(): Promise<void>;
 	/** Continues a blocking startup in the background when the host supports it. */
 	background?(): Promise<void>;
+	/**
+	 * Lists the server's tools with MCP `tools/list` over its AHP `mcp://` channel, following
+	 * `nextCursor` pagination. Present only while the server advertises a channel and the host
+	 * connection can route MCP requests.
+	 */
+	listTools?(): Promise<readonly AgentHostMcpTool[]>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -186,6 +206,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** False when the host inventory is owned externally and cannot be removed locally. */
+	readonly canRemove?: boolean;
 	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
 	setDisplayName?(name: string | undefined): void;
 	/**
@@ -381,6 +403,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 * session is unknown or the host connection is unavailable.
 	 */
 	getFeedbackAnnotationsChannel(sessionId: string): { readonly connection: IAgentConnection; readonly annotationsUri: URI } | undefined;
+
+	/** Sends a request on an `mcp://` AHP side channel of this host's connection. */
+	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	/**
 	 * Resolves the sessions-window client chat resource ({@link IChat.resource})

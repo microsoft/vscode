@@ -85,6 +85,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
+	readonly canRemove?: boolean;
 	readonly setDisplayName?: (name: string | undefined) => void;
 	/** Account-scoped inventory owners isolate cached summaries without changing routing identity. */
 	readonly sessionCacheKey?: string;
@@ -187,6 +188,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
 	readonly removeLabel?: string;
+	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
 	get automations(): ISessionsProviderAutomations | undefined { return this._automationStore; }
 	readonly setDisplayName?: (name: string | undefined) => void;
@@ -335,6 +337,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
 		this.removeLabel = config.removeLabel;
+		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._readOnly = derived(this, reader => {
@@ -807,7 +810,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
-			? toAgentHostContentUri(uri, this._connectionAuthority)
+			? toAgentHostContentUri(uri, this._connectionAuthority, options.fileUri)
 			: toAgentHostUri(uri, this._connectionAuthority);
 	}
 
@@ -864,6 +867,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	async remove(): Promise<void> {
+		if (this.canRemove === false) {
+			throw new Error(localize('remoteAgentHost.cannotRemove', "This host cannot be removed locally."));
+		}
 		this.unpublishCachedSessions();
 		if (this._removeOnDemand) {
 			await this._removeOnDemand();

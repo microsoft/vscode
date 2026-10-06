@@ -611,10 +611,26 @@ suite('ChatInputNotificationWidget', () => {
 
 	test('only marks a banner shown when its host becomes visible', () => {
 		const hostVisible = observableValue('hostVisible', false);
+		const inputUri = URI.parse('test-input:/first');
+		const sessionResource = URI.parse('remote-host-copilot:/session');
 		const telemetryService = new RecordingTelemetryService();
-		const { notificationService, widget } = createWidget({ delegate: { hostVisible }, telemetryService });
+		const { notificationService, widget } = createWidget({
+			delegate: {
+				hostVisible,
+				inputUri,
+				sessionResource: constObservable(sessionResource),
+				modelTargetChatSessionType: constObservable('remote-host-copilot'),
+			},
+			telemetryService,
+		});
 		let shown = 0;
-		showNotification(notificationService, { id: 'promo', message: 'Sale', actions: [], onDidShow: () => shown++ });
+		let shownContext: IChatInputNotificationContext | undefined;
+		showNotification(notificationService, {
+			id: 'promo', message: 'Sale', actions: [], onDidShow: context => {
+				shown++;
+				shownContext = context;
+			}
+		});
 		const contents = widget.domNode.firstChild;
 		const whileHidden = shown;
 		hostVisible.set(true, undefined);
@@ -626,6 +642,7 @@ suite('ChatInputNotificationWidget', () => {
 			sameContents: widget.domNode.firstChild === contents,
 			impressions: telemetryService.events.filter(event => event.name === 'chatInputNotificationShown').length,
 		}, { whileHidden: 0, shown: 1, sameContents: true, impressions: 1 });
+		assert.deepStrictEqual(shownContext, context({ inputUri, sessionResource, sessionType: 'remote-host-copilot' }));
 	});
 
 	function clickAction(widget: ChatInputNotificationWidget): void {
