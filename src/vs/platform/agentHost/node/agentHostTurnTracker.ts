@@ -92,7 +92,6 @@ interface ITurnTiming {
 	readonly finishedModelCallIds: Set<string>;
 	modelCallDispatchDurationMs: number;
 	timeToFirstEditMs: number | undefined;
-	timeToFirstEditClassifierVersion: number | undefined;
 	startedWithSteering: boolean;
 	receivedSteering: boolean;
 	firstProgressMs: number | undefined;
@@ -188,7 +187,7 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void;
 	modelCallCompleted(session: string, turnId: string, modelCallId: string): void;
 	markSteering(session: string, turnId: string, kind: 'started' | 'received'): void;
-	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void;
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined): void;
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined;
 	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
 	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
@@ -288,7 +287,6 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			finishedModelCallIds: new Set(),
 			modelCallDispatchDurationMs: 0,
 			timeToFirstEditMs: undefined,
-			timeToFirstEditClassifierVersion: undefined,
 			startedWithSteering: false,
 			receivedSteering: false,
 			firstProgressMs: undefined,
@@ -651,7 +649,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
-	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void {
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		if (!timing || timing.finishedModelCallIds.has(modelCallId)) {
 			return;
@@ -663,7 +661,6 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		timing.modelCallDispatchDurationMs += dispatchDurationMs;
 		if (outcome === 'success' && containsBuiltInFileEditRequest === true) {
 			timing.timeToFirstEditMs = timing.modelCallDispatchDurationMs;
-			timing.timeToFirstEditClassifierVersion = editClassifierVersion;
 		}
 	}
 
@@ -757,7 +754,6 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timeToFirstProgress: timing.firstProgressMs,
 			timeToFirstSubstantiveProgress: timing.firstSubstantiveProgressMs,
 			timeToFirstEditMs: timing.timeToFirstEditMs,
-			timeToFirstEditClassifierVersion: timing.timeToFirstEditClassifierVersion,
 			startedWithSteering: timing.startedWithSteering,
 			receivedSteering: timing.receivedSteering,
 			sendStageDurationsMs: timing.sendStageDurationsMs,
