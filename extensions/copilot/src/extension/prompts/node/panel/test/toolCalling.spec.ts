@@ -694,6 +694,70 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		expect(serialized).not.toContain('image_url');
 	});
 
+	test('labels tool result images by their bytes and omits data that is not an image', async () => {
+		const toolName = 'viewImage';
+		const mislabeledCallId = 'call-mislabeled';
+		const invalidCallId = 'call-invalid';
+
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'view image tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		testingServiceCollection.define(IToolsService, new CapturingToolsService(toolInfo));
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.EnableChatImageUpload, false);
+
+		// JPEG bytes in a file named `.png`, and text bytes in a file named `.png`
+		const jpegBytes = new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46]);
+		const notAnImage = new TextEncoder().encode('this is not an image');
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[mislabeledCallId]: new LanguageModelToolResult([LanguageModelDataPart.image(jpegBytes, 'image/png')]),
+			[invalidCallId]: new LanguageModelToolResult([LanguageModelDataPart.image(notAnImage, 'image/png')]),
+		};
+
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'viewing images',
+			toolInputRetry: 0,
+			toolCalls: [
+				{ name: toolName, arguments: '{}', id: mislabeledCallId },
+				{ name: toolName, arguments: '{}', id: invalidCallId },
+			],
+		};
+
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-sniff' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+		});
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain(`data:image/jpeg;base64,${Buffer.from(jpegBytes).toString('base64')}`);
+		expect(serialized).not.toContain(Buffer.from(notAnImage).toString('base64'));
+		expect(serialized).toContain('its contents are not a valid image (declared type: image/png)');
+	});
+
 	test('sendInvokedToolTelemetry handles tool results with images without crashing', async () => {
 		// Regression test for issue #312813: ensure sendInvokedToolTelemetry uses DI to instantiate
 		// PrimitiveToolResult so that @IPromptEndpoint is properly injected when rendering images.
