@@ -150,7 +150,7 @@ suite('PromptTimelineModel', () => {
 		const firstChanges = observableValue<readonly IEditSessionEntryDiff[]>('firstChanges', [{
 			originalURI: URI.file('/before.txt'), modifiedURI: URI.file('/after.txt'), added: 3, removed: 1, identical: false, quitEarly: false, isFinal: true, isBusy: false,
 		}]);
-		const secondChanges = observableValue<readonly IEditSessionEntryDiff[]>('secondChanges', []);
+		const secondChanges = observableValue<readonly IEditSessionEntryDiff[]>('secondChanges', firstChanges.get().map(diff => ({ ...diff, added: 7 })));
 		const { model, setRequests, setSessionResource } = createModel([{ item: first, top: 0 }, { item: last, top: 400 }], 300, 1200,
 			upcastPartial<IChatResponseFileChangesService>({
 				getChangesForRequest: resource => resource.path === '/first' ? firstChanges : secondChanges,
@@ -160,18 +160,37 @@ suite('PromptTimelineModel', () => {
 		setRequests([{ ...last, messageText: 'Renamed', timestamp: now + 2 }, first]);
 		const reordered = model.promptTicks.get().map(tick => ({ id: tick.requestId, text: tick.text, timestamp: tick.timestamp }));
 		setSessionResource(URI.parse('test:/second'));
-		firstChanges.set([], undefined);
+		const immediatelyAfterRebind = model.promptTicks.get().map(tick => tick.stat);
+		firstChanges.set(firstChanges.get().map(diff => ({ ...diff, added: 99 })), undefined);
 
 		assert.deepStrictEqual({
 			initialStats,
 			reordered,
+			immediatelyAfterRebind,
 			newSessionStats: model.promptTicks.get().map(tick => tick.stat),
 		}, {
 			initialStats: [{ added: 3, removed: 1, fileCount: 1 }, { added: 3, removed: 1, fileCount: 1 }],
 			reordered: [{ id: 'last', text: 'Renamed', timestamp: now + 2 }, { id: 'first', text: 'First', timestamp: now }],
-			newSessionStats: [undefined, undefined],
+			immediatelyAfterRebind: [{ added: 7, removed: 1, fileCount: 1 }, { added: 7, removed: 1, fileCount: 1 }],
+			newSessionStats: [{ added: 7, removed: 1, fileCount: 1 }, { added: 7, removed: 1, fileCount: 1 }],
 		});
 	});
+
+	for (const changed of ['text', 'timestamp'] as const) {
+		test(`observes an independent ${changed} update without changing request position`, () => {
+			const now = Date.now();
+			const first = request('first', 'First', now);
+			const last = request('last', 'Last', now + 1);
+			const { model, setRequests } = createModel([{ item: first, top: 0 }, { item: last, top: 400 }]);
+			const seen: { id: string; text: string; timestamp: number }[][] = [];
+			store.add(autorun(reader => seen.push(model.promptTicks.read(reader).map(tick => ({ id: tick.requestId, text: tick.text, timestamp: tick.timestamp })))));
+			setRequests([{ ...first, messageText: changed === 'text' ? 'Renamed' : first.messageText, timestamp: changed === 'timestamp' ? now - 1 : now }, last]);
+			assert.deepStrictEqual(seen, [
+				[{ id: 'first', text: 'First', timestamp: now }, { id: 'last', text: 'Last', timestamp: now + 1 }],
+				[{ id: 'first', text: changed === 'text' ? 'Renamed' : 'First', timestamp: changed === 'timestamp' ? now - 1 : now }, { id: 'last', text: 'Last', timestamp: now + 1 }]
+			]);
+		});
+	}
 
 	test('aggregates bucket stats without counting the same changed file twice', () => {
 		const diff: IEditSessionEntryDiff = {
