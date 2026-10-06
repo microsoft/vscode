@@ -156,12 +156,11 @@ export function raiseCloudSandboxFileLimit(pid: number, overrides: Partial<Sandb
 	if (current.soft >= requiredLimit) {
 		return;
 	}
-	if (current.hard < requiredLimit) {
-		throw new Error(`Cloud Sandbox setup: process ${pid} has a hard file-descriptor limit of ${current.hard}, below ${requiredLimit}. The sandbox platform must raise the hard limit before setup can continue.`);
-	}
-	// An omitted hard value preserves it; ulimit in the hook would not update the parent agent.
-	options.run('prlimit', ['--pid', String(pid), `--nofile=${requiredLimit}:`]);
-	if (readLimits().soft < requiredLimit) {
+	// Preserve higher hard limits; a cold sandbox may require raising both limits.
+	const hard = current.hard < requiredLimit ? String(requiredLimit) : '';
+	options.run('prlimit', ['--pid', String(pid), `--nofile=${requiredLimit}:${hard}`]);
+	const updated = readLimits();
+	if (updated.soft < requiredLimit || updated.hard < Math.max(current.hard, requiredLimit)) {
 		throw new Error(`Cloud Sandbox setup: process ${pid} still has a file-descriptor limit below ${requiredLimit}.`);
 	}
 	console.log(`Cloud Sandbox: raised process ${pid}'s file-descriptor limit to ${requiredLimit}.`);

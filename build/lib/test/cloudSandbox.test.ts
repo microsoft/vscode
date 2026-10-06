@@ -126,16 +126,26 @@ suite('Cloud Sandbox install setup', () => {
 		assert.deepStrictEqual(calls, Array.from({ length: 3 }, () => ['--pid', '4321', '--nofile', '--noheadings', '--raw', '--output', 'SOFT,HARD']));
 	});
 
-	test('rejects unsafe target IDs, low hard limits and malformed limit responses', () => {
+	test('raises a too-low hard limit along with the soft limit', () => {
+		const calls: string[][] = [];
+		const responses = ['1024 4096', '1048576 1048576'];
+		raiseCloudSandboxFileLimit(4321, {
+			platform: 'linux', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+			run: (_command, args, captureOutput) => {
+				calls.push([...args]);
+				return captureOutput ? responses.shift()! : '';
+			},
+		});
+		assert.deepStrictEqual(calls[1], ['--pid', '4321', '--nofile=1048576:1048576']);
+	});
+
+	test('rejects unsafe target IDs and malformed limit responses', () => {
 		const options = { platform: 'linux' as const, env: { GITHUB_ENVIRONMENT_ID: 'environment' } };
 		for (const pid of [0, 1, -1, NaN, 1.5]) {
 			assert.throws(() => raiseCloudSandboxFileLimit(pid, {
 				...options, run: () => { throw new Error('Invalid target must not run prlimit'); },
 			}), /process ID greater than 1/);
 		}
-		assert.throws(() => raiseCloudSandboxFileLimit(4321, {
-			...options, run: () => '1024 4096',
-		}), /platform must raise the hard limit/);
 		for (const output of ['', 'invalid response', '1024', '1024 1048576 unexpected']) {
 			assert.throws(() => raiseCloudSandboxFileLimit(4321, {
 				...options, run: () => output,
@@ -160,11 +170,6 @@ suite('Cloud Sandbox install setup', () => {
 	test('future child commands inherit the raised limit on Linux', t => {
 		if (process.platform !== 'linux') {
 			t.skip('prlimit and Linux process limits are required.');
-			return;
-		}
-		const hard = execFileSync('prlimit', ['--pid', String(process.pid), '--nofile', '--noheadings', '--raw', '--output', 'HARD'], { encoding: 'utf8' }).trim();
-		if (hard !== 'unlimited' && Number(hard) < 1048576) {
-			t.skip(`The test host's hard file limit is ${hard}; it cannot support the sandbox target.`);
 			return;
 		}
 		const root = fixture(t);
