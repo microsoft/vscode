@@ -88,10 +88,10 @@ export interface ISessionsListModelService {
 	 * all surfaces stay in sync.
 	 *
 	 * Note: when motion is allowed, surfaces that host a {@link SessionStatusIcon}
-	 * (sessions list, session header) render a pixel spinner for the
-	 * `InProgress`/`NeedsInput` states instead of consulting this method; the
-	 * icons returned here are the reduced-motion fallbacks (and the glyphs used by
-	 * surfaces that don't host the widget, such as the sessions picker).
+	 * (sessions list, session header) render a pixel spinner for `InProgress`.
+	 * Other states, including the pulsing report icon for `NeedsInput`, use the
+	 * icon returned here. Surfaces that don't host the widget, such as the
+	 * sessions picker, also use these icons.
 	 */
 	getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, completedStateIcon?: ThemeIcon): ThemeIcon;
 }

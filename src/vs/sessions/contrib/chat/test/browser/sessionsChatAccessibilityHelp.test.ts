@@ -690,7 +690,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instructions: enabledProvider.provideContent().includes('press Enter or Space to expand or collapse the full instructions'),
 			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
 			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
-			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs input in an inactive visible pane'),
+			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs attention in an inactive visible pane'),
 			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
 			attemptLinks: enabledProvider.provideContent().includes('activate its link to reveal that session'),
 			accessibleView: enabledProvider.provideContent().includes('use Open Accessible View<keybinding:editor.action.accessibleView>'),

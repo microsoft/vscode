@@ -119,7 +119,7 @@ export class BlockedSessionsList extends Disposable {
 		// right (e.g. the action that opens the full sessions picker).
 		const header = append(element, $('.agent-sessions-blocked-list-header'));
 		const title = append(header, $('.agent-sessions-blocked-list-title'));
-		title.textContent = localize('sessionsRequiringInput', "Sessions Needing Attention");
+		title.textContent = localize('sessionsRequiringInput', "Sessions needing attention");
 		const headerActions = append(header, $('.agent-sessions-blocked-list-header-actions'));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.BlockedSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
