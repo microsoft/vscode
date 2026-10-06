@@ -123,6 +123,18 @@ tombstones all its live normalized rows before removing the header.
 
 ## Scope
 
+`insertPrivateChatV2(session, chat, expectedCatalogRevision)` adds a complete
+explicitly Hidden chat without an ordering slot. It compares the live owner and
+normalized header revision, enforces the total chat bound, and validates recorded
+parent chains. Exact current same-owner private data replays under the current
+revision; foreign, public, tombstoned or divergent identities conflict.
+
+`removePrivateChatV2(session, chat, expectedCatalogRevision)` tombstones only the
+owned private target and its private descendant closure in the same transaction
+as advancing the header revision. Public/default rows are never removed or
+traversed. Tombstoned global identities cannot be reinserted; stale revision
+attempts conflict. Neither operation writes the session aggregate payload.
+
 There are no move, retirement, resource-inventory, retention, cleanup-debt or
 outbox APIs in this foundation. The approved upstream schema has no database
 move/reorder API to migrate. Those product workflows, reader activation,

@@ -347,6 +347,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Writes a new unverified session's complete catalog directly to normalized authority. */
 	registerChatCatalogV2(session: string, candidate: IAgentHostDatabaseChatV2NormalizationCandidate): Promise<AgentHostDatabaseChatV2WriteResult>;
 	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch): Promise<AgentHostDatabaseChatV2WriteResult>;
+	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
+	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
@@ -2028,6 +2030,101 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult> {
+		if (chat.order !== undefined || chat.metadata?.interactivity !== ChatInteractivity.Hidden) {
+			throw new Error('Private insertion requires no ordering slot and explicit Hidden interactivity');
+		}
+		return this._mutatePrivateChatV2(session, chat.chat, expectedCatalogRevision, chat);
+	}
+
+	async removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult> {
+		return this._mutatePrivateChatV2(session, chat, expectedCatalogRevision);
+	}
+
+	private async _mutatePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number, insertion?: IAgentHostDatabaseChatV2NormalizationChat): Promise<AgentHostDatabaseChatV2WriteResult> {
+		this._validateRevision(expectedCatalogRevision);
+		validateChatV2String(chat, true);
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await exec(database, 'BEGIN IMMEDIATE');
+			try {
+				const unavailable = await this._chatCatalogUnavailable(database, session);
+				if (unavailable) {
+					await exec(database, 'COMMIT');
+					return { status: unavailable };
+				}
+				const header = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [session]);
+				if (header?.authority_version !== 2 || header.revision !== expectedCatalogRevision) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				const existing = await get(database, 'SELECT * FROM chats_v2 WHERE chat_uri = ?', [chat]);
+				const rows = await all(database, 'SELECT * FROM chats_v2 WHERE owner_session_uri = ? AND tombstoned = 0', [session]);
+				if (rows.length > AGENT_HOST_CATALOG_CHILD_LIMIT || !rows.some(row => row.chat_uri === header.default_chat_uri && row.chat_order !== null)) {
+					throw new Error(`Invalid live normalized catalog for ${session}`);
+				}
+				if (existing && (existing.tombstoned === 1 || existing.owner_session_uri !== session || existing.chat_order !== null)) {
+					await exec(database, 'COMMIT');
+					return { status: 'conflict' };
+				}
+				if (insertion) {
+					this._validateChatV2Input(insertion);
+					await this._validatePrivateChatV2Parent(database, session, chat, insertion.parentChat);
+					if (existing) {
+						const actual = this._toChatV2(existing);
+						const matches = existing.storage_resource === (insertion.storageResource ?? null)
+							&& existing.parent_chat === (insertion.parentChat ?? null)
+							&& existing.provider_data === (insertion.providerData ?? null)
+							&& existing.origin === (insertion.origin ?? null)
+							&& actual.isRead === insertion.isRead && actual.archived === (insertion.archived ?? false)
+							&& actual.inheritedTurnId === insertion.inheritedTurnId
+							&& stableStringify(actual.workingDirectories) === stableStringify(insertion.workingDirectories)
+							&& encodeChatV2Metadata(actual.metadata ?? {}) === encodeChatV2Metadata(insertion.metadata ?? {});
+						await exec(database, 'COMMIT');
+						return matches ? { status: 'replayed', catalogRevision: expectedCatalogRevision } : { status: 'conflict' };
+					}
+					if (await get(database, `SELECT 1 FROM session_chats c JOIN session_chat_catalogs h ON h.session_uri = c.session_uri
+						WHERE c.chat_uri = ? AND h.authority_version = 1 LIMIT 1`, [chat])) {
+						await exec(database, 'COMMIT');
+						return { status: 'conflict' };
+					}
+					if (rows.length === AGENT_HOST_CATALOG_CHILD_LIMIT) {
+						throw new Error('Chat catalog exceeds the limit');
+					}
+					await this._insertChatV2(database, session, insertion);
+				} else {
+					if (!existing) {
+						await exec(database, 'COMMIT');
+						return { status: 'conflict' };
+					}
+					const removed = new Set([chat]);
+					let expanded = true;
+					while (expanded) {
+						expanded = false;
+						for (const row of rows) {
+							if (row.chat_order === null && removed.has(row.parent_chat as string) && !removed.has(row.chat_uri as string)) {
+								removed.add(row.chat_uri as string);
+								expanded = true;
+							}
+						}
+					}
+					for (const row of rows) {
+						if (removed.has(row.chat_uri as string)) {
+							await run(database, 'UPDATE chats_v2 SET tombstoned = 1, ownership_revision = ? WHERE chat_uri = ?',
+								[this._nextRevision(row.ownership_revision as number), row.chat_uri]);
+						}
+					}
+				}
+				const revision = this._nextRevision(expectedCatalogRevision);
+				await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
+				await exec(database, 'COMMIT');
+				return { status: 'applied', catalogRevision: revision };
+			} catch (error) {
+				return this._rollback(database, error, `Failed to mutate private chat ${chat}`);
+			}
+		});
+	}
+
 	private async _chatCatalogUnavailable(database: Database, session: string): Promise<'missingSession' | 'tombstoned' | undefined> {
 		if (await get(database, `SELECT 1 FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)])) {
 			return 'tombstoned';
@@ -2190,21 +2287,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			deletedUris.add(deleted.chat);
 		}
 		for (const chat of chats) {
-			validateChatV2String(chat.chat, true);
-			if (chat.storageResource !== undefined) {
-				validateChatV2String(chat.storageResource, true);
-			}
-			if (chat.inheritedTurnId !== undefined) {
-				validateChatV2String(chat.inheritedTurnId);
-			}
-			if (chat.workingDirectories !== undefined) {
-				validateChatV2WorkingDirectories(chat.workingDirectories);
-			}
-			if (chat.origin !== undefined) {
-				validateChatV2Origin(chat.origin);
-			}
-			encodeChatV2Metadata(chat.metadata ?? {});
-			this._validateChatV2Role(chat.order, chat.metadata);
+			this._validateChatV2Input(chat);
 			const seen = new Set([chat.chat]);
 			let parent = chat.parentChat;
 			while (parent !== undefined) {
@@ -2215,6 +2298,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				parent = byUri.get(parent)!.parentChat;
 			}
 		}
+	}
+
+	private _validateChatV2Input(chat: IAgentHostDatabaseChatV2NormalizationChat): void {
+		validateChatV2String(chat.chat, true);
+		if (chat.storageResource !== undefined) {
+			validateChatV2String(chat.storageResource, true);
+		}
+		if (chat.inheritedTurnId !== undefined) {
+			validateChatV2String(chat.inheritedTurnId);
+		}
+		if (chat.workingDirectories !== undefined) {
+			validateChatV2WorkingDirectories(chat.workingDirectories);
+		}
+		if (chat.origin !== undefined) {
+			validateChatV2Origin(chat.origin);
+		}
+		encodeChatV2Metadata(chat.metadata ?? {});
+		this._validateChatV2Role(chat.order, chat.metadata);
 	}
 
 	private _validateChatV2Role(order: number | undefined, metadata: IAgentHostChatV2MetadataData | undefined): void {
@@ -2304,19 +2405,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			if (row.chat_order !== null) {
 				throw new Error('Only private chats may be reparented');
 			}
-			const seen = new Set([chat]);
-			let parent: string | undefined = patch.parentChat;
-			while (parent !== undefined) {
-				if (seen.has(parent)) {
-					throw new Error('Private lineage would be cyclic');
-				}
-				seen.add(parent);
-				const ancestor = await get(database, 'SELECT parent_chat FROM chats_v2 WHERE chat_uri = ? AND owner_session_uri = ? AND tombstoned = 0', [parent, session]);
-				if (!ancestor) {
-					throw new Error('Private lineage must remain in the live owner catalog');
-				}
-				parent = ancestor.parent_chat === null ? undefined : ancestor.parent_chat as string;
-			}
+			await this._validatePrivateChatV2Parent(database, session, chat, patch.parentChat);
 		}
 		const payload = encodeChatV2Metadata(metadata);
 		await run(database, `UPDATE chats_v2 SET metadata = ?, metadata_hash = ?, metadata_revision = ?,
@@ -2335,6 +2424,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		const revision = this._nextRevision(header.revision as number);
 		await run(database, 'UPDATE session_chat_catalogs SET revision = ? WHERE session_uri = ?', [revision, session]);
 		return { status: 'applied', catalogRevision: revision };
+	}
+
+	private async _validatePrivateChatV2Parent(database: Database, session: string, chat: string, parent: string | undefined): Promise<void> {
+		const seen = new Set([chat]);
+		while (parent !== undefined) {
+			if (seen.has(parent)) {
+				throw new Error('Private lineage would be cyclic');
+			}
+			seen.add(parent);
+			if (seen.size > AGENT_HOST_CATALOG_CHILD_LIMIT) {
+				throw new Error('Private lineage exceeds the catalog limit');
+			}
+			const ancestor = await get(database, 'SELECT parent_chat FROM chats_v2 WHERE chat_uri = ? AND owner_session_uri = ? AND tombstoned = 0', [parent, session]);
+			if (!ancestor) {
+				throw new Error('Private lineage must remain in the live owner catalog');
+			}
+			parent = ancestor.parent_chat === null ? undefined : ancestor.parent_chat as string;
+		}
 	}
 
 	private _decodeChatV2RowMetadata(row: Record<string, unknown>): IAgentHostChatV2MetadataData {

@@ -2303,5 +2303,146 @@ suite('AgentHostDatabase sessions_v2', () => {
 				unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
 			}, { applied: 'applied', generation: 'catalog-generation', unchanged: true });
 		});
+
+		test('private lifecycle insertion preserves complete data and only exact current revision replays', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const spawned = {
+				chat: 'chat://spawned-private', parentChat: privateChat, storageResource: 'storage://spawned',
+				providerData: 'opaque', origin: '{"kind":"tool"}', workingDirectories: ['file:///primary', 'file:///secondary'],
+				isRead: true, archived: true, inheritedTurnId: 'spawn-turn',
+				metadata: { summary: 'Spawned', titleSource: 'agent' as const, interactivity: ChatInteractivity.Hidden, changes: { files: 2 } },
+			};
+			const applied = await database.insertPrivateChatV2(session, spawned, 1);
+			const stale = await database.insertPrivateChatV2(session, spawned, 1);
+			const replay = await database.insertPrivateChatV2(session, spawned, 2);
+			const mismatch = await database.insertPrivateChatV2(session, { ...spawned, providerData: 'different' }, 2);
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			assert.deepStrictEqual({
+				applied, stale, replay, mismatch, row: snapshot.chats.find(chat => chat.chat === spawned.chat),
+				detail: await database.getChatV2ProviderDetail(spawned.chat),
+				sourceRevision: (await database.getSessionV2(session))?.sourceRevision,
+			}, {
+				applied: { status: 'applied', catalogRevision: 2 }, stale: { status: 'conflict' },
+				replay: { status: 'replayed', catalogRevision: 2 }, mismatch: { status: 'conflict' },
+				row: {
+					chat: spawned.chat, ownerSession: session, parentChat: privateChat, storageResource: 'storage://spawned',
+					origin: spawned.origin, workingDirectories: spawned.workingDirectories, isRead: true, archived: true,
+					inheritedTurnId: 'spawn-turn', metadata: spawned.metadata, ownershipRevision: 0, metadataRevision: 0
+				},
+				detail: { providerData: 'opaque' }, sourceRevision: 10,
+			});
+		});
+
+		test('private lifecycle rejects visible, cyclic and foreign identities while preserving absent parent facts', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const hidden = { chat: 'chat://unparented', metadata: { interactivity: ChatInteractivity.Hidden } };
+			await assert.rejects(database.insertPrivateChatV2(session, { ...hidden, order: 0 }, 1), /ordering slot/);
+			await assert.rejects(database.insertPrivateChatV2(session, { ...hidden, metadata: { interactivity: ChatInteractivity.Full } }, 1), /Hidden/);
+			await assert.rejects(database.insertPrivateChatV2(session, { ...hidden, parentChat: hidden.chat }, 1), /cyclic/);
+			await assert.rejects(database.insertPrivateChatV2(session, { ...hidden, parentChat: 'chat://absent' }, 1), /live owner/);
+			const publicConflict = await database.insertPrivateChatV2(session, { ...hidden, chat: defaultChat }, 1);
+			const foreign = 'session://foreign-owner';
+			await database.registerSessionV2(foreign, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+			await database.registerChatCatalogV2(foreign, { defaultChat: { chat: 'chat://foreign-default', order: 0 }, peers: [], privateDescendants: [hidden] });
+			const foreignConflict = await database.insertPrivateChatV2(session, hidden, 1);
+			const absentParent = await database.insertPrivateChatV2(session, { ...hidden, chat: 'chat://parentless-new' }, 1);
+			assert.deepStrictEqual({
+				publicConflict, foreignConflict, absentParent,
+				parent: (await database.readCatalogSnapshot([session]))[0].chats.find(chat => chat.chat === 'chat://parentless-new')?.parentChat,
+			}, { publicConflict: { status: 'conflict' }, foreignConflict: { status: 'conflict' }, absentParent: { status: 'applied', catalogRevision: 2 }, parent: undefined });
+		});
+
+		test('private lifecycle deletion tombstones only private closure and survives restart without resurrection', async () => {
+			const path = join(temporaryDirectory!, 'private-lifecycle.db');
+			database = new AgentHostDatabase(path);
+			await seed();
+			const input = candidate();
+			await database.ensureChatCatalogV2(session, expectation(), {
+				...input, peers: [{ ...input.peers[0], parentChat: privateChat }], privateDescendants: [{ chat: privateChat }],
+			});
+			const child = { chat: 'chat://private-child', parentChat: privateChat, metadata: { interactivity: ChatInteractivity.Hidden } };
+			await database.insertPrivateChatV2(session, child, 1);
+			const publicTarget = await database.removePrivateChatV2(session, peer, 2);
+			const removed = await database.removePrivateChatV2(session, privateChat, 2);
+			await database.close();
+			database = new AgentHostDatabase(path);
+			const reinsert = await database.insertPrivateChatV2(session, child, 3);
+			const stale = await database.removePrivateChatV2(session, privateChat, 2);
+			const unrelated = await database.insertPrivateChatV2(session, { chat: 'chat://new-unrelated', metadata: { interactivity: ChatInteractivity.Hidden } }, 3);
+			const raw = await openDatabase(path);
+			try {
+				assert.deepStrictEqual({
+					publicTarget, removed, reinsert, stale, unrelated,
+					live: (await database.readCatalogSnapshot([session]))[0].chats.map(chat => chat.chat).sort(),
+					deleted: await all(raw, `SELECT chat_uri, tombstoned, ownership_revision FROM chats_v2 WHERE chat_order IS NULL ORDER BY chat_uri`),
+				}, {
+					publicTarget: { status: 'conflict' }, removed: { status: 'applied', catalogRevision: 3 },
+					reinsert: { status: 'conflict' }, stale: { status: 'conflict' },
+					unrelated: { status: 'applied', catalogRevision: 4 },
+					live: ['chat://new-unrelated', defaultChat, peer].sort(),
+					deleted: [{ chat_uri: 'chat://new-unrelated', tombstoned: 0, ownership_revision: 0 }, { chat_uri: child.chat, tombstoned: 1, ownership_revision: 1 }, { chat_uri: privateChat, tombstoned: 1, ownership_revision: 1 }],
+				});
+			} finally {
+				await close(raw);
+			}
+		});
+
+		test('private lifecycle applies the exact total bound and stale writers cannot race insertion', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.registerChatCatalogV2(session, {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: Array.from({ length: 998 }, (_, index) => ({ chat: `chat://private-bound-${index}`, order: index + 1 })),
+				privateDescendants: [],
+			});
+			const hidden = { metadata: { interactivity: ChatInteractivity.Hidden } };
+			const results = await Promise.all(['chat://last-slot', 'chat://racing-slot'].map(chat => database!.insertPrivateChatV2(session, { ...hidden, chat }, 1)));
+			await assert.rejects(database.insertPrivateChatV2(session, { ...hidden, chat: 'chat://overflow' }, 2), /exceeds the limit/);
+			assert.deepStrictEqual({ results, count: (await database.readCatalogSnapshot([session]))[0].chats.length }, {
+				results: [{ status: 'applied', catalogRevision: 2 }, { status: 'conflict' }], count: 1000,
+			});
+		});
+
+		test('private lifecycle late SQL failures roll back insertion, closure tombstones and header revision', async () => {
+			const path = join(temporaryDirectory!, 'private-lifecycle-rollback.db');
+			database = new AgentHostDatabase(path);
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const raw = await openDatabase(path);
+			try {
+				const before = await database.readCatalogSnapshot([session]);
+				await exec(raw, `CREATE TRIGGER reject_private_revision BEFORE UPDATE ON session_chat_catalogs
+					BEGIN SELECT RAISE(ABORT, 'private revision failure'); END`);
+				await assert.rejects(database.insertPrivateChatV2(session, { chat: 'chat://rollback-private', metadata: { interactivity: ChatInteractivity.Hidden } }, 1), /private revision failure/);
+				await assert.rejects(database.removePrivateChatV2(session, privateChat, 1), /private revision failure/);
+				assert.deepStrictEqual({
+					unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+					inserted: await all(raw, `SELECT chat_uri FROM chats_v2 WHERE chat_uri = 'chat://rollback-private'`),
+					tombstones: await all(raw, 'SELECT chat_uri FROM chats_v2 WHERE tombstoned = 1'),
+				}, { unchanged: true, inserted: [], tombstones: [] });
+			} finally {
+				await close(raw);
+			}
+		});
+
+		test('private lifecycle checks session registration, authority and tombstones before insertion or deletion', async () => {
+			database = new AgentHostDatabase(':memory:');
+			const hidden = { chat: 'chat://lifecycle-fenced', metadata: { interactivity: ChatInteractivity.Hidden } };
+			const missing = await database.insertPrivateChatV2(session, hidden, 0);
+			await seed();
+			const legacyAuthority = await database.insertPrivateChatV2(session, hidden, 0);
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			await database.tombstoneAndUnregisterSession(session);
+			const deletedInsert = await database.insertPrivateChatV2(session, hidden, 1);
+			const deletedRemove = await database.removePrivateChatV2(session, privateChat, 1);
+			assert.deepStrictEqual({ missing, legacyAuthority, deletedInsert, deletedRemove }, {
+				missing: { status: 'missingSession' }, legacyAuthority: { status: 'conflict' },
+				deletedInsert: { status: 'tombstoned' }, deletedRemove: { status: 'tombstoned' },
+			});
+		});
 	});
 });
