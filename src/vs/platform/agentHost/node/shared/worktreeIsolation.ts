@@ -26,7 +26,7 @@ import { DEV_CONTAINER_WORKTREE_DATA_ID_PREFIX, isAgentDevContainerWorktreeHandl
 import { getRepositoryRootFromWorktree, getWorktreesRoot } from '../../common/worktreePaths.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, ResponsePart, ResponsePartKind, Turn } from '../../common/state/sessionState.js';
 import { AGENT_BRANCH_PREFIX, IAgentBranchNameGenerator } from './agentBranchNameGenerator.js';
-import { IAgentHostPullRequestResolver, IResolvedPullRequest } from './pullRequestResolver.js';
+import { IAgentHostPullRequestResolver } from './pullRequestResolver.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from './sessionAdditionalWorktrees.js';
 
 export const IAgentHostWorktreeIsolation = createDecorator<IAgentHostWorktreeIsolation>('agentHostWorktreeIsolation');
@@ -177,6 +177,15 @@ export function getWorktreeName(branchName: string, branchPrefix: string = ''): 
 		name = name.substring(AGENT_BRANCH_PREFIX.length);
 	}
 	return name.replace(/\//g, '-');
+}
+
+/**
+ * The branch a session created from pull request `pullRequestNumber` works on.
+ * It is unique per session, so a local branch named after the pull request is
+ * never touched; the session branch tracks the pull request's head branch.
+ */
+export function getPullRequestSessionBranchName(pullRequestNumber: number, sessionId: string, branchPrefix: string = ''): string {
+	return `${branchPrefix}${AGENT_BRANCH_PREFIX}pr-${pullRequestNumber}-${getSessionWorktreeSuffix(sessionId)}`;
 }
 
 /**
@@ -413,11 +422,6 @@ export interface IResolveWorkingDirectoryRequest {
 	 */
 	readonly onProgress?: (activity: string) => void;
 	readonly onWillCreate?: (metadata: { readonly repositoryRoot: URI; readonly worktreePath: URI; readonly baseBranch: string | undefined; readonly branchName: string }) => Promise<void>;
-	/**
-	 * Called once a {@link SessionConfigKey.PullRequestUrl} session's pull
-	 * request is resolved, before its worktree is created on `branchName`.
-	 */
-	readonly onDidResolvePullRequest?: (pullRequest: IResolvedPullRequest, branchName: string) => Promise<void>;
 }
 
 /**
@@ -985,11 +989,18 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	 */
 	async resolveWorkingDirectory(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
 		const { config, workingDirectory, sessionId, prompt, githubToken, onProgress } = request;
+
+		// Pull request session
 		const pullRequestUrl = getSessionPullRequestUrl(config);
 		if (pullRequestUrl !== undefined) {
 			return this._resolvePullRequestWorkingDirectory(request, pullRequestUrl);
 		}
-		if (config?.[SessionConfigKey.Isolation] !== 'worktree' || !workingDirectory || typeof config[SessionConfigKey.Branch] !== 'string') {
+
+		if (
+			!workingDirectory ||
+			config?.[SessionConfigKey.Isolation] !== 'worktree' ||
+			typeof config[SessionConfigKey.Branch] !== 'string'
+		) {
 			return workingDirectory;
 		}
 
@@ -1098,6 +1109,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const repositoryRoot = await this._resolvePrimaryWorktreeRoot(checkoutRoot, checkoutRoot);
 
 		onProgress?.(buildWorktreeProgressText(WorktreeCreationPhase.FetchingPullRequest));
+
 		const pullRequest = await this._pullRequestResolver.resolve(pullRequestUrl);
 		const remotes = await this._gitService.getFetchRemotes(repositoryRoot) ?? [];
 		const remote = findRemoteForRepository(remotes, pullRequest.webHost, pullRequest.owner, pullRequest.repo);
@@ -1107,9 +1119,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		const worktreeBranchPrefix = typeof request.config?.[SessionConfigKey.WorktreeBranchPrefix] === 'string'
 			? request.config[SessionConfigKey.WorktreeBranchPrefix] as string
 			: undefined;
-		const branchName = `${worktreeBranchPrefix ?? ''}${AGENT_BRANCH_PREFIX}pr-${pullRequest.number}-${getSessionWorktreeSuffix(sessionId)}`;
+		const branchName = getPullRequestSessionBranchName(pullRequest.number, sessionId, worktreeBranchPrefix);
 		const baseBranch = `${remote.name}/${pullRequest.baseRef}`;
-		await request.onDidResolvePullRequest?.(pullRequest, branchName);
 		const worktreePath = await this._worktreeCreationSequencer.queue(repositoryRoot.toString(), async () => {
 			try {
 				await this._gitService.fetch(repositoryRoot, toRemoteBranch(remote.name, pullRequest.headRef));

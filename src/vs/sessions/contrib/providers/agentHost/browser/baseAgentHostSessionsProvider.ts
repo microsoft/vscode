@@ -517,6 +517,7 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.liveState === y.liveState &&
 			x.title === y.title &&
 			x.createdByThisSession === y.createdByThisSession &&
+			x.isExplicitlyAssociated === y.isExplicitlyAssociated &&
 			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
@@ -584,6 +585,7 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 				...(pullRequest.title ? { title: pullRequest.title } : {}),
 				...(pullRequest.recordedReferenceId ? { recordedReferenceId: pullRequest.recordedReferenceId } : {}),
 				createdByThisSession: pullRequest.recordedReferenceId ? pullRequest.isArtifact === true : true,
+				...(state?.associatedPullRequestUrls?.some(url => linkKey(url) === linkKey(pullRequest.url)) ? { isExplicitlyAssociated: true } : {}),
 			});
 		}
 	}
@@ -2920,6 +2922,8 @@ interface INewSessionConstructionContext {
 	readonly initialConfigValues?: Record<string, unknown>;
 	readonly resolveInitialPermissionConfig?: (config: ResolveSessionConfigResult) => Record<string, unknown>;
 	readonly initialModeId?: string;
+	/** Pull request the backend session is created from; requires a host that supports pull request sessions. */
+	readonly initialPullRequestUrl?: string;
 	/** Provider-owned Automation values restored before the first configuration resolution. */
 	readonly initialSessionTemplate?: IAutomationSessionTemplate;
 	/** Model selected specifically for this draft. */
@@ -3089,6 +3093,7 @@ class NewSession extends Disposable {
 	private readonly _initialSessionTemplate: IAutomationSessionTemplate | undefined;
 	private readonly _resolveInitialPermissionConfig: INewSessionConstructionContext['resolveInitialPermissionConfig'];
 	private readonly _initialModeId: string | undefined;
+	private readonly _initialPullRequestUrl: string | undefined;
 	readonly modelConfiguration: AutomationModelConfiguration;
 	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
@@ -3132,6 +3137,7 @@ class NewSession extends Disposable {
 		this._initialSessionTemplate = initialSessionTemplate;
 		this._resolveInitialPermissionConfig = ctx.resolveInitialPermissionConfig;
 		this._initialModeId = ctx.initialModeId;
+		this._initialPullRequestUrl = ctx.initialPullRequestUrl;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -3369,6 +3375,11 @@ class NewSession extends Disposable {
 		);
 	}
 
+	/** Whether the backend session may only be created with the resolved initial permissions, mode, or pull request. */
+	private get _requiresResolvedInitialConfig(): boolean {
+		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl;
+	}
+
 	async waitForConfigurationReady(): Promise<void> {
 		while (this._configOperation || this._configResolution) {
 			if (this._configOperation) {
@@ -3377,7 +3388,7 @@ class NewSession extends Disposable {
 				await this.waitForConfigResolution();
 			}
 		}
-		if ((this._resolveInitialPermissionConfig || this._initialModeId) && !this._hasResolvedConfig) {
+		if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 			throw this._initialConfigError ?? new Error(localize('agentHost.initialConfigFailed', "The initial session configuration could not be resolved."));
 		}
 	}
@@ -3494,6 +3505,10 @@ class NewSession extends Disposable {
 						throw new Error(localize('agentHost.initialModeRejected', "The selected session mode '{0}' could not be applied.", this._initialModeId));
 					}
 				}
+				// Hosts that support pull request sessions always advertise the property.
+				if (!this._hasResolvedConfig && this._initialPullRequestUrl && result.values[SessionConfigKey.PullRequestUrl] !== this._initialPullRequestUrl) {
+					throw new Error(localize('agentHost.pullRequestSessionsUnsupported', "This agent host does not support creating sessions from pull requests."));
+				}
 				this._initialConfigError = undefined;
 				this._hasResolvedConfig = true;
 			}
@@ -3509,7 +3524,7 @@ class NewSession extends Disposable {
 			this._config = undefined;
 			this._unresolvedConfigValues = values;
 			this._syncWorktreePending();
-			if ((this._resolveInitialPermissionConfig || this._initialModeId) && !this._hasResolvedConfig) {
+			if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 				this._initialConfigError = error instanceof Error ? error : new Error(getErrorMessage(error));
 				this._logService.error(`[${this._providerId}] Failed to resolve initial session configuration`, error);
 			}
@@ -3612,7 +3627,7 @@ class NewSession extends Disposable {
 			let createdWithActiveClient: SessionActiveClient | undefined;
 
 			try {
-				if (this._resolveInitialPermissionConfig || this._initialModeId) {
+				if (this._requiresResolvedInitialConfig) {
 					await this.waitForConfigurationReady();
 				}
 				await this._activeClientScope.whenResolved();
@@ -4735,6 +4750,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			options?.modelConfiguration,
 			options?.permissionId,
 			options?.modeId,
+			options?.pullRequestUrl,
 		);
 	}
 
@@ -4792,6 +4808,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		initialModelConfiguration?: Readonly<Record<string, string | number | boolean | null>>,
 		initialPermissionId?: string,
 		initialModeId?: string,
+		initialPullRequestUrl?: string,
 	): ISession {
 		// Tear-down of superseded drafts is handled by the management layer
 		// (it calls `deleteNewSession` on the previous pending session). Each
@@ -4822,6 +4839,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...baseInitialConfigValues,
 			...permissionConfig,
 			...(initialModeId ? { [SessionConfigKey.Mode]: initialModeId } : {}),
+			...(initialPullRequestUrl ? { [SessionConfigKey.PullRequestUrl]: initialPullRequestUrl } : {}),
 		};
 		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root).filter(uri => !findDevContainerSample(uri)) ?? []);
 		let newSession: NewSession;
@@ -4838,6 +4856,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				logService: this._logService,
 				initialConfigValues,
 				initialModeId,
+				initialPullRequestUrl,
 				resolveInitialPermissionConfig: initialPermissionId ? config => {
 					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config);
 					if (!permissions) {
@@ -5786,13 +5805,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			} else {
 				values[workspace.isolation.key] = value;
 			}
-		}
-		if (configuration.pullRequestUrl !== undefined) {
-			// Hosts that support pull request sessions always advertise the property.
-			if (!config.schema.properties[SessionConfigKey.PullRequestUrl]) {
-				throw new Error(localize('agentHost.pullRequestSessionsUnsupported', "This agent host does not support creating sessions from pull requests."));
-			}
-			values[SessionConfigKey.PullRequestUrl] = configuration.pullRequestUrl;
 		}
 		if (configuration.branch) {
 			values[workspace.baseBranchKey] = configuration.branch;

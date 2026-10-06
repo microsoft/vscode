@@ -119,9 +119,10 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly branch?: string;
 	/**
-	 * Optional URL of a pull request in the workspace's repository. The agent
-	 * host checks the pull request out into an isolated worktree, so it
-	 * supersedes {@link isolationMode} and {@link branch}.
+	 * Optional URL of a pull request in the workspace's repository. The session
+	 * is created from it, so it is associated with the pull request from the
+	 * start; the agent host checks the pull request out into an isolated
+	 * worktree, so it supersedes {@link isolationMode} and {@link branch}.
 	 */
 	readonly pullRequestUrl?: string;
 	/**

@@ -513,6 +513,14 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _setupTranscriptPreparationProgress(chatModel: IObservable<IChatModel | undefined>): void {
+		const hiddenResponseProgress = derived(this, reader => {
+			const request = chatModel.read(reader)?.lastRequestObs.read(reader);
+			const response = request?.isRequestHiddenFromTranscript ? request.response : undefined;
+			return response ? observableFromEvent(this, response.onDidChange, () => {
+				const progress = response.response.value.filter(part => part.kind === 'progressMessage').at(-1);
+				return progress ? renderAsPlaintext(progress.content) : undefined;
+			}) : constObservable(undefined);
+		});
 		let lastPreparationMessage: string | undefined;
 		let lastPreparationModel: ChatModel | undefined;
 		this._register(autorun(reader => {
@@ -563,7 +571,8 @@ export class ChatView extends AbstractChatView {
 				showProgress = shouldShowTranscriptPreparationProgress(requestCount, visibleRequestCount, hiddenRequestIncomplete);
 			}
 			const showCompletion = shouldShowTranscriptPreparationCompletion(requestCount, visibleRequestCount, hiddenRequestState, readyMessage);
-			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, activity));
+			const responseProgress = hiddenResponseProgress.read(reader).read(reader);
+			const progress = preparation?.message ?? (showCompletion ? readyMessage : getTranscriptProgress(showProgress, responseProgress ?? activity));
 			this._widget.setTranscriptProgress(progress, progress, preparation
 				? { detail: preparation.showLog ? { label: localize('sessionPreparation.showLog', "Show Log"), run: preparation.showLog } : undefined, onCancel: preparation.cancel, inTranscript: !!preparationModel }
 				: showCompletion ? { complete: true } : undefined);

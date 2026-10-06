@@ -845,7 +845,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		const configValues = state?.config?.values;
 		// A pull request session diffs against the pull request's base branch,
 		// recorded in the worktree metadata, rather than the configured branch.
-		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
+		const configuredBranch = isSessionFolder && configValues?.[SessionConfigKey.Isolation] === 'worktree'
 			&& getSessionPullRequestUrl(configValues) === undefined
 			? configValues[SessionConfigKey.Branch]
 			: undefined;

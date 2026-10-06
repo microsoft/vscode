@@ -6312,43 +6312,56 @@ suite('LocalAgentHostSessionsProvider', () => {
 		]);
 	});
 
-	test('maps a pull request to hidden agent-host config without remembering it', async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
-		const provider = createProvider(disposables, agentHost, undefined, { storageService });
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
-		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+	test('creates the backend session from a pull request without remembering it', async () => {
 		const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/42';
-
-		agentHost.resolveSessionConfigResult = {
+		agentHost.resolveSessionConfigHandler = request => ({
 			schema: createVSCodeSessionConfigSchema(),
-			values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.PullRequestUrl]: pullRequestUrl },
-		};
-		await provider.setWorktreeConfiguration(session.sessionId, { pullRequestUrl });
+			values: { [SessionConfigKey.Isolation]: 'worktree', ...(request.config?.[SessionConfigKey.PullRequestUrl] ? { [SessionConfigKey.PullRequestUrl]: request.config[SessionConfigKey.PullRequestUrl] } : {}) },
+		});
+		const storageService = disposables.add(new InMemoryStorageService());
+		let sends = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			storageService,
+			sendRequest: async resource => {
+				sends++;
+				agentHost.addSession(createSession(AgentSession.id(resource)));
+				return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+			},
+		});
+		const management = createManagementService(disposables, provider);
+
+		const session = await management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Initialize', background: true }, {
+			providerId: provider.id, sessionTypeId: provider.sessionTypes[0].id, pullRequestUrl,
+		});
 
 		assert.deepStrictEqual({
-			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
-			createSessionConfig: provider.getCreateSessionConfig(session.sessionId),
+			launched: !!session,
+			sends,
+			creation: agentHost.createSessionConfigs.map(created => created.config?.[SessionConfigKey.PullRequestUrl]),
 			remembered: storageService.getObject(STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES, StorageScope.PROFILE, {}),
 		}, {
-			requests: [{ [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.PullRequestUrl]: pullRequestUrl }],
-			createSessionConfig: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.PullRequestUrl]: pullRequestUrl },
+			launched: true,
+			sends: 1,
+			creation: [pullRequestUrl],
 			remembered: {},
 		});
 	});
 
-	test('rejects a pull request when the agent host does not advertise pull request sessions', async () => {
+	test('rejects a pull request before backend creation when the agent host does not support pull request sessions', async () => {
 		const schema = createVSCodeSessionConfigSchema();
 		delete schema.properties[SessionConfigKey.PullRequestUrl];
 		agentHost.resolveSessionConfigResult = { schema, values: { [SessionConfigKey.Isolation]: 'worktree' } };
-		const provider = createProvider(disposables, agentHost);
-		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		let sends = 0;
+		const provider = createProvider(disposables, agentHost, undefined, {
+			sendRequest: async () => { sends++; throw new Error('Must not send'); },
+		});
+		const management = createManagementService(disposables, provider);
 
-		await assert.rejects(
-			() => provider.setWorktreeConfiguration(session.sessionId, { pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42' }),
-			/does not support creating sessions from pull requests/,
-		);
+		await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Initialize', background: true }, {
+			providerId: provider.id, sessionTypeId: provider.sessionTypes[0].id, pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+		}), /does not support creating sessions from pull requests/);
+		await timeout(0);
+		assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
 	});
 
 	test('waits for schema discovery then applies programmatic worktree configuration in one resolve', async () => {
@@ -12041,10 +12054,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const selected = 'https://github.com/owner/repo/pull/42';
 		const created = 'https://github.com/owner/repo/pull/43';
 		const baseline = { pullRequestUrls: [selected, inherited], initialPullRequestUrls: [selected, inherited] };
+		const discovered = { pullRequestUrls: [selected], pullRequestBranchName: 'feature' };
+		const explicitlySelected = withMostRecentRelatedSessionPullRequest(discovered, selected, 'feature');
 		const afterCreate = withMostRecentRelatedSessionPullRequest(baseline, created, 'feature');
 		const afterSelection = withMostRecentRelatedSessionPullRequest(afterCreate, selected, 'feature');
 		const snapshots = [];
-		for (const state of [baseline, afterCreate, afterSelection]) {
+		for (const state of [baseline, discovered, explicitlySelected, afterCreate, afterSelection]) {
 			agentHost.setSessionState('pr-associations', 'copilotcli', {
 				provider: 'copilotcli', title: 'PR Associations', status: ProtocolSessionStatus.Idle,
 				lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
@@ -12053,13 +12068,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const info = session.workspace.get()!.folders[0].gitRepository!.gitHubInfo.get();
 			snapshots.push({
 				artifacts: session.artifacts?.get(),
-				refs: info?.pullRequests?.map(ref => ({ number: ref.number, owned: ref.createdByThisSession })) ?? [],
+				refs: info?.pullRequests?.map(ref => ({ number: ref.number, owned: ref.createdByThisSession, explicit: ref.isExplicitlyAssociated })) ?? [],
+				restrictedMainPills: getSessionGitHubReferences(session, undefined, session.mainChat.get(), false).pullRequests.map(ref => ref.number),
 			});
 		}
 		assert.deepStrictEqual(snapshots, [
-			{ artifacts: [], refs: [] },
-			{ artifacts: [], refs: [{ number: 43, owned: true }] },
-			{ artifacts: [], refs: [{ number: 42, owned: true }, { number: 43, owned: true }] },
+			{ artifacts: [], refs: [], restrictedMainPills: [] },
+			{ artifacts: [], refs: [{ number: 42, owned: true, explicit: undefined }], restrictedMainPills: [] },
+			{ artifacts: [], refs: [{ number: 42, owned: true, explicit: true }], restrictedMainPills: [42] },
+			{ artifacts: [], refs: [{ number: 43, owned: true, explicit: true }], restrictedMainPills: [43] },
+			{ artifacts: [], refs: [{ number: 42, owned: true, explicit: true }, { number: 43, owned: true, explicit: true }], restrictedMainPills: [42, 43] },
 		]);
 	}));
 

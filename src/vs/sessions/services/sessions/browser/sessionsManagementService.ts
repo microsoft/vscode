@@ -681,6 +681,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			} : {}),
 			...(options?.permissionId ? { permissionId: options.permissionId } : {}),
 			...(options?.modeId ? { modeId: options.modeId } : {}),
+			...(options?.pullRequestUrl ? { pullRequestUrl: options.pullRequestUrl } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
 	}
@@ -1040,17 +1041,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (createOptions?.permissionLevel) {
 			provider.setPermissionLevel?.(session.sessionId, createOptions.permissionLevel);
 		}
-		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch || createOptions?.pullRequestUrl)) {
+		if (supportsWorktreeConfiguration && (createOptions?.isolationMode || createOptions?.branch)) {
 			if (provider.setWorktreeConfiguration) {
 				await raceCancellationError(provider.setWorktreeConfiguration(session.sessionId, {
 					isolationMode: createOptions.isolationMode,
 					branch: createOptions.branch,
-					pullRequestUrl: createOptions.pullRequestUrl,
 				}), token);
 			} else {
-				if (createOptions.pullRequestUrl) {
-					throw new Error(`Sessions provider '${provider.id}' does not support creating sessions from pull requests.`);
-				}
 				if (createOptions.isolationMode && provider.setIsolationMode) {
 					await raceCancellationError(provider.setIsolationMode(session.sessionId, createOptions.isolationMode), token);
 				}

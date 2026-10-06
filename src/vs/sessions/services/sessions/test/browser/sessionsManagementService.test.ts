@@ -4543,12 +4543,17 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('createAndSendNewChatRequest forwards a pull request through worktree configuration', async () => {
+	test('createAndSendNewChatRequest creates the draft from a pull request', async () => {
 		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const providerOptions: (ISessionsProviderCreateSessionOptions | undefined)[] = [];
 		const configurations: ISessionWorktreeConfiguration[] = [];
 		const provider = new class extends TestSessionsProvider {
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
 			override getSessions(): ISession[] { return []; }
+			override createNewSession(_folderUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions.push(options);
+				return session;
+			}
 			override async setWorktreeConfiguration(_sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void> {
 				configurations.push(configuration);
 			}
@@ -4559,7 +4564,10 @@ suite('SessionsManagementService', () => {
 			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
 		});
 
-		assert.deepStrictEqual(configurations, [{ isolationMode: undefined, branch: undefined, pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42' }]);
+		assert.deepStrictEqual({ pullRequestUrls: providerOptions.map(options => options?.pullRequestUrl), configurations }, {
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			configurations: [],
+		});
 	});
 
 	test('createAndSendNewChatRequest skips providers without worktree configuration support', async () => {

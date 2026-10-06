@@ -326,6 +326,24 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	});
 
+	test('never exposes the pull request URL as a generic config chip', () => {
+		const property = { type: 'string' as const, title: 'Pull Request', readOnly: true, sessionMutable: true };
+		const schemas = [
+			property,
+			{ ...property, enum: ['https://github.com/microsoft/vscode/pull/42'] },
+			{ ...property, enumDynamic: true },
+		];
+
+		assert.deepStrictEqual(schemas.map(schema => ({
+			draft: isGenericConfigPickerProperty(SessionConfigKey.PullRequestUrl, schema, false),
+			started: isGenericConfigPickerProperty(SessionConfigKey.PullRequestUrl, schema, true),
+		})), [
+			{ draft: false, started: false },
+			{ draft: false, started: false },
+			{ draft: false, started: false },
+		]);
+	});
+
 	test('native base-branch completions and selections retain baseBranch rather than the new branch name', async () => {
 		const rig = setup(false);
 		rig.config.schema.properties.target = { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], sessionMutable: false };

@@ -93,6 +93,12 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly permissionId?: string;
 	/** Initial chat mode applied before the provider creates the draft session. */
 	readonly modeId?: string;
+	/**
+	 * Pull request the session is created from. The provider creates the backend
+	 * session with it, so the session is associated with the pull request from
+	 * the start; it implies worktree isolation.
+	 */
+	readonly pullRequestUrl?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -117,8 +123,6 @@ export interface IAutomationSessionConfiguration {
 export interface ISessionWorktreeConfiguration {
 	readonly isolationMode?: string;
 	readonly branch?: string;
-	/** Pull request to check out into the session's worktree; implies worktree isolation. */
-	readonly pullRequestUrl?: string;
 }
 
 /**

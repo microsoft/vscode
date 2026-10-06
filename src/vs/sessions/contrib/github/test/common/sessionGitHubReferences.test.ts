@@ -232,4 +232,28 @@ suite('Session GitHub References', () => {
 		const chat = upcastPartial<IChat>({ resource, workspace: constObservable(undefined) });
 		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat, false).pullRequests.map(ref => ref.number), [1]);
 	});
+
+	test('shows explicit session associations without enabling automatic or other-chat PR pills', () => {
+		const mainResource = URI.parse('custom-chat://host/main');
+		const peerResource = URI.parse('custom-chat://host/peer');
+		const link = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
+		const baseSession = createSession([{
+			id: 'peer', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link(2),
+		}], {
+			owner: 'owner', repo: 'repo',
+			pullRequests: [
+				{ owner: 'owner', repo: 'repo', number: 1, uri: link(1), createdByThisSession: true, isExplicitlyAssociated: true },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: link(2), createdByThisSession: true, isExplicitlyAssociated: true, recordedReferenceId: 'peer' },
+				{ owner: 'owner', repo: 'repo', number: 3, uri: link(3), createdByThisSession: true },
+			],
+		});
+		const main = upcastPartial<IChat>({ resource: mainResource, workspace: baseSession.workspace });
+		const peer = upcastPartial<IChat>({ resource: peerResource, workspace: baseSession.workspace });
+		const session = upcastPartial<ISession>({ ...baseSession, mainChat: constObservable(main) });
+
+		assert.deepStrictEqual({
+			main: getSessionGitHubReferences(session, undefined, main, false).pullRequests.map(ref => ref.number),
+			peer: getSessionGitHubReferences(session, undefined, peer, false).pullRequests.map(ref => ref.number),
+		}, { main: [1], peer: [2] });
+	});
 });

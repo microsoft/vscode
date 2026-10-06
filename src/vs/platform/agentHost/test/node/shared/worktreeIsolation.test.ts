@@ -807,7 +807,6 @@ suite('WorktreeIsolation', () => {
 		// A local branch named after the pull request is never touched.
 		branchExists = true;
 		const fetched: string[] = [];
-		const resolved: { number: number; branchName: string }[] = [];
 		const gitService: IAgentHostGitService = {
 			...createGitService(),
 			getFetchRemotes: async () => [
@@ -829,7 +828,6 @@ suite('WorktreeIsolation', () => {
 			workingDirectory: repoRoot,
 			// The pull request wins over a stale folder isolation selection.
 			config: { [SessionConfigKey.Isolation]: 'folder', [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42' },
-			onDidResolvePullRequest: async (pullRequest: IResolvedPullRequest, branchName: string) => { resolved.push({ number: pullRequest.number, branchName }); },
 		};
 		const worktree = await isolation.resolveWorkingDirectory(request);
 		const again = await isolation.resolveWorkingDirectory(request);
@@ -838,7 +836,6 @@ suite('WorktreeIsolation', () => {
 			worktree: worktree?.toString(),
 			again: again?.toString(),
 			fetched,
-			resolved,
 			addWorktreeArgs: addWorktreeCalls.map(call => ({ commitish: call.commitish, newBranchName: call.newBranchName, track: call.track })),
 			branchName: await db.getMetadata('copilot.worktree.branchName'),
 			diffBaseBranch: await db.getMetadata(META_DIFF_BASE_BRANCH),
@@ -846,7 +843,6 @@ suite('WorktreeIsolation', () => {
 			worktree: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
 			again: URI.joinPath(worktreesRoot, 'pr-42-s1').toString(),
 			fetched: ['upstream/feature/pr', 'upstream/main'],
-			resolved: [{ number: 42, branchName: 'agents/pr-42-s1' }],
 			addWorktreeArgs: [{ commitish: 'upstream/feature/pr', newBranchName: 'agents/pr-42-s1', track: true }],
 			branchName: 'agents/pr-42-s1',
 			diffBaseBranch: 'upstream/main',

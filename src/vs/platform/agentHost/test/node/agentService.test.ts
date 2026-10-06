@@ -9,7 +9,7 @@ import { rm } from 'fs/promises';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { Database } from '@vscode/sqlite3';
-import { mkdtempSync, readFileSync, rmSync } from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { DeferredPromise, disposableTimeout, raceTimeout, timeout } from '../../../../base/common/async.js';
@@ -19563,12 +19563,12 @@ suite('AgentService (node dispatcher)', () => {
 			getStateManager(localService).removeSession(sessionStr);
 
 			const notifications: INotification[] = [];
-			const listener = localService.onDidNotification(n => notifications.push(n));
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'other-client', 1, AgentHostClientType.EditorWindow);
-			for (let i = 0; i < 20; i++) {
-				await timeout(0);
-			}
+			const listener = disposables.add(localService.onDidNotification(n => notifications.push(n)));
+			await Promise.all([
+				localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow),
+				localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'other-client', 1, AgentHostClientType.EditorWindow),
+			]);
+			await localService.whenCatalogReconciliationIdle();
 			listener.dispose();
 
 			const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
@@ -27319,6 +27319,90 @@ suite('AgentService (node dispatcher)', () => {
 				providerChats: 0,
 				gitCalls: { repositoryRoot: 0, revParse: 0, currentBranch: 0, defaultBranch: 0, addWorktree: 0 },
 				listed: false,
+			});
+		});
+
+		test('associates the pull request with a session created from it', async () => {
+			class MaterializingAgent extends MockAgent {
+				private readonly _onDidMaterializeChat = new Emitter<IAgentMaterializeChatEvent>();
+				override readonly onDidMaterializeChat = this._onDidMaterializeChat.event;
+				override readonly chats: IAgentChats = withChatOverrides(getChatSurface(this), base => ({
+					createChat: (chat, context, options) => createProvisionalChat(base, chat, context, options),
+					sendMessage: async (chat, prompt, workingDirectories, ...rest) => {
+						const directories = URI.isUri(workingDirectories) ? [workingDirectories] : workingDirectories;
+						this._onDidMaterializeChat.fire({ chat, workingDirectories: directories, project: undefined });
+						return base.sendMessage(chat, prompt, workingDirectories, ...rest);
+					},
+				}));
+
+				override dispose(): void {
+					this._onDidMaterializeChat.dispose();
+					super.dispose();
+				}
+			}
+
+			const sourceDir = URI.file(mkdtempSync(`${tmpdir()}/agent-pull-request-session-`));
+			disposables.add(toDisposable(() => {
+				rmSync(sourceDir.fsPath, { recursive: true, force: true });
+				rmSync(getWorktreesRoot(sourceDir).fsPath, { recursive: true, force: true });
+			}));
+			const pullRequestUrl = 'https://github.com/microsoft/vscode/pull/42';
+			const gitService = createNoopGitService();
+			gitService.getRepositoryRoot = async () => sourceDir;
+			gitService.revParse = async () => 'head';
+			gitService.getCurrentBranch = async () => 'main';
+			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
+			gitService.getFetchRemotes = async () => [{ name: 'origin', url: 'https://github.com/microsoft/vscode.git' }];
+			gitService.addWorktree = async (_root, options) => { mkdirSync(options.path.fsPath, { recursive: true }); };
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
+				{ _serviceBrand: undefined, generateBranchName: async () => { throw new Error('should not generate a branch'); } },
+				gitService,
+				{ _serviceBrand: undefined, resolve: async url => ({ url, webHost: 'github.com', owner: 'microsoft', repo: 'vscode', number: 42, headRef: 'feature/pr', baseRef: 'main' }) },
+				sessionDataService,
+				new NullLogService(),
+			)));
+			const agent = new MaterializingAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(localService, agent);
+			const stateManager = getStateManager(localService);
+			const readGitHubState = (resource: string) => {
+				const summary = stateManager.getSessionSummary(resource);
+				const gitHubState = readSessionGitHubState(summary?._meta, summary?.workingDirectories?.[0]);
+				return {
+					workingDirectory: summary?.workingDirectories?.[0],
+					owner: gitHubState?.owner,
+					repo: gitHubState?.repo,
+					pullRequestUrls: gitHubState?.pullRequestUrls,
+					associatedPullRequestUrls: gitHubState?.associatedPullRequestUrls,
+					pullRequestBranchName: gitHubState?.pullRequestBranchName,
+				};
+			};
+
+			const session = await localService.createSession({
+				provider: agent.id,
+				session: AgentSession.uri(agent.id, 'session'),
+				workingDirectories: [sourceDir],
+				config: { [SessionConfigKey.PullRequestUrl]: pullRequestUrl, [SessionConfigKey.WorktreeBranchPrefix]: 'user/' },
+			});
+			const sessionResource = session.toString();
+			const atCreation = readGitHubState(sessionResource);
+			const chat = buildDefaultChatUri(sessionResource);
+			localService.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2026-10-06T00:00:00.000Z',
+				message: { text: 'Initialize this session for pull request #42.', origin: { kind: MessageKind.User } },
+			}, 'client', 1);
+			for (let i = 0; i < 200 && agent.sendMessageCalls.length === 0; i++) {
+				await timeout(5);
+			}
+
+			const association = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: [pullRequestUrl], associatedPullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'user/agents/pr-42-session' };
+			assert.deepStrictEqual({ atCreation, afterCheckout: readGitHubState(sessionResource) }, {
+				atCreation: { workingDirectory: sourceDir.toString(), ...association },
+				afterCheckout: { workingDirectory: URI.joinPath(getWorktreesRoot(sourceDir), 'pr-42-session').toString(), ...association },
 			});
 		});
 
