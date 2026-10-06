@@ -114,10 +114,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 		// Graduate the draft's backend and chip selections without recreating a matching session.
 		if (request.untitledResource) {
-			const noWorkspace = this._newSessionFolderService.isNoFolderSelected(request.untitledResource);
-			const workingDirectory = noWorkspace
-				? undefined
-				: this._newSessionFolderService.getFolder(request.untitledResource)
+			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
 				?? this._newSessionFolderService.getDefaultFolder()
 				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 			// Carry the chosen folder forward onto the real resource so the
@@ -128,8 +125,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// resource, flickering the chip back to the first folder.
 			if (workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
-			} else if (noWorkspace) {
-				this._newSessionFolderService.setNoFolder(item.resource);
 			}
 			// Carry any imported ("Continue in…") conversation snapshot from the
 			// untitled chat-input resource to the freshly-minted real resource so

@@ -194,23 +194,6 @@ suite('AgentHostNewSessionFolderService', () => {
 		});
 	});
 
-	test('explicit no-folder selection suppresses workspace defaults', () => {
-		service.setFolder(sessionA, folderB);
-		service.setNoFolder(sessionB);
-
-		assert.deepStrictEqual({
-			selected: service.isNoFolderSelected(sessionB),
-			folder: service.getFolder(sessionB),
-			resolved: service.resolveNewSessionPrimary(sessionB),
-			stickyDefault: service.getDefaultFolder()?.toString(),
-		}, {
-			selected: true,
-			folder: undefined,
-			resolved: undefined,
-			stickyDefault: folderB.toString(),
-		});
-	});
-
 	test('clears a removed selection on a case-sensitive remote even when a case-variant folder remains', () => {
 		const repoUpper = URI.parse('vscode-remote://ssh-remote+host/work/Repo');
 		const repoLower = URI.parse('vscode-remote://ssh-remote+host/work/repo');

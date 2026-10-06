@@ -1007,7 +1007,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, noWorkspace: true, sessionTypeId: 'copilotcli' });
 			return;
 		}
-		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`, { prompt, noWorkspace: true });
+		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`, { prompt });
 	}
 
 	private createBackArrowButton(
