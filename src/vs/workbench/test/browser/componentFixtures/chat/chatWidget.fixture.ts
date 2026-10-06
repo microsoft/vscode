@@ -1366,9 +1366,12 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		throw new Error('Persistent progress indicator was not rendered in the active response');
 	}
 	const visibleParts = [...value.children].filter(part => part.getBoundingClientRect().height > 0);
-	const responseHeight = response.getBoundingClientRect().height;
-	// Bottom-following progress uses the fractional space in its integer-sized list row.
-	const footerRounding = handle?.listWidget.isScrolledToBottom ? Math.ceil(responseHeight) - responseHeight : 0;
+	// Check in-flow spacing independently of the footer's applied subpixel alignment.
+	const footerTranslation = footer ? targetWindow.getComputedStyle(footer).translate : 'none';
+	const footerRounding = Number.parseFloat(footerTranslation.split(' ')[1] ?? '0');
+	if (!Number.isFinite(footerRounding) || footerRounding < 0 || footerRounding >= 1) {
+		throw new Error(`Unexpected progress footer alignment: ${footerTranslation}`);
+	}
 	const getItemGap = (previous: Element, next: Element) => {
 		const previousOffset = footer?.contains(previous) ? footerRounding : 0;
 		const nextOffset = footer?.contains(next) ? footerRounding : 0;
