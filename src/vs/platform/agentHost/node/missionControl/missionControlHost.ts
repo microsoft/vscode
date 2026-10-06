@@ -23,6 +23,7 @@ import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
 import { ProtocolServerHandler } from '../protocolServerHandler.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 import { MissionControlEnvironment } from './missionControlEnvironment.js';
 import type { MissionControlProtocolServer } from './missionControlProtocolServer.js';
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
@@ -63,7 +64,7 @@ export class MissionControlHost extends Disposable {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
-			attach: (relay, roots, getRoots) => this._attachRelay(relay, roots, getRoots),
+			attach: (relay, roots, getRoots, protocolVersion) => this._attachRelay(relay, roots, getRoots, protocolVersion),
 			onError: error => this._logService.error('[AgentHost] Mission Control failure', error),
 			getSessionCount: async () => (await this._agentService.listSessions()).length,
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
@@ -82,7 +83,10 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
-	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[]): IDisposable {
+	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], protocolVersion: string): IDisposable {
+		if (protocolVersion !== PROTOCOL_VERSION) {
+			this._logService.warn(`[AgentHost] Mission Control development protocol version override active: ${protocolVersion} (built-in ${PROTOCOL_VERSION}). Protocol messages are unchanged.`);
+		}
 		const handler = this._instantiationService.createInstance(
 			ProtocolServerHandler,
 			this._agentService,
@@ -90,6 +94,7 @@ export class MissionControlHost extends Disposable {
 			relay,
 			{
 				hostLaunchKind: this._options.hostLaunchKind,
+				protocolVersion,
 				allowExtensionMethods: false,
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,

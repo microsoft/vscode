@@ -13,7 +13,7 @@ import type { Event } from '../../../../base/common/event.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
-import { getAgentHostProtocolVersion } from '../../common/agentHostProtocolVersion.js';
+import { getMissionControlProtocolVersion } from '../../common/missionControlProtocolVersion.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from './missionControlControl.js';
 import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
@@ -38,11 +38,10 @@ interface IEnvironmentResponse {
 const heartbeatInterval = 60_000;
 
 export interface IMissionControlEnvironmentHost {
-	readonly protocolVersion?: string;
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
-	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], protocolVersion: string) => IDisposable;
 	readonly onError: (error: unknown) => void;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
 	readonly getSessionCount?: () => Promise<number>;
@@ -228,6 +227,7 @@ export class MissionControlEnvironment extends Disposable {
 		if (epoch !== this._configurationEpoch) {
 			return;
 		}
+		options = { ...options, protocolVersion: getMissionControlProtocolVersion(options.protocolVersion) };
 		const endpoint = new URL(options.baseUrl);
 		if ((options.live ? endpoint.protocol !== 'https:' : endpoint.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname))
 			|| (options.live && endpoint.pathname !== '/')
@@ -256,7 +256,7 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control projects must be absolute local directories');
 		}
 		if (this._options) {
-			if (this._options.baseUrl !== options.baseUrl || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
+			if (this._options.baseUrl !== options.baseUrl || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding || this._options.protocolVersion !== options.protocolVersion
 				|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots))) {
 				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
@@ -486,7 +486,7 @@ export class MissionControlEnvironment extends Disposable {
 				return;
 			}
 		}
-		const capabilities = { ahp_version: getAgentHostProtocolVersion(this._host.protocolVersion), features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
+		const capabilities = { ahp_version: getMissionControlProtocolVersion(options.protocolVersion), features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
 		let remoteControl: Record<string, unknown> | undefined;
 		if (options.live) {
 			if (!this._host.getRemoteControlPolicy) {
@@ -605,7 +605,7 @@ export class MissionControlEnvironment extends Disposable {
 			this._mirror.value,
 		);
 		this._server.value = server;
-		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, getMissionControlProtocolVersion(options.protocolVersion)), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._checkIn().catch(this._host.onError);

@@ -19,7 +19,7 @@ import {
 	parseAgentHostEndpointMetadataEntry,
 	parseAgentHostEndpointRegistry,
 } from '../common/agentHostEndpointRegistry.js';
-import { getAgentHostProtocolVersion } from '../common/agentHostProtocolVersion.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { isPidAlive } from './agentHostLockfile.js';
 
 const metadataDirectoryName = 'agent-host';
@@ -33,7 +33,7 @@ export type ILocalAgentHostEndpointMetadata = IAgentHostEndpointMetadata & {
 	readonly endpoint: { readonly type: 'socket'; readonly path: string };
 };
 
-export function createLocalAgentHostEndpointMetadata(userDataPath: string, protocolVersion = getAgentHostProtocolVersion()): ILocalAgentHostEndpointMetadata {
+export function createLocalAgentHostEndpointMetadata(userDataPath: string): ILocalAgentHostEndpointMetadata {
 	const instanceId = randomBytes(16).toString('base64url');
 	return {
 		schemaVersion: AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
@@ -42,7 +42,7 @@ export function createLocalAgentHostEndpointMetadata(userDataPath: string, proto
 		instanceId,
 		endpoint: { type: 'socket', path: getEndpointPath(userDataPath, instanceId) },
 		connectionToken: randomBytes(32).toString('base64url'),
-		protocolVersion: getAgentHostProtocolVersion(protocolVersion),
+		protocolVersion: PROTOCOL_VERSION,
 	};
 }
 

@@ -807,36 +807,37 @@ suite('ProtocolServerHandler', () => {
 		transport.dispose();
 	});
 
-	test('development version override changes negotiation and incompatible-version responses', () => {
+	test('Mission Control version override leaves other host handshakes unchanged', () => {
 		const offeredVersion = '0.9.0';
 		const defaultTransport = disposables.add(new MockProtocolTransport());
 		server.simulateConnection(defaultTransport);
 		defaultTransport.simulateMessage(request(1, 'initialize', { protocolVersions: [offeredVersion], clientId: 'default-version' }));
 		const defaultResponse = findResponse(defaultTransport.sent, 1) as { error?: { code: number } };
-		defaultTransport.simulateClose();
-		handler.dispose();
-
-		handler = disposables.add(new ProtocolServerHandler(
-			agentService, stateManager, server, { protocolVersion: '0.9.5' },
+		defaultTransport.simulateMessage(request(2, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'default-version' }));
+		const defaultAccepted = findResponse(defaultTransport.sent, 2) as { result?: InitializeResult };
+		const relayServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relayServer, { protocolVersion: '0.9.5' },
 			fileSystemProvider, logService, agentHostTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
 		));
 		const transport = disposables.add(new MockProtocolTransport());
-		server.simulateConnection(transport);
+		relayServer.simulateConnection(transport);
 		transport.simulateMessage(request(1, 'initialize', { protocolVersions: ['0.9.0', '0.9.5', PROTOCOL_VERSION], clientId: 'override-version' }));
 		const response = findResponse(transport.sent, 1) as { result?: InitializeResult };
 		const incompatible = disposables.add(new MockProtocolTransport());
-		server.simulateConnection(incompatible);
+		relayServer.simulateConnection(incompatible);
 		incompatible.simulateMessage(request(2, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'incompatible-override-version' }));
 		const rejected = findResponse(incompatible.sent, 2) as { error?: { code: number; message: string; data: { supportedVersions: string[] } } };
 		assert.deepStrictEqual({
 			defaultError: defaultResponse.error?.code,
+			defaultAccepted: defaultAccepted.result?.protocolVersion,
 			negotiated: response.result?.protocolVersion,
 			overrideError: rejected.error?.code,
 			supportedVersions: rejected.error?.data.supportedVersions,
 			messageNamesOverride: rejected.error?.message.includes('server\'s version 0.9.5'),
 		}, {
-			defaultError: AHP_UNSUPPORTED_PROTOCOL_VERSION, negotiated: '0.9.5',
+			defaultError: AHP_UNSUPPORTED_PROTOCOL_VERSION, defaultAccepted: PROTOCOL_VERSION, negotiated: '0.9.5',
 			overrideError: AHP_UNSUPPORTED_PROTOCOL_VERSION, supportedVersions: ['^0.9.5'], messageNamesOverride: true,
 		});
 	});

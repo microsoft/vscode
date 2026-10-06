@@ -41,7 +41,7 @@ import { IS_CLIENT_DISPATCHABLE } from '../common/state/protocol/action-origin.g
 import { ChatSourceKind } from '../common/state/protocol/channels-chat/commands.js';
 import type { CommandMap } from '../common/state/protocol/messages.js';
 import { ActionEnvelope, ActionType, INotification, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isChangesetAction, isChatAction, isSessionAction, isTerminalAction } from '../common/state/sessionActions.js';
-import { getAgentHostProtocolVersion } from '../common/agentHostProtocolVersion.js';
+import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
 import { negotiateProtocolVersion } from '../common/state/protocol/version/negotiation.js';
 import { VSCODE_UPGRADE_METHOD, type UnsupportedProtocolVersionErrorDataEx } from '../common/state/protocolUpgrade.js';
 import { getAgentHostManagementSocketPath, requestAgentHostUpgrade } from './agentHostUpgradeChannel.js';
@@ -350,7 +350,7 @@ function classifyChannel(channel: string): ChannelSubscription | undefined {
  * Configuration for protocol-level concerns outside of IAgentService.
  */
 export interface IProtocolServerConfig {
-	/** Overrides host negotiation for development compatibility testing. */
+	/** Overrides Mission Control relay negotiation for development compatibility testing. */
 	readonly protocolVersion?: string;
 	/** Process launcher that owns this agent host. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
@@ -443,7 +443,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 	) {
 		super();
-		this._protocolVersion = getAgentHostProtocolVersion(this._config.protocolVersion);
+		this._protocolVersion = this._config.protocolVersion ?? PROTOCOL_VERSION;
 		this._telemetryReporter = new AgentHostTelemetryReporter(this._telemetryService);
 		this._register(this._clientConnections.registerSource(this));
 

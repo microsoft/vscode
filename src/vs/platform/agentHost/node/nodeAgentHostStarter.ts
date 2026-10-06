@@ -16,7 +16,6 @@ import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostProtocolVersionOverrideEnvVar, AgentHostProtocolVersionOverrideSettingId, getAgentHostProtocolVersion } from '../common/agentHostProtocolVersion.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import '../common/agentHostStarter.config.contribution.js';
@@ -76,7 +75,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			VSCODE_PIPE_LOGGING: 'true',
 			VSCODE_VERBOSE_LOGGING: 'true',
 			[AgentHostLaunchKindEnvVar]: AgentHostLaunchKind.VSCodeCLI,
-			[AgentHostProtocolVersionOverrideEnvVar]: getAgentHostProtocolVersion(this._configurationService.getValue<string>(AgentHostProtocolVersionOverrideSettingId)),
 		};
 
 		// Forward the Claude/Codex SDK overrides + codex home/args from

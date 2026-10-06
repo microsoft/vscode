@@ -45,9 +45,9 @@ New native allocations negotiate standard `ahp-session` resources with a separat
 
 ### Development protocol-version override
 
-For compatibility testing, set `chat.agentHost.protocolVersionOverride` to a `MAJOR.MINOR.PATCH` string, such as `0.9.0`, then run **Developer: Restart Local Agent Host**. An empty string restores the built-in version. The override applies to host handshake negotiation, local endpoint metadata, and Mission Control registration/heartbeats. Client-side version offers remain unchanged. Standalone test hosts can use `VSCODE_AGENT_HOST_PROTOCOL_VERSION_OVERRIDE`.
+For compatibility testing, set `chat.agentHost.experimentalMissionControl.protocolVersionOverride` to a `MAJOR.MINOR.PATCH` string, such as `0.9.0`. An empty string restores the built-in version. Changing the setting withdraws and re-registers Mission Control, disconnecting its relay clients. The override applies only to Mission Control registration/heartbeats and its relay handshake negotiation. Local IPC, local endpoint metadata, other remote hosts, and client-side version offers remain unchanged.
 
-This only changes the host's declared version; it does not translate messages, add compatibility adapters, or guarantee interoperability. Invalid versions are rejected, and the host logs a warning when an override changes its built-in version. The setting is machine-local and excluded from Settings Sync.
+This only changes the relay's declared version; it does not translate messages, add compatibility adapters, or guarantee interoperability. Invalid versions are rejected, and the host logs a warning when the Mission Control relay uses an override. The setting is machine-local and excluded from Settings Sync.
 
 ## Security and data handling
 

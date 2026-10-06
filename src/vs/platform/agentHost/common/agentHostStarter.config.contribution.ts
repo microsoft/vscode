@@ -60,7 +60,6 @@ import {
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
-import { AgentHostProtocolVersionOverrideSettingId, agentHostProtocolVersionOverridePattern } from './agentHostProtocolVersion.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -261,17 +260,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostSystemProxyEnabledConfigKey },
-		},
-		[AgentHostProtocolVersionOverrideSettingId]: {
-			type: 'string',
-			description: nls.localize('chat.agentHost.protocolVersionOverride', "For development: Override the Agent Host Protocol version advertised and accepted by the VS Code host. Use a MAJOR.MINOR.PATCH version, or leave empty to use the built-in version. This does not translate protocol messages or guarantee compatibility. Restart the Agent Host after changing this setting."),
-			default: '',
-			pattern: agentHostProtocolVersionOverridePattern,
-			patternErrorMessage: nls.localize('chat.agentHost.protocolVersionOverride.invalid', "Enter a MAJOR.MINOR.PATCH version, or leave empty to use the built-in version."),
-			scope: ConfigurationScope.APPLICATION,
-			restricted: true,
-			ignoreSync: true,
-			tags: ['experimental', 'advanced'],
 		},
 		[AgentHostGitHubMcpServerEnabledSettingId]: {
 			type: 'boolean',

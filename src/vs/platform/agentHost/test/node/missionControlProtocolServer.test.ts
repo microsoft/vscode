@@ -22,6 +22,7 @@ import type { IProtocolTransport } from '../../common/state/sessionTransport.js'
 import { MissionControlSessionMirror } from '../../node/missionControl/missionControlSessionMirror.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -542,83 +543,92 @@ suite('Mission Control WPS', () => {
 		});
 	});
 
-	test('registers the process identity, heartbeats, and refuses account rebinding', async () => {
-		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-test-'));
-		const clock = sinon.useFakeTimers();
-		try {
-			const { key } = signingFixture();
-			const sockets: FakeWpsSocket[] = [];
-			const errors: string[] = [];
-			const requests: { path: string; bearer: boolean; body: Record<string, unknown> | undefined }[] = [];
-			const environment = {
-				id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
-				webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-wps-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
-			};
-			const fakeFetch: typeof fetch = async (input, init) => {
-				const url = new URL(input.toString());
-				requests.push({
-					path: url.pathname,
-					bearer: init?.headers !== undefined && Object.hasOwn(init.headers, 'Authorization'),
-					body: init?.body ? JSON.parse(init.body.toString()) as Record<string, unknown> : undefined,
-				});
-				return Response.json(url.pathname.endsWith('jwks.json') ? { keys: [key] }
-					: url.pathname.endsWith('/token') ? { ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() } : environment);
-			};
-			const service = store.add(new MissionControlEnvironment({
-				userDataPath: path,
-				name: 'VS Code OSS',
-				protocolVersion: '0.9.0',
-				fetch: fakeFetch,
-				attach: () => ({ dispose() { } }),
-				onError: error => errors.push(error instanceof Error ? error.message : String(error)),
-				socketFactory: () => {
-					const socket = new FakeWpsSocket();
-					sockets.push(socket);
-					queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
-					return socket;
+	for (const protocolVersion of [undefined, '0.9.0']) {
+		test(`registers the process identity, heartbeats, and refuses account rebinding (${protocolVersion ?? 'built-in protocol version'})`, async () => {
+			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-test-'));
+			const clock = sinon.useFakeTimers();
+			try {
+				const { key } = signingFixture();
+				const sockets: FakeWpsSocket[] = [];
+				const errors: string[] = [];
+				const attachedVersions: string[] = [];
+				const requests: { path: string; bearer: boolean; body: Record<string, unknown> | undefined }[] = [];
+				const environment = {
+					id: 'environment', kind: 'user-local', user_id: 'owner', owner_id: 'owner', owner_type: 'user',
+					webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-wps-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
+				};
+				const fakeFetch: typeof fetch = async (input, init) => {
+					const url = new URL(input.toString());
+					requests.push({
+						path: url.pathname,
+						bearer: init?.headers !== undefined && Object.hasOwn(init.headers, 'Authorization'),
+						body: init?.body ? JSON.parse(init.body.toString()) as Record<string, unknown> : undefined,
+					});
+					return Response.json(url.pathname.endsWith('jwks.json') ? { keys: [key] }
+						: url.pathname.endsWith('/token') ? { ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() } : environment);
+				};
+				const service = store.add(new MissionControlEnvironment({
+					userDataPath: path,
+					name: 'VS Code OSS',
+					fetch: fakeFetch,
+					attach: (_server, _roots, _getRoots, version) => {
+						attachedVersions.push(version);
+						return { dispose() { } };
+					},
+					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
+					socketFactory: () => {
+						const socket = new FakeWpsSocket();
+						sockets.push(socket);
+						queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
+						return socket;
+					}
 				}
+				));
+				const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path], protocolVersion };
+				await service.configure(options);
+				await assert.rejects(service.configure({ ...options, protocolVersion: 'invalid' }), /Invalid Mission Control protocol version override/);
+				await assert.rejects(service.configure({ ...options, protocolVersion: '0.8.0' }), /already configured/);
+				await clock.tickAsync(60_000);
+				sockets[0].emit('close', 1006);
+				await clock.tickAsync(60_000);
+				const persisted = (JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')) as { id: string }).id;
+				const rebind = await service.configure({ ...options, accountId: 'other' }).then(() => 'accepted', () => 'rejected');
+				await service.configure(undefined);
+				assert.deepStrictEqual({
+					requests: requests.map(request => [request.path, request.bearer, request.body?.kind, request.body?.compute_id]),
+					persisted: /^[0-9a-f-]{36}$/.test(persisted),
+					rebind,
+					controlJoined: sockets.flatMap(socket => socket.joins),
+					offline: requests.at(-1)?.body?.status,
+					closed: sockets.every(socket => socket.closed),
+					errors,
+					advertisedVersions: requests.filter(request => request.body?.capabilities).map(request => (request.body!.capabilities as { ahp_version: string }).ahp_version),
+					attachedVersions,
+				}, {
+					requests: [
+						['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
+						['/cmc_internal/api/agents/environments/.well-known/jwks.json', true, undefined, undefined],
+						['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
+						['/cmc_internal/api/agents/environments/environment/token', true, undefined, undefined],
+						['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
+						['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
+					],
+					persisted: true,
+					rebind: 'rejected',
+					controlJoined: [`${prefix}.control`, `${prefix}.control`],
+					offline: 'offline',
+					closed: true,
+					errors: ['Mission Control WPS socket closed (code 1006)'],
+					advertisedVersions: Array(3).fill(protocolVersion ?? PROTOCOL_VERSION),
+					attachedVersions: Array(2).fill(protocolVersion ?? PROTOCOL_VERSION),
+				});
+				service.dispose();
+			} finally {
+				clock.restore();
+				await rm(path, { recursive: true });
 			}
-			));
-			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] };
-			await service.configure(options);
-			await clock.tickAsync(60_000);
-			sockets[0].emit('close', 1006);
-			await clock.tickAsync(60_000);
-			const persisted = (JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')) as { id: string }).id;
-			const rebind = await service.configure({ ...options, accountId: 'other' }).then(() => 'accepted', () => 'rejected');
-			await service.configure(undefined);
-			assert.deepStrictEqual({
-				requests: requests.map(request => [request.path, request.bearer, request.body?.kind, request.body?.compute_id]),
-				persisted: /^[0-9a-f-]{36}$/.test(persisted),
-				rebind,
-				controlJoined: sockets.flatMap(socket => socket.joins),
-				offline: requests.at(-1)?.body?.status,
-				closed: sockets.every(socket => socket.closed),
-				errors,
-				advertisedVersions: requests.filter(request => request.body?.capabilities).map(request => (request.body!.capabilities as { ahp_version: string }).ahp_version),
-			}, {
-				requests: [
-					['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
-					['/cmc_internal/api/agents/environments/.well-known/jwks.json', true, undefined, undefined],
-					['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
-					['/cmc_internal/api/agents/environments/environment/token', true, undefined, undefined],
-					['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
-					['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
-				],
-				persisted: true,
-				rebind: 'rejected',
-				controlJoined: [`${prefix}.control`, `${prefix}.control`],
-				offline: 'offline',
-				closed: true,
-				errors: ['Mission Control WPS socket closed (code 1006)'],
-				advertisedVersions: ['0.9.0', '0.9.0', '0.9.0'],
-			});
-			service.dispose();
-		} finally {
-			clock.restore();
-			await rm(path, { recursive: true });
-		}
-	});
+		});
+	}
 
 	suite('heartbeat Retry-After', () => {
 		async function withEnvironment(
