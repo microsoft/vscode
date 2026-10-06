@@ -296,6 +296,8 @@ The lease also owns isolated data directories. Servers normally share one direct
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
+Temporary-directory cleanup always performs a retry after repairing read-only attributes, even when the first sweep across many retired homes consumes the cleanup deadline.
+
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
 - **Shared** (the default in replay, for every provider) — reuse a server + proxy across tests, swapping the per-test fixture and reconnecting a fresh client. The lease recycles after 25 model-backed tests or 40 total tests, whichever comes first. The model cap bounds provider-process load; the total cap bounds host-owned terminals, watchers, subscriptions, and other resource accumulation in host-only suites.
