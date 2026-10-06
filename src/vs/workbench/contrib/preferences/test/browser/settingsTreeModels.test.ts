@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
 import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -189,11 +190,26 @@ suite('SettingsTree managed sandbox', () => {
 		});
 	}
 
-	test('rejects malformed managed allowlists instead of displaying them as local values', () => {
-		const { managed, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [AgentNetworkDomainSettingId.AllowedNetworkDomains]);
-		for (const value of ['not JSON', '["managed.example",1]', '{}', 'null', false]) {
-			managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
-			assert.throws(read, value === 'not JSON' ? SyntaxError : /must be a string array/);
+	test('ignores malformed managed allowlists in the presentation and preserves local values', () => {
+		const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const settings = ['not JSON', '["managed.example",1]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
+				return read();
+			});
+			assert.deepStrictEqual({
+				settings,
+				stored: configuration.getValue(key),
+				warnings: consoleWarn.callCount,
+			}, {
+				settings: Array.from({ length: 5 }, () => [{ value: ['local.example'], managed: false, policyFilter: false }]),
+				stored: ['local.example'],
+				warnings: 5,
+			});
+		} finally {
+			consoleWarn.restore();
 		}
 	});
 
