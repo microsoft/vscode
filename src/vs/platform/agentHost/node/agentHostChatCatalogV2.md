@@ -66,6 +66,15 @@ A stale mutation rolls back activation as well. Replayed activation never
 rewrites normalized rows. An importer calling `upsertSessionV2` after cutover
 receives `conflict`, rather than overwriting the terminal normalized authority.
 
+`upsertSessionV2FromChatCatalog(envelope, expectedSessionGeneration,
+expectedCatalogRevision)` updates only the session aggregate envelope after
+checking normalized authority, header revision, registration lifetime and the
+exact current public chat projection in the same transaction. Callers rebuild
+the public projection from a fresh normalized snapshot, not legacy metadata.
+Private rows remain central and are not deleted when absent from this public
+projection. Existing envelope generation/revision/hash CAS rules still apply;
+chat or header changes conflict. This path never writes chats or the header.
+
 `registerChatCatalogV2` writes a new, already registered, unverified session
 directly to normalized authority. It does not import or replace an existing
 header or verified payload.

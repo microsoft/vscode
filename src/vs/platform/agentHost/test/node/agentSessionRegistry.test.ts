@@ -304,6 +304,9 @@ class TestAgentHostDatabase implements IAgentHostDatabase {
 	async markSessionsV2PayloadsDirty(): Promise<void> { }
 	async markSessionV2PayloadClean(): Promise<boolean> { return false; }
 	async upsertSessionV2(_envelope: IAgentHostDatabaseSessionV2Envelope, _expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> { return 'missingSession'; }
+	upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
+		return this.upsertSessionV2(envelope, expectedSessionGeneration);
+	}
 	async readCatalogSnapshot(...[sessions]: Parameters<IAgentHostDatabase['readCatalogSnapshot']>): ReturnType<IAgentHostDatabase['readCatalogSnapshot']> {
 		return (await this.listSessionV2Registrations()).filter(identity => sessions === undefined || sessions.includes(identity.session)).map(identity => ({
 			session: identity.session, authorityVersion: 1 as const, identity, isChatBacking: false, provisional: this.provisionalSessions.has(identity.session), chats: [],

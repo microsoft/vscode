@@ -338,6 +338,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Clears a dirty marker only when no newer mutation superseded it. */
 	markSessionV2PayloadClean(session: string, expectedDirty: number): Promise<boolean>;
 	upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult>;
+	/** Writes session aggregates only after comparing their public chat projection with normalized authority. */
+	upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	readCatalogSnapshot(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]>;
 	getChatV2ProviderDetail(chat: string): Promise<IAgentHostDatabaseChatV2ProviderDetail | undefined>;
 	/** Activates verified legacy input and optionally mutates it in the same central transaction. */
@@ -1719,6 +1721,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		return this._upsertSessionV2(envelope, expectedSessionGeneration);
+	}
+
+	async upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		this._validateRevision(expectedCatalogRevision);
+		return this._upsertSessionV2(envelope, expectedSessionGeneration, expectedCatalogRevision);
+	}
+
+	private async _upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision?: number): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		const isChatBacking = this._validateSessionV2Envelope(envelope);
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
@@ -1739,8 +1750,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return 'missingSession';
 				}
-				const normalized = await get(database, 'SELECT authority_version FROM session_chat_catalogs WHERE session_uri = ?', [envelope.session]);
-				if (normalized?.authority_version === 2) {
+				const normalized = await get(database, 'SELECT * FROM session_chat_catalogs WHERE session_uri = ?', [envelope.session]);
+				if (expectedCatalogRevision === undefined ? normalized?.authority_version === 2
+					: normalized?.authority_version !== 2 || normalized.revision !== expectedCatalogRevision) {
 					await exec(database, 'COMMIT');
 					return 'conflict';
 				}
@@ -1749,6 +1761,17 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				if (currentGeneration !== expectedSessionGeneration) {
 					await exec(database, 'COMMIT');
 					return 'generationMismatch';
+				}
+				if (expectedCatalogRevision !== undefined) {
+					if (currentGeneration !== undefined && envelope.sessionGeneration !== currentGeneration) {
+						await exec(database, 'COMMIT');
+						return 'generationMismatch';
+					}
+					if (!normalized || normalized.session_generation !== null && normalized.session_generation !== currentGeneration
+						|| !await this._matchesChatV2PublicProjection(database, envelope, normalized.default_chat_uri as string)) {
+						await exec(database, 'COMMIT');
+						return 'conflict';
+					}
 				}
 				if (currentGeneration === envelope.sessionGeneration) {
 					const currentRevision = current?.source_revision as number;
@@ -1798,6 +1821,34 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			} catch (error) {
 				return this._rollback(database, error, `Failed to upsert sessions_v2 row for ${envelope.session}`);
 			}
+		});
+	}
+
+	private async _matchesChatV2PublicProjection(database: Database, envelope: IAgentHostDatabaseSessionV2Envelope, defaultChat: string): Promise<boolean> {
+		const decoded = decodeAgentHostCatalogPayload(envelope.payload);
+		if (!decoded.ok) {
+			throw new Error(`Invalid aggregate chat projection: ${decoded.error}`);
+		}
+		const rows = await all(database, `SELECT * FROM chats_v2
+			WHERE owner_session_uri = ? AND tombstoned = 0 AND chat_order IS NOT NULL ORDER BY chat_order`, [envelope.session]);
+		if (rows.length === 0 || !rows.some(row => row.chat_uri === defaultChat)) {
+			throw new Error(`Normalized catalog lacks its visible default: ${envelope.session}`);
+		}
+		const publicChats = decoded.value.data.chats;
+		if (rows.length !== publicChats.length) {
+			return false;
+		}
+		return rows.every((row, index) => {
+			const chat = this._toChatV2(row);
+			const actual = publicChats[index];
+			const origin = actual.origin === undefined ? undefined : typeof actual.origin === 'string' ? actual.origin : stableStringify(actual.origin);
+			return actual.uri === chat.chat && actual.order === chat.order
+				&& actual.kind === (chat.chat === defaultChat ? 'default' : 'peer')
+				&& actual.summary === chat.metadata?.summary && actual.titleSource === chat.metadata?.titleSource
+				&& (actual.interactivity ?? ChatInteractivity.Full) === (chat.metadata?.interactivity ?? ChatInteractivity.Full)
+				&& origin === chat.origin && stableStringify(actual.workingDirectories) === stableStringify(chat.workingDirectories)
+				&& actual.isRead === chat.isRead && (actual.archived ?? false) === chat.archived
+				&& actual.inheritedTurnId === chat.inheritedTurnId && stableStringify(actual.changes) === stableStringify(chat.metadata?.changes);
 		});
 	}
 

@@ -14,7 +14,7 @@ import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
-import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { ChatInteractivity } from '../../common/state/protocol/channels-chat/state.js';
 import { encodeChatV2Metadata } from '../../node/agentHostChatCatalogV2.js';
 
@@ -2214,6 +2214,94 @@ suite('AgentHostDatabase sessions_v2', () => {
 			assert.deepStrictEqual(entries.map(entry => ({
 				session: entry.session, authority: entry.authorityVersion, header: entry.header, chats: entry.chats,
 			})), [{ session, authority: 1, header: undefined, chats: [] }]);
+		});
+
+		async function aggregateEnvelope(sourceRevision: number, changes: Partial<Omit<AgentHostCatalogData, 'chats'>> = {}) {
+			const [snapshot] = await database!.readCatalogSnapshot([session]);
+			const source = decodeAgentHostCatalogPayload(envelope().payload);
+			assert.ok(source.ok);
+			const chats: AgentHostCatalogData['chats'] = snapshot.chats.filter(chat => chat.order !== undefined)
+				.sort((a, b) => a.order! - b.order!).map(chat => ({
+					uri: chat.chat, kind: chat.chat === snapshot.header?.defaultChatUri ? 'default' : 'peer', order: chat.order!,
+					...chat.metadata, origin: chat.origin, workingDirectories: chat.workingDirectories,
+					isRead: chat.isRead, archived: chat.archived, inheritedTurnId: chat.inheritedTurnId,
+				}));
+			return {
+				envelope: createEnvelope(session, 'catalog-generation', sourceRevision, {
+					payload: stableStringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: { ...source.value.data, ...changes, chats } }),
+				}),
+				catalogRevision: snapshot.header!.revision,
+			};
+		}
+
+		test('normalized aggregate writes update session title/status/git while preserving all central chats and header', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const before = await database.readCatalogSnapshot([session]);
+			const request = await aggregateEnvelope(11, {
+				summary: 'Session aggregate title', titleSource: 'user', isRead: true, isArchived: false,
+				_meta: { git: { branchName: 'feature', hasGitRemote: true } },
+			});
+			const applied = await database.upsertSessionV2FromChatCatalog(request.envelope, 'catalog-generation', request.catalogRevision);
+			const replay = await database.upsertSessionV2FromChatCatalog(request.envelope, 'catalog-generation', request.catalogRevision);
+			const stored = (await database.getSessionV2(session))!;
+			assert.deepStrictEqual({
+				applied, replay, payload: stored.payload, revision: stored.sourceRevision,
+				unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+				legacyImport: await database.upsertSessionV2(request.envelope, 'catalog-generation'),
+			}, {
+				applied: 'applied', replay: 'replayed', payload: request.envelope.payload, revision: 11,
+				unchanged: true, legacyImport: 'conflict',
+			});
+		});
+
+		test('concurrent normalized chat patch fences a stale aggregate header and stale public projection', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const stale = await aggregateEnvelope(11, { summary: 'stale aggregate' });
+			await database.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, {
+				metadata: { summary: 'Fresh peer', titleSource: 'user', interactivity: ChatInteractivity.ReadOnly, changes: { files: 20 } },
+			});
+			const oldHeader = await database.upsertSessionV2FromChatCatalog(stale.envelope, 'catalog-generation', stale.catalogRevision);
+			const oldProjection = await database.upsertSessionV2FromChatCatalog(stale.envelope, 'catalog-generation', 2);
+			const current = await aggregateEnvelope(11, { summary: 'fresh aggregate' });
+			const refreshed = await database.upsertSessionV2FromChatCatalog(current.envelope, 'catalog-generation', current.catalogRevision);
+			assert.deepStrictEqual({
+				oldHeader, oldProjection, refreshed, revision: (await database.getSessionV2(session))?.sourceRevision,
+				privateSummary: (await database.readCatalogSnapshot([session]))[0].chats.find(chat => chat.chat === privateChat)?.metadata?.summary,
+			}, { oldHeader: 'conflict', oldProjection: 'conflict', refreshed: 'applied', revision: 11, privateSummary: 'Private' });
+		});
+
+		test('normalized aggregate generation, source revisions, missing sessions and deletion use existing CAS dispositions', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const request = await aggregateEnvelope(11);
+			const generation = await database.upsertSessionV2FromChatCatalog(request.envelope, 'other', 1);
+			const newLifetime = await database.upsertSessionV2FromChatCatalog({ ...request.envelope, sessionGeneration: 'different' }, 'catalog-generation', 1);
+			const stale = await database.upsertSessionV2FromChatCatalog({ ...request.envelope, sourceRevision: 9 }, 'catalog-generation', 1);
+			const sameRevision = await database.upsertSessionV2FromChatCatalog({ ...request.envelope, sourceRevision: 10 }, 'catalog-generation', 1);
+			const missing = await database.upsertSessionV2FromChatCatalog({ ...request.envelope, session: 'session://missing' }, undefined, 1);
+			await database.tombstoneAndUnregisterSession(session);
+			const deleted = await database.upsertSessionV2FromChatCatalog(request.envelope, 'catalog-generation', 1);
+			assert.deepStrictEqual({ generation, newLifetime, stale, sameRevision, missing, deleted }, {
+				generation: 'generationMismatch', newLifetime: 'generationMismatch', stale: 'stale', sameRevision: 'conflict', missing: 'missingSession', deleted: 'tombstoned',
+			});
+		});
+
+		test('new direct normalized sessions can establish their first aggregate generation without rewriting their header', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+			await database.registerChatCatalogV2(session, { defaultChat: { chat: defaultChat, order: 0 }, peers: [], privateDescendants: [] });
+			const before = await database.readCatalogSnapshot([session]);
+			const request = await aggregateEnvelope(0);
+			const applied = await database.upsertSessionV2FromChatCatalog(request.envelope, undefined, 1);
+			assert.deepStrictEqual({
+				applied, generation: (await database.getSessionV2(session))?.sessionGeneration,
+				unchanged: stableStringify(before) === stableStringify(await database.readCatalogSnapshot([session])),
+			}, { applied: 'applied', generation: 'catalog-generation', unchanged: true });
 		});
 	});
 });
