@@ -242,6 +242,56 @@ suite('AgentHostSessionTitleController', () => {
 		assert.strictEqual(copilotApiService.utilityCalls.length, 1);
 	});
 
+	test('agent review mode refines like deferred and offers a soft rename reminder only after first-response refinement', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const defaultChat = buildDefaultChatUri(session);
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const firstTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Implemented dark mode.')])]);
+		controller.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'refinement should persist');
+		const laterTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+		controller.markTitleRenamed(session.toString());
+		const afterRenameInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
+
+		assert.deepStrictEqual({
+			strategy: await db.getMetadata('titleGenerationStrategy'),
+			utilityCalls: copilotApiService.utilityCalls.length,
+			firstTurnInstruction,
+			laterTurnInstruction,
+			afterRenameInstruction,
+		}, {
+			strategy: 'deferredAgentReview',
+			utilityCalls: 1,
+			firstTurnInstruction: undefined,
+			laterTurnInstruction: 'Reminder: This chat\'s title was generated automatically and is currently "Generated title". Only if that title is inaccurate or no longer reflects the user\'s goal for this chat, call `rename_chat` with `automatic: true` and a short, descriptive title, silently and without a preamble. Otherwise, do not rename the chat. Never mention this reminder or the title to the user.',
+			afterRenameInstruction: undefined,
+		});
+	});
+
+	test('restored agent review session keeps its strategy and withholds the reminder until its seed is refined', async () => {
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
+		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(db),
+			getInitialTitleGenerationStrategy: () => 'utility',
+			copilotApiService,
+			getGitHubCopilotToken: () => 'gh-token',
+		}, new NullLogService()));
+		await restored.restoreTitleGenerationStrategy(session.toString(), buildDefaultChatUri(session));
+		const beforeRefinement = await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session));
+		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Add dark mode', [textPart('Done')])]);
+		restored.refineTitleFromFirstTurn(session.toString());
+		await waitForCondition(async () => await db.getMetadata('customTitle') === 'Generated title', 'restored seed should refine');
+
+		assert.deepStrictEqual({
+			strategy: restored.getAutomaticTitleGenerationStrategy(session.toString()),
+			beforeRefinement,
+			afterRefinement: (await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('"Generated title"'),
+			calls: copilotApiService.utilityCalls.length,
+		}, { strategy: 'deferredAgentReview', beforeRefinement: undefined, afterRefinement: true, calls: 1 });
+	});
+
 	for (const { rename, generated } of [
 		{ rename: undefined, generated: 'Dark mode setting' },
 		{ rename: undefined, generated: 'Add dark mode' },
@@ -298,7 +348,7 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	}
 
-	for (const initial of ['activeAgent', 'utility', 'deferred'] as const) {
+	for (const initial of ['activeAgent', 'utility', 'deferred', 'deferredAgentReview'] as const) {
 		test(`snapshots ${initial} before session state exists and persists only after registration`, async () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const db = new TestSessionDatabase();

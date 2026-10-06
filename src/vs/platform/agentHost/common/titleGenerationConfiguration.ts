@@ -6,8 +6,8 @@
 import * as nls from '../../../nls.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
 import product from '../../product/common/product.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey } from './agentHostSchema.js';
-import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId } from './agentService.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentTitleReviewConfigKey, AgentHostDeferredTitleGenerationConfigKey } from './agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostAgentTitleReviewSettingId, AgentHostDeferredTitleGenerationSettingId } from './agentService.js';
 
 export const titleGenerationConfigurationProperties = {
 	[AgentHostActiveAgentTitleGenerationSettingId]: {
@@ -27,5 +27,14 @@ export const titleGenerationConfigurationProperties = {
 		tags: ['experimental', 'advanced'],
 		experiment: { mode: 'auto' },
 		agentHost: { key: AgentHostDeferredTitleGenerationConfigKey },
+	},
+	[AgentHostAgentTitleReviewSettingId]: {
+		type: 'boolean',
+		description: nls.localize('chat.agentHost.experimental.agentTitleReview', "Use deferred title generation and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal. The rename tool stays deferred, so it is loaded only when the agent decides to rename. Overrides deferred and active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
+		default: false,
+		scope: ConfigurationScope.APPLICATION,
+		tags: ['experimental', 'advanced'],
+		experiment: { mode: 'auto' },
+		agentHost: { key: AgentHostAgentTitleReviewConfigKey },
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;

@@ -60,7 +60,7 @@ export interface IAgentHostTurnTimingDiagnostic {
 	providerStageModelResponseMs?: number;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
-	titleGenerationStrategy?: 'activeAgent' | 'utility' | 'deferred';
+	titleGenerationStrategy?: 'activeAgent' | 'utility' | 'deferred' | 'deferredAgentReview';
 }
 
 /** Project an allowlist, preserving observed zeroes and omitting invalid or unavailable values. */

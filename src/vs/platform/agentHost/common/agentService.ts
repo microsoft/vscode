@@ -118,6 +118,7 @@ export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMc
 /** Configuration keys controlling automatic session and chat title generation. */
 export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
 export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
+export const AgentHostAgentTitleReviewSettingId = 'chat.agentHost.experimental.agentTitleReview';
 
 /** Configuration key enabling cached MCP tool routing and relevance-based authentication prompts. */
 export const AgentHostMcpToolRoutingEnabledSettingId = 'chat.agentHost.experimental.mcpToolRouting';

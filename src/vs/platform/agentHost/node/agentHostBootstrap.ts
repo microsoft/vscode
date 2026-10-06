@@ -21,7 +21,7 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentTitleReviewConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
@@ -189,9 +189,16 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			gitHubService,
 			copilotApiService,
-			getInitialTitleGenerationStrategy: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true
-				? 'deferred'
-				: foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true ? 'activeAgent' : 'utility',
+			getInitialTitleGenerationStrategy: () => {
+				const configurationService = foundation.configurationService;
+				if (configurationService.getRootValue(platformRootSchema, AgentHostAgentTitleReviewConfigKey) === true) {
+					return 'deferredAgentReview';
+				}
+				if (configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true) {
+					return 'deferred';
+				}
+				return configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true ? 'activeAgent' : 'utility';
+			},
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);

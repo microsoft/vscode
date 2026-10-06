@@ -559,6 +559,7 @@ export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefin
 /** Root config keys forwarded from the renderer for automatic title generation. */
 export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGeneration';
 export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
+export const AgentHostAgentTitleReviewConfigKey = 'agentTitleReview';
 
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
@@ -915,6 +916,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.deferredTitleGeneration.title', "Deferred Title Generation"),
 		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
+		default: false,
+	}),
+	[AgentHostAgentTitleReviewConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.agentTitleReview.title', "Agent Title Review"),
+		description: localize('agentHost.config.agentTitleReview.description', "Use deferred title generation and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal. Overrides deferred and active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
 		default: false,
 	}),
 	[AgentHostMcpConnectorsEnabledConfigKey]: schemaProperty<boolean>({

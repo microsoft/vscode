@@ -127,7 +127,7 @@ the deadline remain missing; the marker is not proof that a turn completed.
 | Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
 | Host `sendStageProviderPreparationMs` | **Residual critical-path wait** for provider turn preparation (`IAgentChats.prepareTurn`, enabled by `chat.agentHost.experimental.overlapProviderPreparation`) after it overlapped the earlier pre-send stages and the checkpoint capture; absent when preparation did not run. Provider stage marks made during preparation precede dispatch and are not reported as `providerStage*Ms` |
 | Host `providerStageQueueMs`, `providerStageClientMs`, `providerStageSnapshotMs`, `providerStageConfigMs`, `providerStageCreateMs`, `providerStageFinalizeMs`, `providerStagePersistMs`, `providerStageRefreshMs`, `providerStageTurnPrepareMs`, `providerStageModelResponseMs` | Sequential provider-marked stages between provider dispatch and first progress (chat queue wait, SDK client acquisition, customization snapshot, session config, SDK create/resume, post-create setup, session registration/persistence, live-session refresh, per-turn preparation, and SDK send until first progress). Only stages the provider ran are present; a turn ending before first progress retains its partial open stage. Copilot marks all of them; other providers currently mark none |
-| Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
+| Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, `deferred`, or `deferredAgentReview` strategy when observed |
 | Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
 | Renderer `connectionKind` | Existing bounded `AgentHostClientConnectionKind`, captured from the client connection at invocation start; `unknown` when unavailable, absent in older diagnostic payloads |
 | Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
@@ -234,7 +234,7 @@ progress, `[AgentHostFirstProgress]` JSON records `timeToFirstProgress`,
 `providerStages` durations observed so far, for attributing local latency
 without product telemetry. The first strategy capture adds
 an enriched marker with the same start values and `titleGenerationStrategy`
-(`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
+(`activeAgent`, `utility`, `deferred`, or `deferredAgentReview`). Merge compatible markers for one turn,
 retaining the known strategy rather than counting them as separate observations.
 Resuming the same turn retains its original host timing and strategy without
 advancing the ordinal. This identity is retained until chat teardown or truncation.
