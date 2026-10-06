@@ -33,9 +33,11 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
+import { IChatUtilityModelService } from '../../../common/chatUtilityModelService.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -234,6 +236,8 @@ const THINKING_SCROLL_MAX_HEIGHT = 200;
 const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
 const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TITLE_CACHE_MAX_ENTRIES = 1000;
+/** Show the fallback title if the generated one hasn't arrived by then, e.g. while queued. */
+const TITLE_FALLBACK_DELAY_MS = 2000;
 
 const enum WorkingMessageCategory {
 	Thinking = 'thinking',
@@ -390,6 +394,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly hiddenToolCallIds = new Set<string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
+	/** Cancelled on dispose so queued title requests nobody waits for are dropped. */
+	private readonly titleGenerationCancellation = new CancellationTokenSource();
+	private readonly titleFallbackTimer = this._register(new MutableDisposable());
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
@@ -456,6 +463,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -1758,17 +1766,13 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
-		const cts = new CancellationTokenSource();
-		const timeout = setTimeout(() => cts.cancel(), 5000);
+		if (!this.isToolChain) {
+			this.titleFallbackTimer.value = disposableTimeout(() => this.setFallbackTitle(), TITLE_FALLBACK_DELAY_MS);
+		}
 
 		try {
 			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
 			if (!models.length) {
-				this.setFallbackTitle();
-				return;
-			}
-
-			if (cts.token.isCancellationRequested) {
 				this.setFallbackTitle();
 				return;
 			}
@@ -1872,52 +1876,31 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 			Content: ${context}`;
 
-			const response = await this.languageModelsService.sendChatRequest(
-				models[0],
-				undefined,
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				{},
-				cts.token
-			);
+			const cacheId = this.getTitleCacheId();
+			const generatedTitle = (await this.chatUtilityModelService.sendRequest({
+				purpose: 'thinkingTitle',
+				model: models[0],
+				messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				background: true,
+				key: cacheId ? this.getTitleCacheKey(cacheId) : undefined,
+			}, this.titleGenerationCancellation.token))?.trim();
 
-			let generatedTitle = '';
-			for await (const part of response.stream) {
-				if (cts.token.isCancellationRequested) {
-					break;
-				}
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.type === 'text') {
-							generatedTitle += p.value;
-						}
-					}
-				} else if (part.type === 'text') {
-					generatedTitle += part.value;
-				}
-			}
-
-			if (cts.token.isCancellationRequested) {
+			if (generatedTitle?.includes('can\'t assist with that')) {
 				this.setFallbackTitle();
 				return;
 			}
 
-			await response.result;
-			generatedTitle = generatedTitle.trim();
-
-			if (generatedTitle.includes('can\'t assist with that')) {
-				this.setFallbackTitle();
-				return;
-			}
-
-			if (generatedTitle && !this._store.isDisposed) {
-				this.currentTitle = generatedTitle;
-				this.setFinalizedTitle(generatedTitle);
+			if (generatedTitle) {
+				// Keep the title even if this part was disposed meanwhile so the next render reuses it.
 				this.content.generatedTitle = generatedTitle;
 				this.setGeneratedTitleOnAllParts(generatedTitle);
+				if (!this._store.isDisposed) {
+					this.currentTitle = generatedTitle;
+					this.setFinalizedTitle(generatedTitle);
+				}
 
 				// Persist to storage for non-local sessions only
 				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
-					const cacheId = this.getTitleCacheId();
 					if (cacheId) {
 						this.setCachedTitle(cacheId, generatedTitle);
 					}
@@ -1928,8 +1911,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		} catch (error) {
 			// fall through to default title
 		} finally {
-			clearTimeout(timeout);
-			cts.dispose();
+			this.titleFallbackTimer.clear();
 		}
 
 		this.setFallbackTitle();
@@ -2906,6 +2888,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	override dispose(): void {
+		this.titleGenerationCancellation.dispose(true);
 		this.isActive = false;
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();

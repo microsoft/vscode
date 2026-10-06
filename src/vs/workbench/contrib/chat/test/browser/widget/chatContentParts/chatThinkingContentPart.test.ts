@@ -28,6 +28,7 @@ import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextMode
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { ChatUtilityModelService, IChatUtilityModelService } from '../../../../common/chatUtilityModelService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -150,6 +151,7 @@ suite('ChatThinkingContentPart', () => {
 			computeTokenLength: async () => 0
 		} as unknown as ILanguageModelsService;
 		instantiationService.stub(ILanguageModelsService, mockLanguageModelsService);
+		instantiationService.stub(IChatUtilityModelService, store.add(instantiationService.createInstance(ChatUtilityModelService)));
 	});
 
 	teardown(() => {
@@ -1797,6 +1799,39 @@ suite('ChatThinkingContentPart', () => {
 				body: ['Evaluating code', 'Reviewing build processes'],
 				modelSelections: 0,
 			});
+		});
+
+		test('shows the fallback title while a title is queued and caches a title that arrives after dispose', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const title = new DeferredPromise<string>();
+				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
+				mockLanguageModelsService.sendChatRequest = async () => ({
+					stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
+					result: Promise.resolve({}),
+				});
+				const content = createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**');
+				const part = createPersistentReasoning(content);
+				part.finalizeTitleIfDefault();
+				await clock.tickAsync(1999);
+				const beforeDelay = snapshot(part).title;
+				await clock.tickAsync(1);
+				const afterDelay = snapshot(part).title;
+				part.dispose();
+				await title.complete('Reviewed code and build processes');
+				await clock.tickAsync(0);
+
+				const cacheKey = `${chatSessionResourceToId(createMockRenderContext().element.sessionResource)}:${content.id}`;
+				const cache = instantiationService.get(IStorageService).getObject<Record<string, { title: string }>>('chat.thinkingTitleCache', StorageScope.PROFILE);
+				assert.deepStrictEqual({ beforeDelay, afterDelay, generatedTitle: content.generatedTitle, cachedTitle: cache?.[cacheKey]?.title }, {
+					beforeDelay: 'Thinking',
+					afterDelay: 'Finished with 1 step',
+					generatedTitle: 'Reviewed code and build processes',
+					cachedTitle: 'Reviewed code and build processes',
+				});
+			} finally {
+				clock.restore();
+			}
 		});
 	});
 

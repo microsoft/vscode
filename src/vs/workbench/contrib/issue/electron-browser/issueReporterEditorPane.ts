@@ -35,7 +35,8 @@ import product from '../../../../platform/product/common/product.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ChatMessageRole, ILanguageModelsService, getTextResponseFromStream } from '../../chat/common/languageModels.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../chat/common/languageModels.js';
+import { IChatUtilityModelService } from '../../chat/common/chatUtilityModelService.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -92,6 +93,7 @@ export class IssueReporterEditorPane extends EditorPane {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUpdateService private readonly updateService: IUpdateService,
@@ -389,20 +391,18 @@ export class IssueReporterEditorPane extends EditorPane {
 					return;
 				}
 				const modelId = modelIds[0];
-				const response = await this.languageModelsService.sendChatRequest(
-					modelId,
-					undefined,
-					[{
+				const response = await this.chatUtilityModelService.sendRequest({
+					purpose: 'issueTitle',
+					model: modelId,
+					messages: [{
 						role: ChatMessageRole.User,
 						content: [{
 							type: 'text',
 							value: `Generate a concise issue title (max 10 words, no quotes, no prefix like "Bug:" or "Feature:") for this bug report description:\n\n${description}`,
 						}],
 					}],
-					{},
-					CancellationToken.None,
-				);
-				const title = (await getTextResponseFromStream(response)).trim().replace(/^["']|["']$/g, '');
+				}, CancellationToken.None);
+				const title = (response ?? '').trim().replace(/^["']|["']$/g, '');
 				if (title && this.wizard) {
 					this.wizard.setGeneratedTitle(title);
 				} else {

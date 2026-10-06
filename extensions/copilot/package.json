@@ -132,6 +132,7 @@
     "languageModelSystem",
     "languageModelCapabilities",
     "languageModelPricing",
+    "languageModelRateLimit",
     "inlineCompletionsAdditions",
     "chatStatusItem",
     "chatInputNotification",

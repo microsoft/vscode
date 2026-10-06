@@ -6,7 +6,7 @@
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
+import { illegalArgument, SerializedError, transformErrorForSerialization } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
@@ -4190,21 +4190,37 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
-	static tryDeserialize(data: SerializedError): LanguageModelError | undefined {
+	static RateLimited(message?: string, retryAfter?: number): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.RateLimited.name, undefined, retryAfter);
+	}
+
+	static tryDeserialize(data: SerializedLanguageModelError): LanguageModelError | undefined {
 		if (data.name !== LanguageModelError.#name) {
 			return undefined;
 		}
-		return new LanguageModelError(data.message, data.code, data.cause);
+		return new LanguageModelError(data.message, data.code, data.cause, data.retryAfter);
 	}
 
 	readonly code: string;
+	readonly retryAfter?: number;
 
-	constructor(message?: string, code?: string, cause?: Error) {
+	constructor(message?: string, code?: string, cause?: Error, retryAfter?: number) {
 		super(message, { cause });
 		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
+		if (typeof retryAfter === 'number' && retryAfter >= 0) {
+			this.retryAfter = retryAfter;
+		}
 	}
 
+}
+
+type SerializedLanguageModelError = SerializedError & { readonly retryAfter?: number };
+
+/** Like {@link transformErrorForSerialization}, but keeps {@link LanguageModelError.retryAfter}. */
+export function serializeLanguageModelError(error: unknown): SerializedLanguageModelError {
+	const data: SerializedLanguageModelError = transformErrorForSerialization(error);
+	return error instanceof LanguageModelError && error.retryAfter !== undefined ? { ...data, retryAfter: error.retryAfter } : data;
 }
 
 export class LanguageModelToolResult {

@@ -7,7 +7,7 @@ import type * as vscode from 'vscode';
 import { AsyncIterableProducer, AsyncIterableSource, RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from '../../../base/common/errors.js';
+import { SerializedError, transformErrorFromSerialization } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { DisposableMap, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -369,9 +369,12 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			);
 
 		} catch (err) {
-			// synchronously failed
-			this._pendingCancelCTS.deleteAndDispose(requestId);
-			throw err;
+			// synchronously failed; rate limits are reported like rejections so `retryAfter` survives RPC
+			if (!(err instanceof extHostTypes.LanguageModelError && err.code === extHostTypes.LanguageModelError.RateLimited.name)) {
+				this._pendingCancelCTS.deleteAndDispose(requestId);
+				throw err;
+			}
+			value = Promise.reject(err);
 		}
 
 		Promise.resolve(value).then(() => {
@@ -381,7 +384,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}, err => {
 			sendNow();
 			this._pendingCancelCTS.deleteAndDispose(requestId);
-			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
+			this._proxy.$reportResponseDone(requestId, extHostTypes.serializeLanguageModelError(err));
 		});
 	}
 
