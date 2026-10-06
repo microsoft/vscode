@@ -206,6 +206,61 @@ suite('ListView', function () {
 		}
 	});
 
+	test('cleans up retained dynamic height rows after a render error', function () {
+		const element = document.createElement('div');
+		element.style.height = '100px';
+		element.style.width = '200px';
+		document.body.appendChild(element);
+
+		type TestElement = { height: number; throwOnRender?: boolean };
+		const delegate: IListVirtualDelegate<TestElement> = {
+			getHeight() { return 100; },
+			getTemplateId() { return 'template'; },
+			hasDynamicHeight() { return true; }
+		};
+
+		let disposedElements = 0;
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				Object.defineProperty(container, 'offsetHeight', {
+					configurable: true,
+					get: () => Number(container.dataset.testHeight)
+				});
+				return container;
+			},
+			renderElement(element, _index, templateData) {
+				templateData.dataset.testHeight = String(element.height);
+				if (element.throwOnRender) {
+					throw new Error('render failed');
+				}
+			},
+			disposeElement() {
+				disposedElements++;
+			},
+			disposeTemplate() { }
+		};
+
+		const listView = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(100, 200);
+			assert.throws(() => listView.splice(0, 0, [
+				{ height: 20 },
+				{ height: 20, throwOnRender: true },
+			]), /render failed/);
+			assert.deepStrictEqual({
+				rowsInDom: element.querySelectorAll('.monaco-list-row').length,
+				disposedElements
+			}, {
+				rowsInDom: 1,
+				disposedElements: 1
+			});
+		} finally {
+			listView.dispose();
+			element.remove();
+		}
+	});
+
 	test('does not expose stale data-index on dynamic height measurement rows', function () {
 		const element = document.createElement('div');
 		element.style.width = '200px';
@@ -281,61 +336,6 @@ suite('ListView', function () {
 			listView.rerender();
 
 			assert.deepStrictEqual(staleIndicesSeen, []);
-		} finally {
-			listView.dispose();
-			element.remove();
-		}
-	});
-
-	test('cleans up retained dynamic height rows after a render error', function () {
-		const element = document.createElement('div');
-		element.style.height = '100px';
-		element.style.width = '200px';
-		document.body.appendChild(element);
-
-		type TestElement = { height: number; throwOnRender?: boolean };
-		const delegate: IListVirtualDelegate<TestElement> = {
-			getHeight() { return 100; },
-			getTemplateId() { return 'template'; },
-			hasDynamicHeight() { return true; }
-		};
-
-		let disposedElements = 0;
-		const renderer: IListRenderer<TestElement, HTMLElement> = {
-			templateId: 'template',
-			renderTemplate(container) {
-				Object.defineProperty(container, 'offsetHeight', {
-					configurable: true,
-					get: () => Number(container.dataset.testHeight)
-				});
-				return container;
-			},
-			renderElement(element, _index, templateData) {
-				templateData.dataset.testHeight = String(element.height);
-				if (element.throwOnRender) {
-					throw new Error('render failed');
-				}
-			},
-			disposeElement() {
-				disposedElements++;
-			},
-			disposeTemplate() { }
-		};
-
-		const listView = new ListView<TestElement>(element, delegate, [renderer], { supportDynamicHeights: true });
-		try {
-			listView.layout(100, 200);
-			assert.throws(() => listView.splice(0, 0, [
-				{ height: 20 },
-				{ height: 20, throwOnRender: true },
-			]), /render failed/);
-			assert.deepStrictEqual({
-				rowsInDom: element.querySelectorAll('.monaco-list-row').length,
-				disposedElements
-			}, {
-				rowsInDom: 1,
-				disposedElements: 1
-			});
 		} finally {
 			listView.dispose();
 			element.remove();
