@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { onDidChangeZoomLevel } from '../../../../../../base/browser/browser.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 
 const WIDTH_TOLERANCE = 1;
 
@@ -25,6 +26,7 @@ export interface IChatInputPickerResponsiveState {
 }
 
 export interface IChatInputPickerResponsiveLayoutItem extends IChatInputPickerResponsiveState {
+	readonly id?: string;
 	readonly element: HTMLElement | undefined;
 	/** Let the item's CSS minimum width determine when its expanded form compacts. */
 	readonly canShrink?: boolean;
@@ -38,38 +40,134 @@ export function isChatInputPickerResponsiveState(candidate: object | undefined):
 		&& typeof candidate.setCompact === 'function';
 }
 
+const enum PickerPresentation {
+	Expanded,
+	Compact,
+	Minimal,
+}
+
+interface IPickerLayoutStep {
+	readonly presentations: readonly PickerPresentation[];
+	readonly width: number;
+}
+
+interface IPickerLayoutMeasurement {
+	readonly items: readonly IChatInputPickerResponsiveLayoutItem[];
+	readonly order: readonly number[];
+	readonly steps: IPickerLayoutStep[];
+}
+
+function getPresentation(item: IChatInputPickerResponsiveLayoutItem): PickerPresentation {
+	return item.isMinimal?.() ? PickerPresentation.Minimal : item.isCompact() ? PickerPresentation.Compact : PickerPresentation.Expanded;
+}
+
+function sameItems(a: readonly IChatInputPickerResponsiveLayoutItem[], b: readonly IChatInputPickerResponsiveLayoutItem[]): boolean {
+	return a.length === b.length && a.every((item, index) =>
+		item.id === b[index].id && item.element === b[index].element && item.canShrink === b[index].canShrink && !!item.setMinimal === !!b[index].setMinimal);
+}
+
+function fit(steps: readonly IPickerLayoutStep[], availableWidth: number): IPickerLayoutStep | undefined {
+	return steps.find(step => step.width <= availableWidth + WIDTH_TOLERANCE);
+}
+
+function withoutDimensions(style: string | null): string {
+	return (style ?? '').split(';').filter(property => !/^\s*(width|height)\s*:/.test(property)).join(';');
+}
+
 /**
- * Compacts a picker lane only when its expanded contents no longer fit the width assigned by its surrounding layout.
+ * Measures presentation thresholds on content changes, then fits the lane without expanding and measuring live pickers on every resize.
  */
 export class ChatInputPickerResponsiveLayout extends Disposable {
 
 	private readonly _mutationObserver: MutationObserver;
+	private readonly _scheduledLayout = this._register(new MutableDisposable());
 	private _isLayouting = false;
+	private _measurement: IPickerLayoutMeasurement | undefined;
+	private _lastLayout: {
+		width: number;
+		items: readonly IChatInputPickerResponsiveLayoutItem[];
+		presentations: readonly PickerPresentation[];
+		compactionEnabled: boolean;
+		overflow: boolean;
+	} | undefined;
 
 	constructor(
 		name: string,
 		private readonly _element: HTMLElement,
 		private readonly _delegate: IChatInputPickerResponsiveLayoutDelegate,
+		resizeObserverCtor?: typeof ResizeObserver,
 	) {
 		super();
 
 		const targetWindow = dom.getWindow(_element);
-		const resizeObserver = this._register(new dom.DisposableResizeObserver(name, () => this.layout(), targetWindow));
-		this._register(resizeObserver.observe(_element));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver(name, entries => {
+			this.layout(entries[0]?.borderBoxSize[0]?.inlineSize);
+		}, targetWindow, { resizeObserverCtor }));
+		this._register(resizeObserver.observe(_element, { box: 'border-box' }));
 
-		this._mutationObserver = new targetWindow.MutationObserver(() => this.layout());
+		this._mutationObserver = new targetWindow.MutationObserver(records => {
+			if (this._hasContentChanges(records)) {
+				this.invalidate();
+			} else {
+				this.scheduleLayout();
+			}
+		});
 		this._observeMutations();
 		this._register(toDisposable(() => this._mutationObserver.disconnect()));
+		this._register(dom.addDisposableListener(targetWindow.document.fonts, 'loadingdone', () => this.invalidate()));
+		this._register(onDidChangeZoomLevel(windowId => {
+			if (windowId === targetWindow.vscodeWindowId) {
+				this.invalidate();
+			}
+		}));
 	}
 
-	layout(): void {
-		if (this._isLayouting || !this._element.isConnected) {
+	/** Coalesces parent layout and content notifications without waiting for resizing to finish. */
+	scheduleLayout(): void {
+		if (!this._store.isDisposed && !this._scheduledLayout.value) {
+			this._scheduledLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this._element), () => this.layout());
+		}
+	}
+
+	/** Call when styles or configuration outside the observed lane change its intrinsic sizes. */
+	invalidate(): void {
+		this._measurement = undefined;
+		this._lastLayout = undefined;
+		this.scheduleLayout();
+	}
+
+	layout(availableWidth?: number): void {
+		if (this._store.isDisposed || this._isLayouting) {
 			return;
 		}
 
-		const availableWidth = this._element.getBoundingClientRect().width;
-		if (availableWidth <= 0) {
+		this._scheduledLayout.clear();
+		if (!this._element.isConnected) {
+			this._measurement = undefined;
+			this._lastLayout = undefined;
 			return;
+		}
+		if (this._hasContentChanges(this._mutationObserver.takeRecords())) {
+			this._measurement = undefined;
+			this._lastLayout = undefined;
+		}
+		availableWidth ??= this._element.getBoundingClientRect().width;
+		if (availableWidth <= 0) {
+			this._measurement = undefined;
+			this._lastLayout = undefined;
+			return;
+		}
+
+		const items = this._delegate.getItems();
+		const compactionEnabled = this._delegate.isCompactionEnabled?.() !== false;
+		const overflow = !!this._delegate.hasOverflow?.();
+		const unchangedItems = this._lastLayout && sameItems(items, this._lastLayout.items)
+			&& items.every((item, index) => getPresentation(item) === this._lastLayout!.presentations[index]);
+		if (unchangedItems && this._lastLayout?.width === availableWidth && this._lastLayout.compactionEnabled === compactionEnabled && this._lastLayout.overflow === overflow) {
+			return;
+		}
+		if (!unchangedItems) {
+			this._measurement = undefined;
 		}
 
 		this._isLayouting = true;
@@ -79,32 +177,74 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				return;
 			}
 
-			const items = this._getVisibleItemBounds()
-				.sort((a, b) => b.bounds.left - a.bounds.left)
-				.map(({ item }) => item);
-			for (const item of items) {
-				item.setMinimal?.(false);
-				item.setCompact(false);
+			const items = this._delegate.getItems();
+			if (this._measurement && !sameItems(items, this._measurement.items)) {
+				this._measurement = undefined;
 			}
-			this._delegate.relayout?.();
-			if (this._delegate.isCompactionEnabled?.() === false) {
+			if (!compactionEnabled) {
+				this._apply(items, items.map(() => PickerPresentation.Expanded));
 				return;
 			}
 
-			for (const item of items) {
-				if (this._fitsAvailableWidth(availableWidth)) {
+			if (!this._measurement) {
+				const order = this._getVisibleItemBounds()
+					.sort((a, b) => b.bounds.left - a.bounds.left)
+					.map(({ item }) => items.findIndex(candidate => candidate.element === item.element));
+				const presentations = items.map(getPresentation);
+				for (const index of order) {
+					presentations[index] = PickerPresentation.Expanded;
+				}
+				this._apply(items, presentations);
+				this._delegate.relayout?.();
+				this._measurement = {
+					items: items.map(item => ({ ...item })), order,
+					steps: [{ presentations, width: this._measurePreferredLayout(items).width }],
+				};
+			}
+
+			const measurement = this._measurement;
+			let fittingStep = fit(measurement.steps, availableWidth);
+			while (!fittingStep) {
+				const presentations = [...measurement.steps[measurement.steps.length - 1].presentations];
+				const index = measurement.order.find(index => presentations[index] < (items[index].setMinimal ? PickerPresentation.Minimal : PickerPresentation.Compact));
+				if (index === undefined) {
 					break;
 				}
-				item.setCompact(true);
+				presentations[index]++;
+				this._apply(items, presentations);
+				const step = { presentations, width: this._measurePreferredLayout(items).width };
+				measurement.steps.push(step);
+				fittingStep = fit([step], availableWidth);
+			}
+			const step = fittingStep ?? measurement.steps[measurement.steps.length - 1];
+			this._apply(items, step.presentations);
+			if (!fittingStep) {
 				this._delegate.relayout?.();
-				if (!this._fitsAvailableWidth(availableWidth)) {
-					item.setMinimal?.(true);
-					this._delegate.relayout?.();
-				}
 			}
 		} finally {
+			const items = this._delegate.getItems();
+			this._lastLayout = { width: availableWidth, items: items.map(item => ({ ...item })), presentations: items.map(getPresentation), compactionEnabled, overflow: !!this._delegate.hasOverflow?.() };
 			this._observeMutations();
 			this._isLayouting = false;
+		}
+	}
+
+	private _apply(items: readonly IChatInputPickerResponsiveLayoutItem[], presentations: readonly PickerPresentation[]): void {
+		let changed = false;
+		for (const [index, item] of items.entries()) {
+			const minimal = presentations[index] === PickerPresentation.Minimal;
+			const compact = presentations[index] !== PickerPresentation.Expanded;
+			if (item.setMinimal && item.isMinimal?.() !== minimal) {
+				item.setMinimal(minimal);
+				changed = true;
+			}
+			if (item.isCompact() !== compact) {
+				item.setCompact(compact);
+				changed = true;
+			}
+		}
+		if (changed) {
+			this._delegate.relayout?.();
 		}
 	}
 
@@ -136,8 +276,12 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 	private _setHiddenItemsCompact(): void {
 		for (const item of this._delegate.getItems()) {
 			if (!item.element?.isConnected) {
-				item.setCompact(true);
-				item.setMinimal?.(true);
+				if (!item.isCompact()) {
+					item.setCompact(true);
+				}
+				if (item.setMinimal && !item.isMinimal?.()) {
+					item.setMinimal(true);
+				}
 			}
 		}
 	}
@@ -153,87 +297,72 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		return items;
 	}
 
-	private _fitsAvailableWidth(availableWidth: number): boolean {
-		const laneBounds = this._element.getBoundingClientRect();
-		const itemBounds = this._getVisibleItemBounds()
-			.sort((a, b) => a.bounds.left - b.bounds.left);
-		if (this._delegate.usePreferredWidth) {
-			return this._measurePreferredLayout(itemBounds.map(({ item }) => item)).width <= availableWidth + WIDTH_TOLERANCE;
-		}
-		for (let index = 0; index < itemBounds.length; index++) {
-			const { bounds } = itemBounds[index];
-			if (bounds.left < laneBounds.left - WIDTH_TOLERANCE || bounds.right > laneBounds.right + WIDTH_TOLERANCE) {
-				return false;
-			}
-			if (index > 0 && bounds.left < itemBounds[index - 1].bounds.right - WIDTH_TOLERANCE) {
-				return false;
-			}
-		}
-
-		const preferredLayout = this._measurePreferredLayout(itemBounds.map(({ item }) => item));
-		if (!itemBounds.some(({ item }) => item.canShrink) && preferredLayout.width > availableWidth + WIDTH_TOLERANCE) {
-			return false;
-		}
-		for (const { item, bounds } of itemBounds) {
-			const preferredWidth = preferredLayout.itemWidths.get(item);
-			if (!item.canShrink && preferredWidth !== undefined && bounds.width < preferredWidth - WIDTH_TOLERANCE) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private _measurePreferredLayout(items: readonly IChatInputPickerResponsiveLayoutItem[]): { width: number; itemWidths: ReadonlyMap<IChatInputPickerResponsiveLayoutItem, number> } {
+	private _measurePreferredLayout(items: readonly IChatInputPickerResponsiveLayoutItem[]): { width: number } {
 		const parent = this._element.parentElement;
 		if (!parent) {
-			return { width: 0, itemWidths: new Map() };
+			return { width: 0 };
 		}
 
-		const measurementHost = dom.$('.chat-input-picker-measurement-host');
-		measurementHost.style.position = 'fixed';
-		measurementHost.style.inset = '0 auto auto 0';
-		measurementHost.style.width = '0';
-		measurementHost.style.height = '0';
-		measurementHost.style.overflow = 'hidden';
-		measurementHost.style.contain = 'strict';
-		measurementHost.style.visibility = 'hidden';
-		measurementHost.style.pointerEvents = 'none';
-
 		const measurement = this._element.cloneNode(true) as HTMLElement;
+		measurement.classList.add('chat-input-picker-measurement');
 		measurement.setAttribute('aria-hidden', 'true');
 		measurement.setAttribute('inert', '');
-		measurement.style.position = 'absolute';
-		measurement.style.left = '0';
-		measurement.style.top = '0';
+		measurement.style.position = 'fixed';
+		measurement.style.inset = '0 auto auto 0';
 		measurement.style.width = 'max-content';
 		measurement.style.minWidth = 'max-content';
 		measurement.style.maxWidth = 'none';
 		measurement.style.flex = 'none';
-		measurementHost.appendChild(measurement);
+		measurement.style.contain = 'layout style paint';
+		measurement.style.visibility = 'hidden';
+		measurement.style.pointerEvents = 'none';
 
-		const measuredItems = new Map<IChatInputPickerResponsiveLayoutItem, HTMLElement>();
+		const minimum = measurement.cloneNode(true) as HTMLElement;
+		const measuredItems: { item: IChatInputPickerResponsiveLayoutItem; preferred: HTMLElement; minimum: HTMLElement }[] = [];
 		for (const item of items) {
 			const path = item.element ? this._getElementPath(item.element) : undefined;
 			const measuredItem = path ? this._getElementAtPath(measurement, path) : undefined;
-			if (measuredItem) {
+			const minimumItem = path ? this._getElementAtPath(minimum, path) : undefined;
+			if (measuredItem && minimumItem) {
 				measuredItem.style.flex = 'none';
 				measuredItem.style.width = 'max-content';
 				measuredItem.style.minWidth = 'max-content';
 				measuredItem.style.maxWidth = 'none';
-				measuredItems.set(item, measuredItem);
+				if (item.canShrink && !this._delegate.usePreferredWidth) {
+					minimumItem.style.flexBasis = '0';
+					minimumItem.style.width = 'min-content';
+				} else {
+					minimumItem.style.flexShrink = '0';
+				}
+				measuredItems.push({ item, preferred: measuredItem, minimum: minimumItem });
 			}
 		}
 
-		// Prepare the detached clone before reading any geometry to avoid a layout per picker.
-		parent.appendChild(measurementHost);
+		// Attach prepared clones as siblings so ancestor-dependent sizing rules still apply.
+		parent.append(measurement, minimum);
 		try {
-			const itemWidths = new Map<IChatInputPickerResponsiveLayoutItem, number>();
-			for (const [item, measuredItem] of measuredItems) {
-				itemWidths.set(item, measuredItem.getBoundingClientRect().width);
+			if (this._delegate.usePreferredWidth) {
+				return { width: measurement.getBoundingClientRect().width };
 			}
-			return { width: measurement.getBoundingClientRect().width, itemWidths };
+			const laneBounds = minimum.getBoundingClientRect();
+			let width = laneBounds.width;
+			const bounds = measuredItems
+				.filter(item => item.minimum.getClientRects().length > 0)
+				.map(({ item, minimum, preferred }) => ({ item, bounds: minimum.getBoundingClientRect(), preferredWidth: preferred.getBoundingClientRect().width }))
+				.sort((a, b) => a.bounds.left - b.bounds.left);
+			for (let index = 0; index < bounds.length; index++) {
+				const current = bounds[index];
+				if (current.bounds.left < laneBounds.left - WIDTH_TOLERANCE
+					|| (index > 0 && current.bounds.left < bounds[index - 1].bounds.right - WIDTH_TOLERANCE)
+					|| (!current.item.canShrink && current.bounds.width < current.preferredWidth - WIDTH_TOLERANCE)) {
+					return { width: Number.POSITIVE_INFINITY };
+				}
+				width = Math.max(width, current.bounds.right - laneBounds.left);
+			}
+			return { width };
 		} finally {
-			measurementHost.remove();
+			measurement.remove();
+			minimum.remove();
 		}
 	}
 
@@ -270,10 +399,44 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 	private _observeMutations(): void {
 		this._mutationObserver.observe(this._element, {
 			attributes: true,
-			attributeFilter: ['class', 'hidden', 'style'],
+			attributeOldValue: true,
+			attributeFilter: ['class', 'hidden', 'style', 'disabled', 'aria-disabled', 'aria-label'],
 			characterData: true,
 			childList: true,
 			subtree: true,
 		});
+	}
+
+	private _hasContentChanges(records: readonly MutationRecord[]): boolean {
+		const attributes = new Map<Node, Map<string, string | null>>();
+		for (const record of records) {
+			if (record.type !== 'attributes') {
+				return true;
+			}
+			const name = record.attributeName!;
+			let targetAttributes = attributes.get(record.target);
+			if (!targetAttributes) {
+				attributes.set(record.target, targetAttributes = new Map());
+			}
+			if (!targetAttributes.has(name)) {
+				targetAttributes.set(name, record.oldValue);
+			}
+		}
+		for (const [target, changes] of attributes) {
+			if (!dom.isHTMLElement(target)) {
+				continue;
+			}
+			for (const [name, oldValue] of changes) {
+				const value = target.getAttribute(name);
+				if (target === this._element && name === 'style') {
+					if (withoutDimensions(value) !== withoutDimensions(oldValue)) {
+						return true;
+					}
+				} else if (value !== oldValue) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 }
