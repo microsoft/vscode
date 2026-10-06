@@ -461,6 +461,11 @@ const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
 const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
+/** The runtime's `session.info` and `session.warning` category for preparing plugins required by the organization. */
+const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
+
+/** Sources of the session activity, highest precedence first. */
+type CopilotActivitySource = 'fusion' | 'command' | 'managedPlugins' | 'intent';
 
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
@@ -1366,7 +1371,7 @@ export class CopilotAgentSession extends Disposable {
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
 	private _hasFusionRootTurnBoundary = false;
-	private readonly _activities: Record<'intent' | 'command' | 'fusion', string | undefined> = { intent: undefined, command: undefined, fusion: undefined };
+	private readonly _activities: Record<CopilotActivitySource, string | undefined> = { intent: undefined, command: undefined, fusion: undefined, managedPlugins: undefined };
 	private _publishedActivity: string | undefined;
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
@@ -6388,6 +6393,8 @@ export class CopilotAgentSession extends Disposable {
 			this._dropLateRootTurnEvents = false;
 			// First SDK event for the loop: promote the turn out of `pending`.
 			this._currentTurn.value?.markRunning();
+			// The runtime admits the message only after preparing required plugins.
+			this._publishActivity('managedPlugins', undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
 				this._beginSteeringTurn(steering);
@@ -8317,9 +8324,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
-	private _publishActivity(source: 'intent' | 'command' | 'fusion', activity: string | undefined): void {
+	private _publishActivity(source: CopilotActivitySource, activity: string | undefined): void {
 		this._activities[source] = activity;
-		const effectiveActivity = this._activities.fusion ?? this._activities.command ?? this._activities.intent;
+		const effectiveActivity = this._activities.fusion ?? this._activities.command ?? this._activities.managedPlugins ?? this._activities.intent;
 		if (effectiveActivity !== this._publishedActivity) {
 			this._publishedActivity = effectiveActivity;
 			this._emitAction({ type: ActionType.SessionActivityChanged, activity: effectiveActivity });
@@ -8329,7 +8336,52 @@ export class CopilotAgentSession extends Disposable {
 	private _clearActivity(): void {
 		this._activities.intent = undefined;
 		this._activities.command = undefined;
+		this._activities.managedPlugins = undefined;
 		this._publishActivity('fusion', undefined);
+	}
+
+	/**
+	 * Returns the current turn while the runtime has not yet admitted its
+	 * message. The runtime prepares plugins required by the organization
+	 * before admitting a message, but also before custom agent requests that
+	 * can arrive outside a turn; only preparation a turn waits on belongs in
+	 * its transcript.
+	 */
+	private _getManagedPluginAdmissionTurn(): CopilotTurn | undefined {
+		const turn = this._currentTurn.value;
+		return turn?.isPending ? turn : undefined;
+	}
+
+	/** Shows the runtime's plugin preparation message as the waiting turn's activity. */
+	private _reportManagedPluginProgress(message: string): void {
+		if (this._getManagedPluginAdmissionTurn()) {
+			this._publishActivity('managedPlugins', message);
+		}
+	}
+
+	/**
+	 * Ends the plugin preparation activity and adds the runtime's failure to
+	 * the waiting turn. The runtime continues the turn without the plugins it
+	 * could not prepare.
+	 */
+	private _reportManagedPluginFailure(message: string): void {
+		this._publishActivity('managedPlugins', undefined);
+		const turn = this._getManagedPluginAdmissionTurn();
+		if (!turn) {
+			return;
+		}
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: turn.id,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: message,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			},
+		});
 	}
 
 	private _emitFusionProgress(update: ICopilotFusionProgressUpdate, trustedRootTurn = false): void {
@@ -8753,15 +8805,21 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const message = `[Copilot:${sessionId}] [${e.data.infoType}]: ${e.data.message}`;
 			const otelData = new OtelData(attributes);
-			if (e.data.infoType === 'mcp') {
+			if (e.data.infoType === 'mcp' || e.data.infoType === MANAGED_PLUGINS_EVENT_TYPE) {
 				this._logService.info(message, otelData);
 			} else {
 				this._logService.trace(message, otelData);
+			}
+			if (e.data.infoType === MANAGED_PLUGINS_EVENT_TYPE && !e.agentId) {
+				this._reportManagedPluginProgress(e.data.message);
 			}
 		}));
 
 		this._register(wrapper.onSessionWarning(e => {
 			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
+			if (e.data.warningType === MANAGED_PLUGINS_EVENT_TYPE && !e.agentId) {
+				this._reportManagedPluginFailure(e.data.message);
+			}
 		}));
 
 		this._register(wrapper.onSessionModelChange(e => {
@@ -8856,6 +8914,8 @@ export class CopilotAgentSession extends Disposable {
 				if (this._resumingTurnAwaitingProviderStart === turn) {
 					this._resumingTurnAwaitingProviderStart = undefined;
 				}
+				// Continuations have no user-message echo to end plugin preparation.
+				this._publishActivity('managedPlugins', undefined);
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
 			this._resumeSubagentForEvent(e);

@@ -14238,6 +14238,81 @@ Use the attached image as context.
 			});
 		}
 
+		suite('managed plugin preparation', () => {
+			const installing = 'Installing plugins required by your organization admin…';
+
+			function getActivity(signals: readonly AgentSignal[]): (string | undefined)[] {
+				return getActions(signals).flatMap(action => action.type === ActionType.SessionActivityChanged ? [action.activity] : []);
+			}
+
+			test('shows progress only while a turn waits for the runtime to admit its message', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'Before the turn' });
+				session.resetTurnState('turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'From a subagent' }, { agentId: 'agent-1' });
+				mockSession.fire('session.info', { infoType: 'mcp', message: 'Not plugin preparation' });
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'Initializing chat using settings required by your organization admin…' });
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('user.message', { content: 'Review my staged changes' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: 'After admission' });
+
+				assert.deepStrictEqual(getActivity(signals), [
+					'Initializing chat using settings required by your organization admin…',
+					installing,
+					undefined,
+				]);
+			});
+
+			for (const ending of ['turn start', 'abort', 'idle', 'reset'] as const) {
+				test(`${ending} ends the progress`, async () => {
+					const { session, mockSession, signals } = await createAgentSession(disposables);
+					session.resetTurnState('turn-1');
+					mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+					switch (ending) {
+						case 'turn start':
+							mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+							break;
+						case 'abort':
+							mockSession.fire('abort', { reason: 'user_initiated' });
+							break;
+						case 'idle':
+							mockSession.fire('session.idle', {});
+							break;
+						case 'reset':
+							session.resetTurnState('turn-2');
+							break;
+					}
+
+					assert.deepStrictEqual(getActivity(signals), [installing, undefined]);
+				});
+			}
+
+			test('reports a failure as a warning in the waiting turn and ends the progress', async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const failure = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. security-guard@contoso: network error';
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'Before the turn' });
+				session.resetTurnState('turn-1');
+				mockSession.fire('session.info', { infoType: 'managed_plugins', message: installing });
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'From a subagent' }, { agentId: 'agent-1' });
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: failure });
+				mockSession.fire('user.message', { content: 'Review my staged changes' } as SessionEventPayload<'user.message'>['data']);
+				mockSession.fire('session.warning', { warningType: 'managed_plugins', message: 'After admission' });
+
+				assert.deepStrictEqual({
+					activity: getActivity(signals),
+					warnings: getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+						? [{ turnId: action.turnId, content: action.part.content, meta: readAgentSystemNotificationMeta(action.part) }] : []),
+				}, {
+					activity: [installing, undefined],
+					warnings: [{
+						turnId: 'turn-1',
+						content: failure,
+						meta: { kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+					}],
+				});
+			});
+		});
+
 		test('Fusion phase events surface milestones and clear live activity on completion', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('fusion-turn');

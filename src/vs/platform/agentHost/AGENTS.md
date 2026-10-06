@@ -485,6 +485,8 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 Chronicle commands and subcommands come from the SDK command catalog and execute through `rpc.commands.invoke`; agent-prompt results retain the SDK's `displayPrompt` when sent so history shows the command rather than its expanded instructions. The SDK owns Chronicle indexing and retrieval.
 
+The runtime prepares plugins required by the organization before it admits a message, reporting progress as `session.info` and failures as `session.warning` with the `managed_plugins` type. While the current turn is still pending, `CopilotAgentSession` shows the progress message as the session activity and adds a failure as a warning-severity `ManagedPluginPreparationFailure` system notification. The root `user.message` echo, root `assistant.turn_start`, a failure, or the end of the turn clears that activity. The runtime sends no completion event or structured plugin list, so the runtime's English text is shown as is. Events outside a pending turn, such as preparation started by custom agent selection, are only logged.
+
 ### Codex (`node/codex/codexAgent.ts`)
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
