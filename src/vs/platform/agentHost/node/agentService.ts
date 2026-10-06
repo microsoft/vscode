@@ -4057,9 +4057,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			return registeredSession;
 		}))).filter((registeredSession): registeredSession is IRegisteredSession => registeredSession !== undefined);
+		const catalogReadStartedAt = Date.now();
 		const centralRead: AgentHostCatalogListManyResult = this._isSessionCatalogEnabled()
 			? await this._catalogListReader.readMany(catalogCandidates)
 			: { results: catalogCandidates.map((): AgentHostCatalogListResult => ({ eligible: false, chatBacking: false, detail: 'session catalog disabled' })) };
+		const catalogReadPhaseMs = Date.now() - catalogReadStartedAt;
 		if (centralRead.bulkReadError) {
 			this._reportCatalogBulkReadFailure(centralRead);
 		}
@@ -4280,7 +4282,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// rows each cost a provider round-trip plus session-database reads. The
 		// storage-access deltas are the machine-independent measure of that cost.
 		const storageAccesses = this._storageAccessCounts();
-		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (catalog ${this._isSessionCatalogEnabled() ? 'enabled' : 'disabled'}, ${catalogServed} catalog-served, ${providerFallback} provider fallback, resolve ${resolvePhaseMs}ms, ${storageAccesses.opens - storageAccessesAtStart.opens} db opens, ${storageAccesses.stats - storageAccessesAtStart.stats} db stats, ${additions.length} state-manager fallback)`;
+		const message = `[AgentService] listSessions computed ${visible.length} of ${total} session(s) for mode '${mode}' in ${duration}ms (catalog ${this._isSessionCatalogEnabled() ? 'enabled' : 'disabled'}, ${catalogServed} catalog-served, ${providerFallback} provider fallback, catalog read ${catalogReadPhaseMs}ms, resolve ${resolvePhaseMs}ms, ${storageAccesses.opens - storageAccessesAtStart.opens} db opens, ${storageAccesses.stats - storageAccessesAtStart.stats} db stats, ${additions.length} state-manager fallback)`;
 		if (duration >= SLOW_LIST_SESSIONS_THRESHOLD_MS) {
 			this._logService.info(message);
 		} else {

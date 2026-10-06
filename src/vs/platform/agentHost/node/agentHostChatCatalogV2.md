@@ -68,6 +68,12 @@ snapshot APIs remain unchanged; individual read-error recovery retains the
 complete snapshot path. The source resolver uses the same public chat projection
 and omits legacy per-chat summary reads and writes when normalized chats are supplied.
 
+The existing `listSessions computed` performance summary retains total duration,
+catalog/provider fallback counts, resolution duration and database opens/stats.
+`catalog read Nms` measures the bulk catalog-reader phase, including bounded row
+recovery if the bulk read fails. Slow-list info logging and normal trace logging
+keep their existing thresholds; no per-session logging is added.
+
 Session synchronization carries the observed catalog revision into the
 aggregate-only upsert. Durable pending replay validates against current
 normalized authority; an obsolete chat projection is rebuilt instead of

@@ -2040,11 +2040,13 @@ suite('AgentService (node dispatcher)', () => {
 					mode: /catalog (enabled|disabled)/.exec(line)?.[1],
 					catalogServed: /(\d+) catalog-served/.exec(line)?.[1],
 					providerFallback: /(\d+) provider fallback/.exec(line)?.[1],
+					hasCatalogReadPhase: /catalog read \d+ms/.test(line),
 					hasResolvePhase: /resolve \d+ms/.test(line),
 				}, {
 					mode: enabled ? 'enabled' : 'disabled',
 					catalogServed: enabled ? '1' : '0',
 					providerFallback: enabled ? '0' : '1',
+					hasCatalogReadPhase: true,
 					hasResolvePhase: true,
 				});
 			});
