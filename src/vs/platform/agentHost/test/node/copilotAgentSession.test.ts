@@ -3413,18 +3413,17 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('projects managed plugin lifecycle messages as chat activity', async () => {
+	test('projects managed plugin progress as chat activity until preparation completes', async () => {
 		const { mockSession, signals } = await createAgentSession(disposables);
 
 		mockSession.fire('session.info', {
 			infoType: 'managed_plugins',
 			message: 'Installing plugins required by your organization admin…',
 		});
-		mockSession.fire('session.warning', {
-			warningType: 'managed_plugins',
-			message: 'Some managed plugins could not be prepared.',
+		mockSession.fire('session.info', {
+			infoType: 'managed_plugins_complete',
+			message: 'Plugins required by your organization admin are ready.',
 		});
-		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
 
 		assert.deepStrictEqual(
 			getActions(signals).filter(action => action.type === ActionType.ChatActivityChanged),
@@ -3435,11 +3434,73 @@ suite('CopilotAgentSession', () => {
 				},
 				{
 					type: ActionType.ChatActivityChanged,
-					activity: 'Some managed plugins could not be prepared.',
+					activity: undefined,
+				},
+			],
+		);
+	});
+
+	test('projects a managed plugin failure as an inline warning for the pending turn', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-managed-plugins');
+
+		mockSession.fire('session.info', {
+			infoType: 'managed_plugins',
+			message: 'Installing plugins required by your organization admin…',
+		});
+		mockSession.fire('session.warning', {
+			warningType: 'managed_plugins',
+			message: 'Some managed plugins could not be prepared.',
+		});
+
+		const lifecycleActions: Array<Record<string, unknown>> = [];
+		for (const action of getActions(signals)) {
+			if (action.type === ActionType.ChatActivityChanged) {
+				lifecycleActions.push({ type: action.type, activity: action.activity });
+			} else if (action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification) {
+				lifecycleActions.push({
+					type: action.type,
+					turnId: action.turnId,
+					content: action.part.content,
+					meta: action.part._meta,
+				});
+			}
+		}
+		assert.deepStrictEqual(
+			lifecycleActions,
+			[
+				{
+					type: ActionType.ChatActivityChanged,
+					activity: 'Installing plugins required by your organization admin…',
+				},
+				{
+					type: ActionType.ChatResponsePart,
+					turnId: 'turn-managed-plugins',
+					content: '',
+					meta: {
+						kind: AgentSystemNotificationKind.ManagedPluginProgress,
+					},
+				},
+				{
+					type: ActionType.ChatResponsePart,
+					turnId: 'turn-managed-plugins',
+					content: '',
+					meta: {
+						kind: AgentSystemNotificationKind.ManagedPluginProgressComplete,
+					},
 				},
 				{
 					type: ActionType.ChatActivityChanged,
 					activity: undefined,
+				},
+				{
+					type: ActionType.ChatResponsePart,
+					turnId: 'turn-managed-plugins',
+					content: 'Some managed plugins could not be prepared.',
+					meta: {
+						kind: AgentSystemNotificationKind.ManagedPluginFailure,
+						severity: AgentSystemNotificationSeverity.Warning,
+					},
 				},
 			],
 		);

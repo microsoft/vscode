@@ -1306,6 +1306,7 @@ export class CopilotAgentSession extends Disposable {
 
 	private readonly _onDidSessionProgress: Emitter<AgentSignal>;
 	private _managedPluginActivityVisible = false;
+	private _managedPluginProgressTurnId: string | undefined;
 	private readonly _sessionLauncher: ICopilotSessionLauncher;
 	/** Last config materialized and pushed, so unchanged turns do no file I/O or RPC. */
 	private _lastAppliedShellInitScripts: string | undefined;
@@ -2633,6 +2634,49 @@ export class CopilotAgentSession extends Disposable {
 		}, undefined, true);
 	}
 
+	private _clearManagedPluginActivity(): void {
+		this._completeManagedPluginProgressForTurn();
+		if (!this._managedPluginActivityVisible) {
+			return;
+		}
+		this._managedPluginActivityVisible = false;
+		this._emitAction({ type: ActionType.ChatActivityChanged, activity: undefined });
+	}
+
+	private _markManagedPluginProgressForPendingTurn(): void {
+		const turn = this._currentTurn.value;
+		if (!this._managedPluginActivityVisible || !turn?.isPending || this._managedPluginProgressTurnId === turn.id) {
+			return;
+		}
+		this._managedPluginProgressTurnId = turn.id;
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: turn.id,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: '',
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgress }),
+			},
+		});
+	}
+
+	private _completeManagedPluginProgressForTurn(): void {
+		const turn = this._currentTurn.value;
+		if (!turn || this._managedPluginProgressTurnId !== turn.id) {
+			return;
+		}
+		this._managedPluginProgressTurnId = undefined;
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: turn.id,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: '',
+				_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgressComplete }),
+			},
+		});
+	}
+
 	/** Emits a reasoning delta, similar to {@link _emitMarkdownDelta} but for reasoning parts. */
 	private _emitReasoningDelta(content: string, parentToolCallId?: string): void {
 		if (parentToolCallId === undefined && this._shouldDropLateRootTurnEvent('assistant.reasoning_delta')) {
@@ -3645,6 +3689,7 @@ export class CopilotAgentSession extends Disposable {
 		if (currentTurn) {
 			currentTurn.messageCharLen = prompt.length;
 		}
+		this._markManagedPluginProgressForPendingTurn();
 		const turn = this._currentTurn.value;
 		this._hostInstructions = hostInstructions;
 		this._pendingSnapshotReminder = this._snapshotReadonlyReminder(attachments);
@@ -8795,14 +8840,34 @@ export class CopilotAgentSession extends Disposable {
 			if (!e.agentId && e.data.infoType === 'managed_plugins') {
 				this._managedPluginActivityVisible = true;
 				this._emitAction({ type: ActionType.ChatActivityChanged, activity: e.data.message });
+				this._markManagedPluginProgressForPendingTurn();
+			} else if (!e.agentId && e.data.infoType === 'managed_plugins_complete') {
+				this._clearManagedPluginActivity();
 			}
 		}));
 
 		this._register(wrapper.onSessionWarning(e => {
 			this._logService.warn(`[Copilot:${sessionId}] ${e.data.message}`, new OtelData({ warningType: e.data.warningType }));
 			if (!e.agentId && e.data.warningType === 'managed_plugins') {
-				this._managedPluginActivityVisible = true;
-				this._emitAction({ type: ActionType.ChatActivityChanged, activity: e.data.message });
+				const turn = this._currentTurn.value;
+				if (turn?.isPending) {
+					this._clearManagedPluginActivity();
+					this._emitAction({
+						type: ActionType.ChatResponsePart,
+						turnId: turn.id,
+						part: {
+							kind: ResponsePartKind.SystemNotification,
+							content: e.data.message,
+							_meta: toAgentSystemNotificationMeta({
+								kind: AgentSystemNotificationKind.ManagedPluginFailure,
+								severity: AgentSystemNotificationSeverity.Warning,
+							}),
+						},
+					});
+				} else {
+					this._managedPluginActivityVisible = true;
+					this._emitAction({ type: ActionType.ChatActivityChanged, activity: e.data.message });
+				}
 			}
 		}));
 
@@ -8894,10 +8959,7 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markProviderTurnStarted();
 			turn?.markRunning();
 			if (!e.agentId) {
-				if (this._managedPluginActivityVisible) {
-					this._managedPluginActivityVisible = false;
-					this._emitAction({ type: ActionType.ChatActivityChanged, activity: undefined });
-				}
+				this._clearManagedPluginActivity();
 				this._dropLateRootTurnEvents = false;
 				if (this._resumingTurnAwaitingProviderStart === turn) {
 					this._resumingTurnAwaitingProviderStart = undefined;

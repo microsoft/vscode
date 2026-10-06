@@ -620,6 +620,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 		}
 		case AgentSystemNotificationKind.ByokToolLimitExceeded:
 			return { kind: 'warning', content: withConfigureToolsLink(markdown.value), keepVisibleWhenCollapsed: true };
+		case AgentSystemNotificationKind.ManagedPluginFailure:
+			return { kind: 'warning', content: markdown, keepVisibleWhenCollapsed: true };
 		case AgentSystemNotificationKind.WorktreeCreationFailure:
 			return meta.severity === AgentSystemNotificationSeverity.Warning
 				? { kind: 'warning', content: markdown }
@@ -677,6 +679,19 @@ function withConfigureToolsLink(hostText: string): MarkdownString {
 
 /** Keep live phase activity visible after its own milestones, but not after answer/tool content. */
 export function getAgentHostActivityProgressId(parts: readonly ResponsePart[]): string | undefined {
+	for (let index = parts.length - 1; index >= 0; index--) {
+		const part = parts[index];
+		if (part.kind !== ResponsePartKind.SystemNotification) {
+			continue;
+		}
+		const kind = readAgentSystemNotificationMeta(part).kind;
+		if (kind === AgentSystemNotificationKind.ManagedPluginProgress) {
+			return `agentHost.chatActivity:managedPlugins:${index}`;
+		}
+		if (kind === AgentSystemNotificationKind.ManagedPluginProgressComplete) {
+			break;
+		}
+	}
 	if (parts.length === 0) {
 		return 'agentHost.chatActivity';
 	}

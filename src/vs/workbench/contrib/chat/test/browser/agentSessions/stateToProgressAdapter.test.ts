@@ -333,6 +333,32 @@ suite('stateToProgressAdapter', () => {
 		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
 	});
 
+	test('managed plugin activity stays visible through pre-send content until completion', () => {
+		const started = {
+			kind: ResponsePartKind.SystemNotification,
+			content: '',
+			_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgress }),
+		} as const;
+		const completed = {
+			kind: ResponsePartKind.SystemNotification,
+			content: '',
+			_meta: toAgentSystemNotificationMeta({ kind: AgentSystemNotificationKind.ManagedPluginProgressComplete }),
+		} as const;
+		const routing = { kind: ResponsePartKind.Reasoning, id: 'routing', content: 'Auto routing task' } as const;
+
+		assert.deepStrictEqual([
+			getAgentHostActivityProgressId([started]),
+			getAgentHostActivityProgressId([started, routing]),
+			getAgentHostActivityProgressId([started, routing, completed]),
+			getAgentHostActivityProgressId([started, completed, started]),
+		], [
+			'agentHost.chatActivity:managedPlugins:0',
+			'agentHost.chatActivity:managedPlugins:0',
+			undefined,
+			'agentHost.chatActivity:managedPlugins:2',
+		]);
+	});
+
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('detects the canonical automatic reply answer', () => {
@@ -3599,6 +3625,23 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result[0], {
 				kind: 'warning',
 				content: new MarkdownString('Worktree creation failed'),
+			});
+		});
+
+		test('produces a persistent warning for managed plugin failures', () => {
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: 'Some managed plugins could not be prepared.',
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+
+			assert.deepStrictEqual(result[0], {
+				kind: 'warning',
+				content: new MarkdownString('Some managed plugins could not be prepared.'),
+				keepVisibleWhenCollapsed: true,
 			});
 		});
 
