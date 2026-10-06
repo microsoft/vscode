@@ -16,26 +16,37 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../common/sessionConfig.js';
 import { getCustomizationsPresentation } from '../../browser/views/sessionsView.js';
-import '../../browser/sessions.contribution.js';
+import { sessionsConfiguration } from '../../browser/sessions.contribution.js';
 
 suite('Sessions sidebar separate navigation', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('registers a user setting backed by the existing experiment', () => {
-		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING];
-		assert.deepStrictEqual({
-			type: property.type,
-			default: property.default,
-			scope: property.scope,
-			experiment: property.experiment,
-			included: property.included,
-		}, {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.WINDOW,
-			experiment: { mode: 'auto', name: 'sessions.list.rearrage' },
-			included: undefined,
-		});
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const alreadyRegistered = registry.getConfigurations().includes(sessionsConfiguration);
+		if (!alreadyRegistered) {
+			registry.registerConfiguration(sessionsConfiguration);
+		}
+		try {
+			const property = registry.getConfigurationProperties()[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING];
+			assert.deepStrictEqual({
+				type: property.type,
+				default: property.default,
+				scope: property.scope,
+				experiment: property.experiment,
+				included: property.included,
+			}, {
+				type: 'boolean',
+				default: false,
+				scope: ConfigurationScope.WINDOW,
+				experiment: { mode: 'auto', name: 'sessions.list.rearrage' },
+				included: undefined,
+			});
+		} finally {
+			if (!alreadyRegistered) {
+				registry.deregisterConfigurations([sessionsConfiguration]);
+			}
+		}
 	});
 
 	test('explicit user values override experiment defaults and resetting restores the default', () => {

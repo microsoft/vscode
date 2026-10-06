@@ -19,7 +19,7 @@ import { SessionsView, SessionsViewId } from './views/sessionsView.js';
 import { AutomationsCustomViewContribution } from './views/automationsView.js';
 import './views/sessionsViewActions.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING } from './views/sessionsList.js';
 import { SessionsMouseNavigationContribution } from './sessionsMouseNavigation.js';
 import './sessionDetailsAction.js';
@@ -62,7 +62,7 @@ const sessionsViewPaneDescriptor: IViewDescriptor = {
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([sessionsViewPaneDescriptor], agentSessionsViewContainer);
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+export const sessionsConfiguration = {
 	id: 'sessions',
 	properties: {
 		[SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING]: {
@@ -147,7 +147,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			},
 		},
 	},
-});
+} satisfies IConfigurationNode;
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(sessionsConfiguration);
 
 registerWorkbenchContribution2(AutomationsCustomViewContribution.ID, AutomationsCustomViewContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(SessionsTitleBarContribution.ID, SessionsTitleBarContribution, WorkbenchPhase.BlockRestore);
