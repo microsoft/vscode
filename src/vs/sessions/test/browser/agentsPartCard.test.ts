@@ -133,28 +133,19 @@ suite('Sessions - Agents Part Card', () => {
 		});
 	});
 
-	test('clips integrated browser contents to the panel-facing and native-facing editor curves', () => {
+	test('sets the integrated browser native-facing corner radius', () => {
 		const { container, card } = createCard(true, true);
 		card.remove();
 		container.style.setProperty('--window-corner-radius', '16px');
 		container.style.setProperty('--vscode-cornerRadius-small', '4px');
 		const grid = append(container, $('.monaco-grid-view'));
 		const editor = append(grid, $('.part.editor'));
-		const browserRoot = append(editor, $('.browser-root'));
-		const browserContainer = append(browserRoot, $('.browser-container'));
+		const browserContainer = append(editor, $('.browser-container'));
 		browserContainer.style.setProperty('--browser-view-container-inset', '3px');
-		browserContainer.style.borderRadius = 'var(--browser-view-corner-radius, var(--vscode-cornerRadius-small)) var(--browser-view-corner-radius, var(--vscode-cornerRadius-small)) var(--browser-view-bottom-right-corner-radius, var(--browser-view-corner-radius, var(--vscode-cornerRadius-small))) var(--browser-view-corner-radius, var(--vscode-cornerRadius-small))';
-		const placeholder = append(browserContainer, $('.browser-placeholder-contents'));
-		placeholder.style.borderRadius = 'inherit';
+		browserContainer.style.width = 'var(--browser-view-bottom-right-corner-radius, var(--vscode-cornerRadius-small))';
 		const radius = (classes: string) => {
 			container.className = `monaco-workbench agent-sessions-workbench ${classes}`;
-			const browserStyle = mainWindow.getComputedStyle(browserContainer);
-			return {
-				topLeft: browserStyle.borderTopLeftRadius,
-				bottomLeft: browserStyle.borderBottomLeftRadius,
-				bottomRight: browserStyle.borderBottomRightRadius,
-				placeholderBottomRight: mainWindow.getComputedStyle(placeholder).borderBottomRightRadius,
-			};
+			return mainWindow.getComputedStyle(browserContainer).width;
 		};
 
 		assert.deepStrictEqual({
@@ -164,11 +155,11 @@ suite('Sessions - Agents Part Card', () => {
 			nativeWindowWithCenteredPanel: radius('mac panel-alignment-center dock-detail-panel'),
 			compact: radius('mac nopanel noauxiliarybar modern-ui-compact'),
 		}, {
-			internalCard: { topLeft: '4px', bottomLeft: '4px', bottomRight: '4px', placeholderBottomRight: '4px' },
-			nativeWindow: { topLeft: '4px', bottomLeft: '4px', bottomRight: '8px', placeholderBottomRight: '8px' },
-			nativeWindowWithDockedDetailPanel: { topLeft: '4px', bottomLeft: '4px', bottomRight: '8px', placeholderBottomRight: '8px' },
-			nativeWindowWithCenteredPanel: { topLeft: '4px', bottomLeft: '4px', bottomRight: '8px', placeholderBottomRight: '8px' },
-			compact: { topLeft: '4px', bottomLeft: '4px', bottomRight: '12px', placeholderBottomRight: '12px' },
+			internalCard: '4px',
+			nativeWindow: '8px',
+			nativeWindowWithDockedDetailPanel: '8px',
+			nativeWindowWithCenteredPanel: '8px',
+			compact: '12px',
 		});
 	});
 

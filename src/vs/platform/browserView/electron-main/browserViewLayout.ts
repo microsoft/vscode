@@ -14,6 +14,8 @@ export interface IBrowserViewNativeLayout {
 export interface IBrowserViewVisualViewport {
 	readonly pageX: number;
 	readonly pageY: number;
+	readonly clientWidth: number;
+	readonly clientHeight: number;
 	readonly scale: number;
 }
 
@@ -41,16 +43,19 @@ export function getBrowserViewNativeLayout(bounds: IBrowserViewBounds): IBrowser
 }
 
 /** Computes the current page viewport before the native view clip is applied. */
-export function getBrowserViewScreenshotClip(viewBounds: IBrowserViewRect, viewport: IBrowserViewVisualViewport, zoomFactor: number): IBrowserViewScreenshotClip {
+export function getBrowserViewScreenshotClip(viewport: IBrowserViewVisualViewport, zoomFactor: number): IBrowserViewScreenshotClip {
 	if (!Number.isFinite(viewport.scale) || viewport.scale <= 0) {
 		throw new Error(`Invalid visual viewport scale: ${viewport.scale}`);
+	}
+	if (!Number.isFinite(viewport.clientWidth) || viewport.clientWidth <= 0 || !Number.isFinite(viewport.clientHeight) || viewport.clientHeight <= 0) {
+		throw new Error(`Invalid visual viewport dimensions: ${viewport.clientWidth}x${viewport.clientHeight}`);
 	}
 
 	return {
 		x: viewport.pageX * zoomFactor,
 		y: viewport.pageY * zoomFactor,
-		width: viewBounds.width / viewport.scale,
-		height: viewBounds.height / viewport.scale,
+		width: viewport.clientWidth * zoomFactor,
+		height: viewport.clientHeight * zoomFactor,
 		scale: 1,
 	};
 }

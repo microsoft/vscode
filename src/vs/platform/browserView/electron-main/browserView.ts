@@ -827,6 +827,10 @@ export class BrowserView extends Disposable {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		if (options?.preservePerCornerClip && (options.screenRect || options.pageRect || options.fullPage)) {
+			throw new Error('preservePerCornerClip is only supported for full-viewport screenshots');
+		}
+
 		if (!this._view.getVisible()) {
 			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
 			this._view.setVisible(true);
@@ -838,9 +842,6 @@ export class BrowserView extends Disposable {
 
 		if (options?.fullPage && !options.screenRect && !options.pageRect) {
 			return this._captureFullPageScreenshot(format, quality);
-		}
-		if (options?.preservePerCornerClip && (options.screenRect || options.pageRect || options.fullPage)) {
-			throw new Error('preservePerCornerClip is only supported for full-viewport screenshots');
 		}
 
 		if (options?.pageRect) {
@@ -904,12 +905,14 @@ export class BrowserView extends Disposable {
 			throw new Error('Page.getLayoutMetrics did not return a cssVisualViewport');
 		}
 		const zoomFactor = this._view.webContents.getZoomFactor();
-		const viewBounds = this._view.getBounds();
+		// The native WebContentsView is composited above the workbench DOM, so CSS cannot clip the live
+		// surface. Capture without changing the viewport; the workbench underlay only fills the corners
+		// removed by the native view's larger uniform radius.
 		const result = await this.debugger.sendCommand('Page.captureScreenshot', {
 			format,
 			...(format === 'jpeg' ? { quality } : {}),
 			captureBeyondViewport: false,
-			clip: getBrowserViewScreenshotClip(viewBounds, viewport, zoomFactor)
+			clip: getBrowserViewScreenshotClip(viewport, zoomFactor)
 		}) as { data: string };
 		return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
 	}
