@@ -2097,6 +2097,20 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, { default: defaultChat, directories: ['file:///default-primary', 'file:///default-secondary'], detail: { providerData: 'default-provider' } });
 		});
 
+		test('explicit Hidden roles preserve absent upstream parent facts without inventing default lineage', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), {
+				...candidate(), privateDescendants: [{ chat: privateChat }],
+			});
+			const [snapshot] = await database.readCatalogSnapshot([session]);
+			const hidden = snapshot.chats.find(chat => chat.chat === privateChat)!;
+			assert.deepStrictEqual({
+				parent: hidden.parentChat, order: hidden.order, interactivity: hidden.metadata?.interactivity,
+				summary: hidden.metadata?.summary,
+			}, { parent: undefined, order: undefined, interactivity: ChatInteractivity.Hidden, summary: 'Private' });
+		});
+
 		test('terminal recovery conflicts for every divergent field and only acknowledges an exact no-op', async () => {
 			database = new AgentHostDatabase(':memory:');
 			await seed();

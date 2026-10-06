@@ -2156,9 +2156,6 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			this._validateChatV2Role(chat.order, chat.metadata);
 			const seen = new Set([chat.chat]);
 			let parent = chat.parentChat;
-			if (chat.order === undefined && parent === undefined) {
-				throw new Error(`Private chat requires a parent: ${chat.chat}`);
-			}
 			while (parent !== undefined) {
 				if (seen.has(parent) || !byUri.has(parent)) {
 					throw new Error(`Chat lineage is cyclic or leaves its owner catalog: ${chat.chat}`);

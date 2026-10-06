@@ -46,6 +46,9 @@ Missing default-chat provider detail and directories can be explicitly enriched
 by the prepared candidate. Preparation must materialize all explicit private
 chats into the verified payload, and supply their parent/storage/provider facts
 before activation.
+Private roles may have no recorded parent; absence is preserved without
+inventing default lineage. Present parent chains must remain within the owner
+catalog and must not be cyclic.
 
 `candidate.deletedChats` carries bounded explicit legacy deletion evidence:
 both the title and title-source fields must be present and empty. Activation
