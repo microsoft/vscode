@@ -233,10 +233,10 @@ suite('Notification telemetry contract', () => {
 	test('GDPR classifications mark every numeric and boolean field as a measurement and no string field', () => {
 		type CheckMeasurements<E, C> = {
 			[K in keyof E]-?: K extends keyof C
-				? NonNullable<E[K]> extends number | boolean
-					? C[K] extends { isMeasurement: true } ? true : never
-					: 'isMeasurement' extends keyof C[K] ? never : true
-				: never;
+			? NonNullable<E[K]> extends number | boolean
+			? C[K] extends { isMeasurement: true } ? true : never
+			: 'isMeasurement' extends keyof C[K] ? never : true
+			: never;
 		};
 		const shown: CheckMeasurements<NotificationShownEvent, NotificationShownClassification> = {
 			origin: true, notificationId: true, extensionId: true, instanceId: true, surface: true, severity: true, hasProgress: true, cancellable: true
