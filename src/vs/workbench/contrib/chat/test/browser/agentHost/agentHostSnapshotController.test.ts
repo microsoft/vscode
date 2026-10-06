@@ -9,6 +9,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
@@ -153,6 +154,39 @@ suite('AgentHostSnapshotController', () => {
 		// Restore before the request → wraps back to the original content.
 		await controller.restoreSnapshot('req-1', undefined);
 		assert.strictEqual(contentMap.get(file), 'original');
+	});
+
+	test('reads and restores distinct opaque snapshots sharing the same display path', async () => {
+		const file = URI.file('/repo/index.html');
+		const before = URI.parse('opaque-content:/a1');
+		const after = URI.parse('opaque-content:/b2');
+		const contentMap = new Map([
+			[toAgentHostContentUri(before, 'local', file).toString(), 'before'],
+			[toAgentHostContentUri(after, 'local', file).toString(), 'after'],
+			[file.toString(), 'after'],
+		]);
+		const controller = createController(store, contentMap);
+		controller.addToolCallEdits('req-1', makeToolCall({
+			toolCallId: 'tc-1',
+			filePath: file.path,
+			beforeURI: before.toString(),
+			afterURI: after.toString(),
+		}));
+
+		const snapshot = await controller.getSnapshotContents('req-1', file, undefined);
+		await controller.undoInteraction();
+		const undone = contentMap.get(file.toString());
+		await controller.redoInteraction();
+
+		assert.deepStrictEqual({
+			snapshot: snapshot?.toString(),
+			undone,
+			redone: contentMap.get(file.toString()),
+		}, {
+			snapshot: 'after',
+			undone: 'before',
+			redone: 'after',
+		});
 	});
 
 	test('requestDisablement reports requests after a checkpoint restore', async () => {

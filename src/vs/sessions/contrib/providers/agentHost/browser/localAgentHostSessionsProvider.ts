@@ -346,7 +346,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
-			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY)
+			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY, options.fileUri)
 			: toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
 	}
 

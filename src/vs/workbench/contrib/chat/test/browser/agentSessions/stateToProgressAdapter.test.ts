@@ -3008,6 +3008,38 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('completedToolCallToEditParts', () => {
+		for (const kind of ['edit', 'rename'] as const) {
+			test(`keeps ${kind} pill snapshots distinct from their displayed file paths`, () => {
+				const beforeFile = 'file:///repo/original.ts';
+				const afterFile = kind === 'rename' ? 'file:///repo/renamed.ts' : beforeFile;
+				const [edit] = completedToolCallToEditParts(createCompletedToolCall({
+					content: [{
+						type: ToolResultContentType.FileEdit,
+						before: { uri: beforeFile, content: { uri: 'opaque-content:/a1' } },
+						after: { uri: afterFile, content: { uri: 'opaque-content:/b2' } },
+					}],
+				}), 'remote');
+
+				assert.deepStrictEqual({
+					kind: edit.editKind,
+					file: edit.uri.path,
+					before: edit.beforeContentUri?.path,
+					after: edit.afterContentUri?.path,
+					beforeContent: edit.beforeContentUri && fromAgentHostUri(edit.beforeContentUri).toString(),
+					afterContent: edit.afterContentUri && fromAgentHostUri(edit.afterContentUri).toString(),
+					distinct: edit.beforeContentUri?.toString() !== edit.afterContentUri?.toString(),
+				}, {
+					kind,
+					file: URI.parse(afterFile).path,
+					before: URI.parse(beforeFile).path,
+					after: URI.parse(afterFile).path,
+					beforeContent: 'opaque-content:/a1',
+					afterContent: 'opaque-content:/b2',
+					distinct: true,
+				});
+			});
+		}
+
 		test('keeps child attribution separate from the edit undo stop', () => {
 			const toolCall = createCompletedToolCall({
 				toolCallId: 'child-patch',
@@ -3917,7 +3949,7 @@ suite('stateToProgressAdapter', () => {
 					uri: URI.file('/workspace/package.json'),
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local', URI.file('/workspace/package.json')),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,

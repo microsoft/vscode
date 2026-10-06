@@ -203,13 +203,70 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 	test('a content ref that is directly resolvable on the local connection stays unwrapped', () => {
 		const file = URI.file('/workspace/test.ts');
 		const remote = URI.from({ scheme: 'vscode-remote', authority: 'wsl+ubuntu', path: '/workspace/test.ts' });
+		const displayFile = URI.file('/repo/test.ts');
 
 		assert.deepStrictEqual({
 			file: toAgentHostContentUri(file, 'local').toString(),
 			remote: toAgentHostContentUri(remote, 'local').toString(),
+			fileWithLabel: toAgentHostContentUri(file, 'local', displayFile).toString(),
+			remoteWithLabel: toAgentHostContentUri(remote, 'local', displayFile).toString(),
 		}, {
 			file: file.toString(),
 			remote: remote.toString(),
+			fileWithLabel: file.toString(),
+			remoteWithLabel: remote.toString(),
+		});
+	});
+
+	test('content refs display file paths and preserve their original addresses after serialization', () => {
+		const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+		const files = [
+			URI.parse('file:///repo/src/index.html'),
+			URI.parse('file:///repo/docs/index.html'),
+			URI.parse('file:///C:/repo/file%20name.ts'),
+		];
+		const wrapped = files.map(file => toAgentHostContentUri(content, 'remote-host', file));
+
+		assert.deepStrictEqual({
+			paths: wrapped.map(uri => uri.path),
+			unique: new Set(wrapped.map(uri => uri.toString())).size,
+			restored: wrapped.map(uri => {
+				const restored = URI.parse(uri.toString());
+				return {
+					contentRef: isAgentHostContentRefUri(restored),
+					content: fromAgentHostUri(restored).toString(),
+				};
+			}),
+		}, {
+			paths: ['/repo/src/index.html', '/repo/docs/index.html', '/C:/repo/file name.ts'],
+			unique: 3,
+			restored: files.map(() => ({ contentRef: true, content: content.toString() })),
+		});
+	});
+
+	test('file display paths preserve pathless content addresses', () => {
+		const content = URI.parse('opaque-content://store?revision=1');
+		const wrapped = toAgentHostContentUri(content, 'remote-host', URI.file('/repo/index.html'));
+
+		assert.deepStrictEqual({
+			path: wrapped.path,
+			content: fromAgentHostUri(URI.parse(wrapped.toString())).toString(),
+		}, {
+			path: '/repo/index.html',
+			content: content.toString(),
+		});
+	});
+
+	test('content refs with matching file paths retain their existing representation', () => {
+		const file = URI.file('/repo/index.html');
+		const content = URI.parse('opaque-content:/repo/index.html');
+
+		assert.deepStrictEqual({
+			local: toAgentHostContentUri(file, 'local', file).toString(),
+			remote: toAgentHostContentUri(content, 'remote-host', file).toString(),
+		}, {
+			local: file.toString(),
+			remote: toAgentHostContentUri(content, 'remote-host').toString(),
 		});
 	});
 
@@ -646,6 +703,36 @@ suite('AgentHostFileSystemProvider - synthetic content schemes', () => {
 			resources: [inner.toString()],
 		});
 	});
+
+	for (const authority of ['remote', 'local']) {
+		test(`reads the original content address when a ${authority} snapshot displays a different file path`, async () => {
+			const provider = disposables.add(new AgentHostFileSystemProvider());
+			const connection = new StubConnection();
+			disposables.add(provider.registerAuthority(authority, connection));
+			const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+			const wrapped = toAgentHostContentUri(content, authority, URI.file('/repo/index.html'));
+
+			const stat = await provider.stat(wrapped);
+			const path = await provider.realpath(wrapped);
+			const bytes = await provider.readFile(wrapped);
+
+			assert.deepStrictEqual({
+				path,
+				readonly: stat.permissions === FilePermission.Readonly,
+				content: VSBuffer.wrap(bytes).toString(),
+				resources: connection.readCalls.map(uri => uri.toString()),
+				resolved: connection.resolveCalls.length,
+				listed: connection.listCalls.length,
+			}, {
+				path: '/repo/index.html',
+				readonly: true,
+				content: 'stub-content',
+				resources: [content.toString()],
+				resolved: 0,
+				listed: 0,
+			});
+		});
+	}
 
 	test('readFile passes the decoded synthetic URI through to the connection', async () => {
 		const { provider, connection } = setup();
