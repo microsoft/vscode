@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import type { CopilotClient } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -13,6 +14,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -31,7 +33,7 @@ suite('SessionCustomizationDiscovery', () => {
 	let workspace: URI;
 	let userHome: URI;
 
-	setup(() => {
+	setup(async () => {
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const memFs = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.inMemory, memFs));
@@ -42,6 +44,8 @@ suite('SessionCustomizationDiscovery', () => {
 
 		workspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 		userHome = URI.from({ scheme: Schemas.inMemory, path: '/home' });
+		await fileService.createFolder(workspace);
+		await fileService.createFolder(userHome);
 	});
 
 	teardown(() => {
@@ -59,6 +63,178 @@ suite('SessionCustomizationDiscovery', () => {
 	// round-trip through `.fsPath` — used by `projectPath` attribution in discovery — matches
 	// on Windows too, where `URI.fsPath` yields backslashes.
 	const inMemoryPathToUri = (path: string) => URI.from({ scheme: Schemas.inMemory, path: path.replace(/\\/g, '/') });
+
+	function createRecordingClient(requests: string[][]): CopilotClient {
+		const record = (request: AgentsDiscoverRequest) => requests.push(request.projectPaths ?? []);
+		return {
+			rpc: {
+				agents: {
+					getDiscoveryPaths: async (request: AgentsDiscoverRequest) => { record(request); return { paths: [] }; },
+					discover: async (request: AgentsDiscoverRequest) => { record(request); return { agents: [] }; },
+				},
+				instructions: {
+					getDiscoveryPaths: async (request: AgentsDiscoverRequest) => { record(request); return { paths: [] }; },
+					discover: async (request: AgentsDiscoverRequest) => { record(request); return { sources: [] }; },
+				},
+				skills: {
+					getDiscoveryPaths: async (request: AgentsDiscoverRequest) => { record(request); return { paths: [] }; },
+					discover: async (request: AgentsDiscoverRequest) => { record(request); return { skills: [] }; },
+				},
+			},
+		} as unknown as CopilotClient;
+	}
+
+	test('skips missing working directories without repeated logs and resumes after recreation', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await fileService.del(workspace);
+		await timeout(250);
+		const messages: string[] = [];
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override debug(message: string): void {
+				messages.push(message);
+			}
+		}());
+		const requests: string[][] = [];
+		const client = createRecordingClient(requests);
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const results = [];
+		for (let i = 0; i < 3; i++) {
+			results.push(await discovery.discover(client, CancellationToken.None));
+		}
+		const beforeRecreation = { results, requests: [...requests], messages: [...messages] };
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => fired.complete()));
+		await fileService.createFolder(workspace);
+		await raceTimeout(fired.p, 500);
+		await discovery.discover(client, CancellationToken.None);
+
+		assert.deepStrictEqual({ beforeRecreation, resumed: fired.isSettled, requests }, {
+			beforeRecreation: {
+				results: [[], [], []],
+				requests: [],
+				messages: [`[SessionCustomizationDiscovery] Skipping missing working directory: ${workspace.toString()}`],
+			},
+			resumed: true,
+			requests: Array.from({ length: 6 }, () => [workspace.fsPath]),
+		});
+	}));
+
+	test('stops SDK discovery after deletion and rebuilds discovery paths after restoration', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const requests: string[][] = [];
+		const client = createRecordingClient(requests);
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		await discovery.discover(client, CancellationToken.None);
+		await timeout(250);
+		let changes = 0;
+		disposables.add(discovery.onDidChange(() => changes++));
+
+		await fileService.del(workspace, { recursive: true });
+		await timeout(250);
+		const deleted = await discovery.discover(client, CancellationToken.None);
+		await seed('/unrelated/file.txt');
+		await timeout(250);
+		const whileMissing = { deleted, requests: requests.length, changes };
+		await fileService.createFolder(workspace);
+		await timeout(250);
+		await discovery.discover(client, CancellationToken.None);
+
+		assert.deepStrictEqual({ whileMissing, requests: requests.length, changes }, {
+			whileMissing: { deleted: [], requests: 6, changes: 1 },
+			requests: 12,
+			changes: 2,
+		});
+	}));
+
+	test('uses existing roots in a partially deleted multi-root workspace', async () => {
+		const secondWorkspace = inMemoryPathToUri('/workspace2');
+		await fileService.createFolder(secondWorkspace);
+		await fileService.del(workspace);
+		const requests: string[][] = [];
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
+		await discovery.discover(createRecordingClient(requests), CancellationToken.None);
+
+		assert.deepStrictEqual(requests, Array.from({ length: 6 }, () => [secondWorkspace.fsPath]));
+	});
+
+	test('recovers when a missing working directory and its parent are recreated separately', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const directory = inMemoryPathToUri('/worktrees/deleted');
+		const requests: string[][] = [];
+		const client = createRecordingClient(requests);
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [directory], userHome, inMemoryPathToUri));
+		await discovery.discover(client, CancellationToken.None);
+		let changes = 0;
+		disposables.add(discovery.onDidChange(() => changes++));
+		await fileService.createFolder(inMemoryPathToUri('/worktrees'));
+		await timeout(250);
+		await discovery.discover(client, CancellationToken.None);
+		await fileService.createFolder(directory);
+		await timeout(250);
+		await discovery.discover(client, CancellationToken.None);
+
+		assert.deepStrictEqual({ changes, requests }, {
+			changes: 2,
+			requests: Array.from({ length: 6 }, () => [directory.fsPath]),
+		});
+	}));
+
+	test('does not treat transient filesystem failures as missing directories', async () => {
+		const messages: string[] = [];
+		const errors: string[] = [];
+		instantiationService.stub(ILogService, new class extends NullLogService {
+			override debug(message: string): void { messages.push(message); }
+			override error(message: string | Error): void { errors.push(String(message)); }
+		}());
+		const requests: string[][] = [];
+		const client = createRecordingClient(requests);
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const stat = stub(fileService, 'stat').rejects(new Error('Transient filesystem failure'));
+		try {
+			await discovery.discover(client, CancellationToken.None);
+		} finally {
+			stat.restore();
+		}
+		await discovery.discover(client, CancellationToken.None);
+
+		assert.deepStrictEqual({ messages, errors, requests }, {
+			messages: [],
+			errors: [`[SessionCustomizationDiscovery] Error during discovery: Transient filesystem failure, projectPaths: ${workspace.fsPath}`],
+			requests: Array.from({ length: 6 }, () => [workspace.fsPath]),
+		});
+	});
+
+	test('preserves user-home discovery for sessions without working directories', async () => {
+		const requests: string[][] = [];
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [], userHome, inMemoryPathToUri));
+		await discovery.discover(createRecordingClient(requests), CancellationToken.None);
+
+		assert.deepStrictEqual(requests, Array.from({ length: 6 }, () => []));
+	});
+
+	test('coalesces file-change bursts and cancels pending refresh on disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await seed('/workspace/.github/hooks/hook.json', '{}');
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		await discovery.discover(createRecordingClient([]), CancellationToken.None);
+		await timeout(250);
+		let changes = 0;
+		disposables.add(discovery.onDidChange(() => changes++));
+		await seed('/workspace/unrelated.txt');
+		await timeout(250);
+		const afterUnrelatedChange = changes;
+		for (let i = 0; i < 5; i++) {
+			await seed('/workspace/.github/hooks/hook.json', JSON.stringify({ i }));
+			await timeout(10);
+		}
+		const duringBurst = changes;
+		await timeout(250);
+		const afterBurst = changes;
+		await seed('/workspace/.github/hooks/hook.json', '{}');
+		await timeout(10);
+		discovery.dispose();
+		await timeout(250);
+
+		assert.deepStrictEqual({ afterUnrelatedChange, duringBurst, afterBurst, afterDisposal: changes }, {
+			afterUnrelatedChange: 0, duringBurst: 0, afterBurst: 1, afterDisposal: 1,
+		});
+	}));
 
 	test('groups discovered customizations by parent folder', async () => {
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
@@ -655,6 +831,7 @@ suite('SessionCustomizationDiscovery', () => {
 
 	test('discover surfaces agents and skills from every working directory in one call', async () => {
 		const secondWorkspace = URI.from({ scheme: Schemas.inMemory, path: '/workspace2' });
+		await fileService.createFolder(secondWorkspace);
 		let agentProjectPaths: string[] | undefined;
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace, secondWorkspace], userHome, inMemoryPathToUri));
 		const client = {
