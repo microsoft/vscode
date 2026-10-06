@@ -112,6 +112,8 @@ Editors must be opened through `IEditorService`. Sessions-specific presentation 
 
 Chat input status-pill composition is owned by the shared workbench `ChatInputPills` and `StandardChatInputPillSources` components. The Agents Window and Agent Host editor/panel surfaces supply observable data adapters and their allowed pill kinds only; ordering, per-kind presentation, visibility, context menus, keyboard behavior, compact layout, and lifecycle rendering must not be reimplemented per surface. Per-kind visibility preferences belong to `ISessionChatPillVisibilityService`; data adapters apply them before supplying pill data and option actions to the shared renderer.
 
+Picker-control visibility is separate from session visibility: inactive sessions can keep their editor and transcript visible while their controls are hidden. The view suspends those controls through `ChatInputPart.setPickerLayoutEnabled`, preserving pending content changes, and resumes their layout when shown; comparison-grid presentation uses the same visibility policy for styling and layout.
+
 Session providers register internal per-session directories as resource label homes. URI labels render as `<home label>/<relative path>`, and breadcrumbs render the same home label as their root segment. Without a matching home formatter, existing URI-label and breadcrumb behavior is unchanged.
 
 ## Custom views

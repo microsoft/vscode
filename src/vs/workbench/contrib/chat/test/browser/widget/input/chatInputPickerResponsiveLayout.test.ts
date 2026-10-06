@@ -574,6 +574,99 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		assert.strictEqual(clone.callCount, 0);
 	});
 
+	for (const hiding of ['visibility', 'opacity'] as const) {
+		test(`suspends all geometry reads for ${hiding}-hidden pickers and reuses thresholds on resume`, async () => {
+			const { lane, items, layout, relayout } = createPickerLane(180, [80, 80, 80]);
+			layout.layout();
+			await waitForLayout();
+			const laneBounds = sinon.spy(lane, 'getBoundingClientRect');
+			const itemBounds = items.map(item => sinon.spy(item.element, 'getBoundingClientRect'));
+			const itemRects = items.map(item => sinon.spy(item.element, 'getClientRects'));
+			const clone = sinon.spy(lane, 'cloneNode');
+			const applications = items.map(item => sinon.spy(item, 'setCompact'));
+			relayout.resetHistory();
+			layout.scheduleLayout();
+			layout.setLayoutEnabled(false);
+			host.style[hiding] = hiding === 'opacity' ? '0' : 'hidden';
+			lane.style.width = '240px';
+			layout.layout(0);
+			layout.layout();
+			layout.scheduleLayout();
+			await waitForLayout();
+			const hidden = {
+				reads: laneBounds.callCount + [...itemBounds, ...itemRects].reduce((sum, spy) => sum + spy.callCount, 0),
+				clones: clone.callCount,
+				applications: applications.map(spy => spy.callCount),
+				relayouts: relayout.callCount,
+			};
+			host.style[hiding] = '';
+			layout.setLayoutEnabled(true);
+			const resumed = items.map(item => item.isCompact());
+			const reads = laneBounds.callCount;
+			layout.setLayoutEnabled(true);
+			assert.deepStrictEqual({
+				hidden, resumed, resumeClones: clone.callCount, repeatedEnableReads: laneBounds.callCount - reads,
+			}, {
+				hidden: { reads: 0, clones: 0, applications: [0, 0, 0], relayouts: 0 },
+				resumed: [false, false, false], resumeClones: 0, repeatedEnableReads: 0,
+			});
+		});
+	}
+
+	test('retains hidden content and style invalidations until resume', async () => {
+		const { lane, items, layout } = createPickerLane(100, [80]);
+		const label = items[0].element.firstElementChild as HTMLElement;
+		label.style.width = 'var(--picker-label-width, 80px)';
+		layout.layout();
+		layout.setLayoutEnabled(false);
+		const clone = sinon.spy(lane, 'cloneNode');
+		const bounds = sinon.spy(lane, 'getBoundingClientRect');
+		label.textContent = 'Changed while hidden';
+		lane.style.setProperty('--picker-label-width', '160px');
+		layout.invalidate();
+		layout.scheduleLayout();
+		await waitForLayout();
+		const hidden = { clones: clone.callCount, reads: bounds.callCount };
+		layout.setLayoutEnabled(true);
+		const afterGrowing = items[0].isCompact();
+		layout.setLayoutEnabled(false);
+		lane.style.setProperty('--picker-label-width', '40px');
+		label.textContent = 'Short';
+		layout.setLayoutEnabled(true);
+		assert.deepStrictEqual({ hidden, afterGrowing, afterShrinking: items[0].isCompact() }, {
+			hidden: { clones: 0, reads: 0 }, afterGrowing: true, afterShrinking: false,
+		});
+	});
+
+	test('uses changed membership and the latest width when resumed', () => {
+		const { lane, items, layout } = createPickerLane(180, [80, 80, 80]);
+		layout.layout();
+		layout.setLayoutEnabled(false);
+		items.shift()!.element.remove();
+		lane.style.width = '160px';
+		layout.setLayoutEnabled(true);
+		const afterRemoval = items.map(item => item.isCompact());
+		layout.setLayoutEnabled(false);
+		lane.style.width = '90px';
+		layout.setLayoutEnabled(true);
+		assert.deepStrictEqual({ afterRemoval, afterShrinking: items.map(item => item.isCompact()) }, {
+			afterRemoval: [false, false], afterShrinking: [true, true],
+		});
+	});
+
+	test('does not resume a disposed picker layout', async () => {
+		const { lane, layout } = createPickerLane(180, [80, 80, 80]);
+		const bounds = sinon.spy(lane, 'getBoundingClientRect');
+		layout.scheduleLayout();
+		layout.setLayoutEnabled(false);
+		layout.dispose();
+		layout.setLayoutEnabled(true);
+		layout.scheduleLayout();
+		layout.layout();
+		await waitForLayout();
+		assert.strictEqual(bounds.callCount, 0);
+	});
+
 	test('does not strand a scheduled layout while detached', async () => {
 		const { lane, items, layout } = createPickerLane(240, [80, 80, 80]);
 		layout.layout();

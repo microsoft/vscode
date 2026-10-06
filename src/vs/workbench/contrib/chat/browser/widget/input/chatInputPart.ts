@@ -744,6 +744,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private _inputPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private readonly _pickerFocusListeners = this._register(new MutableDisposable());
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private _pickerLayoutEnabled = true;
+	private _inputVisible = true;
 
 
 
@@ -2347,12 +2349,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setVisible(visible: boolean): void {
+		const pickerLayoutWasEnabled = this._pickerLayoutEnabled && this._inputVisible;
 		if (visible && !this._notificationHostVisible.get()) {
 			this._inputPickerResponsiveLayout?.invalidate();
 			this._secondaryPickerResponsiveLayout?.invalidate();
 		}
 		this._notificationHostVisible.set(visible, undefined);
+		this._inputVisible = visible;
+		this.updatePickerLayoutEnabled(pickerLayoutWasEnabled);
 		this._onDidChangeVisibility.fire(visible);
+	}
+
+	/** The owner may suspend hidden picker controls without hiding the editor. Re-enable after showing the controls to fit them synchronously. */
+	setPickerLayoutEnabled(enabled: boolean): void {
+		if (this._pickerLayoutEnabled === enabled) {
+			return;
+		}
+		const pickerLayoutWasEnabled = this._pickerLayoutEnabled && this._inputVisible;
+		this._pickerLayoutEnabled = enabled;
+		this.updatePickerLayoutEnabled(pickerLayoutWasEnabled);
+	}
+
+	private updatePickerLayoutEnabled(wasEnabled = true): void {
+		const enabled = this._pickerLayoutEnabled && this._inputVisible;
+		this.inputActionsToolbar?.setResponsiveLayoutEnabled(enabled);
+		this.secondaryToolbar?.setResponsiveLayoutEnabled(enabled);
+		this._inputPickerResponsiveLayout?.setLayoutEnabled(enabled);
+		this._secondaryPickerResponsiveLayout?.setLayoutEnabled(enabled);
+		if (enabled && !wasEnabled && this.options.renderStyle === 'compact') {
+			this.layoutForToolbarChange();
+		}
 	}
 
 	/** If consumers are busy generating the chat input, returns the promise resolved when they finish */
@@ -3850,7 +3876,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (primaryPickerContainer) {
 				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
 			}
-			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
+			if (this._pickerLayoutEnabled && this._inputVisible && this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
 			}
 		}));
@@ -4184,6 +4210,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.themeService.onDidColorThemeChange(invalidatePickerLayout));
 		this._register(this.themeService.onDidProductIconThemeChange(invalidatePickerLayout));
 		this._register(this.configurationService.onDidChangeConfiguration(invalidatePickerLayout));
+		this.updatePickerLayoutEnabled();
 		this._inputPickerResponsiveLayout.scheduleLayout();
 		this._secondaryPickerResponsiveLayout?.scheduleLayout();
 
@@ -5375,7 +5402,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const getToolbarsWidthCompact = () => {
 			const toolbarItemGap = 4;
 			const executeToolbarWidth = this.cachedExecuteToolbarWidth = this.executeToolbar.getItemsWidth();
-			const inputToolbarWidth = this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth();
+			const inputToolbarWidth = this._pickerLayoutEnabled && this._inputVisible
+				? this.cachedInputToolbarWidth = this.inputActionsToolbar.getItemsWidth()
+				: this.cachedInputToolbarWidth ?? 0;
 			const executeToolbarPadding = (this.executeToolbar.getItemsLength() - 1) * toolbarItemGap;
 			const inputToolbarPadding = this.inputActionsToolbar.getItemsLength() ? (this.inputActionsToolbar.getItemsLength() - 1) * toolbarItemGap : 0;
 			const contextUsageWidth = dom.getTotalWidth(this.contextUsageWidgetContainer);

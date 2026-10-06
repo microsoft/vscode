@@ -105,6 +105,8 @@ export class ToolBar extends Disposable {
 	private originalSecondaryActions: ReadonlyArray<IAction> = [];
 	private hiddenActions: IAction[] = [];
 	private minItemsWidth = 0;
+	private responsiveLayoutEnabled = true;
+	private responsiveMinWidthDirty = false;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(private readonly container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
@@ -197,7 +199,7 @@ export class ToolBar extends Disposable {
 			this.element.style.setProperty(ACTION_MIN_WIDTH_VAR, `${this.getConfiguredActionMinWidth()}px`);
 
 			const observer = new ResizeObserver(() => {
-				this.updateActions(this.getAvailableWidth());
+				this.relayout();
 			});
 			observer.observe(this.options.responsiveBehavior?.observedElement ?? this.element);
 			this._store.add(toDisposable(() => observer.disconnect()));
@@ -296,9 +298,24 @@ export class ToolBar extends Disposable {
 	 * (e.g. label text changes) without the toolbar being notified.
 	 */
 	relayout(): void {
-		if (this.options.responsiveBehavior?.enabled) {
+		if (this.responsiveLayoutEnabled && !this._store.isDisposed && this.options.responsiveBehavior?.enabled) {
+			if (this.responsiveMinWidthDirty) {
+				this.updateResponsiveMinWidth();
+				this.responsiveMinWidthDirty = false;
+			}
 			const width = this.getAvailableWidth();
 			this.updateActions(width);
+		}
+	}
+
+	/** Suspends responsive measurements without hiding actions. Re-enabling synchronously fits the latest actions and width. */
+	setResponsiveLayoutEnabled(enabled: boolean): void {
+		if (this.responsiveLayoutEnabled === enabled || this._store.isDisposed) {
+			return;
+		}
+		this.responsiveLayoutEnabled = enabled;
+		if (enabled) {
+			this.relayout();
 		}
 	}
 
@@ -332,35 +349,35 @@ export class ToolBar extends Disposable {
 		if (this.options.responsiveBehavior?.enabled) {
 			// Reset hidden actions
 			this.hiddenActions.length = 0;
+			this.responsiveMinWidthDirty = true;
+			this.relayout();
+		}
+	}
 
-			// Set the minimum width
-			if (this.options.responsiveBehavior.minItems !== undefined) {
-				const itemCount = this.options.responsiveBehavior.minItems;
-				const requiredActions = this.overflowFromStart
-					? this.originalPrimaryActions.slice(Math.max(0, this.originalPrimaryActions.length - itemCount))
-					: this.originalPrimaryActions.slice(0, itemCount);
-				const primaryActionsMinWidth = requiredActions.reduce((total, action) => total + this.getActionMinWidth(action), 0);
+	private updateResponsiveMinWidth(): void {
+		if (this.options.responsiveBehavior?.minItems !== undefined) {
+			const itemCount = this.options.responsiveBehavior.minItems;
+			const requiredActions = this.overflowFromStart
+				? this.originalPrimaryActions.slice(Math.max(0, this.originalPrimaryActions.length - itemCount))
+				: this.originalPrimaryActions.slice(0, itemCount);
+			const primaryActionsMinWidth = requiredActions.reduce((total, action) => total + this.getActionMinWidth(action), 0);
 
-				// Account for overflow menu
-				let overflowWidth = 0;
-				if (
-					this.originalSecondaryActions.length > 0 ||
-					itemCount < this.originalPrimaryActions.length
-				) {
-					overflowWidth = ACTION_MIN_WIDTH + ACTION_PADDING;
-				}
-
-				const separatorWidth = this.options.trailingSeparator && !this.actionBar.isEmpty() ? this.actionBar.getWidth(this.actionBar.length() - 1) + ACTION_PADDING : 0;
-				this.minItemsWidth = primaryActionsMinWidth + overflowWidth + separatorWidth;
-				this.reserveMinWidth(this.minItemsWidth);
-			} else {
-				const minimumActionWidth = this.originalPrimaryActions.length > 0 ? this.getActionMinWidth(this.originalPrimaryActions[0]) : ACTION_MIN_WIDTH + ACTION_PADDING;
-				this.minItemsWidth = 0;
-				this.reserveMinWidth(minimumActionWidth);
+			// Account for overflow menu
+			let overflowWidth = 0;
+			if (
+				this.originalSecondaryActions.length > 0 ||
+				itemCount < this.originalPrimaryActions.length
+			) {
+				overflowWidth = ACTION_MIN_WIDTH + ACTION_PADDING;
 			}
 
-			// Update toolbar actions to fit with container width
-			this.updateActions(this.getAvailableWidth());
+			const separatorWidth = this.options.trailingSeparator && !this.actionBar.isEmpty() ? this.actionBar.getWidth(this.actionBar.length() - 1) + ACTION_PADDING : 0;
+			this.minItemsWidth = primaryActionsMinWidth + overflowWidth + separatorWidth;
+			this.reserveMinWidth(this.minItemsWidth);
+		} else {
+			const minimumActionWidth = this.originalPrimaryActions.length > 0 ? this.getActionMinWidth(this.originalPrimaryActions[0]) : ACTION_MIN_WIDTH + ACTION_PADDING;
+			this.minItemsWidth = 0;
+			this.reserveMinWidth(minimumActionWidth);
 		}
 	}
 

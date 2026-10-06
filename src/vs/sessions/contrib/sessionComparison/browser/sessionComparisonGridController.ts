@@ -17,7 +17,7 @@ import { ISessionsPartService } from '../../../services/sessions/browser/session
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../common/sessionComparison.js';
+import { getComparisonForVisibleSessions, HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, shouldHideInactiveComparisonInputs } from '../common/sessionComparison.js';
 
 const HIDE_INACTIVE_COMPARISON_INPUTS_CLASS = 'session-comparison-hide-inactive-inputs';
 const COMPARISON_GRID_ACTIVE_CLASS = 'session-comparison-grid-active';
@@ -54,14 +54,12 @@ export class SessionComparisonGridController extends Disposable implements IWork
 			const visibleSessions = this.sessionsService.visibleSessions.read(reader);
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const comparisons = this.comparisonService.comparisons.read(reader);
-			this._comparisonGridActive = this._isComparisonGrid(visibleSessions, comparisons);
+			const comparison = getComparisonForVisibleSessions(visibleSessions, comparisons);
+			this._comparisonGridActive = !!comparison;
 			this.layoutService.mainContainer.classList.toggle(COMPARISON_GRID_ACTIVE_CLASS, this._comparisonGridActive);
 			this.layoutService.mainContainer.classList.toggle(
 				HIDE_INACTIVE_COMPARISON_INPUTS_CLASS,
-				hideInactiveInputs.read(reader)
-				&& !screenReaderOptimized.read(reader)
-				&& visibleSessions.length > 2
-				&& this._isAttemptComparisonGrid(visibleSessions, comparisons),
+				shouldHideInactiveComparisonInputs(visibleSessions, comparison, hideInactiveInputs.read(reader), screenReaderOptimized.read(reader)),
 			);
 			if (!this._comparisonGridActive && this._isolatedJudgeSessionId
 				&& (visibleSessions.length !== 1
@@ -131,40 +129,14 @@ export class SessionComparisonGridController extends Disposable implements IWork
 		this._setSidePaneSuppressed(true);
 	}
 
-	private _isComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
-		return this._getComparisonForVisibleSessions(visibleSessions, comparisons) !== undefined;
-	}
-
-	private _isAttemptComparisonGrid(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): boolean {
-		const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
-		return !!comparison && visibleSessions.every(session => comparison.participants.some(participant =>
-			participant.role === SessionComparisonParticipantRole.Attempt
-			&& participant.sessionResource
-			&& isEqual(participant.sessionResource, session!.resource)));
-	}
-
 	private _getJudgeSessionId(session: IActiveSession | undefined, visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): string | undefined {
 		if (!session) {
 			return undefined;
 		}
-		const comparison = this._getComparisonForVisibleSessions(visibleSessions, comparisons);
+		const comparison = getComparisonForVisibleSessions(visibleSessions, comparisons);
 		const participant = comparison?.participants.find(candidate =>
 			candidate.sessionResource && isEqual(candidate.sessionResource, session.resource));
 		return participant?.role === SessionComparisonParticipantRole.Judge ? session.sessionId : undefined;
-	}
-
-	private _getComparisonForVisibleSessions(visibleSessions: readonly (IActiveSession | undefined)[], comparisons: readonly ISessionComparison[]): ISessionComparison | undefined {
-		if (visibleSessions.length <= 1 || visibleSessions.some(session => !session)) {
-			return undefined;
-		}
-		const firstSession = visibleSessions[0]!;
-		// Archived comparisons are history only; they must not drive the comparison layout.
-		const comparison = comparisons.find(candidate => candidate.archivedAt === undefined
-			&& candidate.participants.some(participant => participant.sessionResource && isEqual(participant.sessionResource, firstSession.resource)));
-		return comparison && visibleSessions.every(session => comparison.participants.some(participant =>
-			participant.sessionResource && isEqual(participant.sessionResource, session!.resource)))
-			? comparison
-			: undefined;
 	}
 
 	private _setSidePaneSuppressed(suppressed: boolean): void {

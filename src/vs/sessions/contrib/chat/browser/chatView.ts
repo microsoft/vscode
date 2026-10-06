@@ -44,6 +44,7 @@ import { ChatRequestTextPart } from '../../../../workbench/contrib/chat/common/r
 import { Range } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
@@ -75,6 +76,7 @@ import { ISessionComparison, ISessionComparisonService, SessionComparisonPartici
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { getComparisonForVisibleSessions, HIDE_INACTIVE_COMPARISON_INPUTS_SETTING, shouldHideInactiveComparisonInputs } from '../../sessionComparison/common/sessionComparison.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
@@ -326,6 +328,7 @@ export class ChatView extends AbstractChatView {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
+		@ISessionsService private readonly sessionsService: ISessionsService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -384,6 +387,7 @@ export class ChatView extends AbstractChatView {
 		));
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
+		this._setupPickerLayout();
 		const updateExperimentalComposerLayout = () => {
 			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
 			usesExperimentalComposerLayout.set(enabled);
@@ -509,6 +513,34 @@ export class ChatView extends AbstractChatView {
 			const current = this._currentChatResourceObs.read(reader);
 			const ownsVoice = !hasDraftTarget && (!target || (!!current && isEqual(target, current)));
 			this._voiceInitiatedHereKey.set(active && voiceActive && ownsVoice);
+		}));
+	}
+
+	private _setupPickerLayout(): void {
+		const hideInactiveInputs = observableFromEvent(this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING)),
+			() => this.configurationService.getValue<boolean>(HIDE_INACTIVE_COMPARISON_INPUTS_SETTING));
+		const screenReaderOptimized = observableFromEvent(this,
+			this.accessibilityService.onDidChangeScreenReaderOptimized,
+			() => this.accessibilityService.isScreenReaderOptimized());
+		this._register(autorun(reader => {
+			const visible = this.sessionsService.visibleSessions.read(reader);
+			const comparison = getComparisonForVisibleSessions(visible, this.comparisonService.comparisons.read(reader));
+			const active = this._isActiveObs.read(reader);
+			const enabled = active
+				|| (!!comparison && !shouldHideInactiveComparisonInputs(visible, comparison, hideInactiveInputs.read(reader), screenReaderOptimized.read(reader)));
+			if (!enabled || active) {
+				this._widget.inputPart.setPickerLayoutEnabled(enabled);
+			} else {
+				// Let the grid controller apply comparison visibility before measuring, still before the next paint.
+				let cancelled = false;
+				reader.store.add(toDisposable(() => cancelled = true));
+				queueMicrotask(() => {
+					if (!cancelled) {
+						this._widget.inputPart.setPickerLayoutEnabled(true);
+					}
+				});
+			}
 		}));
 	}
 
