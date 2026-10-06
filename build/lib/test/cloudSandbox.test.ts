@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { suite, test, type TestContext } from 'node:test';
 import { prepareCloudSandbox, finishCloudSandbox } from '../../npm/cloudSandbox.ts';
+import { isExpectedElectronInstalled } from '../electronVersion.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const packages = [
@@ -25,10 +26,61 @@ function fixture(t: TestContext): string {
 	const directory = fs.mkdtempSync(path.join(parent, 'cloud-sandbox-test-'));
 	t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
 	fs.writeFileSync(path.join(directory, '.nvmrc'), '24.18.0\n');
+	fs.writeFileSync(path.join(directory, '.npmrc'), 'target="43.7.7"\nms_build_id="15553055"\n');
 	return directory;
 }
 
 suite('Cloud Sandbox install setup', () => {
+	for (const replacement of ['valid', 'bad-checksum', 'wrong-version']) {
+		test(`repairs a stale Node cache only after replacement validation: ${replacement}`, t => {
+			const root = fixture(t);
+			const nodeDirectory = path.join(root, '.local/share/vscode-cloud-sandbox/node-v24.18.0-linux-x64');
+			const cachedNode = path.join(nodeDirectory, 'bin/node');
+			fs.mkdirSync(path.dirname(cachedNode), { recursive: true });
+			fs.writeFileSync(cachedNode, 'stale');
+			const archive = Buffer.from('replacement archive');
+			const checksum = createHash('sha256').update(archive).digest('hex');
+			const options = {
+				root, home: root, platform: 'linux' as const, arch: 'x64', nodeVersion: '26.0.0',
+				env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+				run: (command: string, args: readonly string[]) => {
+					if (command === 'dpkg-query') {
+						return installedPackages;
+					}
+					if (command === cachedNode) {
+						return 'v22.20.0\n';
+					}
+					if (command === 'curl') {
+						const url = args[args.indexOf('--output') - 1];
+						fs.writeFileSync(args[args.indexOf('--output') + 1], url.endsWith('SHASUMS256.txt')
+							? `${replacement === 'bad-checksum' ? 'invalid' : checksum}  node-v24.18.0-linux-x64.tar.xz\n` : archive);
+					} else if (command === 'tar') {
+						assert.equal(fs.readFileSync(cachedNode, 'utf8'), 'stale');
+						const extracted = path.join(args[args.indexOf('-C') + 1], 'node-v24.18.0-linux-x64/bin');
+						fs.mkdirSync(extracted, { recursive: true });
+						fs.writeFileSync(path.join(extracted, 'node'), 'replacement');
+					} else if (path.basename(command) === 'node') {
+						assert.equal(fs.readFileSync(cachedNode, 'utf8'), 'stale');
+						return replacement === 'wrong-version' ? 'v22.20.0\n' : 'v24.18.0\n';
+					} else {
+						throw new Error(`Unexpected command ${command}`);
+					}
+					return '';
+				},
+			};
+			const message = replacement === 'valid' ? /export PATH=/ : replacement === 'bad-checksum'
+				? /checksum verification failed/ : /downloaded Node.js version does not match/;
+			assert.throws(() => prepareCloudSandbox(options), message);
+			assert.deepStrictEqual({
+				cached: fs.readFileSync(cachedNode, 'utf8'),
+				directories: fs.readdirSync(path.dirname(nodeDirectory)),
+			}, {
+				cached: replacement === 'valid' ? 'replacement' : 'stale',
+				directories: ['node-v24.18.0-linux-x64'],
+			});
+		});
+	}
+
 	test('does nothing outside Linux cloud sandboxes, without touching the filesystem', () => {
 		const run = () => { throw new Error('A local install must not run sandbox commands.'); };
 		for (const options of [
@@ -212,11 +264,47 @@ suite('Cloud Sandbox install setup', () => {
 		]));
 	});
 
-	test('does not report success when browser setup fails', () => {
+	test('does not report success when browser setup fails', t => {
+		const root = fixture(t);
 		assert.throws(() => finishCloudSandbox({
-			platform: 'linux', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+			root, platform: 'linux', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
 			run: () => { throw new Error('Electron download failed'); },
 		}), /Electron download failed/);
+	});
+
+	test('reuses the expected Electron cache offline and refreshes absent or stale versions', t => {
+		const root = fixture(t);
+		const versionFile = path.join(root, '.build/electron/version');
+		fs.mkdirSync(path.dirname(versionFile), { recursive: true });
+		fs.mkdirSync(path.join(root, 'node_modules/playwright'), { recursive: true });
+		fs.writeFileSync(path.join(root, 'node_modules/playwright/package.json'), '{"version":"1.56.0"}');
+		const results = [];
+		for (const version of ['43.7.7', 'v43.7.7\n', '43.7.6', undefined]) {
+			if (version === undefined) {
+				fs.unlinkSync(versionFile);
+			} else {
+				fs.writeFileSync(versionFile, version);
+			}
+			const calls: string[][] = [];
+			finishCloudSandbox({
+				root, platform: 'linux', arch: 'x64', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+				run: (command, args) => {
+					assert.equal(command, 'npm');
+					calls.push([...args]);
+					if (args.includes('electron') && version?.trim().replace(/^v/, '') === '43.7.7') {
+						throw new Error('Cached Electron must not need the network');
+					}
+					return '';
+				},
+			});
+			results.push({ expectedInstalled: isExpectedElectronInstalled(root), calls });
+		}
+		assert.deepStrictEqual(results, [
+			{ expectedInstalled: true, calls: [['exec', '--', 'playwright', 'install', '--with-deps']] },
+			{ expectedInstalled: true, calls: [['exec', '--', 'playwright', 'install']] },
+			{ expectedInstalled: false, calls: [['run', 'electron', '--', 'x64'], ['exec', '--', 'playwright', 'install']] },
+			{ expectedInstalled: false, calls: [['run', 'electron', '--', 'x64'], ['exec', '--', 'playwright', 'install']] },
+		]);
 	});
 
 	test('retries Playwright OS setup after failure rather than caching success', t => {

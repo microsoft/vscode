@@ -8,6 +8,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import path from 'node:path';
+import { isExpectedElectronInstalled } from '../lib/electronVersion.ts';
 
 interface SandboxSetupOptions {
 	env: NodeJS.ProcessEnv;
@@ -114,6 +115,7 @@ export function prepareCloudSandbox(overrides: Partial<SandboxSetupOptions> = {}
 			if (run(path.join(extracted, 'bin', 'node'), ['--version'], true).trim() !== `v${requiredVersion}`) {
 				throw new Error('Cloud Sandbox setup: the downloaded Node.js version does not match .nvmrc.');
 			}
+			fs.rmSync(nodeDirectory, { recursive: true, force: true });
 			fs.renameSync(extracted, nodeDirectory);
 		} finally {
 			fs.rmSync(temporaryDirectory, { recursive: true, force: true });
@@ -133,7 +135,9 @@ export function finishCloudSandbox(overrides: Partial<SandboxSetupOptions> = {})
 		return;
 	}
 	console.log('Cloud Sandbox: preparing Electron and Playwright (use xvfb-run -a for headless GUI commands).');
-	options.run('npm', ['run', 'electron', '--', options.arch]);
+	if (!isExpectedElectronInstalled(options.root)) {
+		options.run('npm', ['run', 'electron', '--', options.arch]);
+	}
 
 	// Browser downloads check their own caches; only repeat apt setup for a new host or Playwright version.
 	const stateFile = path.join(options.root, '.build', 'cloud-sandbox-playwright-deps');
