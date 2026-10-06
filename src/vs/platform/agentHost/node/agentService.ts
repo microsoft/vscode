@@ -3495,7 +3495,8 @@ export class AgentService extends Disposable implements IAgentService {
 				})),
 			],
 		}, shouldSeedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true, database,
-			preserveCentralMetadata ? this._catalogMetadataFallbacks(existingCatalogData) : {}, authoritativeChats);
+			preserveCentralMetadata ? this._catalogMetadataFallbacks(existingCatalogData) : {}, authoritativeChats,
+			snapshot?.authorityVersion === 2 ? snapshot.header?.revision : undefined);
 	}
 
 	private async _readLegacyDefaultChatMetadata(session: URI, source: AgentHostCatalogData | undefined): Promise<IPersistedPeerChat> {
@@ -5782,8 +5783,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._orderSessionChatsForTeardown(session, state?.chats.map(chat => chat.resource) ?? []);
 	}
 
-	private _orderSessionChatsForTeardown(session: URI, chats: readonly string[]): URI[] {
-		const defaultChat = this._defaultChatUri(session);
+	private _orderSessionChatsForTeardown(session: URI, chats: readonly string[], defaultChat = this._defaultChatUri(session)): URI[] {
 		const result: URI[] = [];
 		const seen = new Set<string>();
 		for (const chat of chats) {
@@ -5802,18 +5802,18 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Destructively tears a session down: dispose peer chats first and the
 	 * default chat last, and still visit every chat if one rejects.
 	 */
-	private async _disposeSession(provider: IAgent, session: URI, persistedPeers: readonly IPersistedPeerChat[] | undefined): Promise<readonly URI[]> {
+	private async _disposeSession(provider: IAgent, session: URI, persistedPeers: readonly IPersistedPeerChat[] | undefined, defaultChat: string): Promise<readonly URI[]> {
 		await this._defaultChatBackingWrites.get(session.toString())?.catch(() => { });
 		const state = this._stateManager.getSessionState(session.toString());
 		const catalog = persistedPeers ?? (!state ? await provider.listLegacyChatBackings?.(session) : undefined);
 		const chats = this._orderSessionChatsForTeardown(session, [
 			...(state?.chats.map(chat => chat.resource) ?? []),
 			...(catalog?.map(chat => chat.uri.toString()) ?? []),
-		]);
+		], defaultChat);
 		for (const chat of chats) {
 			const persisted = catalog?.find(entry => isEqual(URI.parse(entry.uri.toString()), chat));
-			if (!this._stateManager.getChatState(chat.toString()) && (isDefaultChatUri(chat) || persisted)) {
-				const providerData = isDefaultChatUri(chat) ? await this._readDefaultChatProviderData(session) : persisted?.providerData;
+			if (!this._stateManager.getChatState(chat.toString()) && (chat.toString() === defaultChat || persisted)) {
+				const providerData = chat.toString() === defaultChat ? await this._readDefaultChatProviderData(session) : persisted?.providerData;
 				await provider.materializeChat(chat, this._chatContext(session, chat), providerData);
 			}
 		}
@@ -6200,7 +6200,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidMaterializeChat missing summary for session: ${sessionKey}`);
 			return;
 		}
-		if (e.chat.toString() !== state.defaultChat) {
+		if (e.chat.toString() !== this._defaultChatUri(session)) {
 			if (!state.chats.some(chat => chat.resource.toString() === e.chat.toString())) {
 				return;
 			}
@@ -6213,7 +6213,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return;
 		}
 		if (e.result) {
-			const write = this._persistDefaultChatBacking({ session, chat: e.result });
+			const write = this._persistDefaultChatBacking({ session, chat: e.result, defaultChat: e.chat });
 			this._defaultChatBackingWrites.set(sessionKey, write);
 			void write.catch(err => this._logService.error(err, `[AgentService] Failed to persist materialized default-chat backing for ${sessionKey}`));
 			const clearWrite = () => {
@@ -6615,6 +6615,11 @@ export class AgentService extends Disposable implements IAgentService {
 			// session state would silently break the moment `deleteSession` below
 			// is reordered ahead of the data deletion.
 			const sessionId = AgentSession.id(session);
+			const [chatCatalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+			if (chatCatalog?.authorityVersion === 2 && !chatCatalog.header?.defaultChatUri) {
+				throw new Error(`Missing normalized default while deleting ${sessionKey}`);
+			}
+			const defaultChat = chatCatalog?.header?.defaultChatUri ?? this._defaultChatUri(session);
 			const persistedPeerChats = await this._peerChatStore.tryRead(session);
 			const configuredWorkingDirectories = [
 				...(this._configurationService.getEffectiveWorkingDirectories(session.toString()) ?? []),
@@ -6657,12 +6662,12 @@ export class AgentService extends Disposable implements IAgentService {
 			let chatsToDelete = this._orderSessionChatsForTeardown(session, [
 				...sessionChats.map(chat => chat.resource),
 				...(persistedPeerChats?.map(chat => chat.uri) ?? []),
-			]);
+			], defaultChat);
 			// Providers may read host-owned session metadata (including workspaceless) during disposal.
 			await this._whenBackgroundCatalogStateWritesIdle(sessionKey);
 			await catalogDeletionFence.whenDrained;
 			if (provider) {
-				chatsToDelete = [...await this._disposeSession(provider, session, persistedPeerChats)];
+				chatsToDelete = [...await this._disposeSession(provider, session, persistedPeerChats, defaultChat)];
 			}
 			if (!isEphemeral) {
 				await this._retryRegistryMutation(
@@ -8588,7 +8593,8 @@ export class AgentService extends Disposable implements IAgentService {
 		let adoption: IAgentChatAdoptionResult = { adopted: false, eligible: false };
 		if (!external && migrateLegacyEnabled && agent.ensureChatAdopted) {
 			try {
-				const defaultChat = URI.parse(this._defaultChatUri(session));
+				const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionStr]);
+				const defaultChat = URI.parse(catalog?.header?.defaultChatUri ?? this._defaultChatUri(session));
 				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
@@ -8889,12 +8895,12 @@ export class AgentService extends Disposable implements IAgentService {
 			? await agent.recoverLegacyChat?.(defaultChatUri, chatContext)
 			: undefined;
 		if (recoveredDefaultChat?.providerData !== undefined) {
-			await this._persistDefaultChatBacking({ session, chat: recoveredDefaultChat });
+			await this._persistDefaultChatBacking({ session, chat: recoveredDefaultChat, defaultChat: defaultChatUri });
 		}
 		const providerData = defaultChatProviderData ?? recoveredDefaultChat?.providerData;
 		const materializedDefaultChat = await agent.materializeChat(defaultChatUri, chatContext, providerData);
 		if (providerData === undefined && materializedDefaultChat?.providerData !== undefined) {
-			await this._persistDefaultChatBacking({ session, chat: materializedDefaultChat });
+			await this._persistDefaultChatBacking({ session, chat: materializedDefaultChat, defaultChat: defaultChatUri });
 		}
 		if (providerData === undefined && materializedDefaultChat?.providerData === undefined) {
 			this._logService.warn(`[AgentService] Restoring default chat ${defaultChatUri.toString()} with no persisted or recovered provider backing (agent=${agent.id})`);
@@ -9564,8 +9570,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] onDidChangeChatData for malformed chat URI: ${e.chat.toString()}`);
 			return;
 		}
-		if (isDefaultChatUri(e.chat)) {
-			void this._persistDefaultChatBacking({ session: URI.parse(sessionStr), chat: e })
+		if (e.chat.toString() === this._defaultChatUri(sessionStr)) {
+			void this._persistDefaultChatBacking({ session: URI.parse(sessionStr), chat: e, defaultChat: e.chat })
 				.catch(err => this._logService.error(err, `[AgentService] Failed to persist default-chat backing for ${e.chat.toString()}`));
 			return;
 		}
@@ -9705,9 +9711,9 @@ export class AgentService extends Disposable implements IAgentService {
 	 * attempt so creation can roll back instead of reporting a session whose
 	 * concrete backing cannot be restored.
 	 */
-	private async _persistDefaultChatBacking(created: IAgentCreateSessionResult & { readonly defaultChat?: URI }): Promise<void> {
+	private async _persistDefaultChatBacking(created: IAgentCreateSessionResult & { readonly defaultChat: URI }): Promise<void> {
 		const providerData = created.chat?.providerData;
-		const defaultChat = created.defaultChat ?? URI.parse(this._defaultChatUri(created.session));
+		const defaultChat = created.defaultChat;
 		let providerDataError: Error | undefined;
 		if (providerData !== undefined) {
 			try {

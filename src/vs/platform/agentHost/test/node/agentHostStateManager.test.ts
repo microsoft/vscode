@@ -571,6 +571,33 @@ suite('AgentHostStateManager', () => {
 		assert.strictEqual(notifications[0].type, NotificationType.SessionRemoved);
 	});
 
+	for (const cleanup of ['delete', 'retract', 'unpublish', 'restore'] as const) {
+		test(`eviction retains the physical default independently of routing until ${cleanup}`, () => {
+			const physical = buildChatUri(sessionUri, 'advertised-default');
+			const peer = buildDefaultChatUri(sessionUri);
+			manager.createSession({ ...makeSessionSummary(), defaultChat: physical });
+			manager.addChat(sessionUri, peer);
+			manager.dispatchServerAction(sessionUri, { type: ActionType.SessionDefaultChatChanged, defaultChat: peer });
+			manager.removeSession(sessionUri);
+			const evicted = {
+				physical: manager.getDefaultChatUri(sessionUri),
+				routing: manager.getSurfacedSessionSummary(sessionUri)?.defaultChat,
+			};
+			if (cleanup === 'delete') {
+				manager.deleteSession(sessionUri);
+			} else if (cleanup === 'retract') {
+				manager.retractSurfacedSession(sessionUri);
+			} else if (cleanup === 'unpublish') {
+				manager.setSessionSummaryPublished(sessionUri, false);
+			} else {
+				manager.restoreSession({ ...makeSessionSummary(), defaultChat: peer }, []);
+			}
+			assert.deepStrictEqual({ evicted, after: manager.getDefaultChatUri(sessionUri) }, {
+				evicted: { physical, routing: peer }, after: peer,
+			});
+		});
+	}
+
 	test('deleteSession clears parent and subagent annotations', () => {
 		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
 		const parentAnnotations = buildAnnotationsUri(sessionUri);

@@ -258,6 +258,7 @@ export class AgentHostStateManager extends Disposable {
 	 * `root/sessionSummaryChanged`.
 	 */
 	private readonly _sessionStates = new Map<string, ISessionEntry>();
+	private readonly _evictedDefaultChatUris = new Map<string, URI>();
 	private readonly _sessionSummaryChats = new WeakMap<readonly ChatSummary[], SessionChatSummary[]>();
 
 	/**
@@ -559,7 +560,7 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	getDefaultChatUri(session: URI | string): string {
 		const key = session.toString();
-		return this._sessionStates.get(key)?.defaultChatUri ?? this.getSurfacedSessionSummary(key)?.defaultChat ?? buildDefaultChatUri(session);
+		return this._sessionStates.get(key)?.defaultChatUri ?? this._evictedDefaultChatUris.get(key) ?? this.getSurfacedSessionSummary(key)?.defaultChat ?? buildDefaultChatUri(session);
 	}
 
 	getDefaultChatState(session: URI): ChatState | undefined {
@@ -945,6 +946,7 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Builds the authoritative {@link ISessionEntry} for a freshly seeded state. */
 	private _newEntry(state: SessionState, summary: SessionSummary, use: SessionUse): ISessionEntry {
+		this._evictedDefaultChatUris.delete(summary.resource);
 		return { state, defaultChatUri: summary.defaultChat ?? buildDefaultChatUri(summary.resource), createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, project: summary.project, changes: summary.changes, use };
 	}
 
@@ -1049,6 +1051,7 @@ export class AgentHostStateManager extends Disposable {
 		if (this._sessionStates.has(session)) {
 			return;
 		}
+		this._evictedDefaultChatUris.delete(session);
 		const wasPublished = this._publishedSessionSummaries.delete(session);
 		const wasAdded = this._addedSessionSummaries.delete(session);
 		if (!wasPublished && !wasAdded) {
@@ -1111,6 +1114,7 @@ export class AgentHostStateManager extends Disposable {
 			const summary = this._toSummary(session, entry);
 			this._emitSessionAdded(summary);
 		} else {
+			this._evictedDefaultChatUris.delete(session);
 			const wasPublished = this._publishedSessionSummaries.delete(session);
 			const wasAdded = this._addedSessionSummaries.delete(session);
 			if (!wasPublished && !wasAdded) {
@@ -1540,6 +1544,9 @@ export class AgentHostStateManager extends Disposable {
 			this._invalidateChatEntry(chat.resource);
 		}
 		this._invalidateChatEntry(this.getDefaultChatUri(session));
+		if (this._publishedSessionSummaries.has(session)) {
+			this._evictedDefaultChatUris.set(session, entry.defaultChatUri);
+		}
 		this._sessionStates.delete(session);
 		this._onDidRemoveSession.fire(session);
 		// The announced baseline outlives in-memory state: this is also the
@@ -1576,6 +1583,7 @@ export class AgentHostStateManager extends Disposable {
 		this.disposeSessionChangesets(session);
 		this.disposeSessionAnnotations(session);
 		this.removeSession(session);
+		this._evictedDefaultChatUris.delete(session);
 		// Unlike eviction, deletion retracts the catalogue entry, so the
 		// announced baseline that `removeSession` deliberately preserves must go.
 		this._summaryNotifier.remove(session.toString());

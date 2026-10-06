@@ -205,6 +205,44 @@ suite('AgentHostCatalogSyncService', () => {
 		});
 	});
 
+	for (const localStorage of [false, true]) {
+		test(`rebuilds normalized requests after a catalog revision conflict ${localStorage ? 'with' : 'without'} local storage`, async () => {
+			const { local, central, service } = await createHarness();
+			await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+			await activateChatCatalog(central);
+			const sessionData = createSessionDataService(local);
+			const syncing = localStorage ? service : new AgentHostCatalogSyncService({ ...sessionData, tryOpenDatabase: async () => undefined }, central, new NullLogService());
+			const revisions: number[] = [];
+			const result = await syncing.synchronizeMigrationWithFactory(session, async () => {
+				const [snapshot] = await central.readCatalogSnapshot([session.toString()]);
+				if (!snapshot.header) {
+					throw new Error('Missing normalized synchronization header');
+				}
+				revisions.push(snapshot.header.revision);
+				if (revisions.length === 1) {
+					const chat = snapshot.chats[0];
+					await central.updateChatV2Metadata(chat.chat, chat, { metadata: { ...chat.metadata, summary: 'Concurrent title' } });
+				}
+				return {
+					data: { ...data('aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) },
+					legacyMetadata: {},
+					chatCatalogRevision: snapshot.header.revision,
+				};
+			});
+			const stored = await central.getSessionV2(session.toString());
+			assert.deepStrictEqual({
+				status: result.status,
+				revisions,
+				summary: stored && summaryOf(stored.payload),
+				chat: stored && JSON.parse(stored.payload).data.chats[0].summary,
+				receipt: localStorage ? (await local.getCatalogSyncSnapshot())?.state : undefined,
+			}, {
+				status: 'acknowledged', revisions: [1, 2], summary: 'aggregate', chat: 'Concurrent title',
+				receipt: localStorage ? 'acknowledged' : undefined,
+			});
+		});
+	}
+
 	test('replays a durable normalized aggregate without legacy upsert or chat mutation', async () => {
 		const { local, central, service } = await createHarness();
 		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });

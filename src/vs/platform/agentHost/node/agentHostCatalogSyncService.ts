@@ -235,7 +235,15 @@ export class AgentHostCatalogSyncService {
 	synchronizeWithFactory(session: URI, requestFactory: (database: AgentHostCatalogDatabaseReference) => Promise<IAgentHostCatalogSyncRequest>): Promise<AgentHostCatalogSyncResult> {
 		return this.runExclusive(session, async (synchronize, database) => {
 			await this._markPayloadDirty(session);
-			const result = await synchronize(await requestFactory(database));
+			let result: AgentHostCatalogSyncResult;
+			for (let attempt = 0; ; attempt++) {
+				const request = await requestFactory(database);
+				result = await synchronize(request);
+				if (request.chatCatalogRevision === undefined || result.status !== 'pending'
+					|| result.reason !== 'conflict' || attempt + 1 >= MAX_GENERATION_RETRIES) {
+					break;
+				}
+			}
 			await this._markPayloadDirty(session);
 			return result;
 		});
@@ -247,11 +255,18 @@ export class AgentHostCatalogSyncService {
 		validate?: () => Promise<void>,
 	): Promise<AgentHostCatalogSyncResult> {
 		return this.runMigrationExclusive(session, async (database, synchronize) => {
-			const request = await requestFactory(database);
 			if (database) {
 				await this._markPayloadDirty(session);
 			}
-			const result = await synchronize(request, validate);
+			let result: AgentHostCatalogSyncResult;
+			for (let attempt = 0; ; attempt++) {
+				const request = await requestFactory(database);
+				result = await synchronize(request, validate);
+				if (request.chatCatalogRevision === undefined || result.status !== 'pending'
+					|| result.reason !== 'conflict' || attempt + 1 >= MAX_GENERATION_RETRIES) {
+					break;
+				}
+			}
 			if (database) {
 				await this._markPayloadDirty(session);
 			}
@@ -433,6 +448,9 @@ export class AgentHostCatalogSyncService {
 				continue;
 			}
 			if (result === 'conflict') {
+				if (request.chatCatalogRevision !== undefined) {
+					return { status: 'pending', sourceRevision, reason: result };
+				}
 				continue;
 			}
 			if (result === 'stale') {

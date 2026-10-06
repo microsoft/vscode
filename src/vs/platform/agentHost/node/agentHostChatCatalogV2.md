@@ -144,6 +144,12 @@ default chat, including a fresh generation when a deleted session is recreated.
 The physical catalog default stays stable when a client selects a different
 routing default. Legacy state and live-summary projections compare only against
 the state manager's stable default identity, never routing selection or URI spelling.
+Eviction retains that physical identity until restoration or summary retraction.
+Cold deletion resolves it from the normalized header and materializes the exact
+default backing before destructive disposal. Provider-data events preserve their
+addressed chat identity even when a canonical-shaped URI belongs to a peer.
+Imported aggregate requests carry the revision read with their authoritative
+chat snapshot; revision conflicts rebuild that snapshot before retrying.
 Direct registration has no migration generation stamp: its
 first aggregate envelope establishes the lifetime generation. Readers validate
 an explicit header stamp when present, but do not require one for these new
