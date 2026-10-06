@@ -113,6 +113,7 @@ suite('agentHost editSurvivalReporter', () => {
 			isCreate: false,
 			aiChunks: ['after-text'],
 		});
+
 		disposables.add(reporter);
 
 		await timeout(50);
@@ -120,6 +121,19 @@ suite('agentHost editSurvivalReporter', () => {
 		const data = telemetry.events[0].data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'claude');
 		assert.strictEqual(data.agentSessionId, 'session-9');
+	});
+
+	test('standard session samples retain their explicit provider', async () => {
+		await fileService.writeFile(URI.file('/workspace/standard.ts'), VSBuffer.fromString('after-text'));
+		const reporter = factory.launch({
+			sessionUri: 'ahp-session:/standard', provider: 'claude', turnId: 'turn-1', toolCallId: 'tc-standard',
+			filePath: '/workspace/standard.ts', beforeText: 'before-text', afterText: 'after-text',
+			isCreate: false, modelId: 'model', toolName: 'Edit',
+		});
+		disposables.add(reporter);
+		await timeout(50);
+		const data = telemetry.events[0].data as Record<string, unknown>;
+		assert.deepStrictEqual([data.provider, data.agentSessionId], ['claude', 'standard']);
 	});
 
 	test('emits a delete event when the file is missing', async () => {

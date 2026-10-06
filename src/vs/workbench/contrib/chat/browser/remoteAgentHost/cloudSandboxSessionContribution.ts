@@ -15,6 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
+	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
@@ -26,11 +27,11 @@ import {
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -43,6 +44,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { sealMissionControlMcpCredential } from './missionControlCredentialSealing.js';
 import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
@@ -155,6 +157,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		@IHostService private readonly _hostService: IHostService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
 	) {
 		super();
 
@@ -163,7 +166,32 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		// specifics into that shared code path.
 		this._register(this._connectionCustomizations.register(
 			isCloudSandboxConnectionAddress,
-			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService)!,
+			address => {
+				const connection = this._remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === address)?.connection;
+				const userLocal = connection?.type === RemoteAgentHostEntryType.CloudSandbox && connection.environmentKind === 'user-local';
+				return createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, userLocal, async request => {
+					if (!userLocal) {
+						throw new Error('User-local MC sealing requires a user-local connection.');
+					}
+					const environment = await this._apiService.getEnvironment(connection.environmentId, CancellationToken.None);
+					const client = this._remoteAgentHostService.getConnection(address);
+					const root = client?.rootState.value;
+					if (environment.id !== connection.environmentId || !client || !root || root instanceof Error) {
+						throw new Error('Mission Control environment or host is unavailable for sealing.');
+					}
+					const initialization = client.initializeResult.get();
+					const result = await sealMissionControlMcpCredential(request, environment.encryption_keys, root, initialization?._meta, sealingRequest => {
+						if (!this._localAgentHostService.sealMissionControlCredential) {
+							throw new Error('Trusted local credential sealing is unavailable.');
+						}
+						return this._localAgentHostService.sealMissionControlCredential(sealingRequest);
+					});
+					if (this._remoteAgentHostService.getConnection(address) !== client || client.initializeResult.get() !== initialization) {
+						throw new CancellationError();
+					}
+					return result;
+				})!;
+			},
 		));
 
 		// Keep providers wired to their live connections and their status fresh.
@@ -336,7 +364,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const modifiedTime = Number.isNaN(parsed) ? provider?.getSessionModifiedTime(session.sessionId) ?? Date.now() : parsed;
 		const project = discoveredSessionProject(session.repoName);
 		provider?.seedSessions([{
-			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
+			session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, session.sessionId),
 			provider: CLOUD_SANDBOX_AGENT_PROVIDER,
 			...(session.eventType ? { _meta: withSessionInitiator(undefined, { name: session.eventType }) } : {}),
 			startTime: modifiedTime,

@@ -7,6 +7,7 @@ import { localize } from '../../../../../nls.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import Severity from '../../../../../base/common/severity.js';
@@ -316,6 +317,8 @@ export interface IBuildRemoteHostOptionItemsOptions {
 	 */
 	readonly preferenceKey?: string;
 	readonly isConnected: boolean;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 	readonly upgradeMethod?: string;
 	/** Defaults to the ambient {@link isWeb} constant; overridable for tests. See {@link supportsRemoteAgentHostLocationPreference}. */
 	readonly isWebPlatform?: boolean;
@@ -331,10 +334,12 @@ export function buildRemoteHostOptionItems(options: IBuildRemoteHostOptionItemsO
 	}
 	if (!options.isConnected) {
 		items.push({ label: '$(debug-restart) ' + localize('workspacePicker.reconnect', "Reconnect"), id: 'reconnect' });
+	} else if (options.disconnectLabel) {
+		items.push({ label: '$(debug-disconnect) ' + options.disconnectLabel, id: 'disconnect' });
 	}
 	items.push(
 		{ label: '$(edit) ' + localize('workspacePicker.renameRemote', "Rename..."), id: 'rename' },
-		{ label: '$(trash) ' + localize('workspacePicker.removeRemote', "Remove Remote"), id: 'remove' },
+		{ label: '$(trash) ' + (options.removeLabel ?? localize('workspacePicker.removeRemote', "Remove Remote")), id: 'remove' },
 		{ label: '$(copy) ' + localize('workspacePicker.copyAddress', "Copy Address"), id: 'copy' },
 	);
 	// An SSH host aliased in `~/.ssh/config` is authored there, not in
@@ -463,13 +468,16 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 	// separate stable identity (tunnels, WSL, cloud sandbox).
 	const preferenceKey = provider.remoteLocationPreferenceKey ?? address;
 
-	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod });
+	const items = buildRemoteHostOptionItems({ address, preferenceKey, isConnected, upgradeMethod, removeLabel: provider.removeLabel, disconnectLabel: provider.disconnectLabel });
 
 	const result = await new Promise<'back' | RemoteOptionPickItem | undefined>((resolve) => {
 		const store = new DisposableStore();
 		const picker = store.add(quickInputService.createQuickPick<RemoteOptionPickItem>());
 		picker.placeholder = localize('workspacePicker.remoteOptionsTitle', "Options for {0}", provider.label);
 		picker.items = items;
+		if (provider.hostDescription) {
+			picker.validationMessage = provider.hostDescription.get();
+		}
 
 		if (RemoteAgentHostConnectionStatus.isIncompatible(status)) {
 			const offered = status.supportedByClient.join(', ');
@@ -509,14 +517,28 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 		return undefined;
 	}
 
+	if (result.id === 'reconnect' || result.id === 'disconnect' || result.id === 'remove') {
+		try {
+			if (result.id === 'reconnect') {
+				await reconnectRemoteHost(provider, remoteAgentHostService);
+			} else if (result.id === 'disconnect') {
+				await provider.disconnect?.();
+			} else {
+				await removeRemoteHost(provider, remoteAgentHostService, configurationService);
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				notificationService.error(error instanceof Error ? error : String(error));
+			}
+		}
+		return undefined;
+	}
+
 	switch (result.id) {
 		case 'upgrade':
 			if (upgradeMethod) {
 				await instantiationService.invokeFunction(runServerUpgrade, provider, upgradeMethod);
 			}
-			break;
-		case 'reconnect':
-			await reconnectRemoteHost(provider, remoteAgentHostService);
 			break;
 		case 'rename': {
 			const name = await quickInputService.input({
@@ -528,16 +550,19 @@ export async function showRemoteHostOptions(accessor: ServicesAccessor, provider
 			});
 			if (name !== undefined) {
 				try {
-					remoteAgentHostService.setDisplayName(address, name);
+					if (provider.setDisplayName) {
+						provider.setDisplayName(name);
+					} else {
+						remoteAgentHostService.setDisplayName(address, name);
+					}
 				} catch (err) {
-					notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
+					if (!isCancellationError(err)) {
+						notificationService.error(localize('workspacePicker.renameRemoteFailed', "Failed to rename {0}: {1}", provider.label, err instanceof Error ? err.message : String(err)));
+					}
 				}
 			}
 			break;
 		}
-		case 'remove':
-			await removeRemoteHost(provider, remoteAgentHostService, configurationService);
-			break;
 		case 'copy':
 			await clipboardService.writeText(address);
 			break;

@@ -1756,7 +1756,12 @@ export class WorkspacePicker extends Disposable {
 					: action.label;
 			const isPromotedRemoteBrowseAction = useRemoteSubmenu && action.group === SESSION_WORKSPACE_GROUP_REMOTE;
 			const itemLabel = isPromotedRemoteBrowseAction ? action.description || actionLabel : actionLabel;
-			const itemDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : action.description;
+			const browseDescription = isPromotedRemoteBrowseAction && action.description ? actionLabel : action.description;
+			const actionProvider = action.providerId ? this.sessionsProvidersService.getProvider(action.providerId) : undefined;
+			const hostDescription = actionProvider && isAgentHostProvider(actionProvider) ? actionProvider.hostDescription?.get() : undefined;
+			const itemDescription = hostDescription
+				? localize('workspacePicker.browseHostDescription', "{0} · {1}", browseDescription ?? actionLabel, hostDescription)
+				: browseDescription;
 			const isUnavailable = this._isProviderUnavailable(action.providerId);
 			const isRepositoryAction = action.group === SESSION_WORKSPACE_GROUP_GITHUB && action.attachesContext !== true;
 			items.push({
@@ -1833,7 +1838,10 @@ export class WorkspacePicker extends Disposable {
 			for (const provider of remoteProviders) {
 				const status = provider.connectionStatus!.get();
 				const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX) === true;
-				const statusDescription = getRemoteHostStatusDescription(provider, status);
+				const connectionDescription = getRemoteHostStatusDescription(provider, status);
+				const statusDescription = provider.hostDescription
+					? localize('workspacePicker.hostDescription', "{0}. {1}", connectionDescription, provider.hostDescription.get())
+					: connectionDescription;
 				const action = toAction({
 					id: `workspacePicker.remote.${provider.id}`,
 					label: provider.label,

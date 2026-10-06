@@ -72,7 +72,9 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		const foldersMatch = currentFolders.length === activeSessionFolders.length
-			&& currentFolders.every((folder, index) => this.uriIdentityService.extUri.isEqual(folder.uri, activeSessionFolders[index].uri));
+			&& currentFolders.every((folder, index) =>
+				this.uriIdentityService.extUri.isEqual(folder.uri, activeSessionFolders[index].uri)
+				&& folder.name === activeSessionFolders[index].name);
 		if (foldersMatch) {
 			return;
 		}

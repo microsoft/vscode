@@ -30,6 +30,7 @@ import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { applyAgentHostCompletionAction, isPolicyBlockedCompletionAction } from '../../../agentHostCompletionAction.js';
 import { applyAgentHostSessionConfigChange } from '../../../agentSessions/agentHost/applyAgentHostSessionConfig.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostInputCompletionsBase } from './agentHostInputCompletionsBase.js';
@@ -98,6 +99,7 @@ export class AgentHostInputCompletions extends AgentHostInputCompletionsBase<ICh
 			const storageService = accessor.get(IStorageService);
 			const services = {
 				agentHostService: accessor.get(IAgentHostService),
+				connectionsService: accessor.get(IAgentHostConnectionsService),
 				provisionalService: accessor.get(IAgentHostUntitledProvisionalSessionService),
 				workingDirectoryResolver: accessor.get(IAgentHostSessionWorkingDirectoryResolver),
 				workspaceContextService: accessor.get(IWorkspaceContextService),

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ConnectorStatus, ContextTier, CopilotClient, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ModelCapabilitiesOverride, NamedProviderConfig, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
@@ -208,6 +208,7 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
+	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
 	readonly chatUri: URI;
 	/** Opaque scope shared by chats whose session configuration is shared. */
@@ -616,6 +617,9 @@ export async function synthesizeByokSessionConfig(
 		...(m.maxContextWindowTokens !== undefined ? { maxContextWindowTokens: m.maxContextWindowTokens } : {}),
 		...(m.maxPromptTokens !== undefined ? { maxPromptTokens: m.maxPromptTokens } : {}),
 		...(m.maxOutputTokens !== undefined ? { maxOutputTokens: m.maxOutputTokens } : {}),
+		// Without this the runtime treats the model as text-only and replaces
+		// tool-result images (e.g. from the `view` tool) with a text receipt.
+		...(m.supportsVision !== undefined ? { capabilities: { supports: { vision: m.supportsVision } } } : {}),
 	}));
 	return { providers, models };
 }
@@ -815,6 +819,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
 			return displayNames;
 		}
+		let status: ConnectorStatus;
 		try {
 			const capabilities = await session.rpc.connectors.getCapabilities();
 			if (capabilities.availability !== 'enabled') {
@@ -828,7 +833,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			if (!account) {
 				const sessionHost = auth.host?.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
 				const matchingAccounts = accounts.filter(candidate => {
-					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli'
+					const login = candidate.authInfo.type === 'env' || candidate.authInfo.type === 'user' || candidate.authInfo.type === 'gh-cli' || candidate.authInfo.type === 'account'
 						? candidate.authInfo.login
 						: candidate.authInfo.copilotUser?.login;
 					const accountHost = candidate.authInfo.host.replace(/^https?:\/\//, '').replace(/\/+$/, '').toLowerCase();
@@ -841,14 +846,20 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
 				return displayNames;
 			}
-			const status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
-			const connectorDisplayNames = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
-			for (const server of status.runtimeServers) {
-				displayNames.set(server.runtimeServerId, connectorDisplayNames.get(server.connectorName) ?? server.connectorName);
-			}
+			status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
 			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
 		} catch (error) {
-			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; continuing without connector tools: ${getErrorMessage(error)}`);
+			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; using the current Connector state when available: ${getErrorMessage(error)}`);
+			try {
+				status = await session.rpc.connectors.getStatus();
+			} catch (statusError) {
+				this._logService.warn(`[Copilot:${plan.sessionId}] Unable to read the current Connector state after reconciliation failed: ${getErrorMessage(statusError)}`);
+				return displayNames;
+			}
+		}
+		const connectorDisplayNames = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
+		for (const server of status.runtimeServers) {
+			displayNames.set(server.runtimeServerId, connectorDisplayNames.get(server.connectorName) ?? server.connectorName);
 		}
 		return displayNames;
 	}
@@ -1099,6 +1110,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...byok,
 			...disabledMcpServers,
 			onEvent: event => {
+				runtime.onSessionEvent?.(event);
 				const owner = runtime.configurationResource.toString();
 				if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 					this._configurationService.setSessionSandboxPolicy(owner, projectCopilotSandboxPolicy(event.data, plan.sessionId, this._logService));

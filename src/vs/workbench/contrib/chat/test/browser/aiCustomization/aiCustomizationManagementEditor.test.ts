@@ -249,7 +249,7 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
-		showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile?: boolean, isReadOnly?: boolean): Promise<void>;
+		showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile?: boolean, isReadOnly?: boolean, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		getActiveHarnessLabel(): string;
 		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
@@ -280,7 +280,7 @@ suite('aiCustomizationManagementEditor', () => {
 		cancelCustomizationMigrationRefresh(): void;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationDashboardState(): void;
-		showEmbeddedMcpDetail(server: IMcpServerDetailInput): Promise<void>;
+		showEmbeddedMcpDetail(server: IMcpServerDetailInput, origin?: { readonly kind: 'migration' }, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		openMigrationCustomization(item: ICustomizationMigrationDashboardItem, storage: PromptsStorage): Promise<void>;
 		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
 		getFileMigrationConfirmationDetail(detail: string, files: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders): string;
@@ -2375,12 +2375,14 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('opens dashboard customizations in their embedded editor or detail page', async () => {
 		const editor = createTestEditor();
-		const opened: [URI, string, PromptsType, AICustomizationSource, boolean | undefined][] = [];
-		const mcpDetails: IMcpServerDetailInput[] = [];
-		editor.showEmbeddedEditor = async (uri, displayName, promptType, source, isWorkspaceFile) => {
-			opened.push([uri, displayName, promptType, source, isWorkspaceFile]);
+		const opened: [URI, string, PromptsType, AICustomizationSource, boolean | undefined, string | undefined][] = [];
+		const mcpDetails: { readonly detail: IMcpServerDetailInput; readonly migrationItemId?: string; readonly storage?: PromptsStorage }[] = [];
+		editor.showEmbeddedEditor = async (uri, displayName, promptType, source, isWorkspaceFile, _isReadOnly, migrationDetail) => {
+			opened.push([uri, displayName, promptType, source, isWorkspaceFile, migrationDetail?.item.id]);
 		};
-		editor.showEmbeddedMcpDetail = async server => { mcpDetails.push(server); };
+		editor.showEmbeddedMcpDetail = async (detail, _origin, migrationDetail) => {
+			mcpDetails.push({ detail, migrationItemId: migrationDetail?.item.id, storage: migrationDetail?.storage });
+		};
 		const file = URI.file('/profile/review.prompt.md');
 		const mcp = URI.file('/workspace/.vscode/mcp.json');
 
@@ -2408,16 +2410,19 @@ suite('aiCustomizationManagementEditor', () => {
 				args[2],
 				args[3],
 				args[4],
+				args[5],
 			]),
-			mcp: mcpDetails.map(detail => ({
+			mcp: mcpDetails.map(({ detail, migrationItemId, storage }) => ({
 				id: detail.id,
 				name: detail.name,
 				compatibilityId: detail.compatibilityId,
 				source: detail.source?.uri.path,
+				migrationItemId,
+				storage,
 			})),
 		}, {
-			file: [['/profile/review.prompt.md', 'review', PromptsType.prompt, PromptsStorage.user, false]],
-			mcp: [{ id: 'server', name: 'server', compatibilityId: 'server', source: '/workspace/.vscode/mcp.json' }],
+			file: [['/profile/review.prompt.md', 'review', PromptsType.prompt, PromptsStorage.user, false, 'file']],
+			mcp: [{ id: 'server', name: 'server', compatibilityId: 'server', source: '/workspace/.vscode/mcp.json', migrationItemId: 'mcp', storage: PromptsStorage.local }],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});

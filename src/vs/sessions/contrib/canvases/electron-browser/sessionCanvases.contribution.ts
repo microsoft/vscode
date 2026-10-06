@@ -17,7 +17,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
-import { registerSessionCanvasAddTabActions } from './sessionCanvasActions.js';
+import { registerSessionCanvasActions } from './sessionCanvasActions.js';
 import { SessionCanvasEditor, SessionCanvasFocusedContext } from './sessionCanvasEditor.js';
 import { SessionCanvasService } from './sessionCanvasService.js';
 
@@ -36,7 +36,7 @@ class SessionCanvasesContribution extends Disposable implements IWorkbenchContri
 		@ISessionCanvasService canvasService: ISessionCanvasService,
 	) {
 		super();
-		this._register(registerSessionCanvasAddTabActions(canvasService));
+		this._register(registerSessionCanvasActions(canvasService));
 		for (const type of [AccessibleViewType.Help, AccessibleViewType.View]) {
 			this._register(AccessibleViewRegistry.register({
 				type,

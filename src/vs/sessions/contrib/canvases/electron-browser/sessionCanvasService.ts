@@ -15,7 +15,7 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
+import { createSessionCanvasReference, getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 export class SessionCanvasService extends Disposable implements ISessionCanvasService {
 
@@ -27,7 +27,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	private readonly _inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _dismissed = new Map<string, ISessionCanvasReference>();
 	private readonly _presented = new Set<string>();
-	private readonly _programmaticCloses = new Set<string>();
+	private readonly _programmaticCloses = new Set<SessionCanvasInput>();
 	private readonly _dismissedChanged = observableSignal(this);
 
 	constructor(
@@ -77,12 +77,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 
 			if (activeSession && activeChat && enabled && supported) {
 				for (const canvas of canvases ?? []) {
-					const reference: ISessionCanvasReference = {
-						providerId: activeSession.providerId,
-						session: activeSession.resource,
-						chat: activeChat.resource,
-						canvas: canvas.resource,
-					};
+					const reference = createSessionCanvasReference(activeSession, activeChat, canvas);
 					const input = this._getOrCreateInput(reference, canvas);
 					const key = getSessionCanvasReferenceKey(reference);
 					activeKeys.add(key);
@@ -106,7 +101,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			for (const [key, input] of this._inputs) {
 				const ownsActiveChat = !!activeSession && !!activeChat && ownsChat(input.reference, activeSession, activeChat);
 				if (!enabled || (ownsActiveChat && (!supported || (canvases !== undefined && !activeKeys.has(key))))) {
-					void this._closeInput(key, input);
+					void this._closeInput(key, input).catch(error => this.logService.error('[SessionCanvasService] Failed to close canvas', error));
 				}
 			}
 		}));
@@ -130,27 +125,41 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		return this.enabled.read(reader) && this.getTarget(reference, reader) !== undefined;
 	}
 
-	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
-		const key = getSessionCanvasReferenceKey(reference);
-		const reopenable = this.reopenableCanvases.get().find(candidate => getSessionCanvasReferenceKey(candidate.reference) === key);
-		if (!reopenable) {
+	async revealCanvas(reference: ISessionCanvasReference): Promise<void> {
+		const target = this.enabled.get() ? this.getTarget(reference) : undefined;
+		if (target?.canvas.source === undefined) {
 			return;
 		}
 
-		const input = this._getOrCreateInput(reference, reopenable.canvas);
-		input.setCanvas(reopenable.canvas);
+		const key = getSessionCanvasReferenceKey(reference);
+		const input = this._getOrCreateInput(reference, target.canvas);
+		input.setCanvas(target.canvas);
 		this._deleteDismissed(key);
 		await this._openInput(key, input);
+	}
+
+	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
+		const key = getSessionCanvasReferenceKey(reference);
+		if (!this._dismissed.has(key)) {
+			return;
+		}
+		await this.revealCanvas(reference);
 	}
 
 	private async _openInput(key: string, input: SessionCanvasInput): Promise<void> {
 		this._presented.add(key);
 		try {
-			await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
+			const pane = await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
+			const opened = pane || this.editorService.findEditors(input.resource).some(identifier => !identifier.editor.isDisposed() && identifier.editor.matches(input));
+			if (!opened) {
+				throw new Error('Canvas editor failed to open');
+			}
 		} catch (error) {
-			this._presented.delete(key);
-			if (this.enabled.get() && this._inputs.get(key) === input && !input.isDisposed()) {
-				this._rememberDismissed(key, input.reference);
+			if (this._inputs.get(key) === input) {
+				this._presented.delete(key);
+				if (this.enabled.get() && !input.isDisposed()) {
+					this._rememberDismissed(key, input.reference);
+				}
 			}
 			throw error;
 		}
@@ -167,16 +176,19 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		const lifetime = new DisposableStore();
 		this._inputLifetimes.set(key, lifetime);
 		lifetime.add(Event.once(input.onWillDispose)(() => {
-			if (!this._programmaticCloses.delete(key)) {
+			const isCurrentInput = this._inputs.get(key) === input;
+			if (isCurrentInput && !this._programmaticCloses.delete(input)) {
 				this._rememberDismissed(key, reference);
 			}
-			if (this._inputs.get(key) === input) {
+			if (isCurrentInput) {
 				this._inputs.deleteAndLeak(key);
 			}
 			if (this._inputLifetimes.get(key) === lifetime) {
 				this._inputLifetimes.deleteAndLeak(key);
 			}
-			this._presented.delete(key);
+			if (isCurrentInput) {
+				this._presented.delete(key);
+			}
 			lifetime.dispose();
 		}));
 		return input;
@@ -190,16 +202,16 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}
 		for (const [key, input] of this._inputs) {
 			if (ownsSession(input.reference, session)) {
-				void this._closeInput(key, input);
+				void this._closeInput(key, input).catch(error => this.logService.error('[SessionCanvasService] Failed to close canvas', error));
 			}
 		}
 	}
 
 	private async _closeInput(key: string, input: SessionCanvasInput): Promise<void> {
-		if (this._programmaticCloses.has(key)) {
+		if (this._programmaticCloses.has(input)) {
 			return;
 		}
-		this._programmaticCloses.add(key);
+		this._programmaticCloses.add(input);
 		const lifetime = this._inputLifetimes.get(key);
 		if (this._inputs.get(key) === input) {
 			this._inputs.deleteAndLeak(key);
@@ -209,12 +221,15 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}
 		this._deleteDismissed(key);
 		this._presented.delete(key);
-		await this.editorService.closeEditors(this.editorService.findEditors(input.resource), { preserveFocus: true });
-		if (!input.isDisposed()) {
-			input.dispose();
+		try {
+			await this.editorService.closeEditors(this.editorService.findEditors(input.resource), { preserveFocus: true });
+		} finally {
+			if (!input.isDisposed()) {
+				input.dispose();
+			}
+			lifetime?.dispose();
+			this._programmaticCloses.delete(input);
 		}
-		lifetime?.dispose();
-		this._programmaticCloses.delete(key);
 	}
 
 	private _rememberDismissed(key: string, reference: ISessionCanvasReference): void {

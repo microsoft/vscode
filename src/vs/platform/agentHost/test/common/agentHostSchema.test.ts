@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -31,6 +31,23 @@ suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('automatic title generation root settings are disabled by default', () => {
+		const properties = platformRootSchema.toProtocol().properties;
+		assert.deepStrictEqual({
+			activeAgent: {
+				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
+				default: properties[AgentHostActiveAgentTitleGenerationConfigKey].default,
+			},
+			deferred: {
+				type: properties[AgentHostDeferredTitleGenerationConfigKey].type,
+				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
+			},
+		}, {
+			activeAgent: { type: 'boolean', default: false },
+			deferred: { type: 'boolean', default: false },
+		});
+	});
+
 	test('Markdown plan rich links are an additive boolean root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostMarkdownPlanRichLinksEnabledConfigKey];
 		assert.strictEqual(property.type, 'boolean');
@@ -52,6 +69,11 @@ suite('agentHostSchema', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
+	});
+
+	test('BYOK models are enabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostByokModelsEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: true });
 	});
 
 	test('Canvases are an additive disabled-by-default root setting', () => {
