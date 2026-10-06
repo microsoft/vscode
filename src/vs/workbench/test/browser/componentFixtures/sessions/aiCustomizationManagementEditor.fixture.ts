@@ -1794,7 +1794,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const cardPaddingRight = featuredCard ? parseFloat(DOM.getWindow(featuredCard).getComputedStyle(featuredCard).paddingRight) : 0;
 		assert(
 			!featuredCard || !cardActions || !(lastCardAction instanceof HTMLElement)
-				|| Math.abs(featuredCard.getBoundingClientRect().right - cardPaddingRight - lastCardAction.getBoundingClientRect().right) <= 1,
+			|| Math.abs(featuredCard.getBoundingClientRect().right - cardPaddingRight - lastCardAction.getBoundingClientRect().right) <= 1,
 			'Discover card actions must remain right-aligned.',
 		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
