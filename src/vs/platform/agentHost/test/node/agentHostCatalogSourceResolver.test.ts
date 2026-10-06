@@ -96,7 +96,7 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 		reportMalformedArtifacts: () => { },
 	});
 	return {
-		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks, authoritativeChats) => resolver.buildCatalogSyncRequest(
+		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks, authoritativeChats, chatCatalogRevision) => resolver.buildCatalogSyncRequest(
 			session,
 			state,
 			overrides,
@@ -109,6 +109,7 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 			},
 			fallbacks,
 			authoritativeChats,
+			chatCatalogRevision,
 		),
 	};
 }
@@ -148,14 +149,16 @@ suite('AgentHostCatalogSourceResolver', () => {
 					return Object.fromEntries(requestedKeys.map(key => [key, undefined])) as { [K in keyof T]: string | undefined };
 				},
 			},
-		}, {}, authoritativeChats);
+		}, {}, authoritativeChats, 7);
 		assert.deepStrictEqual({
+			chatCatalogRevision: result.chatCatalogRevision,
 			chats: result.data.chats,
 			isRead: result.data.isRead,
 			legacyChatKeysRead: Object.keys(overrides).filter(key => key !== SESSION_CUSTOM_TITLE_KEY && requestedKeys.includes(key)),
 			legacyChatKeysWritten: Object.keys(overrides).filter(key => key !== SESSION_CUSTOM_TITLE_KEY && result.legacyMetadata[key] !== undefined),
 			sessionTitle: result.legacyMetadata[SESSION_CUSTOM_TITLE_KEY],
 		}, {
+			chatCatalogRevision: 7,
 			chats: authoritativeChats,
 			isRead: false,
 			legacyChatKeysRead: [],

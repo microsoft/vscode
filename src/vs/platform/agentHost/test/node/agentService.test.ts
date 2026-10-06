@@ -1576,6 +1576,84 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('live session title writes use normalized chats instead of stale legacy metadata', async () => {
+			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
+			const local = new TestSessionDatabase();
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override warn(...args: Parameters<NullLogService['warn']>): void {
+					warnings.push(args.map(String).join(' '));
+				}
+			};
+			const svc = disposables.add(createTestAgentService(
+				logService, fileService, createSessionDataService(local), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+			const agent = disposables.add(new MockAgent());
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'mock' });
+			await svc.whenCatalogReconciliationIdle();
+			const source = await catalogDatabase.getSessionV2(session.toString());
+			const data = catalogDataOf(source);
+			if (!source || !data) {
+				throw new Error('Expected the initial session catalog');
+			}
+			await catalogDatabase.markSessionV2PayloadClean(session.toString(), source.payloadDirty);
+			const legacy = await catalogDatabase.getSessionChatCatalog(session.toString());
+			const activation = await catalogDatabase.ensureChatCatalogV2(session.toString(), {
+				sessionGeneration: source.sessionGeneration,
+				sourceRevision: source.sourceRevision,
+				payloadHash: source.payloadHash,
+				catalogRevision: legacy?.revision ?? 0,
+			}, {
+				defaultChat: { chat: data.chats[0].uri, order: 0 },
+				peers: [],
+				privateDescendants: [],
+			});
+			if (activation.status !== 'applied') {
+				throw new Error(`Expected catalog activation, got ${activation.status}`);
+			}
+			const [snapshot] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
+			const chat = snapshot.chats[0];
+			await catalogDatabase.updateChatV2Metadata(chat.chat, chat, {
+				metadata: { ...chat.metadata, summary: 'Central chat', titleSource: 'user', changes: { files: 0 } },
+			});
+			await local.setMetadataValues({
+				[customChatTitleMetadataKey(chat.chat)]: 'Stale legacy title',
+				[customChatTitleSourceMetadataKey(chat.chat)]: 'auto',
+			});
+			const summaryChanged = Event.toPromise(Event.filter(getStateManager(svc).onDidChangeSessionSummary, event => event.session === session.toString()));
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionTitleChanged, title: 'Updated session' }, 'client-1', 1);
+			await summaryChanged;
+			await waitForCondition(async () => await local.getMetadata(SESSION_CUSTOM_TITLE_KEY) === 'Updated session', 'the title contribution should persist the session title');
+			await svc.whenCatalogReconciliationIdle();
+			const updated = await catalogDatabase.getSessionV2(session.toString());
+			if (!updated) {
+				throw new Error('Missing aggregate after the live title write');
+			}
+			const projected = decodeAgentHostCatalogPayload(updated.payload);
+			if (!projected.ok) {
+				throw new Error(`Invalid aggregate after the live title write: ${projected.error}`);
+			}
+			const [final] = await catalogDatabase.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				warnings,
+				sessionTitle: projected.value.data.summary,
+				projectedChatTitle: projected.value.data.chats[0].summary,
+				projectedChanges: projected.value.data.chats[0].changes,
+				chatMetadata: final.chats[0].metadata,
+				authority: final.authorityVersion,
+			}, {
+				warnings: [],
+				sessionTitle: 'Updated session',
+				projectedChatTitle: 'Central chat',
+				projectedChanges: { files: 0 },
+				chatMetadata: { ...chat.metadata, summary: 'Central chat', titleSource: 'user', changes: { files: 0 } },
+				authority: 2,
+			});
+		});
+
 		test('a provisional Codex session seeds its provider-qualified model into live metadata', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = disposables.add(new MockAgent('codex'));

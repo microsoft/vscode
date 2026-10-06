@@ -20,6 +20,7 @@ const MAX_GENERATION_RETRIES = 3;
 export interface IAgentHostCatalogSyncRequest {
 	readonly data: AgentHostCatalogData;
 	readonly legacyMetadata: Readonly<Record<string, string>>;
+	readonly chatCatalogRevision?: number;
 }
 
 export type AgentHostCatalogDatabaseReference = IReference<ISessionDatabase>;
@@ -117,7 +118,11 @@ export async function replayPendingCatalogSnapshot(
 
 	let applyResult: AgentHostDatabaseSessionV2UpsertResult;
 	try {
-		applyResult = await catalogDatabase.upsertSessionV2({
+		const [catalog] = await catalogDatabase.readCatalogSnapshot([sessionKey]);
+		if (token.isCancellationRequested) {
+			return cancelled;
+		}
+		const envelope: IAgentHostDatabaseSessionV2Envelope = {
 			session: sessionKey,
 			sessionGeneration: snapshot.sessionGeneration,
 			sourceRevision: snapshot.sourceRevision,
@@ -125,7 +130,10 @@ export async function replayPendingCatalogSnapshot(
 			payloadHash: snapshot.payloadHash,
 			verified: true,
 			payload: snapshot.payload,
-		}, central?.sessionGeneration);
+		};
+		applyResult = catalog?.authorityVersion === 2 && catalog.header
+			? await catalogDatabase.upsertSessionV2FromChatCatalog(envelope, central?.sessionGeneration, catalog.header.revision)
+			: await catalogDatabase.upsertSessionV2(envelope, central?.sessionGeneration);
 	} catch (error) {
 		return { session: sessionKey, status: 'pending', reason: 'upsertFailed', sourceRevision: snapshot.sourceRevision };
 	}
@@ -330,6 +338,7 @@ export class AgentHostCatalogSyncService {
 			} else {
 				const writeResult = await ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot);
 				if (writeResult === 'replayed'
+					&& request.chatCatalogRevision === undefined
 					&& matchesAcknowledgedCatalogReceipt(existing, central)
 					&& legacyMetadataMatches) {
 					return { status: 'acknowledged', sourceRevision };
@@ -338,9 +347,10 @@ export class AgentHostCatalogSyncService {
 
 			let upsertResult: AgentHostDatabaseSessionV2UpsertResult;
 			try {
-				upsertResult = await this._catalogDatabase.upsertSessionV2(
+				upsertResult = await this._upsertSessionCatalog(
 					this._envelope(sessionKey, sessionGeneration, sourceRevision, encoded),
 					central?.sessionGeneration,
+					request.chatCatalogRevision,
 				);
 			} catch (error) {
 				this._logService.warn(`[AgentHostCatalogSync] Failed to upsert sessions_v2 row for ${sessionKey}`, error);
@@ -401,17 +411,18 @@ export class AgentHostCatalogSyncService {
 			const sessionGeneration = central?.sessionGeneration ?? generateUuid();
 			const matches = central?.payloadVersion === AGENT_HOST_CATALOG_PAYLOAD_VERSION
 				&& central.payloadHash === encoded.payloadHash;
-			if (central && matches) {
+			if (central && matches && request.chatCatalogRevision === undefined) {
 				return { status: 'acknowledged', sourceRevision: central.sourceRevision };
 			}
-			const sourceRevision = central ? central.sourceRevision + 1 : INITIAL_SOURCE_REVISION;
+			const sourceRevision = central ? central.sourceRevision + (matches ? 0 : 1) : INITIAL_SOURCE_REVISION;
 			pendingRevision = sourceRevision;
 			let result: AgentHostDatabaseSessionV2UpsertResult;
 			try {
 				await validate?.();
-				result = await this._catalogDatabase.upsertSessionV2(
+				result = await this._upsertSessionCatalog(
 					this._envelope(sessionKey, sessionGeneration, sourceRevision, encoded),
 					central?.sessionGeneration,
+					request.chatCatalogRevision,
 				);
 			} catch (error) {
 				this._logService.warn(`[AgentHostCatalogSync] Failed to upsert sessions_v2 row for ${sessionKey}`, error);
@@ -455,6 +466,12 @@ export class AgentHostCatalogSyncService {
 			sourceRevision: pendingRevision,
 			reason: 'conflict',
 		};
+	}
+
+	private _upsertSessionCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, chatCatalogRevision: number | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		return chatCatalogRevision === undefined
+			? this._catalogDatabase.upsertSessionV2(envelope, expectedSessionGeneration)
+			: this._catalogDatabase.upsertSessionV2FromChatCatalog(envelope, expectedSessionGeneration, chatCatalogRevision);
 	}
 
 	private async _storePending(

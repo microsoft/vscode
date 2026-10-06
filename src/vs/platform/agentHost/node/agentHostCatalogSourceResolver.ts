@@ -18,6 +18,7 @@ import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_L
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
+import type { IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 
 export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
 
@@ -132,6 +133,7 @@ export class AgentHostCatalogSourceResolver {
 		database: IAgentHostCatalogMetadataReference | undefined = undefined,
 		metadataFallbacks: Readonly<Record<string, string>> = {},
 		authoritativeChats?: AgentHostCatalogData['chats'],
+		chatCatalogRevision?: number,
 	): Promise<IAgentHostCatalogSyncRequest> {
 		const metadataKeys = createMetadataKeySet(sessionMetadataKeys);
 		if (authoritativeChats === undefined) {
@@ -378,8 +380,25 @@ export class AgentHostCatalogSourceResolver {
 				}
 			}
 		}
-		return { data, legacyMetadata };
+		return { data, legacyMetadata, ...(chatCatalogRevision !== undefined ? { chatCatalogRevision } : {}) };
 	}
+}
+
+export function chatCatalogV2ToCatalogChats(snapshot: IAgentHostDatabaseCatalogSnapshotEntry): AgentHostCatalogData['chats'] {
+	return snapshot.chats.flatMap(chat => chat.order === undefined ? [] : [{
+		uri: chat.chat,
+		order: chat.order,
+		kind: snapshot.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
+		summary: chat.metadata?.summary,
+		titleSource: chat.metadata?.titleSource,
+		interactivity: chat.metadata?.interactivity,
+		changes: chat.metadata?.changes,
+		origin: chat.origin === undefined ? undefined : toSerializableJsonValue(JSON.parse(chat.origin)),
+		isRead: chat.isRead,
+		archived: chat.archived,
+		inheritedTurnId: chat.inheritedTurnId,
+		workingDirectories: chat.workingDirectories === undefined ? undefined : [...chat.workingDirectories],
+	}]);
 }
 
 function toCatalogSummary(value: string | undefined): string | undefined {

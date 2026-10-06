@@ -12,7 +12,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { META_GIT_STATE } from '../../common/agentHostGitStateService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
-import { AgentHostCatalogSyncService } from '../../node/agentHostCatalogSyncService.js';
+import { AgentHostCatalogSyncService, replayPendingCatalogSnapshot } from '../../node/agentHostCatalogSyncService.js';
+import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
@@ -132,6 +133,110 @@ suite('AgentHostCatalogSyncService', () => {
 			service: new AgentHostCatalogSyncService(createSessionDataService(local), central, new NullLogService()),
 		};
 	}
+
+	async function activateChatCatalog(central: AgentHostDatabase) {
+		const source = await central.getSessionV2(session.toString());
+		if (!source || !await central.markSessionV2PayloadClean(session.toString(), source.payloadDirty)) {
+			throw new Error('Expected a persisted legacy catalog');
+		}
+		const result = await central.ensureChatCatalogV2(session.toString(), {
+			sessionGeneration: source.sessionGeneration,
+			sourceRevision: source.sourceRevision,
+			payloadHash: source.payloadHash,
+			catalogRevision: 0,
+		}, {
+			defaultChat: { chat: data('initial').chats[0].uri, order: 0, metadata: { summary: 'Chat', titleSource: 'user' } },
+			peers: [],
+			privateDescendants: [],
+		});
+		if (result.status !== 'applied') {
+			throw new Error(`Expected catalog activation, got ${result.status}`);
+		}
+		const [snapshot] = await central.readCatalogSnapshot([session.toString()]);
+		if (!snapshot?.header) {
+			throw new Error('Expected an activated catalog header');
+		}
+		return { ...snapshot, header: snapshot.header };
+	}
+
+	test('synchronizes normalized session aggregates without overwriting a concurrent chat patch', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+		const snapshot = await activateChatCatalog(central);
+		const request = {
+			data: { ...data('aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) },
+			legacyMetadata: {},
+			chatCatalogRevision: snapshot.header.revision,
+		};
+		const applied = await service.synchronize(session, request);
+		const chat = snapshot.chats[0];
+		await central.updateChatV2Metadata(chat.chat, chat, { metadata: { ...chat.metadata, summary: 'Concurrent' } });
+		const rejected = await service.synchronize(session, { ...request, data: { ...request.data, summary: 'Stale aggregate' } });
+		const pending = await local.getCatalogSyncSnapshot();
+		const [current] = await central.readCatalogSnapshot([session.toString()]);
+		if (!current?.header) {
+			throw new Error('Expected the current catalog header');
+		}
+		const accepted = await service.synchronize(session, {
+			data: { ...data('Latest aggregate'), chats: chatCatalogV2ToCatalogChats(current) },
+			legacyMetadata: {},
+			chatCatalogRevision: current.header.revision,
+		});
+		const source = await central.getSessionV2(session.toString());
+		const [final] = await central.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			applied,
+			rejected,
+			pending: pending?.state,
+			accepted,
+			summary: source && summaryOf(source.payload),
+			chat: final.chats[0].metadata?.summary,
+			headerRevision: final.header?.revision,
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			applied: { status: 'acknowledged', sourceRevision: 1 },
+			rejected: { status: 'pending', sourceRevision: 2, reason: 'conflict' },
+			pending: 'pending',
+			accepted: { status: 'acknowledged', sourceRevision: 3 },
+			summary: 'Latest aggregate',
+			chat: 'Concurrent',
+			headerRevision: current.header?.revision,
+			receipt: 'acknowledged',
+		});
+	});
+
+	test('replays a durable normalized aggregate without legacy upsert or chat mutation', async () => {
+		const { local, central, service } = await createHarness();
+		await service.synchronize(session, { data: data('initial', 'Chat'), legacyMetadata: {} });
+		const snapshot = await activateChatCatalog(central);
+		const source = await central.getSessionV2(session.toString());
+		const encoded = encodeAgentHostCatalogPayload({ ...data('Replayed aggregate'), chats: chatCatalogV2ToCatalogChats(snapshot) });
+		if (!source || !encoded.ok) {
+			throw new Error('Expected a valid normalized aggregate');
+		}
+		const pending: ISessionCatalogSyncPendingSnapshot = {
+			sessionGeneration: source.sessionGeneration,
+			sourceRevision: source.sourceRevision + 1,
+			projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payload: encoded.value.payload,
+			payloadHash: encoded.value.payloadHash,
+			state: 'pending',
+		};
+		await local.setMetadataValuesAndCatalogSyncSnapshot({}, pending);
+		const result = await replayPendingCatalogSnapshot(central, session, pending, acknowledgement => local.acknowledgeCatalogSyncSnapshot(acknowledgement), CancellationToken.None);
+		const stored = await central.getSessionV2(session.toString());
+		assert.deepStrictEqual({
+			result,
+			summary: stored && summaryOf(stored.payload),
+			snapshot: (await central.readCatalogSnapshot([session.toString()]))[0],
+			receipt: (await local.getCatalogSyncSnapshot())?.state,
+		}, {
+			result: { session: session.toString(), status: 'succeeded', reason: 'pendingReplayed', sourceRevision: 1 },
+			summary: 'Replayed aggregate',
+			snapshot,
+			receipt: 'acknowledged',
+		});
+	});
 
 	test('writes legacy metadata and pending receipt before sessions_v2, then clears payload on exact acknowledgement', async () => {
 		const order: string[] = [];
@@ -500,7 +605,7 @@ suite('AgentHostCatalogSyncService', () => {
 	});
 
 	test('a targeted replay queued during a real catalog close retains its pending snapshot', async () => {
-		const upsertQueued = new DeferredPromise<void>();
+		const snapshotQueued = new DeferredPromise<void>();
 		class ClosingCatalogDatabase extends AgentHostDatabase {
 			failUpsert = true;
 
@@ -508,8 +613,12 @@ suite('AgentHostCatalogSyncService', () => {
 				if (this.failUpsert) {
 					throw new Error('central unavailable');
 				}
-				const result = super.upsertSessionV2(envelope, expectedSessionGeneration);
-				upsertQueued.complete();
+				return super.upsertSessionV2(envelope, expectedSessionGeneration);
+			}
+
+			override readCatalogSnapshot(sessions?: readonly string[]) {
+				const result = super.readCatalogSnapshot(sessions);
+				snapshotQueued.complete();
 				return result;
 			}
 		}
@@ -535,7 +644,7 @@ suite('AgentHostCatalogSyncService', () => {
 		await started.p;
 		const replay = service.replayPending(session, CancellationToken.None);
 		try {
-			await upsertQueued.p;
+			await snapshotQueued.p;
 			await central.close();
 		} finally {
 			release.complete();

@@ -121,7 +121,7 @@ import { AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
-import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
+import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, chatCatalogV2ToCatalogChats, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import { AgentHostPeerChatStore, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, IPersistedPeerChat } from './agentHostPeerChatStore.js';
 import { IAgentHostChatContributions } from '../common/agentHostChatContributionsService.js';
 import { IAgentHostTurnService } from './agentHostTurnService.js';
@@ -2345,22 +2345,57 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!summary || !state) {
 			throw new Error(`Cannot persist list-visible state for unknown session ${sessionKey}`);
 		}
-		const result = await this._catalogSyncService.synchronizeWithFactory(session, database => this._catalogSourceResolver.buildCatalogSyncRequest(session, {
-			modifiedTime: Date.parse(summary.modifiedAt),
-			title: summary.title,
-			status: summary.status,
-			project: summary.project,
-			workingDirectories: summary.workingDirectories ?? [],
-			changes: summary.changes,
-			meta: summary._meta,
-			chats: chatsOverride ?? this._catalogChatsFromState(state),
-		}, metadataOverrides, false, database));
+		const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
+			const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([sessionKey]);
+			const normalized = snapshot?.authorityVersion === 2 ? snapshot : undefined;
+			if (normalized && !normalized.header) {
+				throw new Error(`Missing normalized catalog header for ${sessionKey}`);
+			}
+			return this._catalogSourceResolver.buildCatalogSyncRequest(session, {
+				modifiedTime: Date.parse(summary.modifiedAt),
+				title: summary.title,
+				status: summary.status,
+				project: summary.project,
+				workingDirectories: summary.workingDirectories ?? [],
+				changes: summary.changes,
+				meta: summary._meta,
+				chats: chatsOverride ?? this._catalogChatsFromState(state),
+			}, metadataOverrides, false, database, {}, normalized && chatCatalogV2ToCatalogChats(normalized), normalized?.header?.revision);
+		});
 		if (result.status === 'pending') {
 			this._logService.warn(`[AgentService] Catalog synchronization for ${sessionKey} remains pending: ${result.reason}`);
 		}
 	}
 
 	private async _resolveCatalogReconciliationSource(registered: IRegisteredSession, database: AgentHostCatalogDatabaseReference | undefined): Promise<AgentHostCatalogReconciliationSourceResult> {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([registered.session.toString()]);
+		if (snapshot?.authorityVersion === 2 && !snapshot.header) {
+			throw new Error(`Missing normalized catalog header for ${registered.session.toString()}`);
+		}
+		if (snapshot?.authorityVersion === 2) {
+			const source = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
+			if (source?.verified) {
+				const decoded = decodeAgentHostCatalogPayload(source.payload);
+				if (!decoded.ok || !snapshot.header) {
+					throw new Error(`Invalid normalized session aggregate for ${registered.session.toString()}: ${decoded.ok ? 'missing header' : decoded.error}`);
+				}
+				const data = decoded.value.data;
+				const summary = this._stateManager.getSessionSummary(registered.session.toString());
+				return {
+					status: 'available',
+					request: await this._catalogSourceResolver.buildCatalogSyncRequest(registered.session, {
+						modifiedTime: summary ? Date.parse(summary.modifiedAt) : data.modifiedTime,
+						title: summary ? summary.title : data.summary,
+						status: summary?.status ?? ((data.isRead ? SessionStatus.IsRead : SessionStatus.Idle) | (data.isArchived ? SessionStatus.IsArchived : SessionStatus.Idle)),
+						project: summary ? summary.project : data.project,
+						workingDirectories: summary ? summary.workingDirectories ?? [] : data.workingDirectories,
+						changes: summary ? summary.changes : data.changes,
+						meta: summary ? summary._meta : data._meta,
+						chats: [],
+					}, {}, true, database, this._catalogMetadataFallbacks(data), chatCatalogV2ToCatalogChats(snapshot), snapshot.header.revision),
+				};
+			}
+		}
 		const agent = this._providerService.getProvider(registered.provider);
 		if (!agent) {
 			return { status: 'providerUnavailable' };
@@ -2381,10 +2416,10 @@ export class AgentService extends Disposable implements IAgentService {
 		let meta = metadata._meta;
 		let centralMeta: AgentHostCatalogData['_meta'];
 		const hasLiveState = this._stateManager.getSessionState(registered.session.toString()) !== undefined;
-		const peers = database
+		const peers = snapshot?.authorityVersion === 2 ? [] : database
 			? await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, registered.session);
-		const defaultChatWorkingDirectories = await this._readDefaultChatWorkingDirectories(URI.parse(buildDefaultChatUri(registered.session)));
+		const defaultChatWorkingDirectories = snapshot?.authorityVersion === 2 ? undefined : await this._readDefaultChatWorkingDirectories(URI.parse(buildDefaultChatUri(registered.session)));
 		if (!database) {
 			const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
 			const decoded = central && decodeAgentHostCatalogPayload(central.payload);
@@ -2427,7 +2462,9 @@ export class AgentService extends Disposable implements IAgentService {
 						workingDirectories: peer.workingDirectories,
 					})),
 				],
-			}, {}, true, database, metadataFallbacks),
+			}, {}, true, database, metadataFallbacks,
+				snapshot?.authorityVersion === 2 ? chatCatalogV2ToCatalogChats(snapshot) : undefined,
+				snapshot?.authorityVersion === 2 ? snapshot.header?.revision : undefined),
 		};
 	}
 

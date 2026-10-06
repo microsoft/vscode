@@ -32,6 +32,29 @@ Absent snapshot directories mean inheritance;
 an empty array means an explicitly empty pin. Neither snapshot nor mutation
 opens a per-session database or calls a provider or the filesystem.
 
+## Consumer integration
+
+The list reader batches normalized snapshots at the exported selector limit
+with bounded concurrency. It uses the header default role, excludes private
+rows from public membership, and never loads provider detail. The source
+resolver shares this projection and omits legacy per-chat summary reads and
+writes when normalized chats are supplied.
+
+Session synchronization carries the observed catalog revision into the
+aggregate-only upsert. Durable pending replay validates against current
+normalized authority; an obsolete chat projection is rebuilt instead of
+reimported. Existing AgentService aggregate synchronization and reconciliation
+use these projections without altering normalized chat metadata.
+
+Metadata-only migration preparation and its bounded reconciliation callback
+are present, but the production callback remains disabled until every producer
+and restoration path has switched. Preparation returns `notReady` when explicit
+backing clears still contradict the central legacy catalog. Legacy
+reconciliation must first publish those facts and a matching verified source;
+activation must not silently preserve stale provider detail or reinterpret
+an inconsistent receipt. An already normalized session does not reopen legacy
+metadata.
+
 ## Activation and writes
 
 `ensureChatCatalogV2(session, expectation, candidate, mutation?)` compares the

@@ -9,8 +9,8 @@ import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
-import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
-import type { IAgentHostDatabase } from './agentHostDatabase.js';
+import { chatCatalogV2ToCatalogChats, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 
 export type AgentHostCatalogListResult =
@@ -47,7 +47,12 @@ export class AgentHostCatalogListReader {
 
 	async read(registered: IRegisteredSession): Promise<AgentHostCatalogListResult> {
 		try {
-			return this._read(registered, await this._catalogDatabase.getSessionV2(registered.session.toString()));
+			const session = registered.session.toString();
+			const [catalog, snapshot] = await Promise.all([
+				this._catalogDatabase.getSessionV2(session),
+				this._catalogDatabase.readCatalogSnapshot([session]),
+			]);
+			return this._read(registered, catalog, snapshot.find(entry => entry.session === session));
 		} catch (error) {
 			return readFailed(error);
 		}
@@ -59,8 +64,13 @@ export class AgentHostCatalogListReader {
 		}
 		try {
 			const sessions = registeredSessions.map(registered => registered.session.toString());
-			const catalogBySession = new Map((await this._catalogDatabase.listSessionsV2(sessions)).map(catalog => [catalog.session, catalog]));
-			return { results: registeredSessions.map(registered => this._read(registered, catalogBySession.get(registered.session.toString()))) };
+			const [catalogs, snapshot] = await Promise.all([
+				this._catalogDatabase.listSessionsV2(sessions),
+				this._readChatSnapshots(sessions),
+			]);
+			const catalogBySession = new Map(catalogs.map(catalog => [catalog.session, catalog]));
+			const snapshotBySession = new Map(snapshot.map(entry => [entry.session, entry]));
+			return { results: registeredSessions.map(registered => this._read(registered, catalogBySession.get(registered.session.toString()), snapshotBySession.get(registered.session.toString()))) };
 		} catch (error) {
 			const bulkReadError = toError(error);
 			const fallbackStartedAt = Date.now();
@@ -77,7 +87,17 @@ export class AgentHostCatalogListReader {
 		}
 	}
 
-	private _read(registered: IRegisteredSession, catalog: Awaited<ReturnType<IAgentHostDatabase['getSessionV2']>>): AgentHostCatalogListResult {
+	private async _readChatSnapshots(sessions: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]> {
+		const limiter = new Limiter<readonly IAgentHostDatabaseCatalogSnapshotEntry[]>(4);
+		const batches: Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]>[] = [];
+		for (let index = 0; index < sessions.length; index += AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
+			const batch = sessions.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT);
+			batches.push(limiter.queue(() => this._catalogDatabase.readCatalogSnapshot(batch)));
+		}
+		return (await Promise.all(batches)).flat();
+	}
+
+	private _read(registered: IRegisteredSession, catalog: Awaited<ReturnType<IAgentHostDatabase['getSessionV2']>>, snapshot?: IAgentHostDatabaseCatalogSnapshotEntry): AgentHostCatalogListResult {
 		const session = registered.session.toString();
 		if (!catalog) {
 			return ineligible('no central row');
@@ -104,7 +124,13 @@ export class AgentHostCatalogListReader {
 		if (decoded.value.data.isChatBacking) {
 			return { eligible: false, chatBacking: true };
 		}
-		const revivedData = reviveAgentHostCatalogData(decoded.value.data);
+		if (snapshot?.authorityVersion === 2 && (snapshot.header?.sessionGeneration !== catalog.sessionGeneration || snapshot.identity.provider !== registered.provider)) {
+			throw new Error(`Normalized chat catalog identity does not match session ${session}`);
+		}
+		const revivedData = reviveAgentHostCatalogData(snapshot?.authorityVersion === 2 ? {
+			...decoded.value.data,
+			chats: chatCatalogV2ToCatalogChats(snapshot),
+		} : decoded.value.data);
 		const data = {
 			...revivedData,
 			chats: revivedData.chats.filter(chat => !isSubagentChatUri(chat.uri) && fromCatalogChatOrigin(chat.origin)?.kind !== ChatOriginKind.Tool),
