@@ -93,7 +93,7 @@ import { buildMcpChannel } from '../../node/shared/mcpCustomizationController.js
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
-import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -27354,8 +27354,14 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 			gitService.getFetchRemotes = async () => [{ name: 'origin', url: 'https://github.com/microsoft/vscode.git' }];
 			gitService.addWorktree = async (_root, options) => { mkdirSync(options.path.fsPath, { recursive: true }); };
-			const sessionDataService = createSessionDataService(new TestSessionDatabase());
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+			const database = new TestSessionDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const sessionDataService = createSessionDataService(database);
+			const createService = () => disposables.add(createTestAgentService(
+				new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, gitService,
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const localService = createService();
 			setTestAgentHostWorktreeIsolation(localService, disposables.add(new WorktreeIsolation(
 				{ _serviceBrand: undefined, generateBranchName: async () => { throw new Error('should not generate a branch'); } },
 				gitService,
@@ -27377,6 +27383,7 @@ suite('AgentService (node dispatcher)', () => {
 					pullRequestUrls: gitHubState?.pullRequestUrls,
 					associatedPullRequestUrls: gitHubState?.associatedPullRequestUrls,
 					pullRequestBranchName: gitHubState?.pullRequestBranchName,
+					artifacts: readSessionArtifacts(summary?._meta).map(({ id: _id, ...artifact }) => artifact),
 				};
 			};
 
@@ -27388,6 +27395,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			const sessionResource = session.toString();
 			const atCreation = readGitHubState(sessionResource);
+			const initialArtifacts = readSessionArtifacts(stateManager.getSessionSummary(sessionResource)?._meta);
 			const chat = buildDefaultChatUri(sessionResource);
 			localService.dispatchAction(chat, {
 				type: ActionType.ChatTurnStarted,
@@ -27398,11 +27406,30 @@ suite('AgentService (node dispatcher)', () => {
 			for (let i = 0; i < 200 && agent.sendMessageCalls.length === 0; i++) {
 				await timeout(5);
 			}
+			await localService.whenCatalogReconciliationIdle();
+			const central = catalogDataOf(await catalogDatabase.getSessionV2(sessionResource));
+			const restarted = createService();
+			await restarted.whenCatalogReconciliationIdle();
+			const [listed] = await restarted.listSessions();
 
-			const association = { owner: 'microsoft', repo: 'vscode', pullRequestUrls: [pullRequestUrl], associatedPullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'user/agents/pr-42-session' };
-			assert.deepStrictEqual({ atCreation, afterCheckout: readGitHubState(sessionResource) }, {
+			const association = {
+				owner: 'microsoft', repo: 'vscode', pullRequestUrls: [pullRequestUrl], associatedPullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'user/agents/pr-42-session',
+				artifacts: [{ chat, type: SessionArtifactType.PullRequest, label: pullRequestUrl, isArtifact: true, link: pullRequestUrl, isGitHub: true }],
+			};
+			assert.deepStrictEqual({
+				atCreation,
+				afterCheckout: readGitHubState(sessionResource),
+				persistedArtifacts: parseSessionArtifacts(await database.getMetadata(SESSION_ARTIFACTS_KEY)).artifacts,
+				centralArtifacts: readSessionArtifacts(central?._meta),
+				restartedArtifacts: readSessionArtifacts(listed?._meta),
+				restartedGitHubState: readSessionGitHubState(listed?._meta, listed?.workingDirectories?.[0]?.toString()),
+			}, {
 				atCreation: { workingDirectory: sourceDir.toString(), ...association },
 				afterCheckout: { workingDirectory: URI.joinPath(getWorktreesRoot(sourceDir), 'pr-42-session').toString(), ...association },
+				persistedArtifacts: initialArtifacts,
+				centralArtifacts: initialArtifacts,
+				restartedArtifacts: initialArtifacts,
+				restartedGitHubState: readSessionGitHubState(stateManager.getSessionSummary(sessionResource)?._meta, URI.joinPath(getWorktreesRoot(sourceDir), 'pr-42-session').toString()),
 			});
 		});
 

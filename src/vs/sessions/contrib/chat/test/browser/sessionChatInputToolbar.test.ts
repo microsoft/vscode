@@ -1580,7 +1580,7 @@ suite('SessionChatInputToolbar', () => {
 			}));
 			const selected = {
 				owner: 'owner', repo: 'repo', number: 105, uri: URI.parse('https://github.com/owner/repo/pull/105'),
-				createdByThisSession: true, isExplicitlyAssociated: true,
+				createdByThisSession: true, recordedReferenceId: 'selected-pr',
 			};
 			const root = URI.file('/repo.worktrees/pr-105-session');
 			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
@@ -1589,7 +1589,7 @@ suite('SessionChatInputToolbar', () => {
 					gitRepository: {
 						uri: root, workTreeUri: root, baseBranchName: 'main', gitHubInfo: constObservable({
 							owner: selected.owner, repo: selected.repo,
-							pullRequests: [selected, { ...selected, number: 106, uri: URI.parse('https://github.com/owner/repo/pull/106'), isExplicitlyAssociated: false }],
+							pullRequests: [selected, { owner: selected.owner, repo: selected.repo, number: 106, uri: URI.parse('https://github.com/owner/repo/pull/106'), createdByThisSession: true }],
 						})
 					},
 				}],
@@ -1602,7 +1602,9 @@ suite('SessionChatInputToolbar', () => {
 			const peer = chat('peer');
 			const session = upcastPartial<IActiveSession>({
 				providerId, sessionId: 'pr-session', resource: URI.parse('custom-session://host/pr-session'), workspace,
-				artifacts: constObservable([]), mainChat: constObservable(main), chats: constObservable([main, peer]),
+				artifacts: constObservable([{
+					id: 'selected-pr', chat: main.resource, kind: SessionArtifactKind.PullRequest, label: '', isArtifact: true, isGitHub: true, link: selected.uri,
+				}]), mainChat: constObservable(main), chats: constObservable([main, peer]),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			});
 			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));

@@ -61,7 +61,7 @@ function mergeGitHubReferences<T extends IGitHubIssueRef>(recorded: readonly T[]
 
 /**
  * Resolves dedicated GitHub pills from artifacts and workspace associations, scoped to `chat` when supplied.
- * Without automatic PR association, chats show their own PR artifacts; the main chat also shows explicitly associated PRs.
+ * Without automatic PR association, chats only show their own PR artifacts; unowned legacy artifacts belong to the main chat.
  */
 export function getSessionGitHubReferences(session: ISession | undefined, reader: IReader | undefined, chat?: IChat, autoAssociatePullRequests = true): ISessionGitHubReferences {
 	const chatWorkspace = chat?.workspace?.read(reader);
@@ -80,8 +80,7 @@ export function getSessionGitHubReferences(session: ISession | undefined, reader
 	const recordedReferenceIds = new Set(artifacts.filter(artifact => !artifact.isArtifact).map(artifact => artifact.id));
 	const isRecordedReference = (ref: { readonly recordedReferenceId?: string }) => !!ref.recordedReferenceId && recordedReferenceIds.has(ref.recordedReferenceId);
 	const associatedPullRequests = (chatWorkspace ? folderGitHubInfos.flatMap(info => getGitHubPullRequestRefs(info)) : getGitHubPullRequestRefs(gitHubInfo)).flatMap(ref => {
-		const isExplicitMainChatAssociation = ref.isExplicitlyAssociated && !ref.recordedReferenceId && isEqual(session?.mainChat?.read(reader)?.resource, chat?.resource);
-		if (restrictPullRequestsToChat && !chatPullRequestLinks.has(linkKey(ref.uri.toString())) && !isExplicitMainChatAssociation) {
+		if (restrictPullRequestsToChat && !chatPullRequestLinks.has(linkKey(ref.uri.toString()))) {
 			return [];
 		}
 		if (!isRecordedReference(ref)) {

@@ -517,7 +517,6 @@ function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefine
 			x.liveState === y.liveState &&
 			x.title === y.title &&
 			x.createdByThisSession === y.createdByThisSession &&
-			x.isExplicitlyAssociated === y.isExplicitlyAssociated &&
 			x.recordedReferenceId === y.recordedReferenceId) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		a.pullRequest?.icon?.id === b.pullRequest?.icon?.id &&
@@ -585,7 +584,6 @@ function toGitHubPullRequestRefs(state: ISessionGitHubState | undefined, pullReq
 				...(pullRequest.title ? { title: pullRequest.title } : {}),
 				...(pullRequest.recordedReferenceId ? { recordedReferenceId: pullRequest.recordedReferenceId } : {}),
 				createdByThisSession: pullRequest.recordedReferenceId ? pullRequest.isArtifact === true : true,
-				...(state?.associatedPullRequestUrls?.some(url => linkKey(url) === linkKey(pullRequest.url)) ? { isExplicitlyAssociated: true } : {}),
 			});
 		}
 	}

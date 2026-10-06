@@ -12037,12 +12037,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	test('publishes Create PR and explicit selection associations as session-owned without artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('renders created and selected PRs from the same host metadata with automatic attachment disabled', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const gitHubService = new class extends mock<IGitHubService>() {
 			private readonly _model = upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) });
 			override createPullRequestModelReference = () => new ImmortalReference(this._model);
 		}();
-		agentHost.addSession(createSession('pr-associations', { summary: 'PR Associations', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') }));
+		const metadata = createSession('pr-associations', { summary: 'PR Associations', project: { uri: URI.parse('file:///repo'), displayName: 'repo' }, workingDirectory: URI.parse('file:///repo') });
+		agentHost.addSession(metadata);
 		const provider = createProvider(disposables, agentHost, undefined, { gitHubService });
 		provider.getSessions();
 		await timeout(0);
@@ -12055,29 +12056,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const created = 'https://github.com/owner/repo/pull/43';
 		const baseline = { pullRequestUrls: [selected, inherited], initialPullRequestUrls: [selected, inherited] };
 		const discovered = { pullRequestUrls: [selected], pullRequestBranchName: 'feature' };
-		const explicitlySelected = withMostRecentRelatedSessionPullRequest(discovered, selected, 'feature');
 		const afterCreate = withMostRecentRelatedSessionPullRequest(baseline, created, 'feature');
 		const afterSelection = withMostRecentRelatedSessionPullRequest(afterCreate, selected, 'feature');
+		const defaultChat = buildDefaultChatUri(metadata.session);
+		const createdArtifact = { id: 'created-pr', chat: defaultChat, type: SessionArtifactType.PullRequest, label: '', isArtifact: true, isGitHub: true, link: created };
+		const selectedArtifact = { ...createdArtifact, id: 'selected-pr', link: selected };
 		const snapshots = [];
-		for (const state of [baseline, discovered, explicitlySelected, afterCreate, afterSelection]) {
+		for (const { state, artifacts } of [
+			{ state: baseline, artifacts: [] },
+			{ state: discovered, artifacts: [] },
+			{ state: afterCreate, artifacts: [createdArtifact] },
+			{ state: afterSelection, artifacts: [createdArtifact, selectedArtifact] },
+		]) {
 			agentHost.setSessionState('pr-associations', 'copilotcli', {
 				provider: 'copilotcli', title: 'PR Associations', status: ProtocolSessionStatus.Idle,
-				lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
-				_meta: withSessionGitHubState(undefined, 'file:///repo', { owner: 'owner', repo: 'repo', ...state }),
+				lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat,
+				chats: [{ resource: defaultChat, title: 'PR Associations', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), workingDirectories: ['file:///repo'] }],
+				_meta: withSessionArtifacts(withSessionGitHubState(undefined, 'file:///repo', { owner: 'owner', repo: 'repo', ...state }), artifacts),
 			});
 			const info = session.workspace.get()!.folders[0].gitRepository!.gitHubInfo.get();
 			snapshots.push({
-				artifacts: session.artifacts?.get(),
-				refs: info?.pullRequests?.map(ref => ({ number: ref.number, owned: ref.createdByThisSession, explicit: ref.isExplicitlyAssociated })) ?? [],
+				artifacts: session.artifacts?.get().map(artifact => artifact.id),
+				refs: info?.pullRequests?.map(ref => ({ number: ref.number, owned: ref.createdByThisSession })) ?? [],
 				restrictedMainPills: getSessionGitHubReferences(session, undefined, session.mainChat.get(), false).pullRequests.map(ref => ref.number),
 			});
 		}
 		assert.deepStrictEqual(snapshots, [
 			{ artifacts: [], refs: [], restrictedMainPills: [] },
-			{ artifacts: [], refs: [{ number: 42, owned: true, explicit: undefined }], restrictedMainPills: [] },
-			{ artifacts: [], refs: [{ number: 42, owned: true, explicit: true }], restrictedMainPills: [42] },
-			{ artifacts: [], refs: [{ number: 43, owned: true, explicit: true }], restrictedMainPills: [43] },
-			{ artifacts: [], refs: [{ number: 42, owned: true, explicit: true }, { number: 43, owned: true, explicit: true }], restrictedMainPills: [42, 43] },
+			{ artifacts: [], refs: [{ number: 42, owned: true }], restrictedMainPills: [] },
+			{ artifacts: ['created-pr'], refs: [{ number: 43, owned: true }], restrictedMainPills: [43] },
+			{ artifacts: ['selected-pr', 'created-pr'], refs: [{ number: 42, owned: true }, { number: 43, owned: true }], restrictedMainPills: [42, 43] },
 		]);
 	}));
 

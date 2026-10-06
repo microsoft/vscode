@@ -233,17 +233,18 @@ suite('Session GitHub References', () => {
 		assert.deepStrictEqual(getSessionGitHubReferences(session, undefined, chat, false).pullRequests.map(ref => ref.number), [1]);
 	});
 
-	test('shows explicit session associations without enabling automatic or other-chat PR pills', () => {
+	test('shows the selected PR through standard main-chat artifacts without automatic attachment', () => {
 		const mainResource = URI.parse('custom-chat://host/main');
 		const peerResource = URI.parse('custom-chat://host/peer');
 		const link = (number: number) => URI.parse(`https://github.com/owner/repo/pull/${number}`);
-		const baseSession = createSession([{
-			id: 'peer', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link(2),
-		}], {
+		const baseSession = createSession([
+			{ id: 'selected', chat: mainResource, kind: SessionArtifactKind.PullRequest, label: '', isArtifact: true, isGitHub: true, link: link(1) },
+			{ id: 'peer', chat: peerResource, kind: SessionArtifactKind.PullRequest, label: 'Peer PR', isArtifact: true, isGitHub: true, link: link(2) },
+		], {
 			owner: 'owner', repo: 'repo',
 			pullRequests: [
-				{ owner: 'owner', repo: 'repo', number: 1, uri: link(1), createdByThisSession: true, isExplicitlyAssociated: true },
-				{ owner: 'owner', repo: 'repo', number: 2, uri: link(2), createdByThisSession: true, isExplicitlyAssociated: true, recordedReferenceId: 'peer' },
+				{ owner: 'owner', repo: 'repo', number: 1, uri: link(1), createdByThisSession: true, recordedReferenceId: 'selected' },
+				{ owner: 'owner', repo: 'repo', number: 2, uri: link(2), createdByThisSession: true, recordedReferenceId: 'peer' },
 				{ owner: 'owner', repo: 'repo', number: 3, uri: link(3), createdByThisSession: true },
 			],
 		});

@@ -375,8 +375,6 @@ export interface IGitHubPullRequestRef {
 	 * inherited from the checkout it started from or merely recorded as a reference by the agent.
 	 */
 	readonly createdByThisSession?: boolean;
-	/** Whether user intent explicitly associated this pull request, independently of automatic checkout discovery. */
-	readonly isExplicitlyAssociated?: boolean;
 }
 
 /** Returns all pull requests associated with GitHub info, including its legacy single-PR shape. */
@@ -1134,7 +1132,6 @@ export function gitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | und
 			x.title === y.title &&
 			x.recordedReferenceId === y.recordedReferenceId &&
 			x.createdByThisSession === y.createdByThisSession &&
-			x.isExplicitlyAssociated === y.isExplicitlyAssociated &&
 			(x.icon === y.icon || (!!x.icon && !!y.icon && ThemeIcon.isEqual(x.icon, y.icon)))) &&
 		a.pullRequest?.number === b.pullRequest?.number &&
 		isEqual(a.pullRequest?.uri, b.pullRequest?.uri) &&
