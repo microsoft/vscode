@@ -4,21 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { findNodeAtLocation, parseTree } from '../../../../../base/common/json.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { equals } from '../../../../../base/common/objects.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { CustomizationMarketplaceIcon, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { mcpServerIcon } from './aiCustomizationIcons.js';
+import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
 const $ = DOM.$;
 
@@ -27,11 +45,44 @@ export interface IMcpServerDetailInput {
 	readonly name: string;
 	readonly label: string;
 	readonly installState: McpServerInstallState;
+	readonly icon?: CustomizationMarketplaceIcon;
 	readonly config?: IMcpServerConfiguration;
+	/** Identifier used by the active harness's compatibility provider. */
+	readonly compatibilityId?: string;
+	/** Current full runtime error, independent of compatibility. */
+	readonly error?: IObservable<string | undefined>;
+	/** Whether the migration planner currently considers this server eligible. */
+	readonly migratable?: boolean;
 	readonly source?: {
 		readonly uri: URI;
 		readonly range?: IRange;
 	};
+	/** Where the server comes from when it has no {@link source} file, such as an extension or the agent itself. */
+	readonly provenance?: IMcpServerProvenance;
+	/** Explains why there is no definition to show, for a server whose definition the client cannot read. */
+	readonly definitionUnavailable?: IMcpServerDefinitionUnavailable;
+}
+
+/** Why an MCP server has no definition to show, and where it can be controlled instead. */
+export interface IMcpServerDefinitionUnavailable {
+	/** Localized explanation shown in place of the definition. */
+	readonly message: string;
+	/** Setting that controls the server, offered as a link to the Settings editor. */
+	readonly settingId?: string;
+}
+
+/** Describes where an MCP server comes from when there is no configuration file to open. */
+export interface IMcpServerProvenance {
+	/** Short localized label, for example "Built-in: Copilot" or "Extension: GitHub Copilot Chat". */
+	readonly label: string;
+	/** Localized accessible name of the link that reveals the provider; present with {@link open}. */
+	readonly ariaLabel?: string;
+	/** Reveals the provider, for example its extension details. */
+	open?(): void;
+}
+
+export interface IMcpServerDetailOptions {
+	readonly openMigrationPage: () => void;
 }
 
 export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer): IMcpServerDetailInput {
@@ -40,52 +91,124 @@ export function createWorkbenchMcpServerDetailInput(server: IWorkbenchMcpServer)
 		name: server.name,
 		label: server.label,
 		installState: server.installState,
+		icon: server.icon ? { light: URI.parse(server.icon.light), dark: URI.parse(server.icon.dark) } : undefined,
 		config: server.config,
+		compatibilityId: server.id,
 		source: server.local?.mcpResource ? { uri: server.local.mcpResource } : undefined,
 	};
 }
+
+interface IMcpDiagnosticSection {
+	readonly section: HTMLElement;
+	readonly card: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly summary: HTMLElement;
+	readonly details: HTMLElement;
+}
+
+type McpDetailCompatibilityState =
+	| { readonly kind: CustomizationMcpServerCompatibilityKind; readonly details: readonly string[] }
+	| { readonly kind: 'checking' | 'unavailable'; readonly details: readonly string[] };
 
 /**
  * Detail view for an MCP server inside the AI Customizations management editor.
  */
 export class EmbeddedMcpServerDetail extends Disposable {
 
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
+
 	private readonly root: HTMLElement;
 	private readonly headerEl: HTMLElement;
 	private readonly leadingSlotEl: HTMLElement;
+	private readonly iconEl: HTMLElement;
 	private readonly nameEl: HTMLElement;
-	private readonly pathEl: HTMLElement;
+	private readonly pathEl: HTMLAnchorElement;
+	private readonly titleActionsEl: HTMLElement;
+	private readonly editConfigurationButton: Button;
+	private readonly bodyEl: HTMLElement;
+	private readonly diagnosticsEmpty: HTMLElement;
 	private readonly definitionEditorContainer: HTMLElement;
 	private readonly definitionEmptyEl: HTMLElement;
+	private readonly errorsSection: IMcpDiagnosticSection;
+	private readonly compatibilitySection: IMcpDiagnosticSection;
+	private readonly migrationSection: IMcpDiagnosticSection;
 	private definitionEditor: CodeEditorWidget | undefined;
 	private readonly definitionModel = this._register(new MutableDisposable<ITextModel>());
+	private readonly diagnosticDisposables = this._register(new DisposableStore());
+	private readonly iconDisposables = this._register(new DisposableStore());
+	private readonly migrationLinkListener = this._register(new MutableDisposable());
+	private readonly definitionSettingsLinkListener = this._register(new MutableDisposable());
 	private readonly emptyEl: HTMLElement;
 
 	private current: IMcpServerDetailInput | undefined;
 	private currentDefinition: string | undefined;
+	private currentError: string | undefined;
+	private compatibilityState: McpDetailCompatibilityState = { kind: 'checking', details: [] };
+	private harnessLabel = '';
 	private renderGeneration = 0;
 
 	constructor(
 		parent: HTMLElement,
+		private readonly options: IMcpServerDetailOptions,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IModelService private readonly modelService: IModelService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IFileService private readonly fileService: IFileService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IThemeService private readonly themeService: IThemeService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
-		this.root = DOM.append(parent, $('.editor-content-container.ai-customization-embedded-detail.embedded-mcp-detail'));
+		this.root = DOM.append(parent, $('.ai-customization-embedded-detail.embedded-mcp-detail'));
 
 		this.headerEl = DOM.append(this.root, $('.editor-header.mcp-detail-header'));
 		this.leadingSlotEl = DOM.append(this.headerEl, $('.embedded-detail-leading-slot'));
+		this.iconEl = DOM.append(this.headerEl, $('.editor-item-icon'));
 		const headerText = DOM.append(this.headerEl, $('.editor-item-info'));
 		this.nameEl = DOM.append(headerText, $('.editor-item-name'));
-		this.pathEl = DOM.append(headerText, $('.editor-item-path'));
+		this.pathEl = DOM.append(headerText, $('a.editor-item-path')) as HTMLAnchorElement;
+		this.titleActionsEl = DOM.append(this.headerEl, $('.embedded-detail-title-actions'));
+		const editConfigurationLabel = localize('editMcpConfiguration', "Edit Configuration");
+		this.editConfigurationButton = this._register(new Button(this.titleActionsEl, {
+			...defaultButtonStyles,
+			secondary: true,
+			ariaLabel: editConfigurationLabel,
+		}));
+		this.editConfigurationButton.label = editConfigurationLabel;
+		this._register(this.editConfigurationButton.onDidClick(() => void this.editConfiguration()));
+		this._register(DOM.addDisposableListener(this.pathEl, DOM.EventType.CLICK, event => {
+			const server = this.current;
+			if (server?.source) {
+				event.preventDefault();
+				void this.editorService.openEditor({
+					resource: server.source.uri,
+					options: { selection: server.source.range, pinned: true },
+				});
+			} else if (server?.provenance?.open) {
+				event.preventDefault();
+				server.provenance.open();
+			}
+		}));
 
-		this.definitionEditorContainer = DOM.append(this.root, $('.embedded-editor-container.mcp-detail-definition-editor'));
-		this.definitionEmptyEl = DOM.append(this.root, $('.embedded-detail-empty.mcp-detail-definition-empty'));
+		this.bodyEl = DOM.append(this.root, $('.mcp-detail-body'));
+		const diagnostics = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
+		this.errorsSection = this.createDiagnosticSection(diagnostics);
+		this.compatibilitySection = this.createDiagnosticSection(diagnostics);
+		this.migrationSection = this.createDiagnosticSection(diagnostics);
+		this.diagnosticsEmpty = DOM.append(diagnostics, $('p.mcp-detail-diagnostics-empty'));
+		this.diagnosticsEmpty.textContent = localize('mcpNoDiagnostics', "No diagnostics to show");
+
+		const definitionSection = DOM.append(this.bodyEl, $('section.mcp-detail-definition-section'));
+		const definitionHeading = DOM.append(definitionSection, $('h2.mcp-detail-section-title'));
+		definitionHeading.textContent = localize('mcpConfigurationSection', "Configuration");
+		this.definitionEditorContainer = DOM.append(definitionSection, $('.embedded-editor-container.mcp-detail-definition-editor'));
+		this.definitionEmptyEl = DOM.append(definitionSection, $('.embedded-detail-empty.mcp-detail-definition-empty'));
 		this.definitionEmptyEl.tabIndex = -1;
 		this.definitionEmptyEl.textContent = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.");
 
@@ -95,10 +218,18 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		// Refresh when the underlying server changes (install state, enablement, etc.).
 		this._register(this.mcpWorkbenchService.onChange(server => {
 			if (this.current && server && server.id === this.current.id) {
-				this.current = createWorkbenchMcpServerDetailInput(server);
+				const { error, compatibilityId, migratable, icon } = this.current;
+				this.current = { ...createWorkbenchMcpServerDetailInput(server), error, compatibilityId, migratable, icon };
+				this.bindDiagnostics();
 				this.renderItem();
 			}
 		}));
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsMigrationEnabled)) {
+				this.bindDiagnostics();
+			}
+		}));
+		this._register(this.themeService.onDidColorThemeChange(() => this.renderIcon()));
 
 		this.renderItem();
 	}
@@ -119,12 +250,45 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		return this.leadingSlotEl;
 	}
 
+	get titleActions(): HTMLElement {
+		return this.titleActionsEl;
+	}
+
 	setInput(server: IMcpServerDetailInput): void {
 		this.current = server;
+		this.bindDiagnostics();
 		this.renderItem();
 	}
 
+	/**
+	 * Replaces the current server's presentation (label, source, provenance, definition) after the host
+	 * reports new metadata, keeping migration state and leaving the view untouched when nothing changed.
+	 */
+	updateInput(server: IMcpServerDetailInput): void {
+		const current = this.current;
+		if (!current || current.id !== server.id) {
+			return;
+		}
+		const next: IMcpServerDetailInput = { ...server, migratable: current.migratable };
+		if (isSameMcpServerDetailPresentation(current, next)) {
+			return;
+		}
+		this.current = next;
+		this.bindDiagnostics();
+		this.renderItem();
+	}
+
+	setMigratable(migratable: boolean): void {
+		if (!this.current || this.current.migratable === migratable) {
+			return;
+		}
+		this.current = { ...this.current, migratable };
+		this.renderMigration();
+	}
+
 	clearInput(): void {
+		this.diagnosticDisposables.clear();
+		this.migrationLinkListener.clear();
 		this.current = undefined;
 		this.renderItem();
 	}
@@ -142,17 +306,19 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const server = this.current;
 		const hasItem = !!server;
 		this.emptyEl.style.display = hasItem ? 'none' : '';
+		this.bodyEl.style.display = hasItem ? '' : 'none';
 		this.root.classList.toggle('is-empty', !hasItem);
+		this.renderIcon();
 		if (!server) {
 			this.nameEl.textContent = '';
-			this.pathEl.textContent = '';
+			this.renderSource(undefined);
 			this.setDefinition(undefined);
 			this.definitionEmptyEl.style.display = 'none';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
-		this.pathEl.textContent = server.source ? basename(server.source.uri) : 'mcp.json';
+		this.renderSource(server);
 		if (server.installState !== McpServerInstallState.Installed) {
 			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
 		} else if (server.config) {
@@ -161,31 +327,283 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.setDefinition(undefined, localize('mcpDefinitionLoading', "Loading MCP server definition..."));
 			void this.loadSourceDefinition(server, server.source, renderGeneration);
 		} else {
-			this.setDefinition(undefined);
+			this.setDefinition(undefined, server.definitionUnavailable?.message, server.definitionUnavailable?.settingId);
+		}
+	}
+
+	private renderIcon(): void {
+		const icon = this.current?.icon;
+		this.iconDisposables.clear();
+		this.iconEl.style.display = icon ? '' : 'none';
+		if (icon) {
+			renderCustomizationMarketplaceIcon(this.iconEl, mcpServerIcon, icon, this.themeService.getColorTheme().type, this.iconDisposables);
+		}
+	}
+
+	/** Shows the configuration file, or where the server comes from when it has none. */
+	private renderSource(server: IMcpServerDetailInput | undefined): void {
+		const source = server?.source;
+		const provenance = source ? undefined : server?.provenance;
+		const label = source ? basename(source.uri) : provenance?.label ?? '';
+		const linkLabel = source
+			? localize('openMcpServerSource', "Open {0}", label)
+			: provenance?.open ? provenance.ariaLabel ?? label : undefined;
+		this.pathEl.textContent = label;
+		this.pathEl.style.display = label ? '' : 'none';
+		this.pathEl.classList.toggle('provenance', provenance !== undefined);
+		this.pathEl.classList.toggle('source-link', linkLabel !== undefined);
+		if (linkLabel !== undefined) {
+			this.pathEl.href = '#';
+			this.pathEl.setAttribute('aria-label', linkLabel);
+		} else {
+			this.pathEl.removeAttribute('href');
+			this.pathEl.removeAttribute('aria-label');
+		}
+		this.editConfigurationButton.element.style.display = source ? '' : 'none';
+	}
+
+	private async editConfiguration(): Promise<void> {
+		const server = this.current;
+		const source = server?.source;
+		if (!server || !source) {
+			return;
+		}
+
+		let selection = source.range;
+		if (!selection) {
+			try {
+				const content = (await this.fileService.readFile(source.uri)).value.toString();
+				selection = getMcpServerConfigurationRange(content, server.name);
+				if (!selection) {
+					this.notificationService.warn(localize(
+						'mcpConfigurationLocationNotFound',
+						"Could not locate the configuration for '{0}'. Opening the source file instead.",
+						server.label || server.name,
+					));
+				}
+			} catch (error) {
+				this.notificationService.error(localize(
+					'mcpConfigurationReadFailed',
+					"Could not read the configuration for '{0}': {1}",
+					server.label || server.name,
+					getErrorMessage(error),
+				));
+				return;
+			}
+		}
+
+		try {
+			await this.editorService.openEditor({
+				resource: source.uri,
+				options: { selection, pinned: true },
+			});
+		} catch (error) {
+			this.notificationService.error(localize(
+				'mcpConfigurationOpenFailed',
+				"Could not open the configuration for '{0}': {1}",
+				server.label || server.name,
+				getErrorMessage(error),
+			));
+		}
+	}
+
+	private bindDiagnostics(): void {
+		this.diagnosticDisposables.clear();
+		this.migrationLinkListener.clear();
+		this.currentError = undefined;
+		this.compatibilityState = { kind: 'checking', details: [] };
+		const server = this.current;
+		if (!server) {
+			this.renderDiagnostics();
+			return;
+		}
+
+		if (server.error) {
+			this.diagnosticDisposables.add(autorun(reader => {
+				this.currentError = server.error?.read(reader);
+				this.renderErrors();
+			}));
+		}
+
+		this.diagnosticDisposables.add(autorun(reader => {
+			const sessionResource = this.customizationHarnessService.activeSessionResource.read(reader);
+			this.customizationHarnessService.availableHarnesses.read(reader);
+			const descriptor = this.customizationHarnessService.getActiveDescriptor();
+			this.harnessLabel = descriptor.label || localize('currentHarness', "the current harness");
+			if (this.configurationService.getValue<boolean>(ChatConfiguration.ChatCustomizationsMigrationEnabled) !== true) {
+				this.compatibilityState = { kind: 'unavailable', details: [] };
+				this.renderCompatibility();
+				return;
+			}
+			if (server.installState !== McpServerInstallState.Installed) {
+				this.compatibilityState = { kind: 'unavailable', details: [] };
+				this.renderCompatibility();
+				return;
+			}
+			if (!server.compatibilityId || !descriptor.mcpServerCompatibilityProvider) {
+				this.compatibilityState = { kind: 'supported', details: [] };
+				this.renderCompatibility();
+				return;
+			}
+			const scope = descriptor.mcpServerCompatibilityProvider.acquire(sessionResource);
+			if (!scope) {
+				this.compatibilityState = { kind: 'unknown', details: [] };
+				this.renderCompatibility();
+				return;
+			}
+			reader.store.add(scope);
+			reader.store.add(autorun(reader => {
+				const compatibility = scope.servers.read(reader).find(candidate => candidate.id === server.compatibilityId);
+				this.compatibilityState = resolveCompatibilityState(scope.isResolved.read(reader), compatibility);
+				this.renderCompatibility();
+			}));
+		}));
+
+		this.renderDiagnostics();
+	}
+
+	private createDiagnosticSection(parent: HTMLElement): IMcpDiagnosticSection {
+		const section = DOM.append(parent, $('section.mcp-detail-diagnostic-section'));
+		const card = DOM.append(section, $('.mcp-detail-diagnostic-card'));
+		const header = DOM.append(card, $('.mcp-detail-diagnostic-header'));
+		const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+		icon.setAttribute('aria-hidden', 'true');
+		const summary = DOM.append(header, $('.mcp-detail-diagnostic-summary'));
+		summary.setAttribute('aria-live', 'polite');
+		const details = DOM.append(card, $('.mcp-detail-diagnostic-details'));
+		return { section, card, icon, summary, details };
+	}
+
+	private renderDiagnostics(): void {
+		this.renderErrors();
+		this.renderCompatibility();
+		this.renderMigration();
+		this.updateDiagnosticsVisibility();
+	}
+
+	private renderErrors(): void {
+		const error = this.currentError;
+		this.errorsSection.section.style.display = error ? '' : 'none';
+		if (!error) {
+			this.updateDiagnosticsVisibility();
+			return;
+		}
+		this.updateDiagnosticSection(
+			this.errorsSection,
+			'error',
+			Codicon.error,
+			localize('mcpServerErrorSummary', "This server reported an error"),
+			[error],
+		);
+		this.updateDiagnosticsVisibility();
+	}
+
+	private renderCompatibility(): void {
+		const state = this.compatibilityState;
+		switch (state.kind) {
+			case 'supported':
+				this.compatibilitySection.section.style.display = 'none';
+				break;
+			case 'partiallySupported':
+				this.compatibilitySection.section.style.display = '';
+				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.warning, localize('mcpPartiallySupportedByHarness', "Partially supported by {0}", this.harnessLabel), state.details);
+				break;
+			case 'unsupported':
+				this.compatibilitySection.section.style.display = '';
+				this.updateDiagnosticSection(this.compatibilitySection, 'error', Codicon.error, localize('mcpUnsupportedByHarness', "Not supported by {0}", this.harnessLabel), state.details);
+				break;
+			case 'unknown':
+				this.compatibilitySection.section.style.display = '';
+				this.updateDiagnosticSection(this.compatibilitySection, 'warning', Codicon.question, localize('mcpCompatibilityUnknownForHarness', "Compatibility with {0} could not be determined", this.harnessLabel), state.details);
+				break;
+			case 'checking':
+				this.compatibilitySection.section.style.display = '';
+				this.updateDiagnosticSection(this.compatibilitySection, 'neutral', ThemeIcon.modify(Codicon.loading, 'spin'), localize('mcpCheckingCompatibility', "Checking compatibility with {0}", this.harnessLabel), []);
+				break;
+			case 'unavailable':
+				this.compatibilitySection.section.style.display = 'none';
+				break;
+		}
+		this.updateDiagnosticsVisibility();
+	}
+
+	private renderMigration(): void {
+		const migratable = this.current?.migratable === true;
+		this.migrationSection.section.style.display = migratable ? '' : 'none';
+		if (!migratable) {
+			this.migrationLinkListener.clear();
+			this.updateDiagnosticsVisibility();
+			return;
+		}
+
+		this.migrationSection.card.className = 'mcp-detail-diagnostic-card migration warning';
+		this.migrationSection.icon.className = 'mcp-detail-diagnostic-icon';
+		this.migrationSection.icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		this.migrationSection.summary.textContent = localize('mcpMigrateServer', "Migrate MCP Server");
+		DOM.clearNode(this.migrationSection.details);
+		this.migrationSection.details.style.display = '';
+		const description = DOM.append(this.migrationSection.details, $('p.mcp-detail-migration-description'));
+		description.textContent = localize('mcpMigrationAvailableDescription', "This MCP server needs to be migrated to keep working.");
+		const link = DOM.append(this.migrationSection.details, $('a.mcp-detail-migration-link')) as HTMLAnchorElement;
+		link.href = '#';
+		link.textContent = localize('mcpReviewMigrations', "Review Migrations...");
+		this.migrationLinkListener.value = DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			this.options.openMigrationPage();
+		});
+		this.updateDiagnosticsVisibility();
+	}
+
+	private updateDiagnosticsVisibility(): void {
+		const hasDiagnostics = this.errorsSection.section.style.display !== 'none'
+			|| this.compatibilitySection.section.style.display !== 'none'
+			|| this.migrationSection.section.style.display !== 'none';
+		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
+		this._onDidChangeContent.fire();
+	}
+
+	private updateDiagnosticSection(section: IMcpDiagnosticSection, kind: 'warning' | 'error' | 'neutral', icon: ThemeIcon, summary: string, details: readonly string[]): void {
+		section.card.className = `mcp-detail-diagnostic-card ${kind}`;
+		section.icon.className = 'mcp-detail-diagnostic-icon';
+		section.icon.classList.add(...ThemeIcon.asClassNameArray(icon));
+		section.summary.textContent = summary;
+		DOM.clearNode(section.details);
+		section.details.style.display = details.length > 0 ? '' : 'none';
+		if (details.length === 1) {
+			const detail = DOM.append(section.details, $('p.mcp-detail-diagnostic-message'));
+			detail.textContent = details[0];
+		} else if (details.length > 1) {
+			const list = DOM.append(section.details, $('ul.mcp-detail-diagnostic-list'));
+			for (const message of details) {
+				const item = DOM.append(list, $('li'));
+				item.textContent = message;
+			}
 		}
 	}
 
 	private async loadSourceDefinition(server: IMcpServerDetailInput, source: NonNullable<IMcpServerDetailInput['source']>, renderGeneration: number): Promise<void> {
 		try {
 			const content = (await this.fileService.readFile(source.uri)).value.toString();
-			if (this.current !== server || this.renderGeneration !== renderGeneration) {
+			if (this.renderGeneration !== renderGeneration) {
 				return;
 			}
-			this.setDefinition(source.range ? getTextInRange(content, source.range) : content);
+			const range = source.range ?? getMcpServerConfigurationRange(content, server.name);
+			this.setDefinition(range ? getTextInRange(content, range) : content);
 		} catch {
-			if (this.current === server && this.renderGeneration === renderGeneration) {
+			if (this.renderGeneration === renderGeneration) {
 				this.setDefinition(undefined, localize('mcpDefinitionLoadFailed', "The MCP server definition could not be loaded."));
 			}
 		}
 	}
 
-	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.")): void {
+	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server."), settingId?: string): void {
 		const hasDefinition = definition !== undefined;
 		this.definitionEditorContainer.style.display = hasDefinition ? '' : 'none';
 		this.definitionEmptyEl.style.display = hasDefinition ? 'none' : '';
-		this.definitionEmptyEl.textContent = emptyMessage;
+		this.renderDefinitionEmpty(emptyMessage, hasDefinition ? undefined : settingId);
 
 		if (this.currentDefinition === definition) {
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -194,6 +612,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!hasDefinition) {
 			this.definitionEditor?.setModel(null);
 			this.definitionModel.clear();
+			this._onDidChangeContent.fire();
 			return;
 		}
 
@@ -204,6 +623,25 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const model = this.modelService.createModel(definition, this.languageService.createById('jsonc'), undefined, true);
 		definitionEditor.setModel(model);
 		this.definitionModel.value = model;
+		this._onDidChangeContent.fire();
+	}
+
+	/** Shows why there is no definition, with a link to the setting that controls the server when one exists. */
+	private renderDefinitionEmpty(message: string, settingId: string | undefined): void {
+		this.definitionSettingsLinkListener.clear();
+		DOM.clearNode(this.definitionEmptyEl);
+		DOM.append(this.definitionEmptyEl, $('span.mcp-detail-definition-message')).textContent = message;
+		if (!settingId) {
+			return;
+		}
+		const link = DOM.append(this.definitionEmptyEl, $('a.mcp-detail-definition-settings-link')) as HTMLAnchorElement;
+		link.href = '#';
+		link.textContent = localize('mcpOpenServerSettings', "Open Settings");
+		link.setAttribute('aria-label', localize('mcpOpenServerSettingsAria', "Open Settings for {0}", this.current?.label || this.current?.name || ''));
+		this.definitionSettingsLinkListener.value = DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			void this.commandService.executeCommand('workbench.action.openSettings', `@id:${settingId}`);
+		});
 	}
 
 	private ensureDefinitionEditor(): CodeEditorWidget {
@@ -230,6 +668,71 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}
 		return this.definitionEditor;
 	}
+}
+
+/**
+ * Whether two inputs for the same server present the same thing. Ignores the error observable and link
+ * callbacks, which are recreated on every rebuild without changing what the detail shows.
+ */
+function isSameMcpServerDetailPresentation(a: IMcpServerDetailInput, b: IMcpServerDetailInput): boolean {
+	return a.name === b.name
+		&& a.label === b.label
+		&& a.installState === b.installState
+		&& a.compatibilityId === b.compatibilityId
+		&& a.migratable === b.migratable
+		&& equals(a.config, b.config)
+		&& isEqual(a.source?.uri, b.source?.uri)
+		&& equals(a.source?.range, b.source?.range)
+		&& a.provenance?.label === b.provenance?.label
+		&& a.provenance?.ariaLabel === b.provenance?.ariaLabel
+		&& !a.provenance?.open === !b.provenance?.open
+		&& equals(a.definitionUnavailable, b.definitionUnavailable)
+		&& isCustomizationMarketplaceIconEqual(a.icon, b.icon);
+}
+
+function resolveCompatibilityState(resolved: boolean, compatibility: ICustomizationMcpServerCompatibility | undefined): McpDetailCompatibilityState {
+	if (!resolved) {
+		return { kind: 'checking', details: [] };
+	}
+	if (!compatibility) {
+		return { kind: 'unknown', details: [] };
+	}
+	return { kind: compatibility.kind, details: compatibility.details ?? [] };
+}
+
+function getMcpServerConfigurationRange(content: string, serverName: string): Range | undefined {
+	const root = parseTree(content);
+	const node = findNodeAtLocation(root, ['servers', serverName])
+		?? findNodeAtLocation(root, ['mcpServers', serverName])
+		?? findNodeAtLocation(root, ['mcp', 'servers', serverName])
+		?? findNodeAtLocation(root, ['settings', 'mcp', 'servers', serverName]);
+	if (!node) {
+		return undefined;
+	}
+	const start = positionAt(content, node.offset);
+	const end = positionAt(content, node.offset + node.length);
+	return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+}
+
+function positionAt(content: string, offset: number): { lineNumber: number; column: number } {
+	let lineNumber = 1;
+	let column = 1;
+	for (let index = 0; index < offset; index++) {
+		const character = content.charCodeAt(index);
+		if (character === 13) {
+			if (content.charCodeAt(index + 1) === 10 && index + 1 < offset) {
+				index++;
+			}
+			lineNumber++;
+			column = 1;
+		} else if (character === 10) {
+			lineNumber++;
+			column = 1;
+		} else {
+			column++;
+		}
+	}
+	return { lineNumber, column };
 }
 
 function getTextInRange(content: string, range: IRange): string {

@@ -28,15 +28,19 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	}
 	async addWorktree(): Promise<void> { }
 	async copyWorktreeIncludeFiles(): Promise<void> { }
+	async symlinkWorktreeFolders(): Promise<readonly string[]> { return []; }
 	async addExistingWorktree(): Promise<void> { }
 	async removeWorktree(): Promise<void> { }
 	async branchExists(): Promise<boolean> { return false; }
 	async createBranch(): Promise<void> { }
+	async checkout(): Promise<void> { }
 	async hasUncommittedChanges(): Promise<boolean> { return false; }
+	async createStash(): Promise<void> { }
 	async commitAll(): Promise<void> { }
 	async mergeBranch(): Promise<string> { return ''; }
 	async restore(): Promise<void> { }
 	async hasUpstream(): Promise<boolean> { return false; }
+	async fetch(): Promise<void> { }
 	async pull(): Promise<void> { }
 	async push(): Promise<void> { }
 	async getSessionGitState(): Promise<undefined> { return undefined; }
@@ -52,6 +56,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<[]> { return []; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }

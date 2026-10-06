@@ -10,14 +10,13 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService, BrowserViewEditorId } from './browserView.js';
+import { BrowserViewSharingState, INavigateOptions, IBrowserEditorViewState, IBrowserViewWorkbenchService, BrowserViewEditorId, IBrowserViewModel } from './browserView.js';
 import { EditorInputCapabilities, GroupIdentifier, IEditorSerializer, IMoveResult, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IBrowserViewModel } from '../common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
@@ -174,7 +173,9 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	get isSharingAvailable(): boolean {
-		return this._model ? this._model.sharingState !== BrowserViewSharingState.Unavailable : this.browserViewWorkbenchService.isSharingAvailable;
+		return this._model
+			? this._model.sharingState === BrowserViewSharingState.Shared || this._model.sharingState === BrowserViewSharingState.Available
+			: this.browserViewWorkbenchService.isSharingAvailable;
 	}
 
 	navigate(url: string, options?: INavigateOptions): void {

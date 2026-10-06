@@ -11,7 +11,7 @@ import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadl
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
@@ -445,7 +445,22 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
+	markAsSingleton(onDidUnregisterWindow(({ vscodeWindowId }) => {
+		// A callback can close its window while the current queue is being processed.
+		const currentQueue = CURRENT_QUEUE.get(vscodeWindowId);
+		if (currentQueue) {
+			currentQueue.length = 0;
+		}
+		NEXT_QUEUE.delete(vscodeWindowId);
+		CURRENT_QUEUE.delete(vscodeWindowId);
+		animFrameRequested.delete(vscodeWindowId);
+		inAnimationFrameRunner.delete(vscodeWindowId);
+	}));
+
 	const animationFrameRunner = (targetWindowId: number) => {
+		if (!animFrameRequested.has(targetWindowId)) {
+			return;
+		}
 		animFrameRequested.set(targetWindowId, false);
 
 		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
@@ -458,7 +473,9 @@ class AnimationFrameQueueItem implements IDisposable {
 			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner.set(targetWindowId, false);
+		if (inAnimationFrameRunner.has(targetWindowId)) {
+			inAnimationFrameRunner.set(targetWindowId, false);
+		}
 	};
 
 	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
@@ -1885,12 +1902,19 @@ export interface IModifierKeyStatus {
 	metaKey: boolean;
 	lastKeyPressed?: ModifierKey;
 	lastKeyReleased?: ModifierKey;
+	/**
+	 * The keyboard event that caused the change. Only available while
+	 * listeners of {@link ModifierKeyEmitter} are notified.
+	 */
 	event?: KeyboardEvent;
 }
 
 export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
-	private readonly _subscriptions = new DisposableStore();
+	// This emitter is a lazily created singleton (see `getInstance`) that is allowed
+	// to outlive the test that happens to create it first. `Emitter` itself is not
+	// tracked, so the store has to be marked to keep it out of leak detection.
+	private readonly _subscriptions = markAsSingleton(new DisposableStore());
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter | undefined;
 
@@ -1940,8 +1964,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyPressed) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
+				this.fireWithEvent(e);
 			}
 		}, true));
 
@@ -1972,8 +1995,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyReleased) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
+				this.fireWithEvent(e);
 			}
 		}, true));
 
@@ -1998,6 +2020,21 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
 	get keyStatus(): IModifierKeyStatus {
 		return this._keyStatus;
+	}
+
+	/**
+	 * The keyboard event is only exposed while listeners are notified. Holding on to it
+	 * would retain its target and event path, e.g. the DOM of an editor that was detached
+	 * after the key press (#146841).
+	 */
+	private fireWithEvent(e: KeyboardEvent): void {
+		const keyStatus = this._keyStatus;
+		keyStatus.event = e;
+		try {
+			this.fire(keyStatus);
+		} finally {
+			keyStatus.event = undefined;
+		}
 	}
 
 	get isModifierPressed(): boolean {

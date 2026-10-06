@@ -6,7 +6,7 @@
 import './media/globalCompositeBar.css';
 import { localize } from '../../../nls.js';
 import { ActionBar, ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
+import { ACCOUNTS_ACTIVITY_ID, ACCOUNTS_SHARED_SIGN_IN_GROUP, GLOBAL_ACTIVITY_ID } from '../../common/activity.js';
 import { IActivityService } from '../../services/activity/common/activity.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore, Disposable } from '../../../base/common/lifecycle.js';
@@ -18,6 +18,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { registerIcon } from '../../../platform/theme/common/iconRegistry.js';
 import { Action, IAction, Separator, SubmenuAction, toAction } from '../../../base/common/actions.js';
+import { Emitter } from '../../../base/common/event.js';
 import { IMenu, IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
 import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from '../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
@@ -61,6 +62,9 @@ export class GlobalCompositeBar extends Disposable {
 	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
+
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
 		private readonly contextMenuActionsProvider: () => IAction[],
@@ -133,19 +137,26 @@ export class GlobalCompositeBar extends Disposable {
 		this.globalActivityActionBar.focus(true);
 	}
 
+	getHeight(actionHeight: number, actionGap: number): number {
+		const count = this.globalActivityActionBar.length();
+		return count * actionHeight + Math.max(0, count - 1) * actionGap;
+	}
+
 	getContextMenuActions(): IAction[] {
 		return [toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference })];
 	}
 
 	private toggleAccountsActivity() {
-		if (this.globalActivityActionBar.length() === 2 && this.accountsVisibilityPreference) {
+		const accountsVisible = this.globalActivityActionBar.length() === 2;
+		if (accountsVisible === this.accountsVisibilityPreference) {
 			return;
 		}
-		if (this.globalActivityActionBar.length() === 2) {
+		if (accountsVisible) {
 			this.globalActivityActionBar.pull(GlobalCompositeBar.ACCOUNTS_ACTION_INDEX);
 		} else {
 			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
+		this._onDidChange.fire();
 	}
 
 	private get accountsVisibilityPreference(): boolean {
@@ -362,6 +373,11 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	}
 
 	private async doInitialize(): Promise<void> {
+		// Resolve extension-host-backed GitHub state before exposing agent-specific accounts.
+		await this.defaultAccountService.getDefaultAccount();
+		if (this._store.isDisposed) {
+			return;
+		}
 		const providerIds = this.authenticationService.getProviderIds();
 		const results = await Promise.allSettled(providerIds.map(providerId => this.addAccountsFromProvider(providerId)));
 
@@ -451,9 +467,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		const dynamicProviders = providers.filter(providerId => this.authenticationService.isDynamicAuthenticationProvider(providerId));
 
 		if (!this.initialized) {
-			const noAccountsAvailableAction = disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false));
-			menus.push(noAccountsAvailableAction);
+			menus.push(disposables.add(new Action('noAccountsAvailable', localize('loading', "Loading..."), undefined, false)));
 		} else {
+
 			for (const providerId of registeredProviders) {
 				const provider = this.authenticationService.getProvider(providerId);
 				const accounts = this.groupedAccounts.get(providerId);
@@ -569,7 +585,21 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			}
 		}
 
-		const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, shouldShowCodexAccount(this.configurationService, false));
+		const sharedAccountCommandGroups = otherCommands.filter(([group]) => group === ACCOUNTS_SHARED_SIGN_IN_GROUP);
+		const remainingCommandGroups = otherCommands.filter(([group]) => group !== ACCOUNTS_SHARED_SIGN_IN_GROUP);
+		const appendCommandGroups = (groups: typeof otherCommands) => {
+			for (const [, actions] of groups) {
+				if (menus.length && actions.length) {
+					menus.push(new Separator());
+				}
+				menus = menus.concat(actions);
+			}
+		};
+		appendCommandGroups(sharedAccountCommandGroups);
+
+		const codexAccountActions = this.initialized
+			? createCodexAccountMenuActions(this.codexAccountService, shouldShowCodexAccount(this.configurationService, false))
+			: [];
 		if (codexAccountActions.length) {
 			if (menus.length) {
 				menus.push(new Separator());
@@ -579,17 +609,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			}
 		}
 
-		if (menus.length && otherCommands.length) {
-			menus.push(new Separator());
-		}
-
-		otherCommands.forEach((group, i) => {
-			const actions = group[1];
-			menus = menus.concat(actions);
-			if (i !== otherCommands.length - 1) {
-				menus.push(new Separator());
-			}
-		});
+		appendCommandGroups(remainingCommandGroups);
 
 		return menus;
 	}

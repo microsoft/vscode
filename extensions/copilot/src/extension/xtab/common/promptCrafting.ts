@@ -137,6 +137,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 		case PromptingStrategy.PatchBased02:
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case PromptingStrategy.PatchBased02Unified:
+		case PromptingStrategy.PatchBased02UnifiedEagerness:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers: {
 			const currentDocument = promptPieces.currentDocument;
 			const cursorLine = currentDocument.lineWithCursor();
@@ -177,6 +178,7 @@ export function getUserPrompt(promptPieces: PromptPieces): UserPromptResult {
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02 &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02WithRecentLineNumbers &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02Unified &&
+		opts.promptingStrategy !== PromptingStrategy.PatchBased02UnifiedEagerness &&
 		opts.promptingStrategy !== PromptingStrategy.PatchBased02WithoutRecentLineNumbers;
 
 	const packagedPrompt = includeBackticks ? wrapInBackticks(mainPrompt) : mainPrompt;
@@ -382,6 +384,7 @@ function getPostScript(options: PromptOptions, currentFilePath: string, aggressi
 		case PromptingStrategy.PatchBased02:
 		case PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case PromptingStrategy.PatchBased02Unified:
+		case PromptingStrategy.PatchBased02UnifiedEagerness:
 		case PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 			postScript = eagernessPrompt === 'aggressionHighLow'
 				? aggressivenessLevel === AggressivenessLevel.Medium

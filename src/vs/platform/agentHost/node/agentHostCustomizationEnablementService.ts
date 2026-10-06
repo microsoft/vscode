@@ -12,7 +12,6 @@ import { AgentSession } from '../common/agentService.js';
 import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
 import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
-import { ActionType } from '../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -157,6 +156,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 	private readonly _sessionLoads = new Map<string, Promise<void>>();
 	private readonly _sessionsById = new Map<string, string>();
 	private readonly _pendingSessionWrites = new Set<Promise<void>>();
+	private readonly _pendingWorkingDirectoryChanges = new Set<string>();
 	/**
 	 * Retains writes made before session metadata or directory registration resolves.
 	 * Replayed after either session load or a working-directory event, while resolution reports `pending` rather than no decision.
@@ -183,13 +183,19 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			if (session !== undefined) {
 				this._sessionsById.set(AgentSession.id(session), session);
 				void this.initializeSession(session);
-				if (envelope.action.type === ActionType.SessionWorkingDirectorySet
-					|| envelope.action.type === ActionType.SessionWorkingDirectoryRemoved
-					|| envelope.action.type === ActionType.SessionWorkingDirectoryReplaced) {
-					const affectedSessions = this._applyPendingReplacements(session);
-					affectedSessions.add(session);
-					this._notifyDecisionChanged(affectedSessions);
-				}
+			}
+		}));
+		this._register(this._sessionState.onDidChangeSessionWorkingDirectories(({ session }) => {
+			const sessionKey = session.toString();
+			if (this._sessionState.getActiveTurnId(session)) {
+				this._pendingWorkingDirectoryChanges.add(sessionKey);
+				return;
+			}
+			this._notifyWorkingDirectoryChanged(sessionKey);
+		}));
+		this._register(this._sessionState.onDidChangeSessionActiveTurn(({ session, active }) => {
+			if (!active && this._pendingWorkingDirectoryChanges.delete(session)) {
+				this._notifyWorkingDirectoryChanged(session);
 			}
 		}));
 		this._register(this._worktree.onDidChangeWorkingDirectoryPending(sessionId => {
@@ -202,6 +208,12 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 			}
 			this._notifyDecisionChanged([session]);
 		}));
+	}
+
+	private _notifyWorkingDirectoryChanged(session: string): void {
+		const affectedSessions = this._applyPendingReplacements(session);
+		affectedSessions.add(session);
+		this._notifyDecisionChanged(affectedSessions);
 	}
 
 	async initializeSession(session: string): Promise<void> {

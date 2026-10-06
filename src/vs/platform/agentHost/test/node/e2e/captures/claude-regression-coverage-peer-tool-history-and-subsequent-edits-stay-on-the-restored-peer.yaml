@@ -1,0 +1,249 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DEFAULT_HISTORY_ONLY. Reply exactly "DEFAULT_READY".
+    response:
+      content: DEFAULT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_BEFORE with PEER_MIDDLE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: Read
+          input:
+            file_path: ${workdir}/peer-edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_BEFORE with PEER_MIDDLE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tPEER_BEFORE\n2"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: Edit
+          input:
+            file_path: ${workdir}/peer-edit.txt
+            old_string: PEER_BEFORE
+            new_string: PEER_MIDDLE
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_BEFORE with PEER_MIDDLE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tPEER_BEFORE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/peer-edit.txt
+                old_string: PEER_BEFORE
+                new_string: PEER_MIDDLE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_BEFORE with PEER_MIDDLE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tPEER_BEFORE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/peer-edit.txt
+                old_string: PEER_BEFORE
+                new_string: PEER_MIDDLE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_MIDDLE with PEER_AFTER. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_2
+          name: Read
+          input:
+            file_path: ${workdir}/peer-edit.txt
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_BEFORE with PEER_MIDDLE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tPEER_BEFORE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/peer-edit.txt
+                old_string: PEER_BEFORE
+                new_string: PEER_MIDDLE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_MIDDLE with PEER_AFTER. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: "1\tPEER_MIDDLE\n2"
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_3
+          name: Edit
+          input:
+            file_path: ${workdir}/peer-edit.txt
+            old_string: PEER_MIDDLE
+            new_string: PEER_AFTER
+      stopReason: tool_use
+  - request:
+      model: claude-opus-5.5
+      system: ${system}
+      messages:
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_BEFORE with PEER_MIDDLE. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: "1\tPEER_BEFORE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/peer-edit.txt
+                old_string: PEER_BEFORE
+                new_string: PEER_MIDDLE
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Read peer-edit.txt with Read, then use Edit exactly once to replace PEER_MIDDLE with PEER_AFTER. Do not search for files or run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Read
+              input:
+                file_path: ${workdir}/peer-edit.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_2
+              content: "1\tPEER_MIDDLE\n2"
+        - role: assistant
+          content:
+            - type: tool_use
+              name: Edit
+              input:
+                replace_all: false
+                file_path: ${workdir}/peer-edit.txt
+                old_string: PEER_MIDDLE
+                new_string: PEER_AFTER
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_3
+              content: The file ${workdir}/peer-edit.txt has been updated successfully. (file state is current in your context — no need to Read it back)
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn

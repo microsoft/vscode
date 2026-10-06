@@ -9,7 +9,7 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, ExtensionUntrustedWorkspaceSupportType, IExtensionManifest } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -145,17 +145,60 @@ suite('ExtensionManifestPropertiesService - SessionsWindowSupport', () => {
 		], [true, false, false]);
 	});
 
-	test('uses configured sessions window support override', async () => {
-		await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+	test('preserves built-in defaults when no agents window support is declared', () => {
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: false } }, contributes: { commands: [] } })),
-			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', capabilities: { agentsWindow: { supported: true } }, contributes: { themes: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js' }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ browser: './out/extension.js' }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { viewsContainers: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { debuggers: [] } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ contributes: { walkthroughs: [] } }), true),
+		], [true, true, false, false, false, false]);
+	});
+
+	for (const isBuiltin of [false, true]) {
+		test(`uses configured sessions window support override for ${isBuiltin ? 'built-in' : 'user'} extensions`, async () => {
+			await testConfigurationService.setUserConfiguration(EXTENSIONS_SUPPORT_AGENTS_WINDOW, { 'pub.a': true, 'pub.b': false });
+			testObject = createTestObject();
+
+			assert.deepStrictEqual([
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { views: {} } }), isBuiltin),
+				testObject.canExecuteOnSessionsWindow(getExtensionManifest({ name: 'b', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { themes: [] } }), isBuiltin),
+			], [true, false]);
+		});
+	}
+
+	test('uses declared built-in agents window support without the experimental feature', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } }), true),
 		], [true, false]);
 	});
 
-	test('uses declared agents window support', () => {
+	test('ignores declared built-in agents window support without the proposal', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', capabilities: { agentsWindow: { supported: true } }, contributes: { views: {} } }), true),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } }), true),
+		], [false, true]);
+	});
+
+	test('ignores declared agents window support when the experimental feature is disabled', () => {
+		testObject = createTestObject();
+
+		assert.deepStrictEqual([
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ main: './out/extension.js', enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: true } }, contributes: { commands: [] } })),
+			testObject.canExecuteOnSessionsWindow(getExtensionManifest({ enabledApiProposals: ['agentsWindowActivation'], capabilities: { agentsWindow: { supported: false } }, contributes: { themes: [] } })),
+		], [false, true]);
+	});
+
+	test('uses declared agents window support when the experimental feature is enabled', async () => {
+		await testConfigurationService.setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
 		testObject = createTestObject();
 
 		assert.deepStrictEqual([

@@ -42,6 +42,7 @@ export class FileEditTracker {
 	constructor(
 		private readonly _sessionUri: string,
 		private readonly _db: ISessionDatabase,
+		private readonly _provider: string | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
@@ -109,7 +110,7 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext): Promise<ToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
@@ -158,6 +159,7 @@ export class FileEditTracker {
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
+			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
 			filePath,
@@ -185,6 +187,8 @@ export class FileEditTracker {
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
+				...(this._provider ? { provider: this._provider } : {}),
+				chatUri,
 				turnId,
 				toolCallId,
 				filePath,
@@ -203,6 +207,7 @@ export class FileEditTracker {
 		this._editArcReporterService.reportEdit({
 			clientContext,
 			sessionUri: this._sessionUri,
+			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
 			filePath,

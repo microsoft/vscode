@@ -13,8 +13,8 @@ import { ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/as
 import { ICompressedTreeNode } from '../../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
 import { ICompressibleKeyboardNavigationLabelProvider, ICompressibleTreeRenderer } from '../../../../../base/browser/ui/tree/objectTree.js';
 import { ITreeNode, ITreeElementRenderDetails, IAsyncDataSource, ITreeSorter, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { AgentSessionSection, AgentSessionStatus, getAgentChangesSummary, hasValidDiff, IAgentSession, IAgentSessionSection, IAgentSessionShowLess, IAgentSessionShowMore, IAgentSessionsModel, isAgentSession, isAgentSessionChild, isAgentSessionSection, isAgentSessionShowLess, isAgentSessionShowMore, isAgentSessionsModel, isSessionInProgressStatus } from './agentSessionsModel.js';
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon, themeColorFromId } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -96,6 +96,13 @@ interface IAgentSessionItemTemplate {
 	readonly disposables: IDisposable;
 }
 
+interface IAgentSessionApprovalTemplate {
+	readonly approvalRow: HTMLElement;
+	readonly approvalLabel: HTMLElement;
+	readonly approvalButtonContainer: HTMLElement;
+	readonly elementDisposable: DisposableStore;
+}
+
 class AgentSessionStatusIcon extends Disposable {
 
 	private static readonly PIXEL_SPINNER_GRID_KEY = '__pixel_spinner_grid__';
@@ -109,6 +116,7 @@ class AgentSessionStatusIcon extends Disposable {
 		private readonly container: HTMLElement,
 		private readonly getIcon: (session: IAgentSession) => ThemeIcon,
 		private readonly accessibilityService: IAccessibilityService,
+		private readonly containerClassName = 'agent-session-icon',
 	) {
 		super();
 
@@ -132,10 +140,11 @@ class AgentSessionStatusIcon extends Disposable {
 	}
 
 	private render(session: IAgentSession): void {
-		this.container.className = `agent-session-icon${session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
+		const statusKnown = !isAgentSessionChild(session) || session.statusKnown !== false;
+		this.container.className = `${this.containerClassName}${statusKnown && session.status === AgentSessionStatus.NeedsInput ? ' needs-input' : ''}`;
 		this.container.style.color = '';
 
-		if ((session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
+		if (statusKnown && (session.status === AgentSessionStatus.InProgress || session.status === AgentSessionStatus.NeedsInput) && !this.accessibilityService.isMotionReduced()) {
 			const isNeedsInput = session.status === AgentSessionStatus.NeedsInput;
 			const cacheKey = isNeedsInput ? AgentSessionStatusIcon.PIXEL_SPINNER_RING_KEY : AgentSessionStatusIcon.PIXEL_SPINNER_GRID_KEY;
 			const color = isNeedsInput ? asCssVariable('list.warningForeground') : asCssVariable('textLink.foreground');
@@ -179,6 +188,10 @@ class AgentSessionStatusIcon extends Disposable {
 }
 
 export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
+	if (isAgentSessionChild(session) && session.statusKnown === false) {
+		return { ...Codicon.circleSmallFilled, color: themeColorFromId('agentSessionReadIndicator.foreground') };
+	}
+
 	if (session.status === AgentSessionStatus.InProgress) {
 		return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 	}
@@ -235,6 +248,12 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	readonly templateId = AgentSessionRenderer.TEMPLATE_ID;
 
 	private readonly sessionHover = this._register(new MutableDisposable<AgentSessionHoverWidget>());
+	private readonly renderedElements = new Map<string, HTMLElement>();
+
+	/** Returns only a currently rendered row owned by this list renderer. */
+	getSessionElement(resource: URI): HTMLElement | undefined {
+		return this.renderedElements.get(resource.toString());
+	}
 
 	private readonly _onDidChangeItemHeight = this._register(new Emitter<IAgentSession>());
 	readonly onDidChangeItemHeight: Event<IAgentSession> = this._onDidChangeItemHeight.event;
@@ -333,10 +352,19 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 
 		// Clear old state
 		template.elementDisposable.clear();
+		const resource = session.element.resource.toString();
+		this.renderedElements.set(resource, template.element);
+		template.elementDisposable.add(toDisposable(() => {
+			if (this.renderedElements.get(resource) === template.element) {
+				this.renderedElements.delete(resource);
+			}
+		}));
 		template.diffAddedSpan.textContent = '';
 		template.diffRemovedSpan.textContent = '';
 		template.badge.textContent = '';
 		template.description.textContent = '';
+		const hasChatChildren = session.visibleChildrenCount > 0;
+		template.element.closest('.monaco-list-row')?.classList.toggle('has-chat-children', hasChatChildren);
 
 		// Archived
 		template.element.classList.toggle('archived', session.element.isArchived());
@@ -669,9 +697,10 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		};
 	}
 
-	private renderApprovalRow(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+	renderApprovalRow(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionApprovalTemplate): void {
 		if (this._approvalModel === undefined) {
-			throw new BugIndicatingError('Approval model is required to render approval row');
+			template.approvalRow.classList.remove('visible');
+			return;
 		}
 
 		const approvalModel = this._approvalModel;
@@ -740,6 +769,90 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 	}
 
 	disposeTemplate(templateData: IAgentSessionItemTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
+interface IAgentSessionChatItemTemplate extends IAgentSessionApprovalTemplate {
+	readonly element: HTMLElement;
+	readonly statusIcon: AgentSessionStatusIcon;
+	readonly title: IconLabel;
+	readonly disposables: DisposableStore;
+}
+
+export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgentSession, FuzzyScore, IAgentSessionChatItemTemplate> {
+
+	static readonly TEMPLATE_ID = 'agent-session-chat';
+	readonly templateId = AgentSessionChatRenderer.TEMPLATE_ID;
+	readonly rowClassName = 'agent-session-chat-row';
+
+	constructor(
+		private readonly sessionRenderer: AgentSessionRenderer,
+		private readonly isLastVisibleChat: (session: ITreeNode<IAgentSession, FuzzyScore>) => boolean,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IAgentSessionChatItemTemplate {
+		const disposables = new DisposableStore();
+		const elementDisposable = disposables.add(new DisposableStore());
+		container.closest('.monaco-list-row')?.classList.add('agent-session-list-row', 'agent-session-chat-row');
+
+		const elements = h(
+			'div.agent-session-chat-item@item',
+			[
+				h('div.agent-session-chat-title-row', [
+					h('div.agent-session-chat-icon@icon', { 'aria-hidden': 'true' }),
+					h('div.agent-session-chat-title@title'),
+				]),
+				h('div.agent-session-approval-row@approvalRow', [
+					h('span.agent-session-approval-label@approvalLabel'),
+					h('div.agent-session-approval-button@approvalButtonContainer'),
+				])
+			]
+		);
+		container.appendChild(elements.item);
+
+		return {
+			element: elements.item,
+			statusIcon: disposables.add(new AgentSessionStatusIcon(elements.icon, getAgentSessionStatusIcon, this.accessibilityService, 'agent-session-chat-icon')),
+			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
+			approvalRow: elements.approvalRow,
+			approvalLabel: elements.approvalLabel,
+			approvalButtonContainer: elements.approvalButtonContainer,
+			elementDisposable,
+			disposables,
+		};
+	}
+
+	renderElement(session: ITreeNode<IAgentSession, FuzzyScore>, _index: number, template: IAgentSessionChatItemTemplate): void {
+		if (!isAgentSessionChild(session.element)) {
+			return;
+		}
+
+		template.elementDisposable.clear();
+		template.element.classList.toggle('last-chat', this.isLastVisibleChat(session));
+		template.element.classList.toggle('needs-input', session.element.statusKnown !== false && session.element.status === AgentSessionStatus.NeedsInput);
+		template.statusIcon.setStatus(session.element);
+
+		const label = renderAsPlaintext(new MarkdownString(session.element.label));
+		template.title.setLabel(label, undefined, {
+			matches: createMatches(session.filterData),
+			title: label,
+		});
+
+		this.sessionRenderer.renderApprovalRow(session, template);
+	}
+
+	renderCompressedElements(): void {
+		throw new BugIndicatingError('Session chats cannot be compressed');
+	}
+
+	disposeElement(_element: ITreeNode<IAgentSession, FuzzyScore>, _index: number, template: IAgentSessionChatItemTemplate): void {
+		template.elementDisposable.clear();
+		template.statusIcon.reset();
+	}
+
+	disposeTemplate(templateData: IAgentSessionChatItemTemplate): void {
 		templateData.disposables.dispose();
 	}
 }
@@ -958,6 +1071,7 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 
 	static readonly ITEM_HEIGHT = 54;
 	static readonly COMPACT_ITEM_HEIGHT = 52;
+	static readonly CHAT_ITEM_HEIGHT = 28;
 	static readonly SECTION_HEIGHT = 26;
 	static readonly SPACED_SECTION_HEIGHT = 30;
 
@@ -976,7 +1090,7 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 			return this._compactShowMore ? AgentSessionShowMoreRenderer.COLLAPSED_HEIGHT : AgentSessionShowMoreRenderer.HEIGHT;
 		}
 
-		let height = this._getItemHeight();
+		let height = isAgentSessionChild(element) ? AgentSessionsListDelegate.CHAT_ITEM_HEIGHT : this._getItemHeight();
 		const approval = this._approvalModel?.getApproval(element.resource).get();
 		if (approval) {
 			height += AgentSessionRenderer.getApprovalRowHeight(approval.label);
@@ -1004,6 +1118,10 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 			return AgentSessionShowLessRenderer.TEMPLATE_ID;
 		}
 
+		if (isAgentSessionChild(element)) {
+			return AgentSessionChatRenderer.TEMPLATE_ID;
+		}
+
 		return AgentSessionRenderer.TEMPLATE_ID;
 	}
 }
@@ -1011,11 +1129,11 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<AgentSess
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<AgentSessionListItem> {
 
 	getWidgetRole(): AriaRole {
-		return 'list';
+		return 'tree';
 	}
 
 	getRole(element: AgentSessionListItem): AriaRole | undefined {
-		return 'listitem';
+		return 'treeitem';
 	}
 
 	getWidgetAriaLabel(): string {
@@ -1039,6 +1157,17 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 			return localize('agentSessionShowLessAriaLabel', "Show less sessions");
 		}
 
+		if (isAgentSessionChild(element)) {
+			return element.statusKnown === false
+				? localize('agentSessionChatItemAriaLabelWithoutStatus', "{0}, chat in session {1}", element.label, element.parentSession.label)
+				: localize('agentSessionChatItemAriaLabel', "{0}, chat in session {1} ({2})", element.label, element.parentSession.label, toStatusLabel(element.status));
+		}
+		if (element.children?.length) {
+			if (element.children.length === 1) {
+				return localize('agentSessionParentItemAriaLabel.singular', "{0} session {1}, 1 peer chat ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
+			}
+			return localize('agentSessionParentItemAriaLabel', "{0} session {1}, {2} peer chats ({3}), created {4}", element.providerLabel, element.label, element.children.length, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
+		}
 		return localize('agentSessionItemAriaLabel', "{0} session {1} ({2}), created {3}", element.providerLabel, element.label, toStatusLabel(element.status), new Date(element.timing.created).toLocaleString());
 	}
 }
@@ -1116,6 +1245,12 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 	readonly onDidExpandRepositoryGroup: Event<void> = this._onDidExpandRepositoryGroup.event;
 
 	private readonly expandedRepositoryGroups = new Set<string>();
+	private revealedSession: URI | undefined;
+
+	/** Temporarily includes an explicitly revealed session without changing saved filters or caps. */
+	setRevealedSession(resource: URI | undefined): void {
+		this.revealedSession = resource;
+	}
 
 	constructor(
 		private readonly filter: IAgentSessionsFilter | undefined,
@@ -1159,10 +1294,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			return element.sessions.length > 0;
 		}
 
-		// Session element or show more
-		else {
-			return false;
-		}
+		return isAgentSession(element) && !!element.children?.length;
 	}
 
 	getChildren(element: IAgentSessionsModel | AgentSessionListItem): Iterable<AgentSessionListItem> {
@@ -1171,7 +1303,8 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		if (isAgentSessionsModel(element)) {
 
 			// Apply filter if configured
-			let filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
+			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
+			let filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
 			// Apply sorter unless we group into sections or we are to limit results
 			const limitResultsCount = this.filter?.limitResults?.();
@@ -1182,6 +1315,9 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			// Apply limiter if configured (requires sorting)
 			if (typeof limitResultsCount === 'number') {
 				filteredSessions = filteredSessions.slice(0, limitResultsCount);
+				if (revealed && !filteredSessions.includes(revealed)) {
+					filteredSessions.push(revealed);
+				}
 			}
 
 			// Callback results count
@@ -1201,7 +1337,7 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 		else if (isAgentSessionSection(element)) {
 			const isCappingEnabled = this.repositoryGroupLimit && this.filter?.getExcludes().repositoryGroupCapped;
 			if (isCappingEnabled && element.section === AgentSessionSection.Repository && element.sessions.length > this.repositoryGroupLimit) {
-				if (!this.expandedRepositoryGroups.has(element.label)) {
+				if (!this.expandedRepositoryGroups.has(element.label) && !element.sessions.some(session => session.resource.toString() === this.revealedSession?.toString())) {
 					// Collapsed: show limited sessions + "show more"
 					const visible = element.sessions.slice(0, this.repositoryGroupLimit);
 					const remainingCount = element.sessions.length - this.repositoryGroupLimit;
@@ -1214,10 +1350,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 			return element.sessions;
 		}
 
-		// Session element or show more
-		else {
-			return [];
+		if (isAgentSession(element)) {
+			return element.children ?? [];
 		}
+
+		return [];
 	}
 
 	private groupSessionsIntoSections(sessions: IAgentSession[]): AgentSessionListItem[] {
@@ -1612,7 +1749,9 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 		}
 
 		if (isAgentSession(element)) {
-			return element.resource.toString();
+			return isAgentSessionChild(element)
+				? `chat-${element.resource.toString()}`
+				: element.resource.toString();
 		}
 
 		return 'agent-sessions-id';
@@ -1622,7 +1761,7 @@ export class AgentSessionsIdentityProvider implements IIdentityProvider<IAgentSe
 		if (isAgentSessionSection(element) || isAgentSessionsModel(element)) {
 			return NotSelectableGroupId;
 		}
-		return 1;
+		return isAgentSession(element) && isAgentSessionChild(element) ? 2 : 1;
 	}
 }
 

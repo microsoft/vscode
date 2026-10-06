@@ -46,6 +46,7 @@ existing native-host IPC channel.
 sequenceDiagram
     participant KB as IKeybindingService (renderer)
     participant C as SystemWideKeybindingsContribution (renderer)
+    participant A as OpenAgentsWindowSystemWideKeybindingContribution (Agents renderer)
     participant NH as NativeHostMainService (main)
     participant G as GlobalKeybindingsMainService (main)
     participant OS as Electron globalShortcut / OS
@@ -54,6 +55,9 @@ sequenceDiagram
     KB->>C: onDidUpdateKeybindings (also fires on layout change)
     C->>C: selectSystemWideKeybindings() (debounced 200ms)
     C->>NH: syncSystemWideKeybindings(payload)  [per window]
+    KB->>A: initial sync after restore / onDidUpdateKeybindings
+    A->>A: select all, then keep direct Open Agents Window bindings
+    A->>NH: syncSystemWideKeybindings(payload)  [Agents window]
     NH->>G: updateKeybindings(windowId, payload)
     G->>OS: register / unregister accelerators (union across windows)
     G-->>C: { failed: string[] }  (surfaced as a warning notification)
@@ -64,23 +68,44 @@ sequenceDiagram
 
 ### Renderer
 
-**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.contribution.ts`** —
-the heart of the renderer side. Registered as a workbench contribution at
-`WorkbenchPhase.AfterRestored` (never blocks startup).
+**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.ts`** contains the
+shared, side-effect-free selection contract.
 
 - `selectSystemWideKeybindings(items)` — a **pure** function that filters the full set of resolved
   keybindings down to eligible candidates. Eligibility: `item.systemWide && !item.isDefault &&
   item.command && item.resolvedKeybinding && getElectronAccelerator() !== null` and the accelerator
   has not already been claimed. Returns `{ candidates, unsupported, duplicates }` so the caller can
   log why entries were dropped. Kept pure and separately unit-tested.
+
+**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindingsSynchronizer.ts`**
+contains the shared renderer-to-main synchronization client. It debounces keybinding changes,
+serializes updates, maps candidates to the native IPC payload, skips payloads already processed by
+the main process, and deduplicates registration-failure reporting. The initial payload, including
+an empty one, is always sent so a reloaded renderer clears stale main-process ownership. A
+successful IPC result with no registration failures is cached; rejected accelerators and IPC
+exceptions can be retried on a later keybinding update. Results arriving after disposal are ignored.
+
+**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.contribution.ts`**
+owns the standard desktop workbench synchronization. Registered as a workbench contribution at
+`WorkbenchPhase.AfterRestored` (never blocks startup).
+
 - `SystemWideKeybindingsContribution` — subscribes to `IKeybindingService.onDidUpdateKeybindings`
   (which also fires on keyboard-layout changes, since accelerator strings depend on layout),
   debounces via a 200ms `RunOnceScheduler`, and on each `sync()`:
   1. collects candidates (logging unsupported/duplicate entries),
   2. warns once per label about ignored `when` clauses (`warnedWhenLabels` guard),
-  3. pushes the payload to the main process via `INativeHostService.syncSystemWideKeybindings`,
-  4. reports registration failures via `INotificationService`, deduped against the last reported set
-     (`lastReportedFailures`) so unchanged failures are not re-notified.
+  3. delegates payload synchronization and deduplicated failure reporting to the shared client.
+
+**`src/vs/sessions/contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.ts`**
+is the narrow Agents Window owner. It runs the shared selection over the complete resolved
+keybinding list before retaining only direct `workbench.action.openAgentsWindow` candidates. This
+preserves global first-binding-wins semantics when another command claims the same accelerator.
+It synchronizes immediately after `WorkbenchPhase.AfterRestored`, debounces later keybinding
+updates, and skips unchanged payloads. The Agents owner suppresses duplicate ignored-`when`
+warnings but reports OS registration failures because it may be the only open feedback surface.
+
+The Agents-specific ownership and profile contract is specified in
+[`src/vs/sessions/SYSTEM_WIDE_KEYBINDING.md`](../../../../sessions/SYSTEM_WIDE_KEYBINDING.md).
 
 **`src/vs/workbench/electron-browser/window.ts`** — handles the `vscode:runAction` IPC in the
 renderer. For `request.from === 'systemWideKeybinding'` it runs the command with **exactly** the
@@ -166,6 +191,12 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
    a persistent conflict is reported once, not on every re-sync.
 6. **Stable trigger callback reading live state** — registering once per accelerator (rather than
    re-registering on every payload change) avoids races and stale command/args capture.
+7. **Narrow Agents Window ownership** — the Agents renderer reports only a globally selected direct
+   Open Agents Window binding. This keeps the shortcut registered after editor windows close without
+   making the Agents Window a dispatcher for unrelated commands.
+8. **Per-owner failure feedback** — registration failures are returned to each renderer that owns
+   the accelerator. Each owner may surface the same warning, which ensures the error remains visible
+   when only one renderer survives.
 
 ## Testing
 
@@ -177,6 +208,9 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
 - `src/vs/workbench/contrib/keybindings/test/electron-browser/systemWideKeybindings.test.ts` — the
   pure `selectSystemWideKeybindings`: eligibility filtering, unsupported (chords/modifiers),
   duplicates.
+- `src/vs/sessions/contrib/openAgentsWindow/test/electron-browser/openAgentsWindow.contribution.test.ts`
+  — post-selection Open Agents Window filtering, argument preservation, payload deduplication and
+  clearing, registration-failure reporting, and the command-only Agents registration.
 - `keybindingIO.test.ts` / `keybindingEditing.test.ts` — round-trip of the `systemWide` flag through
   parse/serialize.
 

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, isBrowserViewAssociatedResourceNavigation, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
+import { BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -87,6 +87,26 @@ suite('BrowserView', () => {
 			workspace: false,
 			ephemeral: true,
 			agent: true,
+		});
+	});
+
+	test('only shares Agent storage when network filtering is enabled', () => {
+		assert.deepStrictEqual({
+			filteringDisabled: Object.fromEntries(Object.values(BrowserViewStorageScope).map(scope => [scope, isBrowserViewStorageScopeShareableWithAgent(scope, false)])),
+			filteringEnabled: Object.fromEntries(Object.values(BrowserViewStorageScope).map(scope => [scope, isBrowserViewStorageScopeShareableWithAgent(scope, true)])),
+		}, {
+			filteringDisabled: {
+				global: true,
+				workspace: true,
+				ephemeral: true,
+				agent: true,
+			},
+			filteringEnabled: {
+				global: false,
+				workspace: false,
+				ephemeral: false,
+				agent: true,
+			},
 		});
 	});
 });

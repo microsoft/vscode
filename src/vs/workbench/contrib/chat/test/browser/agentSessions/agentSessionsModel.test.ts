@@ -54,6 +54,38 @@ suite('AgentSessionsCache', () => {
 		assert.deepStrictEqual(loaded.changes, summary);
 	});
 
+	test('round-trips session chat children', () => {
+		const { cache } = createCache();
+		const session = createSession(undefined);
+		const child = {
+			...createSession(undefined),
+			resource: URI.parse('test:/session#peer'),
+			label: 'Peer chat',
+			statusKnown: false,
+			parentSession: { resource: session.resource, label: session.label },
+		};
+		cache.saveCachedSessions([{ ...session, children: [child] }]);
+
+		const [loaded] = cache.loadCachedSessions();
+		assert.deepStrictEqual({
+			children: loaded.children?.map(item => ({
+				resource: item.resource.toString(),
+				label: item.label,
+				parentResource: item.parentSession?.resource.toString(),
+				parentLabel: item.parentSession?.label,
+				statusKnown: item.statusKnown,
+			})),
+		}, {
+			children: [{
+				resource: 'test:/session#peer',
+				label: 'Peer chat',
+				parentResource: 'test:/session',
+				parentLabel: 'Session',
+				statusKnown: false,
+			}],
+		});
+	});
+
 	test('loads legacy arrays as summaries and revives session resources', () => {
 		const { cache, storageService } = createCache();
 		storageService.store(storageKey, JSON.stringify([{

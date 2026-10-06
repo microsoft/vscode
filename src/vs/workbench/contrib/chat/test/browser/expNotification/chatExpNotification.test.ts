@@ -217,6 +217,7 @@ suite('ChatExpNotification', () => {
 					_serviceBrand: undefined,
 					onDidRefetchAssignments: onDidRefetchAssignments.event,
 					getCurrentExperiments: async () => [],
+					getTreatmentWithAssignment: async () => ({ value: undefined, hasAssignment: Promise.resolve(false) }),
 					addTelemetryAssignmentFilter(_filter: IAssignmentFilter): void { },
 					getTreatment: async <T extends string | number | boolean>() => (treatments.length > 1 ? treatments.shift() : treatments[0]) as T,
 				} satisfies IWorkbenchAssignmentService,

@@ -73,6 +73,32 @@ export function log(logger: ILogger, level: LogLevel, message: string): void {
 	}
 }
 
+/**
+ * Creates a handler that suppresses identical unexpected errors for one second.
+ */
+export function createUnexpectedErrorHandler(logger: ILogger): (error: unknown) => void {
+	let previousMessage: string | undefined;
+	let previousTime = 0;
+
+	return error => {
+		const message = toErrorMessage(error, true);
+		if (!message) {
+			return;
+		}
+
+		const now = Date.now();
+		if (message === previousMessage && now - previousTime <= 1000) {
+			return;
+		}
+
+		previousTime = now;
+		previousMessage = message;
+
+		// Keep native errors for debugger source mapping, but retain the message fallback for stackless errors.
+		logger.error(error instanceof Error && error.stack ? error : message);
+	};
+}
+
 type ConsoleMethod = 'debug' | 'error' | 'info' | 'log' | 'warn';
 type ConsoleMethodFn = (...args: unknown[]) => void;
 
@@ -495,7 +521,7 @@ export class ConsoleMainLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	error(message: string, ...args: unknown[]): void {
+	error(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
 				logToConsole('error', `\x1b[91m[main ${now()}]\x1b[0m`, message, ...args);
@@ -558,7 +584,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 		}
 	}
 
-	error(message: string, ...args: unknown[]): void {
+	error(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
 				logToConsole('error', '%c  ERR', 'color: #f33', message, ...args);
@@ -607,7 +633,7 @@ export class AdapterLogger extends AbstractLogger implements ILogger {
 
 	error(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
-			this.adapter.log(LogLevel.Error, [this.extractMessage(message), ...args]);
+			this.adapter.log(LogLevel.Error, [toErrorMessage(message, true), ...args]);
 		}
 	}
 

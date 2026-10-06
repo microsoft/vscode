@@ -13,6 +13,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { IChatTipService } from '../../browser/chatTipService.js';
 import { ChatWidget } from '../../browser/widget/chatWidget.js';
 import { toPasteVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
@@ -53,6 +54,7 @@ suite('ChatWidget Slash Commands', () => {
 			executedRequestOptions = requestOptions;
 		});
 		instantiationService.stub(IChatSlashCommandService, chatSlashCommandService);
+		const recordedSlashCommands: string[] = [];
 
 		const pastedText = toPasteVariableEntry('Pasted text #1', 'Long pasted text');
 		let hasActiveRequest = false;
@@ -71,6 +73,9 @@ suite('ChatWidget Slash Commands', () => {
 			attachmentCapabilities: undefined,
 			chatAgentService: instantiationService.get(IChatAgentService),
 			chatSlashCommandService,
+			chatTipService: mockObject<IChatTipService>()({
+				recordSlashCommandUsage: (command: string) => recordedSlashCommands.push(command),
+			}),
 			input: {
 				currentModeKind: ChatModeKind.Ask,
 				getAttachedContext: () => ({ asArray: () => [pastedText] }),
@@ -97,6 +102,7 @@ suite('ChatWidget Slash Commands', () => {
 			acceptedInput,
 			attachedContext: executedRequestOptions?.attachedContext,
 			preservedInputContext,
+			recordedSlashCommands,
 		}, {
 			handledWithoutActiveRequest: false,
 			handled: true,
@@ -104,6 +110,7 @@ suite('ChatWidget Slash Commands', () => {
 			acceptedInput: { storeToHistory: true, preserveFocus: true },
 			attachedContext: [pastedText],
 			preservedInputContext: [],
+			recordedSlashCommands: ['btw'],
 		});
 	});
 });

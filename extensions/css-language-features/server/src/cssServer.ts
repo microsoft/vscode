@@ -142,7 +142,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		let service = languageServices[document.languageId];
 		if (!service) {
 			connection.console.log('Document type is ' + document.languageId + ', using css instead.');
-			service = languageServices['css'];
+			service = languageServices.css;
 		}
 		return service;
 	}

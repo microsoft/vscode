@@ -36,18 +36,6 @@ suite('CodeReferenceEngagementTracker', function () {
 		assert.strictEqual(telemetry.reporter.events[0].name, 'code_referencing.github_copilot_log.focus.count');
 	});
 
-	test('sends a telemetry event when the output channel is focused2', async function () {
-		const telemetry = await withInMemoryTelemetry(accessor, () => {
-			engagementTracker.onActiveEditorChange({
-				document: { uri: { scheme: 'output', path: citationsChannelName } },
-			} as TextEditor);
-		});
-
-		assert.ok(telemetry.reporter.events.length === 1);
-		assert.strictEqual(telemetry.reporter.events[0].name, 'code_referencing.github_copilot_log.focus.count');
-	});
-
-
 	test('sends a telemetry event when the output channel is opened', async function () {
 		const telemetry = await withInMemoryTelemetry(accessor, () => {
 			engagementTracker.onVisibleEditorsChange([
