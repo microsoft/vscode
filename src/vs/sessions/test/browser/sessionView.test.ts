@@ -268,6 +268,46 @@ suite('Sessions - Session View', () => {
 		});
 	});
 
+	test('preserves external focus when creation replaces the preparation view', () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, chatViews } = createSessionViewTestServices(store);
+		const requestInProgress = observableValue('requestInProgress', false);
+		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
+		const session = createTestActiveSession('draft', false, {
+			isNewSessionRequestInProgress: requestInProgress,
+			preparationProgress,
+		});
+		const view = store.add(instantiationService.createInstance(SessionView));
+		const externalControl = document.createElement('button');
+		mainWindow.document.body.append(view.element, externalControl);
+		store.add(toDisposable(() => {
+			view.element.remove();
+			externalControl.remove();
+		}));
+
+		view.openSession(session, {});
+		view.focus();
+		requestInProgress.set(true, undefined);
+		preparationProgress.set({ message: 'Preparing', cancel: () => { } }, undefined);
+		const preparationView = chatViews.at(-1)!;
+		const showedPreparationView = view.element.contains(preparationView.element);
+		externalControl.focus();
+		session.isCreated.set(true, undefined);
+		const createdView = chatViews.at(-1)!;
+
+		assert.deepStrictEqual({
+			showedPreparationView,
+			preparationViewDisposed: preparationView.disposed,
+			showsCreatedSession: createdView !== preparationView && view.element.contains(createdView.element),
+			externalFocusPreserved: mainWindow.document.activeElement === externalControl,
+		}, {
+			showedPreparationView: true,
+			preparationViewDisposed: true,
+			showsCreatedSession: true,
+			externalFocusPreserved: true,
+		});
+	});
+
 	test('updates header replacement when chat tab presentation changes', async () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService, configurationService } = createSessionViewTestServices(store);
