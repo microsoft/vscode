@@ -5438,6 +5438,28 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338693: multi-character autoclose does not use stale selections after a reentrant edit', () => {
+		usingCursor({
+			text: [
+				'begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			let isFirst = true;
+			disposables.add(model.onDidChangeContent(() => {
+				if (isFirst) {
+					isFirst = false;
+					model.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'begin\n' }]);
+				}
+			}));
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getValue(), 'begin\nbegin');
+		});
+	});
+
 	test('issue #338693: undo after multi-character autoclose with auto-indentation first removes only the auto-closed characters', () => {
 		const languageId = 'autoClosingWithIndentRulesLanguage';
 		disposables.add(languageService.registerLanguage({ id: languageId }));

@@ -183,15 +183,16 @@ export class AutoClosingOpenCharTypeOperation {
 	 * This way, undo first removes only the auto-closed characters and keeps a typed multi-character opening pair (e.g. `begin`).
 	 */
 	public static typeAndAutoCloseWithUndoStop(model: ITextModel, typeCommands: ICommand[], ch: string, autoClosingPairClose: string): EditOperationResult {
+		const expectedVersionId = model.getVersionId() + 1;
 		return new EditOperationResult(EditOperationType.TypingOther, typeCommands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true,
 			followUp: selections => {
-				// Content change listeners may have edited the model reentrantly, only auto-close if every cursor is still right after `ch`
-				const isStillAfterCh = selections.length === typeCommands.length && selections.every(s =>
-					s.isEmpty() && s.positionColumn > ch.length && model.getValueInRange(new Range(s.positionLineNumber, s.positionColumn - ch.length, s.positionLineNumber, s.positionColumn)) === ch
-				);
-				if (!isStillAfterCh) {
+				const canAutoClose = model.getVersionId() === expectedVersionId
+					&& selections.length === typeCommands.length && selections.every(s =>
+						s.isEmpty() && s.positionColumn > ch.length && model.getValueInRange(new Range(s.positionLineNumber, s.positionColumn - ch.length, s.positionLineNumber, s.positionColumn)) === ch
+					);
+				if (!canAutoClose) {
 					return null;
 				}
 				return new EditOperationResult(EditOperationType.TypingOther, selections.map(selection => new TypeWithAutoClosingCommand(selection, ch, false, autoClosingPairClose)), {
