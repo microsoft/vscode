@@ -79,7 +79,7 @@ export class AutoIndentOperation {
 	}
 
 	private static _getIndentationAndAutoClosingPairEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string, autoClosingPair: { open: string; close: string } | null): EditOperationResult {
-		const autoCloseWithUndoStop = autoClosingPair !== null && autoClosingPair.open.length > 1;
+		const autoCloseWithUndoStop = autoClosingPair !== null && autoClosingPair.open.length > ch.length;
 		const commands: ICommand[] = indentationForSelections.map(({ selection, indentation }) => {
 			if (autoClosingPair !== null && !autoCloseWithUndoStop) {
 				// Apply both auto closing pair edits and auto indentation edits
@@ -92,7 +92,7 @@ export class AutoIndentOperation {
 			}
 		});
 		if (autoClosingPair !== null && autoCloseWithUndoStop) {
-			return AutoClosingOpenCharTypeOperation.typeAndAutoCloseWithUndoStop(commands, ch, autoClosingPair.close);
+			return AutoClosingOpenCharTypeOperation.typeAndAutoCloseWithUndoStop(model, commands, ch, autoClosingPair.close);
 		}
 		const editOptions = { shouldPushStackElementBefore: true, shouldPushStackElementAfter: false };
 		return new EditOperationResult(EditOperationType.TypingOther, commands, editOptions);
@@ -157,15 +157,15 @@ export class AutoClosingOpenCharTypeOperation {
 		if (!isDoingComposition) {
 			const autoClosingPair = this.getAutoClosingPair(config, model, selections, ch, chIsAlreadyTyped);
 			if (autoClosingPair !== null) {
-				return this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPair);
+				return this._runAutoClosingOpenCharType(model, selections, ch, chIsAlreadyTyped, autoClosingPair);
 			}
 		}
 		return;
 	}
 
-	private static _runAutoClosingOpenCharType(selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPair: { open: string; close: string }): EditOperationResult {
-		if (!chIsAlreadyTyped && autoClosingPair.open.length > 1) {
-			return this.typeAndAutoCloseWithUndoStop(selections.map(selection => typeCommand(selection, ch, false)), ch, autoClosingPair.close);
+	private static _runAutoClosingOpenCharType(model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPair: { open: string; close: string }): EditOperationResult {
+		if (!chIsAlreadyTyped && autoClosingPair.open.length > ch.length) {
+			return this.typeAndAutoCloseWithUndoStop(model, selections.map(selection => typeCommand(selection, ch, false)), ch, autoClosingPair.close);
 		}
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -182,14 +182,23 @@ export class AutoClosingOpenCharTypeOperation {
 	 * Executes `typeCommands`, which type `ch`, and then inserts `autoClosingPairClose` after `ch` with an undo stop in between.
 	 * This way, undo first removes only the auto-closed characters and keeps a typed multi-character opening pair (e.g. `begin`).
 	 */
-	public static typeAndAutoCloseWithUndoStop(typeCommands: ICommand[], ch: string, autoClosingPairClose: string): EditOperationResult {
+	public static typeAndAutoCloseWithUndoStop(model: ITextModel, typeCommands: ICommand[], ch: string, autoClosingPairClose: string): EditOperationResult {
 		return new EditOperationResult(EditOperationType.TypingOther, typeCommands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: true,
-			followUp: selections => new EditOperationResult(EditOperationType.TypingOther, selections.map(selection => new TypeWithAutoClosingCommand(selection, ch, false, autoClosingPairClose)), {
-				shouldPushStackElementBefore: false,
-				shouldPushStackElementAfter: false
-			})
+			followUp: selections => {
+				// Content change listeners may have edited the model reentrantly, only auto-close if every cursor is still right after `ch`
+				const isStillAfterCh = selections.length === typeCommands.length && selections.every(s =>
+					s.isEmpty() && s.positionColumn > ch.length && model.getValueInRange(new Range(s.positionLineNumber, s.positionColumn - ch.length, s.positionLineNumber, s.positionColumn)) === ch
+				);
+				if (!isStillAfterCh) {
+					return null;
+				}
+				return new EditOperationResult(EditOperationType.TypingOther, selections.map(selection => new TypeWithAutoClosingCommand(selection, ch, false, autoClosingPairClose)), {
+					shouldPushStackElementBefore: false,
+					shouldPushStackElementAfter: false
+				});
+			}
 		});
 	}
 

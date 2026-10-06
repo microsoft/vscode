@@ -5416,6 +5416,28 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338693: multi-character autoclose does not insert an orphan close when a listener reentrantly removes the typed character', () => {
+		usingCursor({
+			text: [
+				'begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			let isFirst = true;
+			disposables.add(model.onDidChangeContent(() => {
+				if (isFirst) {
+					isFirst = false;
+					model.applyEdits([{ range: new Range(1, 5, 1, 6), text: '' }]);
+				}
+			}));
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'begi');
+		});
+	});
+
 	test('issue #338693: undo after multi-character autoclose with auto-indentation first removes only the auto-closed characters', () => {
 		const languageId = 'autoClosingWithIndentRulesLanguage';
 		disposables.add(languageService.registerLanguage({ id: languageId }));

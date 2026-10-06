@@ -409,8 +409,9 @@ export class EditOperationResult {
 	/**
 	 * An optional edit operation which is computed from the selections resulting
 	 * from executing this edit operation, and which is executed right after it.
+	 * It can return `null` to skip the follow-up edit.
 	 */
-	readonly followUp: ((selections: Selection[]) => EditOperationResult) | undefined;
+	readonly followUp: ((selections: Selection[]) => EditOperationResult | null) | undefined;
 
 	constructor(
 		type: EditOperationType,
@@ -418,7 +419,7 @@ export class EditOperationResult {
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
-			followUp?: (selections: Selection[]) => EditOperationResult;
+			followUp?: (selections: Selection[]) => EditOperationResult | null;
 		}
 	) {
 		this.type = type;
