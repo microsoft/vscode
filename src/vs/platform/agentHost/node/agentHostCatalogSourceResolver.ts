@@ -408,7 +408,7 @@ export function chatCatalogV2ToCatalogChats(snapshot: IAgentHostDatabaseCatalogS
 	}]);
 }
 
-function toCatalogSummary(value: string | undefined): string | undefined {
+export function toCatalogSummary(value: string | undefined): string | undefined {
 	if (!value || value.length <= AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT) {
 		return value || undefined;
 	}

@@ -2080,6 +2080,100 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}
 		});
 
+		test('single-chat lookup uses one SELECT, validates only its row and is scoped to the current owner', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			const [snapshot] = await instance.readCatalogSnapshot([session]);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect and damage actual persisted metadata.
+			const raw = await instance['_ensureDatabase']();
+			await exec(raw, `UPDATE chats_v2 SET metadata_hash = 'damaged' WHERE chat_uri = '${privateChat}'`);
+			const statements: string[] = [];
+			const traced = new DeferredPromise<void>();
+			const trace = (sql: string) => {
+				statements.push(sql);
+				if (/^\s*SELECT h\.authority_version\b/.test(sql)) {
+					void traced.complete();
+				}
+			};
+			raw.on('trace', trace);
+			let result;
+			try {
+				result = await instance.readChatV2(session, peer);
+				await traced.p;
+			} finally {
+				raw.removeListener('trace', trace);
+			}
+			const other = 'session://other-owner';
+			await instance.registerSessionV2(other, { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+			await instance.registerChatCatalogV2(other, { defaultChat: { chat: 'chat://other-default', order: 0 }, peers: [], privateDescendants: [] });
+			assert.deepStrictEqual({
+				result,
+				selects: statements.filter(sql => /^\s*SELECT\b/i.test(sql)).length,
+				readsLargeFields: statements.some(sql => /\b(?:payload|provider_data)\b/.test(sql)),
+				foreign: await instance.readChatV2(other, peer),
+				missing: await instance.readChatV2(session, 'chat://missing'),
+				legacy: await instance.readChatV2('session://missing', peer),
+			}, {
+				result: { normalized: true, chat: snapshot.chats.find(chat => chat.chat === peer) },
+				selects: 1, readsLargeFields: false,
+				foreign: { normalized: true }, missing: { normalized: true }, legacy: { normalized: false },
+			});
+			await assert.rejects(instance.readChatV2(session, privateChat), /metadata hash mismatch/);
+			await exec(raw, `UPDATE chats_v2 SET working_directories = '["file:///same","file:///same"]' WHERE chat_uri = '${peer}'`);
+			await assert.rejects(instance.readChatV2(session, peer), /duplicates/);
+			await exec(raw, `UPDATE chats_v2 SET tombstoned = 1 WHERE chat_uri = '${defaultChat}'`);
+			await assert.rejects(instance.readChatV2(session, peer), /missing its visible default/);
+			await instance.tombstoneAndUnregisterSession(session);
+			assert.deepStrictEqual(await instance.readChatV2(session, peer), { normalized: false });
+		});
+
+		test('migration selection reads only live legacy headers with bounded selectors', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			const names = ['legacy', 'provisional', 'backing', 'tombstoned', 'excluded'];
+			const owners = names.map(name => `session://${name}`);
+			for (const owner of owners) {
+				await instance.registerSessionV2(owner, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+			}
+			await instance.setSessionProvisional(owners[1], true);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise stored eligibility markers and damaged unrelated metadata.
+			const raw = await instance['_ensureDatabase']();
+			await exec(raw, `UPDATE chats_v2 SET metadata_hash = 'damaged' WHERE chat_uri = '${privateChat}';
+				UPDATE sessions_v2 SET is_chat_backing = 1 WHERE session_uri = '${owners[2]}'`);
+			await instance.tombstoneAndUnregisterSession(owners[3]);
+			await instance.excludeSessionV2({ provider: 'copilot', session: owners[4], reason: 'staleExternal', fingerprint: '1' }, {
+				identity: await instance.getSessionV2Registration(owners[4]), catalog: undefined,
+			});
+			const statements: string[] = [];
+			const traced = new DeferredPromise<void>();
+			const trace = (sql: string) => {
+				statements.push(sql);
+				if (/^\s*SELECT s\.session_uri\b/.test(sql)) {
+					void traced.complete();
+				}
+			};
+			raw.on('trace', trace);
+			let selected;
+			try {
+				selected = await instance.listLegacyChatCatalogSessions([session, ...owners, 'session://missing']);
+				await traced.p;
+			} finally {
+				raw.removeListener('trace', trace);
+			}
+			assert.deepStrictEqual({
+				selected,
+				selects: statements.filter(sql => /^\s*SELECT\b/i.test(sql)).length,
+				readsChats: statements.some(sql => /\bchats_v2\b/.test(sql)),
+				empty: await instance.listLegacyChatCatalogSessions([]),
+				bounded: await instance.listLegacyChatCatalogSessions(Array.from({ length: 400 }, () => owners[0])),
+			}, { selected: [owners[0]], selects: 1, readsChats: false, empty: [], bounded: [owners[0]] });
+			await assert.rejects(instance.listLegacyChatCatalogSessions(Array.from({ length: 401 }, () => owners[0])), /exceeds 400 sessions/);
+		});
+
 		test('snapshot authority is chosen per session without merging frozen legacy peers', async () => {
 			database = new AgentHostDatabase(':memory:');
 			await seed();

@@ -39,7 +39,7 @@ import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
@@ -791,7 +791,7 @@ function createSideChatContributions(disposables: ReturnType<typeof ensureNoDisp
 	return { service, stateManager, session, sourceChat, sideChat, localTurns };
 }
 
-function createSessionTitleContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>) {
+function createSessionTitleContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, chatPersistence?: IAgentHostPeerChatPersistenceService) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const session = 'agent-host-session://session-title';
@@ -816,7 +816,7 @@ function createSessionTitleContributions(disposables: ReturnType<typeof ensureNo
 		[IAgentHostStateManager, stateManager],
 		[ISessionDataService, sessionDataService],
 		[IAgentHostSessionTitleController, titleController],
-		[IAgentHostPeerChatPersistenceService, {
+		[IAgentHostPeerChatPersistenceService, chatPersistence ?? {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(sessionDataService),
 		}],
@@ -3546,5 +3546,25 @@ suite('AgentHostChatContributions', () => {
 		} finally {
 			contributions.database.getMetadata = getMetadata;
 		}
+	});
+
+	test('hydrates authoritative normalized titles and clears from a full catalog instead of accepting stale cached titles', async () => {
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const persistence = new AgentHostPeerChatStore(database, createSessionDataService(new TestSessionDatabase()), new NullLogService());
+		const contributions = createSessionTitleContributions(disposables, persistence);
+		await database.registerRuntimeSession(contributions.session, { provider: 'test', startTime: 1, source: 'explicit' }, { checkTombstone: true });
+		const peers = Array.from({ length: 100 }, (_, index) => ({
+			chat: buildChatUri(contributions.session, `restored-${index}`), order: index + 1,
+			metadata: { ...(index > 0 ? { summary: `Authoritative ${index}` } : {}) },
+		}));
+		await database.registerChatCatalogV2(contributions.session, {
+			defaultChat: { chat: contributions.defaultChat, order: 0 },
+			peers,
+			privateDescendants: Array.from({ length: 899 }, (_, index) => ({ chat: buildChatUri(contributions.session, `private-${index}`) })),
+		});
+		const restored = await Promise.all(peers.map(peer => contributions.service.hydrateChat({
+			session: contributions.session, chat: peer.chat,
+		}, { title: 'Stale cached title' })));
+		assert.deepStrictEqual(restored.map(chat => chat.title), peers.map(peer => peer.metadata.summary));
 	});
 });

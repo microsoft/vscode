@@ -327,6 +327,42 @@ suite('AgentHostCatalogReconciliationService', () => {
 		});
 	});
 
+	test('damaged normalized private metadata and a failed conversion do not block healthy repair or migration progress', async () => {
+		const harness = await createHarness(['a', 'b', 'c']);
+		await harness.central.registerChatCatalogV2('agenthost:a', {
+			defaultChat: { chat: 'agenthost-chat:a/default', order: 0 },
+			peers: [],
+			privateDescendants: [{ chat: 'chat://damaged-private' }],
+		});
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Corrupt persisted production metadata, not the reader.
+		const raw = await harness.central['_ensureDatabase']();
+		await new Promise<void>((resolve, reject) => raw.run(
+			'UPDATE chats_v2 SET metadata_hash = ? WHERE chat_uri = ?',
+			['damaged', 'chat://damaged-private'],
+			error => error ? reject(error) : resolve(),
+		));
+		await assert.rejects(harness.central.readCatalogSnapshot(['agenthost:a']), /metadata hash mismatch/);
+		const migrated: string[] = [];
+		const storage = new TestStorageService();
+		const service = harness.createService(undefined, {
+			batchSize: 2,
+			migrateChatCatalog: async session => {
+				migrated.push(session.toString());
+				if (session.toString() === 'agenthost:b') {
+					throw new Error('Conversion failed for this owner');
+				}
+			},
+		}, storage);
+		const firstPass = await service.runPass();
+		await service.runPass();
+		assert.deepStrictEqual({
+			migrated,
+			healthyOutcome: firstPass.outcomes.find(outcome => outcome.session === 'agenthost:b')?.status,
+			repaired: (await harness.central.getSessionV2('agenthost:b'))?.verified,
+			migrationCursor: storage.get('agentHost.catalogReconciliation.chatMigrationCursor'),
+		}, { migrated: ['agenthost:b', 'agenthost:c'], healthyOutcome: 'succeeded', repaired: true, migrationCursor: 'agenthost:a' });
+	});
+
 	test('opens and re-projects dirty rows once, then skips clean rows before session.db', async () => {
 		const harness = await createHarness(['one']);
 		const session = registered('one');

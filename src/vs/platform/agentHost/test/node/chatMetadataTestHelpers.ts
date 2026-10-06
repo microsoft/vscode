@@ -45,3 +45,18 @@ export async function readTestSessionListCatalogs(database: IAgentHostDatabase, 
 		};
 	});
 }
+
+export async function listTestLegacyChatCatalogSessions(database: IAgentHostDatabase, sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+	return (await database.readCatalogSnapshot(sessions))
+		.filter(entry => entry.authorityVersion === 1 && !entry.isChatBacking && !entry.provisional)
+		.map(entry => entry.session);
+}
+
+export async function readTestChatV2(database: IAgentHostDatabase, session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+	const [snapshot] = await database.readCatalogSnapshot([session]);
+	if (snapshot?.authorityVersion !== 2) {
+		return { normalized: false };
+	}
+	const row = snapshot.chats.find(entry => entry.chat === chat);
+	return { normalized: true, ...(row ? { chat: row } : {}) };
+}

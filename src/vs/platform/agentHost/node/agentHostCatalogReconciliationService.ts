@@ -330,11 +330,9 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		const selected = this._selectBatch(sessions, typeof cursor === 'string' ? cursor : undefined);
 		const legacySessions = new Set<string>();
 		for (let index = 0; index < selected.length && !token.isCancellationRequested; index += AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
-			const snapshot = await this._catalogDatabase.readCatalogSnapshot(selected.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT).map(entry => entry.session.toString()));
-			for (const entry of snapshot) {
-				if (entry.authorityVersion === 1 && !entry.isChatBacking && !entry.provisional) {
-					legacySessions.add(entry.session);
-				}
+			const eligible = await this._catalogDatabase.listLegacyChatCatalogSessions(selected.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT).map(entry => entry.session.toString()));
+			for (const session of eligible) {
+				legacySessions.add(session);
 			}
 		}
 		if (token.isCancellationRequested) {

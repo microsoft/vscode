@@ -44,6 +44,16 @@ changes metadata. Metadata uses the existing catalog changes validator, a
 1024-character title limit and a 16 KiB encoded limit. Malformed metadata,
 unsupported versions and hash failures are errors, not empty summaries.
 
+`listLegacyChatCatalogSessions(sessions)` selects migration eligibility from live
+session identities and authority headers only, excluding backing and provisional
+sessions. Damaged normalized chat metadata cannot block unrelated legacy conversion
+or reconciliation. Conversion failures remain logged and isolated per owner.
+
+`readChatV2(session, chat)` reads authority and one owner-scoped chat in a single
+queued SELECT. It validates the visible default and the requested row's metadata
+and directories without decoding sibling or private rows. Title hydration and
+deferred-title restoration use this lookup rather than repeated full snapshots.
+
 `getChatV2ProviderDetail(chat)` lazily reads only opaque provider data.
 Absent snapshot directories mean inheritance;
 an empty array means an explicitly empty pin. Neither snapshot nor mutation
@@ -100,6 +110,9 @@ remain legacy and schedule reconciliation before a later bounded retry.
 Title/source, read/archive flags, changes summaries, opaque provider detail and
 pinned-directory producers use the peer store's serialized central-aware writer.
 Metadata replacements merge against the current row and compare both revisions.
+Title writes and snapshots reuse the source projection's Unicode-safe
+1024-character summary bound; accepted longer titles do not fail catalog persistence.
+Cold restoration uses that bounded authoritative summary.
 Multiple keys for one chat share a CAS update. Unknown summary values remain
 absent; explicit empty changes counts remain zero. Clears do not fall back to
 legacy backing values. Tool and local `/rename` commands use the same writer.
@@ -114,7 +127,8 @@ Restoration reads the header's default role and current public rows. Private
 rows are not mistaken for deleted public membership. Spawned tool chats retain
 their existing read-only protocol presentation while their internal catalog
 role is Hidden; private insertion, provider updates and removal use the private
-lifecycle APIs. No migration cleans unknown historical deletion markers.
+lifecycle APIs. A later explicit parent updates an existing private row; subsequent
+provider-only updates retain that lineage. No migration cleans unknown historical deletion markers.
 Public origin projections retain bounded navigation provenance; full side-chat
 selection snapshots stay in normalized origin detail. Normalization validates
 the same public projection and preserves explicitly prepared detail, including

@@ -15,7 +15,7 @@ import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js'
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
 import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
-import { fromCatalogChatOrigin, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
+import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
@@ -128,6 +128,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				}
 				const result = existing
 					? await this._database.updateChatV2Metadata(chat.chat, existing, {
+						...(chat.parentChat !== undefined ? { parentChat: chat.parentChat } : {}),
 						...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 						...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 						...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
@@ -159,8 +160,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	}
 
 	async readNormalizedChat(session: URI, chat: URI): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }> {
-		const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
-		return { normalized: snapshot?.authorityVersion === 2, chat: snapshot?.chats.find(row => row.chat === chat.toString()) };
+		return this._database.readChatV2(session.toString(), chat.toString());
 	}
 
 	persistMetadata(session: URI, resource: URI, values: Readonly<Record<string, string>>): Promise<void> {
@@ -192,7 +192,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				if (current.chat.metadata?.summary !== undefined) {
 					return;
 				}
-				const metadata = { ...current.chat.metadata, summary: title };
+				const metadata = { ...current.chat.metadata, summary: toCatalogSummary(title) };
 				const ref = await this._sessionDataService.tryOpenDatabase(session);
 				if (ref) {
 					try {
@@ -295,7 +295,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	private _metadataPatch(chat: Pick<IAgentHostDatabaseChatV2, 'chat' | 'metadata'>, key: string, value: string): IAgentHostDatabaseChatV2Patch | undefined {
 		if (key === SESSION_CUSTOM_TITLE_KEY || key === customChatTitleMetadataKey(chat.chat)) {
-			return { metadata: { ...chat.metadata, summary: value || undefined } };
+			return { metadata: { ...chat.metadata, summary: toCatalogSummary(value) } };
 		}
 		if (key === SESSION_CUSTOM_TITLE_SOURCE_KEY || key === customChatTitleSourceMetadataKey(chat.chat)) {
 			if (value !== '' && value !== 'user' && value !== 'agent' && value !== 'auto') {

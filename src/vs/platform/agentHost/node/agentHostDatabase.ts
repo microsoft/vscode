@@ -356,6 +356,10 @@ export interface IAgentHostDatabase extends IDisposable {
 	/** Writes session aggregates only after comparing their public chat projection with normalized authority. */
 	upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number): Promise<AgentHostDatabaseSessionV2UpsertResult>;
 	readCatalogSnapshot(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseCatalogSnapshotEntry[]>;
+	/** Selects live legacy owners eligible for migration without reading chat metadata. */
+	listLegacyChatCatalogSessions(sessions: readonly string[]): Promise<readonly string[]>;
+	/** Reads one owner's chat and authority without materializing its other chats. */
+	readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }>;
 	getChatV2ProviderDetail(chat: string): Promise<IAgentHostDatabaseChatV2ProviderDetail | undefined>;
 	/** Activates verified legacy input and optionally mutates it in the same central transaction. */
 	ensureChatCatalogV2(session: string, expected: IAgentHostDatabaseChatV2NormalizationExpectation, candidate: IAgentHostDatabaseChatV2NormalizationCandidate, mutation?: IAgentHostDatabaseChatV2Mutation): Promise<AgentHostDatabaseChatV2WriteResult>;
@@ -2008,6 +2012,50 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			} catch (error) {
 				return this._rollback(database, error, 'Failed to read normalized chat catalog');
 			}
+		});
+	}
+
+	async listLegacyChatCatalogSessions(sessions: readonly string[]): Promise<readonly string[]> {
+		if (sessions.length === 0) {
+			return [];
+		}
+		if (sessions.length > AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
+			throw new Error(`Catalog migration selector exceeds ${AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT} sessions`);
+		}
+		return this._transactionSequencer.queue(async () => {
+			const rows = await all(await this._ensureDatabase(), `SELECT s.session_uri
+				FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
+				WHERE s.session_uri IN (${sessions.map(() => '?').join(',')})
+					AND COALESCE(h.authority_version, 1) = 1 AND s.is_chat_backing = 0
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${provisionalSessionKeyPrefix}' || s.session_uri AND value = 'true')
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || s.session_uri AND value = 'true')
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${sessionsV2ExcludedKeyPrefix}' || s.provider || ':' || s.session_uri)
+				ORDER BY s.session_uri`, sessions);
+			return rows.map(row => row.session_uri as string);
+		});
+	}
+
+	async readChatV2(session: string, chat: string): Promise<{ readonly normalized: boolean; readonly chat?: IAgentHostDatabaseChatV2 }> {
+		return this._transactionSequencer.queue(async () => {
+			const row = await get(await this._ensureDatabase(), `SELECT h.authority_version,
+				EXISTS (SELECT 1 FROM chats_v2 d WHERE d.chat_uri = h.default_chat_uri
+					AND d.owner_session_uri = s.session_uri AND d.tombstoned = 0 AND d.chat_order IS NOT NULL) AS has_default,
+				c.chat_uri, c.owner_session_uri, c.chat_order, c.storage_resource,
+				c.parent_chat, c.origin, c.working_directories, c.is_read, c.archived, c.inherited_turn_id,
+				c.metadata, c.metadata_hash, c.ownership_revision, c.metadata_revision
+				FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
+				LEFT JOIN chats_v2 c ON c.owner_session_uri = s.session_uri AND c.chat_uri = ?
+					AND c.tombstoned = 0 AND h.authority_version = 2
+				WHERE s.session_uri = ?
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || s.session_uri AND value = 'true')
+					AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${sessionsV2ExcludedKeyPrefix}' || s.provider || ':' || s.session_uri)`, [chat, session]);
+			if (row?.authority_version !== 2) {
+				return { normalized: false };
+			}
+			if (row.has_default !== 1) {
+				throw new Error(`Normalized catalog is missing its visible default: ${session}`);
+			}
+			return { normalized: true, ...(row.chat_uri === null ? {} : { chat: this._toChatV2(row) }) };
 		});
 	}
 

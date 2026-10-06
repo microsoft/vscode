@@ -79,7 +79,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -347,6 +347,12 @@ class TestCopilotApiService implements ICopilotApiService {
 }
 
 class TransientRegistryWriteDatabase implements IAgentHostDatabase {
+	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+		return readTestChatV2(this, session, chat);
+	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
 	}
@@ -866,6 +872,12 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	listLegacyChatCatalogSessions(sessions: readonly string[]): ReturnType<IAgentHostDatabase['listLegacyChatCatalogSessions']> {
+		return listTestLegacyChatCatalogSessions(this, sessions);
+	}
+	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
+		return readTestChatV2(this, session, chat);
+	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
 	}
@@ -25867,6 +25879,49 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				persisted: [{ title: 'Renamed default', source: 'user' }, { title: 'Renamed peer', source: 'user' }],
 				restored: ['Renamed default', 'Renamed peer'],
+				legacyPeerTitle: undefined,
+			});
+		});
+
+		test('client and local renames persist bounded normalized summaries for oversized titles', async () => {
+			class NativeChatAgent extends MockAgent {
+				override async createChat(): Promise<void> { }
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1 };
+				}
+			}
+			const backing = createPerSessionDataService();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const writing = disposables.add(createRenameTestAgentService(backing.service, database));
+			registerTestAgentProvider(writing, disposables.add(new NativeChatAgent('copilot')));
+			const session = await writing.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'long-rename'));
+			await writing.createChat(session, peer, { title: 'Original peer' });
+			const clientTitle = 'x'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT + 1);
+			const prefix = 'y'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT - 2);
+			const localTitle = `${prefix}😀tail`;
+			writing.dispatchAction(defaultChat, { type: ActionType.SessionTitleChanged, title: clientTitle }, 'rename-client', 1);
+			writing.dispatchAction(peer.toString(), {
+				type: ActionType.ChatTurnStarted, turnId: 'long-rename', startedAt: '2026-01-01T00:00:00Z',
+				message: { text: `/rename ${localTitle}`, origin: { kind: MessageKind.User } },
+			}, 'rename-client', 2);
+			await writing.whenCatalogReconciliationIdle();
+			const [catalog] = await database.readCatalogSnapshot([session.toString()]);
+			const reopened = disposables.add(createRenameTestAgentService(backing.service, database));
+			registerTestAgentProvider(reopened, disposables.add(new NativeChatAgent('copilot')));
+			await reopened.subscribe(URI.parse(defaultChat), 'restored-default');
+			await reopened.subscribe(peer, 'restored-peer');
+			const summaries = [`${'x'.repeat(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT - 1)}…`, `${prefix}…`];
+			assert.deepStrictEqual({
+				live: [defaultChat, peer.toString()].map(chat => getStateManager(writing).getChatState(chat)?.title),
+				persisted: catalog.chats.map(chat => ({ title: chat.metadata?.summary, source: chat.metadata?.titleSource })),
+				restored: [defaultChat, peer.toString()].map(chat => getStateManager(reopened).getChatState(chat)?.title),
+				legacyPeerTitle: await backing.database(session).getMetadata(customChatTitleMetadataKey(peer.toString())),
+			}, {
+				live: [clientTitle, localTitle],
+				persisted: summaries.map(title => ({ title, source: 'user' })),
+				restored: summaries,
 				legacyPeerTitle: undefined,
 			});
 		});
