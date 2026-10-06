@@ -316,7 +316,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
-	configService.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, options.chatLayoutMode ?? 'session');
+	configService.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, options.chatLayoutMode ?? 'session-shared');
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);

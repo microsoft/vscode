@@ -25,7 +25,7 @@ suite('Sessions chat layout configuration', () => {
 	test('registers a session-default experimental window enum with descriptions', () => {
 		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[SESSIONS_LAYOUT_SCOPE_SETTING];
 		assert.deepStrictEqual({ key: SESSIONS_LAYOUT_SCOPE_SETTING, type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
-			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session', 'chat', 'chat-shared'], descriptions: 3,
+			key: 'sessions.experimental.layoutScope', type: 'string', default: 'session-shared', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['session-shared', 'chat-shared', 'chat'], descriptions: 3,
 		});
 	});
 
@@ -49,7 +49,7 @@ suite('Sessions chat layout configuration', () => {
 		configuration.onDidChangeConfigurationEmitter.fire(change);
 		const activeAfterEnable = presentation.state.get().active;
 		const reloadedPresentation = store.add(new ChatLayoutPresentation(configuration, true, constObservable(false)));
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'session');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'session-shared');
 		configuration.onDidChangeConfigurationEmitter.fire(change);
 		assert.deepStrictEqual({
 			configurationListeners: configurationListener.callCount,

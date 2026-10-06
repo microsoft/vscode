@@ -102,7 +102,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.visibleEditorsList = harness.activeGroupEditors;
 	}
 
-	for (const mode of ['session', 'chat', 'chat-shared'] as const) {
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
 		test(`[review regression] ${mode} Details-only collapsed files round-trip without reopening another owner's files`, async () => {
 			createDesktopController({ chatLayoutMode: mode, activateAux: true });
 			const session = makeSession(URI.parse('session:collapsed'));
@@ -116,7 +116,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			setVisible(false, true);
 			await settle();
 			const collapsed = harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path);
-			if (mode === 'session') {
+			if (mode === 'session-shared') {
 				harness.activeSessionObs.set(other, undefined);
 			} else {
 				setActiveChat(session, peer);
@@ -125,7 +125,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			setVisible(true, true);
 			await settle();
 			const otherFiles = harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path);
-			if (mode === 'session') {
+			if (mode === 'session-shared') {
 				harness.activeSessionObs.set(session, undefined);
 			} else {
 				setActiveChat(session, main);
@@ -136,7 +136,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			const restored = harness.activeGroupEditors.filter(editor => editor.resource?.scheme === Schemas.file).map(editor => editor.resource?.path);
 			assert.deepStrictEqual({ collapsed, otherFiles, restored }, {
 				collapsed: [], otherFiles: [],
-				restored: mode === 'session' ? [] : ['/collapsed-main-one.txt', '/collapsed-main-two.txt'],
+				restored: mode === 'session-shared' ? [] : ['/collapsed-main-one.txt', '/collapsed-main-two.txt'],
 			});
 		});
 	}
@@ -250,7 +250,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		for (const panel of [false, true]) {
 			test(`session/chat default parity: Editor=${composition.editor} Details=${composition.auxiliaryBar} bottom=${panel}`, async () => {
 				const snapshots = [];
-				for (const mode of ['session', 'chat'] as const) {
+				for (const mode of ['session-shared', 'chat'] as const) {
 					const controller = createDesktopController({
 						chatLayoutMode: mode,
 						sidePaneVisibilityState: { editorVisible: composition.editor, auxiliaryBarVisible: composition.auxiliaryBar },
@@ -284,7 +284,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 	test('session/chat Details and whole-pane toggles share the same transition sequence', async () => {
 		const snapshots = [];
-		for (const mode of ['session', 'chat'] as const) {
+		for (const mode of ['session-shared', 'chat'] as const) {
 			const controller = createDesktopController({ chatLayoutMode: mode });
 			harness.activeSessionObs.set(makeSession(URI.parse(`session:toggles-${mode}`)), undefined);
 			await settle();
@@ -695,7 +695,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 	});
 
 	test('[R1] disabled: a same-session chat switch never affects the shared composition', async () => {
-		createDesktopController({ chatLayoutMode: 'session' });
+		createDesktopController({ chatLayoutMode: 'session-shared' });
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));

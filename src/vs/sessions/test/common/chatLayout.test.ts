@@ -36,24 +36,24 @@ suite('Chat layout contract', () => {
 		const enabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'chat-shared');
 		const shared = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'session');
+		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'session-shared');
 		const disabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		assert.deepStrictEqual([initial, enabled, shared, disabled].map(presentation => ({
 			mode: presentation.state.get().mode, active: presentation.state.get().active, frozen: Object.isFrozen(presentation.state.get()),
 		})), [
-			{ mode: 'session', active: false, frozen: true },
+			{ mode: 'session-shared', active: false, frozen: true },
 			{ mode: 'chat', active: true, frozen: true },
 			{ mode: 'chat-shared', active: true, frozen: true },
-			{ mode: 'session', active: false, frozen: true },
+			{ mode: 'session-shared', active: false, frozen: true },
 		]);
 	});
 
 	test('booleans, former modes and invalid enum values never enable ownership', () => {
-		const values = [true, false, 'disabled', 'shared', 'per-chat', 'enabled', null];
+		const values = [true, false, 'session', 'disabled', 'shared', 'per-chat', 'enabled', null];
 		assert.deepStrictEqual(values.map(value => {
 			const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: value }), true, constObservable(false)));
 			return { mode: presentation.state.get().mode, enabled: presentation.enabled };
-		}), values.map(() => ({ mode: 'session', enabled: false })));
+		}), values.map(() => ({ mode: 'session-shared', enabled: false })));
 	});
 
 	test('the unreleased former settings do not enable ownership', () => {
@@ -63,7 +63,7 @@ suite('Chat layout contract', () => {
 		});
 		const presentation = store.add(new ChatLayoutPresentation(configuration, true, constObservable(false)));
 		assert.deepStrictEqual({ mode: presentation.configured, enabled: presentation.enabled }, {
-			mode: 'session', enabled: false,
+			mode: 'session-shared', enabled: false,
 		});
 	});
 

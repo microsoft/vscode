@@ -602,7 +602,7 @@ suite('SessionsTerminalContribution', () => {
 		});
 	}
 
-	for (const mode of ['session', 'chat', 'chat-shared'] as const) {
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
 		test(`${mode} retains the session terminal when sibling chats share a cwd`, async () => {
 			contribution.dispose();
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }));

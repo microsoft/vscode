@@ -12,7 +12,7 @@ import { IActiveSession } from '../services/sessions/common/sessionsManagement.j
 import { ISession } from '../services/sessions/common/session.js';
 
 export const SESSIONS_LAYOUT_SCOPE_SETTING = 'sessions.experimental.layoutScope';
-export type ChatLayoutMode = 'session' | 'chat-shared' | 'chat';
+export type ChatLayoutMode = 'session-shared' | 'chat-shared' | 'chat';
 
 export interface IChatLayoutOwner {
 	readonly sessionResource: URI;
@@ -50,8 +50,8 @@ export class ChatLayoutPresentation extends Disposable {
 	constructor(configurationService: IConfigurationService, startupDesktop: boolean, isPhoneLayout: IObservable<boolean>) {
 		super();
 		const configured = configurationService.getValue<string>(SESSIONS_LAYOUT_SCOPE_SETTING);
-		this.configured = configured === 'chat-shared' || configured === 'chat' ? configured : 'session';
-		this.enabled = startupDesktop && this.configured !== 'session';
+		this.configured = configured === 'chat-shared' || configured === 'chat' ? configured : 'session-shared';
+		this.enabled = startupDesktop && this.configured !== 'session-shared';
 		this._state = observableValue<IChatLayoutPresentationSnapshot>(this, Object.freeze({ mode: this.configured, active: false, generation: 0 }));
 		this.state = this._state;
 		this._register(autorun(reader => {

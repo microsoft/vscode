@@ -1877,7 +1877,7 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual({ hasChangesTab: hasChangesTab(), hasFilesTab: hasFilesTab() }, { hasChangesTab: true, hasFilesTab: true });
 	});
 
-	for (const mode of ['session', 'chat'] as const) {
+	for (const mode of ['session-shared', 'chat'] as const) {
 		test(`[managed tabs / submit] ${mode} activates Changes only after a submitted session reports changes`, async () => {
 			createDesktopController({ desktopLayout: true, activateAux: true, chatLayoutMode: mode });
 			await settle();
@@ -2600,7 +2600,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	for (const mode of ['session', 'chat', 'chat-shared'] as const) {
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
 		test(`[desktop] ignores queued details-only collapse after the whole pane hides (${mode})`, async () => {
 			createDesktopController({ desktopLayout: true, activateAux: true, chatLayoutMode: mode });
 			await settle();

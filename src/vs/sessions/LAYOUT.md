@@ -16,7 +16,7 @@ breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
 `sessions.experimental.layoutScope` is an experimental window setting
-with modes `session` (default), `chat-shared`, and `chat`. Both enabled modes
+with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled modes
 keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
