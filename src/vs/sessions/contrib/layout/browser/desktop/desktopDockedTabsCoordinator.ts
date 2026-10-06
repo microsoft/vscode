@@ -61,9 +61,7 @@ export interface IManagedTabsTarget {
 export interface IReconcileTrigger {
 	/** Open the default docked tabs *if the group is empty* — a session switch, a side-pane reveal, or a settled layout restore. */
 	readonly openDefaultsIfEmpty?: boolean;
-	/** Ensure the Changes tab, inactive, when a new-session view becomes eligible or finishes restoring. */
-	readonly ensureChanges?: boolean;
-	/** Ensure the Changes tab, opened **active**, even in a non-empty group — new-session submit (so the detail panel maps to Changes rather than the still-present Files placeholder). */
+	/** Activate an existing Changes tab after new-session submit so the detail panel maps to Changes rather than Files. */
 	readonly ensureChangesActive?: boolean;
 	/** A saved working set finished restoring for the active session. */
 	readonly workingSetRestored?: boolean;
@@ -73,7 +71,6 @@ export interface IReconcileTrigger {
 function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTrigger {
 	return {
 		openDefaultsIfEmpty: a.openDefaultsIfEmpty || b.openDefaultsIfEmpty,
-		ensureChanges: a.ensureChanges || b.ensureChanges,
 		ensureChangesActive: a.ensureChangesActive || b.ensureChangesActive,
 		workingSetRestored: a.workingSetRestored || b.workingSetRestored,
 	};
@@ -146,17 +143,14 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 		// [Ambient trigger] Session switch / created transition, kind-agnostic (fires for New,
 		// Existing, and Quick Chat alike — a quick chat's target wants neither tab, so this
-		// reconciles any stray managed tabs away).
-		let previousChangesSessionResource: URI | undefined;
+		// reconciles any stray managed tabs away). A closed side pane stays unpopulated until
+		// it is actually revealed, so an explicit file or Changes open remains the sole tab.
 		this._register(autorun(reader => {
 			const target = this._readTarget(reader);
-			const ensureChanges = !!target.changesSessionResource
-				&& (!previousChangesSessionResource || !isEqual(previousChangesSessionResource, target.changesSessionResource));
-			previousChangesSessionResource = target.changesSessionResource;
 			if (!target.wantsChangesTab) {
 				this._filesTabDismissed = false;
 			}
-			this.queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges });
+			this.queueReconcile(target, { openDefaultsIfEmpty: this._layoutService.isSidePaneVisible() });
 		}));
 
 		// [Ambient trigger] The user opened the side pane.
@@ -185,10 +179,8 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 		// [Ambient trigger] Reconcile after the session-switch working set has fully settled.
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => {
-			const session = this._sessionsService.activeSession.get();
 			const target = this._readTarget(undefined);
-			const ensureChanges = target.wantsChangesTab && session?.isCreated.get() === false;
-			this.queueReconcile(target, { openDefaultsIfEmpty: true, ensureChanges, workingSetRestored: true });
+			this.queueReconcile(target, { openDefaultsIfEmpty: this._layoutService.isSidePaneVisible(), workingSetRestored: true });
 		}));
 
 		// [Tidy strip] Opening a real workspace file makes the empty Files placeholder
@@ -392,15 +384,15 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			}
 
 			// [2] Decide which docked inputs to open, from the trigger + group state.
-			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && group.editors.length === 0;
+			const openIntoEmpty = !!trigger.openDefaultsIfEmpty && this._layoutService.isSidePaneVisible() && group.editors.length === 0;
 			const changesPresent = !!changesResource && !!this._findChangesEditor(group, changesResource);
 			const filesPresent = group.editors.some(editor => editor instanceof EmptyFileEditorInput);
 			const activeChangesResource = this._editorService.activeEditor && this.getChangesEditorResource(this._editorService.activeEditor);
-			const activateChanges = !!trigger.ensureChangesActive && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
+			const activateChanges = !!trigger.ensureChangesActive && changesPresent && !!changesResource && (!activeChangesResource || !isEqual(activeChangesResource, changesResource));
 			const ensureAllInputs = this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)
 				&& !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 
-			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs || trigger.ensureChanges)));
+			const openChanges = target.wantsChangesTab && !!changesResource && (activateChanges || (!changesPresent && (openIntoEmpty || ensureAllInputs)));
 			const openFiles = target.wantsFilesTab && !filesPresent && !preserveMissingFiles && (openIntoEmpty || ensureAllInputs);
 			const isCreated = this._sessionsService.activeSession.get()?.isCreated.get() ?? false;
 			const openFilesFirst = openChanges && openFiles && !isCreated && group.editors.length === 0;

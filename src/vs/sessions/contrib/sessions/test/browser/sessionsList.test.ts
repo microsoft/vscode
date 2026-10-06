@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -86,7 +86,6 @@ import { SessionsArchiveActionsContribution } from '../../browser/views/sessions
 import { renderSessionsHeader } from '../../browser/views/sessionsView.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/common/types.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.js';
-import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
@@ -176,7 +175,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -233,7 +231,6 @@ suite('Sessions - SessionsList', () => {
 				contextKeyService,
 				automationService,
 				constObservable([]),
-				constObservable(undefined),
 				new class extends mock<IUriIdentityService>() {
 					override readonly extUri = new ExtUri(() => true);
 				},
@@ -258,189 +255,13 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				watchIcon: !!container.querySelector('.session-section-icon.codicon-watch'),
 				spinnerParent: spinner?.parentElement?.className,
+				newBadge: !!container.querySelector('.session-section-new-badge'),
 				trailingStatusIndicator: !!container.querySelector('.session-section-status-indicator'),
 			}, {
 				watchIcon: false,
 				spinnerParent: 'session-section-icon',
+				newBadge: false,
 				trailingStatusIndicator: false,
-			});
-		});
-
-		test('renders new badge presentations only on the Automations section when templates are recycled', () => {
-			const instantiationService = disposables.add(new TestInstantiationService());
-			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
-				override set context(_context: unknown) { }
-				override dispose(): void { }
-			});
-			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
-				override isMotionReduced(): boolean { return false; }
-			}());
-			instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
-				override getStatusIcon(_status: SessionStatus, isRead: boolean) {
-					return isRead ? Codicon.circleSmallFilled : Codicon.circleFilled;
-				}
-			});
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
-			const runs = observableValue<readonly IAutomationRun[]>(disposables, []);
-			const badgePresentation = observableValue<AutomationsNewBadgeStyle | undefined>(disposables, 'outline');
-			const automationService = new class extends mock<IAutomationService>() {
-				override readonly runs = runs;
-			};
-			const renderer = new SessionSectionRenderer(
-				true,
-				() => { },
-				constObservable(true),
-				constObservable(new Set<string>()),
-				noHeaderStatusTrigger,
-				instantiationService,
-				contextKeyService,
-				automationService,
-				constObservable([]),
-				badgePresentation,
-				new class extends mock<IUriIdentityService>() {
-					override readonly extUri = new ExtUri(() => true);
-				},
-				new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
-				},
-				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
-			);
-			const container = document.createElement('div');
-			const template = renderer.renderTemplate(container);
-			disposables.add(template.disposables);
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'automations', label: 'Automations', sessions: [] },
-				collapsible: false,
-				collapsed: false,
-			}), 0, template);
-			const getPresentationSnapshot = () => ({
-				badgeText: template.newBadge.textContent,
-				badgeDisplay: template.newBadge.style.display,
-				badgeAriaHidden: template.newBadge.getAttribute('aria-hidden'),
-				hasOutlineBadge: template.newBadge.classList.contains('session-section-new-badge-outline'),
-				hasUnreadDot: !!container.querySelector('.session-section-icon > .codicon-circle-filled:not([data-icon-fading-out="1"])'),
-				hasSpinner: !!container.querySelector('.session-section-icon > .monaco-pixel-spinner:not([data-icon-fading-out="1"])'),
-				hasCalendar: template.icon.classList.contains('codicon-calendar'),
-			});
-			const outline = getPresentationSnapshot();
-
-			badgePresentation.set('unread', undefined);
-			const unread = getPresentationSnapshot();
-
-			runs.set([upcastPartial<IAutomationRun>({ status: 'running' })], undefined);
-			const running = getPresentationSnapshot();
-
-			runs.set([], undefined);
-			const unreadRestored = getPresentationSnapshot();
-
-			badgePresentation.set(undefined, undefined);
-			const dismissed = getPresentationSnapshot();
-
-			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
-				element: { id: 'workspace:test', label: 'Test', sessions: [] },
-				collapsible: true,
-				collapsed: false,
-			}), 0, template);
-
-			assert.deepStrictEqual({
-				outline,
-				unread,
-				running,
-				unreadRestored,
-				dismissed,
-				recycledDisplay: template.newBadge.style.display,
-				recycledShortcutClass: template.container.classList.contains('session-section-shortcut'),
-			}, {
-				outline: {
-					badgeText: 'New',
-					badgeDisplay: 'inline-flex',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: true,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				unread: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				running: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: true,
-					hasCalendar: false,
-				},
-				unreadRestored: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: true,
-					hasSpinner: false,
-					hasCalendar: false,
-				},
-				dismissed: {
-					badgeText: 'New',
-					badgeDisplay: 'none',
-					badgeAriaHidden: 'true',
-					hasOutlineBadge: false,
-					hasUnreadDot: false,
-					hasSpinner: false,
-					hasCalendar: true,
-				},
-				recycledDisplay: 'none',
-				recycledShortcutClass: false,
-			});
-		});
-
-		test('updates the Automations row accessible label when the new badge is dismissed', async () => {
-			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
-			const harness = createListHarness(disposables, [], instantiationService => {
-				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
-				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(AUTOMATIONS_NEW_BADGE_STYLE_SETTING, 'unread');
-				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
-					override readonly automations = constObservable([]);
-					override readonly runs = constObservable([]);
-					override readonly catalogueState = constObservable('ready' as const);
-				});
-				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = activeCustomView;
-				});
-			});
-			const container = harness.createContainer();
-			const navigationContainer = mainWindow.document.createElement('div');
-			const listContainer = mainWindow.document.createElement('div');
-			container.append(navigationContainer, listContainer);
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
-				grouping: () => SessionsGrouping.Date,
-				sorting: () => SessionsSorting.Created,
-				navigationContainer,
-				onSessionOpen: () => { },
-			}));
-			list.layout(300, 400);
-			await list.resetAutomationsNewBadge();
-			const row = navigationContainer.querySelector<HTMLElement>('.monaco-list-row');
-			const before = row?.getAttribute('aria-label');
-
-			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
-
-			assert.deepStrictEqual({
-				before,
-				after: row?.getAttribute('aria-label'),
-			}, {
-				before: 'Automations, new feature',
-				after: 'Automations',
 			});
 		});
 
@@ -923,7 +744,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -995,7 +815,6 @@ suite('Sessions - SessionsList', () => {
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
-				constObservable(undefined),
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
@@ -1724,7 +1543,7 @@ suite('Sessions - SessionsList', () => {
 				const container = harness.createContainer();
 				harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
 				renderSessionsHeader(container, false, harness.instantiationService, harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService))), harness.store, () => list.reportArchivedFilterShown());
-				const filter = container.querySelector<HTMLElement>('a.action-label.codicon-settings[aria-haspopup="true"]');
+				const filter = container.querySelector<HTMLElement>('a.action-label[aria-label="Filter Sessions"][aria-haspopup="true"]');
 				const beforeShow = [...triggers];
 				filter?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
 				return { found: !!filter, beforeShow, afterShow: triggers };
@@ -7548,6 +7367,31 @@ suite('Sessions - SessionsList', () => {
 			for (let i = 0; i < 50; i++) {
 				await Promise.resolve();
 			}
+		}
+
+		for (const isExternal of [false, true]) {
+			test(`reports the exact session only after a revealed row finishes opening (external: ${isExternal})`, async () => {
+				const session = createTestSession('Guided session', { isExternal }).session;
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const completion = new DeferredPromise<void>();
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => completion.p,
+				}));
+				const opened: string[] = [];
+				harness.store.add(list.onDidOpenSession(resource => opened.push(resource.toString())));
+				list.layout(300, 400);
+				list.collapseAllSections();
+				harness.store.add(list.revealSessionForOnboarding(session));
+				clickRow(findSessionRow(container, 'Guided session'));
+				await settle();
+				assert.deepStrictEqual(opened, []);
+				await completion.complete();
+				await settle();
+				assert.deepStrictEqual(opened, [session.resource.toString()]);
+			});
 		}
 
 		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {

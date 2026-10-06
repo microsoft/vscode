@@ -146,6 +146,8 @@ export class NotificationHandle extends Disposable implements INotificationHandl
 		});
 	}
 
+	get visible(): boolean { return this.item.visible; }
+
 	get progress(): INotificationProgress {
 		return this.item.progress;
 	}

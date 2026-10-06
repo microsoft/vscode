@@ -65,6 +65,8 @@ from geometry: restoring a chat's Editor/Details combination or reopening its
 last-open combination must not restore an old width or treat a closed grid node's
 zero width as a user resize.
 
+The desktop Panel supports two profile-scoped alignments. The default justified alignment places it below the Sessions Part and side pane, preserving the original spanning layout. Center alignment places it below the Sessions Part only, allowing the side pane to use the full content height. Switching alignment reparents the existing grid views without changing panel height or side-pane width. The mobile presentation keeps the justified topology.
+
 ## Sessions Part
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.

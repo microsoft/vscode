@@ -769,6 +769,27 @@
       }
     },
     {
+      "name": "set_workspace",
+      "description": "Set the current chat's workspace while preserving its identity and history. If a workspace is already attached, use this tool only when the user explicitly asks to change this chat's workspace. Do not infer a workspace change from a file path, a request to inspect another repository, or ordinary work in the current workspace. If `isolation` is false and the requested folder is already this chat's effective working directory, skip this tool and the confirmation question; tell the user the chat already uses that workspace and continue normally. Compare against this chat's working directory, not its session's project root. Creating a new worktree from the same folder is a real change, not a no-op. For a workspace-less quick chat, attach a workspace only to modify its files or run commands requiring its project environment; not for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. Other chats keep their workspaces. Set `isolation` to true for a new managed Git worktree or false to use the selected folder directly; files are not moved or copied to the selected folder. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Make this the turn's final tool call and end the turn; the host changes the workspace and continues the original task automatically. Do not repeat the request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "workspaceFolder": {
+            "type": "string",
+            "description": "Absolute local folder path or file URI to set as the current chat's workspace. Use an exact path from the user or `list_sessions`; do not guess."
+          },
+          "isolation": {
+            "type": "boolean",
+            "description": "Whether to create an isolated Git worktree and use it as the workspace. Include this choice in the required user confirmation immediately before calling this tool."
+          }
+        },
+        "required": [
+          "workspaceFolder",
+          "isolation"
+        ]
+      }
+    },
+    {
       "name": "create_session",
       "description": "Create delegated work and start it with an initial prompt, either in a new chat sharing the current session's workspace, lifecycle, and aggregate diff, or in an independent session. Only supply `worktree` when the user explicitly requests working with or without a new worktree; never combine it with `currentSession`.",
       "input_schema": {
@@ -806,30 +827,6 @@
         "required": [
           "relationship",
           "prompt",
-          "title"
-        ]
-      }
-    },
-    {
-      "name": "rename_chat",
-      "description": "Rename one specific chat when the user explicitly asks to rename it. Automatic naming is handled by the host; do not call this tool to name a fresh chat. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Every invocation replaces the current title.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "session": {
-            "type": "string",
-            "description": "Optional owning session: a session URI from `list_sessions` or an `agent-host-session://` link. When provided with `chat`, it must match that chat's session."
-          },
-          "chat": {
-            "type": "string",
-            "description": "The chat to rename: pass an `agent-host-session://` session or chat link. Omit when renaming the chat in which this tool is running."
-          },
-          "title": {
-            "type": "string",
-            "description": "Short, descriptive chat title, ideally 1-4 words.\n\n{maxLength: 200}"
-          }
-        },
-        "required": [
           "title"
         ]
       }
@@ -922,6 +919,14 @@
         "required": [
           "session"
         ]
+      }
+    },
+    {
+      "name": "isolate_session",
+      "description": "Move only the current chat to a new Git worktree when the user wants to continue this task without changing its current checkout. This preserves the chat and its history; it does not create a separate task or move other chats, even those sharing the same folder. The session workspace will include the new worktree. The original folder is unchanged, and uncommitted edits are not copied except configured worktree include-files. Requires a chat working in one local Git folder. Follow the tool confirmation flow. Make this the final tool call and end the turn after it succeeds; the host then moves this chat and continues its task automatically. Do not poll or repeat the request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
       },
       "cache_control": {
         "type": "ephemeral"

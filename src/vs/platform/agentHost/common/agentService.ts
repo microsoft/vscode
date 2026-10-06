@@ -115,6 +115,10 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
+/** Configuration keys controlling automatic session and chat title generation. */
+export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
+
 /** Configuration key enabling cached MCP tool routing and relevance-based authentication prompts. */
 export const AgentHostMcpToolRoutingEnabledSettingId = 'chat.agentHost.experimental.mcpToolRouting';
 
@@ -281,7 +285,8 @@ export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgen
 
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
 	return event.affectsConfiguration(AgentHostClaudeAgentEnabledSettingId)
-		|| event.affectsConfiguration(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId);
+		|| event.affectsConfiguration(AgentHostCodexAgentEnabledSettingId)
+		|| (!isSessionsWindow && event.affectsConfiguration(CodexPreferAgentHostEditorSettingId));
 }
 
 export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, configurationService: IConfigurationService, isSessionsWindow: boolean): boolean {
@@ -289,7 +294,8 @@ export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, con
 		case CLAUDE_AGENT_PROVIDER_ID:
 			return configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId) !== false;
 		case CODEX_AGENT_PROVIDER_ID:
-			return configurationService.getValue<boolean>(isSessionsWindow ? AgentHostCodexAgentEnabledSettingId : CodexPreferAgentHostEditorSettingId) === true;
+			return configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true
+				&& (isSessionsWindow || configurationService.getValue<boolean>(CodexPreferAgentHostEditorSettingId) === true);
 		default:
 			return true;
 	}
@@ -797,8 +803,29 @@ export interface IConnectionTrackerService {
  * Narrow renderer-to-local-agent-host control surface. All stateful agent
  * operations travel over {@link AgentHostIpcChannels.Protocol}.
  */
+export interface IMissionControlOptions {
+	readonly baseUrl: string;
+	readonly accountId: string;
+	readonly credential: string;
+	readonly roots: readonly string[];
+	readonly live?: boolean;
+	readonly requireConnectionBinding?: boolean;
+}
+
+/** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */
+export interface IMissionControlCredentialSealingRequest {
+	readonly token: string;
+	readonly resource: string;
+	readonly key: { readonly key_id: string; readonly use: 'auth-token' | 'mcp-auth-token'; readonly algorithm: string; readonly public_key: string };
+	readonly challenge?: string;
+}
+
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
+	/** Opt-in Mission Control ingress configured through trusted local IPC. */
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
+	getMissionControlEnvironmentId(): Promise<string | undefined>;
 
 	/**
 	 * Local-only compatibility path for session fields not yet represented by
@@ -1036,8 +1063,9 @@ export interface IAgentService {
 	 * actions, or {@link ROOT_STATE_URI} for root actions). Strings are used
 	 * rather than {@link URI} objects so that authority-less scheme URIs
 	 * like `ahp-root://` survive the wire format without normalization.
+	 * Queued dispatches return a promise that settles after application or rejection.
 	 */
-	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void;
+	dispatchAction(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction, clientId: string, clientSeq: number, clientContext?: IAgentHostClientTelemetryContext): void | Promise<void>;
 
 	/**
 	 * List the contents of a directory on the agent host's filesystem.
@@ -1289,6 +1317,10 @@ export const IAgentHostService = createDecorator<IAgentHostService>('agentHostSe
 export interface IAgentHostService extends IAgentConnection {
 
 	readonly _serviceBrand: undefined;
+	/** Available only through the local native Agent Host management connection. */
+	configureMissionControl?(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
+	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
+	getMissionControlEnvironmentId?(): Promise<string | undefined>;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

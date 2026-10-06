@@ -534,7 +534,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 					changesActivationPendingForSession = undefined;
 				}
 				if (isSubmit || ensureChangesActive) {
-					this.managedTabs.queueReconcile(target, { openDefaultsIfEmpty: isSubmit, ensureChangesActive });
+					this.managedTabs.queueReconcile(target, {
+						openDefaultsIfEmpty: isSubmit && this._layoutService.isSidePaneVisible(),
+						ensureChangesActive,
+					});
 				}
 			}
 
