@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../base/common/async.js';
+import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import type { ISessionDataService } from '../common/sessionDataService.js';
 import { ChatInteractivity, ChatOriginKind } from '../common/state/protocol/state.js';
 import { chatStorageUri } from '../common/state/sessionState.js';
-import { decodeAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { decodeAgentHostCatalogPayload, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
 import type { AgentHostDatabaseChatV2WriteResult, IAgentHostDatabase, IAgentHostDatabaseChatV2Mutation, IAgentHostDatabaseChatV2NormalizationCandidate, IAgentHostDatabaseChatV2NormalizationChat } from './agentHostDatabase.js';
 import { CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY } from './agentHostPeerChatStore.js';
@@ -97,6 +98,13 @@ export async function migrateChatCatalogV2(
 					|| metadata[CHAT_INHERITED_TURN_METADATA_KEY] === '' && legacy.inheritedTurnId !== undefined
 					|| rawDirectories === '' && legacy.workingDirectories !== undefined
 				)) {
+					needsLegacyReconciliation = true;
+				}
+				if (stableStringify(origin === undefined ? undefined : projectAgentHostCatalogChatOrigin(JSON.parse(origin))) !== stableStringify(chat.origin)
+					|| inheritedTurnId !== chat.inheritedTurnId
+					|| rawDirectories === '' && chat.workingDirectories !== undefined
+					|| workingDirectories !== undefined && chat.workingDirectories !== undefined && stableStringify(workingDirectories) !== stableStringify(chat.workingDirectories)
+					|| workingDirectories !== undefined && chat.workingDirectories === undefined && chat.kind !== 'default') {
 					needsLegacyReconciliation = true;
 				}
 				const provenance = fromCatalogChatOrigin(chat.origin);

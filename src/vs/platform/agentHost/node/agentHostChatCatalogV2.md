@@ -115,6 +115,13 @@ Missing default-chat provider detail and directories can be explicitly enriched
 by the prepared candidate. Preparation must materialize all explicit private
 chats into the verified payload, and supply their parent/storage/provider facts
 before activation.
+When per-chat backing provenance, inherited-turn metadata or pinned directories
+contradict the verified legacy projection, preparation returns `notReady`.
+The reconciliation owner marks the payload dirty and refreshes it from the
+persisted default and peer metadata before retrying activation. This metadata-only
+repair does not hydrate provider conversations or relax normalization checks.
+Existing legacy catalog imports use the same default metadata enrichment without
+changing provider-only initial imports.
 Private roles may have no recorded parent; absence is preserved without
 inventing default lineage. Present parent chains must remain within the owner
 catalog and must not be cyclic.

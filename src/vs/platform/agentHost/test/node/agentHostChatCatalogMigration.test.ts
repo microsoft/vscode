@@ -76,6 +76,39 @@ suite('AgentHostChatCatalogMigration', () => {
 		});
 	});
 
+	test('defers normalization until default backing provenance is in the verified projection', async () => {
+		const database = await createDatabase([{ uri: defaultChat, kind: 'default', order: 0, summary: 'Default' }]);
+		const backing = new TestSessionDatabase();
+		await backing.setMetadataValues({
+			[CHAT_ORIGIN_METADATA_KEY]: JSON.stringify({ kind: 'user' }),
+			[CHAT_PROVIDER_DATA_METADATA_KEY]: 'opaque-continuation',
+		});
+		const service = createSessionDataService(backing);
+		const deferred = await migrateChatCatalogV2(database, service, session);
+		const [before] = await database.readCatalogSnapshot([session.toString()]);
+		const source = (await database.getSessionV2(session.toString()))!;
+		const encoded = encodeAgentHostCatalogPayload({
+			modifiedTime: 1, isRead: false, isArchived: false, workingDirectories: [],
+			chats: [{ uri: defaultChat, kind: 'default', order: 0, summary: 'Default', origin: { kind: 'user' } }],
+		});
+		if (!encoded.ok) {
+			throw new Error(encoded.error);
+		}
+		await database.upsertSessionV2({
+			...source, sourceRevision: source.sourceRevision + 1, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+		}, source.sessionGeneration);
+		const activated = await migrateChatCatalogV2(database, service, session);
+		const [after] = await database.readCatalogSnapshot([session.toString()]);
+		assert.deepStrictEqual({
+			deferred, before: before.authorityVersion, activated: activated.status,
+			after: after.authorityVersion, origin: after.chats[0].origin,
+			detail: await database.getChatV2ProviderDetail(defaultChat),
+		}, {
+			deferred: { status: 'notReady' }, before: 1, activated: 'applied',
+			after: 2, origin: '{"kind":"user"}', detail: { providerData: 'opaque-continuation' },
+		});
+	});
+
 	test('requires reconciled legacy clears before normalization and preserves deleted identities', async () => {
 		const peer = buildChatUri(session, 'peer');
 		const deleted = buildChatUri(session, 'deleted');

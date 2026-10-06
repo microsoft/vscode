@@ -2529,10 +2529,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const peers = snapshot?.authorityVersion === 2 ? [] : database
 			? await this._readOrMigrateLegacyPeerChatCatalog(agent, registered.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(agent, registered.session);
-		const defaultChatWorkingDirectories = snapshot?.authorityVersion === 2 ? undefined : await this._readDefaultChatWorkingDirectories(URI.parse(buildDefaultChatUri(registered.session)));
+		const defaultChat = buildDefaultChatUri(registered.session);
+		const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
+		const decoded = central && decodeAgentHostCatalogPayload(central.payload);
+		const defaultChatMetadata = snapshot?.authorityVersion === 2 ? undefined
+			: await this._readLegacyDefaultChatMetadata(registered.session, decoded?.ok ? decoded.value.data : undefined);
 		if (!database) {
-			const central = await this._orchestratorDatabase.getSessionV2(registered.session.toString());
-			const decoded = central && decodeAgentHostCatalogPayload(central.payload);
 			if (decoded?.ok) {
 				status = decoded.value.data.isRead ? status | SessionStatus.IsRead : status & ~SessionStatus.IsRead;
 				status = decoded.value.data.isArchived ? status | SessionStatus.IsArchived : status & ~SessionStatus.IsArchived;
@@ -2556,11 +2558,13 @@ export class AgentService extends Disposable implements IAgentService {
 				meta: registered.external ? withSessionMultiRootMetadata(meta, undefined) : meta,
 				chats: [
 					{
-						uri: buildDefaultChatUri(registered.session),
+						uri: defaultChat,
 						kind: 'default',
 						title: metadata.summary,
 						isRead: metadata.chats?.find(chat => chat.kind === 'default')?.isRead,
-						...(defaultChatWorkingDirectories !== undefined ? { workingDirectories: defaultChatWorkingDirectories } : {}),
+						origin: defaultChatMetadata?.origin,
+						inheritedTurnId: defaultChatMetadata?.inheritedTurnId,
+						...(defaultChatMetadata?.workingDirectories !== undefined ? { workingDirectories: defaultChatMetadata.workingDirectories } : {}),
 					},
 					...peers.map(peer => ({
 						uri: peer.uri,
@@ -3438,6 +3442,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const peers = authoritativeChats !== undefined ? [] : database
 			? await this._readOrMigrateLegacyPeerChatCatalog(provider, metadata.session, database)
 			: await this._readOrImportPeerChatCatalogWithoutLocalDatabase(provider, metadata.session);
+		const defaultChatMetadata = authoritativeChats !== undefined || existingCatalogData === undefined ? undefined
+			: await this._readLegacyDefaultChatMetadata(metadata.session, existingCatalogData);
 		const meta = preserveCentralMetadata
 			? { ...existingCatalogData._meta, ...metadata._meta }
 			: metadata._meta;
@@ -3458,6 +3464,9 @@ export class AgentService extends Disposable implements IAgentService {
 					kind: 'default',
 					title: metadata.summary,
 					isRead: metadata.chats?.find(chat => chat.kind === 'default')?.isRead,
+					origin: defaultChatMetadata?.origin,
+					inheritedTurnId: defaultChatMetadata?.inheritedTurnId,
+					workingDirectories: defaultChatMetadata?.workingDirectories,
 				},
 				...peers.map(peer => ({
 					uri: peer.uri,
@@ -3470,6 +3479,17 @@ export class AgentService extends Disposable implements IAgentService {
 			],
 		}, shouldSeedExternalRead ? { [AH_META_IS_READ_DB_KEY]: 'true' } : {}, true, database,
 			preserveCentralMetadata ? this._catalogMetadataFallbacks(existingCatalogData) : {}, authoritativeChats);
+	}
+
+	private async _readLegacyDefaultChatMetadata(session: URI, source: AgentHostCatalogData | undefined): Promise<IPersistedPeerChat> {
+		const persistedDefault = source?.chats.find(chat => chat.kind === 'default');
+		const [metadata] = await this._peerChatStore.readLocalChatMetadata([{
+			uri: buildDefaultChatUri(session),
+			origin: fromCatalogChatOrigin(persistedDefault?.origin),
+			inheritedTurnId: persistedDefault?.inheritedTurnId,
+			workingDirectories: persistedDefault?.workingDirectories,
+		}]);
+		return metadata;
 	}
 
 	private _catalogMetadataFallbacks(data: AgentHostCatalogData): Readonly<Record<string, string>> {

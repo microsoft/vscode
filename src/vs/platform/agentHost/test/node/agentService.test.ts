@@ -66,10 +66,10 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_INHERITED_TURN_METADATA_KEY, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
-import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
+import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION, type IAgentHostCatalogReconciliationReport } from '../../node/agentHostCatalogReconciliationService.js';
 import { AgentSessionRegistry, type IRegisteredSession } from '../../node/agentSessionRegistry.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -1514,6 +1514,82 @@ suite('AgentService (node dispatcher)', () => {
 			sessions: [], beforeListing: 0, afterListing: 0, afterStartup: 1,
 		});
 	});
+
+	for (const provenance of ['present', 'missing', 'cleared'] as const) {
+		test(`reconciles ${provenance} default provenance before activating an unopened legacy catalog`, async () => {
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			const backing = createPerSessionDataService();
+			const session = AgentSession.uri('copilot', 'default-provenance-reconciliation');
+			const defaultChat = buildDefaultChatUri(session);
+			const workingDirectory = URI.file('/workspace/default').toString();
+			await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1, summary: 'Owner', isRead: false, isArchived: false, workingDirectories: [workingDirectory],
+				chats: [{
+					uri: defaultChat, order: 0, kind: 'default', summary: 'Default', workingDirectories: [workingDirectory],
+					...(provenance !== 'present' ? { origin: { kind: 'user' as const }, inheritedTurnId: 'known-turn' } : {}),
+				}],
+			}, 'generation', 1), undefined);
+			if (provenance === 'missing') {
+				await database.markSessionV2PayloadDirty(session.toString());
+			}
+			await backing.database(URI.parse(defaultChat)).setMetadataValues({
+				[CHAT_PROVIDER_DATA_METADATA_KEY]: 'native-continuation',
+				...(provenance === 'missing' ? {} : {
+					[CHAT_ORIGIN_METADATA_KEY]: provenance === 'cleared' ? '' : JSON.stringify({ kind: ChatOriginKind.User }),
+					[CHAT_INHERITED_TURN_METADATA_KEY]: provenance === 'cleared' ? '' : 'known-turn',
+					[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: provenance === 'cleared' ? '' : JSON.stringify([workingDirectory]),
+				}),
+			});
+			await backing.database(session).setMetadata('peerChats', '[]');
+			class ReconciliationAgent extends MockAgent {
+				materializeCalls = 0;
+				override async materializeChat(): Promise<void> {
+					this.materializeCalls++;
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1, modifiedTime: 1, summary: 'Default', workingDirectories: [URI.parse(workingDirectory)] };
+				}
+			}
+			const errors: string[] = [];
+			class ReconciliationLog extends NullLogService {
+				override error(message: string | Error): void {
+					errors.push(message.toString());
+				}
+			}
+			const localService = disposables.add(createTestAgentService(
+				new ReconciliationLog(), fileService, backing.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			const agent = disposables.add(new ReconciliationAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const reconciliation = (localService as unknown as {
+				_catalogReconciliationService: { runPass(): Promise<IAgentHostCatalogReconciliationReport> };
+			})._catalogReconciliationService;
+			await reconciliation.runPass();
+			await reconciliation.runPass();
+			await localService.whenCatalogReconciliationIdle();
+			const [snapshot] = await database.readCatalogSnapshot([session.toString()]);
+			assert.deepStrictEqual({
+				errors,
+				authority: snapshot.authorityVersion,
+				defaultChat: snapshot.header?.defaultChatUri,
+				origin: snapshot.chats[0]?.origin,
+				inheritedTurnId: snapshot.chats[0]?.inheritedTurnId,
+				directories: snapshot.chats[0]?.workingDirectories,
+				providerDetail: await database.getChatV2ProviderDetail(defaultChat),
+				hydrated: getStateManager(localService).getSessionState(session.toString()) !== undefined,
+				materializations: agent.materializeCalls,
+			}, {
+				errors: [],
+				authority: 2, defaultChat,
+				origin: provenance === 'cleared' ? undefined : '{"kind":"user"}',
+				inheritedTurnId: provenance === 'cleared' ? undefined : 'known-turn',
+				directories: provenance === 'cleared' ? undefined : [workingDirectory],
+				providerDetail: { providerData: 'native-continuation' }, hydrated: false, materializations: 0,
+			});
+		});
+	}
 
 	// The wedge is an epoch-timing bug, not a catalog-mode one: the trailing refresh
 	// only pins a settled entry when its success handler sees a matching epoch and so
