@@ -232,8 +232,9 @@ export class ChatSlashCommandsContribution extends Disposable {
 				ChatContextKeys.lockedToCodingAgent.negate(),
 				ChatContextKeys.chatSessionSupportsFork
 			),
-		}, async (_prompt, _progress, _history, _location, sessionResource) => {
-			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource);
+		}, async (prompt, _progress, _history, _location, sessionResource) => {
+			const title = prompt.trim() || undefined;
+			await commandService.executeCommand('workbench.action.chat.forkConversation', sessionResource, title ? { title } : undefined);
 		}));
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'rename',

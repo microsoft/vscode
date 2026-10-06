@@ -263,6 +263,9 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 	if (!isSessionsWindow && (type === 'panelChat' || type === 'editsView' || type === 'agentView')) {
 		content.push(localize('chat.renameSession', 'To rename the current chat session when supported, invoke the Rename command{0}. Agent Host sessions can be renamed after sending the first request.', `<keybinding:${AGENT_SESSION_RENAME_ACTION_ID}>`));
 	}
+	if (type === 'panelChat' || type === 'editsView' || type === 'agentView') {
+		content.push(localize('chat.forkSession', "In a fork-capable Agent Host chat, to create a new forked chat alongside the current chat in the same Agent Host session, type /fork followed by a title. When the connected Agent Host supports named forks, the new chat uses that title. Agent Hosts that support forking but not named titles use their normal title for the forked chat. Accepting /fork from slash-command completion creates a bare forked chat immediately. To add a title, type or insert the command instead."));
+	}
 	if (type !== 'inlineChat') {
 		content.push(localize('chat.linkContextMenu', "Focus a link in the chat transcript and press Shift+F10 to open its context menu. Use Copy Link to copy its target. File links with additional editor choices also provide Open With."));
 	}

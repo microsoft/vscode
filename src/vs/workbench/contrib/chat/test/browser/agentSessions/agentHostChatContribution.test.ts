@@ -39,7 +39,7 @@ import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/br
 import { IAgentHostResourceService } from '../../../../../../platform/agentHost/common/agentHostResourceService.js';
 import { type IProtocolTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentHostMcpToolRoutingEnabledSettingId, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ICanvas } from '../../../../canvases/common/canvas.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
@@ -267,6 +267,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
+	public createChatCalls: { session: URI; chat: URI; options: IAgentCreateChatRequestOptions | undefined }[] = [];
+	public nextCreatedChatTitle: string | undefined;
 	public defaultChatUri: string | undefined;
 	public disposedChats: URI[] = [];
 	public disposedSessions: URI[] = [];
@@ -400,6 +402,25 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		}
 		this.nextResolvedWorkingDirectory = undefined;
 		return session;
+	}
+
+	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
+		this.createChatCalls.push({ session, chat, options });
+		this.fireAction({
+			channel: session.toString(),
+			action: {
+				type: ActionType.SessionChatAdded,
+				summary: {
+					resource: chat.toString(),
+					title: this.nextCreatedChatTitle ?? 'Generated fork title',
+					status: SessionStatus.Idle,
+					modifiedAt: new Date().toISOString(),
+					origin: { kind: ChatOriginKind.User },
+				},
+			},
+			serverSeq: this._nextSeq++,
+			origin: undefined,
+		});
 	}
 
 	override async disposeChat(chat: URI): Promise<void> { this.disposedChats.push(chat); }
@@ -6181,6 +6202,97 @@ suite('AgentHostChatContribution', () => {
 			// No backend session should have been created yet
 			assert.strictEqual(agentHostService.createSessionCalls.length, 0);
 		});
+	});
+
+	// ---- Forking ---------------------------------------------------------
+
+	suite('forking', () => {
+		async function forkSession(initialTitle: boolean | undefined, requestedTitle: string, publishedTitle: string) {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const backendSession = AgentSession.uri('copilot', `fork-${initialTitle === true ? 'supported' : 'legacy'}`);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: backendSession.path });
+			const sourceChat = buildDefaultChatUri(backendSession.toString());
+			const summary: SessionSummary = {
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Source chat',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+			};
+			agentHostService.setRootState({
+				agents: [{
+					provider: 'copilot',
+					displayName: 'Agent Host - Copilot',
+					description: 'test',
+					models: [],
+					capabilities: { multipleChats: { fork: true, initialTitle } },
+				}],
+				activeSessions: 0,
+			});
+			agentHostService.sessionStates.set(backendSession.toString(), {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				defaultChat: sourceChat,
+				chats: [createDefaultChatSummary(summary, sourceChat)],
+				turns: [{
+					id: 'source-turn',
+					state: TurnState.Complete,
+					message: { text: 'Source request', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				}],
+			});
+			agentHostService.nextCreatedChatTitle = publishedTitle;
+
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(chatSession);
+			const forkedItem = await chatSession.forkSession?.(undefined, CancellationToken.None, { title: requestedTitle });
+
+			return {
+				call: agentHostService.createChatCalls[0],
+				forkedItem,
+				sourceChat,
+			};
+		}
+
+		test('forwards a requested title when the host advertises initial title support and returns the host summary label', async () => {
+			const requestedTitle = 'Requested fork title';
+			const result = await forkSession(true, requestedTitle, requestedTitle);
+
+			assert.deepStrictEqual({
+				session: result.call.session.toString(),
+				options: result.call.options,
+				label: result.forkedItem?.label,
+			}, {
+				session: 'copilot:/fork-supported',
+				options: {
+					model: undefined,
+					fork: { source: URI.parse(result.sourceChat), turnId: 'source-turn' },
+					title: requestedTitle,
+				},
+				label: requestedTitle,
+			});
+		});
+
+		test('omits a requested title for a capability-absent host and returns its generated summary label', async () => {
+			const result = await forkSession(undefined, 'Ignored fork title', 'Host-generated fork title');
+
+			assert.deepStrictEqual({
+				session: result.call.session.toString(),
+				options: result.call.options,
+				label: result.forkedItem?.label,
+			}, {
+				session: 'copilot:/fork-legacy',
+				options: {
+					model: undefined,
+					fork: { source: URI.parse(result.sourceChat), turnId: 'source-turn' },
+				},
+				label: 'Host-generated fork title',
+			});
+		});
+
+
 	});
 
 	// ---- Multi-root customization scope ---------------------------------

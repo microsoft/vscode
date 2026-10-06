@@ -856,7 +856,7 @@ export interface IAgentHostManagementService {
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI>;
 	/**
 	 * Local-only compatibility path for chat fields not yet represented by AHP
-	 * `createChat` (`title` and `model`).
+	 * `createChat` (`model`).
 	 */
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void>;
 	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;

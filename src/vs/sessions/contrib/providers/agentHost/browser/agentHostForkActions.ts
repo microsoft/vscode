@@ -15,6 +15,7 @@ import { IChatSessionRequestHistoryItem } from '../../../../../workbench/contrib
 import { isAgentHostProviderId } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import type { IForkChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 
 registerAction2(class extends ForkConversationAction {
 	protected override async _tryForkAsChat(instantiationService: IInstantiationService, sourceSessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, options?: IForkConversationOptions): Promise<boolean> {
@@ -45,7 +46,8 @@ registerAction2(class extends ForkConversationAction {
 				return false;
 			}
 
-			const newChat = await sessionsManagementService.forkChatInSession(session, sourceSessionResource, turnId);
+			const forkOptions: IForkChatOptions | undefined = options?.title !== undefined ? { title: options.title } : undefined;
+			const newChat = await sessionsManagementService.forkChatInSession(session, sourceSessionResource, turnId, forkOptions);
 			if (options?.toSide) {
 				await sessionsService.openChatToSide(session, newChat.resource, { referenceChatResource: sourceSessionResource });
 			} else {

@@ -131,7 +131,7 @@ export class MockAgent implements IAgent {
 
 	constructor(
 		readonly id: AgentProvider = 'mock',
-		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
+		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true, initialTitle: true } },
 		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
 		autoDiscover = true,
 	) {
@@ -569,7 +569,7 @@ export class ScriptedMockAgent implements IAgent {
 			provider: 'mock',
 			displayName: 'Mock Agent',
 			description: 'Scripted test agent',
-			capabilities: this._supportsMultipleChats ? { multipleChats: { fork: true } } : undefined,
+			capabilities: this._supportsMultipleChats ? { multipleChats: { fork: true, initialTitle: true } } : undefined,
 		};
 	}
 

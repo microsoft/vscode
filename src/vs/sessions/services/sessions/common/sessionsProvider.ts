@@ -79,6 +79,11 @@ export interface ISendRequestOptions {
 	readonly hideFromTranscript?: boolean;
 }
 
+/** Options for forking a chat within a session. */
+export interface IForkChatOptions {
+	readonly title?: string;
+}
+
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
 	/** Whether this draft configures an Automation rather than an interactive session. */
@@ -581,8 +586,9 @@ export interface ISessionsProvider {
 	 * @param sessionId The ID of the session containing the source chat.
 	 * @param sourceChat The resource URI of the chat to fork from.
 	 * @param turnId The ID of the last turn (request) to include in the fork.
+	 * @param options Optional fork settings.
 	 */
-	forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat>;
+	forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat>;
 
 	/**
 	 * Create a side chat from an existing chat's turn, inheriting the source

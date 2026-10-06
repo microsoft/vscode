@@ -5266,7 +5266,7 @@ suite('ProtocolServerHandler', () => {
 			});
 		});
 
-		test('createChat for an additional chat forwards working directories and grows the catalog', async () => {
+		test('createChat for an additional chat forwards an exact title and working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -5275,6 +5275,7 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', {
 				channel: sessionUri,
 				chat: peerChat,
+				title: '  Exact fresh title  ',
 				workingDirectories: [URI.file('/workspace').toString()],
 			}));
 			const resp = await responsePromise;
@@ -5288,13 +5289,16 @@ suite('ProtocolServerHandler', () => {
 				created: [{
 					session: sessionUri,
 					chat: peerChat,
-					options: { workingDirectories: [URI.file('/workspace')] },
+					options: {
+						title: '  Exact fresh title  ',
+						workingDirectories: [URI.file('/workspace')],
+					},
 				}],
 				inCatalog: true,
 			});
 		});
 
-		test('createChat forwards a fork source and ignores its working directories', async () => {
+		test('createChat forwards an exact title and fork source while ignoring working directories', async () => {
 			stateManager.createSession(makeSessionSummary());
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
@@ -5303,6 +5307,7 @@ suite('ProtocolServerHandler', () => {
 			transport.simulateMessage(request(2, 'createChat', {
 				channel: sessionUri,
 				chat: peerChat,
+				title: '  Exact fork title  ',
 				source: { kind: ChatSourceKind.Fork, chat: buildDefaultChatUri(sessionUri), turnId: 'turn-1' },
 				workingDirectories: [URI.file('/workspace').toString()],
 			}));
@@ -5317,6 +5322,7 @@ suite('ProtocolServerHandler', () => {
 					session: sessionUri,
 					chat: peerChat,
 					options: {
+						title: '  Exact fork title  ',
 						fork: { source: URI.parse(buildDefaultChatUri(sessionUri)), turnId: 'turn-1' },
 					},
 				}],

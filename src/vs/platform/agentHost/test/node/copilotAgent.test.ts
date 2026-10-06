@@ -120,6 +120,7 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
+import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 
 const TEST_PRODUCT_SERVICE: IProductService = {
 	_serviceBrand: undefined,
@@ -3118,12 +3119,38 @@ suite('CopilotAgent', () => {
 					provider: 'copilotcli',
 					displayName: 'Copilot',
 					description: 'Copilot SDK agent running in the local agent host process',
-					capabilities: { multipleChats: { fork: true, sideChat: true } },
+					capabilities: { multipleChats: { fork: true, sideChat: true, initialTitle: true } },
 				},
 				agentHostCapabilities: { workspaceConversion: true },
 			});
 		} finally {
 			await disposeAgent(agent);
+		}
+	});
+
+	test('mock defaults advertise initial title support while custom capabilities remain unchanged', () => {
+		const previousMultipleChats = process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'];
+		process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] = '1';
+		try {
+			const mockAgent = disposables.add(new MockAgent());
+			const scriptedMockAgent = disposables.add(new ScriptedMockAgent());
+			const oldHostAgent = disposables.add(new MockAgent('old-host', { multipleChats: { fork: true } }));
+
+			assert.deepStrictEqual({
+				mockDefault: mockAgent.getDescriptor().capabilities,
+				scriptedMockDefault: scriptedMockAgent.getDescriptor().capabilities,
+				explicitOldHost: oldHostAgent.getDescriptor().capabilities,
+			}, {
+				mockDefault: { multipleChats: { fork: true, initialTitle: true } },
+				scriptedMockDefault: { multipleChats: { fork: true, initialTitle: true } },
+				explicitOldHost: { multipleChats: { fork: true } },
+			});
+		} finally {
+			if (previousMultipleChats === undefined) {
+				delete process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'];
+			} else {
+				process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] = previousMultipleChats;
+			}
 		}
 	});
 

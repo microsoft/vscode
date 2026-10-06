@@ -103,7 +103,7 @@ import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
 import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
+import { IChatSession, IChatSessionContentProvider, IChatSessionForkOptions, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
@@ -799,7 +799,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		canvasProvider: AgentHostCanvasCollection | undefined,
 		private readonly _promptCacheNotification: AgentHostPromptCacheNotification | undefined,
 		refreshChat: (() => Promise<void>) | undefined,
-		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
+		private readonly _forkSession: NonNullable<IChatSession['forkSession']>,
 		private readonly _renameSession: ((title: string, token: CancellationToken) => Promise<void>),
 		inputState: ISerializableChatModelInputState | undefined,
 		initialProgress: IChatProgress[] | undefined,
@@ -1776,12 +1776,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._config.connection.refreshSubscription
 					? () => this._config.connection.refreshSubscription!(URI.parse(this._getChatURIOrDefault(sessionResource, resolvedSession)))
 					: undefined,
-				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
+				(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => {
 					if (!this._getSessionState(resolvedSession.toString())) {
 						throw new Error('Cannot fork session before the initial request');
 					}
 
-					return this._forkSession(sessionResource, resolvedSession, request, token);
+					return this._forkSession(sessionResource, resolvedSession, request, token, options);
 				},
 				(title: string, _token: CancellationToken) => {
 					this._config.connection.dispatch(this._getChatURIOrDefault(sessionResource, resolvedSession), {
@@ -5927,6 +5927,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		backendSession: URI,
 		request: IChatSessionRequestHistoryItem | undefined,
 		token: CancellationToken,
+		options?: IChatSessionForkOptions,
 	): Promise<IChatSessionItem> {
 		if (token.isCancellationRequested) {
 			throw new Error('Cancelled');
@@ -5942,6 +5943,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (!rawSessionState) {
 			throw new Error(`Cannot fork: session state is not hydrated for ${sessionUri}`);
 		}
+		const supportsInitialTitle = agentInfo.capabilities.multipleChats.initialTitle === true;
 		// Fork the chat the gesture came from — a peer chat when the resource
 		// carries a chat fragment, else the session's default chat.
 		const sourceChat = this._resolveChatUriFromState(sessionResource, rawSessionState);
@@ -5978,6 +5980,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		await this._config.connection.createChat(backendSession, forkedChat, {
 			model: lastTurnModelSelection(protocolState),
 			fork: { source: URI.parse(sourceChat), turnId },
+			...(supportsInitialTitle && options?.title !== undefined ? { title: options.title } : {}),
 		});
 
 		// The chat is only addressable once the host has published it in the

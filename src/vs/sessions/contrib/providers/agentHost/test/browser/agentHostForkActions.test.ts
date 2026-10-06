@@ -49,6 +49,7 @@ suite('Agent Host fork actions', () => {
 		let forkAvailable = true;
 		let forkGate: Promise<void> | undefined;
 		const forkCalls: { kind: string; source: URI; requestId: string | undefined }[] = [];
+		const forkOptions: { readonly title?: string }[] = [];
 		const opens: { kind: string; resource: URI; options?: IOpenSessionOptions & { referenceChatResource?: URI; referenceSessionId?: string } }[] = [];
 
 		instantiationService.stub(ILogService, new NullLogService());
@@ -62,8 +63,9 @@ suite('Agent Host fork actions', () => {
 			getSession: resource => isEqual(resource, source.resource) ? source : forkAvailable && isEqual(resource, forkChat.resource) ? forkSession : undefined,
 			getSessionForChatResource: resource => isEqual(resource, sourceChat.resource) ? { session: source, chat: sourceChat } : undefined,
 			onDidChangeSessions: onDidChangeSessions.event,
-			forkChatInSession: async (_session, source, turnId) => {
+			forkChatInSession: async (_session, source, turnId, options?: { readonly title?: string }) => {
 				forkCalls.push({ kind: 'chat', source, requestId: turnId });
+				forkOptions.push(options ?? {});
 				started.complete();
 				await forkGate;
 				return forkChat;
@@ -95,7 +97,7 @@ suite('Agent Host fork actions', () => {
 			message: { text: 'second', parts: [] },
 		});
 		return {
-			source, sourceChat, forkChat, forkCalls, opens, started, activeSession, onDidChangeSessions,
+			source, sourceChat, forkChat, forkCalls, forkOptions, opens, started, activeSession, onDidChangeSessions,
 			setForkGate: (gate: Promise<void>) => forkGate = gate,
 			setForkAvailable: (available: boolean) => {
 				forkAvailable = available;
@@ -103,8 +105,12 @@ suite('Agent Host fork actions', () => {
 					onDidChangeSessions.fire({ added: [forkSession], removed: [], changed: [] });
 				}
 			},
-			run: async (toSide: boolean, slashCommand = false) => {
-				await instantiationService.invokeFunction(forkCommand.handler, slashCommand ? sourceChat.resource : toSide ? { element: checkpoint, toSide } : checkpoint);
+			run: async (toSide: boolean, slashCommand = false, title?: string) => {
+				await instantiationService.invokeFunction(
+					forkCommand.handler,
+					slashCommand ? sourceChat.resource : toSide ? { element: checkpoint, toSide } : checkpoint,
+					slashCommand && title !== undefined ? { title } : undefined,
+				);
 			},
 		};
 	}
@@ -175,6 +181,13 @@ suite('Agent Host fork actions', () => {
 			});
 		});
 	}
+
+	test('forwards the exact requested title when forking as a chat', async () => {
+		const harness = createHarness(true, true);
+		await harness.run(false, true, '  Exact fork title  ');
+
+		assert.deepStrictEqual(harness.forkOptions, [{ title: '  Exact fork title  ' }]);
+	});
 
 	test('waits for a separately forked session to appear before opening beside the source', async () => {
 		const harness = createHarness(false);

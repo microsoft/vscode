@@ -43,7 +43,7 @@ import { TestPathService } from '../../../../../workbench/test/browser/workbench
 import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
+import { type IForkChatOptions, ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
 import { SessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { ISessionsManagementService, IActiveSession, IChatDeletedEvent, ICreateNewSessionOptions, inheritableSessionTarget, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../common/sessionsManagement.js';
 import { SessionsService } from '../../browser/sessionsService.js';
@@ -6167,28 +6167,33 @@ suite('SessionsManagementService', () => {
 
 	suite('forkChatInSession', () => {
 
-		test('asks the provider to fork the chat when the session supports multiple chats', async () => {
+		test('asks the provider to fork the chat with options when the session supports multiple chats', async () => {
 			const sourceChat = URI.parse('test:///source');
 			const forkedChat: IChat = { ...stubChat, resource: URI.parse('test:///forked') };
 			const session = stubSession({ sessionId: 'fork', providerId: 'test', capabilities: constObservable({ supportsMultipleChats: true }) });
-			let forkChatArgs: readonly [string, URI, string] | undefined;
+			let forkChatArgs: readonly [string, URI, string, IForkChatOptions | undefined] | undefined;
 			const provider = new class extends TestSessionsProvider {
 				constructor() { super(session); }
-				override async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
-					forkChatArgs = [sessionId, sourceChat, turnId];
+				override async forkChat(sessionId: string, sourceChat: URI, turnId: string, options?: IForkChatOptions): Promise<IChat> {
+					forkChatArgs = [sessionId, sourceChat, turnId, options];
 					return forkedChat;
 				}
 			};
 			const { service } = createSessionsManagementService(session, disposables, provider);
 
-			const result = await service.forkChatInSession(session, sourceChat, 'turn-1');
+			const result = await service.forkChatInSession(session, sourceChat, 'turn-1', { title: 'Named fork' });
 
 			assert.deepStrictEqual({
 				result: result.resource.toString(),
-				args: forkChatArgs?.map(arg => URI.isUri(arg) ? arg.toString() : arg),
+				args: forkChatArgs && [
+					forkChatArgs[0],
+					forkChatArgs[1].toString(),
+					forkChatArgs[2],
+					forkChatArgs[3],
+				],
 			}, {
 				result: forkedChat.resource.toString(),
-				args: ['fork', sourceChat.toString(), 'turn-1'],
+				args: ['fork', sourceChat.toString(), 'turn-1', { title: 'Named fork' }],
 			});
 		});
 
@@ -6206,6 +6211,7 @@ suite('SessionsManagementService', () => {
 
 			await assert.rejects(() => service.forkChatInSession(session, URI.parse('test:///source'), 'turn-1'), /does not support forking into a chat/);
 		});
+
 	});
 
 	suite('createSideChatInSession', () => {

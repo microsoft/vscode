@@ -8,7 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction } from '../../../../common/state/sessionActions.js';
+import { ActionType, type ChatErrorAction, type ChatToolCallReadyAction, type SessionChatAddedAction } from '../../../../common/state/sessionActions.js';
 import { ChatSourceKind, CompletionItemKind, type CompletionsResult, type ListSessionsResult, type SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import {
 	buildChatUri,
@@ -281,10 +281,12 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			multipleChats: !!agent?.capabilities?.multipleChats,
 			fork: agent?.capabilities?.multipleChats?.fork ?? false,
 			sideChat: agent?.capabilities?.multipleChats?.sideChat ?? false,
+			initialTitle: agent?.capabilities?.multipleChats?.initialTitle ?? false,
 		}, {
 			multipleChats: config.supportsMultipleChats,
 			fork: config.supportsChatFork,
 			sideChat: config.supportsSideChats ?? false,
+			initialTitle: config.supportsInitialTitle,
 		});
 	});
 
@@ -557,6 +559,48 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			label: 'Line One Line Two',
 		}]);
 	}, config.supportsMultipleChats);
+
+	conformanceTest(context, 'titled peer chat publishes its title in the first notification and snapshots', async function () {
+		const { sessionUri, defaultChatUri } = await createSession('titled-peer');
+		const root = await context.client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+		const agent = (root.snapshot!.state as RootState).agents.find(agent => agent.provider === config.provider);
+		await driveTurn(defaultChatUri, 'titled-peer-source', '/rename Fork Source', 1);
+		await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		context.client.clearReceived();
+
+		const peer = buildChatUri(sessionUri, 'named-peer');
+		const chatAddedPromise = context.client.waitForNotification(notification => {
+			if (!isActionNotification(notification, 'session/chatAdded')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(notification);
+			return envelope.channel === sessionUri
+				&& (envelope.action as SessionChatAddedAction).summary.resource === peer;
+		});
+		await context.client.call('createChat', {
+			channel: sessionUri,
+			chat: peer,
+			title: 'Named peer .',
+			source: { kind: ChatSourceKind.Fork, chat: defaultChatUri, turnId: 'titled-peer-source' },
+		}, 30_000);
+		const chatAdded = (getActionEnvelope(await chatAddedPromise).action as SessionChatAddedAction).summary;
+		const initialSession = await context.client.call<SubscribeResult>('subscribe', { channel: sessionUri });
+		const initialChat = await context.client.call<SubscribeResult>('subscribe', { channel: peer });
+		const sessionChat = (initialSession.snapshot!.state as SessionState).chats.find(chat => chat.resource === peer);
+		const chat = initialChat.snapshot!.state as ChatState;
+
+		assert.deepStrictEqual({
+			initialTitleCapability: agent?.capabilities?.multipleChats?.initialTitle,
+			chatAdded: { resource: chatAdded.resource, title: chatAdded.title },
+			sessionChat: sessionChat && { resource: sessionChat.resource, title: sessionChat.title },
+			chatSnapshot: { snapshotResource: initialChat.snapshot!.resource, resource: chat.resource, title: chat.title },
+		}, {
+			initialTitleCapability: true,
+			chatAdded: { resource: peer, title: 'Named peer .' },
+			sessionChat: { resource: peer, title: 'Named peer .' },
+			chatSnapshot: { snapshotResource: peer, resource: peer, title: 'Named peer .' },
+		});
+	}, config.supportsMultipleChats && config.supportsInitialTitle);
 
 	conformanceTest(context, 'first peer chat snapshots the session title onto the default chat', async function () {
 		const { sessionUri, defaultChatUri } = await createSession('default-title');

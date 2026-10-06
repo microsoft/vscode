@@ -1836,13 +1836,19 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				return null;
 			}
 			const source = params.source;
-			let options: IAgentCreateChatRequestOptions | undefined = params.workingDirectories !== undefined
-				? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) }
+			let options: IAgentCreateChatRequestOptions | undefined = params.title !== undefined || params.workingDirectories !== undefined
+				? {
+					...(params.title !== undefined ? { title: params.title } : {}),
+					...(params.workingDirectories !== undefined ? { workingDirectories: params.workingDirectories.map(directory => URI.parse(directory)) } : {}),
+				}
 				: undefined;
 			if (source) {
 				switch (source.kind) {
 					case ChatSourceKind.Fork:
-						options = { fork: { source: URI.parse(source.chat), turnId: source.turnId } };
+						options = {
+							...(params.title !== undefined ? { title: params.title } : {}),
+							fork: { source: URI.parse(source.chat), turnId: source.turnId },
+						};
 						break;
 					case ChatSourceKind.SideChat:
 						options = {

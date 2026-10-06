@@ -25,6 +25,19 @@ The generated protocol includes the Changesets model:
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
 
+### Current targeted backport
+
+The generated copy intentionally carries `CreateChatParams.title` and
+`MultipleChatsCapability.initialTitle` on top of the `.ahp-version` source
+commit `6eec1b91`. Syncing that commit without the canonical fields removes
+them and breaks current consumers. Until the recorded pin advances to an AHP
+commit containing these fields, preserve or reapply this generated delta when
+syncing.
+
+A reproducible sync from `6eec1b91` must also retain the existing VS Code-only
+compatibility deltas: deprecated `SessionChatSummary.archived` and
+`ChatIsReadChanged` introduced in `0.10.0`.
+
 ## Adding optional fields to existing types
 
 Optional protocol fields are usually backwards-compatible. Add the field in the source protocol repo, sync `protocol/**`, and add wrapper exports only when VS Code code needs them.

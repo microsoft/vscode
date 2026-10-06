@@ -599,4 +599,57 @@ suite('Chat Accessibility Help', () => {
 			sessionsWindow: false,
 		});
 	});
+
+	test('documents qualified named fork behavior on persistent chat surfaces', () => {
+		const keybindingService = new MockKeybindingService();
+		const getForkHelp = (type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', isSessionsWindow = false) => {
+			const help = getAccessibilityHelpText(type, keybindingService, true, isSessionsWindow);
+			return {
+				forkCapableAgentHostChat: help.includes('In a fork-capable Agent Host chat'),
+				commandWithTitle: help.includes('type /fork followed by a title'),
+				sameSessionPeerChat: help.includes('new forked chat alongside the current chat in the same Agent Host session'),
+				supportedHost: help.includes('When the connected Agent Host supports named forks, the new chat uses that title'),
+				unnamedForkHostFallback: help.includes('Agent Hosts that support forking but not named titles use their normal title for the forked chat'),
+				immediateBareFork: help.includes('Accepting /fork from slash-command completion creates a bare forked chat immediately'),
+				insertToTitle: help.includes('To add a title, type or insert the command instead'),
+				doesNotDescribeNewSession: !help.includes('new session') && !help.includes('fork an Agent Host session'),
+			};
+		};
+		const documented = {
+			forkCapableAgentHostChat: true,
+			commandWithTitle: true,
+			sameSessionPeerChat: true,
+			supportedHost: true,
+			unnamedForkHostFallback: true,
+			immediateBareFork: true,
+			insertToTitle: true,
+			doesNotDescribeNewSession: true,
+		};
+		const notDocumented = {
+			forkCapableAgentHostChat: false,
+			commandWithTitle: false,
+			sameSessionPeerChat: false,
+			supportedHost: false,
+			unnamedForkHostFallback: false,
+			immediateBareFork: false,
+			insertToTitle: false,
+			doesNotDescribeNewSession: true,
+		};
+
+		assert.deepStrictEqual({
+			panelChat: getForkHelp('panelChat'),
+			agentView: getForkHelp('agentView'),
+			editsView: getForkHelp('editsView'),
+			quickChat: getForkHelp('quickChat'),
+			inlineChat: getForkHelp('inlineChat'),
+			sessionsWindow: getForkHelp('agentView', true),
+		}, {
+			panelChat: { ...documented },
+			agentView: { ...documented },
+			editsView: { ...documented },
+			quickChat: { ...notDocumented },
+			inlineChat: { ...notDocumented },
+			sessionsWindow: { ...documented },
+		});
+	});
 });

@@ -83,7 +83,7 @@ import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 import { IAgentHostSessionOpenTelemetry, type IAgentHostSessionOpenTelemetryScope } from './agentHostSessionOpenTelemetry.js';
 import { AgentServerToolHost } from './shared/agentServerToolHost.js';
 import { type IAddSessionWorkingDirectoryOptions, type IAgentServiceSessionServerToolAccessor, type IPreparedChatWorkingDirectory, type IChatContextSnapshot, type IRenameTitleResult, type ISessionCreationDefaults, validateRenameTitle } from './shared/sessionServerTools.js';
-import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, persistSessionMetadataValues, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.js';
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
@@ -5442,8 +5442,13 @@ export class AgentService extends Disposable implements IAgentService {
 		let forkedTurns: Turn[] | undefined;
 		let forkedTitle: string | undefined;
 		let forkedSourceTitle: string | undefined;
-		const { sideChat, ...providerOptions } = options ?? {};
-		let createOptions: IAgentCreateChatOptions | undefined = providerOptions;
+		const { sideChat, title: requestedTitle, ...providerOptions } = options ?? {};
+		const explicitTitle = requestedTitle?.trim() || undefined;
+		const normalizedProviderOptions: IAgentCreateChatOptions = {
+			...providerOptions,
+			...(explicitTitle !== undefined ? { title: explicitTitle } : {}),
+		};
+		let createOptions: IAgentCreateChatOptions | undefined = normalizedProviderOptions;
 		// Persist exhaustive provenance for peer chats. Fresh user-created chats
 		// leave this undefined and default to `ChatOriginKind.User`.
 		let peerChatOrigin: ChatOrigin | undefined;
@@ -5451,7 +5456,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const resolvedSideChat = await this._resolveSideChatOrigin(session, sideChat);
 			peerChatOrigin = resolvedSideChat.origin;
 			createOptions = {
-				...providerOptions,
+				...normalizedProviderOptions,
 				...(resolvedSideChat.shouldFork
 					? {
 						fork: {
@@ -5548,7 +5553,10 @@ export class AgentService extends Disposable implements IAgentService {
 			// subscribers only see a chat that can already receive messages.
 			const createResult = await this._createChat(provider, chat, session, createOptions);
 			const providerData = createResult?.providerData;
-			const title = forkedTitle ?? options?.title;
+			const title = explicitTitle ?? forkedTitle;
+			const selectedTitleSource = explicitTitle !== undefined
+				? AGENT_HOST_TITLE_SOURCE_USER
+				: forkedTitle !== undefined ? AGENT_HOST_TITLE_SOURCE_AUTO : undefined;
 			const sessionState = this._stateManager.getSessionState(sessionKey);
 			if (!sessionState) {
 				await provider.chats.disposeChat(chat, this._chatContext(session, chat));
@@ -5585,15 +5593,15 @@ export class AgentService extends Disposable implements IAgentService {
 				if (title !== undefined) {
 					await this._peerChatStore.persistMetadata(session, chat, {
 						[SESSION_CUSTOM_TITLE_KEY]: title,
-						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: AGENT_HOST_TITLE_SOURCE_AUTO,
+						[SESSION_CUSTOM_TITLE_SOURCE_KEY]: selectedTitleSource ?? AGENT_HOST_TITLE_SOURCE_AUTO,
 					});
 				}
 				await this._persistOrderedListVisibleSessionState(session, title === undefined ? {} : {
 					[customChatTitleMetadataKey(chat.toString())]: title,
-					[customChatTitleSourceMetadataKey(chat.toString())]: AGENT_HOST_TITLE_SOURCE_AUTO,
+					[customChatTitleSourceMetadataKey(chat.toString())]: selectedTitleSource ?? AGENT_HOST_TITLE_SOURCE_AUTO,
 				}, catalogChats);
 				this._stateManager.addChat(sessionKey, chat.toString(), {
-					...(forkedTitle !== undefined ? { title: forkedTitle } : options?.title !== undefined ? { title: options.title } : {}),
+					...(title !== undefined ? { title } : {}),
 					...(forkedTurns !== undefined ? { turns: forkedTurns } : {}),
 					...(providerData !== undefined ? { providerData } : {}),
 					...(peerChatOrigin !== undefined ? { origin: peerChatOrigin } : {}),
@@ -5646,7 +5654,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// derived from the inherited chat. Forks seed pre-existing
 		// turns, so the normal first-message/first-turn title generation never
 		// fires for them — this is the fork-time equivalent.
-		if (forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
+		if (explicitTitle === undefined && forkedTurns && forkedTurns.length > 0 && forkedTitle !== undefined) {
 			this._sideEffects.generateForkedTitle(sessionKey, chat.toString(), forkedTurns, forkedTitle, forkedSourceTitle);
 		}
 	}

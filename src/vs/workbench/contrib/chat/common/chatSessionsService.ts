@@ -460,6 +460,10 @@ export function getAgentHostProviderForTelemetry(sessionType: string | undefined
  */
 export const localChatSessionType = SessionType.Local;
 
+export interface IChatSessionForkOptions {
+	readonly title?: string;
+}
+
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
@@ -520,9 +524,10 @@ export interface IChatSession extends IDisposable {
 	 * Forks the session from the given request point.
 	 * @param request The request history item to fork from, or undefined to fork from the end.
 	 * @param token Cancellation token.
+	 * @param options Optional fork options.
 	 * @returns The forked session item. The promise is rejected if forking fails.
 	 */
-	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>;
+	forkSession?: (request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions) => Promise<IChatSessionItem>;
 
 	/**
 	 * Renames the session.
@@ -1032,9 +1037,10 @@ export interface IChatSessionsService {
 	 * @param sessionResource The session resource to fork.
 	 * @param request The request history item to fork from, or undefined to fork from the end.
 	 * @param token Cancellation token.
+	 * @param options Optional fork options.
 	 * @returns The forked session item, or undefined if forking failed.
 	 */
-	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken): Promise<IChatSessionItem>;
+	forkChatSession(sessionResource: URI, request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken, options?: IChatSessionForkOptions): Promise<IChatSessionItem>;
 
 	/**
 	 * Returns whether the loaded session supports renaming.

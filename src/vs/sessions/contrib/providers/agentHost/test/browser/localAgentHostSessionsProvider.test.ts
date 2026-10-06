@@ -244,7 +244,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	public createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
-	public onCreateChat: ((session: URI, chat: URI) => void) | undefined;
+	public onCreateChat: ((session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => void) | undefined;
 	override async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session, chat, options });
 		const key = session.toString();
@@ -261,7 +261,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 				chats: [...existing.chats, newChat],
 			});
 		}
-		this.onCreateChat?.(session, chat);
+		this.onCreateChat?.(session, chat, options);
 	}
 
 	public createdSessionUris: URI[] = [];
@@ -10594,7 +10594,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
-		test('forkChat forwards the source chat and turn to the host and surfaces a new peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		test('forkChat sends a supported initial title and returns the host-published named peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true, initialTitle: true } } } as AgentInfo]);
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'multi-fork');
 			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork').toString();
@@ -10604,19 +10605,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 				makeChatSummary(defaultChat, ''),
 			], { defaultChat }));
 
-			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1');
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1', { title: 'Named fork' });
 
 			const call = agentHost.createdChats.at(-1);
 			assert.deepStrictEqual({
+				title: call?.options?.title,
 				forkSource: call?.options?.fork?.source.toString(),
 				forkTurnId: call?.options?.fork?.turnId,
+				forkedTitle: forked.title.get(),
 				forkedIsPeer: !!forked.resource.fragment,
 				forkedInCatalog: session.chats.get().some(c => c.resource.toString() === forked.resource.toString()),
 			}, {
+				title: 'Named fork',
 				forkSource: defaultChat,
 				forkTurnId: 'turn-1',
+				forkedTitle: 'Named fork',
 				forkedIsPeer: true,
 				forkedInCatalog: true,
+			});
+		}));
+
+		test('forkChat omits an unsupported initial title and returns the host-generated peer chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: { multipleChats: { fork: true } } } as AgentInfo]);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-fork-no-title');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-fork-no-title').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('multi-fork-no-title', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			agentHost.onCreateChat = (sessionUri, chatUri) => {
+				agentHost.setSessionState('multi-fork-no-title', 'copilotcli', makeState([
+					makeChatSummary(defaultChat, ''),
+					makeChatSummary(chatUri.toString(), 'Host-generated fork'),
+				], { defaultChat: buildDefaultChatUri(sessionUri) }));
+			};
+
+			const forked = await provider.forkChat(session.sessionId, session.resource, 'turn-1', { title: 'Ignored title' });
+			const call = agentHost.createdChats.at(-1);
+
+			assert.deepStrictEqual({
+				title: call?.options?.title,
+				forkedTitle: forked.title.get(),
+			}, {
+				title: undefined,
+				forkedTitle: 'Host-generated fork',
 			});
 		}));
 

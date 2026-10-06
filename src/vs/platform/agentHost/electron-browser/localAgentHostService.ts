@@ -721,7 +721,7 @@ function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {
 }
 
 function hasChatExtensions(options: IAgentCreateChatRequestOptions): boolean {
-	return options.title !== undefined || options.model !== undefined;
+	return options.model !== undefined;
 }
 
 /**

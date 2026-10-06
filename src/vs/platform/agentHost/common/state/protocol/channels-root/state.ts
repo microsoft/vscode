@@ -150,6 +150,13 @@ export interface MultipleChatsCapability {
 	 * time. Side-chat support always implies multi-chat support.
 	 */
 	sideChat?: boolean;
+	/**
+	 * The agent honors {@link CreateChatParams.title} as the chat's first
+	 * published title and does not replace it through automatic title generation.
+	 * A later explicit rename is still allowed. When absent or `false`, clients
+	 * MUST omit `title` when calling `createChat`.
+	 */
+	initialTitle?: boolean;
 }
 
 /**
