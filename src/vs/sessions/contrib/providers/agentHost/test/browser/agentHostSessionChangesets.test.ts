@@ -46,7 +46,7 @@ import { ISessionsService } from '../../../../../services/sessions/browser/sessi
 import { IActiveSession, ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { SessionSyncChangesActionViewItem, SessionSyncChangesContribution } from '../../../../changes/browser/sessionSyncChanges.js';
 import { isSessionPullRequestOperation } from '../../../../changes/common/pullRequestCreation.js';
-import { createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
+import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, filterChangesToPrimaryWorkingDirectory, IAgentHostChangeset } from '../../browser/agentHostSessionChangesets.js';
 import { IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
 
 suite('AgentHostSessionChangesets', () => {
@@ -99,6 +99,64 @@ suite('AgentHostSessionChangesets', () => {
 			},
 		};
 	}
+
+	test('does not subscribe for unobserved snapshot reads', () => {
+		const isActiveSession = observableValue('isActiveSession', true);
+		const subscription = createMutableSubscription<ChatState | undefined>(undefined);
+		let references = 0;
+		let subscriptions = 0;
+		let unsubscriptions = 0;
+		const connection = new class extends mock<IAgentConnection>() {
+			override getSubscription<T extends StateComponents>(): IReference<IAgentSubscription<ComponentToState[T]>> {
+				if (references++ === 0) {
+					subscriptions++;
+				}
+				let disposed = false;
+				return {
+					object: subscription.object as IAgentSubscription<ComponentToState[T]>,
+					dispose: () => {
+						if (disposed) {
+							return;
+						}
+						disposed = true;
+						if (--references === 0) {
+							unsubscriptions++;
+						}
+					},
+				};
+			}
+		}();
+		const subscriptionObs = createActiveSessionSubscriptionObs<ChatState>({
+			icon: Codicon.copilot,
+			environment: 'local',
+			loading: constObservable(false),
+			buildWorkspace: () => undefined,
+			instantiationService: disposables.add(new TestInstantiationService()),
+			getConnection: () => connection,
+			agentCapabilities: constObservable(undefined),
+			mapBackendSessionResource: resource => resource,
+			mapDiffUri: resource => resource,
+		}, isActiveSession, StateComponents.Chat, constObservable(URI.parse('ahp-chat://test/session')));
+
+		const unobserved = {
+			value: subscriptionObs.get().get(),
+			subscriptions,
+			unsubscriptions,
+		};
+		const observer = disposables.add(autorun(reader => subscriptionObs.read(reader).read(reader)));
+		const observed = { references, subscriptions, unsubscriptions };
+		observer.dispose();
+
+		assert.deepStrictEqual({
+			unobserved,
+			observed,
+			disposed: { references, subscriptions, unsubscriptions },
+		}, {
+			unobserved: { value: undefined, subscriptions: 0, unsubscriptions: 0 },
+			observed: { references: 1, subscriptions: 1, unsubscriptions: 0 },
+			disposed: { references: 0, subscriptions: 1, unsubscriptions: 1 },
+		});
+	});
 
 	suite('changeset snapshots', () => {
 		const cachedFiles: ChangesetState['files'] = [{

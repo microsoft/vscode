@@ -6,6 +6,7 @@
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
 import { format } from '../../../../../base/common/strings.js';
@@ -262,10 +263,22 @@ export function createActiveSessionSubscriptionObs<T>(
 			return constObservable(null);
 		}
 
-		const subscriptionRef = reader.store.add(connection.getSubscription(component, resource, 'AgentHostSessionChangesets'));
-
-		return observableFromEvent(Event.any(subscriptionRef.object.onDidChange, subscriptionRef.object.onDidError ?? Event.None),
-			() => subscriptionRef.object.value as T | Error | undefined);
+		let getSubscriptionValue: (() => T | Error | undefined) | undefined;
+		return observableFromEvent<T | Error | undefined>(
+			listener => {
+				const store = new DisposableStore();
+				const subscriptionRef = store.add(connection.getSubscription(component, resource, 'AgentHostSessionChangesets'));
+				getSubscriptionValue = () => subscriptionRef.object.value as T | Error | undefined;
+				store.add(Event.any(subscriptionRef.object.onDidChange, subscriptionRef.object.onDidError ?? Event.None)(listener));
+				return {
+					dispose: () => {
+						store.dispose();
+						getSubscriptionValue = undefined;
+					}
+				};
+			},
+			() => getSubscriptionValue?.(),
+		);
 	});
 }
 
