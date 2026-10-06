@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-UCEigFRdYKsetdTy65de2cjMNbzxVjXuqemDlbGM2mE=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -1152,20 +1152,25 @@
 				 */
 				function hookupOnLoadHandlers(newFrame) {
 					clearTimeout(loadTimeout);
-					loadTimeout = undefined;
-					loadTimeout = setTimeout(() => {
-						clearTimeout(loadTimeout);
-						loadTimeout = undefined;
+					// Each frame settles only its own fallback timer. `loadTimeout` is shared by every frame, so a
+					// frame its fallback already showed that finishes loading later must not clear the timer of the
+					// frame replacing it: that frame's own load would then find nothing to settle, it would never
+					// become the active frame, and every message to the webview would stay queued for it.
+					const frameLoadTimeout = setTimeout(() => {
+						if (loadTimeout === frameLoadTimeout) {
+							loadTimeout = undefined;
+						}
 						onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
 					}, 200);
+					loadTimeout = frameLoadTimeout;
 
 					const contentWindow = assertIsDefined(newFrame.contentWindow);
 
 					contentWindow.addEventListener('load', function (e) {
 						const contentDocument = /** @type {Document} */ (e.target);
 
-						if (loadTimeout) {
-							clearTimeout(loadTimeout);
+						if (loadTimeout === frameLoadTimeout) {
+							clearTimeout(frameLoadTimeout);
 							loadTimeout = undefined;
 							onLoad(contentDocument, this);
 						}
