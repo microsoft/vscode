@@ -1759,6 +1759,64 @@ suite('SessionChatInputToolbar', () => {
 	}
 
 	for (const providerId of [LOCAL_AGENT_HOST_PROVIDER_ID, `${REMOTE_AGENT_HOST_PROVIDER_PREFIX}custom-host`]) {
+		test(`renders the explicitly selected PR above the main input with automatic association disabled on ${providerId}`, () => {
+			const { instantiationService } = createServices();
+			instantiationService.stub(ISessionsProvidersService, 'getProvider', () => upcastPartial<IAgentHostSessionsProvider>({
+				id: providerId,
+				onDidChangeRootConfig: Event.None,
+				getRootConfig: () => ({
+					schema: { type: 'object', properties: {} },
+					values: { [AgentHostAutoAttachPullRequestsConfigKey]: false },
+				}),
+				getAgentMergeClientStateObservable: () => constObservable(undefined),
+			}));
+			instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+				createPullRequestModelReference: () => new ImmortalReference(upcastPartial<GitHubPullRequestModel>({ pullRequest: constObservable(undefined) })),
+			}));
+			const selected = {
+				owner: 'owner', repo: 'repo', number: 105, uri: URI.parse('https://github.com/owner/repo/pull/105'),
+				createdByThisSession: true, recordedReferenceId: 'selected-pr',
+			};
+			const root = URI.file('/repo.worktrees/pr-105-session');
+			const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+				folders: [{
+					root, workingDirectory: root, name: 'repo', description: undefined,
+					gitRepository: {
+						uri: root, workTreeUri: root, baseBranchName: 'main', gitHubInfo: constObservable({
+							owner: selected.owner, repo: selected.repo,
+							pullRequests: [selected, { owner: selected.owner, repo: selected.repo, number: 106, uri: URI.parse('https://github.com/owner/repo/pull/106'), createdByThisSession: true }],
+						})
+					},
+				}],
+			}));
+			const chat = (id: string) => upcastPartial<IChat>({
+				resource: URI.parse(`custom-chat://host/${id}`), workspace, title: constObservable(id), status: constObservable(SessionStatus.Completed),
+				changesets: constObservable([]), changes: constObservable([]),
+			});
+			const main = chat('main');
+			const peer = chat('peer');
+			const session = upcastPartial<IActiveSession>({
+				providerId, sessionId: 'pr-session', resource: URI.parse('custom-session://host/pr-session'), workspace,
+				artifacts: constObservable([{
+					id: 'selected-pr', chat: main.resource, kind: SessionArtifactKind.PullRequest, label: '', isArtifact: true, isGitHub: true, link: selected.uri,
+				}]), mainChat: constObservable(main), chats: constObservable([main, peer]),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			const pill = () => toolbar.element.querySelector('.chat-dropdown-pill-button[aria-label^="Open Pull Request"]')?.getAttribute('aria-label') ?? null;
+			toolbar.setSession(session, main);
+			const mainPill = pill();
+			toolbar.setSession(session, peer);
+			const peerPill = pill();
+			toolbar.setSession(session, main);
+
+			assert.deepStrictEqual({ mainPill, peerPill, restoredMainPill: pill() }, {
+				mainPill: 'Open Pull Request #105',
+				peerPill: null,
+				restoredMainPill: 'Open Pull Request #105',
+			});
+		});
+
 		test(`PR pills follow chat ownership and react to automatic association on ${providerId}`, () => {
 			const { instantiationService } = createServices();
 			const onDidChangeRootConfig = store.add(new Emitter<void>());

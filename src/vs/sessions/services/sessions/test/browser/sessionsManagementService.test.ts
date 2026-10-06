@@ -4475,8 +4475,6 @@ suite('SessionsManagementService', () => {
 			override setPermissionLevel(_sessionId: string, _level: string): void { calls.push(`setPermissionLevel:${_level}`); }
 			override async setIsolationMode(_sessionId: string, _mode: string): Promise<void> { calls.push(`setIsolationMode:${_mode}`); }
 			override async setBranch(_sessionId: string, _branch: string): Promise<void> { calls.push(`setBranch:${_branch}`); }
-			override async setWorktreeBranchTrack(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeBranchTrack:${_enabled}`); }
-			override async setWorktreeCreateNewBranch(_sessionId: string, _enabled: boolean): Promise<void> { calls.push(`setWorktreeCreateNewBranch:${_enabled}`); }
 			override async sendRequest(_sessionId: string, _chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
 				sentOptions = options;
 				return session;
@@ -4489,8 +4487,6 @@ suite('SessionsManagementService', () => {
 			modeId: 'agent',
 			permissionLevel: 'allowedTools',
 			isolationMode: 'worktree',
-			worktreeBranchTrack: false,
-			worktreeCreateNewBranch: true,
 			branch: 'main',
 		};
 		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi', title: 'Pull Request', hideFromTranscript: true }, createOptions);
@@ -4506,8 +4502,6 @@ suite('SessionsManagementService', () => {
 				'setMode:agent',
 				'setPermissionLevel:allowedTools',
 				'setIsolationMode:worktree',
-				'setWorktreeBranchTrack:false',
-				'setWorktreeCreateNewBranch:true',
 				'setBranch:main',
 			],
 			sentOptions: { query: 'hi', title: 'Pull Request', hideFromTranscript: true },
@@ -4524,15 +4518,12 @@ suite('SessionsManagementService', () => {
 				calls.push(`setWorktreeConfiguration:${JSON.stringify(configuration)}`);
 			}
 			override async setIsolationMode(): Promise<void> { calls.push('setIsolationMode'); }
-			override async setWorktreeBranchTrack(): Promise<void> { calls.push('setWorktreeBranchTrack'); }
 			override async setBranch(): Promise<void> { calls.push('setBranch'); }
 		}(session);
 		const { service, view } = createSessionsManagementService(session, disposables, provider);
 
 		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
-			worktreeBranchTrack: true,
-			worktreeCreateNewBranch: false,
 			branch: 'feature',
 			onSessionCreated: created => {
 				calls.push(`created:${created.sessionId}:${service.getSession(created.resource)?.sessionId}`);
@@ -4546,9 +4537,36 @@ suite('SessionsManagementService', () => {
 		}, {
 			calls: [
 				'created:s1:s1',
-				'setWorktreeConfiguration:{"isolationMode":"worktree","worktreeBranchTrack":true,"worktreeCreateNewBranch":false,"branch":"feature"}',
+				'setWorktreeConfiguration:{"isolationMode":"worktree","branch":"feature"}',
 			],
 			activeSession: 's1',
+		});
+	});
+
+	test('createAndSendNewChatRequest creates the draft from a pull request', async () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const providerOptions: (ISessionsProviderCreateSessionOptions | undefined)[] = [];
+		const configurations: ISessionWorktreeConfiguration[] = [];
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
+			override getSessions(): ISession[] { return []; }
+			override createNewSession(_folderUri: URI, _sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				providerOptions.push(options);
+				return session;
+			}
+			override async setWorktreeConfiguration(_sessionId: string, configuration: ISessionWorktreeConfiguration): Promise<void> {
+				configurations.push(configuration);
+			}
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+
+		await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/42',
+		});
+
+		assert.deepStrictEqual({ pullRequestUrls: providerOptions.map(options => options?.pullRequestUrl), configurations }, {
+			pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
+			configurations: [],
 		});
 	});
 
@@ -4574,7 +4592,6 @@ suite('SessionsManagementService', () => {
 
 		const result = await service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
-			worktreeBranchTrack: true,
 			branch: 'feature',
 		});
 
@@ -4749,8 +4766,6 @@ suite('SessionsManagementService', () => {
 			mainChat: constObservable(chat),
 		});
 		const isolationDone = new DeferredPromise<void>();
-		const branchTrackStarted = new DeferredPromise<void>();
-		const branchTrackDone = new DeferredPromise<void>();
 		const branchStarted = new DeferredPromise<void>();
 		const branchDone = new DeferredPromise<void>();
 		const calls: string[] = [];
@@ -4760,12 +4775,6 @@ suite('SessionsManagementService', () => {
 				calls.push('isolation:start');
 				await isolationDone.p;
 				calls.push('isolation:end');
-			}
-			override async setWorktreeBranchTrack(): Promise<void> {
-				calls.push('branchTrack:start');
-				await branchTrackStarted.complete();
-				await branchTrackDone.p;
-				calls.push('branchTrack:end');
 			}
 			override async setBranch(): Promise<void> {
 				calls.push('branch:start');
@@ -4782,23 +4791,18 @@ suite('SessionsManagementService', () => {
 
 		const request = service.createAndSendNewChatRequest(URI.parse('test:///folder'), { query: 'hi' }, {
 			isolationMode: 'worktree',
-			worktreeBranchTrack: false,
 			branch: 'main',
 		});
 		await Promise.resolve();
 		assert.deepStrictEqual(calls, ['isolation:start']);
 
 		await isolationDone.complete();
-		await branchTrackStarted.p;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start']);
-
-		await branchTrackDone.complete();
 		await branchStarted.p;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start', 'branchTrack:end', 'branch:start']);
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start']);
 
 		await branchDone.complete();
 		await request;
-		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branchTrack:start', 'branchTrack:end', 'branch:start', 'branch:end', 'send']);
+		assert.deepStrictEqual(calls, ['isolation:start', 'isolation:end', 'branch:start', 'branch:end', 'send']);
 	});
 
 	test('createAndSendNewChatRequest cancels pending repository configuration and disposes the draft', async () => {
@@ -4927,7 +4931,7 @@ suite('SessionsManagementService', () => {
 		assert.deepStrictEqual({ providerId: result?.providerId, sent }, { providerId: 'test', sent: true });
 	});
 
-	test('an explicit false worktree flag rejects unsupported folder requests before creation', async () => {
+	test('a pull request rejects providers without worktree configuration before creation', async () => {
 		const session = stubSession({ sessionId: 's1', providerId: 'test' });
 		let created = false;
 		let sent = false;
@@ -4950,7 +4954,7 @@ suite('SessionsManagementService', () => {
 			providerId: provider.id,
 			sessionTypeId: 'test',
 			isolationMode: 'workspace',
-			worktreeCreateNewBranch: false,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
 		}), /does not support worktree configuration/);
 		assert.deepStrictEqual({ created, sent }, { created: false, sent: false });
 	});
