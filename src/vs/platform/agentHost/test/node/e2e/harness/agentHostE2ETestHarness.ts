@@ -41,7 +41,7 @@ import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
-import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
+import { preserveAgentHostE2ELogs, preserveAgentHostOperationLogs } from './agentHostE2EDiagnostics.js';
 
 // #region Record/replay
 
@@ -964,9 +964,7 @@ export class AgentHostE2EServerLease {
 				matchModelRequestsByProjection: capiReplay.matchModelRequestsByProjection,
 			});
 		} else {
-			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
-			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
-			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
+			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: 'trace' });
 			this._modelBackedTestsOnCurrentServer = 0;
 			this._testsOnCurrentServer = 0;
 		}
@@ -1022,7 +1020,7 @@ export class AgentHostE2EServerLease {
 				...this._startOptions,
 				capiReplay,
 				existingCapiReplay: proxy,
-				logLevel: this._isCopilotProvider ? 'trace' : undefined,
+				logLevel: 'trace',
 			});
 		} catch (error) {
 			await proxy.close();
@@ -1298,6 +1296,14 @@ export class AgentHostE2EServerLease {
 			this.dumpRuntimeLogsOnFailure(`suite cleanup: ${error instanceof Error ? error.message : String(error)}`);
 			throw error;
 		} finally {
+			for (const homeDir of this._dataDirs) {
+				try {
+					const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `agent-host-e2e-${process.pid}-${basename(homeDir)}`);
+					preserveAgentHostOperationLogs(join(homeDir, 'user-data'), destination);
+				} catch (error) {
+					process.stdout.write(`[agent-host-e2e] Failed to preserve operation diagnostics: ${error}\n`);
+				}
+			}
 			await removeTempDirs(this._dataDirs);
 		}
 	}

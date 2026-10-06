@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
+import { traceAgentHostOperation } from './agentHostOperationDiagnostics.js';
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
@@ -6656,7 +6657,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const resourceStr = resource.toString();
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
-			await this._sessionResidency.waitForRelease(resource);
+			await traceAgentHostOperation(this._logService, `subscribe:${resourceStr}`, 'waitForRelease', () => this._sessionResidency.waitForRelease(resource));
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resourceStr}`);
 			}
@@ -8289,7 +8290,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		onRestoreStart?.(false);
 		this._logService.trace(`[AgentService] restoreSession start: ${sessionStr}`);
-		const restore = this._doRestoreSession(session, sessionStr);
+		const restore = traceAgentHostOperation(this._logService, `restore:${sessionStr}`, 'restoreSession', () => this._doRestoreSession(session, sessionStr));
 		this._restoreSessionInFlight.set(sessionStr, restore);
 		try {
 			await restore;
@@ -8567,11 +8568,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * fails so the caller can report the outcome accurately.
 	 */
 	private async _restoreSessionState(agent: IAgent, session: URI, sessionStr: string, adopted: boolean, external: boolean, registrationSource: IRegisteredSession['source'], awaitCatalogReadable: () => Promise<boolean>, sessionKnownToRegistry: boolean, adoptionWorktree: IAgentAdoptedWorktree | undefined, adoptionListVisible: IAgentChatAdoptionResult['listVisible']): Promise<{ turnCount: number; hasProject: boolean; hasWorktree: boolean; workingDirectoryCount: number }> {
+		const trace = <T>(phase: string, operation: () => Promise<T>) => traceAgentHostOperation(this._logService, `restore:${sessionStr}`, phase, operation);
 		if ((adoptionListVisible?.title === undefined) !== (adoptionListVisible?.titleSource === undefined)) {
 			throw new Error(`Adoption title and source must be provided together for ${sessionStr}`);
 		}
 		this._logService.trace(`[AgentService] restore: reading provider metadata for ${sessionStr}`);
-		let meta = await this._getSessionMetadataForRestore(agent, session, external);
+		let meta = await trace('providerMetadata', () => this._getSessionMetadataForRestore(agent, session, external));
 		if (!meta) {
 			// Only a miss needs the catalogue: it decides whether the session is
 			// genuinely absent, and warming it may enumerate thousands of sessions.
@@ -8601,7 +8603,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 		this._logService.trace(`[AgentService] restore: provider metadata resolved for ${sessionStr}`);
-		const cachedChatCatalogPromise = this._readCachedChatCatalog(session);
+		const cachedChatCatalogPromise = trace('cachedChatCatalog', () => this._readCachedChatCatalog(session));
 
 		// A freshly-adopted legacy session whose working directory is a
 		// pre-existing git worktree keeps no worktree metadata (adoption seeds
@@ -8865,7 +8867,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getChatMessages(agent, defaultChatUri, session, undefined, workspaceTransitionsPromise);
+			turns = await trace('chatMessages', () => this._getChatMessages(agent, defaultChatUri, session, undefined, workspaceTransitionsPromise));
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -8887,7 +8889,7 @@ export class AgentService extends Disposable implements IAgentService {
 		let restoredMeta = (sessionMetadata || providerMeta) ? { ...(providerMeta ?? {}), ...(sessionMetadata ?? {}) } : undefined;
 		restoredMeta = withSessionMultiRootMetadata(restoredMeta, readSessionMultiRootMetadata(sessionMetadata));
 		restoredMeta = withSessionExternal(restoredMeta, external);
-		const centralChatCatalog = await this._readCentralChatCatalog(session) ?? cachedChatCatalog;
+		const centralChatCatalog = await trace('centralChatCatalog', () => this._readCentralChatCatalog(session)) ?? cachedChatCatalog;
 		const restoredChats = cachedChatCatalog?.map(chat => ({
 			resource: chat.uri,
 			title: chat.title ?? '',
@@ -8902,7 +8904,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (agent.id === CODEX_AGENT_PROVIDER_ID) {
 			restoredMeta = withCodexSessionModel(restoredMeta, agent.chats.getModel?.(defaultChatUri, this._chatContext(session, defaultChatUri)) ?? meta.model);
 		}
-		const currentRegistration = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
+		const currentRegistration = await trace('registry.get', () => this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry)));
 		const effectiveRegistrationSource = currentRegistration?.source ?? registrationSource;
 		const sessionStartTime = currentRegistration?.startTime ?? meta.startTime;
 		const sessionModifiedTime = Math.max(currentRegistration?.modifiedTime ?? meta.modifiedTime, meta.modifiedTime);
@@ -8927,12 +8929,12 @@ export class AgentService extends Disposable implements IAgentService {
 		const restoredDraft = meta.model
 			? { ...(defaultDraft ?? { text: '', origin: { kind: MessageKind.User } }), model: meta.model }
 			: defaultDraft;
-		const mergedTurns = await this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns);
+		const mergedTurns = await trace('interleaveLocalTurns', () => this._interleaveLocalTurns(sessionStr, defaultChatUri.toString(), turns));
 		const defaultChatModifiedAt = new Date(meta.modifiedTime).toISOString();
-		const registered = await this._retryRegistryMutation(
+		const registered = await trace('registry.register', () => this._retryRegistryMutation(
 			() => this._sessionRegistry.register(session, { provider: agent.id, startTime: meta.startTime, modifiedTime: meta.modifiedTime, source: effectiveRegistrationSource }, { checkTombstone: true }),
 			`registration for restored session ${session.toString()}`,
-		);
+		));
 		if (!registered) {
 			// Tombstoned between the early check in `_doRestoreSession` and
 			// here (e.g. a concurrent `disposeSession` landed while this
@@ -8978,11 +8980,11 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		const promises: Promise<unknown>[] = [];
-		await this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
+		await trace('subagentSummaries', () => this._registerRestoredSubagentSummaries(agent, session, mergedTurns));
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
 		// and histories are restored when a peer chat is first requested.
-		promises.push(this._restorePeerChats(agent, session, cachedChatCatalog));
+		promises.push(trace('peerChats', () => this._restorePeerChats(agent, session, cachedChatCatalog)));
 
 		// Register the static changeset URIs and reseed them from any
 		// persisted file lists in the batched metadata read. The coordinator
@@ -9010,11 +9012,11 @@ export class AgentService extends Disposable implements IAgentService {
 			? { [SessionConfigKey.Isolation]: 'folder', ...persistedConfigValues }
 			: persistedConfigValues;
 		const [restoredConfig, restoredCustomizations] = await Promise.all([
-			this._resolveCreatedSessionConfig(agent, {
+			trace('sessionConfig', () => this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
 				config: restoredConfigValues,
-			}),
-			agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session)).catch(err => {
+			})),
+			trace('customizations', () => agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session))).catch(err => {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;
 			}),

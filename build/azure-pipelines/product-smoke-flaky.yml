@@ -81,6 +81,14 @@ parameters:
     displayName: "🧪 Smoke Tests"
     type: boolean
     default: true
+  - name: VSCODE_LINUX_AGENT_HOST_E2E_GREP
+    displayName: "Linux Agent Host E2E test filter (empty runs all integration tests)"
+    type: string
+    default: ""
+  - name: VSCODE_LINUX_AGENT_HOST_E2E_JOBS
+    displayName: "Linux Agent Host E2E workers (empty uses the runner default)"
+    type: string
+    default: ""
 
 variables:
   - name: VSCODE_QUALITY
@@ -211,6 +219,8 @@ extends:
                 VSCODE_TEST_UNIT: ${{ parameters.VSCODE_TEST_UNIT }}
                 VSCODE_TEST_INTEGRATION: ${{ parameters.VSCODE_TEST_INTEGRATION }}
                 VSCODE_TEST_SMOKE: ${{ parameters.VSCODE_TEST_SMOKE }}
+                VSCODE_AGENT_HOST_E2E_GREP: ${{ parameters.VSCODE_LINUX_AGENT_HOST_E2E_GREP }}
+                VSCODE_AGENT_HOST_E2E_JOBS: ${{ parameters.VSCODE_LINUX_AGENT_HOST_E2E_JOBS }}
                 iterations: ${{ parameters.iterations }}
 
       - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:

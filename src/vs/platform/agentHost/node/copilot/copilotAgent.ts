@@ -24,6 +24,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { traceAgentHostOperation } from '../agentHostOperationDiagnostics.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
 import { IParsedAgent, IParsedPlugin, IParsedRule, IParsedSkill, parsePlugin, PluginFormat, type IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
@@ -5794,14 +5795,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				};
 				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
 				const initializingSession = agentSession;
-				await this._initializeAndRegisterSession(initializingSession, () => {
+				await traceAgentHostOperation(this._logService, `Copilot:${chatKey}`, 'resume.initialize', () => this._initializeAndRegisterSession(initializingSession, () => {
 					this._throwIfClientReplaced(client, initializingSession);
 					this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
 					this._registerLiveChat(chat, initializingSession, activeClient);
-				});
+				}));
 				stageRecorder?.mark('persist');
 				if (launchWorkingDirectories && (!detached || isEqual(workingDirectory, persistedWorkingDirectory))) {
-					await this._storeSessionMetadata(context.resource, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined);
+					await traceAgentHostOperation(this._logService, `Copilot:${chatKey}`, 'resume.persistMetadata', () => this._storeSessionMetadata(context.resource, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined));
 				}
 				this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for configuration ${configurationResource.toString()}`);
 				return agentSession;

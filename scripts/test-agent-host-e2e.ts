@@ -8,7 +8,7 @@ const fs: typeof import('fs') = require('fs');
 const os: typeof import('os') = require('os');
 const path: typeof import('path') = require('path');
 const { spawn, spawnSync } = childProcess;
-const { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = fs;
+const { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } = fs;
 const { availableParallelism, cpus } = os;
 const { basename, dirname, extname, join, resolve } = path;
 
@@ -84,14 +84,19 @@ async function main(): Promise<void> {
 	const results: IRunResult[] = [];
 	let nextSuite = 0;
 
-	const workers = Array.from({ length: jobs }, async () => {
-		while (nextSuite < suites.length) {
-			const suiteIndex = nextSuite++;
-			const suite = suites[suiteIndex];
-			results[suiteIndex] = await runSuite(suite, forwardedArgs, surfaceOutputs.get(suite.id));
-		}
-	});
-	await Promise.all(workers);
+	const stopResourceDiagnostics = startResourceDiagnostics(jobs);
+	try {
+		const workers = Array.from({ length: jobs }, async () => {
+			while (nextSuite < suites.length) {
+				const suiteIndex = nextSuite++;
+				const suite = suites[suiteIndex];
+				results[suiteIndex] = await runSuite(suite, forwardedArgs, surfaceOutputs.get(suite.id));
+			}
+		});
+		await Promise.all(workers);
+	} finally {
+		stopResourceDiagnostics();
+	}
 
 	const failures = results.filter(result => !result.succeeded);
 	if (surfaceOutputs.size > 0 && failures.length === 0) {
@@ -107,6 +112,31 @@ async function main(): Promise<void> {
 		printFailureDetails(failures);
 		process.exitCode = 1;
 	}
+}
+
+function startResourceDiagnostics(jobs: number): () => void {
+	if (process.platform !== 'linux') {
+		return () => { };
+	}
+	const directory = join(repoRoot, '.build', 'logs', 'integration-tests');
+	mkdirSync(directory, { recursive: true });
+	const output = join(directory, `agent-host-resources-${process.pid}.jsonl`);
+	const files = ['/proc/pressure/cpu', '/proc/pressure/io', '/proc/pressure/memory', '/proc/stat', '/proc/meminfo', '/proc/diskstats'];
+	const sample = () => {
+		try {
+			const resources = Object.fromEntries(files.map(file => [file, existsSync(file) ? readFileSync(file, 'utf8') : 'unavailable']));
+			appendFileSync(output, JSON.stringify({ timestamp: new Date().toISOString(), jobs, resources }) + '\n');
+		} catch (error) {
+			console.warn(`[agent-host-e2e] Failed to collect worker resource diagnostics: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	};
+	sample();
+	const timer = setInterval(sample, 5_000);
+	timer.unref();
+	return () => {
+		clearInterval(timer);
+		sample();
+	};
 }
 
 function validateEnvironment(): void {
