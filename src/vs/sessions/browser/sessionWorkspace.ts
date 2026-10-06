@@ -31,7 +31,7 @@ export function getSessionWorkspaceDisplayInfo(session: IActiveSession | undefin
 	const kind = getSessionWorkspaceKind(workspace, worktreePending);
 	const icon = workspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloudCompact : kind === SessionWorkspaceKind.Folder ? Codicon.folderCompact : Codicon.worktreeCompact);
 	const folder = workspace.folders[0];
-	const branch = worktreePending ? undefined : folder?.gitRepository?.branchName?.trim() || undefined;
+	const branch = kind === SessionWorkspaceKind.Worktree && !worktreePending ? folder?.gitRepository?.branchName?.trim() || undefined : undefined;
 	const workingDirectoryPath = worktreePending ? undefined : folder?.workingDirectory.fsPath;
 	return { label: workspace.label, icon, workingDirectoryPath, branch, worktreePending };
 }

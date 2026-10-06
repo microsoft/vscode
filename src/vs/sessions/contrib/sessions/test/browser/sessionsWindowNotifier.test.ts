@@ -322,6 +322,42 @@ suite('SessionsWindowNotifier', () => {
 		assert.deepStrictEqual(host.toasts, []);
 	});
 
+	test('does not notify an inactive pane of an archived comparison while the window is focused', async () => {
+		const active = createSession('archived-active', SessionStatus.InProgress);
+		const waiting = createSession('archived-waiting', SessionStatus.InProgress);
+		const management = new TestSessionsManagementService([waiting.session]);
+		const sessions = new TestSessionsService();
+		sessions.activeSession.set(active.session as IActiveSession, undefined);
+		sessions.visibleSessions.set([active.session as IActiveSession, waiting.session as IActiveSession], undefined);
+		const host = new TestHostService();
+		host.hasFocus = true;
+		const chat = new TestChatService();
+		chat.model = new class extends mock<IChatModel>() {
+			override readonly requestNeedsInput = observableValue('requestNeedsInput', { title: 'Fix waiting' });
+		};
+		store.add(new TestSessionsWindowNotifier(
+			management,
+			sessions,
+			host,
+			new TestConfigurationService({
+				[ChatConfiguration.NotifyWindowOnConfirmation]: ChatNotificationMode.WindowNotFocused,
+			}),
+			chat,
+			new TestChatWidgetService(),
+			new class extends mock<ISessionComparisonService>() {
+				override getComparisonForSession(): ISessionComparison | undefined {
+					return upcastPartial<ISessionComparison>({ id: 'comparison', archivedAt: 1 });
+				}
+			},
+		));
+		store.add(management);
+
+		waiting.status.set(SessionStatus.NeedsInput, undefined);
+		await flushNotifications();
+
+		assert.deepStrictEqual(host.toasts, []);
+	});
+
 	test('falls back to session status when a live model misses its needs-input state', async () => {
 		const { session, status } = createSession('missing-model-state', SessionStatus.InProgress);
 		const management = new TestSessionsManagementService([session]);

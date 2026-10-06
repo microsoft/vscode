@@ -20,7 +20,8 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { AgentFeedbackState, IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { ChangesViewMode, IsolationMode } from '../common/changes.js';
-import { ActiveSessionState, ChangesViewSection, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
+import { getChangesEditorFileResource } from './changesEditorLabels.js';
+import { ActiveSessionState, ChangesViewSection, findDefaultChangeset, IChangesDetailsViewState, IChangesDetailsViewStateTransfer, IChangesViewSectionCollapseState, IChangesViewService } from '../common/changesViewService.js';
 
 export const ChangesetReviewSupportContext = new RawContextKey<boolean>('sessions.changesetReviewSupport', false);
 export const ChangesetReviewedFilesContext = new RawContextKey<string[]>('sessions.changesetReviewedFiles', []);
@@ -41,7 +42,6 @@ interface IChatChangesetSelection {
 }
 
 interface ISessionChangesetSelections {
-	preferredChangesetId: string | undefined;
 	readonly chats: ResourceMap<IChatChangesetSelection>;
 }
 
@@ -88,11 +88,15 @@ function canPreserveChangesetWhileCatalogueLoads(
 	workspace: ISessionWorkspace | undefined,
 	mainWorkspace: ISessionWorkspace | undefined,
 	selectedChangesetId: string | undefined,
+	isMainChat: boolean,
 ): lastValue is IActiveChangesetProjection & { readonly changeset: ISessionChangeset } {
+	// Without an explicit selection a nested chat's default is unknown until its
+	// catalogue loads, so only the main chat keeps Branch Changes implicitly.
+	const expectedChangesetId = selectedChangesetId ?? (isMainChat ? BRANCH_CHANGES_CHANGESET_ID : undefined);
 	if (!lastValue?.changeset
 		|| !isEqual(lastValue.sessionResource, sessionResource)
 		|| lastValue.changeset.id !== BRANCH_CHANGES_CHANGESET_ID
-		|| (selectedChangesetId !== undefined && selectedChangesetId !== lastValue.changeset.id)) {
+		|| expectedChangesetId !== lastValue.changeset.id) {
 		return false;
 	}
 	return changesetWorkspaceScopeEqual(lastValue.workspace, mainWorkspace)
@@ -135,21 +139,17 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return;
 		}
 
-		const sessionSelections = this._changesetSelectionsBySession.get(activeSession.resource);
-		const currentSelection = sessionSelections?.chats.get(activeChat.resource);
-		if (sessionSelections?.preferredChangesetId === changesetId
-			&& currentSelection?.selectedChangesetId === changesetId
+		const currentSelection = this._changesetSelectionsBySession.get(activeSession.resource)?.chats.get(activeChat.resource);
+		if (currentSelection?.selectedChangesetId === changesetId
 			&& currentSelection?.transientChangeset === undefined) {
 			return;
 		}
 
 		transaction(tx => {
-			const selections = sessionSelections ?? this._createSessionChangesetSelections(activeSession.resource);
-			selections.preferredChangesetId = changesetId;
 			this._setChatChangesetSelection(activeSession.resource, activeChat.resource, changesetId
 				? { selectedChangesetId: changesetId }
 				: undefined);
-			if (changesetId === undefined && selections.chats.size === 0) {
+			if (this._changesetSelectionsBySession.get(activeSession.resource)?.chats.size === 0) {
 				this._changesetSelectionsBySession.delete(activeSession.resource);
 			}
 			this._changesetSelectionChanged.trigger(tx);
@@ -234,22 +234,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		this.activeSessionAgentFeedbackCountByFileObs = this._getActiveSessionAgentFeedback();
 
 		// Changesets
-		const activeSessionChangesetsObs = derived(reader => {
-			const activeSession = this.sessionsService.activeSession.read(reader);
-			if (!activeSession) {
-				return undefined;
-			}
-			const activeChat = activeSession.activeChat.read(reader);
-			const chatChangesets = activeChat.changesets.read(reader);
-			if (chatChangesets === undefined) {
-				return undefined;
-			}
-			return chatChangesets;
-		});
-		this.activeSessionChangesetsObs = derived(reader => {
+		const currentChangesetsObs = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
 			const activeChat = activeSession?.activeChat.read(reader);
-			const changesets = activeSessionChangesetsObs.read(reader);
+			const changesets = activeChat?.changesets.read(reader);
 			this._changesetSelectionChanged.read(reader);
 			const transientChangeset = activeSession && activeChat
 				? this._changesetSelectionsBySession.get(activeSession.resource)?.chats.get(activeChat.resource)?.transientChangeset
@@ -263,8 +251,13 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return changesetsWithTransientSelection;
 		});
 
-		this.activeSessionChangesetsLoadingObs = derived(reader => {
-			return this.activeSessionChangesetsObs.read(reader) === undefined;
+		this.activeSessionChangesetsLoadingObs = derived(reader => currentChangesetsObs.read(reader) === undefined);
+		this.activeSessionChangesetsObs = derivedObservableWithCache<readonly ISessionChangeset[] | undefined>(this, (reader, lastValue) => {
+			if (!this.sessionsService.activeSession.read(reader)) {
+				return undefined;
+			}
+			const changesets = currentChangesetsObs.read(reader);
+			return this.activeSessionChangesetsLoadingObs.read(reader) ? lastValue : changesets;
 		});
 
 		// Changeset
@@ -273,22 +266,20 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeChat = activeSession?.activeChat.read(reader);
 			const chatWorkspace = activeChat?.workspace.read(reader);
 			this._changesetSelectionChanged.read(reader);
-			const sessionSelections = activeSession
-				? this._changesetSelectionsBySession.get(activeSession.resource)
-				: undefined;
 			const selectedChangesetId = activeSession && activeChat
-				? sessionSelections?.chats.get(activeChat.resource)?.selectedChangesetId
-				?? sessionSelections?.preferredChangesetId
+				? this._changesetSelectionsBySession.get(activeSession.resource)?.chats.get(activeChat.resource)?.selectedChangesetId
 				: undefined;
-			const activeSessionChangesets = this.activeSessionChangesetsObs.read(reader);
+			const activeSessionChangesets = currentChangesetsObs.read(reader);
 			if (!activeSessionChangesets) {
-				const mainWorkspace = activeSession?.mainChat.read(reader).workspace.read(reader);
+				const mainChat = activeSession?.mainChat.read(reader);
+				const mainWorkspace = mainChat?.workspace.read(reader);
 				if (activeSession && canPreserveChangesetWhileCatalogueLoads(
 					lastValue,
 					activeSession.resource,
 					chatWorkspace,
 					mainWorkspace,
 					selectedChangesetId,
+					!!activeChat && isEqual(mainChat?.resource, activeChat.resource),
 				)) {
 					return {
 						sessionResource: activeSession.resource,
@@ -319,13 +310,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				};
 			}
 
-			const defaultChangeset = activeSessionChangesets
-				.find(c => c.isDefault.read(reader));
-
-			const firstEnabledChangeset = activeSessionChangesets
-				.find(c => c.isEnabled.read(reader));
-
-			const changeset = defaultChangeset ?? firstEnabledChangeset;
+			const changeset = findDefaultChangeset(activeSessionChangesets, reader);
 			return {
 				sessionResource: activeSession?.resource,
 				workspace: changeset?.id === SESSION_CHANGES_CHANGESET_ID ? activeSession?.workspace.read(reader) : chatWorkspace,
@@ -337,10 +322,11 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const activeChangesStateObs = derivedObservableWithCache<IActiveChangesState>(this, (reader, lastValue) => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			if (!changeset) {
+				const activeSession = this.sessionsService.activeSession.read(reader);
 				return {
 					changeset: undefined,
 					changes: [],
-					isLoading: false,
+					isLoading: !!activeSession && this.activeSessionChangesetsLoadingObs.read(reader),
 					preservingEquivalentChangeset: false,
 				};
 			}
@@ -362,7 +348,9 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			return {
 				changeset,
-				changes: changeset.changes.read(reader),
+				changes: isLoading
+					? []
+					: changeset.changes.read(reader),
 				isLoading,
 				preservingEquivalentChangeset: false,
 			};
@@ -372,18 +360,18 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return activeChangesStateObs.read(reader).isLoading;
 		});
 
-		const activeSessionBaseBranchProtected = derived(reader => {
+		const activeSessionBaseBranchProtection = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
-			return activeSession?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected === true;
+			return activeSession?.activeChat.read(reader).workspace.read(reader)?.folders[0]?.gitRepository?.baseBranchProtected;
 		});
 
 		this.activeSessionChangesetOperationsObs = derived(reader => {
 			const changeset = this.activeSessionChangesetObs.read(reader);
 			const operations = (changeset?.operations.read(reader) ?? [])
 				.filter(operation => operation.id !== AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID);
-			return activeSessionBaseBranchProtected.read(reader)
-				? operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID)
-				: operations;
+			return activeSessionBaseBranchProtection.read(reader) === false
+				? operations
+				: operations.filter(operation => operation.id !== AGENT_HOST_MERGE_CHANGESET_OPERATION_ID);
 		});
 
 		// Changes
@@ -399,11 +387,10 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeSessionChangesetsLoading = this.activeSessionChangesetsLoadingObs.read(reader);
 			const activeSessionChangeset = this.activeSessionChangesetObs.read(reader);
 			const activeSessionChangesetLoading = this.activeSessionChangesetLoadingObs.read(reader);
-			const activeSessionHasChanges = this.activeSessionChangesObs.read(reader).length > 0;
 
 			return activeSessionLoading
 				|| (activeSessionChangesetsLoading && !activeSessionChangeset)
-				|| (activeSessionChangesetLoading && !activeSessionHasChanges);
+				|| activeSessionChangesetLoading;
 		});
 
 		const activeSessionChangesSummaryObs = derivedObservableWithCache<ISessionChangesSummary | undefined>(this, (reader, lastValue) => {
@@ -478,7 +465,6 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 	private _createSessionChangesetSelections(sessionResource: URI): ISessionChangesetSelections {
 		const selections: ISessionChangesetSelections = {
-			preferredChangesetId: undefined,
 			chats: new ResourceMap(),
 		};
 		this._changesetSelectionsBySession.set(sessionResource, selections);
@@ -504,7 +490,6 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const toMainChat = to.mainChat.get().resource;
 		const existingToSelections = this._changesetSelectionsBySession.get(to.resource);
 		const toSelections: ISessionChangesetSelections = {
-			preferredChangesetId: fromSelections.preferredChangesetId ?? existingToSelections?.preferredChangesetId,
 			chats: new ResourceMap(existingToSelections?.chats),
 		};
 		fromSelections.chats.forEach((selection, chatResource) => {
@@ -537,7 +522,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 				changed = true;
 			}
 		}
-		if (selections.chats.size === 0 && selections.preferredChangesetId === undefined) {
+		if (selections.chats.size === 0) {
 			this._changesetSelectionsBySession.delete(session.resource);
 		}
 		if (changed) {
@@ -755,8 +740,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 			return changes
 				.filter(change => change.reviewed)
-				.map(change => change.modifiedUri?.toString() ?? change.originalUri?.toString())
-				.filter((uri: string | undefined) => uri !== undefined);
+				.map(change => getChangesEditorFileResource(change).toString());
 		}));
 
 		const changesetOperationCountObs = derivedObservableWithCache<number>(this, (reader, lastValue) => {

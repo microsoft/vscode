@@ -29,6 +29,7 @@ import {
 	createSessionState,
 	MessageKind,
 	ResponsePartKind,
+	SessionLifecycle,
 	SessionStatus,
 	StateComponents,
 	ToolCallConfirmationReason,
@@ -152,6 +153,58 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		let runs = 0;
 		ds.add(autorun(r => { latest = obs.read(r); runs++; }));
 		return { latest: () => latest, runs: () => runs };
+	}
+
+	for (const owner of ['session', 'chat'] as const) {
+		test(`uses the advertised ${owner}-owned turn URI for an opaque chat`, () => {
+			const conn = new FakeAgentConnection();
+			const advertisedChatUri = 'ahp-chat:/primary';
+			const advertisedTurnUri = 'ahp-changeset:/review/t1';
+			const catalogue = [{
+				label: 'Turn Changes',
+				changeKind: 'turn',
+				uriTemplate: 'ahp-changeset:/review/{turnId}',
+			}];
+			const chat = createChatState({
+				resource: advertisedChatUri,
+				title: 'Chat',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+			});
+			conn.setState(backendSession.toString(), {
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				lifecycle: SessionLifecycle.Ready,
+				activeClients: [],
+				chats: [chat],
+				defaultChat: advertisedChatUri,
+				changesets: owner === 'session' ? catalogue : undefined,
+			} satisfies SessionState);
+			conn.setState(advertisedChatUri, {
+				...chat,
+				changesets: owner === 'chat' ? catalogue : undefined,
+				turns: [{ ...completedTurn('t1'), responseParts: [] }],
+			} satisfies ChatState);
+			conn.setState(advertisedTurnUri, {
+				status: ChangesetStatus.Ready,
+				files: [{ id: 'edited', edit: fileEdit('/repo/hello-world.html', 36) }],
+			} satisfies ChangesetState);
+			const provider = store.add(createProvider(conn, () => backendSession, () => URI.parse(advertisedChatUri)));
+			const observed = observe(provider, store.add(new DisposableStore()));
+
+			assert.deepStrictEqual({
+				files: observed.latest().map(diff => ({
+					path: fromAgentHostUri(diff.modifiedURI).path,
+					added: diff.added,
+					removed: diff.removed,
+				})),
+				subscriptions: conn.getSubscriptionCount(advertisedTurnUri),
+			}, {
+				files: [{ path: '/repo/hello-world.html', added: 36, removed: 0 }],
+				subscriptions: 1,
+			});
+		});
 	}
 
 	function fileEdit(path: string, added = 1, onRead?: () => void): ISessionFileDiff {
@@ -1268,6 +1321,84 @@ suite('AgentHostResponseFileChangesProvider', () => {
 			isAuthoritativeEmpty: true,
 		});
 	});
+
+	test('excludes response edits outside a known session workspace', () => {
+		const ds = store.add(new DisposableStore());
+		const conn = new FakeAgentConnection();
+		const provider = ds.add(createProvider(conn, () => backendSession, () => defaultChatUri));
+
+		conn.setState(backendSession.toString(), { workingDirectories: [URI.file('/repo').toString()], chats: [] } as unknown as SessionState);
+		conn.setState(turnChangesetUri('t1', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+		conn.setState(defaultChatUri.toString(), {
+			changesets: turnChangesetCatalog(defaultChatUri),
+			turns: [
+				{ id: 't1', responseParts: [toolCallPart(fileEdit('/repo/app.ts'), 'app'), toolCallPart(fileEdit('/session-state/plan.md'), 'plan')] },
+				{ id: 't2', responseParts: [toolCallPart(fileEdit('/session-state/plan.md'))] },
+			],
+		} as unknown as ChatState);
+
+		const mixed = observe(provider, ds, 't1');
+		const outsideOnly = observe(provider, ds, 't2');
+		conn.setState(turnChangesetUri('t2', defaultChatUri), { status: ChangesetStatus.Ready, files: [] } satisfies ChangesetState);
+
+		assert.deepStrictEqual({
+			mixed: mixed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+			outsideOnly: outsideOnly.latest(),
+			outsideOnlyIsAuthoritativeEmpty: outsideOnly.latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
+		}, {
+			mixed: ['/repo/app.ts'],
+			outsideOnly: [],
+			outsideOnlyIsAuthoritativeEmpty: true,
+		});
+	});
+
+	for (const { scope, workingDirectories, expected } of [
+		{ scope: 'a subset', workingDirectories: [URI.file('/peer').toString()], expected: ['/peer/app.ts'] },
+		{ scope: 'no working-directory access', workingDirectories: [], expected: [] },
+	]) {
+		test(`uses the turn-owning chat workspace when filtering response edits for ${scope}`, () => {
+			const ds = store.add(new DisposableStore());
+			const conn = new FakeAgentConnection();
+			const peerChatUri = URI.parse('ahp-chat:/peer');
+			const peerChat = createChatState({
+				resource: peerChatUri.toString(),
+				title: 'Peer',
+				status: SessionStatus.Idle,
+				modifiedAt: new Date(0).toISOString(),
+				workingDirectories,
+			});
+			const provider = ds.add(createProvider(conn, () => backendSession, () => peerChatUri));
+
+			conn.setState(backendSession.toString(), {
+				workingDirectories: [URI.file('/repo').toString()],
+				chats: [peerChat],
+				defaultChat: defaultChatUri.toString(),
+			} as unknown as SessionState);
+			conn.setState(turnChangesetUri('t1', peerChatUri), { status: ChangesetStatus.Computing, files: [] } satisfies ChangesetState);
+			conn.setState(peerChatUri.toString(), {
+				...peerChat,
+				changesets: turnChangesetCatalog(peerChatUri),
+				turns: [{
+					id: 't1',
+					responseParts: [
+						toolCallPart(fileEdit('/peer/app.ts'), 'peer'),
+						toolCallPart(fileEdit('/repo/parent.ts'), 'parent'),
+					],
+				}],
+			} as unknown as ChatState);
+
+			const observed = observe(provider, ds);
+
+			assert.deepStrictEqual({
+				files: observed.latest().map(diff => fromAgentHostUri(diff.modifiedURI).path),
+				isAuthoritativeEmpty: observed.latest() === AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES,
+			}, {
+				files: expected,
+				isAuthoritativeEmpty: expected.length === 0,
+			});
+		});
+	}
 
 	test('the recorded migrated turn falls back to the branch changeset when its turn changeset is empty', () => {
 		// #333642: migrated legacy Copilot CLI sessions have no per-turn

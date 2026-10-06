@@ -11,13 +11,8 @@ import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
 import './browser/workbench.zenMode.contribution.js';
 
-// Agent-sessions color tokens — side-effect import so they register in the
-// global color registry and appear in the color-theme JSON schema.
-import '../sessions/common/theme.js';
-
-// Agent-sessions size tokens (font ramp) — side-effect import so they register
-// in the global size registry and appear in the workbench-sizes JSON schema.
-import '../sessions/common/sizes.js';
+import './common/agentsColors.js';
+import './common/agentsSizes.js';
 
 //#endregion
 
@@ -403,6 +398,8 @@ import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
 
 // Onboarding (scenario engine)
 import './contrib/onboarding/browser/onboarding.contribution.js';
+import './contrib/chat/browser/onboarding/modelPickerTryout.contribution.js';
+import './contrib/codeEditor/browser/diffEditorTryout.contribution.js';
 
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';

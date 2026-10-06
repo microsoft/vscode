@@ -6,10 +6,10 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
-import { FragmentState, GitHubActor, PullRequestRef } from './githubPullRequestService.js';
-import { GitHubAccountHandle } from './githubTypes.js';
+import { FragmentState, GitHubActor, PullRequestMergeMethod, PullRequestRef } from './githubPullRequestService.js';
+import { AccountHandle } from './types.js';
 
-export interface GitHubRepositoryRef extends GitHubAccountHandle {
+export interface GitHubRepositoryRef extends AccountHandle {
 	readonly owner: string;
 	readonly repo: string;
 }
@@ -37,8 +37,48 @@ export interface GitHubRepository {
 	readonly private: boolean;
 	readonly description: string;
 	readonly url: string;
+	readonly cloneUrl?: string;
+	readonly sshUrl?: string;
 	readonly archived: boolean;
 	readonly fork: boolean;
+}
+
+export interface GitHubRepositoryPageOptions {
+	readonly page?: number;
+	readonly perPage?: number;
+}
+
+export interface GitHubRepositoryListOptions extends GitHubRepositoryPageOptions {
+	readonly affiliation?: readonly ('owner' | 'collaborator' | 'organization_member')[];
+	readonly sort?: 'created' | 'updated' | 'pushed' | 'full_name';
+	readonly direction?: 'asc' | 'desc';
+}
+
+export interface GitHubRepositorySearchOptions extends GitHubRepositoryPageOptions {
+	readonly sort?: 'stars' | 'forks' | 'help-wanted-issues' | 'updated';
+	readonly direction?: 'asc' | 'desc';
+}
+
+export interface GitHubRepositoriesPage {
+	readonly repositories: readonly GitHubRepository[];
+	readonly nextPage?: number;
+}
+
+export interface GitHubRepositorySearchPage extends GitHubRepositoriesPage {
+	readonly totalCount: number;
+	readonly incompleteResults: boolean;
+	/** Whether GitHub's 1,000-result ceiling prevents retrieving all matches. */
+	readonly limitReached: boolean;
+}
+
+export interface GitHubRepositoryMergeCapabilities {
+	readonly autoMergeAllowed: boolean;
+	readonly mergeMethods: readonly PullRequestMergeMethod[];
+}
+
+export interface GitHubIssueOrPullRequest {
+	readonly title: string;
+	readonly body: string;
 }
 
 export type GitHubIssueState = 'open' | 'closed';
@@ -215,7 +255,15 @@ export interface GitHubPullRequestLookup {
 	readonly ref: PullRequestRef;
 	readonly id?: string;
 	readonly url: string;
+	readonly title?: string;
 	readonly createdAt?: string;
+	readonly state?: GitHubIssueState;
+}
+
+export interface GitHubPullRequestLookupOptions {
+	/** Restricts selection to these URLs, preferring open candidates and then the supplied order. */
+	readonly allowedPullRequestUrls?: readonly string[];
+	readonly priority?: GitHubResourcePriority;
 }
 
 export interface GitHubQueryApi {
@@ -223,13 +271,18 @@ export interface GitHubQueryApi {
 	subscribeIssue(ref: GitHubIssueRef, options: GitHubResourceSubscriptionOptions): GitHubIssueSubscription;
 	subscribeCommit(ref: GitHubCommitRef, options: GitHubResourceSubscriptionOptions): GitHubCommitSubscription;
 	hydrateResources(refs: readonly GitHubHydratableResourceRef[], signal: AbortSignal): Promise<void>;
+	getRepository(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepository>;
+	listRepositories(account: AccountHandle, signal: AbortSignal, options?: GitHubRepositoryListOptions): Promise<GitHubRepositoriesPage>;
+	searchRepositories(account: AccountHandle, query: string, signal: AbortSignal, options?: GitHubRepositorySearchOptions): Promise<GitHubRepositorySearchPage>;
 	compare(ref: GitHubRepositoryRef, base: string, head: string, signal: AbortSignal): Promise<GitHubComparison>;
 	listPullRequests(ref: GitHubRepositoryRef, cursor: string | undefined, signal: AbortSignal): Promise<GitHubPullRequestsPage>;
 	listPullRequestsWaitingForReview(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubPullRequestSummary[]>;
 	listPullRequestsAssignedToViewer(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubPullRequestSummary[]>;
 	getPullRequestContext(ref: PullRequestRef, signal: AbortSignal): Promise<GitHubPullRequestContext>;
-	findPullRequestByHeadBranch(ref: GitHubRepositoryRef, branch: string, headOwner: string | undefined, signal: AbortSignal): Promise<GitHubPullRequestLookup | undefined>;
-	findPullRequestByHeadSha(ref: GitHubRepositoryRef, sha: string, signal: AbortSignal): Promise<GitHubPullRequestLookup | undefined>;
+	getIssueOrPullRequest(ref: GitHubIssueRef, signal: AbortSignal): Promise<GitHubIssueOrPullRequest>;
+	getRepositoryMergeCapabilities(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities>;
+	findPullRequestByHeadBranch(ref: GitHubRepositoryRef, branch: string, headOwner: string | undefined, signal: AbortSignal, options?: GitHubPullRequestLookupOptions): Promise<GitHubPullRequestLookup | undefined>;
+	findPullRequestByHeadSha(ref: GitHubRepositoryRef, sha: string, signal: AbortSignal, options?: GitHubPullRequestLookupOptions): Promise<GitHubPullRequestLookup | undefined>;
 	getRecentAssignedIssues(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubRecentIssue[]>;
 	getRecentAuthoredPullRequests(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<readonly GitHubRecentPullRequest[]>;
 	getPullRequestReviewThreadSummary(ref: PullRequestRef, signal: AbortSignal): Promise<readonly GitHubRecentPullRequestReviewThread[]>;

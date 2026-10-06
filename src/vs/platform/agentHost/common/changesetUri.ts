@@ -132,12 +132,16 @@ export const enum ChangesetKind {
 	Unknown = 'unknown',
 }
 
-/** Resolves the selectable catalogue for a chat and the owner of each entry. */
-export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
+/**
+ * Resolves the selectable catalogue for a chat and the owner of each entry.
+ *
+ * A chat that advertises its own Session Changes entry keeps it, scoping
+ * Session Changes to that chat. Otherwise the session's cumulative Session
+ * Changes entry is projected into the chat catalogue.
+ */
+export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: readonly Changeset[] | undefined, sessionChangesets: readonly Changeset[] | undefined, defaultChatUri?: URI): readonly { readonly changeset: Changeset; readonly owner: 'chat' | 'session' }[] | undefined {
 	if (sessionChangesets === undefined) {
-		return chatChangesets
-			?.filter(changeset => changeset.changeKind !== ChangesetKind.Session)
-			.map(changeset => ({ changeset, owner: 'chat' as const }));
+		return chatChangesets?.map(changeset => ({ changeset, owner: 'chat' as const }));
 	}
 
 	const sessionChangeset = sessionChangesets.find(changeset => changeset.changeKind === ChangesetKind.Session);
@@ -149,16 +153,16 @@ export function resolveChatChangesetCatalogue(chatUri: URI, chatChangesets: read
 		// Older hosts compute per-turn changes from session-keyed checkpoints, so
 		// peer chats share the session's Turn and Compare entries; its Branch and
 		// Uncommitted entries describe the session folder only.
-		const changesets = isDefaultChatUri(chatUri)
+		const isDefaultChat = defaultChatUri === undefined ? isDefaultChatUri(chatUri) : chatUri === defaultChatUri;
+		const changesets = isDefaultChat
 			? sessionChangesets
 			: sessionChangesets.filter(changeset => changeset.changeKind === ChangesetKind.Session || changeset.changeKind === ChangesetKind.Turn || changeset.changeKind === ChangesetKind.Compare);
 		return changesets.map(changeset => ({ changeset, owner: 'session' as const }));
 	}
 
 	const resolved: { changeset: Changeset; owner: 'chat' | 'session' }[] = chatChangesets
-		.filter(changeset => changeset.changeKind !== ChangesetKind.Session)
 		.map(changeset => ({ changeset, owner: 'chat' as const }));
-	if (sessionChangeset) {
+	if (sessionChangeset && !chatChangesets.some(changeset => changeset.changeKind === ChangesetKind.Session)) {
 		const turnIndex = resolved.findIndex(({ changeset }) => changeset.changeKind === ChangesetKind.Turn);
 		resolved.splice(turnIndex < 0 ? resolved.length : turnIndex, 0, { changeset: sessionChangeset, owner: 'session' });
 	}
@@ -394,7 +398,9 @@ export function parseCompareTurnsChangesetUri(uri: URI): { sessionUri: URI; orig
  * Ready session channels advertise the cumulative Session Changes entry. The
  * default chat is created together with the session and owns the temporary
  * uncommitted entry while the session is being created, as well as its
- * repository and turn catalogue after materialization.
+ * repository and turn catalogue after materialization. Peer chats additionally
+ * advertise their own Session Changes entry, scoped to the edits made in that
+ * chat, in place of the session's cumulative entry.
  *
  * The first two chat entries (`Branch Changes`, `Uncommitted Changes`) are
  * included only when Git state is available. The backing per-changeset states
@@ -454,10 +460,18 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 			changeKind: AGENT_MERGE_CHANGESET_ID,
 		}] satisfies Changeset[]
 		: [];
+	const chatSessionChangeset = !isDefaultChat && !readSessionWorkspaceless(state._meta)
+		? [{
+			label: sessionChangesetLabel(),
+			description: sessionChangesetDescription(),
+			uriTemplate: buildSessionChangesetUri(ownerUri),
+			changeKind: ChangesetKind.Session,
+		}] satisfies Changeset[]
+		: [];
 
 	if (!gitState) {
 		// No git repository
-		return [{
+		return [...chatSessionChangeset, {
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),
 			uriTemplate: buildTurnChangesetUriTemplate(ownerUri),
@@ -482,6 +496,7 @@ export function buildDefaultChangesetCatalog(ownerUri: URI, state?: ISessionWith
 			uriTemplate: buildUncommittedChangesetUri(ownerUri),
 			changeKind: ChangesetKind.Uncommitted
 		},
+		...chatSessionChangeset,
 		{
 			label: thisTurnChangesetLabel(),
 			description: thisTurnChangesetDescription(),

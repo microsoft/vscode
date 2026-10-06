@@ -6,15 +6,16 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IMenu, IMenuService, isIMenuItem, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -25,9 +26,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -37,8 +40,9 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
-import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
+import { createListHarness, createSession, createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -52,6 +56,13 @@ class TestContextMenuService extends mock<IContextMenuService>() {
 
 function dispatchContextMenu(target: HTMLElement): void {
 	target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+}
+
+function selectRow(target: HTMLElement, additive = false): void {
+	const options = { bubbles: true, cancelable: true, button: 0, ctrlKey: additive, metaKey: additive };
+	target.dispatchEvent(new MouseEvent('mousedown', options));
+	target.dispatchEvent(new MouseEvent('mouseup', options));
+	target.dispatchEvent(new MouseEvent('click', options));
 }
 
 function snapshotActions(actions: readonly IAction[]): { ids: string[]; disposableIds: string[] } {
@@ -69,6 +80,7 @@ suite('Sessions list context menus', () => {
 
 	function createList(grouped: boolean, includeExtensionAction: boolean, grouping = SessionsGrouping.Date, sessions = [createSession('Session').session], menuActionsOrComparison: readonly { id: string; run: () => void }[] | boolean = [], showNavigationShortcuts = false, pinnedSessionIds: ReadonlySet<string> = new Set()) {
 		const contextMenuService = new TestContextMenuService();
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		let menuDisposed = false;
 		const isComparison = typeof menuActionsOrComparison === 'boolean' ? menuActionsOrComparison : false;
 		const menuActions = typeof menuActionsOrComparison === 'boolean' ? [] : menuActionsOrComparison;
@@ -92,11 +104,11 @@ suite('Sessions list context menus', () => {
 			comparisons,
 			pinnedSessionIds,
 		});
-		const contextKeyService = harness.instantiationService.get(IContextKeyService);
 		const commandService = harness.instantiationService.get(ICommandService);
+		harness.instantiationService.stub(IContextKeyService, contextKeyService);
 		harness.instantiationService.stub(IContextMenuService, contextMenuService);
 		harness.instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
-			override createMenu(): IMenu {
+			override createMenu(id: MenuId, menuContextKeyService: IContextKeyService): IMenu {
 				const disposable = toDisposable(() => menuDisposed = true);
 				const extensionAction = new MenuItemAction({
 					id: 'extension.action',
@@ -123,20 +135,23 @@ suite('Sessions list context menus', () => {
 			}
 		});
 		const container = harness.createContainer();
-		const sessionsHeaderContainer = mainWindow.document.createElement('div');
+		const navigationContainer = showNavigationShortcuts ? mainWindow.document.createElement('div') : undefined;
 		const sessionsHeader = mainWindow.document.createElement('div');
-		sessionsHeaderContainer.append(sessionsHeader);
-		container.prepend(sessionsHeaderContainer);
-		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+		sessionsHeader.className = 'sessions-list-header';
+		sessionsHeader.textContent = 'Sessions';
+		const treeContainer = mainWindow.document.createElement('div');
+		container.append(...[navigationContainer, sessionsHeader, treeContainer].filter(element => element !== undefined));
+		let newSessionFocusCount = 0;
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, treeContainer, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
 			showNavigationShortcuts: () => showNavigationShortcuts,
-			sessionsHeader,
-			sessionsHeaderContainer,
+			navigationContainer,
 			onSessionOpen: () => { },
+			focusNewSessionInput: () => newSessionFocusCount++,
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed, newSessionFocusCount: () => newSessionFocusCount };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -177,18 +192,72 @@ suite('Sessions list context menus', () => {
 		}
 	});
 
-	test('navigation shortcuts and Sessions header have no context menus', () => {
-		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
-		const customizationsRow = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
-			.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+	test('multiselection disables single-session context menu actions', async () => {
+		const first = createTestSession('First');
+		const second = createTestSession('Second');
+		for (const session of [first, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsMultipleChats: true, supportsRename: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [first.session, second.session]);
+		const contextKeyService = harness.store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		harness.instantiationService.stub(IContextKeyService, contextKeyService);
+		harness.instantiationService.stub(IMenuService, harness.store.add(harness.instantiationService.createInstance(MenuService)));
+		const contextMenuService = new TestContextMenuService();
+		harness.instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer();
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Date,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(300, 400);
+		await timeout(0);
+
+		const rows = container.querySelectorAll<HTMLElement>('.session-item');
+		assert.strictEqual(rows.length, 2);
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[1]);
+
+		const actions = contextMenuService.delegate!.getActions();
+		assert.deepStrictEqual([
+			actions.find(action => action.id === 'sessions.chatCompositeBar.addChat'),
+			actions.find(action => action.id === RENAME_SESSION_COMMAND_ID),
+		].map(action => ({ id: action?.id, enabled: action?.enabled })), [{
+			id: 'sessions.chatCompositeBar.addChat',
+			enabled: false,
+		}, {
+			id: RENAME_SESSION_COMMAND_ID,
+			enabled: false,
+		}]);
+		contextMenuService.delegate!.onHide?.(false);
+	});
+
+	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
+		const { container, contextMenuService, commandService, newSessionFocusCount } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+		const shortcutRows = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'));
+		const newRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'New Session');
+		const customizationsRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
+		assert.ok(newRow);
 		assert.ok(customizationsRow);
 		assert.ok(sessionsHeader);
 
+		selectRow(newRow);
+		await timeout(0);
 		dispatchContextMenu(customizationsRow);
 		dispatchContextMenu(sessionsHeader);
 
-		assert.strictEqual(contextMenuService.delegate, undefined);
+		assert.deepStrictEqual({
+			commands: (commandService as TestCommandService).calls,
+			contextMenu: contextMenuService.delegate,
+			newSessionFocusCount: newSessionFocusCount(),
+		}, {
+			commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
+			contextMenu: undefined,
+			newSessionFocusCount: 1,
+		});
 	});
 
 	test('session and chat rename context menu actions start inline editing', async () => {
@@ -208,8 +277,12 @@ suite('Sessions list context menus', () => {
 
 		const mainChat = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/main'),
+			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -219,8 +292,11 @@ suite('Sessions list context menus', () => {
 			title: constObservable('Peer'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename: true, canDelete: true }),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
@@ -325,6 +401,7 @@ suite('Sessions list context menus', () => {
 		const { instantiationService, store, commandService, managementService } = harness;
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, true);
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(true);
@@ -332,6 +409,9 @@ suite('Sessions list context menus', () => {
 		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() { return { confirmed: true }; }
+		}());
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
+			override getViewWithId() { return null; }
 		}());
 		store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
 		const contextMenuService = new TestContextMenuService();
@@ -377,7 +457,7 @@ suite('Sessions list context menus', () => {
 
 		assert.deepStrictEqual({
 			configure: configure?.label,
-			options: configure instanceof SubmenuAction ? configure.actions.map(action => action.label) : [],
+			options: configure instanceof SubmenuAction ? configure.actions.map(action => action instanceof Separator ? 'separator' : action.label) : [],
 			archived: managementService.archived.map(session => session.sessionId).sort(),
 			newRowAction: rowActions.some(action => action.id === 'sessions.chatCompositeBar.addChat'),
 			rowDone: rowActions.find(action => action.id === ARCHIVE_SESSION_COMMAND_ID)?.label,
@@ -385,7 +465,7 @@ suite('Sessions list context menus', () => {
 			toolbarLabels,
 		}, {
 			configure: 'Configure External Sessions',
-			options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days'],
+			options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'separator', 'Show in External Section'],
 			archived: ['External', 'Second external'],
 			newRowAction: false,
 			rowDone: 'Mark as Done',
@@ -393,7 +473,6 @@ suite('Sessions list context menus', () => {
 			toolbarLabels: ['Import', 'Mark as Done'],
 		});
 		contextMenuService.delegate!.onHide?.(false);
-
 		const importVisibility = [];
 		for (const variant of ['owned', 'unsupported', 'disabled', 'archived', 'external']) {
 			transaction(tx => {
@@ -410,15 +489,61 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual(importVisibility, [false, false, false, false, true]);
 	});
 
+	test('Delete is enabled and executes for external sandbox sessions, including multi-selection', async () => {
+		const sandbox = createTestSession('Offline sandbox', { isExternal: true });
+		const second = createTestSession('Second sandbox', { isExternal: true });
+		for (const session of [sandbox, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsDelete: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [sandbox.session, second.session]);
+		const { instantiationService, store, commandService, managementService } = harness;
+		const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const rows = [sandbox, second].map(session => {
+			const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(element => element.querySelector('.session-title')?.textContent === session.session.title.get());
+			assert.ok(row);
+			return row;
+		});
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[0]);
+		const action = contextMenuService.delegate!.getActions().find(action => action.id === 'sessionsViewPane.deleteSession');
+		assert.ok(action);
+		await action.run();
+		const call = commandService.calls.find(call => call.commandId === action.id)!;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(call.commandId)!.handler, ...call.args);
+		assert.deepStrictEqual({
+			enabled: action.enabled,
+			deleted: managementService.deleted.map(session => session.sessionId).sort(),
+		}, { enabled: true, deleted: ['Offline sandbox', 'Second sandbox'] });
+		contextMenuService.delegate!.onHide?.(false);
+
+	});
+
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {
 		for (const grouped of [false, true]) {
 			const visible = createTestSession('Visible', { workspaceLabel: 'Workspace', isRead: false }).session;
-			const filtered = createTestSession('Filtered', { workspaceLabel: 'Workspace', status: SessionStatus.Error, isRead: false }).session;
+			const filtered = createTestSession('Filtered', { workspaceLabel: 'Workspace', harness: 'claude', isRead: false }).session;
 			const read = createTestSession('Read', { workspaceLabel: 'Workspace', isRead: true }).session;
 			const archived = createTestSession('Archived', { workspaceLabel: 'Workspace', isArchived: true, isRead: false }).session;
 			const { container, contextMenuService, managementService, list } = createList(grouped, false, SessionsGrouping.Workspace, [visible, filtered, read, archived]);
-			list.setStatusExcluded(SessionStatus.Error, true);
-			list.setExcludeRead(true);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
 			const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
 				.find(element => element.querySelector('.session-section-label')?.textContent === (grouped ? group.name : 'Workspace'));
 			assert.ok(header);
@@ -445,24 +570,26 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
-		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
+		const createChat = (title: string, canRename: boolean, canDelete: boolean, status = SessionStatus.Completed): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			workspace: constObservable(undefined),
 			title: constObservable(title),
 			updatedAt: constObservable(new Date()),
-			status: constObservable(SessionStatus.Completed),
+			status: constObservable(status),
 			interactivity: constObservable(ChatInteractivity.Full),
-			capabilities: constObservable({ canRename, canDelete }),
+			isArchived: constObservable(false),
+			capabilities: constObservable({ canRename, canArchive: true, canDelete }),
 			changes: constObservable([]),
 			changesets: constObservable([]),
 		});
 		const main = createChat('Session', true, true);
 		const peer = createChat('Peer', true, true);
+		const untitled = createChat('New Chat', true, true, SessionStatus.Untitled);
 		const nonDeletable = createChat('Read Only', false, false);
 		const { session: baseSession } = createSession('Session');
 		const session: ISession = {
 			...baseSession,
-			chats: constObservable([main, peer, nonDeletable]),
+			chats: constObservable([main, peer, untitled, nonDeletable]),
 			mainChat: constObservable(main),
 		};
 		const renameInputs: string[] = [];
@@ -514,11 +641,28 @@ suite('Sessions list context menus', () => {
 			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
 			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
 		]);
+		const deleteToolbarItem = MenuRegistry.getMenuItems(Menus.SessionChatItemToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.list.deleteChat');
+		assert.deepStrictEqual({
+			title: deleteToolbarItem && (typeof deleteToolbarItem.command.title === 'string' ? deleteToolbarItem.command.title : deleteToolbarItem.command.title.value),
+			icon: deleteToolbarItem?.command.icon,
+			group: deleteToolbarItem?.group,
+			order: deleteToolbarItem?.order,
+			when: deleteToolbarItem?.when?.serialize(),
+		}, {
+			title: 'Delete...',
+			icon: Codicon.trash,
+			group: 'navigation',
+			order: 1,
+			when: 'sessionChatItem.canDelete && sessionChatItem.isUntitled',
+		});
 		const chatContext = { session, chat: peer };
 		for (const actionId of [RENAME_CHAT_COMMAND_ID, 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
 			await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(actionId)!.handler, chatContext);
 		}
 		const readOnlyContext = { session, chat: nonDeletable };
+		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.deleteChat')!.handler, { session, chat: untitled });
 		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID)!.handler, readOnlyContext);
 		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.deleteChat')!.handler, readOnlyContext);
 
@@ -532,8 +676,8 @@ suite('Sessions list context menus', () => {
 			renameInputs: ['Peer'],
 			renamedChats: [{ session, chatResource: peer.resource, title: 'Renamed Peer' }],
 			openedToSide: [peer],
-			deletedChats: [{ session, chatResource: peer.resource }],
-			deleteChatOptions: [undefined],
+			deletedChats: [{ session, chatResource: peer.resource }, { session, chatResource: untitled.resource }],
+			deleteChatOptions: [undefined, { skipConfirmation: true }],
 		});
 	});
 });

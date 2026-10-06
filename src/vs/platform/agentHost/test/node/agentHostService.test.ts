@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService, NullLoggerService } from '../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest } from '../../common/agent.js';
+import { AgentHostOTelPolicyState, buildAgentHostOTelEnv, IAgentHostOTelSettings } from '../../common/agentService.js';
 import { AgentHostProcessManager } from '../../node/agentHostService.js';
 
 class TestChannel implements IChannel {
@@ -264,6 +265,49 @@ suite('AgentHostProcessManager', () => {
 			shutdownCount: 1,
 			connectionStoresDisposed: [true, false],
 			errorEvents: [],
+		});
+	});
+
+	test('coalesces settled OTel updates into one replacement with the latest environment', async () => {
+		const policyState = new AgentHostOTelPolicyState();
+		const endpoints: (string | undefined)[] = [];
+		const starter = new class extends TestAgentHostStarter {
+			override async start(): Promise<IAgentHostConnection> {
+				endpoints.push(buildAgentHostOTelEnv({}, {}, policyState.policy).OTEL_EXPORTER_OTLP_ENDPOINT);
+				policyState.didStart();
+				return super.start();
+			}
+		};
+		const manager = disposables.add(new AgentHostProcessManager(
+			starter, 'linux', new NullLogService(), disposables.add(new NullLoggerService()), new TestTelemetryService(),
+		));
+		const update = (policy: IAgentHostOTelSettings, ready: boolean) => {
+			if (policyState.update(policy, starter.startCount > 0, ready)) {
+				starter.requestRestart();
+			}
+		};
+		update({ enabled: true, otlpEndpoint: 'https://initial.example' }, true);
+		await starter.requestConnection();
+		update({ enabled: false, otlpEndpoint: '' }, false);
+		update({ enabled: true, otlpEndpoint: 'https://initial.example' }, true);
+		const beforeChange = starter.startCount;
+
+		const shutdown = starter.blockShutdown();
+		update({ enabled: true, otlpEndpoint: 'https://changed.example' }, true);
+		update({ enabled: true, otlpEndpoint: 'https://latest.example' }, true);
+		update({ enabled: false, otlpEndpoint: '' }, false);
+		await shutdown.complete();
+		await manager.start();
+		update({ enabled: true, otlpEndpoint: 'https://latest.example' }, true);
+		assert.deepStrictEqual({
+			beforeChange,
+			starts: starter.startCount,
+			shutdowns: starter.shutdownCount,
+			disposed: starter.connectionStores.map(store => store.isDisposed),
+			endpoints,
+		}, {
+			beforeChange: 1, starts: 2, shutdowns: 1, disposed: [true, false],
+			endpoints: ['https://initial.example', 'https://latest.example'],
 		});
 	});
 

@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, withSessionGitState, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, withSessionGitState, withSessionWorkspaceless, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
 import {
 	AGENT_MERGE_CHANGESET_ID,
 	ChangesetKind,
@@ -210,16 +210,20 @@ suite('changesetUri', () => {
 		assert.strictEqual(isUncommittedChangesetUri(buildSessionChangesetUri(sessionUri)), false);
 	});
 
-	test('advertises cumulative session changes only on the session catalogue', () => {
+	test('advertises cumulative session changes on the session catalogue and chat-scoped ones on peer chats', () => {
 		const creatingState = { ...state(), lifecycle: SessionLifecycle.Creating };
 		const readyState = state();
 		const defaultChatUri = buildDefaultChatUri(sessionUri);
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
 
 		assert.deepStrictEqual({
 			creatingSession: buildDefaultChangesetCatalog(sessionUri, creatingState),
 			creatingChat: buildDefaultChangesetCatalog(defaultChatUri, creatingState),
 			readySession: buildDefaultChangesetCatalog(sessionUri, readyState),
 			readyChat: buildDefaultChangesetCatalog(defaultChatUri, readyState),
+			readyPeerChat: buildDefaultChangesetCatalog(peerChatUri, readyState),
+			workspacelessPeerChat: buildDefaultChangesetCatalog(peerChatUri, { ...readyState, _meta: withSessionWorkspaceless(undefined, true) })
+				.map(changeset => changeset.changeKind),
 		}, {
 			creatingSession: [],
 			creatingChat: [{
@@ -240,6 +244,55 @@ suite('changesetUri', () => {
 				uriTemplate: buildTurnChangesetUriTemplate(defaultChatUri),
 				changeKind: ChangesetKind.Turn,
 			}],
+			readyPeerChat: [{
+				label: 'Session Changes',
+				description: 'Show all changes made in this session',
+				uriTemplate: buildSessionChangesetUri(peerChatUri),
+				changeKind: ChangesetKind.Session,
+			}, {
+				label: 'This Turn',
+				description: 'Show changes made in this turn',
+				uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
+				changeKind: ChangesetKind.Turn,
+			}],
+			workspacelessPeerChat: [ChangesetKind.Turn],
+		});
+	});
+
+	test('prefers a chat-owned Session Changes entry over the projected session-owned one', () => {
+		const peerChatUri = buildChatUri(sessionUri, 'peer');
+		const sessionChangeset = {
+			label: 'Session Changes',
+			uriTemplate: buildSessionChangesetUri(sessionUri),
+			changeKind: ChangesetKind.Session,
+		};
+		const chatCatalogue = [{
+			label: 'Branch Changes',
+			uriTemplate: buildBranchChangesetUri(peerChatUri),
+			changeKind: ChangesetKind.Branch,
+		}, {
+			label: 'Session Changes',
+			uriTemplate: buildSessionChangesetUri(peerChatUri),
+			changeKind: ChangesetKind.Session,
+		}, {
+			label: 'This Turn',
+			uriTemplate: buildTurnChangesetUriTemplate(peerChatUri),
+			changeKind: ChangesetKind.Turn,
+		}];
+		const project = (sessionCatalogue: typeof sessionChangeset[] | undefined) => resolveChatChangesetCatalogue(peerChatUri, chatCatalogue, sessionCatalogue)
+			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, uri: changeset.uriTemplate, owner }));
+
+		const expected = [
+			{ kind: ChangesetKind.Branch, uri: buildBranchChangesetUri(peerChatUri), owner: 'chat' },
+			{ kind: ChangesetKind.Session, uri: buildSessionChangesetUri(peerChatUri), owner: 'chat' },
+			{ kind: ChangesetKind.Turn, uri: buildTurnChangesetUriTemplate(peerChatUri), owner: 'chat' },
+		];
+		assert.deepStrictEqual({
+			withSessionCatalogue: project([sessionChangeset]),
+			withoutSessionCatalogue: project(undefined),
+		}, {
+			withSessionCatalogue: expected,
+			withoutSessionCatalogue: expected,
 		});
 	});
 
@@ -286,10 +339,42 @@ suite('changesetUri', () => {
 			[
 				{ kind: ChangesetKind.Branch, uri: buildBranchChangesetUri(sessionUri) },
 				{ kind: ChangesetKind.Uncommitted, uri: buildUncommittedChangesetUri(peerChatUri) },
+				{ kind: ChangesetKind.Session, uri: buildSessionChangesetUri(peerChatUri) },
 				{ kind: ChangesetKind.Turn, uri: buildTurnChangesetUriTemplate(peerChatUri) },
 				{ kind: ChangesetKind.Compare, uri: buildCompareTurnsChangesetUriTemplate(peerChatUri) },
 			],
 		);
+	});
+
+	test('uses the advertised default chat when projecting a session-owned catalogue', () => {
+		const defaultChat = 'ahp-chat:/primary';
+		const catalogue = [
+			{ label: 'Branch Changes', changeKind: ChangesetKind.Branch, uriTemplate: 'ahp-changeset:/branch' },
+			{ label: 'Session Changes', changeKind: ChangesetKind.Session, uriTemplate: 'ahp-changeset:/session' },
+			{ label: 'This Turn', changeKind: ChangesetKind.Turn, uriTemplate: 'ahp-changeset:/turn/{turnId}' },
+		];
+		const project = (chat: string) => resolveChatChangesetCatalogue(chat, undefined, catalogue, defaultChat)
+			?.map(({ changeset, owner }) => ({ kind: changeset.changeKind, uri: changeset.uriTemplate, owner }));
+
+		assert.deepStrictEqual({
+			defaultChat: project(defaultChat),
+			peerChat: project('ahp-chat:/peer'),
+			formerDefault: project(buildDefaultChatUri(sessionUri)),
+		}, {
+			defaultChat: [
+				{ kind: ChangesetKind.Branch, uri: 'ahp-changeset:/branch', owner: 'session' },
+				{ kind: ChangesetKind.Session, uri: 'ahp-changeset:/session', owner: 'session' },
+				{ kind: ChangesetKind.Turn, uri: 'ahp-changeset:/turn/{turnId}', owner: 'session' },
+			],
+			peerChat: [
+				{ kind: ChangesetKind.Session, uri: 'ahp-changeset:/session', owner: 'session' },
+				{ kind: ChangesetKind.Turn, uri: 'ahp-changeset:/turn/{turnId}', owner: 'session' },
+			],
+			formerDefault: [
+				{ kind: ChangesetKind.Session, uri: 'ahp-changeset:/session', owner: 'session' },
+				{ kind: ChangesetKind.Turn, uri: 'ahp-changeset:/turn/{turnId}', owner: 'session' },
+			],
+		});
 	});
 
 	test('advertises Agent Merge changes only on the owning chat when chats share the folder', () => {

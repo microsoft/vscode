@@ -22,6 +22,7 @@ suite('SessionAdditionalWorktrees', () => {
 			handle: generateUuid(),
 			workingDirectory: URI.file('/workspace/repository.worktrees/chat').toString(),
 			repositoryRoot: URI.file('/workspace/repository').toString(),
+			chat: URI.parse('ahp-chat://session/chat').toString(),
 		}];
 
 		const initial = await readSessionAdditionalWorktrees(sessionDataService, session);

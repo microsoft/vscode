@@ -112,12 +112,12 @@ export interface IGitHubStateFolder {
 export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, uri: ProtocolURI): IGitHubStateFolder {
 	const isFolderOwner = !!parseFolderChangesetOwnerUri(uri);
 	const scope = isFolderOwner ? resolveChangesetOwnerScope(stateManager, uri) : resolveBranchChangesetScopeForSource(stateManager, uri);
-	const workingDirectory = scope.workingDirectories[0];
+	const sessionWorkingDirectory = stateManager.getSessionSummary(scope.sessionUri)?.workingDirectories?.[0];
+	const workingDirectory = !isFolderOwner && !isAhpChatChannel(uri) ? sessionWorkingDirectory : scope.workingDirectories[0];
 	if (isFolderOwner && workingDirectory === undefined) {
 		// The folder scope no longer matches any chat; never fall back to the session folder.
 		return { sessionUri: scope.sessionUri, sourceUri: scope.sourceUri, folderKey: undefined, isSessionFolder: false, workingDirectory: undefined };
 	}
-	const sessionWorkingDirectory = stateManager.getSessionState(scope.sessionUri)?.workingDirectories?.[0];
 	const folderKey = workingDirectory === undefined ? undefined : getWorkingDirectoryKey(workingDirectory);
 	return {
 		sessionUri: scope.sessionUri,
@@ -126,6 +126,25 @@ export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, ur
 		isSessionFolder: folderKey === undefined || (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)),
 		workingDirectory,
 	};
+}
+
+function chatWorksInFolder(stateManager: AgentHostStateManager, chat: ProtocolURI, folderKey: string): boolean {
+	const workingDirectory = getEffectiveWorkingDirectories(stateManager, chat)?.[0];
+	return workingDirectory !== undefined && getWorkingDirectoryKey(workingDirectory) === folderKey;
+}
+
+/**
+ * Whether `chat` is a chat channel of `session` whose first effective working
+ * directory has `folderKey`. Vets client-supplied chat URIs before their state
+ * is read on behalf of a folder.
+ */
+export function isSessionChatInFolder(stateManager: AgentHostStateManager, session: ProtocolURI, chat: ProtocolURI, folderKey: string): boolean {
+	if (!isAhpChatChannel(chat)) {
+		return false;
+	}
+	const isSessionChat = chat === buildDefaultChatUri(session)
+		|| stateManager.getSessionState(session)?.chats.some(candidate => candidate.resource === chat) === true;
+	return isSessionChat && chatWorksInFolder(stateManager, chat, folderKey);
 }
 
 /**
@@ -138,16 +157,11 @@ export function resolveGitHubStateFolder(stateManager: AgentHostStateManager, ur
 export function resolveAgentMergeOwningChat(stateManager: AgentHostStateManager, session: ProtocolURI, folderKey: string, recordedChat: ProtocolURI | undefined): ProtocolURI | undefined {
 	const state = stateManager.getSessionState(session);
 	const defaultChat = buildDefaultChatUri(session);
-	const worksInFolder = (chat: ProtocolURI) => {
-		const workingDirectory = getEffectiveWorkingDirectories(stateManager, chat)?.[0];
-		return workingDirectory !== undefined && getWorkingDirectoryKey(workingDirectory) === folderKey;
-	};
-	const isSessionChat = (chat: ProtocolURI) => chat === defaultChat || state?.chats.some(candidate => candidate.resource === chat) === true;
-	if (recordedChat && isAhpChatChannel(recordedChat) && isSessionChat(recordedChat) && worksInFolder(recordedChat)) {
+	const worksInFolder = (chat: ProtocolURI) => chatWorksInFolder(stateManager, chat, folderKey);
+	if (recordedChat && isSessionChatInFolder(stateManager, session, recordedChat, folderKey)) {
 		return recordedChat;
 	}
-	const sessionWorkingDirectory = state?.workingDirectories?.[0];
-	if (sessionWorkingDirectory !== undefined && folderKey === getWorkingDirectoryKey(sessionWorkingDirectory)) {
+	if (worksInFolder(defaultChat)) {
 		return defaultChat;
 	}
 	for (const chat of [defaultChat, ...state?.chats.map(chat => chat.resource).filter(chat => chat !== defaultChat) ?? []]) {

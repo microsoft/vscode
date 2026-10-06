@@ -30,6 +30,7 @@ export function aggregateChatUsage(usages: readonly (IChatUsage | undefined)[]):
 
 	for (const usage of usages) {
 		if (!usage) {
+			isComplete = false;
 			continue;
 		}
 		const modelTotals = usage.modelTotals?.filter(isValidModelTotal);
@@ -50,9 +51,9 @@ export function aggregateChatUsage(usages: readonly (IChatUsage | undefined)[]):
 			continue;
 		}
 
+		isComplete = false;
 		if (isTokenCount(usage.promptTokens) && isTokenCount(usage.completionTokens)) {
 			hasUsage = true;
-			isComplete = false;
 			inputTokens += usage.promptTokens;
 			outputTokens += usage.completionTokens;
 		}

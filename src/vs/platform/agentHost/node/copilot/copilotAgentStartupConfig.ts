@@ -16,10 +16,13 @@ export class CopilotAgentStartupConfig {
 		readonly hydraFusion: boolean,
 		readonly skillCharBudget: number,
 		readonly copilotSdkLogLevel: CopilotSdkLogLevelSetting,
+		readonly runtimePath: string | undefined,
 		readonly enterpriseHost: string | undefined,
 		readonly systemProxy: boolean,
 		readonly githubMcpServer: boolean,
+		readonly copilotConnectors: boolean,
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
+		readonly localIndexEnabled: boolean,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {

@@ -88,6 +88,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			stopMcpServer: rawId => {
 				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
 			},
+			backgroundMcpServer: rawId => {
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.background?.() ?? Promise.resolve();
+			},
 			setRootConfigValue: (property, value) => {
 				void provider.setRootConfigValue(property, value);
 			},

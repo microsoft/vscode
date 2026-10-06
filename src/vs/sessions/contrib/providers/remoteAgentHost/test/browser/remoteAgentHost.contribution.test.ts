@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
@@ -18,21 +19,30 @@ import { AuthRequiredReason, NotificationType, type INotification } from '../../
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { type IChatSessionsExtensionPoint } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { RemoteAgentHostContribution } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostChatContribution.js';
+import { IRemoteAgentHostConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { RemoteAgentHostLogForwarder } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostLogForwarder.js';
 import { CloudSandboxApiService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxApiService.js';
 import { CloudSandboxAgentHostService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxAgentHostService.js';
+import { createCloudSandboxConnectionCustomization } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxConnectionCustomization.js';
 import { SSHAgentHostContribution } from '../../browser/sshAgentHost.contribution.js';
 import { WebSocketAgentHostContribution } from '../../browser/webSocketAgentHost.contribution.js';
+import { MissionControlAgentHostContribution } from '../../browser/missionControlAgentHostContribution.js';
+import { IEntryDrivenProviderOptions } from '../../browser/entryDrivenProviderContribution.js';
 import '../../browser/remoteAgentHost.contribution.js';
 
 interface IRemoteAuthenticationState {
@@ -44,9 +54,10 @@ interface IRemoteAuthenticationState {
 interface IRemoteAuthNotificationHarness {
 	_connections: Map<string, IRemoteAuthenticationState>;
 	_instantiationService: TestInstantiationService;
-	_connectionCustomizations: { get(address: string): { readonly authenticate?: (request: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => Promise<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> } | undefined };
+	_connectionCustomizations: { get(address: string): IRemoteAgentHostConnectionCustomization | undefined };
 	_logService: NullLogService;
 	_handleAuthenticationRequiredNotification(address: string, connection: Pick<IAgentConnection, 'authenticate'>, notification: INotification): void;
+	_authenticateCallback(address: string, connection: Pick<IAgentConnection, 'authenticate'>, reason?: AuthRequiredReason): IAgentConnection['authenticate'];
 }
 
 interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
@@ -58,11 +69,17 @@ interface IRemoteAuthenticationHarness extends IRemoteAuthNotificationHarness {
 	_authenticateWithConnection(address: string, connection: IAgentConnection, agents: readonly AgentInfo[]): Promise<void>;
 }
 
+function createAuthenticationInstantiationService(store: Pick<DisposableStore, 'add'>): TestInstantiationService {
+	const service = store.add(new TestInstantiationService());
+	service.stub(IConfigurationService, new TestConfigurationService());
+	return service;
+}
+
 function createAuthenticationHarness(store: Pick<DisposableStore, 'add'>) {
 	const address = 'cloudsandbox:authentication-test';
 	const authenticationService = new RemoteAgentHostAuthenticationService();
 	const pending = store.add(authenticationService.acquire(address)).object;
-	const instantiationService = store.add(new TestInstantiationService());
+	const instantiationService = createAuthenticationInstantiationService(store);
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, authenticationService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(ILogService, new NullLogService());
@@ -169,8 +186,194 @@ suite('RemoteAgentHost connection authentication readiness', () => {
 suite('RemoteAgentHost auth notifications', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('renews repeated sandbox expiry without prompting for an unchanged GitHub session', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		let prompts = 0;
+		h.contribution._instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				prompts++;
+				return { success: undefined } as R;
+			},
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override getSealedGitHubToken(): string {
+				return 'copilot-sealed.v1.key.cached';
+			}
+			override async refreshSealedGitHubToken(): Promise<string> {
+				return `copilot-sealed.v1.key.renewed-${++renewals}`;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		await h.contribution._authenticateWithConnection(h.address, connection, [{ ...h.agents[0], protectedResources: [notification.resource] }]);
+		for (let i = 0; i < 3; i++) {
+			h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ forwarded, prompts, renewals }, {
+			forwarded: ['copilot-sealed.v1.key.cached', 'copilot-sealed.v1.key.renewed-1', 'copilot-sealed.v1.key.renewed-2', 'copilot-sealed.v1.key.renewed-3'],
+			prompts: 0,
+			renewals: 3,
+		});
+	});
+
+	test('shares sandbox renewal through authentication completion without resolving GitHub sessions', async () => {
+		const h = createAuthenticationHarness(store);
+		let sessionLookups = 0;
+		h.contribution._instantiationService.stub(IAuthenticationService, {
+			getOrActivateProviderIdForServer: async () => {
+				sessionLookups++;
+				throw new Error('Sandbox renewal must not resolve a user session');
+			},
+		});
+		const renewed = new DeferredPromise<string>();
+		const authenticated = new DeferredPromise<{ authenticated: true }>();
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return authenticated.p;
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override refreshSealedGitHubToken(): Promise<string> {
+				renewals++;
+				return renewed.p;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await renewed.complete('copilot-sealed.v1.key.renewed');
+		await timeout(0);
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await authenticated.complete({ authenticated: true });
+		await timeout(0);
+
+		assert.deepStrictEqual({ forwarded, renewals, sessionLookups }, {
+			forwarded: ['copilot-sealed.v1.key.renewed'],
+			renewals: 1,
+			sessionLookups: 0,
+		});
+	});
+
+	test('logs failed sandbox renewal without forwarding stale credentials or prompting and allows a later retry', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const errors: string[] = [];
+		h.contribution._logService = new class extends NullLogService {
+			override error(message: string): void {
+				errors.push(message);
+			}
+		}();
+		let prompts = 0;
+		h.contribution._instantiationService.stub(ICommandService, {
+			executeCommand: async <R>() => {
+				prompts++;
+				return { success: undefined } as R;
+			},
+		});
+		let renewals = 0;
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override getSealedGitHubToken(): string {
+				throw new Error('Must not fall back to cached credentials');
+			}
+			override async refreshSealedGitHubToken(): Promise<string> {
+				if (++renewals === 1) {
+					throw new Error('renewal unavailable');
+				}
+				return 'copilot-sealed.v1.key.renewed';
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => createCloudSandboxConnectionCustomization(address, sandboxService),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+		const forwardedAfterFailure = [...forwarded];
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+
+		assert.deepStrictEqual({ forwardedAfterFailure, forwarded, prompts, renewals, errors }, {
+			forwardedAfterFailure: [],
+			forwarded: ['copilot-sealed.v1.key.renewed'],
+			prompts: 0,
+			renewals: 2,
+			errors: ['[RemoteAgentHost] Failed to authenticate notified resource https://api.github.com'],
+		});
+	});
+
+	test('does not forward renewed sandbox credentials after the connection is replaced', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const renewed = new DeferredPromise<string>();
+		const sandboxService = new class extends mock<ICloudSandboxAgentHostService>() {
+			override refreshSealedGitHubToken(): Promise<string> {
+				return renewed.p;
+			}
+		}();
+		h.contribution._connectionCustomizations = {
+			get: address => ({ ...createCloudSandboxConnectionCustomization(address, sandboxService), createSessionPreparation: undefined }),
+		};
+		const notification: INotification = {
+			type: NotificationType.AuthRequired,
+			channel: 'ahp-root://',
+			resource: { ...h.resource, resource: 'https://api.github.com' },
+			reason: AuthRequiredReason.Expired,
+		};
+
+		h.contribution._handleAuthenticationRequiredNotification(h.address, connection, notification);
+		await timeout(0);
+		h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		await renewed.complete('copilot-sealed.v1.key.renewed');
+		await timeout(0);
+
+		assert.deepStrictEqual(forwarded, []);
+	});
+
 	test('resends the current token for an expired notification resource that is not advertised by root agents', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{
@@ -182,9 +385,9 @@ suite('RemoteAgentHost auth notifications', () => {
 		});
 		const logService = new NullLogService();
 		instantiationService.stub(ILogService, logService);
-		const authenticateCalls: Array<{ readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }> = [];
+		const authenticateCalls: Parameters<IAgentConnection['authenticate']>[0][] = [];
 		const connection = {
-			authenticate: async (params: { readonly resource: string; readonly scopes?: readonly string[]; readonly token: string }) => {
+			authenticate: async (params: Parameters<IAgentConnection['authenticate']>[0]) => {
 				authenticateCalls.push(params);
 				return { authenticated: true };
 			},
@@ -214,11 +417,17 @@ suite('RemoteAgentHost auth notifications', () => {
 			resource: 'https://api.example.com/session',
 			scopes: ['session:read'],
 			token: 'session-token',
+			_meta: {
+				'vscode.authentication.account': {
+					providerId: 'test-provider',
+					accountId: 'account-id',
+				},
+			},
 		}]);
 	});
 
 	test('reauthenticates each host independently with the same current token', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
@@ -248,7 +457,7 @@ suite('RemoteAgentHost auth notifications', () => {
 	});
 
 	test('prompts on a second completed same-token challenge and creates a fresh transformed envelope', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
+		const instantiationService = createAuthenticationInstantiationService(store);
 		instantiationService.stub(IAuthenticationService, {
 			getOrActivateProviderIdForServer: async () => 'test-provider',
 			getSessions: async () => [{ id: 'session-id', account: { id: 'account-id', label: 'Test Account' }, scopes: ['session:read'], accessToken: 'session-token' }],
@@ -262,6 +471,7 @@ suite('RemoteAgentHost auth notifications', () => {
 			},
 		});
 		const envelopes: string[] = [];
+		const reasons: (AuthRequiredReason | undefined)[] = [];
 		let envelopeNumber = 0;
 		const address = 'sealed-host';
 		const contribution = Object.create(RemoteAgentHostContribution.prototype) as IRemoteAuthNotificationHarness;
@@ -269,7 +479,10 @@ suite('RemoteAgentHost auth notifications', () => {
 		contribution._instantiationService = instantiationService;
 		contribution._connectionCustomizations = {
 			get: () => ({
-				authenticate: async request => ({ ...request, token: `${request.token}:sealed-${++envelopeNumber}` }),
+				authenticate: async (request, reason) => {
+					reasons.push(reason);
+					return { ...request, token: `${request.token}:sealed-${++envelopeNumber}` };
+				},
 			}),
 		};
 		contribution._logService = new NullLogService();
@@ -286,10 +499,52 @@ suite('RemoteAgentHost auth notifications', () => {
 		contribution._handleAuthenticationRequiredNotification(address, connection, notification);
 		await timeout(0);
 
-		assert.deepStrictEqual({ envelopes, promptCount }, {
+		assert.deepStrictEqual({ envelopes, promptCount, reasons }, {
 			envelopes: ['session-token:sealed-1', 'session-token:sealed-2'],
 			promptCount: 1,
+			reasons: [AuthRequiredReason.Expired, AuthRequiredReason.Expired],
 		});
+	});
+
+	test('does not authenticate after a connection is removed during credential renewal', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		const renewed = new DeferredPromise<string>();
+		h.contribution._connectionCustomizations = {
+			get: () => ({
+				authenticate: async request => ({ ...request, token: await renewed.p }),
+			})
+		};
+		const authenticate = h.contribution._authenticateCallback(h.address, connection, AuthRequiredReason.Expired);
+		const cancelled = assert.rejects(authenticate({ resource: h.resource.resource, token: 'old' }), isCancellationError);
+		h.contribution._connections.delete(h.address);
+		await renewed.complete('new');
+		await cancelled;
+		assert.deepStrictEqual(forwarded, []);
+	});
+
+	test('revocation bypasses renewal and token transformation', async () => {
+		const h = createAuthenticationHarness(store);
+		const forwarded: string[] = [];
+		const connection = h.connect(async request => {
+			forwarded.push(request.token);
+			return { authenticated: true };
+		});
+		let transforms = 0;
+		h.contribution._connectionCustomizations = {
+			get: () => ({
+				authenticate: async request => {
+					transforms++;
+					return { ...request, token: 'renewed' };
+				},
+			})
+		};
+		await h.contribution._authenticateCallback(h.address, connection, AuthRequiredReason.Expired)({ resource: h.resource.resource, token: '' });
+		assert.deepStrictEqual({ forwarded, transforms }, { forwarded: [''], transforms: 0 });
 	});
 });
 
@@ -298,10 +553,20 @@ interface IProviderOwnerHarness {
 	_remoteAgentHostService: { readonly configuredEntries: readonly IRemoteAgentHostEntry[] };
 	_entryType: RemoteAgentHostEntryType;
 	_providerStores: Map<string, undefined> & { deleteAndDispose(address: string): void };
-	_providerInstances: Map<string, { readonly label: string }>;
+	_providerInstances: Map<string, { readonly label: string; readonly defaultLabel: string }>;
 	_createProvider(address: string): void;
 	_getProviderOptions(entry: IRemoteAgentHostEntry): object;
 	_reconcileProviders(): void;
+}
+
+interface IMissionControlProviderOwnerHarness extends IProviderOwnerHarness {
+	_inventory: IMissionControlEnvironmentService;
+	_profileService: IUserDataProfileService;
+	_getProviderOptions(entry: IRemoteAgentHostEntry): IEntryDrivenProviderOptions;
+	_remoteAgentHostService: IProviderOwnerHarness['_remoteAgentHostService'] & {
+		getConnection(address: string): Pick<IAgentConnection, 'rootState'> | undefined;
+	};
+	_getProviderEntries(): readonly IRemoteAgentHostEntry[];
 }
 
 interface IRemoteAgentRegistrationHarness {
@@ -318,12 +583,57 @@ interface IRemoteAgentRegistrationHarness {
 suite('Remote agent host provider ownership', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createHarness(prototype: object, entryType: RemoteAgentHostEntryType, entries: IRemoteAgentHostEntry[]): IProviderOwnerHarness {
+		const contribution = Object.create(prototype) as IProviderOwnerHarness;
+		contribution._configurationService = { getValue: () => true };
+		contribution._remoteAgentHostService = { configuredEntries: entries };
+		contribution._entryType = entryType;
+		const providerStores = new Map<string, undefined>();
+		contribution._providerStores = Object.assign(providerStores, {
+			deleteAndDispose: (address: string) => { providerStores.delete(address); },
+		});
+		contribution._providerInstances = new Map();
+		return contribution;
+	}
+
 	test('the Agents Window entry point loads the shared sandbox services', () => {
 		const services = new Map(getSingletonServiceDescriptors());
 		assert.deepStrictEqual([
 			services.get(ICloudSandboxApiService)?.ctor,
 			services.get(ICloudSandboxAgentHostService)?.ctor,
 		], [CloudSandboxApiService, CloudSandboxAgentHostService]);
+	});
+
+	test('native MC providers use visible account inventory rather than staged managed sandbox entries', () => {
+		const entries: IRemoteAgentHostEntry[] = [
+			{ name: 'Native', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:native', environmentId: 'native', environmentKind: 'user-local' } },
+			{ name: 'Sandbox', connection: { type: RemoteAgentHostEntryType.CloudSandbox, address: 'cloudsandbox:sandbox', environmentId: 'sandbox' } },
+		];
+		const owner = Object.create(MissionControlAgentHostContribution.prototype) as IMissionControlProviderOwnerHarness;
+		owner._configurationService = { getValue: () => true };
+		owner._entryType = RemoteAgentHostEntryType.CloudSandbox;
+		owner._providerInstances = new Map([['cloudsandbox:native', { label: 'Native', defaultLabel: 'Native' }]]);
+		owner._remoteAgentHostService = { configuredEntries: entries, getConnection: () => undefined };
+		owner._inventory = new class extends mock<IMissionControlEnvironmentService>() {
+			override readonly enabled = true;
+			override readonly accountKey = 'account';
+			override readonly hosts = observableValue(this, [
+				{ id: 'native', name: 'Native', kind: 'user-local', status: 'offline' },
+				{ id: 'hidden', name: 'Hidden', kind: 'user-local', status: 'online', hidden: true },
+			]);
+		}();
+		owner._profileService = new class extends mock<IUserDataProfileService>() {
+			override readonly currentProfile = new class extends mock<IUserDataProfile>() {
+				override readonly id = 'profile';
+			}();
+		}();
+		const options = owner._getProviderOptions(entries[0]);
+		assert.deepStrictEqual({
+			entries: owner._getProviderEntries(),
+			connectable: typeof options.connectOnDemand === 'function' && typeof options.disconnectOnDemand === 'function' && typeof options.removeOnDemand === 'function',
+			retained: options.retainSessionsOnDisconnect,
+			readOnlyOffline: options.readOnlyWhenDisconnected,
+		}, { entries: [entries[0]], connectable: true, retained: true, readOnlyOffline: true });
 	});
 
 	test('gives WebSocket and SSH entries distinct owners while the shared contribution registers none', () => {
@@ -335,25 +645,13 @@ suite('Remote agent host provider ownership', () => {
 			{ name: 'Socket', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host:8080' } },
 			{ name: 'Remote', connection: { type: RemoteAgentHostEntryType.SSH, address: 'localhost:4321', sshConfigHost: 'myserver', hostName: 'myserver' } },
 		];
-		const createHarness = (prototype: object, entryType: RemoteAgentHostEntryType): IProviderOwnerHarness => {
-			const contribution = Object.create(prototype) as IProviderOwnerHarness;
-			contribution._configurationService = { getValue: () => true };
-			contribution._remoteAgentHostService = { configuredEntries: entries };
-			contribution._entryType = entryType;
-			const providerStores = new Map<string, undefined>();
-			contribution._providerStores = Object.assign(providerStores, {
-				deleteAndDispose: (address: string) => { providerStores.delete(address); },
-			});
-			contribution._providerInstances = new Map();
-			return contribution;
-		};
 		const sshCreated: string[] = [];
-		const sshContribution = createHarness(SSHAgentHostContribution.prototype, RemoteAgentHostEntryType.SSH);
+		const sshContribution = createHarness(SSHAgentHostContribution.prototype, RemoteAgentHostEntryType.SSH, entries);
 		sshContribution._getProviderOptions = entry => { sshCreated.push(getEntryAddress(entry)); return {}; };
 		sshContribution._createProvider = () => { };
 		sshContribution._reconcileProviders();
 		const webSocketCreated: string[] = [];
-		const webSocketContribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket);
+		const webSocketContribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket, entries);
 		webSocketContribution._getProviderOptions = entry => { webSocketCreated.push(getEntryAddress(entry)); return {}; };
 		webSocketContribution._createProvider = () => { };
 		webSocketContribution._reconcileProviders();
@@ -368,6 +666,45 @@ suite('Remote agent host provider ownership', () => {
 			sshCreated: ['localhost:4321'],
 			webSocketCreated: ['ws://host:8080'],
 		});
+	});
+
+	test('keeps the provider when only its client-local name differs from the configured name', () => {
+		const address = 'host:8080';
+		const contribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket, [
+			{ name: 'Original Name', connection: { type: RemoteAgentHostEntryType.WebSocket, address } },
+		]);
+		const provider = { label: 'Local Name', defaultLabel: 'Original Name' };
+		contribution._providerStores.set(address, undefined);
+		contribution._providerInstances.set(address, provider);
+		let created = 0;
+		contribution._createProvider = () => { created++; };
+
+		contribution._reconcileProviders();
+
+		assert.deepStrictEqual({
+			label: provider.label,
+			sameProvider: contribution._providerInstances.get(address) === provider,
+			storeRetained: contribution._providerStores.has(address),
+			created,
+		}, { label: 'Local Name', sameProvider: true, storeRetained: true, created: 0 });
+	});
+
+	test('recreates the provider when the configured name changes, even if it matches the local override', () => {
+		const address = 'host:8080';
+		const contribution = createHarness(WebSocketAgentHostContribution.prototype, RemoteAgentHostEntryType.WebSocket, [
+			{ name: 'New Name', connection: { type: RemoteAgentHostEntryType.WebSocket, address } },
+		]);
+		contribution._providerStores.set(address, undefined);
+		contribution._providerInstances.set(address, { label: 'New Name', defaultLabel: 'Original Name' });
+		const created: string[] = [];
+		contribution._createProvider = address => { created.push(address); };
+
+		contribution._reconcileProviders();
+
+		assert.deepStrictEqual({
+			storeRetained: contribution._providerStores.has(address),
+			created,
+		}, { storeRetained: false, created: [address] });
 	});
 });
 

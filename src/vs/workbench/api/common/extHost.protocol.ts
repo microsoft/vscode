@@ -631,10 +631,18 @@ export interface MainThreadOutputServiceShape extends IDisposable {
 	$dispose(channelId: string): Promise<void>;
 }
 
+export interface IProgressOptionsDto extends Omit<IProgressOptions, 'title' | 'legacyExtensionLinkParsing'> {
+	readonly title?: string;
+}
+
+export interface IProgressStepDto extends Omit<IProgressStep, 'message'> {
+	message?: string;
+}
+
 export interface MainThreadProgressShape extends IDisposable {
 
-	$startProgress(handle: number, options: IProgressOptions, extensionId?: string): Promise<void>;
-	$progressReport(handle: number, message: IProgressStep): void;
+	$startProgress(handle: number, options: IProgressOptionsDto, extensionId?: string): Promise<void>;
+	$progressReport(handle: number, message: IProgressStepDto): void;
 	$progressEnd(handle: number): void;
 }
 
@@ -2078,6 +2086,7 @@ export interface SCMProviderFeatures {
 	actionButton?: SCMActionButtonDto | null;
 	statusBarCommands?: ICommandDto[];
 	contextValue?: string;
+	activeRepositoryName?: string | null;
 }
 
 export interface SCMActionButtonDto {
@@ -2757,6 +2766,7 @@ export interface IChatNotebookEditDto {
 	edits: ICellEditOperationDto[];
 	kind: 'notebookEdit';
 	done?: boolean;
+	autoTier?: IChatNotebookEdit['autoTier'];
 }
 
 export interface IChatResponseClearToPreviousToolInvocationDto {

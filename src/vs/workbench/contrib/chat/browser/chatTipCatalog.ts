@@ -328,6 +328,7 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			);
 		},
 		when: ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${ChatConfiguration.BtwTipEnabled}`, true),
 			IsSessionsWindowContext,
 			ContextKeyExpr.has('sessionIsCreated'),
 			ContextKeyExpr.not('sessionIsArchived'),

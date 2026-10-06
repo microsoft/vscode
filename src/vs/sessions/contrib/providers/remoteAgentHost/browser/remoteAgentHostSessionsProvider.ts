@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isPassiveRelayConnection } from '../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -15,13 +17,14 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostUri } from '../../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, type AgentHostUriMapper, fromAgentHostUri, normalizeRemoteAgentHostAddress, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, type IAgentHostSessionSchemeAlias } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { IRemoteAgentHostService, removeWebSocketRemoteAgentHostEntry, RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ActionType } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { StateComponents, type ISessionGitState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -40,7 +43,8 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { DevContainerIdleTimeoutSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -48,14 +52,17 @@ import { DevContainerAgentHostSessionsProvider } from '../../agentHost/browser/d
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
 import { mapProtocolStatus } from '../../agentHost/browser/agentHostDiffs.js';
 import { ReconnectableAgentHostAutomationStore } from '../../agentHost/browser/reconnectableAgentHostAutomationStore.js';
-import type { ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
+import type { ISendRequestOptions, ISessionsProviderAutomations, SessionResourceResolveReason } from '../../../../services/sessions/common/sessionsProvider.js';
 import { remoteAgentHostSessionTypeAuthorityPrefix, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { readAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
+import { INewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
 
 /** Storage key prefix for cached session summaries, per remote address. */
-const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v2.';
+const CACHED_SESSIONS_STORAGE_PREFIX = 'remoteAgentHost.cachedSessions.v4.';
+const DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
+const DEV_CONTAINER_IDLE_POLL_INTERVAL_MS = 60 * 1000;
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
-const CACHED_SESSIONS_STORAGE_PREFIX_LEGACY = 'remoteAgentHost.cachedSessions.';
+const CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY = ['remoteAgentHost.cachedSessions.v3.', 'remoteAgentHost.cachedSessions.v2.', 'remoteAgentHost.cachedSessions.'];
 
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
@@ -78,12 +85,24 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
+	readonly setDisplayName?: (name: string | undefined) => void;
+	/** Account-scoped inventory owners isolate cached summaries without changing routing identity. */
+	readonly sessionCacheKey?: string;
+	readonly retainSessionsOnDisconnect?: boolean;
+	/** Optional owner-managed deletion for exact backend resources, working without a host connection. */
+	readonly deleteSessionsOnDemand?: {
+		ownsSession(session: URI): boolean;
+		deleteSessions(sessions: readonly URI[]): Promise<void>;
+	};
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	readonly showConnectionLog?: () => Promise<void>;
 	/** Optional kind-scoped policy for automatically starting the host. */
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
@@ -110,6 +129,12 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	/** Source workspace represented by this Dev Container provider. */
 	readonly devContainerSourceWorkspaceUri?: URI;
 	readonly devContainerWorktreeScope?: string;
+	/** Controls the stopped/removed container while this runtime provider remains registered. */
+	readonly devContainerLifecycle?: {
+		connect(): Promise<void>;
+		stop(): Promise<boolean>;
+		remove(): Promise<boolean>;
+	};
 	/** Resolves the source host that owns this container's detached worktree handles. Defaults to the local host. */
 	readonly resolveDevContainerWorktreeConnection?: () => Promise<IAgentConnection>;
 }
@@ -140,8 +165,14 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
 	readonly id: string;
+	private _defaultLabel: string;
+	/** Configured or discovered name, without the client-local override. */
+	get defaultLabel(): string { return this._defaultLabel; }
 	private _label: string;
 	get label(): string { return this._label; }
+	get environment(): ISessionEnvironment {
+		return { id: this.id, label: this.label, isConnected: this._environmentIsConnected };
+	}
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
@@ -154,7 +185,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly showConnectionLog?: () => Promise<void>;
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
-	readonly automations: ISessionsProviderAutomations;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
+	get automations(): ISessionsProviderAutomations | undefined { return this._automationStore; }
+	readonly setDisplayName?: (name: string | undefined) => void;
 	readonly supportsQuickChats = true;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
@@ -162,6 +197,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
+	private readonly _environmentIsConnected = derived(this, reader => RemoteAgentHostConnectionStatus.isConnected(this._connectionStatus.read(reader)));
 
 	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
 		return this.connectionStatus;
@@ -193,6 +229,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	protected get isWebPlatform(): boolean { return isWeb; }
 
 	private _connection: IAgentConnection | undefined;
+	private readonly _passiveRelay = observableValue(this, false);
+	private readonly _allowOfflineDrafts = derived(this, reader => this.supportsOfflineDrafts && !this._passiveRelay.read(reader));
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
@@ -200,12 +238,21 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
+	private readonly _retainSessionsOnDisconnect: boolean;
+	private readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
 	private readonly _defaultChangesetKind: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind'];
 	private readonly _devContainerSourceWorkspaceUri: URI | undefined;
 	private readonly _devContainerWorktreeScope: string | undefined;
+	private readonly _devContainerLifecycle: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle'];
+	private _devContainerIdleSince: number | undefined;
+	private _devContainerIdleCheckRunning = false;
+	private readonly _devContainerIdleScheduler = this._register(new RunOnceScheduler(() => {
+		void this._stopDevContainerIfIdle().catch(error =>
+			this._logService.error(`[${this.id}] Failed to stop idle Dev Container.`, error));
+	}, DEV_CONTAINER_IDLE_POLL_INTERVAL_MS));
 	private readonly _resolveDevContainerWorktreeConnection: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection'];
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
@@ -227,7 +274,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@IAgentHostService private readonly _localAgentHostService: IAgentHostService,
-		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
@@ -246,6 +293,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IRemoteAgentHostAuthenticationService remoteAuthenticationService: IRemoteAgentHostAuthenticationService,
+		@INewSessionComposerService private readonly _newSessionComposerService: INewSessionComposerService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 
@@ -265,52 +313,70 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
 		this._removeOnDemand = config.removeOnDemand;
+		this.setDisplayName = config.setDisplayName;
+		this._retainSessionsOnDisconnect = config.retainSessionsOnDisconnect === true;
+		this._deleteSessionsOnDemand = config.deleteSessionsOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
 		this._defaultChangesetKind = config.defaultChangesetKind;
 		this._devContainerSourceWorkspaceUri = config.devContainerSourceWorkspaceUri;
 		this._register(agentHostConnectionsService.registerSessionResolutionPolicy(this._connectionAuthority, {
+			connectionAddress: config.address,
 			sessionSchemeAlias: this._sessionSchemeAlias,
 			defaultChangesetKind: this._defaultChangesetKind,
 		}));
 		this._devContainerWorktreeScope = config.devContainerWorktreeScope;
+		this._devContainerLifecycle = config.devContainerLifecycle;
 		this._resolveDevContainerWorktreeConnection = config.resolveDevContainerWorktreeConnection;
 		this.onDidReportConnectProgress = config.onDidReportConnectProgress;
 		this.showConnectionLog = config.showConnectionLog;
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
+		this.hostDescription = config.hostDescription;
+		this.removeLabel = config.removeLabel;
+		this.disconnectLabel = config.disconnectLabel;
 		this.canConnectOnDemand = !!config.connectOnDemand;
-		this._readOnly = config.readOnlyWhenDisconnected
-			? derived(this, reader => {
-				const status = this._connectionStatus.read(reader);
-				return RemoteAgentHostConnectionStatus.isDisconnected(status)
-					|| RemoteAgentHostConnectionStatus.isConnecting(status)
-					|| RemoteAgentHostConnectionStatus.isIncompatible(status);
-			})
-			: constObservable(false);
+		this._readOnly = derived(this, reader => {
+			const status = this._connectionStatus.read(reader);
+			if (this._passiveRelay.read(reader)) {
+				return true;
+			}
+			if (this.supportsOfflineDrafts) {
+				return !RemoteAgentHostConnectionStatus.isConnected(status) || this.authenticationPending.read(reader);
+			}
+			return !!config.readOnlyWhenDisconnected && (RemoteAgentHostConnectionStatus.isDisconnected(status)
+				|| RemoteAgentHostConnectionStatus.isConnecting(status)
+				|| RemoteAgentHostConnectionStatus.isIncompatible(status));
+		});
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
+		if (this._devContainerLifecycle) {
+			this._register(Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event)(() => this._scheduleDevContainerStopIfIdle()));
+		}
 		this.updateResourceLabelHomes();
-		const displayName = config.name || config.address;
+		this._defaultLabel = config.name || config.address;
+		const displayName = this._remoteAgentHostService.getDisplayNameOverride(config.address) ?? this._defaultLabel;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
 		this._label = displayName;
 		this.remoteAddress = config.address;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this.hostGroup = config.hostGroup;
-		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
+		this._storageKey = config.sessionCacheKey ?? `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => fromAgentHostUri(resource),
 			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			sessionResource: resource => this.agentHostConnectionsService.findSessionResource(resource, this._connectionAuthority)
+				?? (AgentSession.provider(resource) || this._sessionSchemeAlias?.backend === resource.scheme
+					? this.agentHostConnectionsService.getSessionResource(resource, this._connectionAuthority) : undefined),
+			onDidChangeSessionResolution: this.agentHostConnectionsService.onDidChangeSessionResolution,
 			providerForSessionScheme: scheme => this._sessionSchemeAlias?.backend === scheme ? this._sessionSchemeAlias.ui : scheme,
 			providerForResourceScheme: scheme => {
 				const prefix = remoteAgentHostSessionTypeAuthorityPrefix(this._connectionAuthority);
 				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
 			},
 		}));
-		this.automations = this._automationStore;
-
 		this._browseActions = [{
 			label: localize('folders', "Folders"),
 			description: displayName,
@@ -321,18 +387,53 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			listFolders: (query, token) => this._listRemoteFolders(query, token),
 		}];
 
-		this._enableSessionCachePersistence(this._storageKey, `${CACHED_SESSIONS_STORAGE_PREFIX_LEGACY}${this._connectionAuthority}`);
+		this._enableSessionCachePersistence(this._storageKey, config.sessionCacheKey ? [] : CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY.map(prefix => `${prefix}${this._connectionAuthority}`));
 		this.updateResourceLabelHomes();
+		this._register(this._remoteAgentHostService.onDidChangeDisplayName(address => {
+			if (address === normalizeRemoteAgentHostAddress(this.remoteAddress)) {
+				this._updateLabel();
+			}
+		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
 			}
+			if (e.affectsConfiguration(DevContainerIdleTimeoutSettingId)) {
+				this._devContainerIdleScheduler.cancel();
+				this._devContainerIdleSince = undefined;
+				this._scheduleDevContainerStopIfIdle();
+			}
 		}));
 		this._register(autorun(reader => this.setAuthenticationPending(authenticationPending.read(reader))));
+		if (this._devContainerLifecycle) {
+			this._register(autorun(reader => {
+				this._newSessionComposerService.inputVersion.read(reader);
+				this._scheduleDevContainerStopIfIdle();
+			}));
+		}
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
-		if (!this._hasSession(sessionId) || !this.connection) {
+		if (!this._hasSession(sessionId)) {
+			return;
+		}
+		if (this._devContainerLifecycle) {
+			await this._ensureDevContainerConnection();
+			await this._setDevContainerSessionArchived(sessionId, true);
+			if (this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session))) {
+				this._scheduleDevContainerStopIfIdle();
+				return;
+			}
+			this._devContainerIdleScheduler.cancel();
+			if (await this._devContainerLifecycle.remove()) {
+				await this._setDetachedWorktreeArchived(sessionId, true);
+			} else {
+				this._devContainerIdleSince = undefined;
+				this._scheduleDevContainerStopIfIdle();
+			}
+			return;
+		}
+		if (!this.connection) {
 			return;
 		}
 		await this._setDetachedWorktreeArchived(sessionId, true);
@@ -342,7 +443,31 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async unarchiveSession(sessionId: string): Promise<void> {
-		if (!this._hasSession(sessionId) || !this.connection) {
+		if (!this._hasSession(sessionId)) {
+			return;
+		}
+		if (this._devContainerLifecycle) {
+			await this._setDetachedWorktreeArchived(sessionId, false);
+			try {
+				await this._ensureDevContainerConnection();
+				await this._setDevContainerSessionArchived(sessionId, false);
+			} catch (error) {
+				const hasOtherUnarchivedSession = this.getKnownSessions().some(session => session.sessionId !== sessionId && !session.isArchived.get() && !this._isEmptyDevContainerDraft(session));
+				// TODO: Reconcile experimental worktree rollback without removing a mount still used by another session.
+				if (!hasOtherUnarchivedSession) {
+					this._devContainerIdleScheduler.cancel();
+					if (await this._devContainerLifecycle.remove()) {
+						await this._setDetachedWorktreeArchived(sessionId, true);
+					}
+				}
+				throw error;
+			}
+			if (this.getSessions().find(session => session.sessionId === sessionId)?.status.get() === SessionStatus.Completed) {
+				this._scheduleDevContainerStopIfIdle();
+			}
+			return;
+		}
+		if (!this.connection) {
 			return;
 		}
 		await this._setDetachedWorktreeArchived(sessionId, false);
@@ -351,26 +476,181 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
+	override async createNewChat(chatId: string): Promise<IChat> {
+		await this._ensureDevContainerConnection();
+		return super.createNewChat(chatId);
+	}
+
+	override async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+		await this._ensureDevContainerConnection();
+		return super.sendRequest(chatId, chatResource, options);
+	}
+
+	private async _ensureDevContainerConnection(): Promise<void> {
+		this._devContainerIdleScheduler.cancel();
+		this._devContainerIdleSince = undefined;
+		if (!this._devContainerLifecycle) {
+			return;
+		}
+		if (this.connection && !this._devContainerIdleCheckRunning) {
+			this._scheduleDevContainerStopIfIdle();
+			return;
+		}
+		await this._devContainerLifecycle.connect();
+		if (!this.connection) {
+			throw new Error(localize('devContainerAgentHost.reconnectFailed', "Dev Container Agent Host '{0}' did not reconnect.", this.label));
+		}
+		this._scheduleDevContainerStopIfIdle();
+	}
+
+	private async _setDevContainerSessionArchived(sessionId: string, archived: boolean): Promise<void> {
+		const connection = this.connection;
+		const backendUri = this._getBackendSessionUri(sessionId);
+		if (!connection || !backendUri) {
+			throw new Error(archived
+				? localize('devContainerAgentHost.archiveDisconnected', "Unable to archive Dev Container session '{0}' while disconnected.", sessionId)
+				: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
+		}
+		const subscription = connection.getSubscription(StateComponents.Session, backendUri, 'RemoteAgentHostSessionsProvider.archive');
+		const confirmationAction = Event.toPromise(Event.filter(connection.onDidAction, envelope =>
+			envelope.channel === backendUri.toString()
+			&& envelope.action.type === ActionType.SessionIsArchivedChanged
+			&& envelope.action.isArchived === archived
+		));
+		try {
+			let timedOut = false;
+			const confirmation = raceTimeout(
+				confirmationAction,
+				DEV_CONTAINER_ARCHIVE_CONFIRMATION_TIMEOUT_MS,
+				() => timedOut = true,
+			);
+			if (!this._setSessionArchived(sessionId, archived)) {
+				throw new Error(archived
+					? localize('devContainerAgentHost.archiveDisconnected', "Unable to archive Dev Container session '{0}' while disconnected.", sessionId)
+					: localize('devContainerAgentHost.unarchiveDisconnected', "Unable to unarchive Dev Container session '{0}' while disconnected.", sessionId));
+			}
+			const confirmationEnvelope = await confirmation;
+			if (confirmationEnvelope?.rejectionReason) {
+				this._setSessionArchivedLocally(sessionId, !archived);
+				throw new Error(archived
+					? localize('devContainerAgentHost.archiveRejected', "Unable to archive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason)
+					: localize('devContainerAgentHost.unarchiveRejected', "Unable to unarchive Dev Container session '{0}': {1}", sessionId, confirmationEnvelope.rejectionReason));
+			}
+			if (timedOut) {
+				this._setSessionArchivedLocally(sessionId, !archived);
+				throw new Error(archived
+					? localize('devContainerAgentHost.archiveTimeout', "Timed out waiting for Dev Container session '{0}' to be archived.", sessionId)
+					: localize('devContainerAgentHost.unarchiveTimeout', "Timed out waiting for Dev Container session '{0}' to be unarchived.", sessionId));
+			}
+		} finally {
+			confirmationAction.cancel();
+			subscription.dispose();
+		}
+	}
+
+	private _scheduleDevContainerStopIfIdle(): void {
+		const idleTimeoutMs = this._configurationService.getValue<number>(DevContainerIdleTimeoutSettingId) * 1000;
+		if (!this._devContainerLifecycle || !this.connection || this._store.isDisposed || idleTimeoutMs <= 0) {
+			this._devContainerIdleScheduler.cancel();
+			this._devContainerIdleSince = undefined;
+			return;
+		}
+		const previousIdleSince = this._devContainerIdleSince;
+		if (this._isDevContainerIdle()) {
+			this._devContainerIdleSince ??= Date.now();
+		} else {
+			this._devContainerIdleSince = undefined;
+		}
+		if (!this._devContainerIdleCheckRunning && (!this._devContainerIdleScheduler.isScheduled() || previousIdleSince !== this._devContainerIdleSince)) {
+			const delay = this._devContainerIdleSince === undefined
+				? DEV_CONTAINER_IDLE_POLL_INTERVAL_MS
+				: Math.min(DEV_CONTAINER_IDLE_POLL_INTERVAL_MS, Math.max(0, idleTimeoutMs - (Date.now() - this._devContainerIdleSince)));
+			this._devContainerIdleScheduler.schedule(delay);
+		}
+	}
+
+	private _isDevContainerIdle(): boolean {
+		const sessions = this.getKnownSessions();
+		return !!this.connection && !sessions.some(session => {
+			const status = session.status.get();
+			return (status === SessionStatus.Untitled && !this._isEmptyDevContainerDraft(session)) || isActiveSessionStatus(status);
+		});
+	}
+
+	private _isEmptyDevContainerDraft(session: ISession): boolean {
+		return session.status.get() === SessionStatus.Untitled
+			&& !session.isNewSessionRequestInProgress?.get()
+			&& !this._newSessionComposerService.hasDraftInputForSession(session.resource);
+	}
+
+	private async _stopDevContainerIfIdle(): Promise<void> {
+		this._devContainerIdleCheckRunning = true;
+		let stopped = false;
+		try {
+			const idleTimeoutMs = this._configurationService.getValue<number>(DevContainerIdleTimeoutSettingId) * 1000;
+			if (this._devContainerLifecycle && idleTimeoutMs > 0 && this._isDevContainerIdle()
+				&& this._devContainerIdleSince !== undefined
+				&& Date.now() - this._devContainerIdleSince >= idleTimeoutMs) {
+				this._devContainerIdleSince = undefined;
+				stopped = await this._devContainerLifecycle.stop();
+			}
+		} finally {
+			this._devContainerIdleCheckRunning = false;
+			if (!stopped) {
+				this._scheduleDevContainerStopIfIdle();
+			}
+		}
+	}
+
 	override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
-		const detachedWorktrees = sessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
+		const ownerSessions: URI[] = [];
+		const hostSessionIds: string[] = [];
+		for (const sessionId of sessionIds) {
+			const key = this._sessionKeyFromChatId(sessionId);
+			const backendSession = key ? this._sessionCache.get(key)?.backendUri : undefined;
+			if (backendSession && this._deleteSessionsOnDemand?.ownsSession(backendSession)) {
+				if (!key || !this._sessionCache.has(key)) {
+					throw new Error(localize('remoteAgentHost.deleteSessionNotFound', "Session not found."));
+				}
+				ownerSessions.push(backendSession);
+			} else {
+				hostSessionIds.push(sessionId);
+			}
+		}
+		const hadSessions = hostSessionIds.some(sessionId => this._hasSession(sessionId));
+		const detachedWorktrees = hostSessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
 			sessionId,
 			handle: this._getDetachedWorktreeHandle(sessionId),
 		})).filter((entry): entry is { sessionId: string; handle: string } => !!entry.handle);
 		let deleteError: unknown;
 		try {
-			await super.deleteSessions(sessionIds);
+			if (hadSessions && this._devContainerLifecycle) {
+				await this._ensureDevContainerConnection();
+			}
+			await super.deleteSessions(hostSessionIds);
 		} catch (error) {
 			deleteError = error;
 		}
 		let worktreeError: unknown;
-		for (const { sessionId, handle } of detachedWorktrees) {
-			if (this._hasSession(sessionId)) {
-				continue;
-			}
+		let canDeleteDetachedWorktrees = true;
+		if (!deleteError && this._devContainerLifecycle && hadSessions && this.getKnownSessions().every(session => this._isEmptyDevContainerDraft(session))) {
 			try {
-				await this._deleteDetachedWorktree(handle);
+				this._devContainerIdleScheduler.cancel();
+				canDeleteDetachedWorktrees = await this._devContainerLifecycle.remove();
 			} catch (error) {
-				worktreeError ??= error;
+				worktreeError = error;
+			}
+		}
+		if (!worktreeError && canDeleteDetachedWorktrees) {
+			for (const { sessionId, handle } of detachedWorktrees) {
+				if (this._hasSession(sessionId)) {
+					continue;
+				}
+				try {
+					await this._deleteDetachedWorktree(handle);
+				} catch (error) {
+					worktreeError ??= error;
+				}
 			}
 		}
 		if (deleteError) {
@@ -378,6 +658,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 		if (worktreeError) {
 			throw worktreeError;
+		}
+		if (ownerSessions.length > 0) {
+			// Owner deletion can disconnect the host, so finish its AHP deletions first.
+			await this._deleteSessionsOnDemand?.deleteSessions(ownerSessions);
 		}
 	}
 
@@ -393,7 +677,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	protected override _onBackendSessionRemoved(rawId: string): void {
-		const handle = readAgentDevContainerWorktreeMetadata(this._getSessionMetadataByRawId(rawId))?.handle;
+		const handle = readAgentDevContainerWorktreeMetadata(this._getSessionMetadataByKey(rawId))?.handle;
 		if (handle) {
 			void this._deleteDetachedWorktree(handle).catch(error =>
 				this._logService.error(`[${this.id}] Failed to delete detached worktree for remotely removed session '${rawId}'.`, error));
@@ -406,7 +690,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return;
 		}
 		const activeHandles = [...rawIds]
-			.map(rawId => readAgentDevContainerWorktreeMetadata(this._getSessionMetadataByRawId(rawId))?.handle)
+			.map(rawId => readAgentDevContainerWorktreeMetadata(this._getSessionMetadataByKey(rawId))?.handle)
 			.filter((handle): handle is string => !!handle);
 		const reconciliation = ++this._detachedWorktreeReconciliation;
 		void (async () => {
@@ -424,6 +708,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	private async _setDetachedWorktreeArchived(sessionId: string, archived: boolean): Promise<void> {
+		// TODO: Resolve experimental Dev Container worktree ownership across all sessions sharing this provider.
 		const handle = this._getDetachedWorktreeHandle(sessionId);
 		if (!handle) {
 			return;
@@ -464,6 +749,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
+	protected get passiveRelay(): IObservable<boolean> { return this._passiveRelay; }
+
+	protected get supportsOfflineDrafts(): boolean { return false; }
+
 	/**
 	 * Suspend cache-change tracking while sessions are unpublished (offline) so
 	 * the on-disk snapshot survives an unreachable host. See
@@ -477,6 +766,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
+			allowOfflineDrafts: this._allowOfflineDrafts,
 			defaultChangesetKind: this._defaultChangesetKind,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
@@ -562,7 +852,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * is retained so sessions can be restored on reconnect.
 	 */
 	async disconnect(): Promise<void> {
-		this.unpublishCachedSessions();
+		if (!this._retainSessionsOnDisconnect) {
+			this.unpublishCachedSessions();
+		}
 		if (this._disconnectOnDemand) {
 			await this._disconnectOnDemand();
 			return;
@@ -587,7 +879,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	/** Refresh the provider's display name and notify picker consumers. */
 	setLabel(name: string): void {
-		const label = name || this.remoteAddress;
+		this._defaultLabel = name || this.remoteAddress;
+		this._updateLabel();
+	}
+
+	private _updateLabel(): void {
+		const label = this._remoteAgentHostService.getDisplayNameOverride(this.remoteAddress) ?? this._defaultLabel;
 		if (this._label === label) {
 			return;
 		}
@@ -603,7 +900,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const changed: ISession[] = [];
 		for (const rawMeta of metas) {
 			const meta = this._adoptSessionMeta(rawMeta);
-			const rawId = AgentSession.id(meta.session);
+			const rawId = meta.session.toString();
 			const existing = this._sessionCache.get(rawId);
 			if (existing) {
 				let didChange = false;
@@ -651,30 +948,35 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		return adapter;
 	}
 
+	protected override registerBackendSession(backendSession: URI, provider: string): void {
+		this.agentHostConnectionsService.registerSessionResource(backendSession, this._connectionAuthority, provider);
+	}
+
 	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {
 		this._activitySources.set(adapter, { source: 'host' });
 		return super.updateAdapter(adapter, meta);
 	}
 
 	/**
-	 * Map a host-reported session URI onto the UI scheme, so the session routes to the agent's
-	 * content provider. The raw id is preserved, so cache keys are unaffected.
+	 * Reads older sandbox cache rows without dropping their exact backend identity.
 	 */
 	protected override _adoptSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata {
 		const alias = this._sessionSchemeAlias;
-		if (!alias || meta.session.scheme !== alias.backend) {
+		if (alias && meta.provider === undefined && meta.session.scheme === alias.ui) {
+			return { ...meta, provider: alias.ui, session: meta.session.with({ scheme: alias.backend }) };
+		}
+		if (!alias || meta.provider || meta.session.scheme !== alias.backend) {
 			return meta;
 		}
-		return { ...meta, session: meta.session.with({ scheme: alias.ui }) };
+		return { ...meta, provider: alias.ui };
 	}
 
 	/**
-	 * Inverse of {@link _adoptSessionMeta}: map the UI scheme back to the one the host's session
-	 * registry is keyed by, so backend calls address the URI the host knows.
+	 * Sandbox creation retains its host-specific addressing contract.
 	 */
 	protected override _backendSessionScheme(agentProvider: string): string {
 		const alias = this._sessionSchemeAlias;
-		return alias && agentProvider === alias.ui ? alias.backend : agentProvider;
+		return alias && agentProvider === alias.ui ? alias.backend : super._backendSessionScheme(agentProvider);
 	}
 
 	protected override _logicalSessionTypeForBackendScheme(backendScheme: string): string {
@@ -709,6 +1011,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
+		this._connectionListeners.add(autorun(reader => {
+			this._passiveRelay.set(isPassiveRelayConnection(connection.initializeResult.read(reader)), undefined);
+		}));
+		this._devContainerIdleSince = undefined;
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.setConnection(connection);
 		this._defaultDirectory = defaultDirectory;
 		this._unpublished = false;
@@ -730,6 +1037,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		// `_refreshSessions` owns `_cacheInitialized` (set on a successful
 		// list) and arms a backoff retry if the first attempt fails.
 		this._refreshSessions(wasUnpublished);
+		this._scheduleDevContainerStopIfIdle();
 	}
 
 	/**
@@ -740,22 +1048,26 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * host is unreachable should follow up with {@link unpublishCachedSessions}.
 	 */
 	clearConnection(): void {
+		this._devContainerIdleScheduler.cancel();
+		this._devContainerIdleSince = undefined;
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._passiveRelay.set(false, undefined);
+		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;
 		this.updateResourceLabelHomes();
 		this._disposeAllNewSessions();
 		this._syncRootState(undefined);
 
-		// Drop only the transient pending/draft session; keep the persisted
+		// Drop only the transient pending/draft sessions; keep the persisted
 		// cache so the workspace picker keeps showing offline sessions.
-		if (this._pendingSession) {
-			const pending = this._pendingSession;
-			this._pendingSession = undefined;
-			this._onDidChangeSessions.fire({ added: [], removed: [pending], changed: [] });
+		if (this._pendingSessions.size > 0) {
+			const pending = [...this._pendingSessions.values()];
+			this._pendingSessions.clear();
+			this._onDidChangeSessions.fire({ added: [], removed: pending, changed: [] });
 		}
 
 		// Reset the in-memory cache-initialized flag so a fresh connection

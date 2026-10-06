@@ -130,9 +130,9 @@ export interface ICreateNewSessionOptions {
 	readonly worktreeCreateNewBranch?: boolean;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
-	 * configuration and first request are applied.
+	 * configuration and first request are applied. Asynchronous preparation is awaited.
 	 */
-	readonly onSessionCreated?: (session: ISession) => void;
+	readonly onSessionCreated?: (session: ISession) => void | Promise<void>;
 }
 
 /**
@@ -145,11 +145,6 @@ export interface ICreateNewChatInSessionOptions {
 	 * just-sent chat may still transiently report `Untitled`.
 	 */
 	readonly forceNew?: boolean;
-}
-
-export interface IMarkSessionReadOptions {
-	/** Keep an explicit unread mark during automatic updates within the current visit. */
-	readonly preserveExplicitUnread?: boolean;
 }
 
 /**
@@ -238,11 +233,12 @@ export interface IRecentlyOpenedSessions {
 	readonly other: ISession[];
 }
 
-/**
- * An active session item extends IChatSessionItem with repository information.
- * - For agent session items: repository is the workingDirectory from metadata
- * - For new sessions: repository comes from the session option with id 'repository'
- */
+/** Controls automatic read transitions for an active main chat. */
+export interface IMarkSessionReadOptions {
+	/** Preserve a user-requested unread state until the active chat advances. */
+	readonly preserveExplicitUnread?: boolean;
+}
+
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
@@ -385,8 +381,8 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
 	/**
-	 * Fires when {@link createNewSession} replaces the current in-progress
-	 * draft with another new-session draft (New Session → New Session).
+	 * Fires when an in-progress draft is replaced before sending,
+	 * either by {@link createNewSession} or new-session preparation.
 	 * Draft graduation uses {@link onDidReplaceSession} instead.
 	 */
 	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;
@@ -559,8 +555,17 @@ export interface ISessionsManagementService {
 	/** Permanently imports an external session through its provider without sending a message. */
 	importSession(session: ISession): Promise<void>;
 
+	/** Returns the current on-disk size of the session's isolated worktree. */
+	getSessionWorktreeDiskUsage?(session: ISession): Promise<number | undefined>;
+
 	/** Unarchive a session. */
 	unarchiveSession(session: ISession): Promise<void>;
+
+	/** Archive a chat independently of its owning session. */
+	archiveChat(session: ISession, chat: IChat): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat(session: ISession, chat: IChat): Promise<void>;
 
 	/**
 	 * Mark a session as read or unread through its provider, which owns and
@@ -568,10 +573,13 @@ export interface ISessionsManagementService {
 	 */
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
 
-	/** Mark a session as read through its provider. */
-	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
+	/** Mark a chat as read through its provider when it supports independent chat read state. */
+	markChatRead(session: ISession, chat: IChat): Promise<boolean | void>;
 
-	/** Mark a session as unread through its provider. */
+	/** Mark the session's main chat as read through its provider. */
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void>;
+
+	/** Mark the session's main chat as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
 
 	/** Mark all of the given sessions as read through their providers. */

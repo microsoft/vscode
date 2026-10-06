@@ -9,11 +9,15 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { createTestGitHubClient, createTestGitHubService } from './testGitHubService.js';
+import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
+import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentMergeConfigKey, agentMergeRootConfigSchema, defaultAgentMergeConfiguration, readAgentMergeFolderState, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { AGENT_MERGE_TOOL_NAMES } from '../../common/agentMergePrompt.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
 import { getWorkingDirectoryKey } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -24,7 +28,7 @@ import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpo
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeController } from '../../node/agentMergeController.js';
-import { AgentMergeTools } from '../../node/agentMergeTools.js';
+import { AgentMergeTools, IAgentMergeTurnContext } from '../../node/agentMergeTools.js';
 import { AgentMergeCIRequest, createAgentMergeServerToolGroup, parseAgentMergeCIRequest, readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName, setAgentMergeEnabledToolName } from '../../node/shared/agentMergeServerTools.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
@@ -60,7 +64,7 @@ suite('Agent Merge server tools', () => {
 				return directory.toString() === workingDirectory.toString() ? 'feature' : 'feature-tools';
 			}
 		}();
-		const gitHubService = new class extends mock<IGitHubService>() { }();
+		const gitHubService = createTestGitHubService();
 		const controller = store.add(new AgentMergeController(
 			{ startTurn: () => false, cancelTurn: () => { }, postNotice: () => { } },
 			stateManager,
@@ -79,7 +83,6 @@ suite('Agent Merge server tools', () => {
 			() => controller.isEnabled(),
 			getTurnContext ?? (chat => controller.getTurnContext(chat)),
 			(chat, enabled, overrides) => controller.setEnabled(chat, enabled, overrides),
-			gitHubService,
 			logService,
 			stateManager,
 			configurationService,
@@ -109,6 +112,29 @@ suite('Agent Merge server tools', () => {
 			afterDisabling: [],
 			withoutAccessor: false,
 		});
+	});
+
+	test('defers every tool behind tool search while keeping the wire definitions unchanged', () => {
+		const { stateManager, host } = createHarness(true);
+		host.advertise(sessionUri);
+
+		assert.deepStrictEqual({
+			deferrals: host.getDefinitionsForSession(sessionUri).map(({ name, deferLoading }) => ({ name, deferLoading })),
+			advertisedCarriesDeferral: stateManager.getSessionState(sessionUri)?.serverTools?.some(tool => Object.keys(tool).includes('deferLoading')),
+		}, {
+			deferrals: toolNames.map(name => ({ name, deferLoading: true })),
+			advertisedCarriesDeferral: false,
+		});
+	});
+
+	test('repair prompt names the deferred tools it requires', () => {
+		const definitionNames = createAgentMergeServerToolGroup().definitions.map(definition => definition.name);
+		assert.deepStrictEqual(
+			AGENT_MERGE_TOOL_NAMES.filter(name => !definitionNames.includes(name)),
+			[],
+			'AGENT_MERGE_TOOL_NAMES in common/agentMergePrompt.ts must match the server tool definitions',
+		);
+		assert.deepStrictEqual([...AGENT_MERGE_TOOL_NAMES].sort(), [readAgentMergeCIToolName, replyToAgentMergeReviewThreadToolName, rerunAgentMergeWorkflowToolName].sort());
 	});
 
 	test('rejects enablement calls after the feature is disabled', async () => {
@@ -446,6 +472,76 @@ suite('Agent Merge server tools', () => {
 		});
 	});
 
+	for (const outcome of ['succeeded', 'reconciled', 'pending', 'indeterminate'] as const) {
+		test(`reports a ${outcome} review reply without claiming unpublished feedback was published`, async () => {
+			const published = outcome === 'succeeded' || outcome === 'reconciled';
+			const mutationResult: PullRequestReplyAndResolveResult = {
+				reply: outcome === 'indeterminate'
+					? { outcome }
+					: { outcome, value: { id: 'C2', state: published ? 'SUBMITTED' : 'PENDING' } },
+				resolved: published,
+			};
+			const calls: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
+			const trackedReplies: Promise<PullRequestReplyAndResolveResult>[] = [];
+			const client = createTestGitHubClient({
+				mutations: new class extends mock<IPullRequestMutations>() {
+					override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>) {
+						calls.push(args);
+						return mutationResult;
+					}
+				}(),
+			});
+			const ref = { host: 'github.example.test', accountId: '1', owner: 'octo', repo: 'repo', number: 7 };
+			const missing = { status: 'missing' as const, complete: false };
+			const snapshot: PullRequestSnapshot = {
+				ref, generation: 1, headGeneration: 1,
+				core: missing, topLevelComments: missing, submittedReviews: missing, inlineComments: missing,
+				checks: missing, mergeability: missing, participants: missing,
+				reviewThreads: {
+					status: 'ready', complete: true, headSha: 'head',
+					value: [{ id: 'T1', isResolved: false, comments: [{ id: 'C1', author: { login: 'reviewer', association: 'MEMBER' } }] }],
+				},
+			};
+			const context: IAgentMergeTurnContext = {
+				client, session: sessionUri, chat: buildDefaultChatUri(sessionUri), folderKey: workingDirectory.toString(),
+				turnId: 'turn', ref, headSha: 'head', actions: ['addressReviews'],
+				configuration: { ...defaultAgentMergeConfiguration, addressReviews: true, replyAttribution: true },
+				snapshot, signal: new AbortController().signal, commentWatermark: '',
+				deferredCheckIds: new Set(), initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
+				trackReviewReply: reply => { trackedReplies.push(reply); },
+			};
+			const { host } = createHarness(true, () => context);
+
+			const result: { reply: string; resolved: boolean; message?: string } = JSON.parse(await host.executeTool(context.chat, replyToAgentMergeReviewThreadToolName, {
+				threadId: 'T1', body: 'Fixed the feedback',
+			}));
+
+			assert.deepStrictEqual({
+				reply: result.reply,
+				resolved: result.resolved,
+				preventsReplay: result.message?.includes('Do not retry') ?? false,
+				preservesReview: result.message?.includes('submit, discard, or replace') ?? false,
+				asksUser: result.message?.includes('Ask the user') ?? false,
+				requiresReenablement: result.message?.includes('explicitly re-enable Agent Merge') ?? false,
+				trackedReplies: await Promise.all(trackedReplies),
+				calls,
+			}, {
+				reply: outcome,
+				resolved: published,
+				preventsReplay: !published,
+				preservesReview: !published,
+				asksUser: !published,
+				requiresReenablement: outcome === 'pending',
+				trackedReplies: [mutationResult],
+				calls: [[ref, {
+					operationId: 'agent-merge:turn:T1', threadId: 'T1',
+					body: 'Fixed the feedback\n\n> [!NOTE]\n> Automated reply by VS Code Agent Merge.',
+					resolve: true,
+				}, context.signal]],
+			});
+		});
+	}
+
 	test('keeps other folders and the enabling chat unchanged when updating options', async () => {
 		const { stateManager, configurationService, gitService, host } = createHarness(true);
 		const peerChat = buildChatUri(sessionUri, 'peer');
@@ -622,6 +718,42 @@ suite('Agent Merge server tools', () => {
 			{ mode: 'summary' }, { mode: 'summary', jobId: 'job' }, { cursor: 'cursor' },
 			{ mode: 'range', evidenceId: 'e', startLine: 10, endLine: 209, startColumn: undefined },
 		]);
+	});
+
+	test('describes publication and pending-review safeguards for review replies', () => {
+		const group = createAgentMergeServerToolGroup();
+		const description = group.definitions.find(tool => tool.name === replyToAgentMergeReviewThreadToolName)!.description;
+		assert.deepStrictEqual([
+			'only after publication is confirmed',
+			'pending review remains unpublished',
+			'explicitly re-enable Agent Merge',
+			'Do not retry',
+			'submit, discard, or replace',
+		].map(clause => description?.includes(clause)), [true, true, true, true, true]);
+	});
+
+	test('distinguishes published, pending, unconfirmed and failed review replies in the transcript', () => {
+		const group = createAgentMergeServerToolGroup();
+		const message = (reply: string, success = true) => group.getDisplay?.(replyToAgentMergeReviewThreadToolName, {}, {
+			success,
+			text: JSON.stringify({ reply }),
+		})?.pastTenseMessage;
+
+		assert.deepStrictEqual({
+			published: message('succeeded'),
+			reconciled: message('reconciled'),
+			pending: message('pending'),
+			unconfirmed: message('indeterminate'),
+			failed: message('pending', false),
+			malformed: group.getDisplay?.(replyToAgentMergeReviewThreadToolName, {}, { success: true, text: '{}' })?.pastTenseMessage,
+		}, {
+			published: 'Replied to review feedback',
+			reconciled: 'Replied to review feedback',
+			pending: 'Saved an unpublished review reply',
+			unconfirmed: 'Could not confirm review reply publication',
+			failed: 'Failed to reply to review feedback',
+			malformed: 'Could not confirm review reply publication',
+		});
 	});
 
 	test('distinguishes deferred, requested, unconfirmed and failed reruns in the transcript', () => {

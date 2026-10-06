@@ -4,6 +4,14 @@ The **agent host** is a separate utility process (under `src/vs/platform/agentHo
 
 This is the architecture and integration reference for OTel in Agent Host sessions. It lives next to `IAgentHostOTelService` in [node/otel/agentHostOTelService.ts](node/otel/agentHostOTelService.ts) because Agent Host runs outside the extension host. Local Copilot Chat remains an independent extension-host pipeline configured with `github.copilot.chat.otel.*` and documented in [`extensions/copilot/docs/monitoring/agent_monitoring.md`](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md).
 
+Product startup telemetry and its host-lifetime correlation ID are documented in
+[`PERFORMANCE.md`](PERFORMANCE.md). They use the existing usage-telemetry consent,
+not the OTel exporter or its configuration.
+
+Host-wide diagnostic logs can be subscribed to over local Agent Host ingress, but are not advertised on Mission Control relay connections. Those logs must not contend with session operations on the bounded relay publisher. This is separate from provider-native OTel logs and their configured exporter destinations.
+
+<!-- (Written by Copilot) -->
+
 | Property | Agent Host OTel | Extension OTel |
 |---|---|---|
 | Process | Separate utility process (`src/vs/platform/agentHost/node/`) | Extension host |
@@ -11,6 +19,55 @@ This is the architecture and integration reference for OTel in Agent Host sessio
 | Service | `IAgentHostOTelService` (`node/otel/agentHostOTelService.ts`) | `IOTelService` (`extensions/copilot/src/platform/otel/`) |
 | SDK | Copilot `TelemetryConfig`, Claude environment, and Codex `otel.*` launch overrides | `@opentelemetry/sdk-node` directly |
 | Persistence | `<userData>/agent-host/otel/agent-host-traces.db` | `<extensionGlobalStorage>/otel/spans.db` |
+
+## User-perceived first progress
+
+`vscode.chat.user_perceived_time_to_first_progress` mirrors the shared
+`chat.userPerceivedTimeToFirstProgress` UI timer, including Chat view and
+Agents-window new-chat submissions. It measures submission through two animation
+frames after meaningful visible **text, reasoning, or tool** progress. Preparation
+indicators are excluded. This is a rendering approximation, not exact physical
+paint or model TTFT. The original timer and product telemetry are unchanged.
+
+Attributes use `vscode.chat.user_interaction.`:
+
+| Attribute | Meaning |
+|---|---|
+| `schemaVersion` | Numeric `1` |
+| `rendererId`, `interactionOrdinal` | Random renderer-lifetime ID and submission-order ordinal starting at 1 (not completion/export order) |
+| `requestId` | Optional opaque request ID; required on success |
+| `result` | `success`, `cancelled`, `error`, `completedWithoutProgress`, `notDispatched`, `queued`, `navigated`, `hidden`, or `disposed` |
+| `requestPhase` | `first`, `followup`, or `unknown` in chat history; not cold/warm process state |
+| `firstProgressKind` | `text`, `reasoning`, or `tool`; success only |
+| `timeToFirstProgress` | Producer-local milliseconds, success only |
+| `timeToTermination` | Producer-local milliseconds, unsuccessful observations only |
+| `windowVisible`, `windowFocused` | Source-window state at observation end; focus loss alone is allowed |
+
+Hiding terminates an observation; it is not paused/resumed. Queued and hidden
+observations are not zero-latency successes. No content, paths, session URIs, or
+remote authorities are exported. Read duration attributes, not span duration.
+These metadata spans have no `gen_ai.operation.name`, token, or cost accounting.
+
+Agent Host transports this allowlisted record using
+`vscode/reportChatUserInteraction`, gated by the independent
+`_meta['vscode.chatUserInteractionTiming']` capability. It uses the existing
+SQLite/OTLP/file diagnostic destinations, without content capture or product
+telemetry opt-in. The host drains the synthetic-span queue before acknowledging.
+The same schema is emitted by the extension-host OTel exporter for local chat;
+Agent Host measurements do not depend on the Copilot extension exporter.
+Observations ending before a response use the submission's session resource for
+routing, including composer session replacement. Unroutable remote observations
+are logged as failed deliveries, never sent to the local extension exporter.
+Observations without a session type or routable host resource, including
+pre-handoff composer terminations, also fail rather than assuming local chat.
+
+The internal `_chat.flushUserInteractionTelemetry` command waits up to 10 seconds
+for active UI observations, then drains renderer deliveries before eval snapshots
+either database. It reports started/completed/failed counts; a timeout does not
+invent a terminal outcome. Crashes, missing destinations, unsupported builds, and
+pre-dispatch observations without a routable Agent Host identity can leave gaps.
+Transport failures are logged, never allowed to fail the chat submission, and
+are not retried. Older hosts never receive the new extension request.
 
 ## First Response Diagnostics
 
@@ -61,6 +118,8 @@ the deadline remain missing; the marker is not proof that a turn completed.
 | Host `timeToFirstProgress`, `timeToFirstSubstantiveProgress` | Turn start to existing first visible/substantive progress boundaries; absent if not observed |
 | Host `sendStageWorkingDirectoryMs`, `sendStageModelSelectionMs`, `sendStageAttachmentsMs`, `sendStageContributionsMs` | Elapsed time in each existing pre-send stage that ran; an interrupted open stage retains its partial duration |
 | Host `sendStageCheckpointMs` | **Residual critical-path wait** for the checkpoint after overlap with earlier preparation, not the entire checkpoint operation |
+| Host `sendStageProviderPreparationMs` | **Residual critical-path wait** for provider turn preparation (`IAgentChats.prepareTurn`, enabled by `chat.agentHost.experimental.overlapProviderPreparation`) after it overlapped the earlier pre-send stages and the checkpoint capture; absent when preparation did not run. Provider stage marks made during preparation precede dispatch and are not reported as `providerStage*Ms` |
+| Host `providerStageQueueMs`, `providerStageClientMs`, `providerStageSnapshotMs`, `providerStageConfigMs`, `providerStageCreateMs`, `providerStageFinalizeMs`, `providerStagePersistMs`, `providerStageRefreshMs`, `providerStageTurnPrepareMs`, `providerStageModelResponseMs` | Sequential provider-marked stages between provider dispatch and first progress (chat queue wait, SDK client acquisition, customization snapshot, session config, SDK create/resume, post-create setup, session registration/persistence, live-session refresh, per-turn preparation, and SDK send until first progress). Only stages the provider ran are present; a turn ending before first progress retains its partial open stage. Copilot marks all of them; other providers currently mark none |
 | Host `hostRootTurnOrdinal`, `hostProcessAgeMs`, `titleGenerationStrategy` | Existing root ordinal and process age captured at turn start, and effective `activeAgent`, `utility`, or `deferred` strategy when observed |
 | Renderer `requestId` | Exact client request ID, duplicated as `turnId` for joins |
 | Renderer `outcome`, `sessionTurnKind`, `invocationKind` | Existing diagnostic classifications described below |
@@ -134,7 +193,11 @@ discarding them from outcome reporting. Missing historical fields remain unknown
 
 The host log separately records `[AgentHostTurnTiming]` JSON with `schemaVersion: 1`,
 `sessionId`, `chatId`, `turnId`, `provider`, `hostRootTurnOrdinal` (one-based, across providers)
-and `hostProcessAgeMs`, captured at turn start. The first strategy capture adds
+and `hostProcessAgeMs`, captured at turn start. At a dispatched turn's first
+progress, `[AgentHostFirstProgress]` JSON records `timeToFirstProgress`,
+`timeToProviderDispatch`, and the rounded host `sendStages` and provider
+`providerStages` durations observed so far, for attributing local latency
+without product telemetry. The first strategy capture adds
 an enriched marker with the same start values and `titleGenerationStrategy`
 (`activeAgent`, `utility`, or `deferred`). Merge compatible markers for one turn,
 retaining the known strategy rather than counting them as separate observations.
@@ -170,6 +233,41 @@ No prompts, response bodies, tool arguments, or workspace paths are added.
 The usage sidecar diagnostics are separate from provider OTel and product telemetry.
 The native SDK's output TTFT includes reasoning and tool-call output, so it is
 not interchangeable with renderer first-response-text latency.
+
+## Sandbox Connection Product Scorecard
+
+The renderer's [cloud sandbox telemetry owner](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxTelemetry.ts)
+uses ordinary VS Code product telemetry, not provider OTel. Existing telemetry-level
+and administrator controls apply; no additional setting or exporter is needed.
+
+- `cloudSandboxConnectionOutcome`: one `connect` or `recover` outcome (`success`,
+  `failure`, `cancelled`) and `durationMs`. Public connects start before credential
+  minting, waking and sealed-token waits; direct factory dials start at connection
+  setup. `stage` is `credentials` or `connection`. Readiness means authenticated
+  AHP initialization/state restoration, not WebSocket open. Reuse is excluded.
+  Retries, backoff and outer-client replacement stay in the same operation;
+  an initial handshake retry is not a healthy connection drop.
+- `cloudSandboxConnectionHealth`: five-minute aggregate deltas across tracked
+  connections, plus each connection's final delta at teardown. `connectedMs`
+  includes quiet healthy connections and excludes outages. `unexpectedDisconnects`
+  excludes intentional disconnect, cancellation, account/feature teardown and
+  shutdown. `receivedFrames` counts inbound relay frames, including control,
+  malformed, chunk and recovery traffic; it is not unique messages or bytes.
+
+Primary stability measure: `sum(unexpectedDisconnects) / (sum(connectedMs) / 3600000) * 100`
+unexpected disconnects per 100 connected hours. Ready rate is
+`successes / (successes + failures)`, with cancellations shown separately.
+Report successful p50/p95 ready/recovery durations alongside failure and cancellation
+rates; use p99 only with enough samples. Compare like traffic levels and product
+surfaces using existing `commitHash`, `version`, `common.platform`,
+`common.product` and `common.isAgentsWindow` properties (including web Agents).
+
+Both versions need this instrumentation; missing historical measurements cannot
+be reconstructed, and a version comparison alone is not causal proof. Deltas reset
+before reporting, but hard crashes can lose the final partial interval or an
+unfinished outcome; delivery is not exactly once. Browser timer throttling can
+delay summaries. No connection identifiers, credentials, addresses or error text
+are emitted, and the existing request aggregation is unchanged.
 
 ## Sources of Truth
 
@@ -210,7 +308,7 @@ flowchart LR
     codex -. Native logs and metrics .-> sink
 ```
 
-- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK is constructed with the user's exporter settings unmodified and exports directly. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
+- **Pass-through mode** (default when only `otlpEndpoint` is configured): the SDK exports directly to the user's destination. For native HTTP trace exporters, a bare base URL is resolved to `/v1/traces` before it is supplied as a signal-specific endpoint. Explicit/custom paths and gRPC endpoints are unchanged; the base destination for other signals is preserved. SDK span data is not intercepted; the agent host additionally emits the session-title metadata span described below through the configured exporter.
 - **DB mode** (`COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED=true`): `AgentHostOTelService` starts a `LocalOtlpHttpReceiver` on `127.0.0.1` with an ephemeral port, then configures every native provider's trace exporter to use that loopback over OTLP/HTTP JSON. For each batch the receiver decodes the body and inserts spans into `OTelSqliteStore` (`onSpans`). If an OTLP/HTTP JSON external endpoint is also configured, the receiver fans the normalized JSON trace body out to an `OtlpHttpForwarder` (`onForward`) so the collector keeps receiving traces alongside the local DB. For OTLP/HTTP protobuf and OTLP/gRPC external protocols, traces remain in SQLite while native logs and metrics still export directly.
 
 ## Native Provider Signal Routing
@@ -311,7 +409,7 @@ The workbench-side starter translates the settings above into the following env 
 
 Inside Agent Host, OTel activates when `COPILOT_OTEL_ENABLED` or `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` is truthy, or when an OTLP endpoint or file-exporter path is non-empty. This allows inherited environment configuration to enable OTel without a local VS Code setting.
 
-> **Activation timing.** Env vars are bound at agent host **spawn time**. Changing a setting while the agent host is already running has no effect until the host respawns — restart VS Code or reload the window if you change these settings mid-session.
+> **Activation timing.** Env vars are bound at agent host **spawn time**. When settled enterprise OTel policy changes after startup, VS Code automatically respawns the local agent host with the new policy. Temporary policy-refresh values and windows still resolving their initial account do not restart an existing host. Changes to personal settings still require a manual agent host or window restart.
 
 ## Local SQLite Span Store
 
@@ -364,7 +462,7 @@ src/vs/platform/otel/
 
 ## Settings → Env Var Translation
 
-`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv)`, and merges the result into the spawned process's environment. Parent-env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over parent env**.
+`buildAgentHostOTelEnv()` ([common/agentService.ts](common/agentService.ts)) is the single translation point. The starter (`electronAgentHostStarter.ts` / `nodeAgentHostStarter.ts`) reads settings, calls `buildAgentHostOTelEnv(settings, parentEnv, policySettings, shellEnv)`, and merges the result into the spawned process's environment. Parent-process env values win over the local `chat.agentHost.otel.*` settings (developer override); **enterprise managed-policy values win over inherited env**. For identity capture, resolved login-shell env also wins over personal settings. Other OTel keys retain their existing precedence: shell-only values do not override the settings overlay.
 
 | Setting | Env var |
 |---|---|
@@ -372,16 +470,54 @@ src/vs/platform/otel/
 | `chat.agentHost.otel.exporterType` | `COPILOT_OTEL_EXPORTER_TYPE` |
 | `chat.agentHost.otel.otlpEndpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` (`COPILOT_OTEL_ENDPOINT` is also accepted when the standard variable is unset) |
 | `chat.agentHost.otel.captureContent` | `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` |
+| `chat.agentHost.otel.captureIdentity` (hidden policy slot) | `COPILOT_OTEL_CAPTURE_IDENTITY` |
 | `chat.agentHost.otel.outfile` | `COPILOT_OTEL_FILE_EXPORTER_PATH` |
 | `chat.agentHost.otel.dbSpanExporter.enabled` | `COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED` |
 
 `OTEL_EXPORTER_OTLP_HEADERS` flows via env inheritance only. `OTEL_EXPORTER_OTLP_PROTOCOL`, `OTEL_SERVICE_NAME`, and `OTEL_RESOURCE_ATTRIBUTES` are not translated from the local `chat.agentHost.otel.*` settings, but **enterprise managed settings (policy)** can set them on the spawned host: the renderer forwards the resolved policy to the starter, and managed values win over inherited env.
 
-Starting in VS Code 1.140, the shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
-`telemetry.capture.identity` for the legacy Local extension's policy reference.
-Its hidden `chat.agentHost.otel.captureIdentity` delivery slot is not translated
-into environment variables: the native Copilot runtime owns managed identity
-enforcement. The content-capture shorthand does not enable identity. See the
+The shared `CopilotOtelCaptureIdentity` policy registers the boolean managed leaf
+`telemetry.capture.identity`. Its hidden `chat.agentHost.otel.captureIdentity`
+delivery slot now also governs the **host-owned** OTel pipeline. Explicit managed
+`true` and `false` override inherited `COPILOT_OTEL_CAPTURE_IDENTITY` and personal
+preferences. Without a managed value, environment wins over personal preferences;
+capture is off by default. Identity capture does not enable OTel or content capture.
+
+When OTel and identity capture are enabled, host-produced metadata uses
+`process.user.name` and `host.name` resource attributes. Explicit resource
+attributes override detected values. OS username and hostname detection fail
+independently: each failure logs a warning and omits only that detected attribute,
+without preventing the other lookup or explicitly configured identity capture.
+The host does not invent an authenticated `user.name` for its provider-neutral
+metadata; account attribution on native invocation spans belongs to the provider.
+
+When identity capture is off, `user.name`, `process.user.name`, and `host.name`
+are removed even from explicitly supplied resource attributes. The DB-mode
+loopback strips these keys from resources, instrumentation scopes, spans, events,
+and links **before** SQLite persistence and OTLP/file/console fan-out. When capture
+is allowed, provider-supplied identity is retained, not replaced with the host's
+detected identity. Console output remains a summary without these attributes.
+If request normalization fails, the loopback rejects the entire payload with
+HTTP 400 before persistence or forwarding; it never forwards the original,
+potentially unredacted bytes. The warning does not include payload or exception
+text. Unrelated attributes and content-capture behavior are unchanged for
+accepted requests.
+
+Settled identity-policy changes, including denial, re-enablement, and withdrawal,
+use the shared local host's automatic replacement described below. The new
+process re-resolves the effective value; withdrawal restores the environment or
+personal preference. The old process retains its startup configuration until
+replacement, including in-flight exports. Previously exported or persisted data
+cannot be recalled. Personal changes and standalone/remote host deployments
+without the desktop policy-restart path require an explicit restart.
+
+This is **not** enforcement of every native runtime's direct exports. Native
+Copilot resolves its own managed identity policy; the SDK `TelemetryConfig` has no
+identity override. Provider-native traces that bypass the loopback, and directly
+exported logs/metrics, remain governed by their runtime. No authenticated account
+or detected OS/host identity is injected into the SDK resource configuration.
+The shared policy also remains the legacy Local extension's policy reference;
+these are separate pipelines, not interchangeable setting aliases. See the
 [Local harness documentation](../../../../extensions/copilot/docs/monitoring/agent_monitoring.md#governed-identity-capture)
 for the extension-host implementation.
 
@@ -398,4 +534,4 @@ This matches the path-handling rules of the official OpenTelemetry SDKs and ensu
 
 ## Spawn-Time Env Binding
 
-The agent host inherits its env vars at fork time. `IAgentHostOTelService` reads `process.env` once in its constructor and caches the resolved config. Changing a `chat.agentHost.otel.*` setting at runtime therefore has **no effect** on the currently-running agent host — the host must respawn (reload window / restart VS Code) to pick up the new value. This is the same model used by the rest of the agent host service surface.
+The agent host inherits its env vars at fork time. `IAgentHostOTelService` reads `process.env` once in its constructor and caches the resolved config. The renderer forwards enterprise-resolved OTel policy changes and account-policy readiness to the main process. The main process retains the existing host's policy during a pending refresh or another window's initial account resolution. A settled change, including policy withdrawal or fail-closed restrictions after a failed refresh, respawns the shared local agent host. Pending refreshes do not bypass the account-policy gate on AI functionality. A cold host can use provisional startup values until settled policy arrives. Personal `chat.agentHost.otel.*` setting changes do not trigger this automatic restart and require a manual agent host or window restart.

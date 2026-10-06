@@ -165,7 +165,7 @@ suite('TerminalSandboxEngine', () => {
 	}
 
 	function enableWindowsSandbox(): void {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 	}
 
@@ -693,7 +693,8 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(createFileCount, 0, 'Disabled sandbox precheck should not create sandbox config files');
 	});
 
-	test('isEnabled returns false on Windows when Windows sandbox setting is disabled by default', async () => {
+	test('isEnabled returns false on Windows when the unified sandbox setting is off', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -702,8 +703,7 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(await engine.getSandboxConfigPath(), undefined);
 	});
 
-	test('isEnabled returns true on Windows when Windows sandbox setting is enabled even if global sandboxing is off', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
+	test('isEnabled returns true on Windows when the unified sandbox setting is on', async () => {
 		enableWindowsSandbox();
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
@@ -712,9 +712,8 @@ suite('TerminalSandboxEngine', () => {
 		strictEqual(await engine.isSandboxAllowNetworkEnabled(), true);
 	});
 
-	test('enabledWindows on value does not enable allowNetwork on Windows', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+	test('the unified enable setting does not enable allowNetwork on Windows', async () => {
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
 
@@ -784,6 +783,52 @@ suite('TerminalSandboxEngine', () => {
 		ok(config.filesystem.readwritePaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user/appdata/local/temp'), 'Host temp path from Windows policy should be writable');
 		ok(config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/configured/secret'), 'Configured Windows denyRead path should be denied');
 		ok(!config.filesystem.deniedPaths.some((path: string) => normalizeWindowsPathForAssert(path) === 'c:/users/user'), 'User home should not be denied by default on Windows');
+	});
+
+	test('Windows sandbox config includes host read roots without granting write access', async () => {
+		enableWindowsSandbox();
+		const host = createWindowsHost({
+			getReadRoots: () => [URI.from({ scheme: 'file', path: '/c:/session-data/session-1/attachments' })],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		await engine.wrapCommand('echo hello', false, 'pwsh');
+		const configPath = await engine.getSandboxConfigPath();
+		ok(configPath, 'Config path should be defined');
+		const config: IWindowsMxcConfig = JSON.parse(createdFiles.get(configPath)!);
+		const attachmentPath = 'c:/session-data/session-1/attachments';
+
+		deepStrictEqual({
+			readonly: config.filesystem?.readonlyPaths?.some(path => normalizeWindowsPathForAssert(path) === attachmentPath),
+			readwrite: config.filesystem?.readwritePaths?.some(path => normalizeWindowsPathForAssert(path) === attachmentPath),
+			sessionStorage: config.filesystem?.readonlyPaths?.some(path => normalizeWindowsPathForAssert(path) === 'c:/session-data/session-1'),
+		}, {
+			readonly: true,
+			readwrite: false,
+			sessionStorage: false,
+		});
+	});
+
+	test('checkFileAccess includes host read roots on Windows', async () => {
+		enableWindowsSandbox();
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsFileSystem, {
+			denyRead: ['C:/session-data'],
+		});
+		const host = createWindowsHost({
+			getReadRoots: () => [URI.from({ scheme: 'file', path: '/c:/session-data/session-1/attachments' })],
+		});
+		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));
+
+		deepStrictEqual({
+			read: await engine.checkFileAccess('read', [
+				'C:\\session-data\\session-1\\attachments\\image.png',
+				'C:\\session-data\\session-1\\private.json',
+			]),
+			write: await engine.checkFileAccess('write', ['C:\\session-data\\session-1\\attachments\\image.png']),
+		}, {
+			read: { allowed: false, denied: ['C:\\session-data\\session-1\\private.json'] },
+			write: { allowed: false, denied: ['C:\\session-data\\session-1\\attachments\\image.png'] },
+		});
 	});
 
 	test('deduplicates Windows filesystem paths regardless of case or separator', async () => {
@@ -916,7 +961,7 @@ suite('TerminalSandboxEngine', () => {
 	});
 
 	test('allowNetwork maps to MXC allow network config on Windows', async () => {
-		setSandboxSetting(AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxEnabledValue.On);
+		setSandboxSetting(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		setSandboxSetting(AgentSandboxSettingId.AgentSandboxAllowNetwork, true);
 		const host = createWindowsHost();
 		const engine = store.add(instantiationService.createInstance(TerminalSandboxEngine, host));

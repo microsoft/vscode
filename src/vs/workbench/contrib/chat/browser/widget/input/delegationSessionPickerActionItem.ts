@@ -28,6 +28,7 @@ import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { AgentSessionProviders, AgentSessionTarget, getAgentCanContinueIn, getAgentSessionProvider, isAgentHostTarget, isFirstPartyAgentSessionProvider } from '../../agentSessions/agentSessions.js';
 import { ISessionTypePickerDelegate } from '../../chat.js';
+import { IChatHarnessSwitchFeedbackSurveyService } from '../../feedbackSurvey/chatHarnessSwitchFeedbackSurveyService.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ISessionTypeItem, SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { IGitService } from '../../../../git/common/gitService.js';
@@ -43,6 +44,7 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		chatSessionPosition: 'sidebar' | 'editor',
 		delegate: ISessionTypePickerDelegate,
 		pickerOptions: IChatInputPickerOptions,
+		inputUri: URI,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -58,12 +60,16 @@ export class DelegationSessionPickerActionItem extends SessionTypePickerActionIt
 		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 		@IAgentSdkSetupService agentSdkSetupService: IAgentSdkSetupService,
 		@ICodexAccountService codexAccountService: ICodexAccountService,
+		@IChatHarnessSwitchFeedbackSurveyService harnessSwitchFeedbackSurveyService: IChatHarnessSwitchFeedbackSurveyService,
 		@IGitService private readonly gitService: IGitService,
 	) {
-		super(action, chatSessionPosition, delegate, pickerOptions, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, codexAccountService);
+		super(action, chatSessionPosition, delegate, pickerOptions, inputUri, actionWidgetService, keybindingService, contextKeyService, chatSessionsService, commandService, openerService, telemetryService, chatEntitlementService, languageModelsService, configurationService, storageService, workspaceContextService, agentHostEnablementService, agentSdkSetupService, codexAccountService, harnessSwitchFeedbackSurveyService);
 	}
 
 	protected override _run(sessionTypeItem: ISessionTypeItem): void {
+		const previousTarget = this._getSelectedSessionType() ?? this._getDefaultSessionType();
+		this._reportCopilotHarnessTargetChanged(sessionTypeItem.type);
+		this._promptForCopilotToLocalSwitch(previousTarget, sessionTypeItem.type);
 		if (this.delegate.setPendingDelegationTarget) {
 			this.delegate.setPendingDelegationTarget(sessionTypeItem.type);
 		}

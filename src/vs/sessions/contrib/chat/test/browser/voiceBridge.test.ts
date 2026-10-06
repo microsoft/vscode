@@ -13,8 +13,8 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IVoiceSessionController } from '../../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { IChat, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IOpenNewSessionOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { INewChatVoiceComposer, NewChatVoiceTargetService } from '../../browser/newChatVoice.js';
 import { prepareNewVoiceSession, SessionsVoiceNewComposerContribution } from '../../browser/voiceBridge.contribution.js';
 
@@ -157,11 +157,13 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		assert.strictEqual(getDisconnectCount(), 0);
 	});
 
-	test('creates and sends a voice-requested session without waiting for its composer', async () => {
+	test('uses the selected provider and sends without waiting for the composer', async () => {
 		const workspace = new class extends mock<ISessionWorkspace>() {
 			override readonly uri = URI.file('/workspace');
 		}();
 		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly providerId = 'hidden-provider';
+			override readonly sessionType = 'hidden-type';
 			override readonly workspace = constObservable(workspace);
 			override readonly isQuickChat = constObservable(false);
 		}();
@@ -169,9 +171,11 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		const createdSession = new class extends mock<ISession>() {
 			override readonly mainChat = constObservable(chat);
 		}();
+		let openOptions: IOpenNewSessionOptions | undefined;
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(activeSession);
-			override async openNewSession() {
+			override async openNewSession(options?: IOpenNewSessionOptions) {
+				openOptions = options;
 				return { session: createdSession, trustDeclined: false };
 			}
 		}();
@@ -210,11 +214,66 @@ suite('SessionsVoiceNewComposerContribution', () => {
 		assert.deepStrictEqual({
 			result,
 			hasDraftTarget: hasDraftTarget.get(),
+			openOptions,
 			sent,
 		}, {
 			result: 'sent',
 			hasDraftTarget: true,
+			openOptions: {
+				folderUri: workspace.uri,
+				providerId: 'hidden-provider',
+			},
 			sent: [{ session: createdSession, query: 'refactor the upload service' }],
+		});
+	});
+
+	test('preserves an available harness for a voice-requested session', async () => {
+		const workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly uri = URI.file('/workspace');
+		}();
+		const activeSession = new class extends mock<IActiveSession>() {
+			override readonly providerId = 'selected-provider';
+			override readonly sessionType = 'selected-type';
+			override readonly workspace = constObservable(workspace);
+			override readonly isQuickChat = constObservable(false);
+		}();
+		const createdSession = new class extends mock<ISession>() { }();
+		let openOptions: IOpenNewSessionOptions | undefined;
+		const sessionsService = new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(activeSession);
+			override async openNewSession(options?: IOpenNewSessionOptions) {
+				openOptions = options;
+				return { session: createdSession, trustDeclined: false };
+			}
+		}();
+		const sessionsManagementService = new class extends mock<ISessionsManagementService>() {
+			override isNewSessionTargetAvailable(_folderUri: URI, options?: ICreateNewSessionOptions): boolean {
+				return options?.providerId === 'selected-provider' && options.sessionTypeId === 'selected-type';
+			}
+		}();
+		const voiceSessionController = new class extends mock<IVoiceSessionController>() {
+			override readonly targetSession = constObservable<URI | undefined>(undefined);
+			override readonly hasDraftTarget = constObservable(false);
+			override setDraftTarget(): void { }
+		}();
+
+		const result = await prepareNewVoiceSession(
+			'',
+			sessionsService,
+			sessionsManagementService,
+			voiceSessionController,
+			() => false,
+			() => ({ dispose() { } }),
+			new NullLogService(),
+		);
+
+		assert.deepStrictEqual({ result, openOptions }, {
+			result: 'prepared',
+			openOptions: {
+				folderUri: workspace.uri,
+				providerId: 'selected-provider',
+				sessionTypeId: 'selected-type',
+			},
 		});
 	});
 

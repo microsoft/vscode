@@ -41,7 +41,7 @@ import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpService, IMcpWorkben
 import { McpResourceFormat, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { ContributionEnablementState } from '../../chat/common/enablement.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IIterativePager, IIterativePage } from '../../../../base/common/paging.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { autorun } from '../../../../base/common/observable.js';
@@ -550,7 +550,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 	}
 
-	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>> {
+	async queryGallery(options?: IQueryOptions, token?: CancellationToken, manifest?: IMcpGalleryManifest): Promise<IIterativePager<IWorkbenchMcpServer>> {
 		if (!this.mcpGalleryService.isEnabled()) {
 			return {
 				firstPage: { items: [], hasMore: false },
@@ -558,7 +558,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			};
 		}
 		const registryGeneration = this.registryGeneration;
-		const pager = await this.mcpGalleryService.query(options, token);
+		const pager = await this.mcpGalleryService.query(options, token, manifest);
 		const mapPage = (page: IIterativePage<IGalleryMcpServer>): IIterativePage<IWorkbenchMcpServer> => ({
 			items: page.items.map(gallery => this.fromGallery(gallery, registryGeneration) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined)),
 			hasMore: page.hasMore
@@ -666,9 +666,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return [...result.values()];
 	}
 
-	async getMcpServerFromGallery(name: string): Promise<IWorkbenchMcpServer | undefined> {
+	async getMcpServerFromGallery(name: string, manifest?: IMcpGalleryManifest): Promise<IWorkbenchMcpServer | undefined> {
 		const registryGeneration = this.registryGeneration;
-		const servers = await this.mcpGalleryService.getMcpServersFromGallery([{ name }]);
+		const servers = await this.mcpGalleryService.getMcpServersFromGallery([{ name }], manifest);
 		if (registryGeneration !== this.registryGeneration) {
 			throw new Error(localize('mcpRegistryChangedDuringLookup', "The MCP registry changed. Try installing the server again."));
 		}
@@ -677,7 +677,10 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return undefined;
 		}
 		this.rememberGallerySource(gallery, registryGeneration);
-		return this.getInstalledGalleryServer(gallery.name) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
+		const installed = this.getInstalledGalleryServer(gallery.name);
+		return gallery.galleryUrl && installed?.local?.galleryUrl === gallery.galleryUrl && installed.gallery?.name === gallery.name
+			? installed
+			: this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), e => this.getRuntimeStatus(e), undefined, gallery, undefined);
 	}
 
 	async getMcpServerFromAgentFinder(name: string, version: string, token: CancellationToken = CancellationToken.None): Promise<IWorkbenchMcpServer | undefined> {

@@ -6,9 +6,11 @@
 	},
 	"commands": {
 		"covered": 32,
-		"total": 32,
-		"percentage": 100,
-		"uncovered": []
+		"total": 33,
+		"percentage": 96.96,
+		"uncovered": [
+			"moveChat"
+		]
 	},
 	"notifications": {
 		"covered": 5,
@@ -21,21 +23,24 @@
 		]
 	},
 	"actions": {
-		"covered": 86,
-		"total": 98,
-		"percentage": 87.75,
+		"covered": 91,
+		"total": 106,
+		"percentage": 85.84,
 		"uncovered": [
-			"automationRun/cancelRequested",
 			"automationRun/sessionRemoved",
+			"canvas/stateChanged",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"chat/inputAnswerChanged",
+			"chat/canvasesChanged",
 			"chat/isArchivedChanged",
+			"chat/movableChanged",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
 			"session/activityChanged",
+			"session/chatsReordered",
 			"session/defaultChatChanged",
+			"session/mcpServerBackgroundRequested",
 			"terminal/commandDetectionAvailable"
 		]
 	}

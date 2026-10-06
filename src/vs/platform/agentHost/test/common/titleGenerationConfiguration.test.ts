@@ -13,7 +13,7 @@ import { titleGenerationConfigurationProperties } from '../../common/titleGenera
 suite('TitleGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('deferred title generation supports experiment overrides and host configuration sync', () => {
+	test('deferred title generation is default-off with experiment and host sync support', () => {
 		const property = titleGenerationConfigurationProperties[AgentHostDeferredTitleGenerationSettingId];
 
 		assert.deepStrictEqual({

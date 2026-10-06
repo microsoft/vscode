@@ -433,12 +433,25 @@ suite('agentHostSessionFiles - per-chat subscriptions', () => {
 
 		const before = output.getLastTurnChanges(CHAT_A);
 		const cached = output.getLastTurnChanges(CHAT_A);
+		const customizationsBefore = output.getChatCustomizations(CHAT_A);
+		const customizationsCached = output.getChatCustomizations(CHAT_A);
 		output.releaseChat(CHAT_A);
 		const afterRelease = output.getLastTurnChanges(CHAT_A);
+		const customizationsAfterRelease = output.getChatCustomizations(CHAT_A);
 
 		assert.deepStrictEqual(
-			{ reusedWhileLive: cached === before, reusedAfterRelease: afterRelease === before },
-			{ reusedWhileLive: true, reusedAfterRelease: false },
+			{
+				reusedWhileLive: cached === before,
+				reusedAfterRelease: afterRelease === before,
+				customizationsReusedWhileLive: customizationsCached === customizationsBefore,
+				customizationsReusedAfterRelease: customizationsAfterRelease === customizationsBefore,
+			},
+			{
+				reusedWhileLive: true,
+				reusedAfterRelease: false,
+				customizationsReusedWhileLive: true,
+				customizationsReusedAfterRelease: false,
+			},
 		);
 	});
 });

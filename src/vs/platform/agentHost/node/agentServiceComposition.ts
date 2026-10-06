@@ -6,6 +6,7 @@
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -15,6 +16,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
@@ -43,6 +45,7 @@ import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
 import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
 import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
+import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -87,6 +90,8 @@ export function createAgentServiceComposition(
 			owned.add(options.orchestratorDatabase);
 		}
 		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService);
+		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
@@ -97,6 +102,7 @@ export function createAgentServiceComposition(
 			disposables: owned,
 			authenticationService,
 			orchestratorDatabase,
+			peerChatStore,
 			debugLogsCollector,
 			sessionRegistry,
 			stateManager,
@@ -157,15 +163,34 @@ export function createAgentServiceComposition(
 				if (!workspaceConversionService.value) {
 					throw new Error('Session workspace conversion is unavailable.');
 				}
-				workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
 			},
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
+			buildServerToolGroups(
+				sessionServerToolAccessor,
+				agentMergeTools,
+				callbackAdapter.artifactServerToolAccessor,
+				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
+				{
+					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
+					requestChatIsolation: (chat, turnId) => {
+						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
+						if (!initiatingClientId || !workspaceConversionService.value) {
+							throw new Error(localize('agentHost.chatIsolationClientRequired', "Moving a chat to a worktree with this tool requires a turn initiated by a connected client."));
+						}
+						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
+					},
+				},
+			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
-		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
+		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
+			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
+			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
+			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
+		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
 		const collaborators: IAgentServiceCollaborators = {

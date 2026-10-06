@@ -4,13 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { coalesce, distinct } from '../../../../base/common/arrays.js';
+import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -20,13 +24,15 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { AgentHostAutoAttachPullRequestsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbench/contrib/chat/browser/chatInputPills.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
-import { SessionCustomizations } from './sessionCustomizations.js';
+import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
-import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveReferenceHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
+import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
 import { getSessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
@@ -36,7 +42,10 @@ import { ISessionsService } from '../../../services/sessions/browser/sessionsSer
 import { BRANCH_CHANGES_CHANGESET_ID, ChatOriginKind, IChat, SESSION_CHANGES_CHANGESET_ID, type IGitHubIssueRef, type IGitHubPullRequestRef, type ISessionWorkspace } from '../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
@@ -45,8 +54,14 @@ import { ISessionChangesStatsCache, readChatChangesStats } from '../../../servic
 import { ISessionChangesService } from '../../changes/browser/sessionChangesService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
+import { SessionCanvasesControl } from '../../canvases/browser/sessionCanvasesControl.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
+import { GitHubResourceHoverCache } from '../../../../workbench/contrib/github/browser/githubResourceHoverCache.js';
+
+const copiedLabel = localize('sessionChatPills.copied', "Copied");
+const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
+const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
@@ -73,13 +88,16 @@ function getPullRequestAttention(icon: ThemeIcon, status: IResolvedSessionPullRe
 	return undefined;
 }
 
-function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService) {
+function getGitHubHoverLinkData(owner: string, repo: string, reference: URI, openerService: IOpenerService, onDidOpenReference?: () => void) {
 	const repository = URI.parse(`https://github.com/${owner}/${repo}`);
 	return {
 		repositoryHref: repository.toString(true),
 		referenceHref: reference.toString(true),
 		onDidClickRepository: () => { void openerService.open(repository, { openExternal: true }); },
-		onDidClickReference: () => { void openerService.open(reference, { openExternal: true }); },
+		onDidClickReference: () => {
+			void openerService.open(reference, { openExternal: true });
+			onDidOpenReference?.();
+		},
 	};
 }
 
@@ -101,12 +119,15 @@ function createCachedHover<T extends IGitHubPullRequestRef | IGitHubIssueRef>(ca
 	return { element: cachedHover.element, tabbableElements: hover.tabbableElements };
 }
 
-interface IRecordedReferenceActions {
-	remove(id: string, label: string): Promise<void>;
+interface IRecordedArtifactActions {
+	remove?(ids: readonly string[], label: string): Promise<void>;
+	recordOpen?(id: string): void;
 }
 
+type CreateCopyAction = (key: string, label: string, copy: () => Promise<void>) => IAction;
+
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, referenceActions?: IRecordedReferenceActions, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: GitHubResourceHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
 		const title = pullRequest?.title ?? ref.title;
 		const recordedReferenceId = ref.recordedReferenceId;
@@ -115,7 +136,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			owner: ref.owner,
 			repo: ref.repo,
 			number: ref.number,
-			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService, recordedReferenceId ? () => artifactActions?.recordOpen?.(recordedReferenceId) : undefined),
 			pullRequest,
 			ciStatus,
 			density,
@@ -123,7 +144,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			...(pullRequest.headRef ? { onDidClickHeadBranch: () => { void clipboardService.writeText(pullRequest.headRef); } } : {}),
 		}) : undefined;
 		const createDropdownHover = createHover ? () => {
-			const hover = createCachedHover(dropdownHoverCache, ref, () => createHover('compact'));
+			const hover = createHover('compact');
 			hoverTabbableElements = hover.tabbableElements;
 			return hover.element;
 		} : undefined;
@@ -149,20 +170,24 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 		const checksDescription = pullRequest && !(ciStatus === GitHubCIOverallStatus.Failure && status.hasFailingChecks)
 			? getPullRequestChecksStatusLabel(pullRequest, ciStatus)
 			: undefined;
-		return {
+		const entry: IChatPullRequestPillEntry = {
 			id: recordedReferenceId ?? ref.uri.toString(),
 			label,
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: resolvedIcon,
 			pullRequestState: state,
-			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
+			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removePullRequest.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removePullRequest', "Remove pull request reference from session"),
+				label: localize('sessionChatPills.removePullRequest', "Remove Pull Request Artifact from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
-			}), chatPillRemoveReferenceHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(toAction({
+				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
+			}), chatPillRemoveArtifactHoverLabel) : undefined,
+			toolbarActions: [withChatPillHoverLabel(createCopyAction?.(
+				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
+				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
+				() => clipboardService.writeText(ref.uri.toString(true)),
+			) ?? toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
@@ -182,8 +207,15 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 					sessionsService.setActive(session);
 				}
 				void commandService.executeCommand(OPEN_PULL_REQUEST_ACTION_ID, { pullRequest: ref });
+				if (recordedReferenceId) {
+					artifactActions?.recordOpen?.(recordedReferenceId);
+				}
 			},
-		} satisfies IChatPullRequestPillEntry;
+		};
+		return hoverCache ? {
+			...entry,
+			...hoverCache.get(`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`, entry, createHover),
+		} : entry;
 	});
 	return entries.length > 0 ? [{ title: localize('sessionChatPills.pullRequests', "Pull Requests"), entries }] : [];
 }
@@ -193,17 +225,27 @@ interface IResolvedSessionIssue {
 	readonly issue: IGitHubIssue | undefined;
 }
 
-/** Builds Agents Window issue pill entries, enriching them when live details are available. */
-export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, referenceActions?: IRecordedReferenceActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
-	const entries = issues.map(({ ref, issue }) => {
+function groupSessionIssues(issues: readonly IResolvedSessionIssue[]) {
+	const groups = groupBy(issues, ({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`);
+	return coalesce(Object.values(groups)).map(group => ({
+		ref: group[0].ref,
+		issue: group.find(candidate => candidate.issue)?.issue,
+		recordedReferenceIds: distinct(group.flatMap(({ ref }) => ref.recordedReferenceId ? [ref.recordedReferenceId] : [])),
+	}));
+}
+
+/** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>, createCopyAction?: CreateCopyAction): readonly IChatPillSection[] {
+	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
+		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
 		const title = issue?.title ?? ref.title;
-		const recordedReferenceId = ref.recordedReferenceId;
+		const recordedReferenceId = recordedReferenceIds[0];
 		let hoverTabbableElements: readonly HTMLElement[] = [];
 		const createHover = issue ? (density: 'default' | 'compact') => createIssueHover({
 			owner: ref.owner,
 			repo: ref.repo,
 			number: ref.number,
-			...getGitHubHoverLinkData(ref.owner, ref.repo, ref.uri, openerService),
+			...getGitHubHoverLinkData(ref.owner, ref.repo, uri, openerService, recordedReferenceId ? () => artifactActions?.recordOpen?.(recordedReferenceId) : undefined),
 			issue,
 			density,
 		}) : undefined;
@@ -217,28 +259,32 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 			: localize('sessionChatPills.issue', "Issue #{0}", ref.number);
 		const label = title ?? resourceLabel;
 		return {
-			id: recordedReferenceId ?? ref.uri.toString(),
+			id: recordedReferenceId ?? uri.toString(),
 			label,
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
 			pillLabel: `#${ref.number}`,
 			icon: issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined),
-			promotedAction: recordedReferenceId && referenceActions ? withChatPillHoverLabel(toAction({
+			promotedAction: recordedReferenceId && artifactActions?.remove ? withChatPillHoverLabel(toAction({
 				id: `sessionChatPills.removeIssue.${recordedReferenceId}`,
-				label: localize('sessionChatPills.removeIssue', "Remove issue reference from session"),
+				label: localize('sessionChatPills.removeIssue', "Remove Issue Artifact from Session"),
 				class: ThemeIcon.asClassName(Codicon.close),
-				run: () => referenceActions.remove(recordedReferenceId, resourceLabel),
-			}), chatPillRemoveReferenceHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(toAction({
+				run: () => artifactActions.remove?.(recordedReferenceIds, resourceLabel),
+			}), chatPillRemoveArtifactHoverLabel) : undefined,
+			toolbarActions: [withChatPillHoverLabel(createCopyAction?.(
+				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
+				localize('sessionChatPills.copyIssue', "Copy issue URL"),
+				() => clipboardService.writeText(uri.toString(true)),
+			) ?? toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
-				run: () => clipboardService.writeText(ref.uri.toString(true)),
+				run: () => clipboardService.writeText(uri.toString(true)),
 			}), chatPillCopyUrlHoverLabel)],
-			...getChatPillResourceLocation(ref.uri, resourceLabel),
+			...getChatPillResourceLocation(uri, resourceLabel),
 			ariaDescription: issue
-				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, ref.uri.toString(true))
-				: ref.uri.toString(true),
-			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${ref.uri.toString(true)}` } : {}),
+				? localize('sessionChatPills.issueDescription', "{0}. {1}", getIssueStatus(issue).label, uri.toString(true))
+				: uri.toString(true),
+			...(!issue && ref.title ? { tooltip: `${resourceLabel}\n${uri.toString(true)}` } : {}),
 			...(createDropdownHover && createHover ? {
 				hover: { content: createDropdownHover, expandable: true, showIndicator: false, tabThroughPanel: true, getTabbableElements: () => hoverTabbableElements, contentOwnsPadding: true },
 				pillHover: { element: () => createHover('default').element, contentOwnsPadding: true },
@@ -247,7 +293,10 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				if (session) {
 					sessionsService.setActive(session);
 				}
-				void commandService.executeCommand(OPEN_ISSUE_ACTION_ID, { issue: ref });
+				void commandService.executeCommand(OPEN_ISSUE_ACTION_ID, { issue: { ...ref, uri } });
+				if (recordedReferenceId) {
+					artifactActions?.recordOpen?.(recordedReferenceId);
+				}
 			},
 		} satisfies IChatPillEntry;
 	});
@@ -260,7 +309,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace)) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader))) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -269,8 +318,19 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
 }
 
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined): string {
-	return workspace?.folders[0]?.gitRepository?.workTreeUri
+/** Whether `chat` is one of the session's nested chats rather than its main chat. */
+function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+	const mainChat = session?.mainChat?.read(reader);
+	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
+}
+
+/**
+ * The changeset represented by the Changes pill. A nested chat reports its own
+ * Session Changes; the main chat reports Branch Changes for a worktree and
+ * Session Changes otherwise.
+ */
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean): string {
+	return !isNested && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -281,6 +341,60 @@ function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined): st
  * 22px `.monaco-text-button.small` pill; keep in sync if either changes.
  */
 export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = CHAT_INPUT_PILLS_ROW_HEIGHT;
+
+class CopyFeedbackAction extends Action {
+
+	private readonly _reset = this._register(new MutableDisposable());
+
+	constructor(id: string, private _copyLabel: string, private _copy: () => Promise<void>) {
+		super(id, _copyLabel, ThemeIcon.asClassName(Codicon.copy));
+	}
+
+	update(copyLabel: string, copy: () => Promise<void>): void {
+		this._copyLabel = copyLabel;
+		this._copy = copy;
+		if (this.label !== copiedLabel) {
+			this.label = copyLabel;
+		}
+	}
+
+	override async run(): Promise<void> {
+		await this._copy();
+		this.label = copiedLabel;
+		this.class = ThemeIcon.asClassName(Codicon.check);
+		status(copiedToClipboardStatus);
+		this._reset.value = disposableTimeout(() => {
+			this.label = this._copyLabel;
+			this.class = ThemeIcon.asClassName(Codicon.copy);
+		}, copyFeedbackDuration);
+	}
+}
+
+class CopyFeedbackActionCache extends Disposable {
+
+	private readonly _actions = new Map<string, CopyFeedbackAction>();
+
+	get(key: string, label: string, copy: () => Promise<void>): IAction {
+		let action = this._actions.get(key);
+		if (!action) {
+			action = new CopyFeedbackAction(`sessionChatPills.copy.${key}`, label, copy);
+			this._actions.set(key, action);
+			this._register(action);
+		} else {
+			action.update(label, copy);
+		}
+		return action;
+	}
+
+	retain(keys: ReadonlySet<string>): void {
+		for (const [key, action] of this._actions) {
+			if (!keys.has(key)) {
+				action.dispose();
+				this._actions.delete(key);
+			}
+		}
+	}
+}
 
 /** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
@@ -296,9 +410,12 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _chat = observableValue<IChat | undefined>(this, undefined);
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
 	private readonly _browsers: SessionBrowsersControl;
+	private readonly _canvases: SessionCanvasesControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
-	private readonly _pullRequestDropdownHoverCache = new WeakMap<IGitHubPullRequestRef, ICachedHover>();
+	private readonly _pullRequestHoverCache = this._register(new GitHubResourceHoverCache());
 	private readonly _issueDropdownHoverCache = new WeakMap<IGitHubIssueRef, ICachedHover>();
+	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache());
+	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
@@ -346,6 +463,7 @@ export class SessionChatInputToolbar extends Disposable {
 		@IOpenerService openerService: IOpenerService,
 		@ISessionChatPillVisibilityService visibility: ISessionChatPillVisibilityService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -359,7 +477,18 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const pillsEnabled = constObservable(true);
 		this._browsers = this._register(instantiationService.createInstance(SessionBrowsersControl, this._session, this._chat, pillsEnabled, derived(reader => visibility.isVisible(SessionChatPillKind.Browsers, reader))));
-		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader, this._chat.read(reader)));
+		this._canvases = this._register(instantiationService.createInstance(SessionCanvasesControl, this._session, this._chat, derived(this, reader => this._debugData.read(reader) === undefined)));
+		const autoAssociatePullRequests = derived(this, reader => {
+			const session = this._session.read(reader);
+			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
+			return provider && isAgentHostProvider(provider)
+				? observableFromEvent(this, provider.onDidChangeRootConfig, () => {
+					const config = provider.getRootConfig();
+					return (config?.values[AgentHostAutoAttachPullRequestsConfigKey] ?? config?.schema.properties[AgentHostAutoAttachPullRequestsConfigKey]?.default) !== false;
+				})
+				: constObservable(true);
+		});
+		const gitHubReferences = derived(this, reader => getSessionGitHubReferences(this._session.read(reader), reader, this._chat.read(reader), autoAssociatePullRequests.read(reader).read(reader)));
 
 		// The browsers pill already offers the pages it lists, so the artifacts and
 		// references pills leave those websites out.
@@ -369,11 +498,14 @@ export class SessionChatInputToolbar extends Disposable {
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
 		this._referenceSections = sessionArtifacts.referenceSections;
-		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
+		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations,
+			derived(this, reader => this._chat.read(reader)?.customizations?.read(reader) ?? []),
+			derived(this, reader => this._session.read(reader)?.workspace.read(reader)?.folders ?? [])));
 		this._customizationSections = sessionCustomizations.sections;
 
 		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -381,19 +513,36 @@ export class SessionChatInputToolbar extends Disposable {
 			return session ? getSessionAgentMergeConfigurationObservable(session, sessionsProvidersService, this._configurationService, this._chat.read(reader)).read(reader) : undefined;
 		});
 		const pullRequestPresentation = this._register(new SessionPullRequestPresentationModel(pullRequestRefs, agentMergeConfiguration, gitHubService));
-		const referenceActions = (session: IActiveSession, reader: IReader): IRecordedReferenceActions | undefined => session.capabilities.read(reader).supportsRemoveArtifacts ? {
-			remove: async (id, label) => {
-				try {
-					await sessionsManagementService.removeSessionArtifact(session, id);
-					status(localize('sessionChatPills.referenceRemoved', "{0} removed from session.", label));
-				} catch (error) {
-					notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
-				}
-			},
-		} : undefined;
+		const artifactActions = (session: IActiveSession, reader: IReader): IRecordedArtifactActions => {
+			const artifactsById = new Map((session.artifacts?.read(reader) ?? []).map(artifact => [artifact.id, artifact]));
+			return {
+				recordOpen: id => {
+					const artifact = artifactsById.get(id);
+					if (artifact) {
+						logSessionArtifactOpen(telemetryService, session.sessionId, artifact.kind, artifact.isArtifact);
+					}
+				},
+				...(session.capabilities.read(reader).supportsRemoveArtifacts ? {
+					remove: async (ids: readonly string[], label: string) => {
+						try {
+							for (const id of ids) {
+								await sessionsManagementService.removeSessionArtifact(session, id);
+							}
+							status(localize('sessionChatPills.referenceRemoved', "{0} removed from session.", label));
+						} catch (error) {
+							notificationService.error(localize('sessionChatPills.removeReferenceFailed', "Could not remove {0} from this session: {1}", label, toErrorMessage(error)));
+						}
+					},
+				} : {}),
+			};
+		};
 		const pullRequestSections = derived(this, reader => {
 			const session = this._session.read(reader);
-			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._pullRequestDropdownHoverCache);
+			const pullRequests = pullRequestPresentation.pullRequests.read(reader);
+			const keys = new Set(pullRequests.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`));
+			this._pullRequestCopyActions.retain(keys);
+			this._pullRequestHoverCache.retain(keys, session ? `${session.providerId}/${session.sessionId}` : undefined);
+			return buildSessionPullRequestSections(pullRequests, session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._pullRequestHoverCache, (key, label, copy) => this._pullRequestCopyActions.get(key, label, copy));
 		});
 		const issueRefs = derivedOpts<readonly IGitHubIssueRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).issues);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
@@ -419,10 +568,12 @@ export class SessionChatInputToolbar extends Disposable {
 		}));
 		const issueSections = derived(this, reader => {
 			const session = this._session.read(reader);
-			return buildSessionIssueSections(issues.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? referenceActions(session, reader) : undefined, this._issueDropdownHoverCache);
+			const resolvedIssues = issues.read(reader);
+			this._issueCopyActions.retain(new Set(resolvedIssues.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`)));
+			return buildSessionIssueSections(resolvedIssues, session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._issueDropdownHoverCache, (key, label, copy) => this._issueCopyActions.get(key, label, copy));
 		});
 		const issueIcon = derived(this, reader => {
-			const resolved = issues.read(reader);
+			const resolved = groupSessionIssues(issues.read(reader));
 			if (resolved.length === 1) {
 				const issue = resolved[0].issue;
 				return issue ? computeIssueIcon(issue.state, issue.stateReason) : computeIssueIcon(GitHubIssueState.Open, undefined);
@@ -430,7 +581,11 @@ export class SessionChatInputToolbar extends Disposable {
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
 		const changesLabel = derived(this, reader => {
-			const workspace = this._session.read(reader)?.workspace.read(reader);
+			const session = this._session.read(reader);
+			if (isNestedChat(session, this._chat.read(reader), reader)) {
+				return localize('sessionChatPills.sessionChanges', "Session Changes");
+			}
+			const workspace = session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 			return branch
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
@@ -445,12 +600,13 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
-					const workspace = this._chat.get()?.workspace?.get() ?? session.workspace.get();
+					const chat = this._chat.get();
+					const workspace = chat?.workspace?.get() ?? session.workspace.get();
 					layoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace),
+							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined)),
 						}
 					});
 				},
@@ -459,31 +615,14 @@ export class SessionChatInputToolbar extends Disposable {
 			issues: {
 				sections: issueSections,
 				icon: issueIcon,
-				getContextMenuPrimaryActions: () => {
-					const entries = issueSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
 			},
-			artifacts: {
-				sections: this._artifactSections,
-				getContextMenuPrimaryActions: () => {
-					const entries = this._artifactSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
-			},
-			references: {
-				sections: this._referenceSections,
-				getContextMenuPrimaryActions: () => {
-					const entries = this._referenceSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
-			},
+			artifacts: { sections: this._artifactSections },
+			references: { sections: this._referenceSections },
 			customizations: { sections: this._customizationSections },
+			canvases: { sections: this._canvases.sections },
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
+			backgroundShells,
 		}, SESSION_CHAT_PILL_KINDS));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {

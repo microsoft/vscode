@@ -151,6 +151,8 @@ suite('Sessions - Session View', () => {
 	test('preserves the new-session composer while an uncreated draft is activated', () => {
 		const createdViews: TestNewSessionView[] = [];
 		const forwardedInstantiationServices: (IInstantiationService | undefined)[] = [];
+		const forwardedOptions: IChatViewOptions[] = [];
+		const hostVisible = observableValue('hostVisible', true);
 		const shownSessions: Array<IActiveSession | undefined> = [];
 		const contentContainer = document.createElement('div');
 		mainWindow.document.body.appendChild(contentContainer);
@@ -173,6 +175,7 @@ suite('Sessions - Session View', () => {
 			_hasOpenedSession: false,
 			_currentSession: undefined,
 			_sessionObs: observableValue<IActiveSession | undefined>('session', undefined),
+			_isVisibleObs: hostVisible,
 			_openSessionDisposables: openSessionDisposables,
 			_header: { setSession: () => { } },
 			_groupsView: {
@@ -189,7 +192,8 @@ suite('Sessions - Session View', () => {
 					preparationViews.push(created);
 					return created;
 				},
-				createNewChatView: (_isNewChatInSession: boolean, _options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+				createNewChatView: (_isNewChatInSession: boolean, options: IChatViewOptions, instantiationService?: IInstantiationService) => {
+					forwardedOptions.push(options);
 					forwardedInstantiationServices.push(instantiationService);
 					const created = new TestNewSessionView();
 					createdViews.push(created);
@@ -221,6 +225,7 @@ suite('Sessions - Session View', () => {
 			preparationViewCount: preparationViews.length,
 			composerDisposed: createdViews[0].disposed,
 			focused: mainWindow.document.activeElement === preparationViews[0].element,
+			hostVisible: forwardedOptions[0].hostVisible?.get(),
 		};
 		requestInProgress.set(false, undefined);
 		const afterCancellation = {
@@ -242,17 +247,19 @@ suite('Sessions - Session View', () => {
 			finalElement: contentContainer.firstElementChild,
 			shownSessions,
 			forwardedInstantiationServices,
+			sameHostVisibility: forwardedOptions[0].hostVisible === hostVisible,
 		}, {
 			createdViewCount: 1,
 			preservedForDraft: true,
 			withoutPreparation: { retainedComposer: true, preparationViewCount: 0, focused: true },
-			duringPreparation: { showsChat: true, preparationViewCount: 1, composerDisposed: false, focused: true },
+			duringPreparation: { showsChat: true, preparationViewCount: 1, composerDisposed: false, focused: true, hostVisible: true },
 			afterCancellation: { restoredComposer: true, progressDisposed: true, focused: true },
 			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
 			shownSessions: [undefined, undefined, session],
 			forwardedInstantiationServices: [scopedInstantiationService],
+			sameHostVisibility: true,
 		});
 	});
 

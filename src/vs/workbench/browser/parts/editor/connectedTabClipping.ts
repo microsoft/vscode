@@ -20,7 +20,7 @@ export function clearConnectedTabClipping(tab: HTMLElement | undefined, overflow
 		overflowEdge.style.removeProperty('right');
 		overflowEdge.style.removeProperty('bottom');
 		overflowEdge.style.removeProperty('left');
-		overflowEdge.classList.remove('connected-tab-left-clipped', 'connected-tab-right-clipped');
+		overflowEdge.classList.remove('connected-tab-left-clipped', 'connected-tab-right-clipped', 'connected-tab-hovered');
 	}
 }
 

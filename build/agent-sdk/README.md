@@ -195,8 +195,9 @@ importing it does not spawn the native binary.
 
 ## Bumping an SDK version
 
-1. Edit the `dependencies` version in `build/agent-sdk/agents/<sdk>/package.json`
-   to the new exact version.
+1. Choose the requested exact version (normally the current npm `latest`; agent
+   SDK updates are not subject to a package-age embargo), then edit the
+   `dependencies` version in `build/agent-sdk/agents/<sdk>/package.json`.
 2. From that directory: `npm install --package-lock-only --ignore-scripts`
    to refresh `package-lock.json`.
 3. Also bump the matching `devDependencies` entry in repo-root

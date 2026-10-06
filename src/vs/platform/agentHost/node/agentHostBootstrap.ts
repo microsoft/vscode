@@ -39,8 +39,9 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService } from './shared/copilotApiService.js';
+import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface ICreateAgentHostRuntimeOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -100,6 +101,8 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
  * transports, providers, and schedulers belong in the activating entry point.
  */
 export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOptions): Promise<IAgentHostRuntime> {
+	const startup = new AgentHostStartupMarks();
+	startup.mark('bootstrapStart');
 	const { environmentService, productService, logService, loggerService } = options;
 	const infrastructure = new DisposableStore();
 	let instantiationService: InstantiationService | undefined;
@@ -137,6 +140,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			transientProxyConfiguration: options.transientProxyConfiguration,
 		});
 		const { fetchFn } = foundation;
+		startup.mark('configuration', { since: 'bootstrapStart' });
 		const telemetryService = await createAgentHostTelemetryService({
 			environmentService,
 			productService,
@@ -148,6 +152,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			fetchFn,
 			requestService: foundation.requestService,
 		});
+		startup.mark('telemetry', { since: 'configuration' });
 		services.set(ITelemetryService, telemetryService);
 		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
@@ -157,6 +162,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
+			hostLaunchKind: options.hostLaunchKind,
+			startupMarks: startup,
 		});
 		registerAgentHostHostServices(services, {
 			userDataPath: URI.file(environmentService.userDataPath),
@@ -164,7 +171,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
-		const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
+		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
 		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
@@ -179,10 +186,11 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 			},
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-			octoKitService,
+			gitHubService,
 			copilotApiService,
-			isActiveAgentTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true,
-			isDeferredTitleGenerationEnabled: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true,
+			getInitialTitleGenerationStrategy: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true
+				? 'deferred'
+				: foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true ? 'activeAgent' : 'utility',
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);
@@ -205,6 +213,9 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
+		const startupPerformance = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostStartupPerformance));
+		startup.mark('services', { since: 'telemetry' });
+		startupPerformance.mark('bootstrap', { since: 'processStart' });
 
 		return new AgentHostRuntime({
 			instantiationService,

@@ -36,6 +36,7 @@ export namespace Schemas {
 	 * An embedded code snippet.
 	 */
 	export const walkThroughSnippet = 'walkThroughSnippet';
+	export const vscodeOnboardingSample = 'vscode-onboarding-sample';
 
 	export const http = 'http';
 

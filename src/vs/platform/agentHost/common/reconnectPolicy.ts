@@ -19,6 +19,10 @@ export interface IRemoteAgentHostReconnectPolicy {
 	 * terminal for the automatic path; recovery falls back to an explicit user action.
 	 */
 	readonly maxAttempts: number;
+	/** Optional total recovery budget, including backoff and in-flight preparation/handshakes. */
+	readonly maxElapsedTimeMs?: number;
+	/** Spread transport retries within the upper half of their backoff interval. */
+	readonly jitter?: boolean;
 }
 
 /** Default automatic reconnect policy for remote agent hosts. */
@@ -33,8 +37,9 @@ export const DEFAULT_RECONNECT_POLICY: IRemoteAgentHostReconnectPolicy = {
  * Computes a retry delay after a failed automatic reconnect attempt.
  * `attempt` is 1-based: pass 1 after the first failure, 2 after the second, and so on.
  */
-export function computeReconnectDelay(policy: IRemoteAgentHostReconnectPolicy, attempt: number): number {
-	return Math.min(policy.initialDelayMs * Math.pow(2, attempt - 1), policy.maxDelayMs);
+export function computeReconnectDelay(policy: IRemoteAgentHostReconnectPolicy, attempt: number, random = Math.random): number {
+	const delay = Math.min(policy.initialDelayMs * Math.pow(2, attempt - 1), policy.maxDelayMs);
+	return policy.jitter ? Math.floor(delay * (0.5 + random() * 0.5)) : delay;
 }
 
 /**

@@ -87,14 +87,14 @@ class FakeDefaultAccountService extends mock<IDefaultAccountService>() {
 		name: 'GitHub',
 		enterprise: false,
 	};
-	gitHubBaseUrl = 'https://github.com';
+	gitHubBaseUrl: string | undefined = 'https://github.com';
 
 	override getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return this.authenticationProvider;
 	}
 
-	override resolveGitHubUrl(path: string): string {
-		return `${this.gitHubBaseUrl.replace(/\/+$/, '')}/${path}`;
+	override resolveGitHubUrl(path: string): string | undefined {
+		return this.gitHubBaseUrl ? `${this.gitHubBaseUrl.replace(/\/+$/, '')}/${path}` : undefined;
 	}
 }
 
@@ -271,6 +271,47 @@ suite('GitHubApiClient', () => {
 			});
 		});
 	}
+
+	test('can authenticate before the selected enterprise URL is available', async () => {
+		defaultAccountService.authenticationProvider = {
+			id: 'github-enterprise',
+			name: 'GitHub Enterprise',
+			enterprise: true,
+		};
+		defaultAccountService.gitHubBaseUrl = undefined;
+		authenticationService.sessions = [];
+
+		await client.authenticate(['repo'], CancellationToken.None);
+
+		assert.deepStrictEqual({
+			created: authenticationService.createSessionCalls,
+			request: requestService.lastOptions,
+		}, {
+			created: [['github-enterprise', ['repo'], { activateImmediate: true }]],
+			request: undefined,
+		});
+	});
+
+	test('does not use public endpoints when the enterprise URL is unavailable', async () => {
+		defaultAccountService.authenticationProvider = {
+			id: 'github-enterprise',
+			name: 'GitHub Enterprise',
+			enterprise: true,
+		};
+		defaultAccountService.gitHubBaseUrl = undefined;
+
+		await assert.rejects(client.request('GET', '/repos/o/r/issues', 'test'), GitHubAuthenticationError);
+		await assert.rejects(client.graphql('query Test { viewer { login } }', 'test'), GitHubAuthenticationError);
+		assert.deepStrictEqual({
+			request: requestService.lastOptions,
+			providerIds: authenticationService.providerIds,
+			enterpriseHost: client.enterpriseHost,
+		}, {
+			request: undefined,
+			providerIds: [],
+			enterpriseHost: undefined,
+		});
+	});
 
 	test('routes REST requests through GitHub Enterprise Server authentication and endpoints', async () => {
 		defaultAccountService.authenticationProvider = {

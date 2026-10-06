@@ -8,6 +8,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { SplitView, Sizing } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -29,12 +30,15 @@ const registerEditorTabHeightClass = Reflect.get(Workbench.prototype, 'registerE
 }) => void;
 const handleSessionOpened = Reflect.get(SessionsView.prototype, '_handleSessionOpened') as (this: {
 	readonly sessionComparisonService: { getComparisonForSession(resource: URI): ISessionComparison | undefined };
+	readonly sessionsService: { readonly visibleSessions: IObservable<readonly (ISession | undefined)[]> };
 	readonly layoutService: { hideSidePane(): void; mainContainer: HTMLElement; setPartHidden(hidden: boolean, part: string): void };
 }, session: ISession) => void;
 const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayout') as (this: {
-	readonly headerRow: HTMLElement;
-	readonly headerLabel: HTMLElement;
-	readonly headerActions: HTMLElement;
+	readonly sessionsHeaders: ReadonlySet<{
+		readonly row: HTMLElement;
+		readonly label: HTMLElement;
+		readonly actions: HTMLElement;
+	}>;
 	readonly layoutService: { readonly mainContainer: HTMLElement };
 	readonly isFindWidgetOpen: boolean;
 }) => void;
@@ -79,10 +83,14 @@ suite('Sessions - SessionsViewPane', () => {
 				focusAutomations: () => calls.push('focusControlAutomations'),
 				focus: () => calls.push('focusSessions'),
 			};
+			const rearrangeContextValues: boolean[] = [];
 			const host = {
 				customizationsPresentation: presentation,
+				customizationsNavigationVisible: { set: () => { } },
+				sessionsListRearrangeContext: { set: (value: boolean) => rearrangeContextValues.push(value) },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
+				updateHeaderLayout: () => calls.push('updateHeader'),
 				removeCustomizationsPane: () => {
 					calls.push('removePane');
 					host._customizationsWidget = undefined;
@@ -93,6 +101,7 @@ suite('Sessions - SessionsViewPane', () => {
 				},
 				layoutSidebarSplitView: () => calls.push('layout'),
 				calls,
+				rearrangeContextValues,
 			};
 			return host;
 		}
@@ -108,14 +117,21 @@ suite('Sessions - SessionsViewPane', () => {
 			controlCustomizations: controlCustomizations.calls,
 			treatmentAutomations: treatmentAutomations.calls,
 			hiddenCustomizations: hiddenCustomizations.calls,
+			rearrangeContextValues: [
+				controlCustomizations.rearrangeContextValues,
+				treatmentAutomations.rearrangeContextValues,
+				hiddenCustomizations.rearrangeContextValues,
+			],
 		}, {
 			controlCustomizations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'focusTreatmentCustomizations',
 				'layout',
 			],
 			treatmentAutomations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'createPane',
@@ -123,11 +139,13 @@ suite('Sessions - SessionsViewPane', () => {
 				'layout',
 			],
 			hiddenCustomizations: [
+				'updateHeader',
 				'updateTreeNavigation',
 				'removePane',
 				'focusSessions',
 				'layout',
 			],
+			rearrangeContextValues: [[true], [false], [false]],
 		});
 	});
 
@@ -275,9 +293,9 @@ suite('Sessions - SessionsViewPane', () => {
 		}
 	});
 
-	test('hides session details when a comparison participant is opened', () => {
-		const attempt = upcastPartial<ISession>({ resource: URI.parse('test:/attempt') });
-		const judge = upcastPartial<ISession>({ resource: URI.parse('test:/judge') });
+	test('hides session details only when an active comparison participant is opened', () => {
+		const attempt = upcastPartial<ISession>({ sessionId: 'attempt', resource: URI.parse('test:/attempt') });
+		const judge = upcastPartial<ISession>({ sessionId: 'judge', resource: URI.parse('test:/judge') });
 		const comparison: ISessionComparison = {
 			id: 'comparison',
 			groupId: 'group',
@@ -301,10 +319,13 @@ suite('Sessions - SessionsViewPane', () => {
 			],
 		};
 		let hideSidePaneCalls = 0;
+		let currentComparison: ISessionComparison | undefined = comparison;
+		const visibleSessions = observableValue<readonly ISession[]>('visibleSessions', [attempt, judge]);
 		const host = {
 			sessionComparisonService: {
-				getComparisonForSession: () => comparison,
+				getComparisonForSession: () => currentComparison,
 			},
+			sessionsService: { visibleSessions },
 			layoutService: {
 				hideSidePane: () => hideSidePaneCalls++,
 				mainContainer: mainWindow.document.createElement('div'),
@@ -314,11 +335,19 @@ suite('Sessions - SessionsViewPane', () => {
 
 		handleSessionOpened.call(host, attempt);
 		handleSessionOpened.call(host, judge);
+		// A cancelled or superseded open leaves the participant hidden, so the side pane stays.
+		visibleSessions.set([], undefined);
+		handleSessionOpened.call(host, attempt);
+		visibleSessions.set([attempt, judge], undefined);
+		currentComparison = { ...comparison, archivedAt: 1 };
+		handleSessionOpened.call(host, attempt);
+		currentComparison = undefined;
+		handleSessionOpened.call(host, attempt);
 
 		assert.strictEqual(hideSidePaneCalls, 2);
 	});
 
-	test('keeps the Sessions title visible during a zero-width sticky header handoff', () => {
+	test('keeps the Sessions title visible while measuring a narrow header', () => {
 		const mainContainer = mainWindow.document.createElement('div');
 		const headerRow = mainWindow.document.createElement('div');
 		const headerLabel = mainWindow.document.createElement('div');
@@ -328,9 +357,12 @@ suite('Sessions - SessionsViewPane', () => {
 		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 0 });
 		Object.defineProperty(headerLabel, 'clientWidth', { configurable: true, value: 0 });
 		const host = {
-			headerRow,
-			headerLabel,
-			headerActions,
+			sessionsHeaders: new Set([{
+				row: headerRow,
+				label: headerLabel,
+				actions: headerActions,
+				toolbar: undefined,
+			}]),
 			layoutService: { mainContainer },
 			isFindWidgetOpen: false,
 		};

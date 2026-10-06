@@ -143,10 +143,7 @@ export function createRemoteAgentHarnessDescriptor(
 		id: harnessId,
 		label: displayName,
 		icon: ThemeIcon.fromId(Codicon.remote.id),
-		hiddenSections: [
-			AICustomizationManagementSection.Models,
-			AICustomizationManagementSection.McpServers,
-		],
+		hiddenSections: [AICustomizationManagementSection.Models],
 		hideGenerateButton: true,
 		itemProvider,
 		syncProvider,

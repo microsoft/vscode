@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
@@ -13,9 +14,12 @@ import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
-import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
+import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import type { IMcpServerConfiguration } from '../../platform/mcp/common/mcpPlatformTypes.js';
+import { ISessionConfigProvider, ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
+import type { ISessionSandboxPolicy } from '../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
@@ -95,6 +99,25 @@ export interface IAgentHostGroup {
 export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
+	/** Optional Connector catalog name for presentation only. */
+	readonly displayName?: string;
+	readonly source?: McpServerSource;
+	/**
+	 * Plugin the host reports as the source of this server's configuration. Unlike
+	 * {@link isPluginProvided}, the plugin may be one the client never published,
+	 * such as a plugin bundled with the agent.
+	 */
+	readonly sourcePluginName?: string;
+	/**
+	 * Definition held by the agent host's own MCP server configuration, for a server configured there
+	 * (for example with MCP: Add Server > Add to Current Agent Session) rather than in a file.
+	 */
+	readonly hostConfiguration?: IMcpServerConfiguration;
+	/**
+	 * VS Code setting the host declares as controlling whether it includes this server. Present only when
+	 * the providing host says so; never inferred from the server's name.
+	 */
+	readonly controllingSettingId?: string;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;
@@ -110,6 +133,8 @@ export interface IAgentHostMcpServer {
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */
 	stop(): Promise<void>;
+	/** Continues a blocking startup in the background when the host supports it. */
+	background?(): Promise<void>;
 	setEnabled(enabled: boolean): void;
 }
 
@@ -161,6 +186,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
+	setDisplayName?(name: string | undefined): void;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
@@ -175,6 +202,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse
@@ -211,6 +241,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
+	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** Canceled when the draft is disposed, including when its provider disconnects. */
+	getNewSessionCancellationToken(sessionId: string): CancellationToken;
+	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
+	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
+	/** Last sandbox enablement successfully applied by the host. */
+	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Pickers gate on this rather than `session.loading` so they
@@ -373,6 +411,10 @@ export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
  */
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return isAgentHostProviderId(provider.id);
+}
+
+export function getSessionConfigProvider(provider: ISessionsProvider): ISessionConfigProvider | undefined {
+	return provider.sessionConfig ?? (isAgentHostProvider(provider) ? provider : undefined);
 }
 
 /**

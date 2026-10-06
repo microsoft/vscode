@@ -237,6 +237,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const previousHoveredTabIndex = this.hoveredTabIndex;
 		this.hoveredTabIndex = tabIndex;
+		this.updateConnectedTabOverflowHover();
 
 		if (!this.isAltPressed) {
 			return; // Alt is not held, no action swap in effect to redraw
@@ -997,6 +998,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabContainer.appendChild(tabFillContainer);
 		const tabConnectedEdgeContainer = $('.tab-connected-edge', { 'aria-hidden': true });
 		tabContainer.appendChild(tabConnectedEdgeContainer);
+		const tabDivider = $('.tab-divider', { 'aria-hidden': true });
+		tabContainer.appendChild(tabDivider);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -2103,6 +2106,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
 		});
+		const connectedTabsWrapping = connected && Array.from(this.parent.children).some(element =>
+			isHTMLElement(element) &&
+			element.classList.contains('tabs-and-actions-container') &&
+			element.classList.contains('wrapping')
+		);
+		this.parent.classList.toggle('connected-tabs-wrapping', connectedTabsWrapping);
+		const overflow = connected && tabsWrapMultiLine ? 'visible' : 'hidden';
+		assertReturnsDefined(this.tabsContainer).style.overflow = overflow;
+		assertReturnsDefined(this.tabsScrollbar).getDomNode().style.overflow = overflow;
 		if (!tabsWrapMultiLine) {
 			this.doLayoutTabsNonWrapping(options);
 		} else {
@@ -2243,7 +2255,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
 			if (tabsWrapMultiLine) {
 				if (
-					(tabsContainer.offsetHeight > dimensions.available.height) ||							// if height exceeds available height
+					(tabsAndActionsContainer.offsetHeight > dimensions.available.height) ||				// if the complete wrapped title exceeds available height
 					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
 					(!lastTabFitsWrapped())																	// if last tab does not fit anymore
 				) {
@@ -2377,6 +2389,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabsContainer.classList.remove('disable-sticky-tabs');
 		}
 		assertReturnsDefined(this.stickyTabsBackground).style.width = `${stickyTabsWidth}px`;
+		this.connectedTabOverflowEdge?.classList.toggle('connected-tab-adjacent-sticky', stickyTabsWidth > 0);
 
 		this.clearConnectedTabClipping();
 		const activeTabFill = activeTab?.firstElementChild;
@@ -2403,6 +2416,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				viewportRight,
 				shoulderExtent: Number.parseFloat(targetWindow.getComputedStyle(activeTabFill, '::after').width),
 			};
+			this.updateConnectedTabOverflowHover();
 		}
 
 		let activeTabPosX: number | undefined;
@@ -2519,6 +2533,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (this.connectedTabBounds) {
 			updateConnectedTabClipping(this.connectedTabBounds, scrollLeft);
 		}
+	}
+
+	private updateConnectedTabOverflowHover(): void {
+		const hoveredEditor = typeof this.hoveredTabIndex === 'number' ? this.tabsModel.getEditorByIndex(this.hoveredTabIndex) : undefined;
+		this.connectedTabOverflowEdge?.classList.toggle('connected-tab-hovered', !!hoveredEditor && this.groupView.isActive(hoveredEditor));
 	}
 
 	private updateTabsControlVisibility(): void {
@@ -2791,7 +2810,7 @@ registerThemingParticipant((theme, collector) => {
 	if (tabHoverBorder) {
 		collector.addRule(`
 			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-border-bottom-container {
-				display: block;
+				display: var(--editor-tab-border-indicator-display, block);
 				position: absolute;
 				left: 0;
 				pointer-events: none;
@@ -2808,7 +2827,7 @@ registerThemingParticipant((theme, collector) => {
 	if (tabUnfocusedHoverBorder) {
 		collector.addRule(`
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-border-bottom-container  {
-				display: block;
+				display: var(--editor-tab-border-indicator-display, block);
 				position: absolute;
 				left: 0;
 				pointer-events: none;
