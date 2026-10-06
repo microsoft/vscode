@@ -48,6 +48,8 @@ import {
 	IAgentCustomizationInstallation,
 	IAgentCustomizationInstallationRequest,
 	IAgentCustomizationInstallationReview,
+	IAgentCustomizationMarketplaceSearchRequest,
+	IAgentCustomizationMarketplaceSearchResult,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
 	IAgentHostManagementService,
@@ -512,6 +514,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest): Promise<void> {
 		return this._getManagementService().installPlugin(provider, request);
+	}
+
+	searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		return this._getManagementService().searchCustomizationMarketplace(provider, session, request);
 	}
 
 	listCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {

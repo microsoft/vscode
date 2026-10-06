@@ -11,6 +11,8 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,6 +24,7 @@ import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources 
 import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, ICustomizationMarketplaceCursor, ICustomizationMarketplaceEntry, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceRequest, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IPluginMarketplacePage, IPluginMarketplaceQuery, IPluginMarketplaceService, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceSearchProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
@@ -68,12 +71,19 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly catalogMayRequireConsent = false;
 			override readonly connectionStateKnown = false;
 		}());
+		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' } } satisfies IHarnessDescriptor;
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = observableValue(this, harness.id);
+			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override getActiveDescriptor() { return harness; }
+		}());
 	}
 
 	function createService(
 		configuration: TestConfigurationService,
 		platformService: ICustomizationMarketplaceService,
 		connectorsService: ICopilotConnectorsService,
+		marketplaceSearchProvider?: ICustomizationMarketplaceSearchProvider,
 	): CustomizationMarketplaceWorkbenchService {
 		const platformSources = platformService.allSources ?? platformService.sources ?? [CustomizationMarketplaceSources.AgentFinderPublicFeed];
 		const normalizedPlatformService = new class extends mock<ICustomizationMarketplaceService>() {
@@ -87,13 +97,20 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override readonly onDidChangeMarketplaces = Event.None;
 			override getMarketplaceReferences() { return []; }
 		}();
-		return new CustomizationMarketplaceWorkbenchService(
+		const harness = { id: 'local', label: 'Local', icon: { id: 'vm' }, marketplaceSearchProvider } satisfies IHarnessDescriptor;
+		const harnessService = new class extends mock<ICustomizationHarnessService>() {
+			override readonly activeHarness = observableValue(this, harness.id);
+			override readonly activeSessionResource = observableValue(this, URI.parse('vscode-chat-session://local/session'));
+			override getActiveDescriptor() { return harness; }
+		}();
+		return store.add(new CustomizationMarketplaceWorkbenchService(
 			configuration,
 			normalizedPlatformService,
 			pluginMarketplaceService,
 			connectorsService,
+			harnessService,
 			store.add(new TestInstantiationService()),
-		);
+		));
 	}
 
 	function createMixedFixture(enabledIds: readonly string[]) {
@@ -161,7 +178,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override getMarketplaceReferences() { return []; }
 		}());
 		registerConnectorService(instantiationService);
-		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
 		const create = sinon.spy(instantiationService, 'createInstance');
 		store.add(toDisposable(() => create.restore()));
 
@@ -232,7 +249,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			}
 		}());
 		registerConnectorService(instantiationService);
-		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
 		const page = await service.query({}, CancellationToken.None);
 		assert.deepStrictEqual({
 			sources: service.sources.map(source => source.id),
@@ -274,7 +291,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			}
 		}());
 		registerConnectorService(instantiationService);
-		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
 		const pending = service.query({ pageSize: 2 }, CancellationToken.None);
 		await Promise.resolve();
 		const started = [...calls];
@@ -333,7 +350,7 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 			override getMarketplaceReferences() { return []; }
 		}());
 		registerConnectorService(instantiationService);
-		const service = instantiationService.createInstance(CustomizationMarketplaceWorkbenchService);
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
 		const page = await service.query({ sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id], pageSize: 1 }, CancellationToken.None);
 		assert.deepStrictEqual({
 			items: page.items.map(item => item.identifier),
@@ -396,6 +413,90 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	});
 
+
+	test('uses the active harness catalog provider instead of the platform public feed', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		let platformQueries = 0;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() {
+				platformQueries++;
+				return { items: [] };
+			}
+		}();
+		const harnessQueries: ICustomizationMarketplaceSourceQuery[] = [];
+		const harnessProvider: ICustomizationMarketplaceSearchProvider = {
+			async query(_session, options) {
+				harnessQueries.push(options);
+				return {
+					items: [{
+						identifier: 'sdk-selection',
+						displayName: 'SDK Skill',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			},
+		};
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override readonly connectors = [];
+			override readonly connectedMcpServers = [];
+		}(), harnessProvider);
+
+		const page = await service.query({ query: 'sdk' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			platformQueries,
+			harnessQueries,
+			items: page.items.map(item => ({ sourceId: item.sourceId, identifier: item.identifier })),
+		}, {
+			platformQueries: 0,
+			harnessQueries: [{ query: 'sdk', mediaType: undefined, pageSize: 30, cursor: undefined }],
+			items: [{ sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, identifier: 'sdk-selection' }],
+		});
+	});
+
+	test('falls back to the platform public feed while the harness catalog is unavailable', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		let platformQueries = 0;
+		const platformService = new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [CustomizationMarketplaceSources.AgentFinderPublicFeed];
+			override async query() {
+				platformQueries++;
+				return {
+					items: [{
+						sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+						identifier: 'rest-result',
+						displayName: 'REST result',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+					}],
+				};
+			}
+		}();
+		const service = createService(configuration, platformService, new class extends mock<ICopilotConnectorsService>() {
+			override readonly onDidChange = Event.None;
+			override readonly connectors = [];
+			override readonly connectedMcpServers = [];
+		}(), { query: async () => undefined });
+
+		const page = await service.query({}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			platformQueries,
+			items: page.items.map(item => item.identifier),
+		}, {
+			platformQueries: 1,
+			items: ['rest-result'],
+		});
+	});
 
 	test('composes the built-in catalog with Copilot connectors', async () => {
 		const configuration = new TestConfigurationService({

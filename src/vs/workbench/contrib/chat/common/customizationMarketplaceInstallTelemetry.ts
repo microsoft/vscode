@@ -53,6 +53,12 @@ export function getCustomizationMarketplaceInstallTelemetryContext(
 		case 'plugin':
 		case 'configuredPlugin':
 			return { surface, customizationType: 'plugin', installKind: installation.kind };
+		case 'providerCatalog':
+			return {
+				surface,
+				customizationType: installation.resourceKind === 'mcp' ? 'mcpServer' : installation.resourceKind,
+				installKind: installation.kind,
+			};
 		case 'copilotConnector':
 			return { surface, customizationType: 'connector', installKind: installation.kind };
 	}

@@ -899,13 +899,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const provider = binding?.provider;
 		const kind = resource.installation?.kind;
 		return binding && provider && (kind === 'skill' || kind === 'mcp' || kind === 'plugin' || kind === 'configuredPlugin'
+			|| kind === 'providerCatalog'
 			|| this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource)))
 			? binding
 			: undefined;
 	}
 
 	private isProviderManagedInstallation(installation: CustomizationMarketplaceInstallation): boolean {
-		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin');
+		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin' || installation.kind === 'providerCatalog');
 	}
 
 	private associateInstalledResource(resource: ICustomizationMarketplaceResource, target: Extract<CustomizationMarketplaceInstallationRecordTarget, { readonly kind: 'plugin' | 'mcp' }>): void {
@@ -1312,6 +1313,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		}
 		if (source.kind === 'copilotConnector') {
 			throw new Error(localize('customizationMarketplace.connectorInstallTargetUnavailable', "Copilot connectors do not have a local installation target."));
+		}
+		if (source.kind === 'providerCatalog') {
+			throw new Error(localize('customizationMarketplace.providerCatalogUnavailable', "The active agent cannot install this catalog resource."));
 		}
 		const target = await this.installTarget({ ...resource, installation: source }, token);
 		const slot = target.kind === 'skill'

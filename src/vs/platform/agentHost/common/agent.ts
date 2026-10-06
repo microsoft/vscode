@@ -302,11 +302,40 @@ export interface IAgentCustomizationInstallationRequest {
 	readonly description: string;
 	readonly version?: string;
 	readonly itemUrl?: string;
+	readonly selectionId?: string;
 	readonly installation:
 	| { readonly kind: 'skill' | 'mcp' }
 	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
 	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
 }
+
+export interface IAgentCustomizationMarketplaceSearchRequest {
+	readonly query: string;
+	readonly mediaType?: string;
+	readonly limit: number;
+	readonly cursor?: string;
+}
+
+export interface IAgentCustomizationMarketplaceSearchItem {
+	readonly selectionId: string;
+	readonly kind: 'skill' | 'mcp' | 'plugin';
+	readonly displayName: string;
+	readonly description?: string;
+	readonly publisher?: string;
+	readonly version?: string;
+	readonly repository?: string;
+	readonly path?: string;
+	readonly installable: boolean;
+	readonly unavailableMessage?: string;
+}
+
+export type IAgentCustomizationMarketplaceSearchResult =
+	| {
+		readonly kind: 'page';
+		readonly items: readonly IAgentCustomizationMarketplaceSearchItem[];
+		readonly nextCursor?: string;
+	}
+	| { readonly kind: 'unavailable'; readonly reason: 'session' | 'unsupported' | 'authentication' };
 
 export type IAgentCustomizationInstallationReview = {
 	readonly operationId: string;
@@ -1372,6 +1401,9 @@ export interface IAgent {
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest): Promise<void>;
+
+	/** Search the provider-native customization catalog for an exact session. */
+	searchCustomizationMarketplace?(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
 
 	/** List receipt-owned Skill and MCP installations through the provider SDK. */
 	listCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;

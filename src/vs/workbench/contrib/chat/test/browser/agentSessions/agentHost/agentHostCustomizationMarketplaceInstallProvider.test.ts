@@ -60,6 +60,184 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('projects SDK catalog selections with github-app publisher avatars', async () => {
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
+		const backendSession = URI.parse('ahp-session:/backend-session');
+		const calls: { readonly provider: string; readonly session: string; readonly query: string }[] = [];
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async searchCustomizationMarketplace(provider: string, session: URI, request: { readonly query: string }) {
+					calls.push({ provider, session: session.toString(), query: request.query });
+					return {
+						kind: 'page' as const,
+						items: [{
+							selectionId: 'selection',
+							kind: 'skill' as const,
+							displayName: 'Demo Skill',
+							description: 'Demo',
+							publisher: 'octo-org',
+							installable: true,
+						}],
+						nextCursor: 'next',
+					};
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+		));
+
+		const page = await provider.query(frontendSession, { query: 'demo', pageSize: 12 }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			calls,
+			page: page && {
+				...page,
+				items: page.items.map(item => ({
+					...item,
+					publisherUrl: item.publisherUrl?.toString(),
+					icon: URI.isUri(item.icon) ? item.icon.toString() : item.icon,
+				})),
+			},
+		}, {
+			calls: [{ provider: 'copilotcli', session: backendSession.toString(), query: 'demo' }],
+			page: {
+				items: [{
+					identifier: 'selection',
+					displayName: 'Demo Skill',
+					description: 'Demo',
+					mediaType: 'application/ai-skill',
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					version: undefined,
+					repository: undefined,
+					publisher: 'octo-org',
+					publisherUrl: 'https://github.com/octo-org',
+					icon: 'https://github.com/octo-org.png',
+					installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' },
+				}],
+				nextCursor: 'next',
+			},
+		});
+	});
+
+	test('installs the retained SDK catalog selection without searching again', async () => {
+		const session = URI.parse('agent-host-copilotcli:/frontend-session');
+		const requests: unknown[] = [];
+		const applied: string[] = [];
+		let installed = false;
+		const provider = store.add(new AgentHostCustomizationMarketplaceInstallProvider(
+			'copilotcli',
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async listCustomizationInstallations(): Promise<readonly IAgentCustomizationInstallation[]> {
+					return installed ? [{
+						installationId: 'installation',
+						kind: 'skill',
+						mediaType: 'application/ai-skill',
+						catalogue: {
+							resourceId: 'urn:air:github.test:skill:demo',
+							displayName: 'Demo Skill',
+							publisher: 'octo-org',
+							source: 'agentfinder.github.com',
+						},
+						name: 'demo',
+						state: 'installed',
+					}] : [];
+				}
+				override async prepareCustomizationInstallation(_provider: string, _session: URI, request: unknown) {
+					requests.push(request);
+					return {
+						operationId: 'operation',
+						action: 'install' as const,
+						kind: 'skill' as const,
+						displayName: 'Demo Skill',
+						source: 'owner/repo@revision/skills/demo',
+						target: 'skills/demo',
+						fileCount: 1,
+						totalBytes: 10,
+					};
+				}
+				override async applyCustomizationInstallation(_provider: string, operationId: string) {
+					applied.push(operationId);
+					installed = true;
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: URI.parse('ahp-session:/backend-session') };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IAgentPluginService>() {
+				override readonly plugins = observableValue<readonly IAgentPlugin[]>('plugins', []);
+			}(),
+			new class extends mock<IDialogService>() {
+				override async confirm() { return { confirmed: true }; }
+			}(),
+			new NullLogService(),
+		));
+
+		const resource = {
+			sourceId: 'agentFinder',
+			identifier: 'selection',
+			displayName: 'Demo Skill',
+			description: 'Demo',
+			mediaType: 'application/ai-skill',
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' },
+		} as const;
+		await provider.getInstallations(session, CancellationToken.None);
+		await provider.install(session, resource, CancellationToken.None);
+		const inventory = await provider.getInstallations(session, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			requests,
+			applied,
+			inventory: inventory.map(item => ({
+				installationId: item.installationId,
+				identifier: item.resource.identifier,
+				installation: item.resource.installation,
+			})),
+		}, {
+			requests: [{
+				mediaType: 'application/ai-skill',
+				identifier: 'selection',
+				displayName: 'Demo Skill',
+				description: 'Demo',
+				version: undefined,
+				itemUrl: undefined,
+				selectionId: 'selection',
+				installation: { kind: 'skill' },
+			}],
+			applied: ['operation'],
+			inventory: [{
+				installationId: 'installation',
+				identifier: 'selection',
+				installation: { kind: 'providerCatalog', resourceKind: 'skill', selectionId: 'selection' },
+			}],
+		});
+	});
+
 	test('preserves SDK plugin inventory when session-bound receipt inventory is unavailable', async () => {
 		const session = URI.parse('agent-host-copilotcli:/frontend-session');
 		const plugin = new class extends mock<IAgentPlugin>() {

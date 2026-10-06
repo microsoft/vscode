@@ -361,6 +361,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				? store.add(this._instantiationService.createInstance(AgentHostMcpServerMigrationProvider))
 				: undefined,
 			marketplaceInstallProvider,
+			marketplaceSearchProvider: marketplaceInstallProvider,
 		}));
 
 		// Session handler

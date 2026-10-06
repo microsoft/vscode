@@ -21,8 +21,106 @@ suite('CopilotCustomizationInstallations', () => {
 			throw new Error('Unexpected client request');
 		}, () => undefined));
 
+		const search = await service.search(URI.parse('agent-host-copilotcli:///unmaterialized'), {
+			query: '',
+			limit: 10,
+		});
 		await assert.rejects(service.list(URI.parse('agent-host-copilotcli:///unmaterialized')), /Start a Copilot agent session/);
-		assert.strictEqual(clientRequests, 0);
+		assert.deepStrictEqual({ clientRequests, search }, {
+			clientRequests: 0,
+			search: { kind: 'unavailable', reason: 'session' },
+		});
+	});
+
+	test('keeps SDK pagination tokens private behind workbench cursors', async () => {
+		const expiresAt = new Date(Date.now() + 60_000).toISOString();
+		const requests: unknown[] = [];
+		const negotiated = { runtimeProtocolVersion: 3, grantedCapabilities: [] };
+		const catalog = new class extends mock<CopilotClient['rpc']['catalog']>() {
+			override readonly search: CopilotClient['rpc']['catalog']['search'] = async request => {
+				requests.push(request);
+				return requests.length === 1 ? {
+					kind: 'succeeded' as const,
+					searchId: 'search',
+					candidates: [{
+						handle: 'candidate',
+						handleExpiresAt: expiresAt,
+						kind: 'mcp-server' as const,
+						mediaType: 'application/mcp-server+json' as const,
+						installability: 'installable' as const,
+						displayName: 'Demo MCP',
+						publisher: 'octo-org',
+						source: { kind: 'url' as const, url: 'https://example.test/server.json' },
+						provenance: {
+							authority: 'agentfinder.github.com',
+							observedAt: new Date().toISOString(),
+							mediaType: 'application/mcp-server+json' as const,
+						},
+					}],
+					truncated: true,
+					negotiated,
+					pagination: {
+						token: 'private-sdk-token',
+						currentPage: 1,
+						pageSize: 10,
+						totalCount: 20,
+						totalCountRelation: 'unknown' as const,
+						pageCount: 2,
+						maxPage: 100,
+						hasNextPage: true,
+					},
+				} : {
+					kind: 'succeeded' as const,
+					searchId: 'search-2',
+					candidates: [],
+					truncated: false,
+					negotiated,
+				};
+			};
+		}();
+		const client = {
+			rpc: {
+				catalog,
+				skills: new class extends mock<CopilotClient['rpc']['skills']>() { }(),
+				mcp: new class extends mock<CopilotClient['rpc']['mcp']>() { }(),
+			},
+		};
+		const service = store.add(new CopilotCustomizationInstallations(async () => client, () => 'sdk-session'));
+
+		const first = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: 'demo', limit: 10 });
+		if (first.kind !== 'page' || !first.nextCursor) {
+			assert.fail('Expected a paged SDK catalog result.');
+		}
+		const second = await service.search(URI.parse('agent-host-copilotcli:///session'), { query: 'ignored', limit: 1, cursor: first.nextCursor });
+
+		assert.deepStrictEqual({
+			publicCursorIsPrivateToken: first.nextCursor === 'private-sdk-token',
+			second,
+			secondRequest: requests[1],
+		}, {
+			publicCursorIsPrivateToken: false,
+			second: { kind: 'page', items: [], nextCursor: undefined },
+			secondRequest: {
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: [
+						'catalog-search-credential-required',
+						'catalog-search-session-bound',
+						'catalog-selection',
+						'catalog-search-pagination',
+						'trust-snapshot',
+						'ai-skill-discovery',
+						'skill-confirmed-installation',
+						'agent-plugin-discovery',
+					],
+				},
+				policySessionId: 'sdk-session',
+				query: 'demo',
+				limit: 10,
+				kinds: ['ai-skill', 'mcp-server', 'plugin'],
+				page: { token: 'private-sdk-token', number: 2 },
+			},
+		});
 	});
 
 	test('uses receipt inventory and confirms only the reviewed pending Skill operation', async () => {
@@ -161,22 +259,34 @@ suite('CopilotCustomizationInstallations', () => {
 		serviceRef.value = service;
 
 		const inventory = await service.list(URI.parse('agent-host-copilotcli:///session'));
+		const firstSearch = await service.search(URI.parse('agent-host-copilotcli:///session'), {
+			query: 'demo',
+			mediaType: 'application/ai-skill',
+			limit: 10,
+		});
+		assert.strictEqual(firstSearch.kind, 'page');
 		const versionMismatch = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
 			mediaType: 'application/ai-skill',
 			identifier: catalogue.resourceId,
 			displayName: catalogue.displayName,
 			description: catalogue.description,
 			version: '2.0.0',
-			itemUrl: catalogue.itemUrl,
+			selectionId: firstSearch.kind === 'page' ? firstSearch.items[0].selectionId : undefined,
 			installation: { kind: 'skill' },
 		}).then(() => undefined, error => error instanceof Error ? error.message : String(error));
+		const secondSearch = await service.search(URI.parse('agent-host-copilotcli:///session'), {
+			query: 'demo',
+			mediaType: 'application/ai-skill',
+			limit: 10,
+		});
+		assert.strictEqual(secondSearch.kind, 'page');
 		const review = await service.prepare(URI.parse('agent-host-copilotcli:///session'), {
 			mediaType: 'application/ai-skill',
 			identifier: catalogue.resourceId,
 			displayName: catalogue.displayName,
 			description: catalogue.description,
 			version: catalogue.version,
-			itemUrl: catalogue.itemUrl,
+			selectionId: secondSearch.kind === 'page' ? secondSearch.items[0].selectionId : undefined,
 			installation: { kind: 'skill' },
 		});
 		const prematureDecision = await service.confirmationHandler({
@@ -191,6 +301,12 @@ suite('CopilotCustomizationInstallations', () => {
 
 		assert.deepStrictEqual({
 			inventory,
+			searchItems: firstSearch.kind === 'page' ? firstSearch.items.map(item => ({
+				kind: item.kind,
+				displayName: item.displayName,
+				publisher: item.publisher,
+				installable: item.installable,
+			})) : [],
 			review,
 			versionMismatch,
 			prematureDecision,
@@ -204,6 +320,12 @@ suite('CopilotCustomizationInstallations', () => {
 				name: 'demo-skill',
 				targetUri: undefined,
 				state: 'installed',
+			}],
+			searchItems: [{
+				kind: 'skill',
+				displayName: 'Demo Skill',
+				publisher: 'GitHub',
+				installable: true,
 			}],
 			review: {
 				operationId: review.operationId,

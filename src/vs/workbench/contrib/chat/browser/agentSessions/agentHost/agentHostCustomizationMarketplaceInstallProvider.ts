@@ -9,24 +9,32 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../../../../platform/agentHost/common/agent.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IRecordedCustomizationMarketplaceResource, ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationMarketplaceSearchProvider } from '../../../common/customizationHarnessService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 
 const maxCachedReceiptSessions = 50;
+const maxCatalogAssociations = 1000;
+const githubLoginPattern = /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
 
-export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider {
+export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable implements ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceSearchProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	private readonly receiptInstallations = new ResourceMap<readonly IRecordedCustomizationMarketplaceResource[]>();
+	private readonly unavailableCatalogItems = new Map<string, string>();
+	private readonly catalogAssociations = new Map<string, ICustomizationMarketplaceResource>();
+	private knownInstallationIds = new Set<string>();
+	private pendingCatalogInstall: { readonly resource: ICustomizationMarketplaceResource; readonly previousIds: ReadonlySet<string> } | undefined;
 	readonly onDidChange: Event<void>;
 
 	constructor(
@@ -50,6 +58,9 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	getInstallUnavailableMessage(resource: ICustomizationMarketplaceResource): string | undefined {
 		const installation = resource.installation;
+		if (installation?.kind === 'providerCatalog') {
+			return this.unavailableCatalogItems.get(installation.selectionId);
+		}
 		if (installation?.kind === 'plugin') {
 			return localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision.");
 		}
@@ -60,6 +71,58 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return localize('agentHost.customizationInstall.catalogIdentityUnavailable', "This customization does not provide the SDK catalog identity required for installation.");
 		}
 		return undefined;
+	}
+
+	async query(sessionResource: URI, options: ICustomizationMarketplaceSourceQuery, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage | undefined> {
+		this.throwIfCancelled(token);
+		if (!this.agentHostService.searchCustomizationMarketplace) {
+			return undefined;
+		}
+		let backendSession: URI;
+		try {
+			backendSession = this.getBackendSession(sessionResource);
+		} catch {
+			return undefined;
+		}
+		const result = await this.agentHostService.searchCustomizationMarketplace(this.providerId, backendSession, {
+			query: options.query ?? '',
+			mediaType: options.mediaType,
+			limit: options.pageSize ?? 30,
+			cursor: options.cursor,
+		});
+		this.throwIfCancelled(token);
+		if (result.kind === 'unavailable') {
+			return undefined;
+		}
+		return {
+			items: result.items.map(item => {
+				if (item.unavailableMessage) {
+					this.unavailableCatalogItems.set(item.selectionId, item.unavailableMessage);
+					while (this.unavailableCatalogItems.size > maxCatalogAssociations) {
+						this.unavailableCatalogItems.delete(this.unavailableCatalogItems.keys().next().value!);
+					}
+				} else {
+					this.unavailableCatalogItems.delete(item.selectionId);
+				}
+				const publisher = getGitHubPublisher(item.publisher);
+				return {
+					identifier: item.selectionId,
+					displayName: item.displayName,
+					description: item.description ?? '',
+					mediaType: getCatalogMediaType(item.kind),
+					tags: [],
+					capabilities: [],
+					representativeQueries: [],
+					version: item.version,
+					repository: item.repository ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${item.repository}` }) : undefined,
+					publisher: item.publisher,
+					publisherUrl: publisher?.profile,
+					icon: publisher?.avatar,
+					installation: { kind: 'providerCatalog' as const, resourceKind: item.kind, selectionId: item.selectionId },
+				};
+			}),
+			nextCursor: result.nextCursor,
+		};
 	}
 
 	async getInstallations(sessionResource: URI, token: CancellationToken): Promise<readonly IRecordedCustomizationMarketplaceResource[]> {
@@ -85,20 +148,42 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			return [...(this.receiptInstallations.get(backendSession) ?? []), ...pluginInstallations];
 		}
 		this.throwIfCancelled(token);
+		const rawReceiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
+		this.captureCatalogAssociation(rawReceiptInstallations);
 		const receiptInstallations = installations.map(installation => this.toRecordedInstallation(sessionResource, installation));
 		this.receiptInstallations.set(backendSession, receiptInstallations);
 		while (this.receiptInstallations.size > maxCachedReceiptSessions) {
 			this.receiptInstallations.delete(this.receiptInstallations.keys().next().value!);
 		}
-		return [
+		const result = [
 			...receiptInstallations,
 			...pluginInstallations,
 		];
+		this.knownInstallationIds = new Set(result.map(installation => installation.installationId).filter((id): id is string => !!id));
+		return result;
 	}
 
 	async install(sessionResource: URI, resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<void> {
 		this.throwIfCancelled(token);
 		const installation = resource.installation;
+		if (installation?.kind === 'providerCatalog') {
+			if (installation.resourceKind === 'plugin') {
+				throw new Error(this.getInstallUnavailableMessage(resource) ?? localize('agentHost.customizationInstall.directPluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision."));
+			}
+			const review = await this.prepare(sessionResource, {
+				mediaType: resource.mediaType,
+				identifier: resource.identifier,
+				displayName: resource.displayName,
+				description: resource.description,
+				version: resource.version,
+				itemUrl: resource.externalUrl ?? resource.url?.toString(true),
+				selectionId: installation.selectionId,
+				installation: { kind: installation.resourceKind },
+			}, token);
+			await this.confirmAndApply(review, token);
+			this.pendingCatalogInstall = { resource, previousIds: new Set(this.knownInstallationIds) };
+			return;
+		}
 		if (installation?.kind === 'configuredPlugin') {
 			if (!installation.name || !installation.marketplace || !installation.marketplaceId || !installation.marketplaceSource) {
 				throw new Error(localize('agentHost.customizationInstall.pluginIdentityUnavailable', "The SDK plugin installation identity is unavailable."));
@@ -219,7 +304,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 	}
 
 	private toRecordedInstallation(sessionResource: URI, installation: IAgentCustomizationInstallation): IRecordedCustomizationMarketplaceResource {
-		const resource = this.toMarketplaceResource(installation);
+		const resource = this.catalogAssociations.get(installation.installationId) ?? this.toMarketplaceResource(installation);
 		const state = installation.state === 'error'
 			? { kind: 'error' as const, message: installation.errorMessage ?? localize('agentHost.customizationInstall.inventoryError', "The SDK could not verify this installation."), target: this.getTarget(sessionResource, installation) }
 			: { kind: installation.state, target: this.getTarget(sessionResource, installation) };
@@ -228,6 +313,7 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 
 	private toMarketplaceResource(installation: IAgentCustomizationInstallation): ICustomizationMarketplaceResource {
 		const catalogue = installation.catalogue;
+		const publisher = getGitHubPublisher(catalogue?.publisher);
 		return {
 			sourceId: this.getSourceId(catalogue?.source),
 			identifier: catalogue?.resourceId ?? catalogue?.itemUrl ?? installation.installationId,
@@ -241,7 +327,31 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 			externalUrl: catalogue?.itemUrl,
 			url: catalogue?.itemUrl ? URI.parse(catalogue.itemUrl) : undefined,
 			publisher: catalogue?.publisher,
+			publisherUrl: publisher?.profile,
+			icon: publisher?.avatar,
 		};
+	}
+
+	private captureCatalogAssociation(installations: readonly IRecordedCustomizationMarketplaceResource[]): void {
+		const pending = this.pendingCatalogInstall;
+		const pendingInstallation = pending?.resource.installation;
+		if (!pending || pendingInstallation?.kind !== 'providerCatalog') {
+			return;
+		}
+		const candidates = installations.filter(installation =>
+			!!installation.installationId
+			&& !pending.previousIds.has(installation.installationId)
+			&& installation.state.target.kind === pendingInstallation.resourceKind
+		);
+		if (candidates.length === 1 && candidates[0].installationId) {
+			this.catalogAssociations.set(candidates[0].installationId, pending.resource);
+			while (this.catalogAssociations.size > maxCatalogAssociations) {
+				this.catalogAssociations.delete(this.catalogAssociations.keys().next().value!);
+			}
+			this.pendingCatalogInstall = undefined;
+		} else if (candidates.length > 1) {
+			this.pendingCatalogInstall = undefined;
+		}
 	}
 
 	private getTarget(sessionResource: URI, installation: IAgentCustomizationInstallation) {
@@ -330,4 +440,23 @@ function getPluginInstallationId(installation: NonNullable<IAgentPlugin['copilot
 	return installation.marketplace
 		? `plugin:${installation.marketplace}:${installation.name}`
 		: `plugin:direct:${installation.directSourceId ?? installation.name}`;
+}
+
+function getCatalogMediaType(kind: 'skill' | 'mcp' | 'plugin'): CustomizationMarketplaceMediaType {
+	switch (kind) {
+		case 'skill': return CustomizationMarketplaceMediaType.Skill;
+		case 'mcp': return CustomizationMarketplaceMediaType.McpServer;
+		case 'plugin': return CustomizationMarketplaceMediaType.CopilotPlugin;
+	}
+}
+
+function getGitHubPublisher(publisher: string | undefined): { readonly profile: URI; readonly avatar: URI } | undefined {
+	const login = publisher?.trim();
+	if (!login || !githubLoginPattern.test(login)) {
+		return undefined;
+	}
+	return {
+		profile: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${login}` }),
+		avatar: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${login}.png` }),
+	};
 }

@@ -12,12 +12,22 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { IAgentCustomizationInstallation, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview } from '../../../common/agent.js';
+import { IAgentCustomizationInstallation, IAgentCustomizationInstallationCatalogue, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchItem, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult } from '../../../common/agent.js';
 
 const catalogContract = {
 	protocolVersion: 3,
 	requiredCapabilities: ['catalog-search-credential-required', 'catalog-search-session-bound', 'catalog-selection'],
 };
+
+const catalogSearchCapabilities = [
+	...catalogContract.requiredCapabilities,
+	'catalog-search-pagination',
+	'trust-snapshot',
+	'ai-skill-discovery',
+	'skill-confirmed-installation',
+];
+const retainedCatalogLifetimeMs = 4 * 60_000;
+const maxRetainedCatalogEntries = 1000;
 
 const skillInstallationContract = {
 	...catalogContract,
@@ -58,6 +68,45 @@ interface IInstallationCatalogueIdentity {
 	readonly source: string;
 }
 
+type CatalogSearchResult = Awaited<ReturnType<CopilotClient['rpc']['catalog']['search']>>;
+type CatalogSearchSucceeded = Extract<CatalogSearchResult, { readonly kind: 'succeeded' }>;
+type CatalogCandidate = CatalogSearchSucceeded['candidates'][number];
+type InstallableCatalogCandidate = Extract<CatalogCandidate, { readonly kind: 'ai-skill' | 'mcp-server' }>;
+type CatalogCandidateKind = 'ai-skill' | 'mcp-server' | 'plugin';
+
+class RetainedCatalogSelection extends Disposable {
+	constructor(
+		readonly client: ICopilotCustomizationInstallationClient,
+		readonly policySessionId: string,
+		readonly searchId: string,
+		readonly candidate: InstallableCatalogCandidate,
+		onExpire: () => void,
+	) {
+		super();
+		const candidateExpiry = Date.parse(candidate.handleExpiresAt);
+		const expiresIn = Number.isFinite(candidateExpiry)
+			? Math.min(retainedCatalogLifetimeMs, Math.max(0, candidateExpiry - Date.now()))
+			: retainedCatalogLifetimeMs;
+		this._register(disposableTimeout(onExpire, expiresIn));
+	}
+}
+
+class RetainedCatalogCursor extends Disposable {
+	constructor(
+		readonly client: ICopilotCustomizationInstallationClient,
+		readonly policySessionId: string,
+		readonly query: string,
+		readonly limit: number,
+		readonly kinds: readonly CatalogCandidateKind[],
+		readonly token: string,
+		readonly page: number,
+		onExpire: () => void,
+	) {
+		super();
+		this._register(disposableTimeout(onExpire, retainedCatalogLifetimeMs));
+	}
+}
+
 class PendingCustomizationInstallation extends Disposable {
 	approved = false;
 
@@ -79,6 +128,8 @@ class PendingCustomizationInstallation extends Disposable {
 
 export class CopilotCustomizationInstallations extends Disposable {
 	private readonly operations = this._register(new DisposableMap<string, PendingCustomizationInstallation>());
+	private readonly catalogSelections = this._register(new DisposableMap<string, RetainedCatalogSelection>());
+	private readonly catalogCursors = this._register(new DisposableMap<string, RetainedCatalogCursor>());
 
 	readonly confirmationHandler: InstallationConfirmationHandler = (request, token) => {
 		if (token.isCancellationRequested) {
@@ -94,6 +145,57 @@ export class CopilotCustomizationInstallations extends Disposable {
 		private readonly getPolicySessionId: (session: URI) => string | undefined,
 	) {
 		super();
+	}
+
+	async search(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		const policySessionId = this.getPolicySessionId(session);
+		if (!policySessionId) {
+			return { kind: 'unavailable', reason: 'session' };
+		}
+		const client = await this.getClient();
+		const retainedCursor = request.cursor ? this.catalogCursors.deleteAndLeak(request.cursor) : undefined;
+		if (request.cursor && (!retainedCursor || retainedCursor.client !== client || retainedCursor.policySessionId !== policySessionId)) {
+			retainedCursor?.dispose();
+			throw new Error(localize('copilot.customizationMarketplace.cursorExpired', "This catalog page expired. Start the search again."));
+		}
+		const kinds = retainedCursor?.kinds ?? this.getCatalogKinds(request.mediaType);
+		if (kinds.length === 0) {
+			retainedCursor?.dispose();
+			return { kind: 'page', items: [] };
+		}
+		const query = retainedCursor?.query ?? request.query;
+		const limit = retainedCursor?.limit ?? request.limit;
+		try {
+			const search = await client.rpc.catalog.search({
+				contract: {
+					protocolVersion: 3,
+					requiredCapabilities: kinds.includes('plugin')
+						? [...catalogSearchCapabilities, 'agent-plugin-discovery']
+						: catalogSearchCapabilities,
+				},
+				policySessionId,
+				query,
+				limit,
+				kinds: this.toCatalogKinds(kinds),
+				...(retainedCursor ? { page: { token: retainedCursor.token, number: retainedCursor.page } } : {}),
+			});
+			if (search.kind !== 'succeeded') {
+				if (search.kind === 'negotiation-refused' || search.kind === 'unsupported-kind') {
+					return { kind: 'unavailable', reason: 'unsupported' };
+				}
+				if (search.kind === 'authentication-required') {
+					return { kind: 'unavailable', reason: 'authentication' };
+				}
+				throw new Error(search.message);
+			}
+			const items = search.candidates.map(candidate => this.retainCatalogCandidate(client, policySessionId, search.searchId, candidate));
+			const nextCursor = search.pagination?.hasNextPage
+				? this.retainCatalogCursor(client, policySessionId, query, limit, kinds, search.pagination.token, search.pagination.currentPage + 1)
+				: undefined;
+			return { kind: 'page', items, nextCursor };
+		} finally {
+			retainedCursor?.dispose();
+		}
 	}
 
 	async list(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -149,27 +251,56 @@ export class CopilotCustomizationInstallations extends Disposable {
 	}
 
 	private async prepareInstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, request: IAgentCustomizationInstallationRequest): Promise<IAgentCustomizationInstallationReview> {
-		if ((request.installation.kind !== 'skill' && request.installation.kind !== 'mcp') || !request.itemUrl) {
+		if (request.installation.kind !== 'skill' && request.installation.kind !== 'mcp') {
 			throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
 		}
-		const search = await client.rpc.catalog.search({
-			contract: catalogContract,
-			policySessionId,
-			query: request.displayName,
-			limit: 50,
-			kinds: [request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server'],
-		});
-		if (search.kind !== 'succeeded') {
-			throw new Error(search.message);
+		const retained = request.selectionId ? this.catalogSelections.deleteAndLeak(request.selectionId) : undefined;
+		if (request.selectionId && (!retained || retained.client !== client || retained.policySessionId !== policySessionId)) {
+			retained?.dispose();
+			throw new Error(localize('copilot.customizationMarketplace.selectionExpired', "This catalog result expired. Refresh Discover and try again."));
 		}
-		const candidate = search.candidates.find(candidate =>
-			candidate.kind === (request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server')
-			&& candidate.source.kind === 'url'
-			&& candidate.source.url === request.itemUrl
-		);
-		if (!candidate || candidate.kind === 'plugin') {
+		let candidate: InstallableCatalogCandidate;
+		let searchId: string;
+		if (retained) {
+			candidate = retained.candidate;
+			searchId = retained.searchId;
+		} else {
+			if (!request.itemUrl) {
+				throw new Error(localize('copilot.customizationInstallation.unsupported', "This customization does not provide an SDK installation identity."));
+			}
+			const search = await client.rpc.catalog.search({
+				contract: catalogContract,
+				policySessionId,
+				query: request.displayName,
+				limit: 50,
+				kinds: [request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server'],
+			});
+			if (search.kind !== 'succeeded') {
+				throw new Error(search.message);
+			}
+			const matched = search.candidates.find(candidate =>
+				candidate.kind === (request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server')
+				&& candidate.source.kind === 'url'
+				&& candidate.source.url === request.itemUrl
+			);
+			if (!matched || matched.kind === 'plugin') {
+				throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
+			}
+			candidate = matched;
+			searchId = search.searchId;
+		}
+		if (candidate.kind !== (request.installation.kind === 'skill' ? 'ai-skill' : 'mcp-server')) {
+			retained?.dispose();
 			throw new Error(localize('copilot.customizationInstallation.catalogChanged', "The SDK catalog no longer contains this exact customization. Refresh Discover and try again."));
 		}
+		try {
+			return await this.prepareCandidateInstall(client, policySessionId, request, candidate, searchId, !!retained);
+		} finally {
+			retained?.dispose();
+		}
+	}
+
+	private async prepareCandidateInstall(client: ICopilotCustomizationInstallationClient, policySessionId: string, request: IAgentCustomizationInstallationRequest, candidate: InstallableCatalogCandidate, searchId: string, retained: boolean): Promise<IAgentCustomizationInstallationReview> {
 		if (candidate.kind === 'ai-skill') {
 			if (candidate.installability !== 'installable') {
 				throw new Error(localize('copilot.customizationInstallation.skillUnavailable', "The SDK cannot install this skill in the selected session."));
@@ -214,7 +345,7 @@ export class CopilotCustomizationInstallations extends Disposable {
 			},
 			policySessionId,
 			scope: 'user',
-			source: { kind: 'candidate', candidateHandle: candidate.handle, searchId: search.searchId },
+			source: { kind: 'candidate', candidateHandle: candidate.handle, searchId },
 		});
 		if (planned.kind !== 'planned') {
 			throw this.resultError(planned, localize('copilot.customizationInstallation.mcpPlanFailed', "The SDK could not prepare this MCP server installation."));
@@ -266,7 +397,9 @@ export class CopilotCustomizationInstallations extends Disposable {
 				&& structuralEquals(confirmation.review.review.identity, planned.plan.identity)
 				&& structuralEquals(confirmation.review.review.provenance, planned.plan.provenance)
 				&& structuralEquals(confirmation.review.review.catalogueTrust, candidate.trust)
-				&& isMatchingCatalogue(confirmation.review.review.catalogue, request, candidate.provenance.authority, candidate.publisher)
+				&& (retained
+					? isMatchingRetainedCatalogue(confirmation.review.review.catalogue, candidate)
+					: isMatchingCatalogue(confirmation.review.review.catalogue, request, candidate.provenance.authority, candidate.publisher))
 				&& structuralEquals(confirmation.review.review.target, planned.plan.target)
 				&& structuralEquals(confirmation.review.review.policy, planned.plan.policy)
 				&& structuralEquals(confirmation.review.review.selectedChoice, choice)
@@ -360,6 +493,105 @@ export class CopilotCustomizationInstallations extends Disposable {
 			() => this.operations.deleteAndDispose(operationId),
 		));
 		return review;
+	}
+
+	private getCatalogKinds(mediaType: string | undefined): readonly CatalogCandidateKind[] {
+		switch (mediaType) {
+			case undefined: return ['ai-skill', 'mcp-server', 'plugin'];
+			case 'application/ai-skill': return ['ai-skill'];
+			case 'application/mcp-server+json': return ['mcp-server'];
+			case 'application/vnd.github.copilot-plugin': return ['plugin'];
+			default: return [];
+		}
+	}
+
+	private toCatalogKinds(kinds: readonly CatalogCandidateKind[]): [CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind] | [CatalogCandidateKind, CatalogCandidateKind, CatalogCandidateKind] {
+		switch (kinds.length) {
+			case 1: return [kinds[0]];
+			case 2: return [kinds[0], kinds[1]];
+			default: return [kinds[0], kinds[1], kinds[2]];
+		}
+	}
+
+	private retainCatalogCandidate(client: ICopilotCustomizationInstallationClient, policySessionId: string, searchId: string, candidate: CatalogCandidate): IAgentCustomizationMarketplaceSearchItem {
+		if (candidate.kind === 'plugin') {
+			return {
+				selectionId: candidate.identity,
+				kind: 'plugin',
+				displayName: candidate.displayName,
+				description: candidate.description,
+				publisher: candidate.publisher,
+				version: candidate.version,
+				repository: candidate.source.repository,
+				path: candidate.source.path,
+				installable: false,
+				unavailableMessage: localize('copilot.customizationMarketplace.pluginUnavailable', "The SDK cannot yet install a catalog plugin at its exact pinned revision."),
+			};
+		}
+		const selectionId = generateUuid();
+		const retained = new RetainedCatalogSelection(
+			client,
+			policySessionId,
+			searchId,
+			candidate,
+			() => this.catalogSelections.deleteAndDispose(selectionId),
+		);
+		this.catalogSelections.set(selectionId, retained);
+		this.trimRetainedCatalogEntries(this.catalogSelections);
+		const unavailableMessage = this.getCandidateUnavailableMessage(candidate);
+		return {
+			selectionId,
+			kind: candidate.kind === 'ai-skill' ? 'skill' : 'mcp',
+			displayName: candidate.displayName,
+			description: candidate.description,
+			publisher: candidate.publisher,
+			installable: unavailableMessage === undefined,
+			unavailableMessage,
+		};
+	}
+
+	private getCandidateUnavailableMessage(candidate: InstallableCatalogCandidate): string | undefined {
+		if (candidate.installability === 'installable' && (candidate.kind !== 'mcp-server' || candidate.source.kind === 'url')) {
+			return undefined;
+		}
+		if (candidate.kind === 'ai-skill') {
+			switch (candidate.installability) {
+				case 'feature-disabled': return localize('copilot.customizationMarketplace.skillFeatureDisabled', "Skill installation is unavailable in this Copilot session.");
+				case 'materialisation-unavailable': return localize('copilot.customizationMarketplace.skillMaterializationUnavailable', "This Skill does not provide verified installation content.");
+				case 'policy-forbids': return localize('copilot.customizationMarketplace.skillPolicyBlocked', "Your organization does not allow installing this Skill.");
+				default: return localize('copilot.customizationMarketplace.skillUnavailable', "The SDK cannot install this Skill.");
+			}
+		}
+		if (candidate.source.kind !== 'url') {
+			return localize('copilot.customizationMarketplace.mcpSourceUnavailable', "This MCP server does not provide a supported remote installation source.");
+		}
+		return localize('copilot.customizationMarketplace.mcpPolicyBlocked', "Your organization does not allow installing this MCP server.");
+	}
+
+	private retainCatalogCursor(client: ICopilotCustomizationInstallationClient, policySessionId: string, query: string, limit: number, kinds: readonly CatalogCandidateKind[], token: string, page: number): string {
+		const cursor = generateUuid();
+		this.catalogCursors.set(cursor, new RetainedCatalogCursor(
+			client,
+			policySessionId,
+			query,
+			limit,
+			kinds,
+			token,
+			page,
+			() => this.catalogCursors.deleteAndDispose(cursor),
+		));
+		this.trimRetainedCatalogEntries(this.catalogCursors);
+		return cursor;
+	}
+
+	private trimRetainedCatalogEntries<T extends Disposable>(entries: DisposableMap<string, T>): void {
+		while (entries.size > maxRetainedCatalogEntries) {
+			const oldest = entries.keys().next().value;
+			if (oldest === undefined) {
+				return;
+			}
+			entries.deleteAndDispose(oldest);
+		}
 	}
 
 	private async listWithClient(client: ICopilotCustomizationInstallationClient, policySessionId: string): Promise<readonly IAgentCustomizationInstallation[]> {
@@ -485,6 +717,14 @@ function isMatchingCatalogue(
 		&& catalogue.publisher === publisher
 		&& catalogue.version === request.version
 		&& isMatchingCatalogueAuthority(authority, catalogue.source);
+}
+
+function isMatchingRetainedCatalogue(catalogue: IInstallationCatalogueIdentity | undefined, candidate: InstallableCatalogCandidate): boolean {
+	return !!catalogue
+		&& catalogue.displayName === candidate.displayName
+		&& (catalogue.description ?? '') === (candidate.description ?? '')
+		&& catalogue.publisher === candidate.publisher
+		&& isMatchingCatalogueAuthority(candidate.provenance.authority, catalogue.source);
 }
 
 function isMatchingCatalogueAuthority(authority: string, source: string | undefined): boolean {
