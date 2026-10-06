@@ -43,6 +43,8 @@ export const enum CopilotCliConfigKey {
 	ClaudeDefaultReasoningEffort = 'claudeDefaultReasoningEffort',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
+	/** Request v2 CAPI HydraFusion plans. Off by default; requires {@link HydraFusion}. */
+	HydraFusionPlanV2 = 'hydraFusionPlanV2',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -81,6 +83,8 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
+
+export const AgentHostHydraFusionPlanV2EnabledSettingId = 'chat.copilot.hydraFusion.planV2.enabled';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -240,6 +244,12 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
 		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.HydraFusionPlanV2]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.hydraFusionPlanV2.title', "HydraFusion Plan V2"),
+		description: localize('agentHost.config.hydraFusionPlanV2.description', "When enabled together with HydraFusion, Copilot SDK sessions request v2 HydraFusion plans."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
