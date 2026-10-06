@@ -24,6 +24,26 @@ import { ICloudSandboxTelemetryService, type CloudSandboxRefreshStopReason } fro
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 
+/** A broker may omit unchanged sealing material; a replacement key needs matching new ciphertext. */
+export function mergeCloudSandboxConnectionToken(previous: ICloudSandboxClientToken, refreshed: ICloudSandboxClientToken): ICloudSandboxClientToken | undefined {
+	const reusesSealedToken = !refreshed.encrypted_github_token;
+	const sealedToken = refreshed.encrypted_github_token || previous.encrypted_github_token;
+	const hostKey = refreshed.host_encryption_key;
+	if (hostKey) {
+		const matchesKey = typeof sealedToken === 'string'
+			&& typeof hostKey.key_id === 'string' && hostKey.key_id.length > 0
+			&& sealedToken.startsWith(`${CLOUD_SANDBOX_SEALED_TOKEN_PREFIX}${hostKey.key_id}.`);
+		const reusedKeyChanged = reusesSealedToken && previous.host_encryption_key !== undefined
+			&& !equals(previous.host_encryption_key, hostKey);
+		if (!matchesKey || reusedKeyChanged) {
+			return undefined;
+		}
+	}
+	return reusesSealedToken
+		? { ...refreshed, encrypted_github_token: sealedToken, host_encryption_key: hostKey ?? previous.host_encryption_key }
+		: refreshed;
+}
+
 /** Refresh the Web PubSub credentials this long before the access token's `expires_at`. */
 const CREDENTIAL_REFRESH_LEAD_MS = 60_000;
 
@@ -85,6 +105,8 @@ export class CloudSandboxCredentialRefreshState {
 	lastRefreshAt: number | undefined;
 	nextRefreshAt: number | undefined;
 	stopped = false;
+	permanentFailure = false;
+	permanentFailureStatus: number | undefined;
 }
 
 /**
@@ -240,6 +262,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 
 	private async _doRefresh(): Promise<boolean> {
 		let result: CloudSandboxConnectResult;
+		const previousToken = this._creds.token;
 		try {
 			result = await this._apiService.reconnect(this._request, this._clientId, this._cts.token);
 		} catch (err) {
@@ -252,6 +275,8 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			// A rejected request (deleted environment, revoked token) fails identically however
 			// often it is repeated, so retrying only adds load without any prospect of recovery.
 			if (!isRetryableCloudSandboxError(err)) {
+				this._refreshState.permanentFailure = true;
+				this._refreshState.permanentFailureStatus = err instanceof CloudSandboxRequestError ? err.statusCode : undefined;
 				this._stop('permanentError', toErrorMessage(err), err);
 				return false;
 			}
@@ -267,6 +292,11 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		if (this._cts.token.isCancellationRequested) {
 			return false;
 		}
+		if (this._creds.token !== previousToken) {
+			this._logService.trace(`${LOG_PREFIX} Ignoring a superseded credential refresh for ${this._address}`);
+			this._arm(credentialRefreshDelayMs(this._creds.token.expires_at) ?? CREDENTIAL_REFRESH_FALLBACK_MS);
+			return true;
+		}
 
 		if (result.kind === 'waking') {
 			// `/reconnect` refreshes an already-connected client, so a waking environment here is the
@@ -275,26 +305,13 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			return false;
 		}
 
-		const previousToken = this._creds.token;
-		const refreshedToken = result.token;
-		const reusesSealedToken = !refreshedToken.encrypted_github_token;
-		const sealedToken = refreshedToken.encrypted_github_token || previousToken.encrypted_github_token;
-		const hostKey = refreshedToken.host_encryption_key;
-		if (hostKey) {
-			const sealedTokenMatchesKey = typeof sealedToken === 'string'
-				&& typeof hostKey.key_id === 'string' && hostKey.key_id.length > 0
-				&& sealedToken.startsWith(`${CLOUD_SANDBOX_SEALED_TOKEN_PREFIX}${hostKey.key_id}.`);
-			const reusedKeyChanged = reusesSealedToken && previousToken.host_encryption_key !== undefined
-				&& !equals(previousToken.host_encryption_key, hostKey);
-			if (!sealedTokenMatchesKey || reusedKeyChanged) {
-				this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned inconsistent host credentials; retrying`);
-				this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
-				return false;
-			}
+		const refreshedToken = mergeCloudSandboxConnectionToken(previousToken, result.token);
+		if (!refreshedToken) {
+			this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned inconsistent host credentials; retrying`);
+			this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
+			return false;
 		}
-		this._creds.token = reusesSealedToken
-			? { ...refreshedToken, encrypted_github_token: sealedToken, host_encryption_key: hostKey ?? previousToken.host_encryption_key }
-			: refreshedToken;
+		this._creds.token = refreshedToken;
 
 		this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${this._address}`);
 		const delayMs = credentialRefreshDelayMs(result.token.expires_at);

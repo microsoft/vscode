@@ -16,6 +16,82 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot OTel tracking stalls concurrent shell execution and session-event delivery
+
+With native OpenTelemetry enabled, users can experience repeated 30-second stalls while the agent starts shell tools. Concurrent session-event delivery and permission lookup can time out, eventually failing the chat with `session event delivery failed: session lock unavailable`. This also occurs with content capture disabled.
+
+- Test: `shell tools and concurrent session events complete with OTel enabled` in `../providerIntegration/copilotOtel.integrationTest.ts`.
+- Scope: real bundled Copilot SDK `1.0.17-preview.5`; tokenless synthetic BYOK model, native file exporter, and concurrent session events. The disabled control remains unconditionally enabled.
+- Expected: all 288 real shell-tool calls succeed and each concurrent session-event RPC completes within 15 seconds, before the runtime's 30-second lock timeout; native tool spans are exported.
+- Observed: the disabled control completes in approximately 2.6 seconds on macOS; the enabled variant stalls.
+- Tracking: [github/copilot-agent-runtime#25128](https://github.com/github/copilot-agent-runtime/issues/25128).
+- Gate: a strict expected-failure marker accepts only `session event delivery stalled while starting shell tools`. Setup, other runtime failures, tool-output mismatches, and cleanup failures remain test failures. An unexpected pass fails and requires removing the marker while retaining the desired-behavior assertions. This is a stress scenario, not a deterministic thread-scheduling test.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+  ```
+
+### Copilot managed identity denial retains an inherited account resource attribute
+
+An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
+
+- Test: `managed identity denial removes inherited identity from native spans`.
+- Scope: Copilot runtime `1.0.92-4`, strict replay on all platforms.
+- Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
+- Observed: three native spans retain `user.name=synthetic-account`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/f4385f4f118c567aa0178776aeb45e296e9e6733/src/runtime/src/otel/sdk.rs#L1945) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
+    --grep "managed identity denial"
+  ```
+
+### Historical binary Git changeset content loses non-UTF-8 bytes
+
+A user can inspect both sides of an agent's binary-file change through the changeset's content references. The current working file preserves its bytes, but reading the historical Git-blob reference converts invalid UTF-8 bytes into replacement characters, so binary content cannot be recovered exactly.
+
+- Test: `regression coverage: binary changeset references preserve both byte sequences`.
+- Scope: conformance reference host on all platforms; no model traffic.
+- Expected: the before and after content references preserve the exact binary byte sequences, using the encoding reported by `resourceRead`.
+- Observed: historical bytes containing `0xff` and `0xfe` are returned as UTF-8 replacement characters; the current-file reference still returns the correct bytes.
+- Source evidence: `AgentService._fetchGitBlobContent` converts the Git buffer to a string and always reports UTF-8.
+- Gate: a strict expected-failure marker accepts only the historical-byte assertion. Current-file corruption, unavailable content references, setup/teardown failures, and an unexpected pass still fail the test.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/conformance/agentHostConformance.integrationTest.ts \
+    --grep "regression coverage: binary changeset references"
+  ```
+
+### Codex rejects a schema-valid mixed-content MCP tool response
+
+An MCP application can call a tool that returns ordered text, an image, embedded text, and embedded binary content. Copilot forwards this schema-valid result, but the bundled Codex provider rejects it while decoding the response, preventing the application from consuming the tool output.
+
+- Test: `MCP side channel: regression coverage: preserves ordered text image and embedded resource tool content`.
+- Scope: bundled Codex `0.157.0`; this precise mixed-content response.
+- Expected: preserve every content block, annotation, byte encoding, and order.
+- Observed: `JsonRpcError: tool call failed for side_channel/echo: Unexpected response type`. The current evidence does not isolate which block Codex rejects.
+- Prerequisites checked independently: MCP schema validation, a fully drained warm-up turn, the exact ready advertised channel, and a real server witness confirming the requested `echo` call.
+- Gate: Codex-only strict expected failure accepts only the exact decoding error and its optional stack frames. Other errors, content mismatches, and an unexpected pass fail. Default recording skips only this Codex variant and preserves its complete one-turn warm-up fixture.
+- Reevaluate after a Codex upgrade by running:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts \
+    --grep "MCP side channel: regression coverage: preserves ordered text image"
+  ```
+
+### Expanded provider history coverage retains existing platform limitations
+
+The new `regression coverage:` history and fork scenarios exercise cold resume, completed tool pairing, peer isolation, and selected-turn fork boundaries. They retain the existing provider limitations rather than treating recorded assistant text as proof of correct restoration.
+
+- Copilot Windows: cold tool-history, peer, and resumed-fork variants use the existing provider-session restart gate described under [Copilot provider sessions can disappear across a Windows host restart](#copilot-provider-sessions-can-disappear-across-a-windows-host-restart). Ordered text and identical-prompt resume checks remain enabled.
+- Claude: the four provider-backed selected-turn fork variants retain the existing `supportsChatForkE2E` gate described under [Claude provider-context fork](#claude-provider-context-fork); ordinary cold history and peer restoration remain enabled.
+- Recording does not bypass these known unsupported paths by default. Reevaluate the gates using the same actual tool/result and provider-bound history assertions when the underlying provider fixes are bundled.
+- Focused reproduction: use `--grep "regression coverage:"` with the affected provider's E2E entrypoint; the individual history/fork test titles identify the requested boundary.
+
 ### Codex Linux startup races in shared empty workspaces
 
 Starting two Codex chats in the same empty workspace can fail before the first prompt runs. With Codex 0.153.0 on Linux, initialization intermittently fails on a protected metadata directory that is missing by the time bubblewrap mounts it. This also reproduces with concurrent `thread/start` calls directly to the bundled app-server, without Agent Host.

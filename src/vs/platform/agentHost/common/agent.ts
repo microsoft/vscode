@@ -881,6 +881,16 @@ export interface IAgentChats {
 
 }
 
+/** Provider-native metadata events, before protocol translation. */
+export interface IAgentChatSessionEvent {
+	readonly chat: URI;
+	readonly id: string;
+	readonly timestamp: string;
+	readonly persisted: boolean;
+	readonly type: string;
+	readonly data: unknown;
+}
+
 export interface IAgentResolveChatConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
@@ -1157,12 +1167,11 @@ export namespace AgentSession {
 	}
 
 	/**
-	 * Extracts the provider name from a session URI scheme.
-	 * Accepts both a URI object and a URI string.
+	 * Legacy provider-scheme fallback; standard sessions require explicit provider metadata.
 	 */
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
-		return parsed.scheme || undefined;
+		return parsed.scheme === 'ahp-session' ? undefined : parsed.scheme || undefined;
 	}
 }
 
@@ -1302,6 +1311,15 @@ export interface IAgent {
 
 	/** Streamed progress for an exact chat. */
 	readonly onDidChatProgress: Event<AgentSignal>;
+
+	/** Optional admitted native metadata stream for environment-owned session mirroring. */
+	readonly onDidChatSessionEvent?: Event<IAgentChatSessionEvent>;
+
+	/** Read genuine persisted metadata without creating or resuming a provider session. */
+	readChatSessionEvents?(chat: URI, context: IAgentChatContext, token: CancellationToken, afterEventId?: string, onDidReadEventId?: (id: string) => void): AsyncIterable<IAgentChatSessionEvent>;
+
+	/** Synchronize a host-owned title into an already-live provider session. */
+	synchronizeChatSessionTitle?(chat: URI, title: string): Promise<boolean>;
 
 	/** Fires when a provisional chat acquires its SDK backing and durable metadata. */
 	readonly onDidMaterializeChat: Event<IAgentMaterializeChatEvent>;
@@ -1472,6 +1490,8 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+	/** Canonical device remote-control policy; absence is distinct from a failed read. */
+	getRemoteControlManagedSettings?(): Promise<Record<string, unknown> | undefined>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;

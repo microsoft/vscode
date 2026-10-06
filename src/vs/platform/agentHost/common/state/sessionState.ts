@@ -940,7 +940,7 @@ export function isDefaultChatUri(uri: ProtocolURI | ResourceURI): boolean {
 export function getSessionChatResource(state: Pick<SessionState, 'defaultChat'> & { readonly chats: readonly Pick<ChatSummary, 'resource'>[] }, chatId: string): ProtocolURI | undefined {
 	return chatId === DEFAULT_CHAT_ID
 		? state.defaultChat ?? state.chats.find(chat => isDefaultChatUri(chat.resource))?.resource
-		: state.chats.find(chat => parseChatUri(chat.resource)?.chatId === chatId)?.resource;
+		: state.chats.find(chat => (parseChatUri(chat.resource)?.chatId ?? chat.resource.toString()) === chatId)?.resource;
 }
 
 /**

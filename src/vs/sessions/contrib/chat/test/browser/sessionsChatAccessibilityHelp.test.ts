@@ -16,6 +16,8 @@ import { AccessibleViewType } from '../../../../../platform/accessibility/browse
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
+import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -37,6 +39,25 @@ import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/comm
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('documents navigation through sessions and singleton views', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			back: content.includes('Go back through visited sessions, the New Session view, and custom views such as Automations<keybinding:sessions.goBack>'),
+			forward: content.includes('Go forward through visited sessions and views<keybinding:sessions.goForward>'),
+			singletonViews: content.includes('moves its single history entry to the most recent position'),
+		}, { back: true, forward: true, singletonViews: true });
+	});
 
 	test('documents layout density only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
@@ -90,9 +111,36 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	function stubContextKeyService(instantiationService: TestInstantiationService, configuration: TestConfigurationService, promoteNewChatAction = false): void {
+		instantiationService.stub(IEnvironmentService, { isBuilt: false });
+		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: configuration.getValue('chat.disableAIFeatures') === true } });
 		const contextKeyService = store.add(new ContextKeyService(configuration));
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(promoteNewChatAction);
 		instantiationService.stub(IContextKeyService, contextKeyService);
+	}
+
+	for (const { name, built, extensionDevelopment, hostsEnabled, aiDisabled, hidden, enabled } of [
+		{ name: 'source', built: false, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'extension development', built: true, extensionDevelopment: true, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'normal built product', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: false, enabled: true },
+		{ name: 'remote hosts disabled', built: true, extensionDevelopment: false, hostsEnabled: false, aiDisabled: false, hidden: false, enabled: false },
+		{ name: 'AI master setting disabled', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: true, hidden: false, enabled: false },
+		{ name: 'AI hidden', built: true, extensionDevelopment: false, hostsEnabled: true, aiDisabled: false, hidden: true, enabled: false },
+	]) {
+		test(`Mission Control accessibility help matches discovery availability: ${name}`, () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: hostsEnabled, 'chat.disableAIFeatures': aiDisabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IEnvironmentService, { isBuilt: built, isExtensionDevelopment: extensionDevelopment });
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			assert.strictEqual(content.includes('choose Mission Control to discover your user-local hosts'), enabled);
+		});
 	}
 
 	test('describes Dev Container samples only when all picker prerequisites are enabled', () => {
@@ -207,6 +255,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			return {
 				filter: content.includes('Created Externally submenu') && content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
 				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
+				submenuChoices: content.includes('Current choices are checked inside the submenus'),
+				viewActions: content.includes('Compact View and Collapse All Groups are available from the Sessions More Actions menu'),
+				applicationDefaults: content.includes('In Local and on remote hosts, applications other than VS Code are hidden by default') && content.includes('Slack and Teams applications in Cloud are also hidden by default'),
+				vscodeChoice: content.includes('VS Code is always offered for each available environment, even before you create a session there'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
 				section: sectionHelp !== undefined,
 				keyboard: sectionHelp?.includes('<keybinding:editor.action.showContextMenu>') ?? false,
@@ -214,9 +266,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 
 		assert.deepStrictEqual(snapshots, [
-			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
-			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
-			{ filter: true, defaults: true, importAction: true, section: true, keyboard: true },
+			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, submenuChoices: true, viewActions: true, applicationDefaults: true, vscodeChoice: true, importAction: true, section: true, keyboard: true },
 		]);
 	});
 
@@ -592,6 +644,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 			tintCheckedState: tintHelp?.includes('A check mark means tinting is enabled.'),
 			tintPreservesImage: tintHelp?.includes('Turning it off keeps the background image'),
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
+	});
+
+	test('describes generic directional navigation for the session grid', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
+
+		assert.deepStrictEqual([
+			'workbench.action.navigateLeft',
+			'workbench.action.navigateRight',
+			'workbench.action.navigateUp',
+			'workbench.action.navigateDown',
+		].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)), [true, true, true, true]);
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

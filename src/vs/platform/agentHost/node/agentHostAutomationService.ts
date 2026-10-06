@@ -61,6 +61,7 @@ interface IStoredAutomations {
 	readonly version?: 1;
 	readonly catalog: IStoredAutomationCatalog;
 	readonly runs?: readonly AutomationRunState[];
+	readonly runProviders?: Readonly<Record<string, string>>;
 	readonly manualRunRequests?: readonly IStoredManualRunRequest[];
 }
 
@@ -99,6 +100,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private _catalog: AutomationState | undefined;
 	private _runs = new Map<string, AutomationRunState>();
+	private _runProviders = new Map<string, string>();
 	private _manualRunRequests = new Map<string, IStoredManualRunRequest>();
 	private _mutationTail: Promise<void> = Promise.resolve();
 	private readonly _executionAvailabilityWatcher = this._register(new MutableDisposable());
@@ -128,6 +130,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._register(toDisposable(() => this._mcpAuthenticationChallenges.clear()));
 		const stored = this._load();
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
+		this._runProviders = new Map(Object.entries(stored?.runProviders ?? {}));
 		this._catalog = stored?.catalog ? {
 			entries: stored.catalog.automations.map(automation => {
 				const restored = withRunWindow(migrateStoredAutomation(automation), this._runs, RUN_HISTORY_PAGE_SIZE);
@@ -429,7 +432,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		catalog: AutomationState,
 		runs: ReadonlyMap<string, AutomationRunState>,
 		manualRunRequests: ReadonlyMap<string, IStoredManualRunRequest>,
+		runProviders: ReadonlyMap<string, string> = this._runProviders,
 	): Promise<void> {
+		const nextRunProviders = new Map([...runProviders].filter(([resource]) => runs.has(resource)));
 		await this._storageService.setAndFlush<IStoredAutomations>(STORAGE_KEY, {
 			version: 1,
 			catalog: {
@@ -437,8 +442,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...(catalog._meta ? { _meta: catalog._meta } : {}),
 			},
 			runs: [...runs.values()],
+			...(nextRunProviders.size > 0 ? { runProviders: Object.fromEntries(nextRunProviders) } : {}),
 			manualRunRequests: [...manualRunRequests.values()],
 		});
+		this._runProviders = nextRunProviders;
 	}
 
 	private _requireCatalog(): AutomationState {
@@ -744,6 +751,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (!run) {
 			throw new Error(`Automation run not found while linking session: ${resource}`);
 		}
+		const sessionProvider = this._stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session);
 		const sessions = run.sessions.includes(session) ? run.sessions : [...run.sessions, session];
 		const next = { ...run, sessions, primarySession: session };
 		const actions: Array<AutomationRunSessionSetAction | AutomationRunPrimarySessionChangedAction> = [];
@@ -753,7 +761,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (run.primarySession !== session) {
 			actions.push({ type: ActionType.AutomationRunPrimarySessionChanged, primarySession: session });
 		}
-		await this._commitRun(next, actions);
+		await this._commitRun(next, actions, undefined, sessionProvider);
 		if (run.primarySession === undefined && !isTerminalLifecycle(next.lifecycle)) {
 			logAutomationRunStarted(this._telemetryService, {
 				...configuration,
@@ -935,13 +943,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		run: AutomationRunState,
 		actions: readonly (AutomationRunLifecycleChangedAction | AutomationRunSessionSetAction | AutomationRunPrimarySessionChangedAction)[],
 		outcome?: AutomationRunOutcome,
+		provider?: string,
 	): Promise<void> {
 		const catalog = this._requireCatalog();
 		const previous = this._runs.get(run.resource);
 		const nextCatalog = this._catalogWithRun(catalog, run);
 		const nextRuns = new Map(this._runs);
 		nextRuns.set(run.resource, run);
-		await this._persist(nextCatalog, nextRuns, this._manualRunRequests);
+		const runProviders = provider === undefined ? this._runProviders : new Map(this._runProviders).set(run.resource, provider);
+		await this._persist(nextCatalog, nextRuns, this._manualRunRequests, runProviders);
 		this._catalog = nextCatalog;
 		this._runs = nextRuns;
 		for (const action of actions) {
@@ -1002,12 +1012,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private _runTelemetry(run: AutomationRunState): IAutomationRunTelemetry {
 		const session = run.primarySession;
+		const snapshotProvider = this._runProviders.get(run.resource);
 		return {
 			automationId: run.automation,
 			runId: AgentSession.id(run.resource),
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual ? 'manual' : run.origin.catchUp ? 'catch_up' : run.origin.scheduledFor ? 'schedule' : 'event',
 			runCreatedAt: run.lifecycle.createdAt,
-			provider: session ? getAutomationTelemetryProvider(AgentSession.provider(session)) : 'default',
+			provider: session ? getAutomationTelemetryProvider(snapshotProvider ?? this._stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session)) : 'default',
 			agentSessionId: session ? AgentSession.id(session) : undefined,
 			sessionCreated: run.sessions.length > 0,
 		};
@@ -1125,9 +1136,12 @@ function isStoredAutomations(value: unknown): value is IStoredAutomations {
 		return false;
 	}
 	const stored = value as Record<string, unknown>;
+	const runProviders = stored['runProviders'];
 	return (stored['version'] === undefined || stored['version'] === 1)
 		&& isStoredAutomationCatalog(stored['catalog'])
 		&& (stored['runs'] === undefined || Array.isArray(stored['runs']) && stored['runs'].every(isAutomationRunState))
+		&& (runProviders === undefined || !!runProviders && typeof runProviders === 'object' && !Array.isArray(runProviders)
+			&& Object.values(runProviders).every(provider => typeof provider === 'string' && provider.length > 0))
 		&& (stored['manualRunRequests'] === undefined || Array.isArray(stored['manualRunRequests']) && stored['manualRunRequests'].every(isStoredManualRunRequest));
 }
 

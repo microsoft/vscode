@@ -26,6 +26,8 @@ In both windows, archiving and unarchiving an inventory-owned sandbox session up
 
 In the Agents Window, renaming a discovered sandbox session updates its owning Mission Control task without waking the environment. After success, the provider updates the local title and sends an AHP rename only if already connected; offline renames are not queued for replay. Host-reported titles remain authoritative on connection. Sessions sharing the environment but not owned by the discovered task continue to use AHP.
 
+Opening or restoring a sandbox session does not wake its environment. The Agents Window sandbox provider opts out of connect-on-open preparation; chat content activation reads the environment's state and connects only to an online environment, otherwise serving persisted history without sending access. Normally interactive chats retain an editable local draft after their saved input has loaded; this does not require a live environment. Typing, pasting, or attaching context requests one connection attempt; failure leaves the draft intact and further attempts require the connection banner's retry action. Sending waits for the live chat model, and session settings wait for the authenticated connection. Archived and host-read-only chats remain read-only. Connecting never submits a draft automatically.
+
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity
@@ -45,7 +47,7 @@ Never use the logical session type where host-specific routing is required. Reso
 
 Provider-owned session resolution policies retain the remote address for the provider's lifetime, independently of the live connection catalog. Client log discovery uses that identity to find address-keyed transcripts and forwarded logs after disconnection removes the connection.
 
-The remote Agent Host service owns client-local display-name overrides in machine-local application storage, keyed by normalized connection address. Overrides take precedence over configured or discovered names in provider and resource labels without changing connection details or routing identities; clearing an override restores the current default name.
+The remote Agent Host service owns client-local display-name overrides, normally in machine-local application storage keyed by normalized connection address. Account/profile-scoped inventory owners may register their own label persistence through the same API. Overrides take precedence over configured or discovered names in provider and resource labels without changing connection details or routing identities; clearing an override restores the current default name.
 
 In the Editor Window, a chat session contribution's `sessionListGroup` selects its provider filter without changing its controller, resource scheme, or content-provider routing. Disconnected discovery supplies activity and task archive flags, not authoritative read flags or proof that the host is available.
 
@@ -90,6 +92,14 @@ Providers may expose `showConnectionLog` for the connection recovery surface. Th
 
 On web, an intentional tunnel disconnect keeps the host cached and selectable while suppressing automatic reconnect. Reconnecting explicitly clears that suppression. Picker dismissal remains a separate persistent Hide operation and must have an explicit Restore path.
 
+User-local Mission Control discovery requires remote agent hosts and AI features to be enabled and is owned by `IMissionControlEnvironmentService`, separately from managed sandbox task discovery. It restores credential-free host metadata and local hide/name preferences from machine-local profile storage for the authenticated account before network refresh. Discovery creates neither relay connections nor tasks. Missing or failed discovery retains known hosts; availability reported by Mission Control is not relay connection state or session activity. The local native host is excluded in favor of IPC.
+
+The Mission Control contribution registers a generic native provider for each visible inventory host before connection, using that host's actual advertised agents and session URIs once connected. Disconnect retains the provider, cached summaries, and drafts, with disconnected sessions read-only; Hide removes the provider locally and Restore republishes its cached inventory without directly dialing. Restoring a previously open chat may invoke the existing on-demand session connection path, which still validates host availability and never provisions replacement compute. Account changes withdraw the old providers and cancel pending operations. Session summaries and local display-name overrides are account/profile-scoped without changing connection addresses, session routing identity, or migrating historical storage. The shared remote-host display-name API delegates to the inventory owner for these labels.
+
+Retained MC metadata is stored per host, with hide and display-name preferences stored under independent per-host keys. Discovery never overwrites local preferences, and a stale window's preference changes cannot replace newer inventory. Inventory-owned rename actions retain the provider's account/lifetime guard across the input dialog; losing that provider cancels the rename rather than falling back to application-wide aliases.
+
+MC inventory name changes update the native provider in place without replacing its drafts and cached state. Other entry-driven remote kinds retain their existing recreation semantics so connection callbacks are rebuilt with current configuration. Connection defaults always use the discovered remote name; client-local aliases remain overrides rather than becoming remote defaults.
+
 ## Session lifecycle
 
 Drafts expose the shared untitled `ISession` contract and use remote workspace metadata. First send commits through the shared Agent Host lifecycle. Existing sessions use the shared adapter and cache.
@@ -105,6 +115,8 @@ For cloud sandboxes advertising project management, the connection customization
 Authentication challenges, credential refresh, and transport retries remain connection policy. The request that encountered a challenge observes its actual success, cancellation, or failure; provider operations do not silently convert authentication failures into availability results.
 
 Concurrent prompts use the shared setup operation where credentials are shared. Connection-specific recovery state remains isolated per remote host.
+
+User-local MC attachment has a one-minute client deadline covering identity, live availability validation, and relay establishment. Timeout cancels admission and leaves the retained host available for retry. Automatic relay recovery has a two-minute budget, including credential preparation, backoff, and handshake, then exposes the disconnected recovery surface. These limits do not change managed-sandbox provisioning or credential retry budgets.
 
 ## Preferred run location
 

@@ -14,6 +14,7 @@ import { autorun, IObservable, IReader, observableSignalFromEvent, observableVal
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, MenuId, registerAction2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
@@ -59,6 +60,7 @@ import { asCssVariable } from '../../../../platform/theme/common/colorRegistry.j
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
+import { registerViewNavigationCommand } from '../../../../workbench/browser/actions/navigationActions.js';
 import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../common/theme.js';
 import { logSessionsInteraction, SessionsInteractionSource } from '../../../common/sessionsTelemetry.js';
 import { NEW_SESSION_ACTION_ID } from '../../chat/common/constants.js';
@@ -278,15 +280,19 @@ registerAction2(class GoBackAction extends Action2 {
 			tooltip: localize('sessionsGoBackTooltip', "Go Back One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoBackContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Shift+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.LeftArrow, KeyCode.BrowserBack, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.LeftArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -320,15 +326,19 @@ registerAction2(class GoForwardAction extends Action2 {
 			tooltip: localize('sessionsGoForwardTooltip', "Go Forward One Session"),
 			category: SessionsCategories.Sessions,
 			precondition: CanGoForwardContext,
-			keybinding: {
+			keybinding: [{
 				// Higher than `WorkbenchContrib` so the `Ctrl+Tab` secondary wins over the
 				// editor quick-open actions (which bind the same chord at `WorkbenchContrib`).
 				weight: KeybindingWeight.SessionsContrib,
 				win: { primary: KeyMod.Alt | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.WinCtrl | KeyCode.Tab] },
-				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Minus, secondary: [KeyMod.Alt | KeyCode.RightArrow, KeyCode.BrowserForward, KeyMod.CtrlCmd | KeyCode.Tab] },
 				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated()),
-			},
+			}, {
+				weight: KeybindingWeight.SessionsContrib,
+				mac: { primary: KeyMod.Alt | KeyCode.RightArrow },
+				when: ContextKeyExpr.and(IsSessionsWindowContext, EditorAreaFocusContext.toNegated(), InputFocusedContext.negate(), EditorContextKeys.textInputFocus.negate()),
+			}],
 			menu: [{
 				id: Menus.TitleBarCenterLeft,
 				group: 'navigation',
@@ -928,7 +938,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 		id: CLOSE_CHAT_COMMAND_ID,
 		title: localize('closeChatGroup', "Close"),
 		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
-		icon: Codicon.close,
+		icon: Codicon.closeCompact,
 	},
 	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
 	group: 'navigation',
@@ -1366,7 +1376,9 @@ export abstract class CompactButtonActionViewItem extends BaseActionViewItem {
 		this.configureButton(button);
 		const onboardingTargetId = this.onboardingTargetId;
 		if (onboardingTargetId) {
-			this._register(markOnboardingTarget(button.element, onboardingTargetId));
+			this._register(markOnboardingTarget(button.element, onboardingTargetId, {
+				onDidActivate: Event.map(Event.filter(button.onDidClick, () => this.action.enabled), () => undefined),
+			}));
 		}
 		this._register(button.onDidClick(e => {
 			// Stop propagation so the parent <li> click handler doesn't run the action twice.
@@ -1927,7 +1939,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
 			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
-			icon: Codicon.close,
+			icon: Codicon.closeCompact,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
 				when: ContextKeyExpr.and(
@@ -2020,12 +2032,19 @@ registerAction2(class ArrangeSessionsAction extends Action2 {
 	}
 });
 
-for (const item of [
+const sessionGridActions = [
 	{ direction: Direction.Left, key: KeyCode.LeftArrow, focus: SESSION_GRID_FOCUS_COMMANDS.left, focusTitle: localize2('focusSessionLeft', "Focus Session to the Left"), move: 'sessions.moveSessionLeft', moveTitle: localize2('moveSessionLeft', "Move Session Left"), resize: 'sessions.narrowSession', resizeTitle: localize2('narrowSession', "Decrease Session Width") },
 	{ direction: Direction.Right, key: KeyCode.RightArrow, focus: SESSION_GRID_FOCUS_COMMANDS.right, focusTitle: localize2('focusSessionRight', "Focus Session to the Right"), move: 'sessions.moveSessionRight', moveTitle: localize2('moveSessionRight', "Move Session Right"), resize: 'sessions.widenSession', resizeTitle: localize2('widenSession', "Increase Session Width") },
 	{ direction: Direction.Up, key: KeyCode.UpArrow, focus: SESSION_GRID_FOCUS_COMMANDS.up, focusTitle: localize2('focusSessionAbove', "Focus Session Above"), move: 'sessions.moveSessionUp', moveTitle: localize2('moveSessionUp', "Move Session Above"), resize: 'sessions.shortenSession', resizeTitle: localize2('shortenSession', "Decrease Session Height") },
 	{ direction: Direction.Down, key: KeyCode.DownArrow, focus: SESSION_GRID_FOCUS_COMMANDS.down, focusTitle: localize2('focusSessionBelow', "Focus Session Below"), move: 'sessions.moveSessionDown', moveTitle: localize2('moveSessionDown', "Move Session Below"), resize: 'sessions.heightenSession', resizeTitle: localize2('heightenSession', "Increase Session Height") },
-]) {
+] as const;
+
+const sessionGridNavigationWhen = ContextKeyExpr.and(sessionGridWhen, SessionsFocusContext)!;
+for (const item of sessionGridActions) {
+	registerViewNavigationCommand(item.direction, item.focus, sessionGridNavigationWhen);
+}
+
+for (const item of sessionGridActions) {
 	for (const operation of ['focus', 'move', 'resize'] as const) {
 		registerAction2(class extends Action2 {
 			constructor() {

@@ -1853,7 +1853,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			const sessionConfig = config ? await provisioned.provider.resolveInitialSessionConfig(provisioned.session.sessionId, config, token) : undefined;
 			await raceCancellationError(this._carryModelToSandbox(provisioned, chat.resource, selectedModel), token);
 			// Preserve the prompt-derived title rather than the host's branch-name default.
-			await raceCancellationError(provisioned.provider.renameSession(provisioned.session.sessionId, session.title.get()), token);
+			await raceCancellationError(provisioned.provider.setInitialSessionTitle(provisioned.session.sessionId, session.title.get()), token);
 			const committed = await provisioned.provider.sendRequest(provisioned.session.sessionId, chat.resource, { ...options, sessionConfig });
 
 			// Retire only once the turn is dispatched; swapping earlier bounces the view home.

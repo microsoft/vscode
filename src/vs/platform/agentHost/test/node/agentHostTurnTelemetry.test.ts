@@ -21,9 +21,10 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import type { ICodexAccountState } from '../../node/codex/codexAccountState.js';
 import type { SessionMode } from '../../common/agentHostSchema.js';
@@ -340,6 +341,51 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sinon.restore();
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const provider of ['copilotcli', 'copilot', 'claude', 'codex', 'custom-provider']) {
+		for (const scheme of [provider, 'ahp-session']) {
+			test(`turn and tool telemetry preserves ${provider} for ${scheme} sessions`, () => {
+				sinon.stub(agent, 'id').value(provider);
+				const resource = AgentSession.uri(scheme, 'provider-telemetry');
+				const root = buildDefaultChatUri(resource);
+				const peer = buildChatUri(resource, 'peer');
+				const subagent = buildSubagentChatUri(resource, 'subagent');
+				stateManager.createSession({
+					resource: resource.toString(), provider, title: 'Test', status: SessionStatus.Idle,
+					createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
+				});
+				stateManager.dispatchServerAction(resource.toString(), { type: ActionType.SessionReady });
+				stateManager.addChat(resource.toString(), peer);
+				stateManager.addChat(resource.toString(), subagent);
+
+				startTurn('success', 'hello', undefined, root);
+				fire({ type: ActionType.ChatToolCallStart, turnId: 'success', toolCallId: 'tool', toolName: 'bash', displayName: 'bash' }, root);
+				fire({ type: ActionType.ChatToolCallReady, turnId: 'success', toolCallId: 'tool', invocationMessage: 'run' }, root);
+				fire({ type: ActionType.ChatToolCallComplete, turnId: 'success', toolCallId: 'tool', result: { success: true, pastTenseMessage: 'ran' } }, root);
+				fire({ type: ActionType.ChatTurnComplete, turnId: 'success', duration: 1 }, root);
+				startTurn('failure', 'hello', undefined, peer);
+				fire({ type: ActionType.ChatError, turnId: 'failure', duration: 1, part: createErrorResponsePart({ errorType: 'test', message: 'failed' }) }, peer);
+				startTurn('cancelled', 'hello', undefined, subagent);
+				fire({ type: ActionType.ChatTurnCancelled, turnId: 'cancelled', duration: 1 }, subagent);
+
+				const providerEvents = telemetry.events.filter(event => event.data?.provider !== undefined);
+				assert.deepStrictEqual({
+					providers: [...new Set(providerEvents.map(event => event.data?.provider))],
+					completions: completedEvents().map(event => {
+						const data = event.data as Record<string, unknown>;
+						return { provider: data.provider, result: data.result };
+					}),
+					failures: failedEvents().length,
+					tools: providerEvents.filter(event => event.eventName === 'languageModelToolInvoked' || event.eventName === 'agentHost.toolInvoked').map(event => event.eventName).sort(),
+				}, {
+					providers: [provider],
+					completions: [{ provider, result: 'success' }, { provider, result: 'error' }, { provider, result: 'cancelled' }],
+					failures: 1,
+					tools: ['agentHost.toolInvoked', 'languageModelToolInvoked'],
+				});
+			});
+		}
+	}
 
 	test('keeps admission context independent across concurrent chats and sessions', async () => {
 		sinon.stub(agent, 'id').value('codex');
@@ -790,7 +836,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstEdit, 700);
-		assert.strictEqual(data.timeToFirstEditClassifierVersion, 1);
 		assert.strictEqual(data.modelCallCount, 0);
 	});
 
@@ -830,7 +875,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				return {
 					turnId: data.turnId,
 					timeToFirstEdit: data.timeToFirstEdit,
-					timeToFirstEditClassifierVersion: data.timeToFirstEditClassifierVersion,
 					startedWithSteering: data.startedWithSteering,
 					receivedSteering: data.receivedSteering,
 					hostLaunchKind: data.hostLaunchKind,
@@ -844,7 +888,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
 				turnId,
 				timeToFirstEdit: turnId === 'turn-original' ? 100 : 250,
-				timeToFirstEditClassifierVersion: 1,
 				startedWithSteering: turnId !== 'turn-original',
 				receivedSteering: turnId !== 'turn-steering-2',
 				hostLaunchKind: undefined,
@@ -1000,7 +1043,6 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
 		assert.strictEqual(data.timeToFirstEdit, undefined);
-		assert.strictEqual(data.timeToFirstEditClassifierVersion, undefined);
 	});
 
 	test('does not attribute a stale model-call attempt to the active turn', () => {
@@ -1571,6 +1613,52 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		});
 	});
 
+	test('uses the resolved usage model while preserving HydraFusion selection', () => {
+		sinon.stub(agent, 'id').value(COPILOT_CLI_AGENT_PROVIDER_ID);
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MODEL_ID, name: 'HydraFusion', supportsVision: false },
+			{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false },
+		]);
+		startTurn('turn-explicit', 'hello', COPILOT_HYDRA_FUSION_MODEL_ID);
+		fire({ type: ActionType.ChatUsage, turnId: 'turn-explicit', usage: { model: 'gpt-5.5' } });
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-explicit', duration: 1000 });
+
+		agent.chatModel = { id: COPILOT_HYDRA_FUSION_MODEL_ID };
+		startTurn('turn-default');
+		fire({ type: ActionType.ChatError, turnId: 'turn-default', duration: 1000, part: createErrorResponsePart({ errorType: 'query', message: 'failed before routing' }) });
+
+		assert.deepStrictEqual(completedEvents().map(event => {
+			const data = event.data as Record<string, unknown>;
+			return {
+				model: capturedModel(data),
+				modelSelectionKind: data.modelSelectionKind,
+				result: data.result,
+			};
+		}), [
+			{ model: { trusted: true, value: 'gpt-5.5' }, modelSelectionKind: 'hydrafusion', result: 'success' },
+			{ model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID }, modelSelectionKind: 'hydrafusion', result: 'error' },
+		]);
+	});
+
+	test('does not classify another provider model named HydraFusion as the routing mode', () => {
+		setupSession();
+		agent.setModels([
+			{ provider: 'mock', id: COPILOT_HYDRA_FUSION_MODEL_ID, name: 'HydraFusion', supportsVision: false },
+		]);
+		startTurn('turn-explicit', 'hello', COPILOT_HYDRA_FUSION_MODEL_ID);
+		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-explicit', duration: 1000 });
+
+		const data = completedEvents()[0].data as Record<string, unknown>;
+		assert.deepStrictEqual({
+			model: capturedModel(data),
+			modelSelectionKind: data.modelSelectionKind,
+		}, {
+			model: { trusted: true, value: COPILOT_HYDRA_FUSION_MODEL_ID },
+			modelSelectionKind: 'explicit',
+		});
+	});
+
 	test('uses the concrete provider default across turn outcomes while preserving Default selection', () => {
 		setupSession();
 		agent.setModels([{ provider: 'mock', id: 'gpt-5.5', name: 'GPT 5.5', supportsVision: false }]);
@@ -1597,7 +1685,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		]);
 	});
 
-	test('does not treat an Auto provider default as the effective model', () => {
+	test('preserves inherited Auto selection without reporting it as the observed model', () => {
 		setupSession();
 		agent.setModels([
 			{ provider: 'mock', id: 'auto', name: 'Auto', supportsVision: false },
@@ -1614,7 +1702,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			modelSelectionKind: data.modelSelectionKind,
 		}, {
 			model: undefined,
-			modelSelectionKind: 'default',
+			modelSelectionKind: 'auto',
 		});
 	});
 
