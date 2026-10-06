@@ -4,7 +4,7 @@
 		"sessionStart": [
 			{
 				"type": "command",
-				"bash": "if [ -n \"${GITHUB_ENVIRONMENT_ID:-}\" ] && [ \"$(uname -s)\" = Linux ]; then node build/npm/cloudSandboxSetup.ts; fi",
+				"bash": "if [ -n \"${GITHUB_ENVIRONMENT_ID:-}\" ] && [ \"$(uname -s)\" = Linux ]; then node build/npm/cloudSandboxSetup.ts --agent-pid \"$PPID\"; fi",
 				"cwd": ".",
 				"timeoutSec": 1800
 			}

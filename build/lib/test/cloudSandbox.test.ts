@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { suite, test, type TestContext } from 'node:test';
-import { prepareCloudSandbox, finishCloudSandbox } from '../../npm/cloudSandbox.ts';
+import { prepareCloudSandbox, raiseCloudSandboxFileLimit, finishCloudSandbox } from '../../npm/cloudSandbox.ts';
 import { isExpectedElectronInstalled } from '../electronVersion.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const packages = [
-	'build-essential', 'ca-certificates', 'curl', 'pkg-config', 'python3', 'xz-utils',
+	'build-essential', 'ca-certificates', 'curl', 'pkg-config', 'python3', 'util-linux', 'xz-utils',
 	'libxkbfile-dev', 'libkrb5-dev', 'libgtk-3-dev', 'libgbm-dev', 'libnss3', 'libasound2-dev',
 	'xvfb', 'rpm',
 ];
@@ -92,8 +92,94 @@ suite('Cloud Sandbox install setup', () => {
 			{ platform: 'linux' as const, env: { GH_TOKEN: 'not-a-sandbox-marker', CI: 'true', CODESPACES: 'true' } },
 		]) {
 			prepareCloudSandbox({ ...options, run, root: '/nonexistent' });
+			raiseCloudSandboxFileLimit(0, { ...options, run, root: '/nonexistent' });
 			finishCloudSandbox({ ...options, run, root: '/nonexistent' });
 		}
+	});
+
+	test('raises the sandbox process soft limit, preserves the hard limit, and verifies the result', () => {
+		const calls: { command: string; args: readonly string[] }[] = [];
+		const responses = ['1024 2097152', '1048576 2097152'];
+		raiseCloudSandboxFileLimit(4321, {
+			platform: 'linux', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+			run: (command, args, captureOutput) => {
+				calls.push({ command, args });
+				return captureOutput ? responses.shift()! : '';
+			},
+		});
+		const query = ['--pid', '4321', '--nofile', '--noheadings', '--raw', '--output', 'SOFT,HARD'];
+		assert.deepStrictEqual(calls, [
+			{ command: 'prlimit', args: query },
+			{ command: 'prlimit', args: ['--pid', '4321', '--nofile=1048576:'] },
+			{ command: 'prlimit', args: query },
+		]);
+	});
+
+	test('leaves sufficient or unlimited soft limits unchanged', () => {
+		const calls: string[][] = [];
+		for (const limits of ['1048576 1048576', '2097152 2097152', 'unlimited unlimited']) {
+			raiseCloudSandboxFileLimit(4321, {
+				platform: 'linux', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+				run: (_command, args) => { calls.push([...args]); return limits; },
+			});
+		}
+		assert.deepStrictEqual(calls, Array.from({ length: 3 }, () => ['--pid', '4321', '--nofile', '--noheadings', '--raw', '--output', 'SOFT,HARD']));
+	});
+
+	test('rejects unsafe target IDs, low hard limits and malformed limit responses', () => {
+		const options = { platform: 'linux' as const, env: { GITHUB_ENVIRONMENT_ID: 'environment' } };
+		for (const pid of [0, 1, -1, NaN, 1.5]) {
+			assert.throws(() => raiseCloudSandboxFileLimit(pid, {
+				...options, run: () => { throw new Error('Invalid target must not run prlimit'); },
+			}), /process ID greater than 1/);
+		}
+		assert.throws(() => raiseCloudSandboxFileLimit(4321, {
+			...options, run: () => '1024 4096',
+		}), /platform must raise the hard limit/);
+		for (const output of ['', 'invalid response', '1024', '1024 1048576 unexpected']) {
+			assert.throws(() => raiseCloudSandboxFileLimit(4321, {
+				...options, run: () => output,
+			}), /unable to read file-descriptor limits/);
+		}
+	});
+
+	test('reports denied or ineffective file-limit updates rather than continuing', () => {
+		for (const denied of [true, false]) {
+			assert.throws(() => raiseCloudSandboxFileLimit(4321, {
+				platform: 'linux', env: { GITHUB_ENVIRONMENT_ID: 'environment' },
+				run: (_command, _args, captureOutput) => {
+					if (!captureOutput && denied) {
+						throw new Error('prlimit permission denied');
+					}
+					return '1024 1048576';
+				},
+			}), denied ? /permission denied/ : /still has a file-descriptor limit below/);
+		}
+	});
+
+	test('future child commands inherit the raised limit on Linux', t => {
+		if (process.platform !== 'linux') {
+			t.skip('prlimit and Linux process limits are required.');
+			return;
+		}
+		const hard = execFileSync('prlimit', ['--pid', String(process.pid), '--nofile', '--noheadings', '--raw', '--output', 'HARD'], { encoding: 'utf8' }).trim();
+		if (hard !== 'unlimited' && Number(hard) < 1048576) {
+			t.skip(`The test host's hard file limit is ${hard}; it cannot support the sandbox target.`);
+			return;
+		}
+		const root = fixture(t);
+		const script = path.join(root, 'file-limit-inheritance.ts');
+		fs.writeFileSync(script, `
+			import { execFileSync } from 'node:child_process';
+			import { raiseCloudSandboxFileLimit } from ${JSON.stringify(new URL('../../npm/cloudSandbox.ts', import.meta.url).href)};
+			execFileSync('prlimit', ['--pid', String(process.pid), '--nofile=1024:']);
+			raiseCloudSandboxFileLimit(process.pid, { env: { ...process.env, GITHUB_ENVIRONMENT_ID: 'test-environment' } });
+			const inherited = execFileSync('/bin/sh', ['-c', 'ulimit -Sn'], { encoding: 'utf8' }).trim();
+			console.log(JSON.stringify({ inherited }));
+		`);
+		const result = spawnSync(process.execPath, [script], { encoding: 'utf8', timeout: 10_000 });
+		assert.equal(result.status, 0, result.stdout + result.stderr);
+		assert.deepStrictEqual(JSON.parse(result.stdout.trim().split('\n').at(-1)!), { inherited: '1048576' });
 	});
 
 	test('only installs missing packages, using noninteractive sudo for non-root users', t => {
@@ -344,8 +430,13 @@ suite('Cloud Sandbox install setup', () => {
 		}
 		fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
 			import fs from 'node:fs';
-			export function isCloudSandbox() { return false; }
+			export function isCloudSandbox() { return Boolean(process.env.GITHUB_ENVIRONMENT_ID); }
 			export function prepareCloudSandbox() { fs.appendFileSync('calls', 'prepare\\n'); return true; }
+			export function raiseCloudSandboxFileLimit(pid) {
+				if (!Number.isSafeInteger(pid) || pid <= 1) { throw new Error('Invalid limit target'); }
+				fs.appendFileSync('calls', 'limit\\n');
+				fs.appendFileSync('limit-targets', pid + '\\n');
+			}
 			export function finishCloudSandbox() { fs.appendFileSync('calls', 'finish\\n'); }
 		`);
 		fs.writeFileSync(path.join(npmDirectory, 'electronTypes.ts'), 'export async function ensureElectronTypes() {}');
@@ -399,6 +490,8 @@ suite('Cloud Sandbox install setup', () => {
 		}));
 		fs.writeFileSync(path.join(gyp, 'install.ts'), `
 			import fs from 'node:fs';
+			fs.mkdirSync('node_modules/.bin', { recursive: true });
+			fs.writeFileSync('node_modules/.bin/node-gyp', '');
 			fs.appendFileSync(${JSON.stringify(path.join(root, 'calls'))}, 'headers\\n');
 		`);
 		fs.writeFileSync(path.join(root, '.npmrc'), '');
@@ -416,7 +509,7 @@ suite('Cloud Sandbox install setup', () => {
 		fs.writeFileSync(path.join(native, 'install.ts'), `
 			import fs from 'node:fs';
 			const log = ${JSON.stringify(path.join(root, 'calls'))};
-			if (!fs.existsSync(log) || !fs.readFileSync(log, 'utf8').includes('headers\\n')) {
+			if (!fs.existsSync(${JSON.stringify(path.join(gyp, 'node_modules/.bin/node-gyp'))})) {
 				throw new Error('Native prerequisite not prepared before dependency installation');
 			}
 			fs.appendFileSync(log, 'native\\n');
@@ -444,20 +537,28 @@ suite('Cloud Sandbox install setup', () => {
 		const hookCommand = hook.hooks.sessionStart[0].bash;
 		const hookOptions = {
 			...options,
-			env: { ...options.env, GITHUB_ENVIRONMENT_ID: 'test-environment' },
+			env: { ...options.env, HOME: root, GITHUB_ENVIRONMENT_ID: 'test-environment' },
 		};
 		// Simulate the Linux sandbox while keeping these offline fixtures runnable on macOS.
-		for (const args of [['install'], ['ci'], ['run', 'install-fast', '--', '--force']]) {
+		const installCommands = [['install'], ['ci'], ['run', 'install-fast', '--', '--force']];
+		for (const [index, args] of installCommands.entries()) {
 			const startup = spawnSync('bash', ['-c', `uname() { printf 'Linux\\n'; }\n${hookCommand}`], hookOptions);
 			assert.equal(startup.status, 0, startup.stdout + startup.stderr);
+			const targetPids = fs.readFileSync(path.join(root, 'limit-targets'), 'utf8').trim().split('\n').map(Number);
+			assert.deepStrictEqual({ agent: targetPids[0], setupIsSeparateProcess: targetPids[1] !== process.pid }, {
+				agent: process.pid, setupIsSeparateProcess: true,
+			});
+			fs.unlinkSync(path.join(root, 'limit-targets'));
 			const installAfterStartup = spawnSync('npm', args, options);
 			assert.equal(installAfterStartup.status, 0, installAfterStartup.stdout + installAfterStartup.stderr);
 			assert.deepStrictEqual(fs.readFileSync(path.join(root, 'calls'), 'utf8').split('\n').filter(Boolean), [
-				'prepare', 'headers', 'native', ...(args.includes('install-fast') ? ['headers'] : []), 'finish',
+				...(index === 0 ? ['prepare'] : []), 'limit', 'limit', ...(index === 0 ? ['headers'] : []),
+				'native', ...(args.includes('install-fast') ? ['headers'] : []), 'finish',
 			]);
 			fs.unlinkSync(path.join(root, 'calls'));
 			fs.rmSync(path.join(root, 'node_modules'), { recursive: true, force: true });
 		}
+		fs.unlinkSync(path.join(root, '.build/cloud-sandbox-setup'));
 		fs.writeFileSync(path.join(gyp, 'install.ts'), 'throw new Error("Header setup failed");');
 		const failedStartup = spawnSync('bash', ['-c', `uname() { printf 'Linux\\n'; }\n${hookCommand}`], hookOptions);
 		assert.notEqual(failedStartup.status, 0);
@@ -490,4 +591,96 @@ suite('Cloud Sandbox install setup', () => {
 		});
 		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({ status: 0, stdout: '', stderr: '' })));
 	});
+
+	for (const failFirst of [false, true]) {
+		test(`concurrent sessions serialize setup and reuse success (initial failure: ${failFirst})`, async t => {
+			const root = fixture(t);
+			const npmDirectory = path.join(root, 'build/npm');
+			fs.mkdirSync(path.join(npmDirectory, 'gyp'), { recursive: true });
+			fs.mkdirSync(path.join(root, 'remote'));
+			fs.writeFileSync(path.join(root, 'remote/.npmrc'), '');
+			for (const file of ['package.json', 'package-lock.json']) {
+				fs.writeFileSync(path.join(npmDirectory, 'gyp', file), '{}');
+			}
+			fs.copyFileSync(path.join(repositoryRoot, 'build/npm/cloudSandboxSetup.ts'), path.join(npmDirectory, 'cloudSandboxSetup.ts'));
+			fs.writeFileSync(path.join(npmDirectory, 'installStateHash.ts'), 'export const root = process.cwd();');
+			fs.writeFileSync(path.join(npmDirectory, 'cloudSandbox.ts'), `
+				import fs from 'node:fs';
+				export function isCloudSandbox() { return true; }
+				export function prepareCloudSandbox() {
+					fs.appendFileSync('calls', 'prepare\\n');
+					fs.writeFileSync('mutation', 'prepare', { flag: 'wx' });
+					Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+					fs.unlinkSync('mutation');
+					return true;
+				}
+				export function raiseCloudSandboxFileLimit() { fs.appendFileSync('calls', 'limit\\n'); }
+			`);
+			fs.writeFileSync(path.join(npmDirectory, 'preinstall.ts'), `
+				import fs from 'node:fs';
+				fs.appendFileSync('calls', 'headers\\n');
+				fs.writeFileSync('mutation', 'headers', { flag: 'wx' });
+				try {
+					Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 100);
+					if (fs.existsSync('fail-once')) {
+						fs.unlinkSync('fail-once');
+						throw new Error('Header setup failed once');
+					}
+					fs.mkdirSync('build/npm/gyp/node_modules/.bin', { recursive: true });
+					fs.writeFileSync('build/npm/gyp/node_modules/.bin/node-gyp', '');
+				} finally {
+					fs.unlinkSync('mutation');
+				}
+			`);
+			if (failFirst) {
+				fs.writeFileSync(path.join(root, 'fail-once'), '');
+			}
+			const options = {
+				cwd: root,
+				env: { ...process.env, HOME: root, USERPROFILE: root, GITHUB_ENVIRONMENT_ID: 'environment' },
+			};
+			const start = () => new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+				const child = spawn(process.execPath, ['build/npm/cloudSandboxSetup.ts', '--agent-pid', String(process.pid)], { ...options, timeout: 10_000 });
+				let output = '';
+				child.stdout.on('data', data => { output += data; });
+				child.stderr.on('data', data => { output += data; });
+				child.on('error', reject);
+				child.on('close', code => resolve({ code, output }));
+			});
+			const results = await Promise.all([start(), start(), start()]);
+			assert.deepStrictEqual(results.map(result => result.code).sort(), failFirst ? [0, 0, 1] : [0, 0, 0], results.map(result => result.output).join('\n'));
+			const calls = () => fs.readFileSync(path.join(root, 'calls'), 'utf8').trim().split('\n');
+			const expectedSetups = failFirst ? 2 : 1;
+			assert.deepStrictEqual({
+				prepares: calls().filter(call => call === 'prepare').length,
+				headers: calls().filter(call => call === 'headers').length,
+				limits: calls().filter(call => call === 'limit').length,
+				mutationLeft: fs.existsSync(path.join(root, 'mutation')),
+				lockLeft: fs.existsSync(path.join(root, '.local/share/vscode-cloud-sandbox/setup.lock')),
+				completed: fs.existsSync(path.join(root, '.build/cloud-sandbox-setup')),
+			}, {
+				prepares: expectedSetups, headers: expectedSetups, limits: 6,
+				mutationLeft: false, lockLeft: false, completed: true,
+			});
+
+			// Changes to setup inputs or missing header dependencies must invalidate completion.
+			fs.appendFileSync(path.join(npmDirectory, 'preinstall.ts'), '\n// Changed setup input\n');
+			assert.equal((await start()).code, 0);
+			fs.unlinkSync(path.join(npmDirectory, 'gyp/node_modules/.bin/node-gyp'));
+			assert.equal((await start()).code, 0);
+			assert.deepStrictEqual({
+				prepares: calls().filter(call => call === 'prepare').length,
+				headers: calls().filter(call => call === 'headers').length,
+			}, { prepares: expectedSetups + 2, headers: expectedSetups + 2 });
+
+			const exited = spawnSync(process.execPath, ['-e', 'console.log(process.pid)'], { encoding: 'utf8' });
+			assert.equal(exited.status, 0, exited.stderr);
+			const lockFile = path.join(root, '.local/share/vscode-cloud-sandbox/setup.lock');
+			fs.writeFileSync(lockFile, exited.stdout.trim());
+			const blocked = await start();
+			assert.equal(blocked.code, 1);
+			assert.match(blocked.output, /stale lock.*exited process/);
+			assert.equal(fs.readFileSync(lockFile, 'utf8'), exited.stdout.trim());
+		});
+	}
 });
