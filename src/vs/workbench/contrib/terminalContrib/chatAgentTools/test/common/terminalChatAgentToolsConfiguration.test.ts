@@ -10,7 +10,7 @@ import { DefaultConfiguration } from '../../../../../../platform/configuration/c
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { WorkspaceConfigurationModelParser } from '../../../../../services/configuration/common/configurationModels.js';
 import { sandboxAllowNetworkMigration, terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
@@ -134,6 +134,20 @@ suite('Terminal chat agent tools configuration', () => {
 			legacy: Array.from({ length: 3 }, () => [
 				'This setting will be deprecated soon. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true, undefined,
 			]),
+		});
+
+		test('presents managed filesystem paths as a read-only effective value', () => {
+			const setting = terminalChatAgentToolsConfiguration[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths];
+			const values = {
+				[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: '["C:\\\\Work"]',
+				[COPILOT_SANDBOX_READONLY_PATHS_KEY]: '[]',
+				[COPILOT_SANDBOX_DENIED_PATHS_KEY]: '["C:\\\\Secrets"]',
+			};
+			assert.deepStrictEqual(setting.managedSettingsPresentation?.(key => values[key as keyof typeof values]), {
+				readwritePaths: ['C:\\Work'],
+				readonlyPaths: [],
+				deniedPaths: ['C:\\Secrets'],
+			});
 		});
 	});
 

@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
+import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,7 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
@@ -30,6 +32,7 @@ import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/bro
 import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
 import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 import { SettingMatches } from '../../browser/preferencesSearch.js';
+import { chatNetworkDomainConfigurationProperties } from '../../../chat/browser/chatNetworkConfiguration.js';
 
 suite('SettingsTree Agents Window density', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -111,11 +114,11 @@ suite('SettingsTree managed sandbox', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	assert.ok(terminalContribConfiguration);
-	const configurationNode = { id: 'sandboxPresentationTest', properties: Object.fromEntries(Object.entries(terminalContribConfiguration).filter(([, property]) => property.managedSettingsPresentation)) };
+	const configurationNode = { id: 'sandboxPresentationTest', properties: Object.fromEntries(Object.entries({ ...terminalContribConfiguration, ...chatNetworkDomainConfigurationProperties }).filter(([, property]) => property.managedSettingsPresentation)) };
 	suiteSetup(() => registry.registerConfiguration(configurationNode));
 	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
 
-	function createModel(settingsTarget: SettingsTarget = ConfigurationTarget.USER_LOCAL, localAccess = true, settingKeys?: AgentSandboxSettingId[]) {
+	function createModel(settingsTarget: SettingsTarget = ConfigurationTarget.USER_LOCAL, localAccess = true, settingKeys?: (AgentSandboxSettingId | AgentNetworkDomainSettingId)[]) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new class extends TestConfigurationService {
 			isSettingAppliedForAllProfiles(): boolean { return false; }
@@ -127,9 +130,10 @@ suite('SettingsTree managed sandbox', () => {
 			[AgentSandboxSettingId.AgentSandboxLspServers]: localAccess,
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: localAccess,
 			[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork]: localAccess,
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: ['local.example'],
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const managed: Record<string, boolean | undefined> = {};
+		const managed: Record<string, ManagedSettingValue | undefined> = {};
 		instantiationService.stub(IManagedSettingsService, new class extends mock<IManagedSettingsService>() {
 			override readonly onDidChangeManagedSettings = Event.None;
 			override getManagedSettingValue(key: string) { return managed[key]; }
@@ -148,7 +152,8 @@ suite('SettingsTree managed sandbox', () => {
 			filterMatches: keys.map(key => ({
 				setting: new class extends mock<ISetting>() {
 					override key = key;
-					override type = key === AgentSandboxSettingId.AgentSandboxEnabled ? 'string' : 'boolean';
+					override type = key === AgentNetworkDomainSettingId.AllowedNetworkDomains ? 'array' : key === AgentSandboxSettingId.AgentSandboxEnabled ? 'string' : 'boolean';
+					override arrayItemType = key === AgentNetworkDomainSettingId.AllowedNetworkDomains ? 'string' : undefined;
 					override description = [];
 					override scope = ConfigurationScope.RESOURCE;
 				}(),
@@ -167,6 +172,46 @@ suite('SettingsTree managed sandbox', () => {
 		});
 		return { model, managed, configuration, read, keys, viewState };
 	}
+
+	for (const allowedHosts of [[], ['managed.example', '*.managed.example']]) {
+		test(`managed allowlist ${JSON.stringify(allowedHosts)} locks allowed domains and restores local preferences after removal`, () => {
+			const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+			const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+			const initial = read();
+			managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = JSON.stringify(allowedHosts);
+			const locked = read();
+			delete managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY];
+			assert.deepStrictEqual({ initial, locked, removed: read(), stored: configuration.getValue(key) }, {
+				initial: [{ value: ['local.example'], managed: false, policyFilter: false }],
+				locked: [{ value: allowedHosts, managed: true, policyFilter: true }],
+				removed: initial,
+				stored: ['local.example'],
+			});
+		});
+	}
+
+	test('ignores malformed managed allowlists in the presentation and preserves local values', () => {
+		const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const settings = ['not JSON', '["managed.example",1]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
+				return read();
+			});
+			assert.deepStrictEqual({
+				settings,
+				stored: configuration.getValue(key),
+				warnings: consoleWarn.callCount,
+			}, {
+				settings: Array.from({ length: 5 }, () => [{ value: ['local.example'], managed: false, policyFilter: false }]),
+				stored: ['local.example'],
+				warnings: 5,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
 
 	for (const enabled of [undefined, false, true]) {
 		for (const allowBypass of [undefined, false, true]) {
