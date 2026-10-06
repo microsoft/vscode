@@ -40,6 +40,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 	) {
 		super();
 
+		// This warning is only relevant to the editor window, not the Agents window.
 		if (this._environmentService.isSessionsWindow) {
 			return;
 		}
@@ -83,6 +84,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 	}
 
 	private _refresh(): void {
+		// Once a shown warning becomes ineligible, do not show it again in this instance.
 		if (this._shownContext && !this._isEligible(this._shownContext)) {
 			this._notificationService.dismissNotification(REMOTE_BYOK_NOTIFICATION_ID);
 		}
@@ -90,11 +92,13 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 	}
 
 	private _isEligible(context: IChatInputNotificationContext): boolean {
+		// Wait for an initialized Copilot session and respect hidden AI features and permanent muting.
 		if (!context.sessionResource || !context.sessionType || !isCopilotAgentHostSessionType(context.sessionType)
 			|| this._chatEntitlementService.sentiment.hidden
 			|| this._storageService.getBoolean(REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false)) {
 			return false;
 		}
+		// Keep the warning in the first input and session that displayed it, rather than repeating in new chats.
 		if (this._shownContext && (
 			!isEqual(this._shownContext.inputUri, context.inputUri)
 			|| !isEqual(this._shownContext.sessionResource, context.sessionResource)
@@ -102,6 +106,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		)) {
 			return false;
 		}
+		// Require actual resolved client-side BYOK models, excluding stale cache entries and host-specific copies.
 		const hasByokModels = this._languageModelsService.getLanguageModelIds().some(id => {
 			const model = this._languageModelsService.lookupLanguageModel(id);
 			return model?.isBYOK && !model.targetChatSessionType && this._languageModelsService.hasResolvedVendor(model.vendor);
@@ -109,12 +114,14 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 		if (!hasByokModels) {
 			return false;
 		}
+		// A separately selected remote host must itself be connected; another host's connection is not enough.
 		if (isRemoteAgentHostSessionType(context.sessionType)) {
 			const provider = parseAgentHostHarness(context.sessionType);
 			const authority = provider && parseRemoteAgentHostSessionTypeAuthority(context.sessionType, provider);
 			return this._remoteAgentHostService.connections.some(connection =>
 				agentHostAuthority(connection.address) === authority && RemoteAgentHostConnectionStatus.isConnected(connection.status));
 		}
+		// The otherwise-local Copilot harness runs remotely when the editor workspace has a live remote connection.
 		return !!this._environmentService.remoteAuthority && this._remoteAgentService.getConnection()?.isConnected === true;
 	}
 }
