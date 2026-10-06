@@ -18274,6 +18274,58 @@ Use the attached image as context.
 			await handlerPromise;
 		});
 
+		test('tool search ranks deferred tools on the host once its client disconnects', async () => {
+			const toolSearchSnapshot: IActiveClientSnapshot = {
+				tools: [{ name: 'toolSearch', description: 'Search tools', inputSchema: { type: 'object', properties: { query: { type: 'string' } } } }],
+				plugins: [],
+				mcpServers: {},
+			};
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('tool-search-client', toolSearchSnapshot.tools);
+			const { runtime, mockSession, signals } = await createAgentSession(disposables, {
+				clientSnapshot: toolSearchSnapshot,
+				activeClientToolSet,
+				modelId: 'claude-opus-4.8',
+				rootValues: { [CopilotCliConfigKey.ToolSearchEnabled]: true },
+			});
+			const [override] = runtime.createClientSdkTools(true);
+			// The SDK session keeps its launch-time tools after the client leaves.
+			activeClientToolSet.delete('tool-search-client');
+
+			const query = 'readAgentMergeCI rerunAgentMergeWorkflow';
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-tool-search',
+				toolName: 'tool_search_tool',
+				arguments: { query },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			const result = await invokeClientToolHandler(override, 'tc-tool-search', { query }, [
+				{ name: 'list_sessions', description: 'List agent sessions', deferLoading: true },
+				{ name: 'readAgentMergeCI', description: 'Read CI diagnostics', deferLoading: true },
+				{ name: 'rerunAgentMergeWorkflow', description: 'Rerun a GitHub Actions workflow', deferLoading: true },
+				{ name: 'read_file', description: 'Reads a file', deferLoading: false },
+			]);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-tool-search',
+				success: true,
+				result: { content: result.textResultForLlm },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+
+			const complete = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction | undefined;
+			assert.deepStrictEqual({
+				actions: getActions(signals).map(action => action.type).filter(type => type === ActionType.ChatToolCallStart || type === ActionType.ChatToolCallReady || type === ActionType.ChatToolCallComplete),
+				success: complete?.result.success,
+				resultType: result.resultType,
+				textResultForLlm: result.textResultForLlm,
+				toolReferences: result.toolReferences,
+			}, {
+				actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+				success: true,
+				resultType: 'success',
+				textResultForLlm: '["readAgentMergeCI","rerunAgentMergeWorkflow"]',
+				toolReferences: ['readAgentMergeCI', 'rerunAgentMergeWorkflow'],
+			});
+		});
+
 		test('tool-search override follows the launch-time decision', async () => {
 			const toolSearchSnapshot: IActiveClientSnapshot = {
 				tools: [

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { agentHostModelSupportsToolSearch, NON_DEFERRED_CLIENT_TOOL_NAMES } from '../../node/copilot/toolSearchDeferral.js';
+import { agentHostModelSupportsToolSearch, NON_DEFERRED_CLIENT_TOOL_NAMES, rankToolSearchCandidates } from '../../node/copilot/toolSearchDeferral.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
@@ -69,6 +69,36 @@ suite('toolSearchDeferral', () => {
 				assert.strictEqual(agentHostModelSupportsToolSearch(id), false, id);
 			}
 			assert.strictEqual(agentHostModelSupportsToolSearch(undefined), false);
+		});
+	});
+
+	suite('rankToolSearchCandidates', () => {
+		test('matches named tools first, then ranks the rest lexically', () => {
+			const candidates = [
+				{ name: 'list_sessions', description: 'List the agent sessions on this host.' },
+				{ name: 'readAgentMergeCI', description: 'Read CI diagnostics for failed required checks.' },
+				{ name: 'rerunAgentMergeWorkflow', description: 'Rerun a GitHub Actions workflow for a failed required check.' },
+				{ name: 'create_pull_request', description: 'Create a GitHub pull request from the current branch.' },
+				{ name: 'screenshotPage', description: 'Capture an image of the browser page.' },
+			];
+			assert.deepStrictEqual(
+				[
+					'readAgentMergeCI rerunAgentMergeWorkflow',
+					'Use `rerunAgentMergeWorkflow`, then list sessions.',
+					'open a pull request',
+					'rerun the failed workflow',
+					'readAgentMergeCI github',
+					'quantum teleportation',
+				].map(query => rankToolSearchCandidates(query, candidates, 2)),
+				[
+					['readAgentMergeCI', 'rerunAgentMergeWorkflow'],
+					['rerunAgentMergeWorkflow', 'list_sessions'],
+					['create_pull_request'],
+					['rerunAgentMergeWorkflow', 'readAgentMergeCI'],
+					['readAgentMergeCI', 'rerunAgentMergeWorkflow'],
+					[],
+				],
+			);
 		});
 	});
 
