@@ -2291,6 +2291,106 @@ suite('SessionsManagementService', () => {
 			});
 		}
 
+		for (const open of ['session', 'chat'] as const) {
+			for (const delayed of [false, true]) {
+				test(`opening a ${open} to the side records only the requested chat (${delayed ? 'loading' : 'loaded'})`, async () => {
+					const firstChat: IChat = { ...stubChat, resource: URI.parse('test:///first/main'), status: constObservable(SessionStatus.Completed) };
+					const targetMain: IChat = { ...firstChat, resource: URI.parse('test:///target/main') };
+					const targetPeer: IChat = { ...firstChat, resource: URI.parse('test:///target/peer') };
+					const first = stubSession({
+						sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed),
+						chats: constObservable([firstChat]), mainChat: constObservable(firstChat),
+					});
+					const chats = observableValue<readonly IChat[]>('chats', delayed ? [targetMain] : [targetMain, targetPeer]);
+					const loading = observableValue('loading', delayed);
+					const target = stubSession({
+						sessionId: 'target', providerId: 'test', status: constObservable(SessionStatus.Completed),
+						chats, mainChat: constObservable(targetMain), loading, capabilities: constObservable({ supportsMultipleChats: true }),
+					});
+					const provider = new class extends TestSessionsProvider {
+						override getSessions(): ISession[] { return [first, target]; }
+					}(first);
+					const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
+					sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
+						openChatToSide: resource => view.openChat(target, resource),
+					}));
+					const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
+
+					await view.openSession(first.resource);
+					showTestCustomView(customViewService, disposables);
+					const opening = open === 'session'
+						? view.openSessionToSide(target, { chatResource: targetPeer.resource })
+						: view.openChatToSide(target, targetPeer.resource);
+					if (delayed) {
+						await timeout(0);
+						chats.set([targetMain, targetPeer], undefined);
+						loading.set(false, undefined);
+					}
+					await opening;
+					const opened = destination();
+					const backward: string[] = [];
+					for (let i = 0; i < 3; i++) {
+						await view.openPreviousSession();
+						backward.push(destination());
+					}
+					const canGoFurtherBack = contextKeyService.getContextKeyValue('sessionsCanGoBack');
+					const forward: string[] = [];
+					for (let i = 0; i < 3; i++) {
+						await view.openNextSession();
+						forward.push(destination());
+					}
+
+					assert.deepStrictEqual({ opened, backward, forward, canGoFurtherBack }, {
+						opened: targetPeer.resource.toString(),
+						backward: ['test.customView', firstChat.resource.toString(), 'newSession'],
+						forward: [firstChat.resource.toString(), 'test.customView', targetPeer.resource.toString()],
+						canGoFurtherBack: false,
+					});
+				});
+			}
+		}
+
+		test('batch side-opening a visible main chat does not promote its previously active peer', async () => {
+			const main: IChat = { ...stubChat, resource: URI.parse('test:///target/main'), status: constObservable(SessionStatus.Completed) };
+			const peer: IChat = { ...main, resource: URI.parse('test:///target/peer') };
+			const target = stubSession({
+				sessionId: 'target', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				chats: constObservable([main, peer]), mainChat: constObservable(main), capabilities: constObservable({ supportsMultipleChats: true }),
+			});
+			const firstChat: IChat = { ...main, resource: URI.parse('test:///first/main') };
+			const first = stubSession({
+				sessionId: 'first', providerId: 'test', status: constObservable(SessionStatus.Completed),
+				chats: constObservable([firstChat]), mainChat: constObservable(firstChat),
+			});
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return [first, target]; }
+			}(first);
+			const { customViewService, view, sessionsPartService, contextKeyService } = createSessionsManagementService(first, disposables, provider);
+			sessionsPartService.sessionViews.set(target.sessionId, upcastPartial<SessionView>({
+				openChatToSide: resource => view.openChat(target, resource),
+			}));
+			const destination = () => customViewService.activeCustomView.get()?.id ?? view.activeSession.get()?.activeChat.get().resource.toString() ?? 'newSession';
+
+			await view.openChat(target, peer.resource);
+			await view.openSessionToSide(first);
+			showTestCustomView(customViewService, disposables);
+			await view.openSessionsAt([target], first.sessionId, 'right', { forceMainChat: true });
+			const opened = destination();
+			const backward: string[] = [];
+			for (let i = 0; i < 4; i++) {
+				await view.openPreviousSession();
+				backward.push(destination());
+			}
+
+			assert.deepStrictEqual({
+				opened, backward, canGoFurtherBack: contextKeyService.getContextKeyValue('sessionsCanGoBack'),
+			}, {
+				opened: main.resource.toString(),
+				backward: ['test.customView', firstChat.resource.toString(), peer.resource.toString(), 'newSession'],
+				canGoFurtherBack: false,
+			});
+		});
+
 		test('a superseded nested-chat creation does not dismiss or refocus a custom view', async () => {
 			const mainChat: IChat = { ...stubChat, status: constObservable(SessionStatus.Completed) };
 			const createdChat: IChat = { ...stubChat, resource: URI.parse('test:///created-chat'), status: constObservable(SessionStatus.Untitled) };

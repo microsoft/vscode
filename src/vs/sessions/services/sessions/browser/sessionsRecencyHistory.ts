@@ -44,7 +44,7 @@ export function getRecencyEntryKey(entry: SessionRecencyEntry): string {
 export class SessionsRecencyHistory extends Disposable {
 
 	private static readonly STORAGE_KEY = 'agentSessions.recencyHistory';
-	private static readonly MAX_RECENCY_ENTRIES = 50;
+	private static readonly MAX_SESSION_ENTRIES = 50;
 
 	private _entries: SessionRecencyEntry[] = [];
 
@@ -84,9 +84,8 @@ export class SessionsRecencyHistory extends Disposable {
 
 		this._entries.unshift(entry);
 
-		if (this._entries.length > SessionsRecencyHistory.MAX_RECENCY_ENTRIES) {
-			this._entries.length = SessionsRecencyHistory.MAX_RECENCY_ENTRIES;
-		}
+		let sessionEntries = 0;
+		this._entries = this._entries.filter(candidate => candidate.kind !== 'session' || ++sessionEntries <= SessionsRecencyHistory.MAX_SESSION_ENTRIES);
 
 		this._save();
 		this._bumpVersion(tx);

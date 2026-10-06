@@ -18,7 +18,7 @@ import { CustomViewService, ICustomViewService } from '../../../customView/brows
 import { IActiveSession, ICreateNewSessionOptions, IProviderSessionType, IRecentlyOpenedSessions, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
 import { SessionsNavigation } from '../../browser/sessionNavigation.js';
-import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
+import { getRecencyEntryKey, SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
 
@@ -663,6 +663,63 @@ suite('SessionsNavigation', () => {
 			{ kind: 'session', session: s2.resource.toString(), chat: stubChat.resource.toString() },
 			{ kind: 'session', session: s1.resource.toString(), chat: stubChat.resource.toString() },
 		]);
+	});
+
+	test('singleton views preserve all 50 restored session entries', () => {
+		const sessions = Array.from({ length: 50 }, (_, index) => ({
+			kind: 'session' as const,
+			sessionResource: URI.parse(`test:///session-${index}`),
+			chatResource: URI.parse(`test:///chat-${index}`),
+		}));
+		for (const entry of sessions) {
+			recency.markOpened(entry);
+		}
+		const restored = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		restored.markOpened({ kind: 'newSession' });
+		restored.markOpened({ kind: 'customView', id: 'automations' });
+		restored.markOpened({ kind: 'customView', id: 'settings' });
+		restored.markOpened({ kind: 'newSession' });
+		const reloaded = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		const expectedSessions = [...sessions].reverse().map(getRecencyEntryKey);
+
+		assert.deepStrictEqual({
+			navigation: restored.entries.map(getRecencyEntryKey),
+			persisted: reloaded.entries.map(getRecencyEntryKey),
+		}, {
+			navigation: [
+				'newSession',
+				'customView:settings',
+				'customView:automations',
+				...expectedSessions,
+			],
+			persisted: expectedSessions,
+		});
+	});
+
+	test('the 50-session cap evicts only the oldest session entry', () => {
+		const sessions = Array.from({ length: 51 }, (_, index) => ({
+			kind: 'session' as const,
+			sessionResource: URI.parse(`test:///session-${index}`),
+			chatResource: URI.parse(`test:///chat-${index}`),
+		}));
+		recency.markOpened({ kind: 'customView', id: 'automations' });
+		for (const entry of sessions) {
+			recency.markOpened(entry);
+		}
+		const restored = ds.add(new SessionsRecencyHistory(storageService, new NullLogService()));
+		const expectedSessions = sessions.slice(1).reverse().map(getRecencyEntryKey);
+
+		assert.deepStrictEqual({
+			navigation: recency.entries.map(getRecencyEntryKey),
+			persisted: restored.entries.map(getRecencyEntryKey),
+		}, {
+			navigation: [
+				...expectedSessions,
+				'customView:automations',
+				'newSession',
+			],
+			persisted: expectedSessions,
+		});
 	});
 
 	test('navigating to new-session view after a session enables go back', async () => {

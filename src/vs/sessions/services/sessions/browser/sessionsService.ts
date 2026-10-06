@@ -1136,24 +1136,30 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		const reference = visible.find(candidate => candidate?.sessionId === options?.referenceSessionId) ?? visible[visible.length - 1];
-		await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async attempt => {
-			if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
-				return;
-			}
-			this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
-			transaction(() => {
-				if (reference && reference.sessionId !== session.sessionId) {
-					this._visibility.insertAt(session, reference.sessionId, 'right', false);
+		const navigation = this._navigation.beginSessionOpen('explicit', token);
+		try {
+			await this.sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', token, async attempt => {
+				if (token.isCancellationRequested || !this.areGridSessionsCurrent([session])) {
+					return;
 				}
-				this._applyActiveChatSelection(session, options);
-				this._showSession(session, options);
+				this.sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this.activeSession.get()?.sessionId === session.sessionId, session.loading.get());
+				transaction(() => {
+					if (reference && reference.sessionId !== session.sessionId) {
+						this._visibility.insertAt(session, reference.sessionId, 'right', false);
+					}
+					this._applyActiveChatSelection(session, options);
+					this._showSession(session, options);
+				});
+				if (options?.chatResource) {
+					await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt);
+				} else {
+					navigation.complete();
+					await this._waitForOpenSessionToLoad(session, token, attempt);
+				}
 			});
-			if (options?.chatResource) {
-				await this._openChat(session, options.chatResource, options.preserveFocus, token, Date.now(), attempt);
-			} else {
-				await this._waitForOpenSessionToLoad(session, token, attempt);
-			}
-		});
+		} finally {
+			navigation.cancel();
+		}
 	}
 
 	private async prepareGridSessions(sessions: readonly ISession[], token: CancellationToken): Promise<ISession[] | undefined> {
@@ -1212,30 +1218,36 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (attempt) {
 				this.sessionOpenTelemetryService.sessionResolved(attempt, primary.resource, primary.providerId, this.activeSession.get()?.sessionId === primary.sessionId, primary.loading.get());
 			}
-			transaction(tx => {
-				this.customViewService.hideCustomView(tx);
-				const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
-				for (const session of ordered) {
-					this._visibility.insertAt(session, referenceSessionId, direction, false);
-				}
-				if (options?.activate !== false) {
-					if (!splitMainChat) {
-						this._applyActiveChatSelection(primary, options);
+			const navigation = splitMainChat ? this._navigation.beginSessionOpen('explicit', token) : undefined;
+			try {
+				transaction(tx => {
+					this.customViewService.hideCustomView(tx);
+					const ordered = direction === 'right' || direction === 'down' ? [...entries].reverse() : entries;
+					for (const session of ordered) {
+						this._visibility.insertAt(session, referenceSessionId, direction, false);
 					}
-					this._showSession(primary, options);
+					if (options?.activate !== false) {
+						if (!splitMainChat) {
+							this._applyActiveChatSelection(primary, options);
+						}
+						this._showSession(primary, options);
+					}
+				});
+				if (splitMainChat) {
+					await this._showChatToSide(primary, primary.mainChat.get().resource, options);
+					if (token.isCancellationRequested) {
+						return;
+					}
+					navigation?.complete();
 				}
-			});
-			if (splitMainChat) {
-				await this._showChatToSide(primary, primary.mainChat.get().resource, options);
-				if (token.isCancellationRequested) {
-					return;
+				if (options?.activate !== false && !options?.preserveFocus) {
+					this.sessionsPartService.focusSession(this.activeSession.get());
 				}
-			}
-			if (options?.activate !== false && !options?.preserveFocus) {
-				this.sessionsPartService.focusSession(this.activeSession.get());
-			}
-			if (attempt) {
-				await this._waitForOpenSessionToLoad(primary, token, attempt);
+				if (attempt) {
+					await this._waitForOpenSessionToLoad(primary, token, attempt);
+				}
+			} finally {
+				navigation?.cancel();
 			}
 		};
 		if (options?.source && options.activate !== false) {
@@ -1302,13 +1314,19 @@ export class SessionsService extends Disposable implements ISessionsService {
 	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
 		this._beginNavigation('explicit');
 		const token = this._startOpenSession();
-		const resolved = await this._resolveSessionForOpen(session, chatResource);
-		if (token.isCancellationRequested) {
-			return;
+		const navigation = this._navigation.beginSessionOpen('explicit', token);
+		try {
+			const resolved = await this._resolveSessionForOpen(session, chatResource);
+			if (token.isCancellationRequested) {
+				return;
+			}
+			session = resolved.session;
+			chatResource = resolved.chatUri ?? chatResource;
+			await this._showChatToSide(session, chatResource, options);
+			navigation.complete();
+		} finally {
+			navigation.cancel();
 		}
-		session = resolved.session;
-		chatResource = resolved.chatUri ?? chatResource;
-		await this._showChatToSide(session, chatResource, options);
 	}
 
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
