@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { getMediaMime } from '../../../../base/common/mime.js';
@@ -45,7 +45,6 @@ import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
-import { createSessionCopyAction } from './sessionCopyAction.js';
 
 const OPEN_IMAGE_CAROUSEL_COMMAND_ID = 'workbench.action.chat.openImageInCarousel';
 
@@ -76,17 +75,13 @@ export interface ISessionArtifactActions {
 	openExternal(link: URI): void;
 	openResource(uri: URI): void;
 	openImages(images: readonly ISessionArtifactImage[], startIndex: number): void;
-	copy(text: string): void | Promise<void>;
+	copy(text: string): void;
 	/**
 	 * Deletes the session's record of an artifact or reference by its stable id.
 	 * Never mutates or deletes the underlying file, resource, PR, issue or other
 	 * external target — only the session's own bookkeeping entry.
 	 */
 	remove?(id: string, label: string): Promise<void>;
-}
-
-function createCopyAction(id: string, label: string, value: string, actions: ISessionArtifactActions, store: Pick<DisposableStore, 'add'>) {
-	return createSessionCopyAction(store, id, label, () => actions.copy(value));
 }
 
 export interface ISessionArtifactImage {
@@ -194,7 +189,7 @@ function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActio
 	actions.recordOpen(artifact);
 }
 
-function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, store: Pick<DisposableStore, 'add'>, commit?: GitHubCommit, gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): IChatPillEntry | undefined {
+function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit, gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
 			return undefined;
@@ -207,20 +202,18 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label,
 			resource: uri,
-			toolbarActions: [createCopyAction(
-				`sessions.artifacts.copyFilePath.${artifact.id}`,
-				localize('sessionArtifacts.copyFilePath', "Copy Path"),
-				fullPath,
-				actions,
-				store,
-			)],
-			hoverActions: [createCopyAction(
-				`sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-				localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
-				relativePath,
-				actions,
-				store,
-			)],
+			toolbarActions: [toAction({
+				id: `sessions.artifacts.copyFilePath.${artifact.id}`,
+				label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => actions.copy(fullPath),
+			})],
+			hoverActions: [toAction({
+				id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
+				label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => actions.copy(relativePath),
+			})],
 			...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 			open: () => openArtifact(artifact, actions, () => actions.openResource(uri)),
 		}, actions);
@@ -254,21 +247,19 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label,
 			icon,
-			toolbarActions: [withChatPillHoverLabel(createCopyAction(
-				`sessions.artifacts.copyCommitUrl.${artifact.id}`,
-				localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
-				link.toString(true),
-				actions,
-				store,
-			), chatPillCopyUrlHoverLabel)],
+			toolbarActions: [withChatPillHoverLabel(toAction({
+				id: `sessions.artifacts.copyCommitUrl.${artifact.id}`,
+				label: localize('sessionArtifacts.copyCommitUrl', "Copy Commit URL"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => actions.copy(link.toString(true)),
+			}), chatPillCopyUrlHoverLabel)],
 			...((artifact.commitHash || commit?.sha) ? {
-				hoverActions: [withChatPillHoverLabel(createCopyAction(
-					`sessions.artifacts.copyCommitHash.${artifact.id}`,
-					localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
-					artifact.commitHash ?? commit!.sha,
-					actions,
-					store,
-				), chatPillCopyHashHoverLabel)],
+				hoverActions: [withChatPillHoverLabel(toAction({
+					id: `sessions.artifacts.copyCommitHash.${artifact.id}`,
+					label: localize('sessionArtifacts.copyCommitHash', "Copy Commit Hash"),
+					class: ThemeIcon.asClassName(Codicon.copy),
+					run: () => actions.copy(artifact.commitHash ?? commit!.sha),
+				}), chatPillCopyHashHoverLabel)],
 			} : {}),
 			...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), label),
 			...(createDropdownHover && createHover ? {
@@ -288,13 +279,12 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			id: artifact.id,
 			label: artifact.label,
 			icon,
-			toolbarActions: [createCopyAction(
-				`sessions.artifacts.copyResourceUri.${artifact.id}`,
-				localize('sessionArtifacts.copyResourceUri', "Copy URI"),
-				uri.toString(true),
-				actions,
-				store,
-			)],
+			toolbarActions: [toAction({
+				id: `sessions.artifacts.copyResourceUri.${artifact.id}`,
+				label: localize('sessionArtifacts.copyResourceUri', "Copy URI"),
+				class: ThemeIcon.asClassName(Codicon.copy),
+				run: () => actions.copy(uri.toString(true)),
+			})],
 			...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), artifact.label),
 			open: () => openArtifact(artifact, actions, () => actions.openResource(uri)),
 		}, actions);
@@ -312,13 +302,12 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 				? localize('sessionArtifacts.copyWebsiteUrl', "Copy Website URL")
 				: undefined;
 	const copyLinkAction = copyLinkLabel
-		? [withChatPillHoverLabel(createCopyAction(
-			'sessions.artifacts.copyLink',
-			copyLinkLabel,
-			link.toString(true),
-			actions,
-			store,
-		), chatPillCopyUrlHoverLabel)]
+		? [withChatPillHoverLabel(toAction({
+			id: 'sessions.artifacts.copyLink',
+			label: copyLinkLabel,
+			class: ThemeIcon.asClassName(Codicon.copy),
+			run: () => actions.copy(link.toString(true)),
+		}), chatPillCopyUrlHoverLabel)]
 		: [];
 	const gitHubKind = !artifact.isArtifact && artifact.isGitHub === true
 		? artifact.kind === SessionArtifactKind.PullRequest
@@ -363,7 +352,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * what the session recorded last. Websites the browsers pill already lists are
  * left out, so the same page is offered once across the pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, store: Pick<DisposableStore, 'add'>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -387,7 +376,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			}
 			continue;
 		}
-		const entry = toEntry(artifact, actions, labelService, store, commits.get(artifact.id), gitHubResolver, reader);
+		const entry = toEntry(artifact, actions, labelService, commits.get(artifact.id), gitHubResolver, reader);
 		if (!entry || (artifact.isArtifact && seen.has(artifactValueKey(artifact)))) {
 			continue;
 		}
@@ -410,20 +399,18 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 						id: artifact.id,
 						label,
 						resource: uri,
-						toolbarActions: [createCopyAction(
-							`sessions.artifacts.copyFilePath.${artifact.id}`,
-							localize('sessionArtifacts.copyFilePath', "Copy Path"),
-							fullPath,
-							actions,
-							store,
-						)],
-						hoverActions: [createCopyAction(
-							`sessions.artifacts.copyFileRelativePath.${artifact.id}`,
-							localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
-							relativePath,
-							actions,
-							store,
-						)],
+						toolbarActions: [toAction({
+							id: `sessions.artifacts.copyFilePath.${artifact.id}`,
+							label: localize('sessionArtifacts.copyFilePath', "Copy Path"),
+							class: ThemeIcon.asClassName(Codicon.copy),
+							run: () => actions.copy(fullPath),
+						})],
+						hoverActions: [toAction({
+							id: `sessions.artifacts.copyFileRelativePath.${artifact.id}`,
+							label: localize('sessionArtifacts.copyFileRelativePath', "Copy Relative Path"),
+							class: ThemeIcon.asClassName(Codicon.copy),
+							run: () => actions.copy(relativePath),
+						})],
 						...(!artifact.isArtifact ? { imagePreview: { resource: uri, mimeType } } : {}),
 						...sessionArtifactLocation(sessionArtifactLocationText(uri, labelService), label),
 						...(imageCarouselEnabled
@@ -595,7 +582,6 @@ export class SessionArtifacts extends Disposable {
 				this._labelService,
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
-				reader.store,
 				commits,
 				gitHubResolver,
 				reader,
@@ -636,7 +622,7 @@ export class SessionArtifacts extends Disposable {
 				};
 				void this._commandService.executeCommand(OPEN_IMAGE_CAROUSEL_COMMAND_ID, { collection, startIndex });
 			},
-			copy: text => this._clipboardService.writeText(text),
+			copy: text => { void this._clipboardService.writeText(text); },
 			...(session.capabilities.read(reader).supportsRemoveArtifacts ? {
 				remove: async (id: string, label: string) => {
 					try {

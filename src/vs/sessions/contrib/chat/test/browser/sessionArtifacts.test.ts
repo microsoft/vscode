@@ -9,7 +9,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -157,7 +156,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Resource', isArtifact: true, uri: resourceUri },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set(), disposables).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, actions, labelService, true, new Set()).flatMap(section => section.entries);
 		assert.deepStrictEqual(entries.map(entry => {
 			const content = entry.hover?.content;
 			return {
@@ -214,7 +213,7 @@ suite('Session Artifacts', () => {
 		const sections = buildSessionArtifactSections([
 			{ id: 'reference', kind: SessionArtifactKind.File, label: 'Design', isArtifact: false, uri: referenceUri },
 			{ id: 'artifact', kind: SessionArtifactKind.File, label: 'Result', isArtifact: true, uri: artifactUri },
-		], actions, labelService, true, new Set(), disposables);
+		], actions, labelService, true, new Set());
 
 		assert.deepStrictEqual(sections.map(section => ({
 			title: section.title,
@@ -252,7 +251,7 @@ suite('Session Artifacts', () => {
 			{ id: 'blog', kind: SessionArtifactKind.Website, label: 'Blog', isArtifact: true, link: URI.parse('https://other.test/blog') },
 			{ id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR #12', isArtifact: true, link: pullRequestLink },
 		];
-		const labels = (browserUrls: readonly string[]) => buildSessionArtifactSections(artifacts, actions, labelService, true, new Set(browserUrls), disposables)
+		const labels = (browserUrls: readonly string[]) => buildSessionArtifactSections(artifacts, actions, labelService, true, new Set(browserUrls))
 			.flatMap(section => section.entries)
 			.map(entry => entry.label);
 
@@ -484,7 +483,7 @@ suite('Session Artifacts', () => {
 			{ id: 'resource', kind: SessionArtifactKind.Resource, label: 'Chat settings', isArtifact: true, uri: resource },
 		];
 
-		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => { copied.push(text); } }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
+		const entries = buildSessionArtifactSections(artifacts, { ...actions, copy: text => copied.push(text) }, labelService, true, new Set()).flatMap(section => section.entries);
 		for (const entry of entries) {
 			entry.toolbarActions?.forEach(action => action.run());
 		}
@@ -512,65 +511,6 @@ suite('Session Artifacts', () => {
 		});
 	});
 
-	test('shows copied feedback after a reference link is copied', async () => {
-		const copied = new DeferredPromise<void>();
-		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
-		const [entry] = buildSessionArtifactSections([
-			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: false, link: issueLink },
-		], { ...actions, copy: () => copied.p }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
-		const [copyAction] = entry.toolbarActions ?? [];
-
-		const run = copyAction.run();
-		const pending = { label: copyAction.label, class: copyAction.class, hoverLabel: copyAction.hoverLabel };
-		copied.complete();
-		await run;
-		const copiedFeedback = { label: copyAction.label, class: copyAction.class, hoverLabel: copyAction.hoverLabel };
-		await timeout(1250);
-		const reset = { label: copyAction.label, class: copyAction.class, hoverLabel: copyAction.hoverLabel };
-
-		assert.deepStrictEqual({ pending, copiedFeedback, reset }, {
-			pending: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy), hoverLabel: 'Copy URL' },
-			copiedFeedback: { label: 'Copied', class: ThemeIcon.asClassName(Codicon.check), hoverLabel: 'Copied' },
-			reset: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy), hoverLabel: 'Copy URL' },
-		});
-	});
-
-	test('does not show copied feedback when copying a reference link fails', async () => {
-		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
-		const [entry] = buildSessionArtifactSections([
-			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: false, link: issueLink },
-		], { ...actions, copy: async () => { throw new Error('Clipboard unavailable'); } }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
-		const [copyAction] = entry.toolbarActions ?? [];
-
-		await assert.rejects(async () => { await copyAction.run(); }, /Clipboard unavailable/);
-
-		assert.deepStrictEqual(
-			{ label: copyAction.label, class: copyAction.class },
-			{ label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy) },
-		);
-	});
-
-	test('resets copied feedback from the latest successful copy', async () => {
-		const issueLink = URI.parse('https://github.com/microsoft/vscode/issues/34');
-		const [entry] = buildSessionArtifactSections([
-			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue #34', isArtifact: false, link: issueLink },
-		], actions, labelService, true, new Set(), disposables).flatMap(section => section.entries);
-		const [copyAction] = entry.toolbarActions ?? [];
-
-		await copyAction.run();
-		await timeout(700);
-		await copyAction.run();
-		await timeout(700);
-		const beforeLatestReset = { label: copyAction.label, class: copyAction.class };
-		await timeout(550);
-		const afterLatestReset = { label: copyAction.label, class: copyAction.class };
-
-		assert.deepStrictEqual({ beforeLatestReset, afterLatestReset }, {
-			beforeLatestReset: { label: 'Copied', class: ThemeIcon.asClassName(Codicon.check) },
-			afterLatestReset: { label: 'Copy Issue Link', class: ThemeIcon.asClassName(Codicon.copy) },
-		});
-	});
-
 	test('renders rich GitHub commit metadata with copy hash inside the hover', () => {
 		const copied: string[] = [];
 		const opened: string[] = [];
@@ -578,11 +518,10 @@ suite('Session Artifacts', () => {
 		const artifact: ISessionArtifact = { id: 'commit', kind: SessionArtifactKind.Commit, label: 'Recorded commit', isArtifact: false, link, commitHash: 'abc123' };
 		const sections = buildSessionArtifactSections(
 			[artifact],
-			{ ...actions, recordOpen: artifact => opened.push(artifact.id), copy: text => { copied.push(text); } },
+			{ ...actions, recordOpen: artifact => opened.push(artifact.id), copy: text => copied.push(text) },
 			labelService,
 			true,
 			new Set(),
-			disposables,
 			new Map([['commit', {
 				sha: 'abc123',
 				message: 'Authoritative subject\n\nDetailed commit body',
@@ -837,8 +776,8 @@ suite('Session Artifacts', () => {
 		entries.push({ id: 'image-true', kind: SessionArtifactKind.File, label: 'Image', isArtifact: true, uri: URI.file('/repo/true.png') });
 		entries.push({ id: 'image-false', kind: SessionArtifactKind.File, label: 'Image', isArtifact: false, uri: URI.file('/repo/false.png') });
 
-		const withoutSupport = buildSessionArtifactSections(entries, actions, labelService, true, new Set(), disposables).flatMap(section => section.entries);
-		const withSupport = buildSessionArtifactSections(entries, { ...actions, remove: async () => { } }, labelService, true, new Set(), disposables).flatMap(section => section.entries);
+		const withoutSupport = buildSessionArtifactSections(entries, actions, labelService, true, new Set()).flatMap(section => section.entries);
+		const withSupport = buildSessionArtifactSections(entries, { ...actions, remove: async () => { } }, labelService, true, new Set()).flatMap(section => section.entries);
 
 		const byId = (rendered: readonly IChatPillEntry[]) =>
 			rendered.map(entry => [entry.id, entry.promotedAction?.hoverLabel]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));

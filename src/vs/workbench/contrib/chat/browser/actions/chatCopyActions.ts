@@ -33,9 +33,7 @@ import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { toPortableMarkdown } from '../widget/chatClipboard.js';
 
 const CopyItemActionId = 'workbench.action.chat.copyItem';
-export const chatCopyFeedbackDuration = 1200;
-export const chatCopiedLabel = localize('interactive.copyItem.copied', "Copied");
-export const chatCopiedToClipboardStatus = localize('interactive.copyItem.status', "Copied to clipboard");
+const copyFeedbackDuration = 1200;
 const copyIconClasses = ThemeIcon.asClassNameArray(Codicon.copy);
 const copiedIconClasses = ThemeIcon.asClassNameArray(Codicon.check);
 
@@ -83,13 +81,13 @@ export class ChatCopyActionViewItem extends MenuEntryActionViewItem {
 
 	protected override getTooltip(): string {
 		return this.copied
-			? chatCopiedLabel
+			? localize('interactive.copyItem.copied', "Copied")
 			: super.getTooltip();
 	}
 
 	protected override updateAriaLabel(): void {
 		this.element?.setAttribute('aria-label', this.copied
-			? chatCopiedLabel
+			? localize('interactive.copyItem.copiedAriaLabel', "Copied")
 			: localize('interactive.copyItem.ariaLabel', "Copy"));
 	}
 
@@ -122,8 +120,8 @@ export class ChatCopyActionViewItem extends MenuEntryActionViewItem {
 			this.copiedStateReset.value = disposableTimeout(() => {
 				this.copied = false;
 				this.renderCopiedState();
-			}, chatCopyFeedbackDuration);
-			status(chatCopiedToClipboardStatus);
+			}, copyFeedbackDuration);
+			status(localize('interactive.copyItem.status', "Copied to clipboard"));
 		});
 	}
 }

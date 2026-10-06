@@ -20,7 +20,7 @@ import { getIconClasses } from '../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../editor/common/languages/language.js';
 import { IModelService } from '../../editor/common/services/model.js';
 import { FileKind, IFileService } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverActions, getChatPillEntryToolbarActions, toChatPillHoverAction, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
+import { ChatPillActionViewItem, createChatPillImagePreview, getChatPillEntries, getChatPillEntryHoverActions, getChatPillEntryToolbarActions, type IChatPill, type IChatPillEntry, type IChatPillSection } from './chatPills.js';
 import { ChatResourcePillActionViewItem } from './chatResourcePill.js';
 import type { ResourceLabels } from './labels.js';
 import type { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -265,7 +265,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		const hoverActions = entry ? getChatPillEntryHoverActions(entry) : undefined;
 		return hoverActions?.length ? {
 			trapFocus: true,
-			actions: hoverActions.map(toChatPillHoverAction),
+			actions: hoverActions.map(action => ({
+				commandId: action.id,
+				label: action.hoverLabel ?? action.label,
+				iconClass: action.class,
+				run: () => { void action.run(); },
+			})),
 		} : undefined;
 	}
 
@@ -365,7 +370,12 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private _getDropdownHover(entry: IChatPillEntry): IActionListItemHover | undefined {
 		let baseHover = this._dropdownHovers.get(entry);
 		if (!baseHover) {
-			const actions = (entry.hoverActions ?? []).map(toChatPillHoverAction);
+			const actions = (entry.hoverActions ?? []).map(action => ({
+				commandId: action.id,
+				label: action.hoverLabel ?? action.label,
+				iconClass: action.class,
+				run: () => { void action.run(); },
+			}));
 			baseHover = actions.length ? {
 				...entry.hover,
 				actions,

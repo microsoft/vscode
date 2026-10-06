@@ -2765,11 +2765,10 @@ export class ActionListWidget<T> extends Disposable {
 			for (const action of element.hover.actions) {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const hoverAction = this._submenuDisposables.add(HoverAction.render(actionsElement, {
-					get label() { return action.label; },
+					label: action.label,
 					commandId: action.commandId,
 					run: target => action.run(target),
-					get iconClass() { return action.iconClass; },
-					onDidChange: action.onDidChange,
+					iconClass: action.iconClass,
 				}, keybinding?.getLabel() ?? null));
 				this._submenuHoverActionElements.push(hoverAction.actionContainer);
 			}
