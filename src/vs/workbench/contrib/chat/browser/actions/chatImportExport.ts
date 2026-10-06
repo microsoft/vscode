@@ -21,7 +21,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ACTIVE_GROUP, PreferredGroup } from '../../../../services/editor/common/editorService.js';
 
 const defaultFileName = 'chat.json';
-const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
+const filters = [{ name: localize('chat.file.label', "Session"), extensions: ['json'] }];
 
 /**
  * Target location for importing a chat session.
@@ -41,7 +41,7 @@ export function registerChatExportActions() {
 			super({
 				id: 'workbench.action.chat.export',
 				category: CHAT_CATEGORY,
-				title: localize2('chat.export.label', "Export Chat..."),
+				title: localize2('chat.export.label', "Export Session..."),
 				precondition: ChatContextKeys.enabled,
 				f1: true,
 			});
@@ -84,7 +84,7 @@ export function registerChatExportActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.import',
-				title: localize2('chat.import.label', "Import Chat..."),
+				title: localize2('chat.import.label', "Import Session..."),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
 				f1: true,

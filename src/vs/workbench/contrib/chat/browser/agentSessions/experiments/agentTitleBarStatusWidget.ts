@@ -864,7 +864,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const menuActions: IAction[] = Separator.join(...this._chatTitleBarMenu.getActions({ shouldForwardArgs: true }).map(([, actions]) => actions));
 
 		const primaryActionId = TOGGLE_CHAT_ACTION_ID;
-		const primaryActionTitle = localize('toggleChat', "Toggle Chat");
+		const primaryActionTitle = localize('toggleChat', "Toggle Sessions");
 		const primaryActionIcon = Codicon.chatSparkle;
 
 		// Create primary action

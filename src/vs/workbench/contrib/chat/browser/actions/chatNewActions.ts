@@ -69,7 +69,7 @@ export class NewChatAction extends Action2 {
 	constructor() {
 		super({
 			id: ACTION_ID_NEW_CHAT,
-			title: localize2('chat.newEdits.label', "New Chat"),
+			title: localize2('chat.newEdits.label', "New Session"),
 			category: CHAT_CATEGORY,
 			icon: Codicon.plus,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -118,7 +118,7 @@ export function registerNewChatActions() {
 	// Add "New Chat" submenu to Chat view menu
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		submenu: MenuId.ChatNewMenu,
-		title: localize2('chat.newEdits.label', "New Chat"),
+		title: localize2('chat.newEdits.label', "New Session"),
 		icon: Codicon.plus,
 		when: ContextKeyExpr.equals('view', ChatViewId),
 		group: 'navigation',
@@ -130,7 +130,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chatEditor.newChat',
-				title: localize2('chat.newChat.label', "New Chat"),
+				title: localize2('chat.newChat.label', "New Session"),
 				icon: Codicon.plus,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
@@ -154,7 +154,7 @@ export function registerNewChatActions() {
 			constructor() {
 				super({
 					id: ACTION_ID_NEW_CHAT + variant.idSuffix,
-					title: localize2('chat.newEdits.label', "New Chat"),
+					title: localize2('chat.newEdits.label', "New Session"),
 					category: CHAT_CATEGORY,
 					icon: variant.icon,
 					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -182,7 +182,7 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.newLocalChat',
-				title: localize2('chat.newLocalChat.label', "New Local Chat"),
+				title: localize2('chat.newLocalChat.label', "New Local Session"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
@@ -226,7 +226,7 @@ export function registerNewChatActions() {
 	MenuRegistry.appendMenuItem(MenuId.ChatTitleBarMenu, {
 		command: {
 			id: ACTION_ID_NEW_CHAT,
-			title: localize2('chat.newEdits.label', "New Chat"),
+			title: localize2('chat.newEdits.label', "New Session"),
 		},
 		when: ChatContextKeys.enabled,
 		group: 'b_new',

@@ -588,7 +588,7 @@ class RefreshPluginMarketplacesCommand extends Action2 {
 		super({
 			id: RefreshAgentPluginMarketplacesCommandId,
 			title: localize2('agentPlugins.refreshMarketplaces', "Refresh Plugin Marketplaces"),
-			category: localize2('chat.category', "Chat"),
+			category: { value: localize('chat.category', "Sessions"), original: 'Chat' },
 			icon: Codicon.refresh,
 			precondition: ChatContextKeys.enabled,
 			f1: true,

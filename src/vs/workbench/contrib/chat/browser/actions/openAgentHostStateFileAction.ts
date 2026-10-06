@@ -45,7 +45,7 @@ export async function openAgentHostStateFile(
 
 	const sessionResolution = connectionsService.resolveSessionResource(sessionResource);
 	if (!sessionResolution) {
-		notificationService.info(localize('openAgentHostStateFile.unsupported', "The active chat session is not an Agent Host session."));
+		notificationService.info(localize('openAgentHostStateFile.unsupported', "The active session is not an Agent Host session."));
 		return;
 	}
 

@@ -27,7 +27,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 		super({
 			id: ACTION_ID_FOCUS_CHAT_CONFIRMATION,
 			title: { value: localize('focusChatConfirmation', 'Focus Chat Confirmation'), original: 'Focus Chat Confirmation' },
-			category: { value: localize('chat.category', 'Chat'), original: 'Chat' },
+			category: { value: localize('chat.category', 'Sessions'), original: 'Chat' },
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 			keybinding: {
@@ -43,7 +43,7 @@ class AnnounceChatConfirmationAction extends Action2 {
 		const pendingWidget = chatWidgetService.getAllWidgets().find(widget => widget.viewModel?.model.requestNeedsInput.get());
 
 		if (!pendingWidget) {
-			alert(localize('noChatSession', 'No active chat session found.'));
+			alert(localize('noChatSession', 'No active session found.'));
 			return;
 		}
 
@@ -92,7 +92,7 @@ class ToggleThinkingContentAccessibleViewAction extends Action2 {
 		super({
 			id: ACTION_ID_TOGGLE_THINKING_CONTENT_ACCESSIBLE_VIEW,
 			title: { value: localize('toggleThinkingContentAccessibleView', 'Toggle Thinking Content in Accessible View'), original: 'Toggle Thinking Content in Accessible View' },
-			category: { value: localize('chat.category', 'Chat'), original: 'Chat' },
+			category: { value: localize('chat.category', 'Sessions'), original: 'Chat' },
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 			keybinding: {

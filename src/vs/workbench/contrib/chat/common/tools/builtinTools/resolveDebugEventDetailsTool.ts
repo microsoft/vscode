@@ -212,7 +212,7 @@ export class ResolveDebugEventDetailsTool implements IToolImpl {
 		const sessionResource = invocation.context?.sessionResource;
 		if (!sessionResource) {
 			return {
-				content: [{ kind: 'text', value: localize('resolveDebugEventDetails.errorNoSession', "Error: no chat session context available.") }],
+				content: [{ kind: 'text', value: localize('resolveDebugEventDetails.errorNoSession', "Error: no session context available.") }],
 			};
 		}
 

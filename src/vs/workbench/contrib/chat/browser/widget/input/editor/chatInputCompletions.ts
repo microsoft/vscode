@@ -1080,7 +1080,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			} else {
 				// User typed # or #s etc — show single #session entry that inserts #session: and re-triggers suggest
 				result.suggestions.push({
-					label: { label: sessionPrefix, description: localize('session.description', 'Attach a chat session') },
+					label: { label: sessionPrefix, description: localize('session.description', 'Attach a session') },
 					filterText: sessionPrefix,
 					insertText: `${sessionPrefix}:`,
 					range,

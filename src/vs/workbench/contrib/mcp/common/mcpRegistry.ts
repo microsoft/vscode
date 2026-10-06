@@ -344,7 +344,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 					custom: {
 						icon: Codicon.shield,
 						markdownDetails: [{
-							markdown: new MarkdownString(localize('mcp.trust.details', 'The MCP server {0} was updated. MCP servers may add context to your chat session and lead to unexpected behavior. Do you want to trust and run this server?', labelFor(def))),
+							markdown: new MarkdownString(localize('mcp.trust.details', 'The MCP server {0} was updated. MCP servers may add context to your session and lead to unexpected behavior. Do you want to trust and run this server?', labelFor(def))),
 							actionHandler: () => {
 								const editor = this._editorService.openEditor({ resource: originURI! }, AUX_WINDOW_GROUP);
 								return editor.then(Boolean);
@@ -368,7 +368,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 				custom: {
 					icon: Codicon.shield,
 					markdownDetails: [{
-						markdown: new MarkdownString(localize('mcp.trust.detailsMulti', 'Several updated MCP servers were discovered:\n\n{0}\n\n MCP servers may add context to your chat session and lead to unexpected behavior. Do you want to trust and run these server?', list)),
+						markdown: new MarkdownString(localize('mcp.trust.detailsMulti', 'Several updated MCP servers were discovered:\n\n{0}\n\n MCP servers may add context to your session and lead to unexpected behavior. Do you want to trust and run these server?', list)),
 						actionHandler: (uri) => {
 							const editor = this._editorService.openEditor({ resource: URI.parse(uri) }, AUX_WINDOW_GROUP);
 							return editor.then(Boolean);

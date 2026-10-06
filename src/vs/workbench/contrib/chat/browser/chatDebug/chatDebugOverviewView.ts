@@ -152,7 +152,7 @@ export class ChatDebugOverviewView extends Disposable {
 
 		const titleActions = DOM.append(titleRow, $('.chat-debug-overview-title-actions'));
 
-		const revealSessionBtn = this.loadDisposables.add(new Button(titleActions, { ariaLabel: localize('chatDebug.revealChatSession', "Reveal Chat Session"), title: localize('chatDebug.revealChatSession', "Reveal Chat Session") }));
+		const revealSessionBtn = this.loadDisposables.add(new Button(titleActions, { ariaLabel: localize('chatDebug.revealChatSession', "Reveal Session"), title: localize('chatDebug.revealChatSession', "Reveal Session") }));
 		revealSessionBtn.element.classList.add('chat-debug-icon-button');
 		revealSessionBtn.icon = Codicon.goToFile;
 		this.loadDisposables.add(revealSessionBtn.onDidClick(() => {

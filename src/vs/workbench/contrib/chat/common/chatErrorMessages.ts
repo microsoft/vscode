@@ -325,7 +325,7 @@ function getChatErrorDetailsInner(fetchError: IChatFetchErrorPayload, copilotPla
 			return { message: localize('chatError.extensionBlocked', "Sorry, something went wrong.") };
 		case ChatFetchResponseType.InvalidStatefulMarker:
 			// should be unreachable, retried within the endpoint
-			return { message: localize('chatError.invalidStatefulMarker', "Your chat session state is invalid, please start a new chat.") };
+			return { message: localize('chatError.invalidStatefulMarker', "Your session state is invalid. Please start a new session.") };
 		default:
 			return { message: reason || localize('chatError.somethingWrong', "Sorry, something went wrong.") };
 	}

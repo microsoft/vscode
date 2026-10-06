@@ -47,9 +47,9 @@ suite('AgentHostPromptCacheNotification', () => {
 			autoDismissOnMessage: notification.autoDismissOnMessage,
 			sessionResources: notification.sessionResources?.map(resource => resource.toString()),
 		})), [{
-			message: 'This chat\'s prompt cache is stale',
-			description: 'The next prompt will incur increased cost. Consider starting a new chat. [Learn more](https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters)',
-			actions: ['Start New Chat'],
+			message: 'This session\'s prompt cache is stale',
+			description: 'The next prompt will incur increased cost. Consider starting a new session. [Learn more](https://code.visualstudio.com/docs/agents/agent-troubleshooting/cache-explorer#_why-prompt-caching-matters)',
+			actions: ['Start New Session'],
 			muteCommandId: 'workbench.action.chat.disablePromptCacheExpirationNotification',
 			autoDismissOnMessage: true,
 			sessionResources: [sessionResource.toString()],

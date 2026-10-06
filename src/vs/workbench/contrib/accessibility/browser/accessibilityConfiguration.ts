@@ -1029,7 +1029,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 			...accessibilityConfigurationNodeBase,
 			properties: {
 				[AccessibilityVoiceSettingId.SpeechTimeout]: {
-					'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a chat session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+					'markdownDescription': localize('voice.speechTimeout', "The duration in milliseconds that voice speech recognition remains active after you stop speaking. For example in a session, the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
 					'type': 'number',
 					'default': SpeechTimeoutDefault,
 					'minimum': 0,
@@ -1057,7 +1057,7 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 						localize('accessibility.voice.autoSynthesize.on', "Enable the feature. When a screen reader is enabled, note that this will disable aria updates."),
 						localize('accessibility.voice.autoSynthesize.off', "Disable the feature."),
 					],
-					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
+					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a session, a response is automatically synthesized when voice was used for the request."),
 					'default': 'off',
 					'tags': ['accessibility']
 				}

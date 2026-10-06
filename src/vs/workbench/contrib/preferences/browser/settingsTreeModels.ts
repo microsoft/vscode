@@ -224,7 +224,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this._displayCategory = this.setting.categoryLabel ?? null;
 			return;
 		}
-		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting);
+		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting, this.setting.settingsDisplayCategory);
 		this._displayLabel = displayKeyFormat.label;
 		this._displayCategory = displayKeyFormat.category;
 	}
@@ -798,7 +798,7 @@ export function sanitizeId(id: string): string {
 	return id.replace(/[\.\/]/g, '_');
 }
 
-export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
+export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false, settingsDisplayCategory?: string): { category: string; label: string } {
 	let displayLabel: string | undefined;
 	switch (key) {
 		case AgentSandboxSettingId.AgentSandboxAllowNetwork:
@@ -833,6 +833,10 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 	groupId = groupId.replace(/\//g, '.');
 	category = trimCategoryForGroup(category, groupId);
 	category = wordifyKey(category);
+	if (settingsDisplayCategory && category) {
+		const separatorIndex = category.indexOf(' \u203A ');
+		category = separatorIndex === -1 ? settingsDisplayCategory : settingsDisplayCategory + category.substring(separatorIndex);
+	}
 
 	if (isLanguageTagSetting) {
 		key = getLanguageTagSettingPlainKey(key);

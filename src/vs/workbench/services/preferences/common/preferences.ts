@@ -95,6 +95,7 @@ export interface ISetting {
 	nonLanguageSpecificDefaultValueSource?: ConfigurationDefaultValueSource;
 	isLanguageTagSetting?: boolean;
 	categoryLabel?: string;
+	settingsDisplayCategory?: string;
 
 	// Internal properties
 	allKeysAreBoolean?: boolean;

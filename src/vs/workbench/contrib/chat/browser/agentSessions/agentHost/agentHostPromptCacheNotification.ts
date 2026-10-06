@@ -111,12 +111,12 @@ export class AgentHostPromptCacheNotification extends Disposable {
 			id: this._notificationId(sessionResource),
 			telemetryId: 'copilot.promptCacheExpired',
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('promptCacheExpiration.title', "This chat's prompt cache is stale"),
-			description: new MarkdownString(localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new chat. [Learn more]({0})", PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)),
+			message: localize('promptCacheExpiration.title', "This session's prompt cache is stale"),
+			description: new MarkdownString(localize('promptCacheExpiration.description', "The next prompt will incur increased cost. Consider starting a new session. [Learn more]({0})", PROMPT_CACHE_EXPIRATION_LEARN_MORE_URL)),
 			actions: [
 				{
 					kind: ChatInputNotificationActionKind.Command,
-					label: localize('promptCacheExpiration.startNewChat', "Start New Chat"),
+					label: localize('promptCacheExpiration.startNewChat', "Start New Session"),
 					commandId: 'workbench.action.chat.newChat',
 				},
 			],

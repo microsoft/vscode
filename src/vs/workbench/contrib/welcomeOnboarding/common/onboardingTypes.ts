@@ -89,7 +89,7 @@ export const ONBOARDING_AI_PREFERENCE_OPTIONS: readonly IAiPreferenceOption[] = 
 	{
 		id: AiCollaborationMode.Balanced,
 		label: localize('onboarding.aiPref.balanced', "Side by Side"),
-		description: localize('onboarding.aiPref.balanced.desc', "Inline suggestions plus a chat panel for deeper collaboration. A balance of writing and delegating."),
+		description: localize('onboarding.aiPref.balanced.desc', "Inline suggestions plus the Sessions panel for deeper collaboration. A balance of writing and delegating."),
 		icon: 'layoutSidebarRight',
 	},
 	{

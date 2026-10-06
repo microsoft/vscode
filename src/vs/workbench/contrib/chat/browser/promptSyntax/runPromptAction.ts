@@ -295,7 +295,7 @@ const RUN_CURRENT_PROMPT_IN_NEW_CHAT_ACTION_ID = 'workbench.action.chat.run-in-n
 
 const RUN_IN_NEW_CHAT_ACTION_TITLE = localize2(
 	'run-prompt-in-new-chat.capitalized',
-	"Run Prompt In New Chat",
+	"Run Prompt in New Session",
 );
 
 /**

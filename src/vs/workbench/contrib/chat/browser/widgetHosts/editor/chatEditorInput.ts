@@ -38,7 +38,7 @@ import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
-const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
+const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the session editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
 	static readonly TypeID: string = 'workbench.input.chatSession';
@@ -128,8 +128,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return ConfirmResult.SAVE;
 		}
 
-		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Chat Editor");
-		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the chat editor will end your current edit session.");
+		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Session Editor");
+		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the session editor will end your current edit session.");
 		const result = await showClearEditingSessionConfirmation(this.model, this.dialogService, { titleOverride, messageOverride });
 		return result ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
 	}
@@ -201,7 +201,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 
 		// Fall back to default naming pattern
-		return this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+		return this.options.title?.fallback ?? nls.localize('chatEditorName', "New Session");
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
@@ -268,7 +268,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			// status-bar hint rather than a silent wait while the (cold) host settles.
 			if (migratedCopilotCliResource(this._sessionResource)) {
 				const migrated = await this.progressService.withProgress(
-					{ location: ProgressLocation.Window, title: nls.localize('chat.openingSession', "Opening chat…") },
+					{ location: ProgressLocation.Window, title: nls.localize('chat.openingSession', "Opening session…") },
 					() => adoptLegacyCopilotCliResource(
 						this.agentHostConnectionsService.ambientConnection,
 						this._sessionResource!,
@@ -517,8 +517,8 @@ export async function showClearEditingSessionConfirmation(model: IChatModel, dia
 		return true; // safe to dispose without confirmation
 	}
 
-	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
-	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
+	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new session will end your current edit session.");
+	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new session?");
 	const phrase = options?.messageOverride ?? defaultPhrase;
 	const title = options?.titleOverride ?? defaultTitle;
 

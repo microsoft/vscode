@@ -683,12 +683,13 @@ export class ChatRepoInfoContribution extends Disposable implements IWorkbenchCo
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		registry.registerConfiguration({
 			id: 'chatRepoInfo',
-			title: nls.localize('chatRepoInfoConfigurationTitle', "Chat Repository Info"),
+			title: nls.localize('chatRepoInfoConfigurationTitle', "Repository Info"),
+			settingsDisplayCategory: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
 			type: 'object',
 			properties: {
 				[ChatConfiguration.RepoInfoEnabled]: {
 					type: 'boolean',
-					description: nls.localize('chat.repoInfo.enabled', "Controls whether lightweight repository metadata (branch, commit, remotes) is captured when a chat request is submitted for internal diagnostics."),
+					description: nls.localize('chat.repoInfo.enabled', "Controls whether lightweight repository metadata (branch, commit, remotes) is captured when a request is submitted for internal diagnostics."),
 					default: false,
 				}
 			}

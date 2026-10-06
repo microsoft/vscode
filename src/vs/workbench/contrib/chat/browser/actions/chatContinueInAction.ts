@@ -124,8 +124,8 @@ export class ContinueChatInSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ContinueChatInSessionAction.ID,
-			title: localize2('continueChatInSession', "Continue Chat in..."),
-			tooltip: localize('continueChatInSession', "Continue Chat in..."),
+			title: localize2('continueChatInSession', "Continue Session in..."),
+			tooltip: localize('continueChatInSession', "Continue Session in..."),
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate(),

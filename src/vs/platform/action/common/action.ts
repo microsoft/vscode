@@ -82,6 +82,7 @@ export interface ICommandAction {
 	 */
 	metadata?: ICommandMetadata;
 	category?: keyof typeof Categories | ILocalizedString | string;
+	categoryAlias?: ILocalizedString | string;
 	tooltip?: string | ILocalizedString;
 	icon?: Icon;
 	source?: ICommandActionSource;

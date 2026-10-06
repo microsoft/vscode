@@ -51,7 +51,7 @@ class CheckForPluginUpdatesCommand extends Action2 {
 		super({
 			id: UpdateAgentPluginsCommandId,
 			title: localize2('agentPlugins.checkForUpdates', "Update Plugins"),
-			category: localize2('chat.category', "Chat"),
+			category: { value: localize('chat.category', "Sessions"), original: 'Chat' },
 			icon: Codicon.refresh,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, UpdatingAgentPluginsContext.negate()),
 			f1: true,
@@ -83,7 +83,7 @@ class ForceUpdatePluginsCommand extends Action2 {
 		super({
 			id: ForceUpdateAgentPluginsCommandId,
 			title: localize2('agentPlugins.forceUpdate', "Update Plugins (Force)"),
-			category: localize2('chat.category', "Chat"),
+			category: { value: localize('chat.category', "Sessions"), original: 'Chat' },
 			icon: Codicon.refresh,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, UpdatingAgentPluginsContext.negate()),
 			f1: true,

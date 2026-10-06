@@ -397,7 +397,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				const response = typeof invocation.parameters?.response === 'string' && invocation.parameters.response.trim().length > 0
 					? invocation.parameters.response.trim()
-					: localize('terminated.message', "Inline chat is designed for making single-file code changes. Continue your request in the Chat view or rephrase it for inline chat.");
+					: localize('terminated.message', "Inline chat is designed for making single-file code changes. Continue your request in the Sessions view or rephrase it for inline chat.");
 
 				session.setTerminationState(response);
 				return { content: [{ kind: 'text', value: 'Success' }] };

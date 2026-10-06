@@ -120,7 +120,8 @@ function managedOTelOutfileValue(policyData: IPolicyData): string | undefined {
 
 configurationRegistry.registerConfiguration({
 	id: 'chatAgentHostStarter',
-	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Chat Agent Host Starter"),
+	title: nls.localize('chatAgentHostStarterConfigurationTitle', "Agent Host Starter"),
+	settingsDisplayCategory: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
 	type: 'object',
 	properties: {
 		[AgentMergeSettingId.Enabled]: {

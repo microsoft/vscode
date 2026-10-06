@@ -312,7 +312,8 @@ const migrationsTabLink = createMarkdownCommandLink({
 });
 configurationRegistry.registerConfiguration({
 	id: 'chatSidebar',
-	title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+	title: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
+	settingsDisplayCategory: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
 	type: 'object',
 	properties: {
 		'chat.experimentalSessionsWindowOverride': {
@@ -475,7 +476,7 @@ configurationRegistry.registerConfiguration({
 			enumDescriptions: [
 				nls.localize('chat.agentsControl.hidden', "The agent status indicator is hidden from the title bar."),
 				nls.localize('chat.agentsControl.badge', "Shows the agent status as a badge next to the command center."),
-				nls.localize('chat.agentsControl.compact', "Replaces the command center search box with a compact agent status indicator and unified chat widget."),
+				nls.localize('chat.agentsControl.compact', "Replaces the command center search box with a compact agent status indicator and unified Sessions widget."),
 			],
 			markdownDescription: nls.localize('chat.agentsControl.enabled', "Controls how the 'Agent Status' indicator appears in the title bar command center. When set to `hidden`, the indicator is not shown. Other values show the indicator and automatically enable {0}. The unread and in-progress session indicators require {1} to be enabled.", '`#window.commandCenter#`', '`#chat.viewSessions.enabled#`'),
 			default: 'compact',
@@ -483,7 +484,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.UnifiedAgentsBar]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "Replaces the command center search box with a unified chat and search widget."),
+			markdownDescription: nls.localize('chat.unifiedAgentsBar.enabled', "Replaces the command center search box with a unified Sessions and search widget."),
 			default: false,
 			tags: ['experimental']
 		},
@@ -495,7 +496,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.MigrateLegacyCopilotCliSessions]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentSessions.migrateLegacyCopilotCli', "Controls whether legacy extension host Copilot CLI chat sessions are migrated in place to the Agent host when opened, so their history becomes editable. When disabled, legacy sessions open as before.\n\nChanging this setting requires a restart to take effect."),
+			markdownDescription: nls.localize('chat.agentSessions.migrateLegacyCopilotCli', "Controls whether legacy extension host Copilot CLI sessions are migrated in place to the Agent host when opened, so their history becomes editable. When disabled, legacy sessions open as before.\n\nChanging this setting requires a restart to take effect."),
 			default: false,
 			tags: ['experimental'],
 			// Migration is a global, one-time behavior over the shared agent host, so it is a
@@ -596,7 +597,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.editing.explainChanges.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Chat panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
+			markdownDescription: nls.localize('chat.editing.explainChanges.enabled', "Controls whether the Explain button in the Sessions panel and the Explain Changes context menu in the SCM view are shown. This is an experimental feature."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {
@@ -635,7 +636,7 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.detectParticipant.enabled': {
 			type: 'boolean',
 			deprecationMessage: nls.localize('chat.experimental.detectParticipant.enabled.deprecated', "This setting is deprecated. Please use `chat.detectParticipant.enabled` instead."),
-			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
+			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection in the Sessions panel."),
 			default: null
 		},
 		[ChatConfiguration.IncrementalRendering]: {
@@ -686,7 +687,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
-			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
+			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection in the Sessions panel."),
 			default: true
 		},
 		[ChatConfiguration.ExperimentalStickyScrollEnabled]: {
@@ -722,7 +723,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.notifyWindowOnConfirmation.windowNotFocused', "Show OS notifications for confirmations when the window is not focused."),
 				nls.localize('chat.notifyWindowOnConfirmation.always', "Always show OS notifications for confirmations, even when the window is focused."),
 			],
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should present the user with an OS notification when a confirmation or question needs input. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a session should present the user with an OS notification when a confirmation or question needs input. This includes a window badge as well as notification toast."),
 			default: 'windowNotFocused',
 		},
 		[ChatConfiguration.AutoReply]: {
@@ -748,11 +749,11 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.permissions.default.autopilot.label', "Autopilot (Preview)"),
 			],
 			enumDescriptions: [
-				nls.localize('chat.permissions.default.default.description', "Start new chat sessions with Default Permissions."),
-				nls.localize('chat.permissions.default.autoApprove.description', "Start new chat sessions in Bypass Approvals mode."),
-				nls.localize('chat.permissions.default.autopilot.description', "Start new chat sessions in Autopilot mode."),
+				nls.localize('chat.permissions.default.default.description', "Start new sessions with Default Permissions."),
+				nls.localize('chat.permissions.default.autoApprove.description', "Start new sessions in Bypass Approvals mode."),
+				nls.localize('chat.permissions.default.autopilot.description', "Start new sessions in Autopilot mode."),
 			],
-			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local chat sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Permissions."),
+			description: nls.localize('chat.permissions.default.settingDescription', "Controls the default permissions picker mode for new local sessions. You can still change the permission mode per session, and each session remembers the permission mode that was used. If enterprise policy disables auto approval, new sessions use Default Permissions."),
 			default: ChatPermissionLevel.Default,
 		},
 		[ChatConfiguration.DefaultConfiguration]: {
@@ -997,23 +998,23 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+			description: nls.localize('chat.viewSessions.enabled', "Show agent sessions when the Sessions view is empty or to the side when the Sessions view is wide enough."),
 			agentsWindow: { default: false },
 		},
 		[ChatConfiguration.ChatViewSessionsOrientation]: {
 			type: 'string',
 			enum: ['stacked', 'sideBySide'],
 			enumDescriptions: [
-				nls.localize('chat.viewSessions.orientation.stacked', "Display chat sessions vertically stacked above the chat input unless a chat session is visible."),
-				nls.localize('chat.viewSessions.orientation.sideBySide', "Display chat sessions side by side if space is sufficient, otherwise fallback to stacked above the chat input unless a chat session is visible.")
+				nls.localize('chat.viewSessions.orientation.stacked', "Display sessions vertically stacked above the chat input unless a session is visible."),
+				nls.localize('chat.viewSessions.orientation.sideBySide', "Display sessions side by side if space is sufficient, otherwise fallback to stacked above the chat input unless a session is visible.")
 			],
 			default: 'sideBySide',
-			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the chat agent sessions view when it is shown alongside the chat."),
+			description: nls.localize('chat.viewSessions.orientation', "Controls the orientation of the agent sessions list when it is shown alongside the active session."),
 		},
 		[ChatConfiguration.ChatViewProgressBadgeEnabled]: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the chat view when an agent session is in progress that is opened in that view."),
+			description: nls.localize('chat.viewProgressBadge.enabled', "Show a progress badge on the Sessions view when an agent session opened in that view is in progress."),
 		},
 		[ChatSessionArchiveActionWordingSettingId]: {
 			type: 'string',
@@ -1025,7 +1026,7 @@ configurationRegistry.registerConfiguration({
 			default: 'done',
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive chat sessions, as well as the label of the archived sessions section."),
+			description: nls.localize('chat.experimental.sessionArchiveActionWording', "Controls the wording and icons used by actions that archive and unarchive sessions, as well as the label of the archived sessions section."),
 		},
 		[ChatConfiguration.AgentsHandoffTipMode]: {
 			type: 'string',
@@ -1050,7 +1051,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[CodexPreferAgentHostEditorSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.editor.codex.preferAgentHost', "When enabled, Codex sessions opened from the regular workbench (sidebar chat) run inside the agent host process using the Codex App Server instead of the OpenAI extension. Only one Codex implementation surfaces per window. Requires `#chat.agentHost.codexAgent.enabled#`."),
+			markdownDescription: nls.localize('chat.editor.codex.preferAgentHost', "When enabled, Codex sessions opened from the Sessions view run inside the agent host process using the Codex App Server instead of the OpenAI extension. Only one Codex implementation surfaces per window. Requires `#chat.agentHost.codexAgent.enabled#`."),
 			default: product.quality !== 'stable',
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
@@ -1092,7 +1093,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.SessionStateIndicatorEnabled]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around chat editor sessions that are in progress, need input, or have an unvisited completion. Customize the borders with `chat.sessionStateIndicator.inProgressBorder`, `chat.sessionStateIndicator.needsInputBorder`, and `chat.sessionStateIndicator.unvisitedBorder` in `#workbench.colorCustomizations#`."),
+			markdownDescription: nls.localize('chat.experimental.sessionStateIndicator.enabled', "Enable state indicators around sessions open in editors that are in progress, need input, or have an unvisited completion. Customize the borders with `chat.sessionStateIndicator.inProgressBorder`, `chat.sessionStateIndicator.needsInputBorder`, and `chat.sessionStateIndicator.unvisitedBorder` in `#workbench.colorCustomizations#`."),
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
@@ -1104,12 +1105,12 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.notifyWindowOnResponseReceived.always', "Always show OS notifications for responses, even when the window is focused."),
 			],
 			default: 'windowNotFocused',
-			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should present the user with an OS notification when a response is received. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a session should present the user with an OS notification when a response is received. This includes a window badge as well as notification toast."),
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
+			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in sessions. Checkpoints allow you to restore a session to a previous state."),
 		},
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
@@ -1339,12 +1340,12 @@ configurationRegistry.registerConfiguration({
 				properties: {
 					allowedDuringChat: {
 						type: 'boolean',
-						description: nls.localize('chat.mcp.serverSampling.allowedDuringChat', "Whether this server is allowed to make sampling requests during its tool calls in a chat session."),
+						description: nls.localize('chat.mcp.serverSampling.allowedDuringChat', "Whether this server is allowed to make sampling requests during its tool calls in a session."),
 						default: true,
 					},
 					allowedOutsideChat: {
 						type: 'boolean',
-						description: nls.localize('chat.mcp.serverSampling.allowedOutsideChat', "Whether this server is allowed to make sampling requests outside of a chat session."),
+						description: nls.localize('chat.mcp.serverSampling.allowedOutsideChat', "Whether this server is allowed to make sampling requests outside of a session."),
 						default: false,
 					},
 					allowedModels: {
@@ -1594,7 +1595,7 @@ configurationRegistry.registerConfiguration({
 		...chatNetworkDomainConfigurationProperties,
 		[ChatConfiguration.DefaultNewSessionMode]: {
 			type: 'string',
-			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
+			description: nls.localize('chat.newSession.defaultMode', "The default mode for new sessions. When empty, the Sessions view's default mode is used."),
 			default: '',
 		},
 		[ChatConfiguration.AgentHostDebugLogsDefaultExportLocation]: {
@@ -1812,7 +1813,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostAllowSignedOutWhenUsableSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, Agent Host sessions remain available while signed out. The Agents window opens without forcing GitHub sign-in, and editor chat lets you select the Copilot harness. Agents usable without GitHub (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub prompt you to add a model or sign in. When disabled (the default), GitHub sign-in is required before the Agents window opens."),
+			markdownDescription: nls.localize('chat.agentHost.allowSignedOutWhenUsable', "When enabled, Agent Host sessions remain available while signed out. The Agents window opens without forcing GitHub sign-in, and the Sessions view lets you select the Copilot harness. Agents usable without GitHub (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials) work while signed out; agents that require GitHub prompt you to add a model or sign in. When disabled (the default), GitHub sign-in is required before the Agents window opens."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
@@ -2241,8 +2242,8 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptsConfig.USE_CHAT_HOOKS]: {
 			type: 'boolean',
-			title: nls.localize('chat.useHooks.title', "Use Chat Hooks",),
-			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",),
+			title: nls.localize('chat.useHooks.title', "Use Session Hooks",),
+			markdownDescription: nls.localize('chat.useHooks.description', "Controls whether session hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -2255,7 +2256,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.useHooks.description',
-						value: nls.localize('chat.useHooks.description', "Controls whether chat hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",)
+						value: nls.localize('chat.useHooks.description', "Controls whether session hooks are executed at strategic points during an agent's workflow. Hooks are loaded from the files configured in `#chat.hookFilesLocations#`. This setting is only used by the Local agent harness.",)
 					}
 				},
 			}
@@ -2476,7 +2477,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ExitAfterDelegation]: {
 			type: 'boolean',
-			description: nls.localize('chat.exitAfterDelegation', "Controls whether the chat panel automatically exits after delegating a request to another session."),
+			description: nls.localize('chat.exitAfterDelegation', "Controls whether the Sessions panel automatically exits after delegating a request to another session."),
 			default: false,
 			tags: ['preview'],
 		},
@@ -2589,7 +2590,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		ChatEditor,
 		ChatEditorInput.EditorID,
-		nls.localize('chat', "Chat")
+		nls.localize('chat', "Session")
 	),
 	[
 		new SyncDescriptor(ChatEditorInput)
@@ -2868,7 +2869,7 @@ class ChatResolverContribution extends Disposable {
 		this._editorRegistrations.set(scheme, this.editorResolverService.registerEditor(`${scheme}:**/**`,
 			{
 				id: ChatEditorInput.EditorID,
-				label: nls.localize('chat', "Chat"),
+				label: nls.localize('chat', "Session"),
 				priority: RegisteredEditorPriority.builtin
 			},
 			{
@@ -2974,7 +2975,8 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 			this.experimentService.getTreatment<number>(treatmentId).then((value) => {
 				const node: IConfigurationNode = {
 					id: 'chatSidebar',
-					title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+					title: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
+					settingsDisplayCategory: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
 					type: 'object',
 					properties: {
 						'chat.agent.maxRequests': {
@@ -3008,12 +3010,13 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 		this.experimentService.getTreatment<string>('chatDefaultNewSessionMode').then(value => {
 			const node: IConfigurationNode = {
 				id: 'chatSidebar',
-				title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
+				title: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
+				settingsDisplayCategory: nls.localize('interactiveSessionConfigurationTitle', "Sessions"),
 				type: 'object',
 				properties: {
 					[ChatConfiguration.DefaultNewSessionMode]: {
 						type: 'string',
-						description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
+						description: nls.localize('chat.newSession.defaultMode', "The default mode for new sessions. When empty, the Sessions view's default mode is used."),
 						default: typeof value === 'string' ? value : '',
 					}
 				}

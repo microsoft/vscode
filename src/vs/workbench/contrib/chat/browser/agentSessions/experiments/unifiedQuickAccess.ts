@@ -387,10 +387,10 @@ export class UnifiedQuickAccess extends Disposable {
 			// Show "Open Chat" with open chat keybinding and hide icon
 			const openChatKeybinding = this.keybindingService.lookupKeybinding(CHAT_OPEN_ACTION_ID);
 			const openChatLabel = openChatKeybinding?.getLabel() ?? '';
-			this._sendButtonLabel.textContent = localize('openChat', "Open Chat");
+			this._sendButtonLabel.textContent = localize('openChat', "Open Sessions");
 			const tooltip = openChatLabel
-				? localize('openChatTooltipWithKeybinding', "Open chat ({0})", openChatLabel)
-				: localize('openChatTooltipNoKeybinding', "Open chat");
+				? localize('openChatTooltipWithKeybinding', "Open sessions ({0})", openChatLabel)
+				: localize('openChatTooltipNoKeybinding', "Open sessions");
 			this._sendButtonHover?.update(tooltip);
 			this._sendButtonIcon.style.display = 'none';
 		}

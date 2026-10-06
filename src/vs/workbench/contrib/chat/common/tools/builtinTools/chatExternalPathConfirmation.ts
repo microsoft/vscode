@@ -155,7 +155,7 @@ export class ChatExternalPathConfirmationContribution implements ILanguageModelT
 		const actions: ILanguageModelToolConfirmationActions[] = [
 			{
 				label: localize('allowFolderSession', 'Allow this folder in this session'),
-				detail: localize('allowFolderSessionDetail', 'Allow reading files from this folder without further confirmation in this chat session'),
+				detail: localize('allowFolderSessionDetail', 'Allow reading files from this folder without further confirmation in this session'),
 				select: async () => {
 					let folders = this._sessionFolderAllowlist.get(sessionResource);
 					if (!folders) {

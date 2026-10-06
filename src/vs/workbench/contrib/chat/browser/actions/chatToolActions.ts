@@ -171,8 +171,8 @@ export class ConfigureToolsAction extends Action2 {
 		const { entriesScope, entriesMap } = widget.input.selectedToolsModel;
 		switch (entriesScope) {
 			case ToolsScope.Session:
-				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
-				description = localize('chat.tools.description.session', "The selected tools were configured only for this chat session.");
+				placeholder = localize('chat.tools.placeholder.session', "Select tools for this session");
+				description = localize('chat.tools.description.session', "The selected tools were configured only for this session.");
 				break;
 			case ToolsScope.Agent:
 				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
@@ -184,7 +184,7 @@ export class ConfigureToolsAction extends Action2 {
 				break;
 			case ToolsScope.Global:
 				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
-				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all sessions that use the default agent.");
 				break;
 
 		}
