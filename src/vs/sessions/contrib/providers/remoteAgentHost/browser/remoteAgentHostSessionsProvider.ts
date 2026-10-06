@@ -5,6 +5,7 @@
 
 import { raceTimeout, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { isPassiveRelayConnection } from '../../../../../platform/agentHost/common/meta/relayConnectionMeta.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -217,6 +218,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	protected get isWebPlatform(): boolean { return isWeb; }
 
 	private _connection: IAgentConnection | undefined;
+	private readonly _passiveRelay = observableValue(this, false);
+	private readonly _allowOfflineDrafts = derived(this, reader => this.supportsOfflineDrafts && !this._passiveRelay.read(reader));
 	private _defaultDirectory: string | undefined;
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _onDidChangeResourceLabelHomes = Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event);
@@ -317,17 +320,18 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.canConnectOnDemand = !!config.connectOnDemand;
-		this._readOnly = config.readOnlyWhenDisconnected || this.supportsOfflineDrafts
-			? derived(this, reader => {
-				const status = this._connectionStatus.read(reader);
-				if (this.supportsOfflineDrafts) {
-					return !RemoteAgentHostConnectionStatus.isConnected(status) || this.authenticationPending.read(reader);
-				}
-				return RemoteAgentHostConnectionStatus.isDisconnected(status)
-					|| RemoteAgentHostConnectionStatus.isConnecting(status)
-					|| RemoteAgentHostConnectionStatus.isIncompatible(status);
-			})
-			: constObservable(false);
+		this._readOnly = derived(this, reader => {
+			const status = this._connectionStatus.read(reader);
+			if (this._passiveRelay.read(reader)) {
+				return true;
+			}
+			if (this.supportsOfflineDrafts) {
+				return !RemoteAgentHostConnectionStatus.isConnected(status) || this.authenticationPending.read(reader);
+			}
+			return !!config.readOnlyWhenDisconnected && (RemoteAgentHostConnectionStatus.isDisconnected(status)
+				|| RemoteAgentHostConnectionStatus.isConnecting(status)
+				|| RemoteAgentHostConnectionStatus.isIncompatible(status));
+		});
 		this._register(this._onDidChangeResourceLabelHomes(() => this.updateResourceLabelHomes()));
 		if (this._devContainerLifecycle) {
 			this._register(Event.any(this._onDidChangeSessionsImmediately, this._onDidChangeDraftSessions.event)(() => this._scheduleDevContainerStopIfIdle()));
@@ -728,6 +732,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
+	protected get passiveRelay(): IObservable<boolean> { return this._passiveRelay; }
+
 	protected get supportsOfflineDrafts(): boolean { return false; }
 
 	/**
@@ -743,7 +749,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
-			allowOfflineDrafts: this.supportsOfflineDrafts,
+			allowOfflineDrafts: this._allowOfflineDrafts,
 			defaultChangesetKind: this._defaultChangesetKind,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
@@ -986,6 +992,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectionListeners.clear();
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._connection = connection;
+		this._connectionListeners.add(autorun(reader => {
+			this._passiveRelay.set(isPassiveRelayConnection(connection.initializeResult.read(reader)), undefined);
+		}));
 		this._devContainerIdleSince = undefined;
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.setConnection(connection);
@@ -1026,6 +1035,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._sessionStateSubscriptions.clearAndDisposeAll();
 		this._onDidDisconnect.fire();
 		this._connection = undefined;
+		this._passiveRelay.set(false, undefined);
 		this._connectionChanged.trigger(undefined);
 		this._automationStore.clearConnection();
 		this._defaultDirectory = undefined;

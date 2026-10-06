@@ -111,6 +111,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
 | `suites/workingDirectoriesSuite.ts` | Multi-root peer scoping, delegated folders, additional worktree ownership, and workspace persistence. |
 | `suites/mcpSideChannelSuite.ts` | Real MCP application requests tunneled over AHP, including resources, tool results, concurrent callers, and lifecycle recovery. |
+| `suites/terminalResilienceSuite.ts` | Client-owned real PTYs: working directory, UTF-8 input, resizing, fragmented output, independent processes, and retained output across subscription changes. |
 | `suites/providerCheckpointSuite.ts` | Provider-executed edits and historical Git checkpoint comparisons, including index preservation and restart. |
 | `suites/providerErrorSuite.ts` | Endpoint-scoped model API failures, provider error classification, retries, and subsequent-turn recovery. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
@@ -136,6 +137,14 @@ Workspace lifecycle tests enable each provider's multi-root capability only for 
 Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 The MCP side-channel scenarios use the `channel` advertised by a real ready server, never a synthesized implementation URI. Copilot and Codex support this surface; Claude does not. Codex additionally exposes resource and template inventories, while Copilot supports stop/start. A recorded no-tool turn materializes the provider; side-channel calls then exercise the actual MCP process without model requests.
+
+The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
+
+Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
+
+Terminal resilience assertions compare filesystem identity rather than Windows short/long path spelling, render VT scrollback through a headless terminal rather than counting ConPTY repaint bytes, and send Unicode to an already-running child rather than relying on a shell editor's locale. Claude history-edit fixtures perform the required `Read` before `Edit`, including after cold resume; replayed success text cannot substitute for that tool prerequisite.
+
+The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
@@ -245,6 +254,10 @@ fetches server settings afresh and retains the production 4.5-second overall and
 3.5-second query deadlines. Cold-start deadline behavior is covered by the
 Copilot agent unit tests.
 
+The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
+
+The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
+
 Provider availability:
 
 - **Copilot** (`copilotcli`) — always enabled (the CLI is a dev dependency).
@@ -262,8 +275,10 @@ Skip these scenarios while recording so a known early failure cannot overwrite
 a complete fixture with a partial recording. Remove that recording skip together
 with the marker when the upstream fix is adopted.
 
-The managed-telemetry no-restart scenario runs this way by default. Do not
-replace its marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default.
+Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
+managed-telemetry no-restart scenario passes normally with runtime `1.0.92-4`.
+Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
 `{ allowUnconsumedResponses: true }` to the lease's replay verification at
@@ -621,6 +636,10 @@ You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a to
 ### A test passes alone but fails only when run after another test (shared server)
 
 In replay one server serves every test (see [Server lifecycle](#server-lifecycle)), so a test that returns **mid-turn** leaks: the SDK's continuation call fires after the fixture is swapped and lands in a later test's window as an unrecorded call (a `POST /v1/messages` / `POST /responses` cache miss, usually attributed to the *next* test's teardown). Fix the culprit — the test that returned mid-turn — by draining its turn to `turnComplete` before it ends. (Verify by running the suspected test alone via `--grep`, which gives it a clean one-test server; if it passes alone but fails after a sibling, that's the leak.)
+
+### Read or archive state is lost after a graceful host restart
+
+Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
 
 ### CI infra flakes (not your code)
 

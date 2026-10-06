@@ -11,7 +11,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -29,7 +29,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
 	private readonly _configurationUnavailable = derived(this, reader =>
-		!RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.read(reader)) || this.authenticationPending.read(reader));
+		!RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.read(reader)) || this.authenticationPending.read(reader) || this.passiveRelay.read(reader));
 
 	protected override get supportsOfflineDrafts(): boolean { return true; }
 
@@ -154,6 +154,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	}
 
 	private _assertConfigurationAvailable(): void {
+		if (this.passiveRelay.get()) {
+			throw new Error(localize('cloudSandbox.settingsReadOnly', "This connection is read-only. Session settings cannot be changed."));
+		}
 		if (this._configurationUnavailable.get()) {
 			throw new Error(localize('cloudSandbox.settingsUnavailable', "Connect to the environment before changing session settings."));
 		}
@@ -175,7 +178,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		this._taskRenameHandler = { sessionKey: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, rawId).toString(), rename };
 	}
 
-	override async renameSession(sessionId: string, title: string): Promise<void> {
+	/** Preserve the initial title without letting a transient task metadata failure block the first turn. */
+	setInitialSessionTitle(sessionId: string, title: string): Promise<void> {
+		return this._renameSession(sessionId, title, true);
+	}
+
+	override renameSession(sessionId: string, title: string): Promise<void> {
+		return this._renameSession(sessionId, title, false);
+	}
+
+	private async _renameSession(sessionId: string, title: string, initial: boolean): Promise<void> {
 		const sessionKey = this._sessionKeyFromChatId(sessionId);
 		const session = sessionKey ? this._sessionCache.get(sessionKey) : undefined;
 		if (!session || !sessionKey) {
@@ -187,7 +199,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
 			}
 		} else {
-			await handler.rename(title);
+			try {
+				await handler.rename(title);
+			} catch (error) {
+				if (!initial || !(error instanceof CloudSandboxRequestError) || !isRetryableCloudSandboxError(error)) {
+					throw error;
+				}
+				this._logService.warn(`[CloudSandboxSessionsProvider] Failed to synchronize initial task title for ${sessionKey}; continuing with the first turn`, error);
+			}
 			if (this._store.isDisposed || this._sessionCache.get(sessionKey) !== session) {
 				throw new CancellationError();
 			}

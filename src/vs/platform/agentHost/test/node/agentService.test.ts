@@ -3759,10 +3759,8 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: TitleTestAgent; session: URI; db: TestSessionDatabase }> {
-			const db = new TestSessionDatabase();
-			const sessionDataService = createSessionDataService(db);
-			const svc = disposables.add(createTestAgentService(
+		function createDeferredTitleTestAgentService(sessionDataService: ISessionDataService, copilotApiService?: ICopilotApiService): AgentService {
+			return createTestAgentService(
 				new NullLogService(),
 				fileService,
 				sessionDataService,
@@ -3772,7 +3770,23 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				copilotApiService,
-			));
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'deferred',
+			);
+		}
+
+		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: TitleTestAgent; session: URI; db: TestSessionDatabase }> {
+			const db = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(createDeferredTitleTestAgentService(sessionDataService, copilotApiService));
 			const agent = new TitleTestAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
@@ -4407,13 +4421,14 @@ suite('AgentService (node dispatcher)', () => {
 			getStateManager(svc).registerChangeset(changeset);
 			const rejectionPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
-			svc.dispatchAction(changeset, {
+			const dispatch = svc.dispatchAction(changeset, {
 				type: ActionType.ChangesetFilesReviewChanged,
 				files: [URI.file('/workspace/file.txt').toString()],
 				reviewed: true,
 			}, 'test-client', 1);
+			assert.ok(dispatch instanceof Promise);
+			await dispatch;
 			const rejection = await rejectionPromise;
-			await timeout(0);
 
 			let nextAction: ActionEnvelope | undefined;
 			const listener = svc.onDidAction(envelope => {
@@ -4462,7 +4477,7 @@ suite('AgentService (node dispatcher)', () => {
 			const clientId = 'ordered-client';
 			const chat = buildDefaultChatUri(session.toString());
 
-			svc.dispatchAction(chat, {
+			const turnDispatch = svc.dispatchAction(chat, {
 				type: ActionType.ChatTurnStarted,
 				turnId: 'turn-1',
 				startedAt: '2025-01-01T00:00:00.000Z',
@@ -4478,20 +4493,23 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			}, clientId, 1, AgentHostClientType.EditorWindow);
 			await readStarted.p;
-			svc.dispatchAction(session.toString(), {
+			const directoryDispatch = svc.dispatchAction(session.toString(), {
 				type: ActionType.SessionWorkingDirectorySet,
 				directory: URI.file('/workspace/added').toString(),
 			}, clientId, 2, AgentHostClientType.EditorWindow);
+			assert.ok(turnDispatch instanceof Promise && directoryDispatch instanceof Promise);
+			let completed = false;
+			void directoryDispatch.then(() => { completed = true; });
 			await timeout(0);
 
 			assert.deepStrictEqual(
-				getStateManager(svc).getSessionState(session.toString())?.workingDirectories,
-				[primary.toString(), secondary.toString()],
+				{ completed, workingDirectories: getStateManager(svc).getSessionState(session.toString())?.workingDirectories },
+				{ completed: false, workingDirectories: [primary.toString(), secondary.toString()] },
 				'working-directory action must not overtake the pending rewrite',
 			);
 
 			readGate.complete();
-			await waitForCondition(() => observed.includes(ActionType.SessionWorkingDirectorySet), 'working-directory action should dispatch after the rewrite');
+			await Promise.all([turnDispatch, directoryDispatch]);
 			assert.ok(
 				observed.indexOf(ActionType.ChatTurnStarted) < observed.indexOf(ActionType.SessionWorkingDirectorySet),
 				`expected turn action before working-directory action, got ${observed.join(', ')}`,
@@ -4680,7 +4698,7 @@ suite('AgentService (node dispatcher)', () => {
 		for (const failFirstCreation of [false, true]) {
 			test(`title strategy stays aligned with provider tools during creation (failure: ${failFirstCreation})`, async () => {
 				const db = new TestSessionDatabase();
-				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const svc = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db)));
 				const observed: ReturnType<IAgentServerToolHost['getDefinitionsForSession']>[number][] = [];
 				let attempts = 0;
 				class CreatingAgent extends TitleTestAgent {
@@ -17225,61 +17243,79 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}));
 
-		test('drains published passive metadata updates before closing the central catalog', async () => {
-			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
-			const svc = disposables.add(createTestAgentService(
-				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
-				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
-			));
-			registerTestAgentProvider(svc, copilotAgent);
-			const session = await svc.createSession({ provider: 'copilot' });
-			await svc.whenCatalogReconciliationIdle();
-			const sessionKey = session.toString();
-			const stateManager = getStateManager(svc);
-			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
-			stateManager.removeSession(sessionKey);
-			const internals = svc as unknown as {
-				_catalogSyncService: {
-					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+		for (const storageFails of [false, true]) {
+			test(`drains published passive metadata updates before closing the central catalog${storageFails ? ' when global storage fails' : ''}`, async () => {
+				const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+				const svc = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				registerTestAgentProvider(svc, copilotAgent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				await svc.whenCatalogReconciliationIdle();
+				const sessionKey = session.toString();
+				const stateManager = getStateManager(svc);
+				stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+				stateManager.removeSession(sessionKey);
+				const internals = svc as unknown as {
+					_storageService: IAgentHostStorageService;
+					_catalogSyncService: {
+						runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
+					};
 				};
-			};
-			const blockerStarted = new DeferredPromise<void>();
-			const releaseBlocker = new DeferredPromise<void>();
-			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
-				blockerStarted.complete();
-				await releaseBlocker.p;
-			});
-			await blockerStarted.p;
-			const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
-			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await changed;
-			const isRead = (stateManager.getSurfacedSessionSummary(sessionKey)!.status & SessionStatus.IsRead) === 0;
-			const readChanged = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
-			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead }, 'test-client', 2, AgentHostClientType.EditorWindow);
-			await readChanged;
+				const blockerStarted = new DeferredPromise<void>();
+				const releaseBlocker = new DeferredPromise<void>();
+				const blocker = internals._catalogSyncService.runExclusive(session, async () => {
+					blockerStarted.complete();
+					await releaseBlocker.p;
+				});
+				await blockerStarted.p;
+				const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
+				svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+				await changed;
+				const isRead = (stateManager.getSurfacedSessionSummary(sessionKey)!.status & SessionStatus.IsRead) === 0;
+				const readChanged = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
+				svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead }, 'test-client', 2, AgentHostClientType.EditorWindow);
+				await readChanged;
 
-			let closed: AgentHostCatalogData | undefined;
-			catalogDatabase.close = async () => {
-				closed = catalogDataOf(await catalogDatabase.getSessionV2(sessionKey));
-			};
-			let shutdownComplete = false;
-			const shutdown = svc.shutdown().then(() => { shutdownComplete = true; });
-			await timeout(0);
-			const shutdownBeforeRelease = shutdownComplete;
-			releaseBlocker.complete();
-			await Promise.all([blocker, shutdown]);
-			await svc.whenCatalogReconciliationIdle();
+				let closed: AgentHostCatalogData | undefined;
+				catalogDatabase.close = async () => {
+					closed = catalogDataOf(await catalogDatabase.getSessionV2(sessionKey));
+				};
+				let shutdownComplete = false;
+				if (storageFails) {
+					internals._storageService.whenIdle = async () => { throw new Error('global storage unavailable'); };
+				}
+				const shutdown = svc.shutdown().then(
+					() => { shutdownComplete = true; },
+					error => {
+						shutdownComplete = true;
+						return error instanceof Error ? error.message : String(error);
+					},
+				);
+				await timeout(0);
+				const shutdownBeforeRelease = shutdownComplete;
+				releaseBlocker.complete();
+				const [, shutdownError] = await Promise.all([blocker, shutdown]);
+				if (storageFails) {
+					await assert.rejects(svc.whenCatalogReconciliationIdle(), /global storage unavailable/);
+				} else {
+					await svc.whenCatalogReconciliationIdle();
+				}
 
-			assert.deepStrictEqual({
-				shutdownBeforeRelease,
-				archivedAtClose: closed?.isArchived,
-				readAtClose: closed?.isRead,
-			}, {
-				shutdownBeforeRelease: false,
-				archivedAtClose: true,
-				readAtClose: isRead,
+				assert.deepStrictEqual({
+					shutdownBeforeRelease,
+					archivedAtClose: closed?.isArchived,
+					readAtClose: closed?.isRead,
+					shutdownError,
+				}, {
+					shutdownBeforeRelease: false,
+					archivedAtClose: true,
+					readAtClose: isRead,
+					shutdownError: storageFails ? 'global storage unavailable' : undefined,
+				});
 			});
-		});
+		}
 
 		test('shuts down all providers', async () => {
 			let copilotShutdown = false;
@@ -24963,6 +24999,30 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('rename server tools', () => {
+		function createRenameTestAgentService(sessionDataService: ISessionDataService, orchestratorDatabase?: IAgentHostDatabase): AgentService {
+			return createTestAgentService(
+				new NullLogService(),
+				fileService,
+				sessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				orchestratorDatabase,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'activeAgent',
+			);
+		}
+
 		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
 			class RecordingTitleDatabase extends TestSessionDatabase {
 				readonly finalRenamePersisted = new DeferredPromise<void>();
@@ -24993,22 +25053,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const db = new RecordingTitleDatabase();
 			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
-			const localService = disposables.add(createTestAgentService(
-				new NullLogService(),
-				fileService,
-				createSessionDataService(db),
-				{ _serviceBrand: undefined } as IProductService,
-				createNoopGitService(),
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				[],
-				undefined,
-				undefined,
-				catalogDatabase,
-			));
+			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(db), catalogDatabase));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -25125,7 +25170,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const db = new FailingTitleDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(db)));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });

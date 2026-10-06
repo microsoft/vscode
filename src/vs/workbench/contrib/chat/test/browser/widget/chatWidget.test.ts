@@ -59,6 +59,175 @@ suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createRequestToolsWidget() {
+		const sessionA = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/a') });
+		const sessionB = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/b') });
+		const viewModel = observableValue('viewModel', sessionA);
+		const mode = observableValue('mode', upcastPartial<IChatMode>({ id: 'agent' }));
+		const toolsOwner: { widget: ChatWidget | undefined } = { widget: undefined };
+		const tools = observableValue(toolsOwner, { toolA: true });
+		const widgetReference = observableValue<ChatWidget | undefined>('requestToolsWidget', undefined);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: store.add(new DisposableStore()),
+			_requestToolsWidget: widgetReference,
+			_requestToolsSources: new WeakMap<object, typeof tools>(),
+			_viewModel: sessionA,
+			_viewModelObs: viewModel,
+			inputPartDisposable: { value: {} },
+		}) as ChatWidget;
+		const input = {
+			currentModeObs: mode,
+			currentModeInfo: { kind: ChatModeKind.Agent },
+			selectedToolsModel: { userSelectedTools: tools },
+		};
+		Object.defineProperty(widget, 'input', { value: input, configurable: true });
+		toolsOwner.widget = widget;
+		widgetReference.set(widget, undefined);
+		return { widget, widgetReference, sessionA, sessionB, viewModel, mode, tools, input };
+	}
+
+	function captureReplacedRequestTools(retainRequest: boolean) {
+		const { widget, tools, input } = createRequestToolsWidget();
+		store.add(toDisposable(() => widget.dispose()));
+		const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+		tools.set({ toolA: false }, undefined);
+		Object.defineProperty(widget, 'input', {
+			value: { ...input, selectedToolsModel: { userSelectedTools: observableValue('replacementTools', { toolA: true }) } },
+		});
+		return {
+			widget,
+			source: new WeakRef(tools),
+			request: new WeakRef(scopedTools),
+			scopedTools: retainRequest ? scopedTools : undefined,
+		};
+	}
+
+	test('request tools preserve their original input source across GC and release it on widget disposal', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const captured = captureReplacedRequestTools(true);
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+		const beforeDisposal = {
+			sourceAlive: captured.source.deref() !== undefined,
+			tools: captured.scopedTools!.get(),
+		};
+		captured.widget.dispose();
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			beforeDisposal,
+			afterDisposal: {
+				source: captured.source.deref(),
+				tools: captured.scopedTools!.get(),
+			},
+		}, {
+			beforeDisposal: { sourceAlive: true, tools: { toolA: false } },
+			afterDisposal: { source: undefined, tools: { toolA: false } },
+		});
+	});
+
+	test('a live widget does not retain the tools source of a collected request', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const captured = captureReplacedRequestTools(false);
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			request: captured.request.deref(),
+			source: captured.source.deref(),
+		}, {
+			request: undefined,
+			source: undefined,
+		});
+	});
+
+	for (const observed of [false, true]) {
+		test(`disposal freezes the last tools snapshot (${observed ? 'observed' : 'unobserved'})`, () => {
+			const { widget, tools } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			scopedTools.get();
+			tools.set({ toolA: false }, undefined);
+			widget.dispose();
+			widget.dispose();
+			tools.set({ toolA: true }, undefined);
+
+			assert.deepStrictEqual(scopedTools.get(), { toolA: !observed });
+		});
+
+		test(`request tools release their widget on disposal (${observed ? 'observed' : 'unobserved'})`, () => {
+			const { widget, widgetReference, sessionA, sessionB, viewModel, mode, tools, input } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			const snapshots = [scopedTools.get()];
+			tools.set({ toolA: false }, undefined);
+			snapshots.push(scopedTools.get());
+			viewModel.set(sessionB, undefined);
+			tools.set({ toolA: true }, undefined);
+			snapshots.push(scopedTools.get());
+			mode.set(upcastPartial<IChatMode>({ id: 'ask' }), undefined);
+			viewModel.set(sessionA, undefined);
+			snapshots.push(scopedTools.get());
+			mode.set(upcastPartial<IChatMode>({ id: 'agent' }), undefined);
+			snapshots.push(scopedTools.get());
+			Object.defineProperty(widget, 'input', {
+				value: { ...input, selectedToolsModel: { userSelectedTools: observableValue('otherTools', { toolA: true }) } },
+			});
+			tools.set({ toolA: false }, undefined);
+			snapshots.push(scopedTools.get());
+			widget.dispose();
+			tools.set({ toolA: true }, undefined);
+			snapshots.push(scopedTools.get());
+
+			assert.deepStrictEqual({
+				widgetReleased: widgetReference.get() === undefined,
+				snapshots,
+			}, {
+				widgetReleased: true,
+				snapshots: [
+					{ toolA: true }, { toolA: false }, { toolA: false },
+					{ toolA: false }, { toolA: true }, { toolA: false }, { toolA: false },
+				],
+			});
+		});
+
+		function captureDisposedWidget() {
+			const { widget } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			widget.dispose();
+			return { widget: new WeakRef(widget), scopedTools };
+		}
+
+		test(`request tools allow a disposed widget to be collected (${observed ? 'observed' : 'unobserved'})`, async function () {
+			if (typeof globalThis.gc !== 'function') {
+				this.skip();
+			}
+			const captured = captureDisposedWidget();
+			await timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+
+			assert.deepStrictEqual({
+				widget: captured.widget.deref(),
+				tools: captured.scopedTools.get(),
+			}, {
+				widget: undefined,
+				tools: { toolA: true },
+			});
+		});
+	}
+
 	function createTranscriptProgressWidget() {
 		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
 		store.add(toDisposable(() => container.remove()));

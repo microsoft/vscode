@@ -39,7 +39,7 @@ import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/com
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISessionChangeEvent } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
-import { CloudSandboxEnabledSettingId, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxEnabledSettingId, CloudSandboxRequestError, type ICloudSandboxCreateSessionRequest } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { CLOUD_SANDBOX_CREATION_PROVIDER_ID, CloudSandboxAgentHostContribution, type ICloudSandboxProvisionedSession } from '../../../remoteAgentHost/browser/cloudSandboxAgentHostContribution.js';
 import { CloudSandboxSessionsProvider } from '../../../remoteAgentHost/browser/cloudSandboxSessionsProvider.js';
@@ -2633,7 +2633,7 @@ suite('CopilotChatSessionsProvider', () => {
 				modelConfigurations,
 				provider: upcastPartial<CloudSandboxSessionsProvider>({
 					sendRequest: sendRequest ?? (async () => committed),
-					renameSession: async (sessionId, newTitle) => {
+					setInitialSessionTitle: async (sessionId, newTitle) => {
 						renames.push({ sessionId, title: newTitle });
 						title.set(newTitle, undefined);
 					},
@@ -2691,6 +2691,53 @@ suite('CopilotChatSessionsProvider', () => {
 		}
 
 		for (const providerMode of ['default', 'sandbox'] as const) {
+			test(`${providerMode} creation uses initial title synchronization instead of an explicit rename`, async () => {
+				const sent: string[] = [];
+				const provisioned = provisionedSession(async (_sessionId, _resource, options) => {
+					sent.push(options.query);
+					return provisioned.session;
+				});
+				provisioned.provider.renameSession = async () => { throw new CloudSandboxRequestError(500, 'Explicit task rename failed'); };
+				const { provider } = createSandboxProvider({ providerMode, provision: async () => provisioned });
+				const draft = provider.createNewSession(repoWorkspace, providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id);
+				provider.getSession(draft.sessionId)!.setUseSandbox(true);
+
+				const committed = await provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'First prompt' });
+
+				assert.deepStrictEqual({
+					renames: provisioned.renames,
+					sent,
+					title: committed.title.get(),
+					published: provisioned.published,
+					placeholders: provider.getSessions(),
+				}, {
+					renames: [{ sessionId: 'agenthost:sess-new', title: 'First prompt' }],
+					sent: ['First prompt'],
+					title: 'First prompt',
+					published: ['sess-new'],
+					placeholders: [],
+				});
+			});
+
+			test(`${providerMode} creation does not dispatch after a fatal initial title failure`, async () => {
+				let sent = false;
+				const provisioned = provisionedSession(async () => {
+					sent = true;
+					return provisioned.session;
+				});
+				const error = new CloudSandboxRequestError(403, 'Task rename forbidden');
+				provisioned.provider.setInitialSessionTitle = async () => { throw error; };
+				const { provider } = createSandboxProvider({ providerMode, provision: async () => provisioned });
+				const draft = provider.createNewSession(repoWorkspace, providerMode === 'sandbox' ? CopilotSandboxSessionType.id : CopilotCloudSessionType.id);
+				provider.getSession(draft.sessionId)!.setUseSandbox(true);
+
+				await assert.rejects(provider.sendRequest(draft.sessionId, draft.mainChat.get().resource, { query: 'First prompt' }), error);
+
+				assert.deepStrictEqual({ sent, published: provisioned.published, placeholders: provider.getSessions() }, {
+					sent: false, published: ['sess-new'], placeholders: [],
+				});
+			});
+
 			for (const { name, options, expected } of [
 				{ name: 'first prompt', options: { query: 'Fix the login bug' }, expected: 'Fix the login bug' },
 				{ name: 'multiline prompt', options: { query: 'Fix the login bug\nHere are the details' }, expected: 'Fix the login bug' },

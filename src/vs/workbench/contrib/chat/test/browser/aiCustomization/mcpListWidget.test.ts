@@ -459,17 +459,31 @@ suite('mcpListWidget', () => {
 			type: 'server-item',
 			server: { id: scope, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
 		});
+		const connector: ICopilotConnector = {
+			name: 'kusto',
+			displayName: 'Azure Data Explorer',
+			description: 'Query Azure Data Explorer.',
+			tags: [],
+			keywords: [],
+			capabilities: [],
+			representativeQueries: [],
+			connectionStatus: 'connected',
+			scopes: [],
+			mcpServers: [{ name: 'kusto', type: 'http' }],
+		};
 
 		assert.deepStrictEqual([
 			getMcpEntryGroup(localEntry(LocalMcpServerScope.User)),
 			getMcpEntryGroup(localEntry(LocalMcpServerScope.Workspace)),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'plugin', label: 'Plugin', description: '', collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}plugin` }),
+			getMcpEntryGroup({ type: 'builtin-item', id: 'connector', label: 'kusto', description: '', connector: { id: 'kusto:kusto', connector, serverName: 'kusto' } }),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension') }),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'copilot', label: 'GitHub', description: '', extensionId: new ExtensionIdentifier('GitHub.copilot-chat') }),
 			getMcpEntryGroup(createBuiltinActiveSessionMcpEntries([createAgentHostServer()])[0]),
 		], [
 			'user',
 			'workspace',
+			'plugins',
 			'plugins',
 			'extensions',
 			'builtin',

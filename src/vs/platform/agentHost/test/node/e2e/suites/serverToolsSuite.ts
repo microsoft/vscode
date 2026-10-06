@@ -10,7 +10,7 @@ import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostArtifactToolsConfigKey } from '../../../../common/agentHostSchema.js';
 import { FEEDBACK_ANNOTATION_META_KEY, type IFeedbackAnnotationMeta } from '../../../../common/meta/agentFeedbackAnnotations.js';
 import { buildAnnotationsUri } from '../../../../common/annotationsUri.js';
 import { buildOpenSessionLinkUri } from '../../../../common/openSessionLink.js';
@@ -65,7 +65,6 @@ function getSessionToolNames(supportsWorkspaceChange: boolean): readonly Session
 		SessionServerToolName.GetCurrentSession,
 		...(supportsWorkspaceChange ? [SessionServerToolName.SetWorkspace] : []),
 		SessionServerToolName.CreateSession,
-		SessionServerToolName.RenameChat,
 		SessionServerToolName.SendMessage,
 		SessionServerToolName.GetSessionContext,
 		SessionServerToolName.DeleteSession,
@@ -291,38 +290,44 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	});
 
 	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
-		const session = await createSession('rename-chat');
-		await driveTurnToCompletion(
-			context.client,
-			session.sessionUri,
-			'turn-rename-chat-seed',
-			'/rename Seeded Chat',
-			reserveClientSequenceBlock(),
-			{ expectUnread: false },
-		);
-		const { tool } = await driveServerTool(
-			session,
-			'turn-rename-chat',
-			'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
-			SessionServerToolName.RenameChat,
-		);
-		const renamed = await retry(async () => {
-			const sessionTitle = (await sessionState(session.sessionUri)).title;
-			const chatTitle = (await chatState(session.chatUri)).title;
-			if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
-				throw new Error('The chat rename has not completed');
-			}
-			return { sessionTitle, chatTitle };
-		}, 100, 100);
+		try {
+			const session = await createSession('rename-chat', false, () => setRootConfig({
+				[AgentHostActiveAgentTitleGenerationConfigKey]: true,
+			}));
+			await driveTurnToCompletion(
+				context.client,
+				session.sessionUri,
+				'turn-rename-chat-seed',
+				'/rename Seeded Chat',
+				reserveClientSequenceBlock(),
+				{ expectUnread: false },
+			);
+			const { tool } = await driveServerTool(
+				session,
+				'turn-rename-chat',
+				'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
+				SessionServerToolName.RenameChat,
+			);
+			const renamed = await retry(async () => {
+				const sessionTitle = (await sessionState(session.sessionUri)).title;
+				const chatTitle = (await chatState(session.chatUri)).title;
+				if (sessionTitle !== 'Coverage audit' || chatTitle !== 'Coverage audit') {
+					throw new Error('The chat rename has not completed');
+				}
+				return { sessionTitle, chatTitle };
+			}, 100, 100);
 
-		assert.deepStrictEqual({
-			succeeded: tool.completion.result.success,
-			...renamed,
-		}, {
-			succeeded: true,
-			sessionTitle: 'Coverage audit',
-			chatTitle: 'Coverage audit',
-		});
+			assert.deepStrictEqual({
+				succeeded: tool.completion.result.success,
+				...renamed,
+			}, {
+				succeeded: true,
+				sessionTitle: 'Coverage audit',
+				chatTitle: 'Coverage audit',
+			});
+		} finally {
+			await setRootConfig({ [AgentHostActiveAgentTitleGenerationConfigKey]: false });
+		}
 	});
 
 	serverToolTest('server tool: add_artifact_or_reference records artifacts and references in one batch', async function () {

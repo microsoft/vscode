@@ -5,6 +5,7 @@
 
 import type { Mutable } from '../../../../../base/common/types.js';
 import { hasAgentMetadata } from '../metadata.js';
+import { imageGenerationToolMetaKey, readImageGenerationToolMetadata, type IImageGenerationToolMetadata } from './agentImageGenerationMeta.js';
 import { ISandboxNetworkRestrictions, isSandboxNetworkRestrictions } from '../../../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
@@ -19,6 +20,7 @@ interface IHasToolCallMeta {
  * wrong-typed values.
  */
 export interface IToolCallMeta {
+	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
@@ -65,6 +67,7 @@ export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
 const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
 
 const toolCallMetaKeys = [
+	imageGenerationToolMetaKey,
 	'vscode.copilotSandboxNetworkRestrictions',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
 	'mcpServerName', 'mcpToolName', 'autoApproveBySetting', 'autoApproveRuleResolvable', 'toolSearchCandidates', 'progressMessage', 'fusionPhase',
@@ -184,6 +187,8 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	if (typeof meta.mcpServerName === 'string') { result.mcpServerName = meta.mcpServerName; }
 	if (typeof meta.mcpToolName === 'string') { result.mcpToolName = meta.mcpToolName; }
 	if (typeof meta.progressMessage === 'string') { result.progressMessage = meta.progressMessage; }
+	const imageGeneration = readImageGenerationToolMetadata(source);
+	if (imageGeneration) { result[imageGenerationToolMetaKey] = imageGeneration; }
 	const fusionPhase = readFusionPhase(meta.fusionPhase);
 	if (fusionPhase) { result.fusionPhase = fusionPhase; }
 	if (typeof meta.autoApproveBySetting === 'boolean') { result.autoApproveBySetting = meta.autoApproveBySetting; }
