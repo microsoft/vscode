@@ -119,15 +119,12 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly branch?: string;
 	/**
-	 * Optional branch tracking preference to apply via
-	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
-	 * programmatic session creation and is not surfaced in the new-session UI.
+	 * Optional URL of a pull request in the workspace's repository. The session
+	 * is created from it, so it is associated with the pull request from the
+	 * start; the agent host checks the pull request out into an isolated
+	 * worktree, so it supersedes {@link isolationMode} and {@link branch}.
 	 */
-	readonly worktreeBranchTrack?: boolean;
-	/**
-	 * Whether to create a generated worktree branch from {@link branch}.
-	 */
-	readonly worktreeCreateNewBranch?: boolean;
+	readonly pullRequestUrl?: string;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied. Asynchronous preparation is awaited.

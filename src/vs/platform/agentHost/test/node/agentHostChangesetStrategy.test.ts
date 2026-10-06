@@ -136,6 +136,8 @@ suite('AgentHostChangesetStrategy', () => {
 			_serviceBrand: undefined,
 			registerContribution: () => Disposable.None,
 			updateOperations: () => { },
+			scheduleRelatedOperationsUpdate: () => { },
+			scheduleOwnerOperationsUpdate: () => { },
 			getOperations: () => undefined,
 			invokeChangesetOperation: async () => ({}),
 			dispose: () => { },

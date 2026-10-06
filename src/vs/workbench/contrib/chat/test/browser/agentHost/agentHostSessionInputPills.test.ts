@@ -408,7 +408,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('offers the complete shared catalog and live subagents for host-advertised chat identities', async () => {
+	test('offers sourced shared kinds and live subagents for host-advertised chat identities', async () => {
 		const mainChat = 'vendor-chat:/conversations/main';
 		const otherChat = 'vendor-chat:/conversations/other';
 		const child = (id: string, status: SessionStatus, parent = mainChat): ChatSummary => ({
@@ -476,7 +476,7 @@ suite('AgentHostSessionInputPills', () => {
 			releasedSubscriptions: harness.connection.released.length === harness.connection.requested.length,
 		}, {
 			hiddenByDefault: [],
-			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes).sort(),
+			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes && kind !== SessionChatPillKind.Canvases).sort(),
 			labels: ['3 Subagents'],
 			dropdown: ['Subagents: In Progress', 'Waiting', 'Running', 'Subagents: Completed', 'Completed'],
 			commands: [{
@@ -1105,7 +1105,7 @@ suite('AgentHostSessionInputPills', () => {
 		focusedControl?.focus();
 		const refreshedPullRequestHoverElement = typeof pullRequestHover === 'function' ? pullRequestHover() : undefined;
 		const refreshedFocusedControl = pullRequestHoverItem?.hover?.getTabbableElements?.()[0];
-		const pullRequestHoverCache = Reflect.get(pills, '_pullRequestHoverCache') as ReadonlyMap<string, object>;
+		const pullRequestHoverCache = Reflect.get(Reflect.get(pills, '_pullRequestHoverCache'), '_entries') as ReadonlyMap<string, object>;
 		const cachedHoverCount = pullRequestHoverCache.size;
 		const gitHubReferenceResolver = Reflect.get(pills, '_gitHubReferenceResolver') as {
 			getIssue(target: { owner: string; repo: string; number: number }): IObservable<{ title: string } | undefined>;
@@ -1194,7 +1194,7 @@ suite('AgentHostSessionInputPills', () => {
 			}],
 			removed: [{ session: backendSession.toString(), artifactId: 'second-pr' }],
 			disposedSubscriptions: ['issue:335383', 'issue:999', 'pullRequest:332982', 'pullRequest:335387'],
-			cachedHoverCount: 1,
+			cachedHoverCount: 2,
 			retainedHoverCount: 0,
 			checksDescription: `Open. Checks passed. ${secondPullRequestUrl}`,
 			staleChecksDescription: `Open. ${secondPullRequestUrl}`,
@@ -1204,7 +1204,7 @@ suite('AgentHostSessionInputPills', () => {
 			},
 			hoverRefresh: {
 				rootPreserved: true,
-				controlReplaced: true,
+				controlReplaced: false,
 				focusPreserved: true,
 			},
 		});
@@ -1215,6 +1215,63 @@ suite('AgentHostSessionInputPills', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ leases, credentialCalls: credentialState.calls }, {
 			leases: { acquired: 7, released: 7 }, credentialCalls: 5,
+		});
+	});
+
+	test('keeps an editor PR dropdown hover frozen through metadata updates and refreshes it on reopening', async () => {
+		const snapshots = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
+		const artifacts = [335387, 332982].map(number => ({
+			id: `pr-${number}`, type: SessionArtifactType.PullRequest, label: `Recorded PR ${number}`,
+			link: `https://github.com/microsoft/vscode/pull/${number}`, isGitHub: true, isArtifact: true,
+		}));
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chat/main', chats: [],
+			_meta: withSessionArtifacts(undefined, artifacts),
+		}), undefined, undefined, 'local', createRichGitHubService([], { pullRequestSnapshots: snapshots }));
+		await timeout(0);
+		activity.persistentContent.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+		const firstHover = activity.dropdownItems().find(item => item.label === 'Live pull request 332982')!.hover!;
+		const firstContent = firstHover.content;
+		assert.ok(typeof firstContent === 'function');
+		const element = firstContent();
+		assert.ok(element instanceof HTMLElement);
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		const focusedControl = firstHover.getTabbableElements?.()[0];
+		focusedControl?.focus();
+		const snapshot = snapshots.get(332982)!;
+		snapshot.set({
+			...snapshot.get(),
+			core: {
+				...snapshot.get().core,
+				value: { ...snapshot.get().core.value!, title: 'Updated PR title', headRef: 'updated-branch' },
+			},
+		}, undefined);
+		await timeout(0);
+		const updatedHover = activity.dropdownItems().find(item => item.label === 'Updated PR title')!.hover!;
+		const updatedContent = updatedHover.content;
+		assert.ok(typeof updatedContent === 'function');
+		const whileOpen = {
+			sameRoot: updatedContent() === element,
+			sameControl: updatedHover.getTabbableElements?.()[0] === focusedControl,
+			focusPreserved: document.activeElement === focusedControl,
+			title: element.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+			head: element.querySelector('.sessions-pr-hover-branches')?.textContent,
+		};
+		element.remove();
+		const reopened = updatedContent();
+		assert.ok(reopened instanceof HTMLElement);
+
+		assert.deepStrictEqual({
+			whileOpen,
+			reopenedTitle: reopened.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+			reopenedHead: reopened.querySelector('.sessions-pr-hover-branches')?.textContent,
+		}, {
+			whileOpen: {
+				sameRoot: true, sameControl: true, focusPreserved: true,
+				title: 'Live pull request 332982', head: 'main←feature',
+			},
+			reopenedTitle: 'Updated PR title', reopenedHead: 'main←updated-branch',
 		});
 	});
 
