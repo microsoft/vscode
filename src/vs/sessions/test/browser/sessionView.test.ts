@@ -158,6 +158,8 @@ suite('Sessions - Session View', () => {
 		mainWindow.document.body.appendChild(contentContainer);
 		disposables.add(toDisposable(() => contentContainer.remove()));
 		const groupsElement = document.createElement('div');
+		const groupsInput = document.createElement('textarea');
+		groupsElement.appendChild(groupsInput);
 		const isCreated = observableValue<boolean>('isCreated', false);
 		const requestInProgress = observableValue('requestInProgress', false);
 		const preparationProgress = observableValue<ISessionPreparationProgress | undefined>('preparationProgress', undefined);
@@ -181,6 +183,7 @@ suite('Sessions - Session View', () => {
 			_groupsView: {
 				element: groupsElement,
 				setSession: (activeSession: IActiveSession | undefined) => shownSessions.push(activeSession),
+				focus: () => groupsInput.focus(),
 			},
 			_standaloneView: standaloneView,
 			_scopedInstantiationService: scopedInstantiationService,
@@ -245,6 +248,7 @@ suite('Sessions - Session View', () => {
 			preparationViewsDisposed: preparationViews.every(view => view.disposed),
 			disposedAfterCreation: createdViews[0].disposed,
 			finalElement: contentContainer.firstElementChild,
+			focusedAfterCreation: mainWindow.document.activeElement === groupsInput,
 			shownSessions,
 			forwardedInstantiationServices,
 			sameHostVisibility: forwardedOptions[0].hostVisible === hostVisible,
@@ -257,6 +261,7 @@ suite('Sessions - Session View', () => {
 			preparationViewsDisposed: true,
 			disposedAfterCreation: true,
 			finalElement: groupsElement,
+			focusedAfterCreation: true,
 			shownSessions: [undefined, undefined, session],
 			forwardedInstantiationServices: [scopedInstantiationService],
 			sameHostVisibility: true,
