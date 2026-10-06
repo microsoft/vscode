@@ -35,7 +35,7 @@ suite('Copilot SDK - canvas first-open events', () => {
 			logLevel: 'error',
 			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(root)),
 			extensionLaunchProvider: {
-				resolve: request => ({
+				resolve: async request => ({
 					launch: {
 						executable: process.execPath,
 						args: [extensionBootstrapPath],
@@ -56,15 +56,15 @@ suite('Copilot SDK - canvas first-open events', () => {
 		};
 		const instanceId = 'contract-instance';
 		let liveRecords = 0;
-		const observations: { phase: string; live: number; stored: number }[] = [];
+		const observations: { phase: string; live: number; history: number }[] = [];
 		const observe = (session: CopilotSession) => {
 			listeners.add(toDisposable(session.on('session.canvas.recorded', () => liveRecords++)));
 		};
 		const capture = async (session: CopilotSession, phase: string) => {
 			const history = await session.getEvents();
-			const stored = history.filter(event => event.type === 'session.canvas.recorded').length;
-			await retry(async () => assert.strictEqual(liveRecords, stored, `${phase}: live events must match durable records`), 50, 100);
-			observations.push({ phase, live: liveRecords, stored });
+			const records = history.filter(event => event.type === 'session.canvas.recorded').length;
+			await retry(async () => assert.strictEqual(liveRecords, records, `${phase}: live events must match history`), 50, 100);
+			observations.push({ phase, live: liveRecords, history: records });
 		};
 		const waitForOpen = (session: CopilotSession, previousUrl: string | undefined) => retry(async () => {
 			const { openCanvases } = await session.rpc.canvas.listOpen();
@@ -112,6 +112,13 @@ await joinSession({
 			const reloadedUrl = await waitForOpen(session, firstUrl);
 			await capture(session, 'provider reload');
 
+			// Closing persists this model-free session before the cold-resume check.
+			await session.rpc.canvas.close({ instanceId });
+			assert.deepStrictEqual((await session.rpc.canvas.listOpen()).openCanvases, []);
+			const reopened = await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
+			assert.strictEqual(reopened.url, reloadedUrl);
+			await capture(session, 'close and reopen');
+
 			const sessionId = session.sessionId;
 			await session.disconnect();
 			session = undefined;
@@ -121,21 +128,15 @@ await joinSession({
 			await client.start();
 			session = await client.resumeSession(sessionId, config);
 			observe(session);
-			const resumedUrl = await waitForOpen(session, reloadedUrl);
+			await waitForOpen(session, reloadedUrl);
 			await capture(session, 'cold resume');
 
-			await session.rpc.canvas.close({ instanceId });
-			assert.deepStrictEqual((await session.rpc.canvas.listOpen()).openCanvases, []);
-			const reopened = await session.rpc.canvas.open({ canvasId: 'contract', instanceId });
-			assert.strictEqual(reopened.url, resumedUrl);
-			await capture(session, 'close and reopen');
-
 			assert.deepStrictEqual(observations, [
-				{ phase: 'first open', live: 1, stored: 1 },
-				{ phase: 'repeat open', live: 1, stored: 1 },
-				{ phase: 'provider reload', live: 1, stored: 1 },
-				{ phase: 'cold resume', live: 1, stored: 1 },
-				{ phase: 'close and reopen', live: 2, stored: 2 },
+				{ phase: 'first open', live: 1, history: 1 },
+				{ phase: 'repeat open', live: 1, history: 1 },
+				{ phase: 'provider reload', live: 1, history: 1 },
+				{ phase: 'close and reopen', live: 2, history: 2 },
+				{ phase: 'cold resume', live: 2, history: 2 },
 			]);
 		} finally {
 			listeners.dispose();
