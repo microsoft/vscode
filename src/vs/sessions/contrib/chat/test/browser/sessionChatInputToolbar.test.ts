@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -68,6 +69,35 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		return { instantiationService, visibility };
 	}
+
+	test('keeps copied feedback stable across section refreshes', async () => {
+		const { instantiationService } = createServices();
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const cache = Reflect.get(toolbar, '_issueCopyActions') as {
+			get(key: string, label: string, copy: () => Promise<void>): IAction;
+			retain(keys: ReadonlySet<string>): void;
+		};
+		const copied: string[] = [];
+		const key = 'microsoft/vscode/42';
+		const first = cache.get(key, 'Copy issue URL', async () => { copied.push('first'); });
+
+		await first.run();
+		cache.retain(new Set([key]));
+		const refreshed = cache.get(key, 'Copy issue URL', async () => { copied.push('refreshed'); });
+		await refreshed.run();
+
+		assert.deepStrictEqual({
+			sameAction: first === refreshed,
+			label: refreshed.label,
+			class: refreshed.class,
+			copied,
+		}, {
+			sameAction: true,
+			label: 'Copied',
+			class: ThemeIcon.asClassName(Codicon.check),
+			copied: ['first', 'refreshed'],
+		});
+	});
 
 	test('uses the active chat projection rather than cached session stats', () => {
 		const chat = upcastPartial<IChat>({
