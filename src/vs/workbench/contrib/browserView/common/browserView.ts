@@ -339,7 +339,7 @@ export interface IBrowserViewWorkbenchService {
 	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
 
 	/** Creates an unlisted user-owned ephemeral view for embedding outside the browser editor. */
-	createExternalBrowserView(initialUrl: string): Promise<IBrowserViewModel>;
+	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource): Promise<IBrowserViewModel>;
 
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
