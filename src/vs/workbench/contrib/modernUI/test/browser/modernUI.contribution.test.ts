@@ -3986,6 +3986,12 @@ suite('ModernUIContribution', () => {
 		const activeTabActions = appendElement(activeTab, 'tab-actions');
 		const activeTabAction = appendElement(activeTabActions, 'action-label');
 		activeTabAction.tabIndex = 0;
+		const reservedTitle = appendElement(activeGroup, 'title tab-actions-reserve-space');
+		const reservedTabs = appendElement(reservedTitle, 'tabs-container');
+		const reservedSelectedTab = appendElement(reservedTabs, 'tab selected tab-border-top');
+		const reservedSelectedTabActions = appendElement(reservedSelectedTab, 'tab-actions');
+		const reservedSelectedTabAction = appendElement(reservedSelectedTabActions, 'action-label');
+		reservedSelectedTabAction.tabIndex = 0;
 		const inactiveTab = appendElement(activeTabs, 'tab');
 		const inactiveFill = appendElement(inactiveTab, 'tab-fill');
 		const inactiveLabel = appendElement(inactiveTab, 'tab-label');
@@ -4031,6 +4037,15 @@ suite('ModernUIContribution', () => {
 		const activeTabActionStyle = getWindow(activeTabActions).getComputedStyle(activeTabActions);
 		const activeTabActionFadeStyle = getWindow(activeTabActions).getComputedStyle(activeTabActions, '::before');
 		const pinnedRowStyle = getWindow(pinnedRow).getComputedStyle(pinnedRow);
+		const actionBackground = activeTabActionStyle.backgroundColor;
+		const actionBackgroundClip = activeTabActionStyle.backgroundClip;
+		const actionBorderBlockWidth = [activeTabActionStyle.borderTopWidth, activeTabActionStyle.borderBottomWidth];
+		const actionInlineEndBorderColor = activeTabActionStyle.borderRightColor;
+		const actionFadeBackgroundClip = activeTabActionFadeStyle.backgroundClip;
+		const actionFadeBorderBlockWidth = [activeTabActionFadeStyle.borderTopWidth, activeTabActionFadeStyle.borderBottomWidth];
+
+		reservedSelectedTabAction.focus();
+		const reservedSelectedTabActionStyle = getWindow(reservedSelectedTabActions).getComputedStyle(reservedSelectedTabActions);
 
 		assert.deepStrictEqual({
 			paneBackground: getWindow(paneAction.indicator).getComputedStyle(paneAction.indicator).backgroundColor,
@@ -4055,12 +4070,14 @@ suite('ModernUIContribution', () => {
 			unfocusedActiveBorder: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).color,
 			unfocusedActiveBorderTop: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).borderTopColor,
 			unfocusedHoverBorder: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).borderBottomColor,
-			actionBackground: activeTabActionStyle.backgroundColor,
-			actionBackgroundClip: activeTabActionStyle.backgroundClip,
-			actionBorderBlockWidth: [activeTabActionStyle.borderTopWidth, activeTabActionStyle.borderBottomWidth],
-			actionInlineEndBorderColor: activeTabActionStyle.borderRightColor,
-			actionFadeBackgroundClip: activeTabActionFadeStyle.backgroundClip,
-			actionFadeBorderBlockWidth: [activeTabActionFadeStyle.borderTopWidth, activeTabActionFadeStyle.borderBottomWidth],
+			actionBackground,
+			actionBackgroundClip,
+			actionBorderBlockWidth,
+			actionInlineEndBorderColor,
+			actionFadeBackgroundClip,
+			actionFadeBorderBlockWidth,
+			reservedActionBackground: reservedSelectedTabActionStyle.backgroundColor,
+			reservedActionBorderTopWidth: reservedSelectedTabActionStyle.borderTopWidth,
 			separatorColor: getWindow(separatorProbe).getComputedStyle(separatorProbe).color,
 			customConnectedBorder: getWindow(separatorProbe).getComputedStyle(separatorProbe).backgroundColor,
 			lastPinnedBorder: getWindow(separatorProbe).getComputedStyle(separatorProbe).borderTopColor,
@@ -4094,6 +4111,8 @@ suite('ModernUIContribution', () => {
 			actionInlineEndBorderColor: 'rgba(0, 0, 0, 0)',
 			actionFadeBackgroundClip: 'padding-box',
 			actionFadeBorderBlockWidth: ['1px', '1px'],
+			reservedActionBackground: 'rgba(0, 0, 0, 0)',
+			reservedActionBorderTopWidth: '1px',
 			separatorColor: 'rgb(119, 136, 153)',
 			customConnectedBorder: 'rgb(119, 136, 153)',
 			lastPinnedBorder: 'rgb(136, 153, 170)',
