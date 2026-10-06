@@ -29,6 +29,7 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
+import { IChatAttachmentChangeEvent } from '../../../browser/attachments/chatAttachmentModel.js';
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
@@ -697,6 +698,7 @@ suite('ChatWidget', () => {
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidLoadInputState: Event.None,
+			onDidChangeDraft: Event.None,
 			onDidFocus: onDidFocus.event,
 			onDidAcceptFollowup: Event.None,
 			onDidChangeCurrentChatMode: Event.None,
@@ -1157,6 +1159,7 @@ suite('ChatWidget', () => {
 		let rerenders = 0;
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
+			_draftOnly: observableValue('draftOnly', false),
 			_visible: observableValue('visible', true),
 			_readOnlyContextKey: { set: () => { } },
 			chatSuggestNextWidget: { hide: () => { } },
@@ -1178,6 +1181,65 @@ suite('ChatWidget', () => {
 			rerenders: 3,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('draft input events include IME and exclude focus, restored content, and restored attachments', async () => {
+		const typed = store.add(new Emitter<string>());
+		const pasted = store.add(new Emitter<void>());
+		const compositionEnded = store.add(new Emitter<void>());
+		const focused = store.add(new Emitter<void>());
+		const contentChanged = store.add(new Emitter<void>());
+		const attachments = store.add(new Emitter<IChatAttachmentChangeEvent>());
+		const draftChanged = store.add(new Emitter<void>());
+		let changes = 0;
+		store.add(draftChanged.event(() => changes++));
+		const input: { _isSyncingToOrFromInputModel: boolean; _createDraftChangeListeners(): DisposableStore; restoreAttachments: ChatInputPart['restoreAttachments'] } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_inputEditor: {
+				onDidType: typed.event,
+				onDidPaste: pasted.event,
+				onDidCompositionEnd: compositionEnded.event,
+				onDidFocusEditorText: focused.event,
+				onDidChangeModelContent: contentChanged.event,
+			},
+			_attachmentModel: {
+				onDidChange: attachments.event,
+				clearAndSetContext: (...added: IChatAttachmentChangeEvent['added']) => attachments.fire({ added, deleted: [], updated: [] }),
+			},
+			_onDidChangeDraft: draftChanged,
+			_isSyncingToOrFromInputModel: true,
+		});
+		const listeners = store.add(input._createDraftChangeListeners());
+		const added: IChatAttachmentChangeEvent = {
+			added: [{ kind: 'file', id: 'file', name: 'file', value: URI.file('/file') }], deleted: [], updated: [],
+		};
+		focused.fire();
+		contentChanged.fire();
+		attachments.fire(added);
+		const restored = changes;
+		input._isSyncingToOrFromInputModel = false;
+		await input.restoreAttachments(added.added);
+		const recalled = changes;
+		compositionEnded.fire();
+		const composedWithIme = changes;
+		typed.fire('a');
+		pasted.fire();
+		attachments.fire(added);
+		attachments.fire({ added: [], deleted: ['file'], updated: [] });
+		const composed = changes;
+		listeners.dispose();
+		typed.fire('b');
+		pasted.fire();
+		compositionEnded.fire();
+		attachments.fire(added);
+
+		assert.deepStrictEqual({ restored, recalled, composedWithIme, composed, disposed: changes }, { restored: 0, recalled: 0, composedWithIme: 1, composed: 4, disposed: 4 });
+	});
+
+	test('a visible read-only composer refuses send and queue operations', async () => {
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { _readOnly: true });
+		const sent = await widget.acceptInput('unsent draft');
+		const queued = await widget.acceptInput('unsent draft', { queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual({ sent, queued }, { sent: undefined, queued: undefined });
 	});
 
 	test('re-lays out embedded editors when chat item padding changes', () => {

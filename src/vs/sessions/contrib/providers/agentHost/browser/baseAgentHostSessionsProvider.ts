@@ -830,6 +830,8 @@ export interface IAgentHostAdapterOptions {
 	 * host that no longer exists.
 	 */
 	readonly readOnly?: IObservable<boolean>;
+	/** Keeps normally interactive chats draftable while their connection is unavailable. */
+	readonly allowOfflineDrafts?: IObservable<boolean>;
 	/**
 	 * Returns the agent connection for the session, tracking replacements when a reader is provided.
 	 */
@@ -950,6 +952,12 @@ function toProtocolChatInteractivity(interactivity: ChatInteractivity): Protocol
 	}
 }
 
+function applyConnectionInteractivity(interactivity: ChatInteractivity, readOnly: boolean, allowOfflineDrafts: boolean): ChatInteractivity {
+	return readOnly && interactivity === ChatInteractivity.Full
+		? allowOfflineDrafts ? ChatInteractivity.DraftOnly : ChatInteractivity.ReadOnly
+		: interactivity;
+}
+
 /** Per-chat views derived from the session's parsed output stream and metadata. */
 interface IChatOutputObs {
 	readonly lastTurnChanges: IObservable<readonly ISessionTurnFileChange[]>;
@@ -1062,7 +1070,7 @@ class AdditionalChat extends Disposable {
 	private readonly _origin: ChatOrigin | undefined;
 	private readonly _changesSummary: ISettableObservable<ISessionChangesSummary | undefined>;
 
-	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, allowOfflineDrafts: IObservable<boolean> = constObservable(false)) {
 		super();
 		this.backendUri = URI.parse(summary.resource);
 		this._origin = summary.origin;
@@ -1092,8 +1100,8 @@ class AdditionalChat extends Disposable {
 			);
 		});
 		const interactivity = derived(reader => effectiveChatInteractivity(
-			this._isArchived.read(reader) || sessionIsArchived.read(reader) || sessionIsReadOnly.read(reader),
-			this._interactivity.read(reader)));
+			this._isArchived.read(reader) || sessionIsArchived.read(reader),
+			applyConnectionInteractivity(this._interactivity.read(reader), sessionIsReadOnly.read(reader), allowOfflineDrafts.read(reader))));
 		const capabilities = summary.origin?.kind === ProtocolChatOriginKind.Tool
 			? constObservable<IChatCapabilities>({ canRename: false, canArchive: false, canDelete: false })
 			: summary.origin?.kind === ProtocolChatOriginKind.SideChat
@@ -1673,8 +1681,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			isRead: defaultChatIsRead,
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity: derived(this, reader => effectiveChatInteractivity(
-				this.isArchived.read(reader) || (this._options.readOnly?.read(reader) ?? false),
-				this._defaultChatInteractivity.read(reader))),
+				this.isArchived.read(reader),
+				applyConnectionInteractivity(this._defaultChatInteractivity.read(reader), this._options.readOnly?.read(reader) ?? false, this._options.allowOfflineDrafts?.read(reader) ?? false))),
 			description: this.description,
 			lastTurnEnd: this.lastTurnEnd,
 		};
@@ -2080,7 +2088,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			this._supportsChatArchive,
 			output,
 			this._options.readOnly,
-			this._options.preserveStatusWhenDisconnected ? undefined : this._options.connectionStatus
+			this._options.preserveStatusWhenDisconnected ? undefined : this._options.connectionStatus,
+			this._options.allowOfflineDrafts,
 		);
 		const selection = this._chatModelSelections.get(chatId);
 		if (selection) {
