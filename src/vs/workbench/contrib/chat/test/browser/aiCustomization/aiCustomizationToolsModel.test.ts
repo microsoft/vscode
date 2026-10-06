@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { timeout } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { type IAgentHostMcpServerTool } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostToolSetEnablementService } from '../../../browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { AICustomizationToolsModel } from '../../../browser/aiCustomization/aiCustomizationToolsModel.js';
@@ -35,7 +38,7 @@ function localServer(id: string, enablement: ContributionEnablementState, cached
 suite('AICustomizationToolsModel', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('counts enabled built-in tools plus the tools of enabled MCP servers', () => {
+	test('lists MCP tools over the channel, refetches on list_changed, and counts enabled tools', async () => {
 		const toolSets = [
 			upcastPartial<IToolSet>({
 				id: 'builtin',
@@ -47,6 +50,21 @@ suite('AICustomizationToolsModel', () => {
 				getTools: () => [upcastPartial<IToolData>({ id: 'ignored' })],
 			}),
 		];
+		const listResults: (readonly IAgentHostMcpServerTool[])[] = [
+			[{ name: 'search' }, { name: 'fetch' }],
+			[{ name: 'search' }, { name: 'fetch' }, { name: 'summarize' }],
+		];
+		const listCalls: string[] = [];
+		const sessionServer = upcastPartial<AgentHostMcpServer>({
+			id: 'host/session',
+			name: 'session',
+			toolsChannel: 'mcp://host/session',
+			listTools: async () => {
+				listCalls.push('mcp://host/session');
+				return listResults.shift() ?? [];
+			},
+		});
+		const toolsChanged = disposables.add(new Emitter<string>());
 		const model = disposables.add(new AICustomizationToolsModel(
 			new class extends mock<ILanguageModelToolsService>() {
 				override readonly toolSets = constObservable(toolSets);
@@ -65,22 +83,32 @@ suite('AICustomizationToolsModel', () => {
 			},
 			new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
+				override readonly onDidChangeMcpServerTools = toolsChanged.event;
 				override getMcpServers() {
-					return [upcastPartial<AgentHostMcpServer>({ id: 'host/session', name: 'session', tools: [{ name: 'search' }, { name: 'fetch' }] })];
+					return [sessionServer];
 				}
 			},
 			new class extends mock<ICustomizationHarnessService>() {
 				override readonly activeSessionResource = constObservable(URI.parse('agent-host-test:/session'));
 			},
+			new NullLogService(),
 		));
-
-		assert.deepStrictEqual({
+		const snapshot = () => ({
 			mcpServers: model.mcpServerToolSets.get().map(({ server, toolCount }) => ({ id: server.definition.id, toolCount })),
-			// One enabled built-in tool, plus two from the enabled MCP server; the disabled server's tools are excluded.
 			enabledToolCount: model.enabledToolCount.get(),
-		}, {
-			mcpServers: [{ id: 'session', toolCount: 2 }, { id: 'disabled', toolCount: 2 }],
-			enabledToolCount: 3,
+		});
+
+		await timeout(0);
+		const listed = snapshot();
+		toolsChanged.fire('mcp://other/channel');
+		toolsChanged.fire('mcp://host/session');
+		await timeout(0);
+
+		assert.deepStrictEqual({ listed, refreshed: snapshot(), listCalls }, {
+			// One enabled built-in tool plus the enabled session server's tools; the disabled server's are excluded.
+			listed: { mcpServers: [{ id: 'session', toolCount: 2 }, { id: 'disabled', toolCount: 2 }], enabledToolCount: 3 },
+			refreshed: { mcpServers: [{ id: 'session', toolCount: 3 }, { id: 'disabled', toolCount: 2 }], enabledToolCount: 4 },
+			listCalls: ['mcp://host/session', 'mcp://host/session'],
 		});
 	});
 });

@@ -23,6 +23,8 @@ import { IAgentHostActiveClientService } from '../../../../workbench/contrib/cha
 
 export class AgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 	private readonly _providerListeners = this._register(new DisposableMap<ISessionsProvider>());
+	private _mcpNotificationsListening = false;
+	private readonly _mcpNotificationListeners = this._register(new DisposableMap<IAgentHostSessionsProvider>());
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -94,6 +96,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			setRootConfigValue: (property, value) => {
 				void provider.setRootConfigValue(property, value);
 			},
+			requestMcp: (channel, method, params) => provider.requestMcp(channel, method, params),
 		};
 	}
 
@@ -122,8 +125,28 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			}),
 			provider.onDidChangeCustomizations(() => {
 				this._fireCustomizationsChanged();
-			})
+			}),
 		));
+		this._listenToMcpNotifications(provider);
+	}
+
+	protected override _setMcpNotificationsListening(listening: boolean): void {
+		this._mcpNotificationsListening = listening;
+		if (!listening) {
+			this._mcpNotificationListeners.clearAndDisposeAll();
+			return;
+		}
+		for (const provider of this._providerListeners.keys()) {
+			if (isAgentHostProvider(provider)) {
+				this._listenToMcpNotifications(provider);
+			}
+		}
+	}
+
+	private _listenToMcpNotifications(provider: IAgentHostSessionsProvider): void {
+		if (this._mcpNotificationsListening && !this._mcpNotificationListeners.has(provider)) {
+			this._mcpNotificationListeners.set(provider, provider.onMcpNotification(notification => this._handleMcpNotification(notification)));
+		}
 	}
 
 	private _serverIdMatchesRawId(serverId: string, rawId: string): boolean {

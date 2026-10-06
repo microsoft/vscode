@@ -172,6 +172,7 @@ function createTestCustomAgentsService(connection: MockAgentConnection, rootCust
 		_serviceBrand: undefined,
 		onDidChangeCustomAgents,
 		onDidChangeCustomizations,
+		onDidChangeMcpServerTools: Event.None,
 		getCustomAgents: () => [],
 		getCustomizations: (sessionResource: URI) => {
 			const provider = sessionResource.scheme.replace(/^agent-host-/, '');

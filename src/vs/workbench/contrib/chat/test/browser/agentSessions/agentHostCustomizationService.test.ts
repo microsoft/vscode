@@ -44,6 +44,8 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 	readonly operationLog: string[] = [];
 	authenticateResult: unknown = { authenticated: true };
 	startError: Error | undefined;
+	readonly mcpRequests: { readonly channel: string; readonly method: string; readonly params?: Record<string, unknown> }[] = [];
+	mcpResponses: unknown[] = [];
 
 	constructor(
 		readonly customizations: readonly Customization[],
@@ -79,6 +81,10 @@ class FakeTarget implements IAgentHostCustomizationTarget {
 		return Promise.resolve();
 	}
 	setRootConfigValue(): void { /* no-op */ }
+	requestMcp(channel: string, method: string, params?: Record<string, unknown>): Promise<unknown> {
+		this.mcpRequests.push({ channel, method, params });
+		return Promise.resolve(this.mcpResponses.shift());
+	}
 }
 
 function mcpServer(id: string, name: string): McpServerCustomization {
@@ -108,6 +114,8 @@ class TestAgentHostCustomizationService extends AbstractAgentHostCustomizationSe
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		return this._targets.get(sessionResource);
 	}
+
+	protected override _setMcpNotificationsListening(): void { /* no-op */ }
 
 }
 
@@ -180,6 +188,36 @@ suite('AbstractAgentHostCustomizationService', () => {
 		}, {
 			operations: ['background:blocking'],
 			actions: [true, false],
+		});
+	});
+
+	test('lists model-visible tools only over channels that advertise serverTools', async () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const serverTools = { capabilities: { serverTools: { listChanged: true } } };
+		const target = new FakeTarget([
+			{ ...mcpServer('ready', 'Ready'), state: { kind: McpServerStatus.Ready }, channel: 'mcp://host/ready', mcpApp: serverTools },
+			{ ...mcpServer('no-capability', 'No Capability'), state: { kind: McpServerStatus.Ready }, channel: 'mcp://host/no-capability', mcpApp: { capabilities: {} } },
+			{ ...mcpServer('stopped', 'Stopped'), channel: 'mcp://host/stopped', mcpApp: serverTools },
+		]);
+		target.mcpResponses = [
+			{ tools: [{ name: 'search', description: 'Search.', annotations: { title: 'Search Things' } }, { name: 'app_only', _meta: { ui: { visibility: ['app'] } } }], nextCursor: 'page-2' },
+			{ tools: [{ name: 'model_only', _meta: { ui: { visibility: ['model'] } } }, { description: 'missing name' }] },
+		];
+		sut.setTarget(session, target);
+		const servers = sut.getMcpServers(session);
+
+		assert.deepStrictEqual({
+			channels: servers.map(server => server.toolsChannel),
+			tools: await servers[0].listTools?.(),
+			requests: target.mcpRequests,
+		}, {
+			channels: ['mcp://host/ready', undefined, undefined],
+			tools: [{ name: 'search', title: 'Search Things', description: 'Search.' }, { name: 'model_only' }],
+			requests: [
+				{ channel: 'mcp://host/ready', method: 'tools/list', params: {} },
+				{ channel: 'mcp://host/ready', method: 'tools/list', params: { cursor: 'page-2' } },
+			],
 		});
 	});
 

@@ -7,7 +7,7 @@ import { disposableTimeout, raceCancellation, raceCancellationError } from '../.
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceSet } from '../../../../../base/common/map.js';
@@ -23,7 +23,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentCanvasAvailability, AgentSession, AuthenticateParams, AuthenticateResult, CODEX_AGENT_PROVIDER_ID, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentSessionChatMetadata, IAgentSessionMetadata, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../platform/agentHost/common/agent.js';
 import { AgentMergeSessionOverrides, AgentMergeSessionState, readAgentMergeFolderState, readAgentMergeFolderStates } from '../../../../../platform/agentHost/common/agentMerge.js';
 import { readAgentSdkSetupInfos } from '../../../../../platform/agentHost/common/agentSdkSetup.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IMcpNotification } from '../../../../../platform/agentHost/common/agentService.js';
 import { fromAgentHostUri, type AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostTransportFailureReason } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -44,7 +44,6 @@ import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHos
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { readSessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
-import { readMcpServerTools } from '../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -3455,6 +3454,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomizations = this._onDidChangeCustomizations.event;
+	/** Relays the current connection's MCP channel notifications, subscribing only while listened to. */
+	private readonly _mcpNotificationRelay = this._register(new Relay<IMcpNotification>());
+	readonly onMcpNotification = this._mcpNotificationRelay.event;
 	readonly onDidChangeModels: Event<void>;
 	/** Last-known root config state (schema + values), seeded from `RootState.config`. */
 	protected _rootConfig: RootConfigState | undefined;
@@ -5380,6 +5382,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return connection.authenticate(params);
 	}
 
+	async requestMcp(channel: string, method: string, params?: Record<string, unknown>): Promise<unknown> {
+		const connection = this.connection;
+		if (!connection) {
+			throw new Error(localize('agentHostMcpRequestDisconnected', "The agent host connection is not available."));
+		}
+		return connection.handleMcpRequest(channel, method, params);
+	}
+
 	async setRootConfigValue(property: string, value: unknown): Promise<void> {
 		const current = this._rootConfig;
 		const connection = this.connection;
@@ -5663,7 +5673,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				disabledReason: getCustomizationDisabledReason(server, plugin),
 				status: server.state.kind,
 				state: server.state,
-				tools: readMcpServerTools(server),
 				setEnabled: (enabled: boolean) => {
 					const connection = this.connection;
 					if (!connection) {
@@ -7378,6 +7387,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}));
 		}
 
+		this._mcpNotificationRelay.input = connection.onMcpNotification;
+		store.add(toDisposable(() => this._mcpNotificationRelay.input = Event.None));
 		store.add(connection.onDidNotification(n => {
 			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);

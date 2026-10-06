@@ -8,15 +8,17 @@ import { raceCancellation, raceTimeout } from '../../../../../../base/common/asy
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
-import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { isObject } from '../../../../../../base/common/types.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { readMcpServerSource, readMcpServerTools } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { isMcpToolModelVisible } from '../../../../../../platform/agentHost/common/meta/mcpToolMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -31,7 +33,7 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
+import { IAgentHostMcpServer, IAgentHostMcpServerTool } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
@@ -43,6 +45,11 @@ export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents: Event<void>;
 	readonly onDidChangeCustomizations: Event<void>;
+	/**
+	 * Fires with an MCP server's `mcp://` channel when that server reports that its tool list
+	 * changed (`notifications/tools/list_changed`). See {@link IAgentHostMcpServer.toolsChannel}.
+	 */
+	readonly onDidChangeMcpServerTools: Event<string>;
 
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
@@ -115,6 +122,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	declare readonly _serviceBrand: undefined;
 	readonly onDidChangeCustomAgents = Event.None;
 	readonly onDidChangeCustomizations = Event.None;
+	readonly onDidChangeMcpServerTools = Event.None;
 	getCustomAgents(_sessionResource: URI): readonly AgentCustomization[] {
 		return [];
 	}
@@ -170,6 +178,8 @@ export interface IAgentHostCustomizationTarget {
 	stopMcpServer(rawId: string): Promise<void>;
 	backgroundMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
+	/** Sends an MCP request over an `mcp://` channel advertised by one of the session's MCP servers. */
+	requestMcp(channel: string, method: string, params?: Record<string, unknown>): Promise<unknown>;
 }
 
 export abstract class AbstractAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
@@ -179,6 +189,11 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	private readonly _onDidChangeCustomizations = this._register(new Emitter<void>());
 	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
 	readonly onDidChangeCustomizations: Event<void> = this._onDidChangeCustomizations.event;
+	private readonly _onDidChangeMcpServerTools = this._register(new Emitter<string>({
+		onWillAddFirstListener: () => this._setMcpNotificationsListening(true),
+		onDidRemoveLastListener: () => this._setMcpNotificationsListening(false),
+	}));
+	readonly onDidChangeMcpServerTools: Event<string> = this._onDidChangeMcpServerTools.event;
 
 	private readonly _mcpLogRegistry: AgentHostMcpServerLogRegistry;
 	/**
@@ -262,7 +277,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					sourceUri: source.scheme === 'mcp-top-level' ? undefined : target.resourceUris.fromAgentHost(source),
 					sourceRange: server.range,
 					logOutputChannelId: channelIdForMcpServer(sessionResource.toString(), server.id),
-					tools: readMcpServerTools(server),
+					...getMcpServerToolsAccess(server, target),
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),
@@ -395,6 +410,19 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		this._onDidChangeCustomizations.fire();
 	}
 
+	/**
+	 * Starts or stops forwarding the hosts' `mcp://` channel notifications. Called only while
+	 * {@link onDidChangeMcpServerTools} has listeners, so idle windows subscribe to nothing.
+	 */
+	protected abstract _setMcpNotificationsListening(listening: boolean): void;
+
+	/** Forwards channel notifications that report an MCP server's tool list changed. */
+	protected _handleMcpNotification(notification: { readonly channel: string; readonly method: string }): void {
+		if (notification.method === 'notifications/tools/list_changed') {
+			this._onDidChangeMcpServerTools.fire(notification.channel);
+		}
+	}
+
 	private _findMcpServer(customizations: readonly Customization[], serverId: string): McpServerCustomization | undefined {
 		for (const { server } of flattenMcpServerCustomizations(customizations)) {
 			if (server.id === serverId || this._isScopedMcpServerIdForRawId(serverId, server.id)) {
@@ -451,6 +479,63 @@ export function flattenMcpServerCustomizations(customizations: readonly Customiz
 		})) ?? []);
 }
 
+const MAX_MCP_TOOLS_LIST_PAGES = 100;
+
+/**
+ * Exposes `tools/list` for a ready MCP server whose customization advertises the `serverTools`
+ * capability for its `mcp://` channel. Clients must not send methods outside that advertisement.
+ */
+function getMcpServerToolsAccess(server: McpServerCustomization, target: IAgentHostCustomizationTarget): Pick<IAgentHostMcpServer, 'toolsChannel' | 'listTools'> {
+	const channel = server.channel;
+	if (server.state.kind !== McpServerStatus.Ready || !channel || !server.mcpApp?.capabilities.serverTools) {
+		return {};
+	}
+	return {
+		toolsChannel: channel,
+		listTools: async () => {
+			const tools: IAgentHostMcpServerTool[] = [];
+			let cursor: string | undefined;
+			for (let page = 0; page < MAX_MCP_TOOLS_LIST_PAGES; page++) {
+				const result = await target.requestMcp(channel, 'tools/list', cursor ? { cursor } : {});
+				tools.push(...readModelVisibleMcpTools(result));
+				cursor = isObject(result) && typeof (result as { nextCursor?: unknown }).nextCursor === 'string' ? (result as { nextCursor: string }).nextCursor : undefined;
+				if (!cursor) {
+					break;
+				}
+			}
+			return tools;
+		},
+	};
+}
+
+/**
+ * Reads the tools of a `tools/list` result, skipping malformed entries and app-only tools (MCP Apps
+ * `_meta.ui.visibility` without `"model"`), which are never offered to the model.
+ */
+function readModelVisibleMcpTools(result: unknown): IAgentHostMcpServerTool[] {
+	const items: unknown = isObject(result) ? (result as { tools?: unknown }).tools : undefined;
+	if (!Array.isArray(items)) {
+		return [];
+	}
+	const tools: IAgentHostMcpServerTool[] = [];
+	for (const item of items) {
+		if (!isObject(item)) {
+			continue;
+		}
+		const tool = item as { name?: unknown; title?: unknown; description?: unknown; annotations?: { title?: unknown } };
+		if (typeof tool.name !== 'string' || !isMcpToolModelVisible(item)) {
+			continue;
+		}
+		const title = typeof tool.annotations?.title === 'string' ? tool.annotations.title : typeof tool.title === 'string' ? tool.title : undefined;
+		tools.push({
+			name: tool.name,
+			...(title ? { title } : {}),
+			...(typeof tool.description === 'string' ? { description: tool.description } : {}),
+		});
+	}
+	return tools;
+}
+
 /**
  * The MCP servers to *show* for a session: one entry per server.
  *
@@ -500,6 +585,8 @@ interface ISessionStateSubscriptionEntry extends IDisposable {
 export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCustomizationService {
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<ISessionStateSubscriptionEntry>());
+	private _mcpNotificationsListening = false;
+	private readonly _mcpNotificationListeners = this._register(new DisposableMap<IAgentConnection>());
 
 	/** Overridable so tests can exercise the timeout without real-time waits. */
 	protected readonly _snapshotTimeoutMs: number = SESSION_STATE_SNAPSHOT_TIMEOUT_MS;
@@ -550,6 +637,23 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		}));
+	}
+
+	protected override _setMcpNotificationsListening(listening: boolean): void {
+		this._mcpNotificationsListening = listening;
+		if (!listening) {
+			this._mcpNotificationListeners.clearAndDisposeAll();
+			return;
+		}
+		for (const entry of this._sessionStateSubscriptions.values()) {
+			this._listenToMcpNotifications(entry.connection);
+		}
+	}
+
+	private _listenToMcpNotifications(connection: IAgentConnection): void {
+		if (this._mcpNotificationsListening && !this._mcpNotificationListeners.has(connection)) {
+			this._mcpNotificationListeners.set(connection, connection.onMcpNotification(notification => this._handleMcpNotification(notification)));
+		}
 	}
 
 	private _syncClientMcpEnablement(channel: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
@@ -641,7 +745,8 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 					type: ActionType.RootConfigChanged,
 					config: { [property]: value },
 				});
-			}
+			},
+			requestMcp: (mcpChannel, method, params) => target.connection.handleMcpRequest(mcpChannel, method, params),
 		};
 	}
 
@@ -701,6 +806,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			this._fireCustomizationsChanged();
 			this._fireCustomAgentsChanged();
 		});
+		this._listenToMcpNotifications(target.connection);
 		// A new generation starts with no memoized readiness, so the untitled →
 		// real rebind that backs a first send always gets a full wait.
 		const entry: ISessionStateSubscriptionEntry = {

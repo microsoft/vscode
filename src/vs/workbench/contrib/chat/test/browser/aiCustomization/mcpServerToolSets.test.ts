@@ -7,7 +7,7 @@ import assert from 'assert';
 import { constObservable, derived } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { type IMcpServerToolMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { type IAgentHostMcpServerTool } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { AgentHostMcpServer } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { countEnabledMcpServerTools, getMcpServerToolSets, McpSessionToolsMemory } from '../../../browser/aiCustomization/mcpServerToolSets.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -27,8 +27,16 @@ function localServer(id: string, enablement: ContributionEnablementState, cached
 	});
 }
 
-function sessionServer(name: string, tools: readonly IMcpServerToolMeta[] | undefined): AgentHostMcpServer {
-	return upcastPartial<AgentHostMcpServer>({ id: `host/${name}`, name, tools });
+/** Tools each fake session server listed over its channel, read through the lookup below. */
+const listedTools = new Map<AgentHostMcpServer, readonly IAgentHostMcpServerTool[]>();
+const getListedTools = (server: AgentHostMcpServer) => listedTools.get(server);
+
+function sessionServer(name: string, tools: readonly IAgentHostMcpServerTool[] | undefined): AgentHostMcpServer {
+	const server = upcastPartial<AgentHostMcpServer>({ id: `host/${name}`, name });
+	if (tools) {
+		listedTools.set(server, tools);
+	}
+	return server;
 }
 
 suite('mcpServerToolSets', () => {
@@ -45,7 +53,7 @@ suite('mcpServerToolSets', () => {
 			], [
 				sessionServer('session', [{ name: 'search', description: 'Search.' }, { name: 'fetch' }]),
 				sessionServer('sessionEmpty', []),
-			], reader);
+			], getListedTools, reader);
 			return {
 				servers: toolSets.map(({ server, toolSet }) => ({ id: server.definition.id, tools: Array.from(toolSet.getTools(), tool => tool.displayName) })),
 				enabledToolCount: countEnabledMcpServerTools(toolSets, reader),
@@ -66,7 +74,7 @@ suite('mcpServerToolSets', () => {
 		const memory = new McpSessionToolsMemory();
 		const servers = [localServer('many-tools', ContributionEnablementState.EnabledProfile)];
 		const read = (sessionKey: string, sessionServers: readonly AgentHostMcpServer[]) => derived(reader =>
-			getMcpServerToolSets(servers, sessionServers, reader, { instance: memory, sessionKey }).map(({ toolCount }) => toolCount)
+			getMcpServerToolSets(servers, sessionServers, getListedTools, reader, { instance: memory, sessionKey }).map(({ toolCount }) => toolCount)
 		).get();
 		const reported = [sessionServer('many-tools', [{ name: 'a' }, { name: 'b' }])];
 

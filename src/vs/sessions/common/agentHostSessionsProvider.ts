@@ -9,12 +9,12 @@ import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { URI } from '../../base/common/uri.js';
-import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../platform/agentHost/common/agentService.js';
+import { AuthenticateParams, AuthenticateResult, IAgentConnection, IMcpNotification } from '../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../platform/agentHost/common/state/protocol/state.js';
 import { type CustomizationDisabledReason } from '../../platform/agentHost/common/customizationEnablement.js';
-import { type IMcpServerToolMeta, type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
@@ -95,6 +95,13 @@ export interface IAgentHostGroup {
  * Encapsulates the dispatch plumbing so consumers can present and toggle
  * servers without depending on the low-level protocol action surface.
  */
+/** A model-visible tool reported by an agent-host MCP server over its `mcp://` channel. */
+export interface IAgentHostMcpServerTool {
+	readonly name: string;
+	readonly title?: string;
+	readonly description?: string;
+}
+
 export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
@@ -110,8 +117,13 @@ export interface IAgentHostMcpServer {
 	readonly sourceUri?: URI;
 	readonly sourceRange?: TextRange;
 	readonly logOutputChannelId?: string;
-	/** Model-visible tools the agent host last observed on the server; `undefined` when the host did not report them. */
-	readonly tools?: readonly IMcpServerToolMeta[];
+	/**
+	 * The server's `mcp://` channel, present only while the server is ready and advertises the
+	 * `serverTools` capability, so `tools/list` may be sent on it. Changes when the host re-mints it.
+	 */
+	readonly toolsChannel?: string;
+	/** Lists the server's model-visible tools over {@link toolsChannel}; present with it. */
+	listTools?(): Promise<readonly IAgentHostMcpServerTool[]>;
 	/** Starts or restarts the server. Providers that cannot control lifecycle may no-op. */
 	start(): Promise<void>;
 	/** Stops the server. Providers that cannot control lifecycle may no-op. */
@@ -296,6 +308,11 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Authenticate against the backing agent-host connection. */
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
+
+	/** Sends an MCP request over an `mcp://` channel advertised by one of this host's MCP servers. */
+	requestMcp(channel: string, method: string, params?: Record<string, unknown>): Promise<unknown>;
+	/** Notifications the host forwards on its `mcp://` channels, across reconnects. */
+	readonly onMcpNotification: Event<IMcpNotification>;
 
 	// -- Custom Agents --
 

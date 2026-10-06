@@ -211,6 +211,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
 			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
+				override readonly onDidChangeMcpServerTools = Event.None;
 				override getMcpServers() { return []; }
 			}());
 			reg.define(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService);

@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IReader } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
-import { type IMcpServerToolMeta } from '../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { type IAgentHostMcpServerTool } from '../../../../../sessions/common/agentHostSessionsProvider.js';
 import { IMcpServer, McpToolVisibility } from '../../../mcp/common/mcpTypes.js';
 import { mcpServerToSourceData } from '../../../mcp/common/mcpTypesUtils.js';
 import { isContributionEnabled } from '../../common/enablement.js';
@@ -28,9 +28,9 @@ export interface IMcpServerToolSet {
  */
 export class McpSessionToolsMemory {
 	private _sessionKey: string | undefined;
-	private readonly _toolsByServerId = new Map<string, readonly IMcpServerToolMeta[]>();
+	private readonly _toolsByServerId = new Map<string, readonly IAgentHostMcpServerTool[]>();
 
-	resolve(sessionKey: string, serverId: string, reported: readonly IMcpServerToolMeta[] | undefined): readonly IMcpServerToolMeta[] | undefined {
+	resolve(sessionKey: string, serverId: string, reported: readonly IAgentHostMcpServerTool[] | undefined): readonly IAgentHostMcpServerTool[] | undefined {
 		if (sessionKey !== this._sessionKey) {
 			this._sessionKey = sessionKey;
 			this._toolsByServerId.clear();
@@ -46,14 +46,21 @@ export class McpSessionToolsMemory {
 /**
  * Builds a tool set for every MCP server that contributes at least one model-visible tool.
  * Prefers the tools the active agent-host session reports for a server (it runs the server
- * for agent sessions), falling back to VS Code's own cache. Disabled servers stay listed so
- * they can be re-enabled.
+ * for agent sessions, and `getSessionTools` reads what its `mcp://` channel listed), falling
+ * back to VS Code's own cache. Disabled servers stay listed so they can be re-enabled.
  */
-export function getMcpServerToolSets(localServers: readonly IMcpServer[], sessionServers: readonly AgentHostMcpServer[], reader: IReader, memory?: { readonly instance: McpSessionToolsMemory; readonly sessionKey: string }): IMcpServerToolSet[] {
+export function getMcpServerToolSets(
+	localServers: readonly IMcpServer[],
+	sessionServers: readonly AgentHostMcpServer[],
+	getSessionTools: (server: AgentHostMcpServer) => readonly IAgentHostMcpServerTool[] | undefined,
+	reader: IReader,
+	memory?: { readonly instance: McpSessionToolsMemory; readonly sessionKey: string },
+): IMcpServerToolSet[] {
 	const matcher = new ActiveSessionMcpServerMatcher(sessionServers);
 	const result: IMcpServerToolSet[] = [];
 	for (const server of localServers) {
-		const reported = matcher.take(getRuntimeServerMatchKeys(server))?.tools;
+		const sessionServer = matcher.take(getRuntimeServerMatchKeys(server));
+		const reported = sessionServer ? getSessionTools(sessionServer) : undefined;
 		const sessionTools = memory ? memory.instance.resolve(memory.sessionKey, server.definition.id, reported) : reported;
 		const toolSet = createMcpServerToolSet(server, reader, sessionTools);
 		if (toolSet) {
@@ -74,9 +81,9 @@ export function countEnabledMcpServerTools(toolSets: readonly IMcpServerToolSet[
 	return count;
 }
 
-function createMcpServerToolSet(server: IMcpServer, reader: IReader, sessionTools: readonly IMcpServerToolMeta[] | undefined): { readonly toolSet: IToolSet; readonly toolCount: number } | undefined {
+function createMcpServerToolSet(server: IMcpServer, reader: IReader, sessionTools: readonly IAgentHostMcpServerTool[] | undefined): { readonly toolSet: IToolSet; readonly toolCount: number } | undefined {
 	const toolInfos = sessionTools
-		? sessionTools.map(tool => ({ id: `${server.definition.id}/${tool.name}`, displayName: tool.name, description: tool.description ?? '' }))
+		? sessionTools.map(tool => ({ id: `${server.definition.id}/${tool.name}`, displayName: tool.title || tool.name, description: tool.description ?? '' }))
 		: server.tools.read(reader)
 			.filter(tool => tool.visibility & McpToolVisibility.Model)
 			.map(tool => ({
