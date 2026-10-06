@@ -10,7 +10,6 @@ import { autorun, derived } from '../../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -172,7 +171,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
 	command: { id: ConnectMissionControlEnvironmentCommand, title: localize('connectMissionControlHost', "Mission Control"), icon: Codicon.remote },
-	when: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 	group: '1_add',
 	order: 5,
 });

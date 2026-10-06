@@ -37,6 +37,7 @@ class TestSocket implements ISocket {
 class TestPersistentConnection extends PersistentConnection {
 
 	public reconnectAttempts = 0;
+	public reconnectSucceeds = false;
 
 	constructor(options: IConnectionOptions, protocol: PersistentProtocol) {
 		super(ConnectionType.Management, options, 'test-reconnection-token', protocol, /* reconnectionFailureIsFatal */ false);
@@ -44,6 +45,9 @@ class TestPersistentConnection extends PersistentConnection {
 
 	protected async _reconnect(): Promise<void> {
 		this.reconnectAttempts++;
+		if (this.reconnectSucceeds) {
+			return;
+		}
 		throw Object.assign(new Error('connection refused'), {
 			code: 'ECONNREFUSED',
 			syscall: 'connect'
@@ -73,6 +77,52 @@ suite('RemoteAgentConnection', () => {
 	// Driving `PersistentConnection`'s reconnecting loop through several failed attempts exercises
 	// the internal `sleep()` helper's cancellation token listener, which is not captured for
 	// disposal since it is expected to be cleaned up together with its short-lived `CancellationTokenSource`.
+
+	test('exposes current liveness before subscribers attach and during reconnection callbacks', async () => {
+		const disposables = new DisposableStore();
+		try {
+			const socket = new TestSocket();
+			const protocol = disposables.add(new PersistentProtocol({ socket, sendKeepAlive: false }));
+			const connection = disposables.add(new TestPersistentConnection({
+				commit: undefined,
+				quality: undefined,
+				addressProvider: { getAddress: async () => ({ connectTo: new WebSocketRemoteConnection('localhost', 0), connectionToken: undefined }) },
+				remoteSocketFactoryService: new RemoteSocketFactoryService(),
+				signService: new TestSignService(),
+				logService: new NullLogService(),
+				ipcLogger: null,
+			}, protocol));
+			connection.reconnectSucceeds = true;
+			const initial = connection.isConnected;
+			const states: { type: PersistentConnectionEventType; connected: boolean }[] = [];
+			disposables.add(connection.onDidStateChange(event => states.push({ type: event.type, connected: connection.isConnected })));
+			const reconnected = Event.toPromise(Event.filter(connection.onDidStateChange, event => event.type === PersistentConnectionEventType.ConnectionGain));
+			socket.fireClose();
+			const lostBeforeLateSubscription = connection.isConnected;
+			await reconnected;
+			const restored = connection.isConnected;
+			connection.dispose();
+			assert.deepStrictEqual({
+				initial,
+				lostBeforeLateSubscription,
+				restored,
+				disposed: connection.isConnected,
+				states,
+			}, {
+				initial: true,
+				lostBeforeLateSubscription: false,
+				restored: true,
+				disposed: false,
+				states: [
+					{ type: PersistentConnectionEventType.ConnectionLost, connected: false },
+					{ type: PersistentConnectionEventType.ReconnectionRunning, connected: false },
+					{ type: PersistentConnectionEventType.ConnectionGain, connected: true },
+				],
+			});
+		} finally {
+			disposables.dispose();
+		}
+	});
 
 	test('reconnection grace period is immune to wall-clock jumps', async () => {
 		const clock = sinon.useFakeTimers();
@@ -126,6 +176,7 @@ suite('RemoteAgentConnection', () => {
 			await clock.tickAsync(10000);
 			assert.strictEqual(connection.reconnectAttempts, 4);
 			assert.strictEqual(permanentFailure, true);
+			assert.strictEqual(connection.isConnected, false);
 		} finally {
 			disposables.dispose();
 			clock.restore();

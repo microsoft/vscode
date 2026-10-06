@@ -33,12 +33,12 @@ export function readMcpServerSource(customization: McpServerCustomization | unde
 	}
 }
 
-/** Records the configuration source in an open metadata bag, preserving every other entry. */
+/**
+ * Records the configuration source in an open metadata bag. An absent source removes a previously
+ * recorded one, because it describes the current configuration; every other entry is preserved.
+ */
 export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefined, source: McpServerSource | undefined): Record<string, unknown> | undefined {
-	if (source === undefined) {
-		return meta;
-	}
-	return { ...(meta ?? {}), [sourceKey]: source };
+	return withMetaEntry(meta, sourceKey, source);
 }
 
 /** Reads an optional Connector catalog name without changing the MCP server's runtime identity. */

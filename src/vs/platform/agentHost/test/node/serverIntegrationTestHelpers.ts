@@ -1129,7 +1129,10 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 			// codex SDK root is supplied so the provider actually registers.
 			...(options.codexSdkRoot ? { [AgentHostCodexAgentEnabledEnvVar]: String(options.codexAgentEnabled ?? true) } : {}),
 			// Fixtures use Codex's unified exec tool, so keep record and replay on the same shell protocol.
-			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true']) } : {}),
+			// Native marketplace plugins start a background Git sync outside the replay proxy, which can
+			// leave clone directories locked on Windows after shutdown. Client plugins use host-provided
+			// skills, agents, and MCP configuration independently of this native marketplace feature.
+			...(options.codexSdkRoot && options.capiReplay ? { [AgentHostCodexAgentBinaryArgsEnvVar]: JSON.stringify(['-c', 'features.unified_exec=true', '-c', 'features.plugins=false']) } : {}),
 			...(realCapture ? {
 				// Real-CAPI capture/replay: route all CAPI + GitHub-API traffic through
 				// the proxy. The real GitHub token flows via the `authenticate`

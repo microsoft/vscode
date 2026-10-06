@@ -158,11 +158,13 @@ suite('Agent host _meta readers', () => {
 			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
 			merged,
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
+			cleared: withMcpServerSourceMeta(merged, undefined),
 		}, {
 			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
 			displayNames: ['Mail', undefined, undefined, undefined],
 			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
 			unchanged: true,
+			cleared: { 'test.opaque': 'kept', 'vscode.mcpServerDisplayName': 'Mail' },
 		});
 	});
 
