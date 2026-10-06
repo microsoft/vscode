@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../base/common/keybindings.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -54,6 +55,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { resolveOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 suite('Sessions - Actions', () => {
 
@@ -1136,10 +1138,16 @@ suite('Sessions - Actions', () => {
 			const style = observableValue<NewSessionButtonStyle>('newButtonStyle', 'default');
 			const item = disposables.add(instantiationService.createInstance(NewSessionActionViewItem, action, source, style));
 			const container = document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
 			item.render(container);
 
 			const button = container.querySelector<HTMLElement>('.agent-sessions-compact-new-button.monaco-button');
 			assert.ok(button);
+			const target = resolveOnboardingTarget(mainWindow, 'sessions.newSession.button');
+			assert.ok(target?.onDidActivate);
+			let activations = 0;
+			disposables.add(target.onDidActivate(() => activations++));
 			assert.deepStrictEqual({
 				buttonCount: container.querySelectorAll('.monaco-button').length,
 				dropdown: container.querySelector('.monaco-button-dropdown'),
@@ -1160,9 +1168,10 @@ suite('Sessions - Actions', () => {
 			button.click();
 			button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, altKey: true }));
 
-			assert.deepStrictEqual({ primaryRuns, commands: commandService.calls }, {
+			assert.deepStrictEqual({ primaryRuns, commands: commandService.calls, activations }, {
 				primaryRuns: 3,
 				commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [{ toSide: true }] }],
+				activations: 4,
 			});
 
 			style.set('lightweightWithKeybindingBackground', undefined);
