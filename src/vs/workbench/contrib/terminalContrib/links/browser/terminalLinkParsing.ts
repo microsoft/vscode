@@ -350,17 +350,39 @@ enum RegexPathConstants {
 	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
 	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\]',
 
+	// A whole path segment, or part of one, wrapped in balanced brackets, such as the Next.js
+	// route groups `(group)` and dynamic segments `[slug]` (#212109). The contents may not hold a
+	// separator or another bracket, so an unbalanced `(` or `)` still ends the path, which keeps
+	// `(./foo/bar)` and `foo(./bar)` from taking in the surrounding parentheses.
+	ParenthesesSegmentClause = '\\([^\\0<>\\?\\s!`&*()\'":;\\\\\\/]+\\)',
+	SquareBracketsSegmentClause = '\\[[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\\\/]+\\]',
+
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',
 	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
 	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
+	WinParenthesesSegmentClause = '\\([^\\0<>\\?\\|\\/\\\\\\s!`&*()\'":;]+\\)',
+	WinSquareBracketsSegmentClause = '\\[[^\\0<>\\?\\|\\/\\\\\\s!`&*()\\[\\]\'":;]+\\]',
 }
+
+/**
+ * The characters a path may hold after its first character: any allowed character, or a whole
+ * `(...)` group.
+ */
+const unixPathCharacterClause = `(?:${RegexPathConstants.ExcludedPathCharactersClause}|${RegexPathConstants.ParenthesesSegmentClause})`;
+/**
+ * What a relative path without a prefix may start with: an allowed start character, or a whole
+ * `(...)` or `[...]` group.
+ */
+const unixPathStartClause = `(?:${RegexPathConstants.ExcludedStartPathCharactersClause}|${RegexPathConstants.ParenthesesSegmentClause}|${RegexPathConstants.SquareBracketsSegmentClause})`;
+const winPathCharacterClause = `(?:${RegexPathConstants.WinExcludedPathCharactersClause}|${RegexPathConstants.WinParenthesesSegmentClause})`;
+const winPathStartClause = `(?:${RegexPathConstants.WinExcludedStartPathCharactersClause}|${RegexPathConstants.WinParenthesesSegmentClause}|${RegexPathConstants.WinSquareBracketsSegmentClause})`;
 
 /**
  * A regex that matches non-Windows paths, such as `/foo`, `~/foo`, `./foo`, `../foo` and
  * `foo/bar`.
  */
-const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + RegexPathConstants.ExcludedStartPathCharactersClause + RegexPathConstants.ExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + '(?:' + RegexPathConstants.ExcludedPathCharactersClause + ')+)+)';
+const unixLocalLinkClause = '(?:(?:' + RegexPathConstants.PathPrefix + '|(?:' + unixPathStartClause + unixPathCharacterClause + '*))?(?:' + RegexPathConstants.PathSeparatorClause + unixPathCharacterClause + '+)+)';
 
 /**
  * A regex clause that matches the start of an absolute path on Windows, such as: `C:`, `c:`,
@@ -372,7 +394,7 @@ export const winDrivePrefix = '(?:\\\\\\\\\\?\\\\|file:\\/\\/\\/)?[a-zA-Z]:';
  * A regex that matches Windows paths, such as `\\?\c:\foo`, `c:\foo`, `~\foo`, `.\foo`, `..\foo`
  * and `foo\bar`.
  */
-const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + RegexPathConstants.WinExcludedStartPathCharactersClause + RegexPathConstants.WinExcludedPathCharactersClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + '(?:' + RegexPathConstants.WinExcludedPathCharactersClause + ')+)+)';
+const winLocalLinkClause = '(?:(?:' + `(?:${winDrivePrefix}|${RegexPathConstants.WinOtherPathPrefix})` + '|(?:' + winPathStartClause + winPathCharacterClause + '*))?(?:' + RegexPathConstants.WinPathSeparatorClause + winPathCharacterClause + '+)+)';
 
 /**
  * A regex clause that matches the known single-character prefixes used in git diffs.
