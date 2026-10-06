@@ -1233,8 +1233,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndexes, highPriorityIndexes);
 		this.distributeEmptySpace();
-		// Distribution needs the constrained sizes, but only its final layout should reach the views.
-		if (!skipLayout) {
+		// Non-proportional descendants need the intermediate dimension for their constrained layout.
+		if (!skipLayout || !this.proportionalLayout || this.viewItems.some(item => !item.proportionalLayout)) {
 			this.layoutViews();
 			this.saveProportions();
 		}
