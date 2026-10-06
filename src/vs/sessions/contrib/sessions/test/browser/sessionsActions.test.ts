@@ -21,10 +21,15 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
+import { NAVIGATE_VIEW_COMMANDS } from '../../../../../workbench/browser/actions/navigationActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -48,12 +53,14 @@ import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../brow
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
 import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 suite('Sessions - Actions', () => {
 
@@ -591,7 +598,10 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('uses the same small close icon for chat and side-panel tabs', () => {
+	test('uses density-appropriate close icons for session headers and tabs', () => {
+		const sessionClose = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_SESSION_COMMAND_ID);
 		const chatClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
@@ -599,11 +609,67 @@ suite('Sessions - Actions', () => {
 		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 
 		assert.deepStrictEqual({
+			sessionIcon: sessionClose?.command.icon,
 			chatIcon: chatClose?.command.icon,
 			editorClass: editorClose.class,
 		}, {
+			sessionIcon: Codicon.closeCompact,
 			chatIcon: Codicon.closeSmall,
 			editorClass: 'codicon codicon-close-small',
+		});
+	});
+
+	test('routes generic directional navigation commands only while the session grid is focused', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		IsPhoneLayoutContext.bindTo(contextKeyService).set(false);
+		MultipleSessionsVisibleContext.bindTo(contextKeyService).set(true);
+		const sessionsFocus = SessionsFocusContext.bindTo(contextKeyService);
+		sessionsFocus.set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+
+		const routedCommands: string[] = [];
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override executeCommand<T>(commandId: string): Promise<T | undefined> {
+				routedCommands.push(commandId);
+				return Promise.resolve(undefined);
+			}
+		});
+
+		let editorFocusCount = 0;
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
+			hasFocus: part => part === Parts.EDITOR_PART,
+		}));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({
+			activeGroup: upcastPartial<IEditorGroup>({}),
+			findGroup: () => upcastPartial<IEditorGroup>({ focus: () => editorFocusCount++ }),
+		}));
+		instantiationService.stub(IPaneCompositePartService, new class extends mock<IPaneCompositePartService>() { });
+
+		for (const commandId of Object.values(NAVIGATE_VIEW_COMMANDS)) {
+			const command = CommandsRegistry.getCommand(commandId);
+			assert.ok(command);
+			await command.handler(instantiationService);
+		}
+
+		sessionsFocus.set(false);
+		await CommandsRegistry.getCommand(NAVIGATE_VIEW_COMMANDS.left)?.handler(instantiationService);
+
+		assert.deepStrictEqual({
+			routedCommands,
+			editorFocusCount,
+		}, {
+			routedCommands: [
+				'sessions.focusSessionLeft',
+				'sessions.focusSessionRight',
+				'sessions.focusSessionAbove',
+				'sessions.focusSessionBelow',
+			],
+			editorFocusCount: 1,
 		});
 	});
 
