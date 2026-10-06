@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, encodeBase64, encodeHex, VSBuffer } from '../../../base/common/buffer.js';
+import { CharCode } from '../../../base/common/charCode.js';
 import { Schemas } from '../../../base/common/network.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
@@ -64,6 +65,15 @@ interface IAgentHostUriMeta {
 	/** Original URI query, omitted when empty. */
 	readonly query?: string;
 	/**
+	 * Set when the original URI has a non-empty, rootless path (one that does
+	 * not begin with a slash), as opaque URIs like `untitled:Untitled-1` do.
+	 * A {@link AGENT_HOST_SCHEME} URI always carries an authority, and RFC 3986
+	 * requires an authority-bearing URI's path to be empty or begin with `/`,
+	 * so such a path is stored with a synthesized leading slash and this flag
+	 * records that the slash must be stripped on unwrap. Omitted otherwise.
+	 */
+	readonly rootlessPath?: true;
+	/**
 	 * Set when the wrapped URI came from a protocol `ContentRef` rather than
 	 * from the host's filesystem. Omitted otherwise. See
 	 * {@link toAgentHostContentUri}.
@@ -110,10 +120,18 @@ function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, content
 		return originalUri;
 	}
 
+	// A AGENT_HOST_SCHEME URI always carries an authority, so RFC 3986 requires
+	// its path to be empty or begin with a slash. Opaque URIs (e.g.
+	// `untitled:Untitled-1`) have a non-empty, rootless path; synthesize a
+	// leading slash for them and record it so the original path is restored on
+	// unwrap.
+	const isRootlessPath = originalUri.path.length > 0 && originalUri.path.charCodeAt(0) !== CharCode.Slash;
+
 	const meta: IAgentHostUriMeta = {
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
+		...(isRootlessPath ? { rootlessPath: true } as const : {}),
 		...(contentRef ? { contentRef: true } as const : {}),
 	};
 	const params = new URLSearchParams();
@@ -121,7 +139,7 @@ function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, content
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: originalUri.path || '/',
+		path: isRootlessPath ? `/${originalUri.path}` : (originalUri.path || '/'),
 		query: params.toString(),
 		fragment: originalUri.fragment,
 	});
@@ -177,7 +195,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	return URI.from({
 		scheme: meta.scheme,
 		authority: meta.authority || undefined,
-		path: agentHostUri.path,
+		path: meta.rootlessPath === true ? agentHostUri.path.slice(1) : agentHostUri.path,
 		query: meta.query || '',
 		fragment: agentHostUri.fragment,
 	});
