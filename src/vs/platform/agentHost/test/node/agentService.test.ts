@@ -3759,10 +3759,8 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		}
 
-		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: TitleTestAgent; session: URI; db: TestSessionDatabase }> {
-			const db = new TestSessionDatabase();
-			const sessionDataService = createSessionDataService(db);
-			const svc = disposables.add(createTestAgentService(
+		function createDeferredTitleTestAgentService(sessionDataService: ISessionDataService, copilotApiService?: ICopilotApiService): AgentService {
+			return createTestAgentService(
 				new NullLogService(),
 				fileService,
 				sessionDataService,
@@ -3772,7 +3770,23 @@ suite('AgentService (node dispatcher)', () => {
 				undefined,
 				undefined,
 				copilotApiService,
-			));
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'deferred',
+			);
+		}
+
+		async function setupTitleGeneration(copilotApiService: TestCopilotApiService): Promise<{ svc: AgentService; agent: TitleTestAgent; session: URI; db: TestSessionDatabase }> {
+			const db = new TestSessionDatabase();
+			const sessionDataService = createSessionDataService(db);
+			const svc = disposables.add(createDeferredTitleTestAgentService(sessionDataService, copilotApiService));
 			const agent = new TitleTestAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(svc, agent);
@@ -4684,7 +4698,7 @@ suite('AgentService (node dispatcher)', () => {
 		for (const failFirstCreation of [false, true]) {
 			test(`title strategy stays aligned with provider tools during creation (failure: ${failFirstCreation})`, async () => {
 				const db = new TestSessionDatabase();
-				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const svc = disposables.add(createDeferredTitleTestAgentService(createSessionDataService(db)));
 				const observed: ReturnType<IAgentServerToolHost['getDefinitionsForSession']>[number][] = [];
 				let attempts = 0;
 				class CreatingAgent extends TitleTestAgent {
@@ -24985,6 +24999,30 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('rename server tools', () => {
+		function createRenameTestAgentService(sessionDataService: ISessionDataService, orchestratorDatabase?: IAgentHostDatabase): AgentService {
+			return createTestAgentService(
+				new NullLogService(),
+				fileService,
+				sessionDataService,
+				{ _serviceBrand: undefined } as IProductService,
+				createNoopGitService(),
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				orchestratorDatabase,
+				undefined,
+				undefined,
+				undefined,
+				undefined,
+				'activeAgent',
+			);
+		}
+
 		test('rename_chat replaces live and persisted default and peer chat titles', async () => {
 			class RecordingTitleDatabase extends TestSessionDatabase {
 				readonly finalRenamePersisted = new DeferredPromise<void>();
@@ -25015,22 +25053,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const db = new RecordingTitleDatabase();
 			const catalogDatabase = disposables.add(new AgentHostDatabase(':memory:'));
-			const localService = disposables.add(createTestAgentService(
-				new NullLogService(),
-				fileService,
-				createSessionDataService(db),
-				{ _serviceBrand: undefined } as IProductService,
-				createNoopGitService(),
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				[],
-				undefined,
-				undefined,
-				catalogDatabase,
-			));
+			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(db), catalogDatabase));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
@@ -25147,7 +25170,7 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			const db = new FailingTitleDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const localService = disposables.add(createRenameTestAgentService(createSessionDataService(db)));
 			const agent = disposables.add(new ServerToolAgent('copilot'));
 			registerTestAgentProvider(localService, agent);
 			const session = await localService.createSession({ provider: 'copilot' });
