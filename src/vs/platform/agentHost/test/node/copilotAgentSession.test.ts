@@ -11995,6 +11995,97 @@ Use the attached image as context.
 			);
 		});
 
+		test('counts every HydraFusion phase model call on turnCompleted', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('user.message', { content: 'fix the bug', interactionId: 'interaction-root' });
+			const fusion = { fusionId: 'fusion-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' };
+			const phaseUsage = (phaseId: string, apiCallId: string) => mockSession.fire('assistant.usage', {
+				inputTokens: 10, outputTokens: 5, model: 'model-a', apiCallId, fusion: { ...fusion, phaseId },
+			} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+			const modelCallFinished = (id: string, interactionId: string) => mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id,
+				data: { turnId: '3', interactionId, dispatchDurationMs: 100, outcome: 'success', containsBuiltInFileEditRequest: true, editClassifierVersion: 1 },
+			});
+
+			// Each phase runs under its own interaction id; the runtime stages its turn start until commit.
+			modelCallFinished('before-phase', 'interaction-phase-1');
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			phaseUsage('phase-1', 'call-primary');
+			modelCallFinished('call-primary', 'interaction-phase-1');
+			mockSession.fire('assistant.fusion_phase_completed', fusionTestData.phaseCompleted);
+			// A discarded repair phase never replays its messages.
+			mockSession.fire('assistant.fusion_phase_started', { ...fusionTestData.started, phaseId: 'phase-2', phaseKind: 'repair' });
+			phaseUsage('phase-2', 'call-repair');
+			mockSession.fire('assistant.fusion_phase_failed', { ...fusionTestData.phaseFailed, phaseId: 'phase-2', phaseKind: 'repair' });
+			modelCallFinished('after-phase', 'interaction-unrelated');
+			// The committed phase replays its message with the same model call id.
+			mockSession.fire('assistant.message', { messageId: 'message-1', content: 'done', apiCallId: 'call-primary', fusion: { ...fusion, phaseId: 'phase-1', commitId: 'commit-1' } });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			const telemetryService = new CapturingTelemetryService();
+			const tracker = disposables.add(new AgentHostTurnTracker(
+				new AgentHostTelemetryReporter(telemetryService),
+				disposables.add(new AgentHostClientConnectionService()),
+				new NullLogService(),
+			));
+			const agent = disposables.add(new MockAgent());
+			const chatUri = buildDefaultChatUri(session.resourceUri);
+			tracker.turnStarted(agent, chatUri, 'fusion-turn', undefined, undefined, 'default', undefined, undefined);
+			for (const signal of signals) {
+				if (signal.kind === 'action' && signal.action.type === ActionType.ChatTurnComplete) {
+					tracker.turnCompleted(chatUri, signal.action.turnId, 'success');
+				} else if (signal.kind === 'model_call_completed') {
+					tracker.modelCallCompleted(chatUri, signal.turnId, signal.modelCallId);
+				} else if (signal.kind === 'model_call_finished') {
+					tracker.modelCallFinished(chatUri, signal.turnId, signal.modelCallId, signal.dispatchDurationMs, signal.outcome, signal.containsBuiltInFileEditRequest, signal.editClassifierVersion);
+				}
+			}
+
+			assert.deepStrictEqual(telemetryService.events.filter(event => event.eventName === 'agentHost.turnCompleted').map(event => {
+				const data = event.data as { turnId: string; modelCallCount: number; timeToFirstEdit?: number };
+				return { turnId: data.turnId, modelCallCount: data.modelCallCount, timeToFirstEdit: data.timeToFirstEdit };
+			}), [{ turnId: 'fusion-turn', modelCallCount: 2, timeToFirstEdit: 100 }]);
+		});
+
+		test('does not adopt late model calls from an ended turn into a replacement turn\'s Fusion phase', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('old-turn');
+			mockSession.fire('user.message', { content: 'first', interactionId: 'interaction-old' });
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			session.resetTurnState('replacement-turn');
+			mockSession.fire('user.message', { content: 'second', interactionId: 'interaction-new' });
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			const modelCallFinished = (id: string, interactionId: string | undefined) => mockSession.fireRaw({
+				type: 'model.call_finished',
+				ephemeral: true,
+				id,
+				data: { turnId: '0', interactionId, dispatchDurationMs: 100, outcome: 'success', containsBuiltInFileEditRequest: true, editClassifierVersion: 1 },
+			});
+			const usage = (fusionId: string, apiCallId: string) => mockSession.fire('assistant.usage', {
+				inputTokens: 10, outputTokens: 5, model: 'model-a', apiCallId, fusion: { fusionId, phaseId: 'phase-1', syntheticModel: 'hydrafusion', policy: 'max', pattern: 'cascade' },
+			} as unknown as SessionEventPayload<'assistant.usage'>['data']);
+
+			modelCallFinished('late-old-call', 'interaction-old');
+			modelCallFinished('late-unidentified-call', undefined);
+			usage('fusion-old', 'late-old-usage');
+			modelCallFinished('phase-call', 'interaction-phase');
+			usage(fusionTestData.started.fusionId, 'phase-call');
+
+			assert.deepStrictEqual(
+				signals
+					.filter(signal => signal.kind === 'model_call_finished' || signal.kind === 'model_call_completed')
+					.map(signal => ({ kind: signal.kind, modelCallId: signal.modelCallId, turnId: signal.turnId })),
+				[
+					{ kind: 'model_call_finished', modelCallId: 'phase-call', turnId: 'replacement-turn' },
+					{ kind: 'model_call_completed', modelCallId: 'phase-call', turnId: 'replacement-turn' },
+				],
+			);
+		});
+
 		for (const ending of ['complete', 'abort', 'fail', 'discard', 'replace', 'dispose'] as const) {
 			test(`releases model-call correlations when a host turn ends via ${ending}`, async () => {
 				const { session, mockSession, signals } = await createAgentSession(disposables);

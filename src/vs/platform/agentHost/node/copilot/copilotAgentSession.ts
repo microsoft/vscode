@@ -791,6 +791,7 @@ class CopilotTurn extends Disposable {
 		readonly clientContext: IAgentHostClientTelemetryContext,
 		readonly telemetryContext: IAgentTelemetryContext | undefined,
 		readonly providerInitiated = false,
+		private readonly _onWillDispose?: (turn: CopilotTurn) => void,
 	) {
 		super();
 		// Most turns are never waited on; avoid an uncaught rejection.
@@ -845,6 +846,7 @@ class CopilotTurn extends Disposable {
 	 * Rejects {@link eventId} before disposal so pending fork-boundary checks do not hang.
 	 */
 	override dispose(): void {
+		this._onWillDispose?.(this);
 		this.sdkTurnIds.clear();
 		this.interactionIds.clear();
 		this.activeSdkTurnId = undefined;
@@ -1046,6 +1048,8 @@ export class CopilotAgentSession extends Disposable {
 	 * replacing or clearing it disposes the old turn.
 	 */
 	private readonly _currentTurn = this._register(new MutableDisposable<CopilotTurn>());
+	/** Interaction ids of ended host turns; bounded, oldest first. See {@link _emitModelCallFinished}. */
+	private readonly _endedTurnInteractionIds = new Set<string>();
 	private readonly _idleWaiters = new Set<DeferredPromise<boolean>>();
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
@@ -1601,6 +1605,19 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
+	private _retireTurnInteractionIds(turn: CopilotTurn): void {
+		for (const interactionId of turn.interactionIds) {
+			this._endedTurnInteractionIds.delete(interactionId);
+			this._endedTurnInteractionIds.add(interactionId);
+		}
+		for (const interactionId of this._endedTurnInteractionIds) {
+			if (this._endedTurnInteractionIds.size <= 256) {
+				break;
+			}
+			this._endedTurnInteractionIds.delete(interactionId);
+		}
+	}
+
 	private _emitModelCallFinished(event: ICopilotModelCallFinishedEvent): void {
 		const parentToolCallId = this._parentToolCallIdForSubagentEvent(event);
 		if (event.agentId && !parentToolCallId) {
@@ -1615,6 +1632,15 @@ export class CopilotAgentSession extends Disposable {
 			turnId = turn?.interactionIds.has(event.data.interactionId) ? turn.id : undefined;
 		} else {
 			turnId = turn?.sdkTurnIds.has(event.data.turnId) ? turn.id : undefined;
+		}
+		// Each HydraFusion phase runs its own SDK turn under a fresh interaction id, but the runtime
+		// stages the phase's `assistant.turn_start` until commit and never delivers it for a discarded
+		// or cancelled phase. Attribute an unmapped call to the turn running the phase, unless its
+		// interaction belongs to an ended turn (a late call must not be adopted by its replacement).
+		const interactionId = event.data.interactionId;
+		if (!turnId && turn && !event.agentId && interactionId && !this._endedTurnInteractionIds.has(interactionId) && this._fusionProgress.runningPhaseToolCallId !== undefined) {
+			turnId = turn.id;
+			turn.interactionIds.add(interactionId);
 		}
 		if (!turnId) {
 			this._logService.trace(`[Copilot:${this.sessionId}] Ignoring model.call_finished without a host turn mapping: sdkTurnId=${event.data.turnId}`);
@@ -2324,7 +2350,7 @@ export class CopilotAgentSession extends Disposable {
 		this._detectInterruptedTurnOnRestore = false;
 		this._streamingToolCalls.clear();
 		this._streamingToolDisplaySchedulers.clearAndDisposeAll();
-		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated);
+		this._currentTurn.value = new CopilotTurn(turnId, this._nextTurnOrdinal++, senderClientId, clientContext, this._getTelemetryContext(), providerInitiated, turn => this._retireTurnInteractionIds(turn));
 	}
 
 	async hasRunningDetachedShells(): Promise<boolean> {
@@ -7416,6 +7442,16 @@ export class CopilotAgentSession extends Disposable {
 			// subagent call counts toward the turn under its own model without
 			// being counted twice by the parent and subagent emits below.
 			turn?.addTokenTotals(eventContext.model, eventContext);
+			// The wrapper drops provisional HydraFusion `assistant.message` copies, so only the committed
+			// phase's replayed messages reach `onMessage`; discarded, cancelled, and review phases never
+			// report their model calls there. Each phase call still bills an attributed `assistant.usage`
+			// carrying the same `apiCallId`, so the turn's call set dedupes the committed replay. The
+			// Fusion run must belong to this host turn, so a late call from an ended turn is not adopted.
+			const fusion = e.data.fusion;
+			if (turn && !e.agentId && !parentToolCallId && fusion?.phaseId && e.data.apiCallId && e.data.interactionType !== 'conversation-compaction'
+				&& this._fusionEventTurnIds.get(`fusion:${fusion.fusionId}`) === turn.id) {
+				this._emitModelCallCompleted(turn.id, e.data.apiCallId);
+			}
 			const directUsage = isUnmappedSubagent ? undefined : this._directUsageFor(parentToolCallId, true);
 			directUsage?.add(eventContext.model, eventContext, copilotUsage?.totalNanoAiu);
 			const isChildUsage = e.data.interactionType === 'conversation-subagent' || e.data.initiator === 'sub-agent';
