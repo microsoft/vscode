@@ -152,7 +152,7 @@ suite('Mission Control host integration', () => {
 			options.onDiagnostic?.({
 				operationId: 'private-id', phase, outcome, timestamp: 0, durationMs: 42,
 				detail: 'private response',
-				error: outcome === 'failed' ? { name: 'Error', message: 'private server response', status: 503 } : undefined,
+				error: outcome === 'failed' ? { name: 'Error', message: 'private server response (requestId=ABCD:1234:5678:90AB:CDEF)', status: 503, requestId: 'ABCD:1234:5678:90AB:CDEF' } : undefined,
 			});
 		}
 		type ClassifiedSample<T> = { [K in Exclude<keyof T, 'owner' | 'comment'>]: T[K] extends { isMeasurement: true } ? number : string };

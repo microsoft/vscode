@@ -12,7 +12,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { sanitizeConnectionDiagnosticText } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { getGitHubRequestId, sanitizeConnectionDiagnosticText } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
@@ -732,8 +732,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'waking', waking: { retryAfterSeconds } };
 		}
 		if (!isSuccess(context)) {
-			const header = context.res.headers['x-github-request-id'];
-			const requestId = typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
+			const requestId = getGitHubRequestId(context.res.headers['x-github-request-id']);
 			const retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
 			const status = context.res.statusCode;
 			const responseError = await this._readJson<{ message?: string }>(context);

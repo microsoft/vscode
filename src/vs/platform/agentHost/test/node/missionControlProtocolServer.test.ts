@@ -504,6 +504,27 @@ suite('Mission Control WPS', () => {
 		}
 	});
 
+	test('preserves validated GitHub request IDs in failed registration errors', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-request-id-'));
+		const requestId = 'ABCD:1234:5678:90AB:CDEF';
+		const service = store.add(new MissionControlEnvironment({
+			userDataPath: path,
+			name: 'VS Code OSS',
+			fetch: async () => Response.json({ message: 'Registration unavailable; token=private-token' }, { status: 503, headers: { 'x-github-request-id': requestId } }),
+			attach: () => ({ dispose() { } }),
+			onError: error => { throw error; },
+		}));
+		try {
+			await assert.rejects(service.configure({ baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-local-token', roots: [path] }), {
+				name: 'CloudSandboxRequestError',
+				message: `Mission Control request failed (503) (requestId=${requestId}): Registration unavailable; token=[redacted]`,
+			});
+		} finally {
+			service.dispose();
+			await rm(path, { recursive: true });
+		}
+	});
+
 	test('joins verified client lanes, binds initialize, and publishes responses on to-client', async () => {
 		const { key, signed } = signingFixture();
 		const socket = new FakeWpsSocket();
@@ -661,7 +682,7 @@ suite('Mission Control WPS', () => {
 
 	suite('heartbeat Retry-After', () => {
 		async function withEnvironment(
-			replies: readonly { retryAfter?: string; status?: number; body?: string }[],
+			replies: readonly { retryAfter?: string; status?: number; body?: string; headers?: Record<string, string> }[],
 			run: (fixture: {
 				service: MissionControlEnvironment;
 				clock: sinon.SinonFakeTimers;
@@ -732,7 +753,7 @@ suite('Mission Control WPS', () => {
 								await delayed.started.complete();
 								return delayed.response.p;
 							}
-							const responseOptions: ResponseInit = { status: reply?.status ?? 200, headers: reply?.retryAfter === undefined ? {} : { 'rEtRy-AfTeR': reply.retryAfter } };
+							const responseOptions: ResponseInit = { status: reply?.status ?? 200, headers: { ...reply?.headers, ...(reply?.retryAfter === undefined ? {} : { 'rEtRy-AfTeR': reply.retryAfter }) } };
 							return reply?.body === undefined ? Response.json(environment, responseOptions) : new Response(reply.body, responseOptions);
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
@@ -798,6 +819,17 @@ suite('Mission Control WPS', () => {
 				assert.deepStrictEqual(errors, ['Mission Control request failed (503): Relay unavailable; token=[redacted]']);
 			});
 		});
+
+		for (const header of ['ABCD:1234:5678:90AB:CDEF', 'invalid-request-id', 'ghp_secret', 'A'.repeat(129)]) {
+			test(`validates GitHub request correlation on failed heartbeats: ${header}`, async () => {
+				await withEnvironment([{}, { status: 503, body: '{}', headers: { 'x-github-request-id': header } }], async ({ clock, errors }) => {
+					await clock.tickAsync(60_000);
+					assert.deepStrictEqual(errors, [
+						`Mission Control request failed (503)${header === 'ABCD:1234:5678:90AB:CDEF' ? ` (requestId=${header})` : ''}`,
+					]);
+				});
+			});
+		}
 
 		test('rotates expiring access tokens during load shedding without reconnecting a healthy socket', async () => {
 			await withEnvironment([{ retryAfter: '300' }], async ({ clock, heartbeats, errors, sockets, tokens }) => {

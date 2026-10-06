@@ -12,7 +12,7 @@ import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type I
 import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
-import { emitConnectionDiagnostic, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
+import { emitConnectionDiagnostic, getGitHubRequestId, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
 import { parseGroupName } from '../../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../../common/webPubSub/framing.js';
@@ -402,6 +402,7 @@ export class MissionControlEnvironment extends Disposable {
 				this._mirrorAttachment.clear();
 				this._server.clear();
 			}
+			const requestId = getGitHubRequestId(response.headers.get('x-github-request-id'));
 			const text = await response.text();
 			let message: string | undefined;
 			try {
@@ -416,7 +417,7 @@ export class MissionControlEnvironment extends Disposable {
 				message = text;
 			}
 			message = message ? sanitizeConnectionDiagnosticText(message) : undefined;
-			throw new CloudSandboxRequestError(response.status, `Mission Control request failed (${response.status})${message ? `: ${message}` : ''}`);
+			throw new CloudSandboxRequestError(response.status, `Mission Control request failed (${response.status})${requestId ? ` (requestId=${requestId})` : ''}${message ? `: ${message}` : ''}`);
 		}
 		try {
 			return await response.json();
