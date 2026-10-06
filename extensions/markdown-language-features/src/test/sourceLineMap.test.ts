@@ -5,9 +5,47 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { SourceLineMap } from '../util/sourceLineMap';
+import { SourceLineMap, updateSourceLineAttributes } from '../util/sourceLineMap';
 
 suite('markdown.SourceLineMap', () => {
+	class LineElement {
+		updates = 0;
+		constructor(public line: string | null, readonly descendants: LineElement[] = []) { }
+		getAttribute(name: string): string | null {
+			assert.strictEqual(name, 'data-line');
+			return this.line;
+		}
+		setAttribute(name: string, value: string): void {
+			assert.strictEqual(name, 'data-line');
+			this.line = value;
+			this.updates++;
+		}
+		querySelectorAll(selector: string): LineElement[] {
+			assert.strictEqual(selector, '[data-line]');
+			return this.descendants;
+		}
+	}
+
+	test('synchronizes unchanged moved blocks and their descendants from incoming source lines', () => {
+		const child = new LineElement('1');
+		const alpha = new LineElement('0', [child]);
+		const beta = new LineElement('2');
+		updateSourceLineAttributes(alpha, new LineElement('2', [new LineElement('3')]));
+		updateSourceLineAttributes(beta, new LineElement('4'));
+		const map = new SourceLineMap([{ line: -1, name: 'body' }, { line: Number(alpha.line), name: 'Alpha' }, { line: Number(beta.line), name: 'Beta' }]);
+		assert.deepStrictEqual(
+			{ lines: [alpha.line, child.line, beta.line], sourceLine2: map.getElementsForSourceLine(2).previous.name },
+			{ lines: ['2', '3', '4'], sourceLine2: 'Alpha' }
+		);
+	});
+
+	test('does not create absent mappings or rewrite unchanged source-line attributes', () => {
+		const child = new LineElement('2');
+		const root = new LineElement(null, [child]);
+		updateSourceLineAttributes(root, new LineElement(null, [new LineElement('2')]));
+		assert.deepStrictEqual({ lines: [root.line, child.line], writes: [root.updates, child.updates] }, { lines: [null, '2'], writes: [0, 0] });
+	});
+
 	function mapLines(lines: readonly number[], targets: readonly number[]) {
 		const body = { line: -1 };
 		const elements = [body, ...lines.map(line => ({ line }))] as const;
