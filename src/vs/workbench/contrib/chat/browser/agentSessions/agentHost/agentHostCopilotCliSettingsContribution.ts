@@ -9,7 +9,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
-import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
@@ -77,6 +77,24 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 					&& this._configurationService.getValue<boolean>(AgentHostHydraFusionEnabledSettingId) === true,
 				registerTriggers: (store, push) => {
 					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
+			},
+			{
+				key: CopilotCliConfigKey.Memory,
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._configurationService.getValue<boolean>(AgentHostCopilotMemoryEnabledSettingId) === true,
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, AgentHostCopilotMemoryEnabledSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
+			},
+			{
+				key: CopilotCliConfigKey.LocalMemory,
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._configurationService.getValue<boolean>(AgentHostCopilotLocalMemoryEnabledSettingId) === true,
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, AgentHostCopilotLocalMemoryEnabledSettingId);
 					store.add(this._defaultAccountService.onDidChangePolicyData(push));
 				},
 			},

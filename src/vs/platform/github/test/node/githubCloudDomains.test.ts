@@ -797,6 +797,33 @@ suite('GitHub cloud domains', () => {
 			}
 		}
 
+		test('keeps unclassified REST waits separate from cloud request admission', async () => {
+			let calls = 0;
+			const fixture = direct(async () => ++calls === 1
+				? json(task())
+				: json({ message: 'rate limit' }, 429, { 'retry-after': '30' }));
+			const cloudAccount = { host: 'api.githubcopilot.com', accountId: JSON.stringify(['api.github.com', '101']) };
+			fixture.transport.rateLimits.updateFromResponse(cloudAccount, new Response(null, {
+				status: 403, headers: { 'x-ratelimit-resource': 'custom_resource', 'retry-after': '120' },
+			}), undefined, 'core');
+			const restOnly = {
+				core: fixture.transport.rateLimits.getRequestDelay(cloudAccount, 'core'),
+				agents: fixture.transport.rateLimits.getRequestDelay(cloudAccount, 'agents'),
+			};
+			const result = await fixture.cloudTasks.get('task-1', signal());
+			await assert.rejects(fixture.cloudTasks.get('task-2', signal()), { kind: 'rateLimit', statusCode: 429 });
+			assert.deepStrictEqual({
+				result, calls, restOnly,
+				core: fixture.transport.rateLimits.getRequestDelay(cloudAccount, 'core'),
+				agents: fixture.transport.rateLimits.getRequestDelay(cloudAccount, 'agents'),
+				graphql: fixture.transport.rateLimits.getRequestDelay(cloudAccount, 'graphql'),
+				timers: fixture.clock.pendingCount,
+			}, {
+				result: task(), calls: 2, restOnly: { core: 120_000, agents: 0 },
+				core: 120_000, agents: 30_000, graphql: 0, timers: 0,
+			});
+		});
+
 		test('shares cloud cooldowns across leases without assuming REST quota parity', async () => {
 			const fixture = setup(() => json({ message: 'rate limit' }, 429, { 'retry-after': '120', 'x-ratelimit-resource': 'core' }));
 			await assert.rejects(fixture.client.cloudTasks.get('task-1', signal()), { kind: 'rateLimit' });

@@ -587,6 +587,52 @@ suite('ChatEntitlementService', () => {
 		});
 	});
 
+	const availabilityChanges: { name: string; before: ChatEntitlementService['quotas']; after: ChatEntitlementService['quotas'] }[] = [
+		{
+			name: 'additional usage permission',
+			before: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: true },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: false },
+		},
+		{
+			name: 'pooled allowance availability',
+			before: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: true } },
+			after: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: false } },
+		},
+		{
+			name: 'premium allowance becomes limited',
+			before: { premiumChat: { percentRemaining: 0, unlimited: true } },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'session rate limit becomes limited',
+			before: { sessionRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { sessionRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'weekly rate limit becomes limited',
+			before: { weeklyRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { weeklyRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+	];
+	for (const { name, before, after } of availabilityChanges) {
+		test(`signals quota availability changes without a percentage change: ${name}`, () => {
+			const service = createService();
+			service.acceptQuotas(before);
+			let changes = 0;
+			store.add(service.onDidChangeQuotaRemaining(() => changes++));
+
+			service.acceptQuotas(after);
+			const afterChange = changes;
+			service.acceptQuotas(after);
+			const afterIdenticalSnapshot = changes;
+			service.acceptQuotas(before);
+
+			assert.deepStrictEqual({ afterChange, afterIdenticalSnapshot, afterRecovery: changes }, {
+				afterChange: 1, afterIdenticalSnapshot: 1, afterRecovery: 2,
+			});
+		});
+	}
+
 	test('merges defined snapshot fields until the snapshot is removed', () => {
 		const service = createService();
 		service.acceptQuotas({

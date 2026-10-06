@@ -1307,6 +1307,167 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('discovery cannot claim a current identity owned by another provider', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'ahp-session:/shared-backing';
+		const first = await database.registerRuntimeSession(session, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true, discoveryBackingSession: 'claude:/shared-backing' });
+		const second = await database.registerRuntimeSession(session, { provider: 'codex', startTime: 2, modifiedTime: 3, source: 'discovery' }, { checkTombstone: true, discoveryBackingSession: 'codex:/shared-backing' });
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			registration: await database.getSessionV2Registration(session),
+		}, {
+			first: true,
+			second: false,
+			registration: { session, provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+		});
+	});
+
+	test('discovery cannot claim an identity reserved by another provider exclusion', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'ahp-session:/excluded-backing';
+		await database.markSessionsV2Excluded({
+			provider: 'claude',
+			session,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const registered = await database.registerRuntimeSession(session, {
+			provider: 'codex',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: 'codex:/excluded-backing',
+		});
+
+		assert.deepStrictEqual({
+			registered,
+			registration: await database.getSessionV2Registration(session),
+			exclusions: await database.listAllSessionsV2Exclusions(),
+		}, {
+			registered: false,
+			registration: undefined,
+			exclusions: [{ provider: 'claude', session, reason: 'staleExternal', fingerprint: 'test' }],
+		});
+	});
+
+	test('canonical discovery cannot bypass backing identity ownership', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const backing = 'claude:/owned-backing';
+		const canonical = 'ahp-session:/owned-backing';
+		await database.registerRuntimeSession(backing, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true, discoveryBackingSession: backing });
+
+		const claimed = await database.registerRuntimeSession(canonical, {
+			provider: 'claude',
+			startTime: 2,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: backing,
+		});
+		await database.markSessionsV2Excluded({
+			provider: 'claude',
+			session: canonical,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		assert.deepStrictEqual({
+			claimed,
+			backing: await database.getSessionV2Registration(backing),
+			canonical: await database.getSessionV2Registration(canonical),
+			exclusions: await database.listAllSessionsV2Exclusions(),
+		}, {
+			claimed: false,
+			backing: { session: backing, provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+			canonical: undefined,
+			exclusions: [],
+		});
+	});
+
+	test('canonical discovery cannot bypass a backing identity exclusion', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const backing = 'claude:/excluded-backing-alias';
+		const canonical = 'ahp-session:/excluded-backing-alias';
+		await database.markSessionsV2Excluded({
+			provider: 'claude',
+			session: backing,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const claimed = await database.registerRuntimeSession(canonical, {
+			provider: 'claude',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: backing,
+		});
+
+		assert.deepStrictEqual({
+			claimed,
+			canonical: await database.getSessionV2Registration(canonical),
+			exclusions: await database.listAllSessionsV2Exclusions(),
+		}, {
+			claimed: false,
+			canonical: undefined,
+			exclusions: [{ provider: 'claude', session: backing, reason: 'staleExternal', fingerprint: 'test' }],
+		});
+	});
+
+	test('non-native provider exclusions do not alias standard session identities', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const standard = 'ahp-session:/shared';
+		const custom = 'custom-provider:/shared';
+		await database.registerRuntimeSession(standard, { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+
+		await database.markSessionsV2Excluded({
+			provider: 'custom-provider',
+			session: custom,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		assert.deepStrictEqual(await database.listAllSessionsV2Exclusions(), [{
+			provider: 'custom-provider',
+			session: custom,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		}]);
+	});
+
+	test('discovery ignores exclusion keys whose session only has a matching suffix', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const canonical = 'ahp-session:/x';
+		await database.markSessionsV2Excluded({
+			provider: 'custom-provider',
+			session: 'custom:/prefixahp-session:/x',
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const registered = await database.registerRuntimeSession(canonical, {
+			provider: 'codex',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: 'codex:/x',
+		});
+
+		assert.deepStrictEqual({
+			registered,
+			registration: await database.getSessionV2Registration(canonical),
+		}, {
+			registered: true,
+			registration: { session: canonical, provider: 'codex', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+		});
+	});
+
 	test('payload-versioned markers do not alter old marker semantics', async () => {
 		database = new AgentHostDatabase(':memory:');
 		await database.markSessionRegistryBackfilled();
@@ -1398,6 +1559,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		]);
 
 		assert.deepStrictEqual(await database.listSessionsV2Exclusions('copilot'), [
+			{ provider: 'copilot', session: 'copilot:/a', reason: 'staleExternal', fingerprint: '1' },
+			{ provider: 'copilot', session: 'copilot:/b', reason: 'backing', fingerprint: 'backing-v1' },
+		]);
+		assert.deepStrictEqual(await database.listAllSessionsV2Exclusions(), [
+			{ provider: 'claude', session: 'claude:/c', reason: 'subagent', fingerprint: 'uri-v1' },
 			{ provider: 'copilot', session: 'copilot:/a', reason: 'staleExternal', fingerprint: '1' },
 			{ provider: 'copilot', session: 'copilot:/b', reason: 'backing', fingerprint: 'backing-v1' },
 		]);

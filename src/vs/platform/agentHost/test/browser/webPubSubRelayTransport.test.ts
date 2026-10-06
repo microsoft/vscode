@@ -185,7 +185,7 @@ suite('WebPubSubRelayTransport', () => {
 		const transport = createTransport(fake, {}, logService);
 		await connectHandshake(transport, fake);
 		fake.onmessage?.({ data: '{"secret-token": invalid' });
-		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: {} });
 		await timeout(30_001);
 		assert.deepStrictEqual(messages, [
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
@@ -205,6 +205,130 @@ suite('WebPubSubRelayTransport', () => {
 			[BROADCAST, TO_CLIENT],
 		);
 		assert.strictEqual(transport.isOpen, true);
+	});
+
+	for (const method of ['initialize', 'reconnect']) {
+		test(`bounds an unanswered ${method} even when Azure acknowledges publication`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fake = new FakeWebSocket();
+			const errors: string[] = [];
+			let closes = 0;
+			const transport = createTransport(fake, { onProtocolError: error => errors.push(String(error)) });
+			store.add(transport.onClose(() => closes++));
+			await connectHandshake(transport, fake);
+			transport.send({ jsonrpc: '2.0', id: 1, method, params: {} });
+			for (const publish of fake.sentOfType('sendToGroup')) {
+				fake.emit({ type: 'ack', ackId: publish['ackId'], success: true });
+			}
+			await timeout(20_000);
+			fake.emitGroupMessage(1, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', method: 'unrelated' } }, BROADCAST);
+			await timeout(9999);
+			const before = transport.isOpen;
+			await timeout(1);
+			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentOfType('sendToGroup').length }, {
+				before: true, open: false, closes: 1, errors: ['Error: WPS host handshake timed out'], publishes: 1,
+			});
+		}));
+	}
+
+	test('a matching handshake response cancels its deadline and a later handshake gets a new one', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: true });
+		await timeout(29_000);
+		fake.emitGroupMessage(1, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		await timeout(2000);
+		const initialized = transport.isOpen;
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'reconnect', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[1]['ackId'], success: true });
+		await timeout(29_999);
+		const reconnecting = transport.isOpen;
+		await timeout(1);
+		assert.deepStrictEqual({ initialized, reconnecting, open: transport.isOpen }, { initialized: true, reconnecting: true, open: false });
+	}));
+
+	test('a progressing chunked handshake response keeps recovery alive until reassembly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: true });
+		const segments = chunk({ jsonrpc: '2.0', id: 1, result: { snapshot: 'x'.repeat(1000) } }, { maxChunkBytes: 512 });
+		await timeout(25_000);
+		for (const [index, segment] of segments.slice(0, -1).entries()) {
+			fake.emitGroupMessage(index + 1, { ...segment, generation: 7 });
+		}
+		await timeout(10_000);
+		const receiving = transport.isOpen;
+		fake.emitGroupMessage(segments.length, { ...segments[segments.length - 1], generation: 7 });
+		await timeout(30_000);
+		assert.deepStrictEqual({ receiving, open: transport.isOpen }, { receiving: true, open: true });
+		transport.dispose();
+	}));
+
+	test('pins the handshake generation, discards stale frames and honors only its closure notice', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'c1', protocolVersions: ['0.9.0'] } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 12, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 11, data: { jsonrpc: '2.0', method: 'stale' } }, BROADCAST);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 11 } });
+		fake.emit({ type: 'message', from: 'group', group: BROADCAST, dataType: 'json', data: { kind: 'closed', generation: 12 } });
+		assert.strictEqual(transport.isOpen, true);
+		assert.strictEqual(received.length, 1);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 12 } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('a later-generation answer to an outstanding request detects a lost closure notice', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'c1', protocolVersions: ['0.9.0'] } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 1, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: {} });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 2, data: { jsonrpc: '2.0', id: 2, result: {} } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('a previous connection closure cannot end the pending reconnect handshake', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const messages: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => messages.push(message)));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: { clientId: 'c1', subscriptions: [], lastSeenServerSeq: 0 } });
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 11 } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 11, data: { jsonrpc: '2.0', id: 99, result: {} } });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 12, data: { jsonrpc: '2.0', id: 1, error: { code: -32008, message: 'Not found' } } });
+		assert.strictEqual(transport.isOpen, true);
+		assert.strictEqual(messages.length, 1);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 12 } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('a handshake response from an already closed connection cannot establish the transport', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'c1', protocolVersions: ['0.9.0'] } });
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 11 } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 11, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('delivers batch items in order and accepts legacy envelopes without a generation', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		await connectHandshake(transport, fake);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'batch', items: [{ jsonrpc: '2.0', id: 1, result: {} }, { jsonrpc: '2.0', id: 2, result: {} }] } });
+		assert.deepStrictEqual(received.map(message => hasKey(message, { id: true }) ? message.id : undefined), [1, 2]);
 	});
 
 	test('rejects the connect when a joinGroup ack reports failure', async () => {
@@ -511,6 +635,44 @@ suite('WebPubSubRelayTransport', () => {
 			});
 		});
 	}
+
+	test('refuses plaintext credentials before publishing when sealed authentication is required', async () => {
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket);
+		await connectHandshake(transport, socket);
+		assert.throws(() => transport.send({
+			jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'plaintext-test-credential' },
+		}), /Refusing to send plaintext/);
+		assert.deepStrictEqual(socket.sentOfType('sendToGroup'), []);
+	});
+
+	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'relay', connectionId: 'client', transport: 'webpubsub' },
+			fileService, new NullLogService(),
+		));
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket, { ahpLogger: logger });
+		await connectHandshake(transport, socket);
+		const request: JsonRpcRequest = {
+			jsonrpc: '2.0', id: 1, method: 'authenticate',
+			params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.replayable-ciphertext' },
+		};
+		transport.send(request);
+		await logger.flush();
+		const transcript = (await fileService.readFile(logger.resource)).value.toString();
+		assert.deepStrictEqual({
+			ciphertextLogged: transcript.includes('replayable-ciphertext'),
+			redacted: transcript.includes('[REDACTED]'),
+			published: socket.sentOfType('sendToGroup')[0]['data'],
+		}, {
+			ciphertextLogged: false,
+			redacted: true,
+			published: { kind: 'message', data: request },
+		});
+	});
 
 	test('publishes outbound messages to the to_host lane as sendToGroup frames', async () => {
 		const fake = new FakeWebSocket();

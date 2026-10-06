@@ -9,6 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -33,7 +34,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../services/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { TestTextResourceConfigurationService } from '../../workbenchTestServices.js';
 import { configureChatPetFixtureFileRoot, FixtureChatPetService } from '../chat/chatPetFixtureUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 
 type UsageState = 'both' | 'weeklyOnly' | 'fiveHourOnly' | 'unavailable' | 'withoutReset';
 type HoveredLimit = 'fiveHour' | 'weekly';
@@ -99,7 +100,12 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 			});
 			registry.definePartialInstance(IAuthenticationService, {
 				onDidChangeSessions: Event.None,
-				getSessions: async () => [],
+				getSessions: async () => [{
+					id: defaultAccount.sessionId,
+					accessToken: '',
+					account: { id: 'fixture-account', label: defaultAccount.accountName, icon: URI.parse(profileImageDataUri) },
+					scopes: [],
+				}],
 			});
 			registry.definePartialInstance(ICodexAccountService, {
 				agent: 'codex',
@@ -150,6 +156,11 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 	if (!panel) {
 		throw new Error('Account popover fixture did not open the account panel.');
 	}
+	await waitForFixtureCondition(() => {
+		const images = [...container.querySelectorAll<HTMLImageElement>('img')];
+		return images.length === 2 && images.every(image => image.hasAttribute('src') && image.complete && image.naturalWidth > 0);
+	}, 'Account popover fixture did not load both local avatars');
+	await Promise.all([...container.querySelectorAll<HTMLImageElement>('img')].map(image => image.decode()));
 	if (hoveredLimit) {
 		const rateLimitRows = panel.querySelectorAll<HTMLElement>('.sessions-account-titlebar-panel-provider-metric-row.secondary[tabindex="0"]');
 		const row = rateLimitRows[hoveredLimit === 'fiveHour' ? 0 : 1];
@@ -168,31 +179,38 @@ async function renderAccountMenu(context: ComponentFixtureContext, usageState: U
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	WeeklyAndFiveHourLimits: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderAccountMenu(context, 'both'),
 	}),
 	WeeklyLimitOnly: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'weeklyOnly'),
 	}),
 	FiveHourLimitOnly: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'fiveHourOnly'),
 	}),
 	UsageUnavailable: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'unavailable'),
 	}),
 	LimitsWithoutReset: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'withoutReset'),
 	}),
 	FiveHourLimitHover: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'both', 'fiveHour'),
 	}),
 	WeeklyLimitHover: defineComponentFixture({
+		deferPaint: true,
 		labels: { kind: 'screenshot' },
 		render: context => renderAccountMenu(context, 'both', 'weekly'),
 	}),

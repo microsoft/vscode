@@ -75,6 +75,8 @@ The Agents Window Dev Container suites require a reachable Linux Docker daemon. 
 
 Each selected Dev Container suite checks Docker in its first setup hook, before starting fixture resources, with a fresh `docker info` probe and a 60-second timeout. The probe runs asynchronously and logs its elapsed time and failure reason. Filtered-out suites do not probe Docker. Missing Docker fails the suite on Linux and for an explicitly requested Tunnel test; optional local runs on other platforms are skipped.
 
+The shared container fixture reads the selected desktop's product quality and commit. It first tries to install the exact commit's CLI into the product's commit-keyed server directory, including the runtime's `-dev` suffix when running from source. Unpublished commits fall back explicitly to the latest CLI in the same quality channel, installed in the quality-specific legacy directory so the production installer can discover it. Source runs without a product commit use latest directly. Downloads are checked before extraction, and installation failures fail container preparation.
+
 Run the local and SSH Dev Container cases:
 
 ```bash

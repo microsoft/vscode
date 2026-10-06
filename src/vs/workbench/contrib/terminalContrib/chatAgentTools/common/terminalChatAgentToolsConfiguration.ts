@@ -9,7 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { SandboxSettingsResolutionHelper } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { sortAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/sortAutoApproveRules.js';
@@ -569,7 +569,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) !== false),
 		order: 20,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDescription: localize('agentSandbox.allowNetwork', "Allow the sandboxed process to reach the Internet."),
+		markdownDescription: localize('agentSandbox.allowNetwork', "Allow outbound network access in the sandbox (`allowOutbound` in the SDK). Configured allowed and denied network domains still restrict destinations. When disabled, outbound network access is blocked, including for the integrated browser."),
 		type: 'boolean',
 		default: true,
 		restricted: true,
@@ -640,6 +640,24 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		order: 50,
 		keywords: ['Sandbox', 'sandboxing'],
 		markdownDescription: localize('agentSandbox.lspServers', "Controls whether LSP servers run in the sandbox when sandboxing is enabled."),
+		type: 'boolean',
+		default: true,
+		restricted: true,
+	},
+	[AgentSandboxSettingId.AgentSandboxAuthenticateGit]: {
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_AUTH_GIT_KEY) !== false),
+		order: 51,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.authenticateGit', "Use your credentials for HTTPS git operations inside the sandbox. Applies only to the Copilot Agent Host harness."),
+		type: 'boolean',
+		default: true,
+		restricted: true,
+	},
+	[AgentSandboxSettingId.AgentSandboxAuthenticateGh]: {
+		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_AUTH_GH_KEY) !== false),
+		order: 52,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.authenticateGh', "Use your GitHub account for gh commands inside the sandbox. Applies only to the Copilot Agent Host harness."),
 		type: 'boolean',
 		default: true,
 		restricted: true,

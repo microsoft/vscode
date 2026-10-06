@@ -11,6 +11,7 @@ import { isUUID } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatOrigin } from '../common/state/protocol/state.js';
 import { AH_META_IS_READ_DB_KEY, buildChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
@@ -85,7 +86,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	/** Recovers legacy peer membership only when a restored chat-selection phantom is independently verified. */
 	async recoverChatSelectionCorruption(session: URI, phantomChatIds: readonly string[]): Promise<{ readonly entries: readonly IPersistedPeerChat[]; readonly verifiedPhantomChatIds: readonly string[] } | undefined> {
-		if (session.scheme !== 'copilotcli' || session.authority || session.query || session.fragment || !isUUID(session.path.slice(1)) || !this._sessionDataService.listSessionDataIds) {
+		if (AgentSession.provider(session) !== COPILOT_CLI_AGENT_PROVIDER_ID || session.authority || session.query || session.fragment || !isUUID(session.path.slice(1)) || !this._sessionDataService.listSessionDataIds) {
 			return undefined;
 		}
 		const dataIds = await this._sessionDataService.listSessionDataIds('');

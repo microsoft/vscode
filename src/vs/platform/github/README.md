@@ -52,7 +52,7 @@ The hosting binding must explicitly supply `GitHubClientOptions.cloud`: the comp
 - Lists fetch at most ten pages of at most 100 items each, hydrating definitions in batches of five. A capped result explicitly reports `complete: false` and `nextPage`; failed or malformed pages reject rather than appear empty or complete. One credential generation is captured for the entire operation.
 - Connect/reconnect return either a validated connection token or a waking result. HTTP 202 `Retry-After` is returned to the caller, not treated as a rate limit. An absent header remains `undefined`; reconnect timing belongs to the caller.
 
-All domains use the existing client transport, runtime admission queue and telemetry. Agents quota feedback is isolated from ordinary REST/GraphQL quotas and uses explicit HTTP 429/rate-limited 403 refusals, not assumed REST quota headers. Cloud requests never follow redirects. Connection-credential GETs are non-coalesced, non-cached, and non-retried; connection material and cloud error bodies are never retained in diagnostics. Ordinary reads retain authorization-scoped conditional caching and bounded transient retries.
+All domains use the existing client transport, runtime admission queue and telemetry. Agents quota feedback is isolated from ordinary REST/GraphQL quotas and uses explicit HTTP 429/rate-limited 403 refusals, not assumed REST quota headers. Unclassified REST resource waits remain REST-only. Cloud requests never follow redirects. Connection-credential GETs are non-coalesced, non-cached, and non-retried; connection material and cloud error bodies are never retained in diagnostics. Ordinary reads retain authorization-scoped conditional caching and bounded transient retries.
 
 Writes, including credential-minting GETs, are never automatically replayed. Definite pre-dispatch failures and HTTP 4xx refusals reject normally; unconfirmed post-dispatch outcomes throw `GitHubCloudMutationUncertainError`. Callers own reconciliation and any subsequent decision to retry. UI/provider registration, scheduling, policy, relay/WebSocket/AHP lifecycle and shared-process authentication are outside these capabilities.
 
@@ -121,6 +121,10 @@ Internal requests carry caller attribution and a deadline. Current transport def
 
 HTTP error classification, response telemetry and cooldowns share the same quota-evidence check. A generic HTTP 403 with "Rate Limit Exceeded" wording remains an authorization failure unless valid exhausted-quota or `Retry-After` headers, an explicit primary message without usable remaining-quota feedback, or explicit secondary-limit evidence establish throttling. HTTP 429 still establishes throttling; malformed refusal headers do not invent cooldowns, healthy quota observations do not erase existing waits, and storage-origin download denials do not establish GitHub account limits. Later exhausted-quota responses extend existing waits while preserving `Retry-After` precedence.
 
+REST admission recognizes fixed core, checks, code-search, semantic-search and other-search route families, including the Enterprise `/api/v3` prefix. Checks also honor legacy core waits; specialized searches honor legacy search waits, and code search honors its expanded bucket. This deliberately favors safe backoff over exact credential-specific quota isolation.
+
+An unexpected REST resource uses one account-scoped REST cooldown in the existing storage instead of a learned route mapping. This aggregate stores only deadlines derived from each response's own validated hints, not quota counters from unrelated resources. Valid server retry/reset timing governs admission, retries, authenticated downloads and bootstrap waiters; an exhausted successful response also establishes a wait. Such a wait can delay otherwise independent REST requests, but does not block another account or GraphQL. REST admission waits are separate from identity's core/secondary cooldown checks, so token renewal does not promote an unrelated REST wait into credential resolution; cooldowns returned by the identity request itself remain enforced. Successful identity responses preserve their fallback on the resolved account and renewal gate before bootstrap cleanup. HTTP quota counters and retry hints are validated strictly, and healthy feedback cannot erase a live wait.
+
 ### Request identification
 
 Bindings supply trusted product/channel/version and originating component/version metadata. Configured GitHub endpoints receive `X-Client-Application`, `X-Client-Source`, an allowlisted `X-Client-Feature`, and `X-Is-Retry` on Node egress. Shared reads retain the initiating caller's attribution; arbitrary caller strings are never sent.
@@ -159,19 +163,25 @@ The helper does not promise full Chromium parity: SOCKS4/4a, native NTLM, ordere
 
 This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
 
-Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
+### Public repository files
 
-```powershell
-npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
-.\scripts\test.bat --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'Workbench GitHub service|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
-```
+[The anonymous client](common/anonymousClient.ts) exposes `get` and `getFile` directly. Both accept a `signal` of type `GitHubCancellation` (`AbortSignal | CancellationToken`) and anonymous read options. `get` stays confined to JSON reads under `apiBaseUri`. `getFile` resolves `GET /repos/{owner}/{repo}/commits/HEAD`, validates the commit SHA, then downloads `/{owner}/{repo}/{commitSha}/{path}` from `rawBaseUri`. It makes one REST API read and one raw-content download, with no Contents API request or `download_url` lookup.
 
-Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.
+The two operations share one normalized signal and an absolute deadline (five minutes by default). Caller attribution, priority, and deadline apply to both; representation and ETag options apply only to the commit API read. Raw content is returned as UTF-8 text without JSON/base64 parsing, preserving its BOM and whitespace. The existing 1 MiB client byte limit still applies and oversized content fails explicitly. Callers own the anonymous client lease; `getFile` neither acquires another lease nor releases the caller's lease.
+
+Raw downloads use the same host-local fetch, admission queue, bounded body reader, cancellation and deadline handling as other engine traffic, but their quota identity is the raw origin rather than the API origin. A REST quota cooldown does not block a different raw origin; raw throttling is retained independently and does not block the API origin. Every raw request omits credentials, referrers, authorization and API-identification headers. Redirects must stay on the configured raw origin within the pinned repository/commit path.
+
+[The shared cancellation helper](common/cancellation.ts), `toAbortSignal`, passes existing signals and their abort reasons through unchanged. It converts tokens to signals that abort with `CancellationError`, registering the listener in the operation's disposable store. The anonymous client disposes its operation stores on success, failure, or cancellation. The GitHub IPC boundary passes its token directly to `get`; the internal request engine continues to use `AbortSignal`.
+
+`acquireAnonymousClient()` defaults to GitHub.com's API and `https://raw.githubusercontent.com`. Host options may override `rawBaseUri`; it is part of client identity along with `apiBaseUri`. An explicit non-GitHub.com API endpoint must also configure its raw base before using `getFile` (JSON `get` calls still work without it). Raw-host mappings are not guessed for Enterprise deployments. API and raw base URIs must be HTTPS and cannot contain credentials, a query or a fragment.
+
+Dev Container sample preparation leases the default anonymous client from the owning host's local `IGitHubService`, passes its `CancellationToken` directly to `client.getFile` with caller `devContainerSample` and interactive priority, and releases the lease when the read settles. There is no caller-side cancellation adapter or desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client or create a token adapter.
+
+Desktop sample reads inherit the shared-process proxy and certificate behavior and its documented Chromium-compatibility limits above. Standalone hosts retain their local `AgentHostProxyResolver.fetch` binding.
 
 ### Telemetry
 
-[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active five-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, plus at most ten reservoir-sampled `githubRequestTiming` events. Disposal flushes completed observations best-effort; idle engines emit nothing.
+[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active ten-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, plus at most ten reservoir-sampled `githubRequestTiming` events. Disposal flushes completed observations best-effort; idle engines emit nothing.
 
 Bindings notify the collector immediately when usage telemetry is disabled, discarding buffered aggregates and invalidating completion handles even if no request or timer callback runs during the opt-out.
 

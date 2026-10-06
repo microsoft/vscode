@@ -32,6 +32,8 @@ export const enum AgentHostSandboxKey {
 	AllowUnsandboxedCommands = 'allowUnsandboxedCommands',
 	SandboxMcpServers = 'sandboxMcpServers',
 	SandboxLspServers = 'sandboxLspServers',
+	AuthenticateGit = 'authenticateGit',
+	AuthenticateGh = 'authenticateGh',
 	AllowDevToolAccess = 'allowDevToolAccess',
 	UserConfiguredPaths = 'fileSystem.userConfiguredPaths',
 	LinuxFileSystem = 'fileSystem.linux',
@@ -50,6 +52,8 @@ export type ISandboxConfigValue = Partial<{
 	[AgentHostSandboxKey.AllowUnsandboxedCommands]: boolean;
 	[AgentHostSandboxKey.SandboxMcpServers]: boolean;
 	[AgentHostSandboxKey.SandboxLspServers]: boolean;
+	[AgentHostSandboxKey.AuthenticateGit]: boolean;
+	[AgentHostSandboxKey.AuthenticateGh]: boolean;
 	[AgentHostSandboxKey.AllowDevToolAccess]: boolean;
 	[AgentHostSandboxKey.UserConfiguredPaths]: IAgentSandboxUserConfiguredPaths;
 	[AgentHostSandboxKey.LinuxFileSystem]: IAgentSandboxFileSystemSetting;
@@ -96,6 +100,14 @@ export const sandboxConfigSchema = createSchema({
 			[AgentHostSandboxKey.SandboxLspServers]: {
 				type: 'boolean',
 				title: localize('agentHost.config.sandbox.sandboxLspServers.title', "Sandbox LSP Servers"),
+			},
+			[AgentHostSandboxKey.AuthenticateGit]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.authenticateGit.title', "Authenticate git"),
+			},
+			[AgentHostSandboxKey.AuthenticateGh]: {
+				type: 'boolean',
+				title: localize('agentHost.config.sandbox.authenticateGh.title', "Authenticate gh"),
 			},
 			[AgentHostSandboxKey.AllowDevToolAccess]: {
 				type: 'boolean',
@@ -166,6 +178,8 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: AgentHostSandboxKey.AllowUnsandboxedCommands,
 	[AgentSandboxSettingId.AgentSandboxMcpServers]: AgentHostSandboxKey.SandboxMcpServers,
 	[AgentSandboxSettingId.AgentSandboxLspServers]: AgentHostSandboxKey.SandboxLspServers,
+	[AgentSandboxSettingId.AgentSandboxAuthenticateGit]: AgentHostSandboxKey.AuthenticateGit,
+	[AgentSandboxSettingId.AgentSandboxAuthenticateGh]: AgentHostSandboxKey.AuthenticateGh,
 	[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: AgentHostSandboxKey.AllowDevToolAccess,
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: AgentHostSandboxKey.UserConfiguredPaths,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,

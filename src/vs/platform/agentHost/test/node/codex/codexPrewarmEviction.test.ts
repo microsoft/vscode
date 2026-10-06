@@ -2764,7 +2764,7 @@ suite('CodexAgent prewarm eviction', () => {
 					turnAttempts: 3,
 					events: [{
 						name: 'agentHost.codexProviderSwitch',
-						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+						data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 					}],
 				});
 			} finally {
@@ -2877,7 +2877,7 @@ suite('CodexAgent prewarm eviction', () => {
 			quotaReads: 1,
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90, chatgptFiveHourQuotaState: 'missing' },
 			}],
 		});
 	});
@@ -2953,7 +2953,7 @@ suite('CodexAgent prewarm eviction', () => {
 				method: 'turn/start',
 				events: [{
 					name: 'agentHost.codexProviderSwitch',
-					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90 },
+					data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'signedIn', chatgptPlanTier: 'business', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 90, chatgptFiveHourQuotaState: 'missing' },
 				}],
 			});
 		} finally {
@@ -3093,7 +3093,7 @@ suite('CodexAgent prewarm eviction', () => {
 			method: 'turn/start',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+				data: { fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 			}],
 		});
 
@@ -4283,7 +4283,7 @@ suite('CodexAgent prewarm eviction', () => {
 				success: response.result?.success,
 				approvalPending: entry.pendingCommandApprovals.has('tool-1'),
 			}, {
-				confirmations: scenario.requiresConfirmation ? ['Continue in app?'] : [],
+				confirmations: scenario.requiresConfirmation ? ['Change Workspace to app?'] : [],
 				executionsBeforeApproval: scenario.requiresConfirmation ? [0] : [],
 				executions: scenario.approved === false ? [] : [{ chatUri: defaultChatOf(session).toString(), toolName: tool.name }],
 				success: scenario.approved !== false,
@@ -4778,7 +4778,7 @@ suite('CodexAgent prewarm eviction', () => {
 			threadId: 'desktop-thread',
 			events: [{
 				name: 'agentHost.codexProviderSwitch',
-				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+				data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: true, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 			}],
 		});
 		peer.exit();

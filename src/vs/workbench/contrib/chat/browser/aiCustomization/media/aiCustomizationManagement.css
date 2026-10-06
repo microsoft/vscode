@@ -1936,6 +1936,23 @@ per-word capitalization does not survive translation. */
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-settings-link {
+	margin-inline-start: var(--vscode-spacing-size40);
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-settings-link:hover,
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-settings-link:active {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.ai-customization-management-editor .embedded-mcp-detail .mcp-detail-definition-settings-link:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
 .ai-customization-management-editor .embedded-mcp-detail .embedded-detail-leading-slot:empty {
 	display: none;
 }
@@ -3867,6 +3884,11 @@ per-word capitalization does not survive translation. */
 	outline-offset: var(--vscode-strokeThickness);
 }
 
+/* A provider name reads as prose rather than a file path, so it keeps the proportional description font. */
+.ai-customization-management-editor .embedded-mcp-detail .editor-item-path.provenance {
+	font-family: inherit;
+}
+
 .ai-customization-management-editor .editor-save-indicator {
 	flex-shrink: 0;
 	width: 16px;
@@ -3901,6 +3923,11 @@ per-word capitalization does not survive translation. */
 	font-size: 12px;
 	line-height: 24px;
 	transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+.ai-customization-management-editor .migration-detail-action.monaco-button {
+	width: auto;
+	flex-shrink: 0;
 }
 
 .ai-customization-management-editor .editor-mode-button:hover {

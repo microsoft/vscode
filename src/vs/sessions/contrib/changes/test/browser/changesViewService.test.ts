@@ -14,7 +14,7 @@ import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../platf
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IChatDeletedEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { BRANCH_CHANGES_CHANGESET_ID, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SESSION_CHANGES_CHANGESET_ID, SessionChangesetOperationScope, SessionChangesetOperationStatus, TURN_CHANGES_CHANGESET_ID, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IAgentFeedbackService } from '../../../agentFeedback/browser/agentFeedbackService.js';
@@ -121,7 +121,7 @@ suite('ChangesViewService', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', initialSession);
 		const onDidReplaceSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const onDidDeleteSession = disposables.add(new Emitter<ISession>());
-		const onDidDeleteChat = disposables.add(new Emitter<ISession>());
+		const onDidDeleteChat = disposables.add(new Emitter<IChatDeletedEvent>());
 		const onDidDiscardNewSession = disposables.add(new Emitter<ISession>());
 		const onDidReplaceNewDraftSession = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		const sessionsService = new class extends mock<ISessionsService>() {
@@ -492,6 +492,7 @@ suite('ChangesViewService', () => {
 			changes: constObservable([]),
 			changesets: constObservable([branchChangeset, mainSessionChangeset, lastTurnChangeset]),
 		});
+
 		const peerChat = upcastPartial<IChat>({
 			resource: URI.from({ scheme: 'test-chat', path: '/peer' }),
 			workspace: constObservable(undefined),
@@ -544,6 +545,36 @@ suite('ChangesViewService', () => {
 			restoredPeerSelection: TURN_CHANGES_CHANGESET_ID,
 			unvisitedSelection: SESSION_CHANGES_CHANGESET_ID,
 			unrelatedSessionSelection: 'branch',
+		});
+	});
+
+	test('confirmed deletion removes only the exact owner when the chat catalogue is incomplete or stale', () => {
+		const branch = { ...createChangeset([]), id: 'branch' };
+		const turn = { ...createChangeset([]), id: TURN_CHANGES_CHANGESET_ID, isDefault: constObservable(false) };
+		const main = upcastPartial<IChat>({
+			resource: URI.parse('test-chat:/main'), workspace: constObservable(undefined),
+			changes: constObservable([]), changesets: constObservable([branch, turn]),
+		});
+		const peer = { ...main, resource: URI.parse('test-chat:/peer') };
+		const third = { ...main, resource: URI.parse('test-chat:/third') };
+		const activeChat = observableValue<IChat>('activeChat', main);
+		const chats = observableValue<readonly IChat[]>('chats', [main, peer, third]);
+		const session = createSession('a', { activeChat, chats, mainChat: constObservable(main) });
+		const { service, onDidDeleteChat } = createHarness(session);
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID);
+		activeChat.set(peer, undefined);
+		service.setChangesetId('branch');
+		activeChat.set(third, undefined);
+		service.setChangesetId(TURN_CHANGES_CHANGESET_ID);
+		activeChat.set(peer, undefined);
+		chats.set([], undefined);
+		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: main.resource });
+		const retainedPeer = service.activeSessionChangesetObs.get()?.id;
+		chats.set([main, peer, third], undefined);
+		activeChat.set(main, undefined);
+		const deletedMain = service.activeSessionChangesetObs.get()?.id;
+		assert.deepStrictEqual({ retainedPeer, deletedMain }, {
+			retainedPeer: 'branch', deletedMain: 'branch',
 		});
 	});
 

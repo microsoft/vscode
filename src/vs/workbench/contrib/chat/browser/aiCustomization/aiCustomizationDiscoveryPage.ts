@@ -9,6 +9,7 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
@@ -346,6 +347,8 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
 		const templateDisposables = new DisposableStore();
+		const loading = templateDisposables.add(createPixelSpinner(root, { variant: 'ring' })).element;
+		loading.classList.add('customization-discovery-result-loading');
 		const icon = DOM.append(root, $('.customization-discovery-result-icon'));
 		const identity = DOM.append(root, $('.customization-discovery-result-identity'));
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));

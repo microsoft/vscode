@@ -255,9 +255,15 @@ export class AgentHostAuthenticationRecovery {
 
 	private async _recover(accessor: ServicesAccessor, key: string, resource: ProtectedResourceMetadata, options: IResolvedAgentHostAuthenticationOptions): Promise<void> {
 		throwIfAuthenticationStale(options);
+		const logService = accessor.get(ILogService);
+		if (options.renewAuthentication) {
+			await options.renewAuthentication(resource);
+			throwIfAuthenticationStale(options);
+			logService.info(`${options.logPrefix} Renewed authentication for resource: ${resource.resource}`);
+			return;
+		}
 		const authenticationService = accessor.get(IAuthenticationService);
 		const commandService = accessor.get(ICommandService);
-		const logService = accessor.get(ILogService);
 		const scopes = resource.scopes_supported ?? [];
 		const quarantinePresent = options.authTokenCache?.getRejectedSession(resource.resource, scopes) !== undefined;
 		const resolution = await resolveSessionForProtectedResource(authenticationService, logService, resource, options, null);
@@ -473,6 +479,8 @@ export interface IAgentHostAuthenticationOptions {
 	readonly authTokenCache?: AgentHostAuthTokenCache;
 	readonly logPrefix: string;
 	readonly isCurrent?: () => boolean;
+	/** Renews a connection-owned credential instead of retrying or replacing the user's authentication session. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<void>;
 	readonly authenticate: (request: IAgentHostAuthenticateRequest) => Promise<unknown>;
 }
 

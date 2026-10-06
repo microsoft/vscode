@@ -711,13 +711,13 @@ describe('ChatMLFetcherImpl gitHubCopilotRequestTe over WebSocket', () => {
 	async function fetchOverWebSocket(envelopeValue: string | undefined, arrivesOn: 'response.created' | 'response.completed' = 'response.created') {
 		const spyingTelemetryService = new SpyingTelemetryService();
 		const mockFetcherService = new MockFetcherService();
-		const connection = createFakeWebSocketConnection(envelopeValue, arrivesOn, disposables);
-		const fetcher = new ChatMLFetcherImpl(
+		const connection = disposables.add(createFakeWebSocketConnection(envelopeValue, arrivesOn, disposables));
+		const fetcher = disposables.add(new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
 			spyingTelemetryService,
-			new NullRequestLogger(),
+			disposables.add(new NullRequestLogger()),
 			new TestLogService(),
-			new TestAuthenticationService() as unknown as IAuthenticationService,
+			disposables.add(new TestAuthenticationService()),
 			createMockInteractionService(),
 			createMockChatQuotaService(),
 			new TestCAPIClientService() as unknown as ICAPIClientService,
@@ -733,7 +733,7 @@ describe('ChatMLFetcherImpl gitHubCopilotRequestTe over WebSocket', () => {
 			]).seal() as unknown as IInstantiationService,
 			new FakeWebSocketManager(connection),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-		);
+		));
 		const cts = disposables.add(new CancellationTokenSource());
 		const result = await fetcher.fetchMany({
 			...createHelloOpts(createChatCompletionEndpointWithoutTools()),
@@ -777,6 +777,7 @@ describe('ChatMLFetcherImpl gitHubCopilotRequestTe over WebSocket', () => {
 			eventsWithProperty: events.filter(e => 'gitHubCopilotRequestTe' in (e.properties ?? {})).map(e => e.eventName),
 		}).toEqual({ resultHasProperty: false, eventsWithProperty: [] });
 	});
+
 });
 
 function createHelloOpts(endpoint: IChatEndpoint): IFetchMLOptions {

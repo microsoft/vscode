@@ -225,9 +225,33 @@ type ModelCallTurnCorrelatedClassification = {
 		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an interaction." },
 		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
 		"duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock duration of the tool execution in milliseconds.", "isMeasurement": true },
-		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Token count of the model-facing tool result, measured with the model tokenizer. Present only for successful results.", "isMeasurement": true },
+		"result_token_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Local runtime estimate of the tokens in the tool's explicit model-facing text output (o200k_base scaled by a per-model multiplier); not an exact model-tokenizer count or billed usage. Reported only for successful text results up to 20 KiB without binary or structured-reference content; absence does not mean zero.", "isMeasurement": true },
 		"binary_result_count": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of binary result parts returned by the tool.", "isMeasurement": true },
 		"binary_result_total_bytes": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total byte size of binary result parts returned by the tool.", "isMeasurement": true }
+	}
+*/
+
+/* __GDPR__
+	"copilotSdk/skill_invoked": {
+		"owner": "jruales",
+		"comment": "Existing runtime skill-invocation telemetry forwarded by the SDK. Standard rows identify skills by hash, including create-canvas; plaintext metadata is restricted telemetry only.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"event_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime skill invocation event identifier." },
+		"skill_name_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime SHA-256 hash of the skill name." },
+		"skill_content_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime hash of the skill content, never the content itself." },
+		"has_allowed_tools": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the skill defines allowed tools, encoded as a string boolean." },
+		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime-sanitized model requesting the skill; original model on restricted rows." },
+		"agent_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Subagent identifier when invoked by a subagent." },
+		"initiator": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime initiator category when supplied." },
+		"plugin_name_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime hash of the contributing plugin name." },
+		"plugin_version_hash": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime hash of the contributing plugin version." },
+		"skill_name": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Skill name; restricted telemetry only." },
+		"skill_path": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Skill path; restricted telemetry only." },
+		"skill_description": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Skill description; restricted telemetry only." },
+		"plugin_name": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Contributing plugin name; restricted telemetry only." },
+		"plugin_version": { "classification": "CustomerContent", "purpose": "FeatureInsight", "comment": "Contributing plugin version; restricted telemetry only." },
+		"skill_content_length": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Skill content length reported by the runtime." },
+		"allowed_tools_count": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of allowed tools declared by the skill." }
 	}
 */
 

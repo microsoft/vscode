@@ -45,6 +45,7 @@ import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { readCodexAccountInfo } from '../../../common/codexAccount.js';
 import type { GetAccountResponse } from '../../../node/codex/protocol/generated/v2/GetAccountResponse.js';
 import type { GetAccountRateLimitsResponse } from '../../../node/codex/protocol/generated/v2/GetAccountRateLimitsResponse.js';
+import { createNullSessionDataService } from '../../common/sessionTestHelpers.js';
 
 interface ITestAgentContext {
 	readonly agent: CodexAgent;
@@ -65,7 +66,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
 	configurationService.updateRootConfig(rootConfig);
-	instantiationService.stub(ISessionDataService, { _serviceBrand: undefined });
+	instantiationService.stub(ISessionDataService, createNullSessionDataService());
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models });
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
@@ -195,7 +196,7 @@ suite('CodexAgent model refresh', () => {
 			metadata: undefined,
 			migrated: AgentChatMigrationDeferred,
 			models: [],
-			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, observedAt: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
 		});
 
 		// Even an ambient catalog refresh must not cross the session boundary.
@@ -550,7 +551,7 @@ suite('CodexAgent model refresh', () => {
 		}, {
 			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
 			disposed: ['client', 'proxy', 'child'],
-			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, observedAt: undefined, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
 			connection: 'idle',
 		});
 	});
@@ -600,6 +601,7 @@ suite('CodexAgent model refresh', () => {
 				planType: 'plus',
 				profileImage: undefined,
 				requiresOpenaiAuth: true,
+				observedAt: undefined,
 				rateLimit: undefined,
 				rateLimits: undefined,
 				authUrl: undefined,
