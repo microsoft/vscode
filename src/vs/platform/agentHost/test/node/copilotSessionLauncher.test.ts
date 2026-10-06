@@ -2055,6 +2055,24 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('sends HydraFusion plan v2 only when both HydraFusion and plan v2 are opted in', async () => {
+		const store = disposables.add(new DisposableStore());
+		const hydraFusionFlags = async (config: Record<string, unknown>) => {
+			const featureFlags = (await buildResumeConfig(createLauncher(store, config), { id: 'hydrafusion' })).featureFlags ?? {};
+			return Object.fromEntries(Object.entries(featureFlags).filter(([key]) => key.startsWith('HYDRAFUSION')));
+		};
+
+		assert.deepStrictEqual({
+			planV2: await hydraFusionFlags({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionPlanV2]: true }),
+			hydraFusionOnly: await hydraFusionFlags({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionPlanV2]: false }),
+			planV2WithoutHydraFusion: await hydraFusionFlags({ [CopilotCliConfigKey.HydraFusion]: false, [CopilotCliConfigKey.HydraFusionPlanV2]: true }),
+		}, {
+			planV2: { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_PLAN_V2: true },
+			hydraFusionOnly: { HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true },
+			planV2WithoutHydraFusion: {},
+		});
+	});
+
 	test('configures repository-size-gated tgrep feature flag', async () => {
 		const store = disposables.add(new DisposableStore());
 		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
