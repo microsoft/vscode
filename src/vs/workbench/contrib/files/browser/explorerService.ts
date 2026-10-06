@@ -39,6 +39,8 @@ interface IExplorerMoveBatch {
 	readonly targets: ResourceMap<URI>;
 	readonly operations: Promise<void>[];
 	readonly refreshes: Map<ExplorerItem, boolean>;
+	readonly sourceParents: Set<ExplorerItem>;
+	readonly targetParents: Set<ExplorerItem>;
 }
 
 export class ExplorerService implements IExplorerService {
@@ -86,7 +88,7 @@ export class ExplorerService implements IExplorerService {
 						targets.set(source, target);
 					}
 				}
-				this.moveBatches.set(e.correlationId, { targets, operations: [], refreshes: new Map() });
+				this.moveBatches.set(e.correlationId, { targets, operations: [], refreshes: new Map(), sourceParents: new Set(), targetParents: new Set() });
 			}
 		}));
 		this.disposables.add(Event.any(workingCopyFileService.onDidRunWorkingCopyFileOperation, workingCopyFileService.onDidFailWorkingCopyFileOperation)(e => {
@@ -421,25 +423,37 @@ export class ExplorerService implements IExplorerService {
 		try {
 			// File service events are synchronous, but their model/view handlers can still be running.
 			await Promises.settled(batch.operations);
-			await Promises.settled(Array.from(batch.refreshes, async ([item, recursive]) => {
+			const refresh = async ([item, recursive]: [ExplorerItem, boolean]) => {
 				if (!this.disposables.isDisposed) {
 					await this.view?.refresh(recursive, item);
 				}
-			}));
+			};
+			const refreshes = Array.from(batch.refreshes);
+			// Reconcile every source before destinations, including parents that serve both roles.
+			const sources = Promises.settled(refreshes.filter(([item]) => batch.sourceParents.has(item) || !batch.targetParents.has(item)).map(refresh));
+			const refreshTargets = () => Promises.settled(refreshes.filter(([item]) => batch.targetParents.has(item)).map(refresh));
+			await Promises.settled([sources, sources.then(refreshTargets, refreshTargets)]);
 		} finally {
 			batch.targets.clear();
 			batch.operations.length = 0;
 			batch.refreshes.clear();
+			batch.sourceParents.clear();
+			batch.targetParents.clear();
 		}
 	}
 
-	private async refreshMove(recursive: boolean, item: ExplorerItem | undefined, batches: readonly IExplorerMoveBatch[]): Promise<void> {
+	private async refreshMove(recursive: boolean, item: ExplorerItem | undefined, batches: readonly IExplorerMoveBatch[], role?: 'source' | 'target'): Promise<void> {
 		if (this.disposables.isDisposed) {
 			return;
 		}
 		if (item && batches.length) {
 			for (const batch of batches) {
 				batch.refreshes.set(item, recursive || batch.refreshes.get(item) === true);
+				if (role === 'source') {
+					batch.sourceParents.add(item);
+				} else if (role === 'target') {
+					batch.targetParents.add(item);
+				}
 			}
 		} else {
 			await this.view?.refresh(recursive, item);
@@ -510,10 +524,10 @@ export class ExplorerService implements IExplorerService {
 						const oldNestedParent = modelElement.nestedParent;
 						modelElement.move(newParents[index]);
 						if (oldNestedParent) {
-							await this.refreshMove(false, oldNestedParent, batches);
+							await this.refreshMove(false, oldNestedParent, batches, 'source');
 						}
-						await this.refreshMove(false, oldParent, batches);
-						await this.refreshMove(shouldDeepRefresh, newParents[index], batches);
+						await this.refreshMove(false, oldParent, batches, 'source');
+						await this.refreshMove(shouldDeepRefresh, newParents[index], batches, 'target');
 					}));
 				}
 			}
@@ -608,6 +622,8 @@ export class ExplorerService implements IExplorerService {
 			batch.targets.clear();
 			batch.operations.length = 0;
 			batch.refreshes.clear();
+			batch.sourceParents.clear();
+			batch.targetParents.clear();
 		}
 		this.moveBatches.clear();
 		this.view = undefined;

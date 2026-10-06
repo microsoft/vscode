@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { append, $ } from '../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, IWaitUntilData } from '../../../../../base/common/event.js';
+import { FuzzyScore } from '../../../../../base/common/filters.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { extUriIgnorePathCase, joinPath } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -15,6 +18,7 @@ import { IBulkEditService, ResourceFileEdit } from '../../../../../editor/browse
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileChangesEvent, FileChangeType, FileOperation, FileOperationEvent } from '../../../../../platform/files/common/files.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
 import { UndoRedoGroup } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditableData } from '../../../../common/views.js';
@@ -167,6 +171,75 @@ suite('Files - ExplorerService', () => {
 				refreshes: [{ name: 'source', recursive: false }, { name: 'target', recursive: false }],
 			});
 		});
+
+		for (const topology of ['shared target', 'chain', 'exchange']) {
+			for (const directory of [false, true]) {
+				test(`preserves real tree lookup and selection after multi-source ${directory ? 'folder' : 'file'} moves (${topology})`, async () => {
+					const other = add(service.roots[0], 'other', true);
+					for (const parent of [source, other, target]) {
+						add(parent, 'keep.txt');
+					}
+					const first = add(source, 'first', directory);
+					const second = add(other, 'second', directory);
+					const moved = directory ? [first, add(first, 'child.txt'), second, add(second, 'child.txt')] : [first, second];
+					const events = [
+						moveEvent(first, topology === 'shared target' ? target : other),
+						moveEvent(second, topology === 'exchange' ? source : target)
+					];
+					const container = append(document.body, $('.explorer-move-test'));
+					store.add(toDisposable(() => container.remove()));
+					const tree = store.add(instantiation.createInstance(WorkbenchCompressibleAsyncDataTree<ExplorerItem, ExplorerItem, FuzzyScore>,
+						'ExplorerMoveTest', container,
+						{ getHeight: () => 20, getTemplateId: () => 'test' },
+						{ isIncompressible: () => true },
+						[{
+							templateId: 'test',
+							renderTemplate: container => container,
+							renderElement: (node, _index, container) => { container.textContent = node.element.name; },
+							renderCompressedElements: (node, _index, container) => { container.textContent = node.element.elements.map(item => item.name).join('/'); },
+							disposeTemplate: () => { },
+						}],
+						{
+							hasChildren: item => item.isDirectory,
+							getChildren: item => [...item.children.values()],
+						},
+						{
+							compressionEnabled: false,
+							collapseByDefault: () => false,
+							identityProvider: { getId: item => item.resource.toString() },
+							accessibilityProvider: { getAriaLabel: item => item.name, getWidgetAriaLabel: () => 'Explorer' },
+						}));
+					tree.layout(500, 400);
+					await tree.setInput(service.roots[0]);
+					service.registerView(new class extends mock<IExplorerView>() {
+						override async refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
+							if (!item || tree.hasNode(item)) {
+								await tree.updateChildren(item ?? service.roots[0], recursive);
+							}
+						}
+					});
+
+					const operation = batch(events);
+					await fire(willRun, operation);
+					for (const event of events) {
+						fileService.fireAfterOperation(event);
+						await timeout(0);
+					}
+					await fire(didRun, operation);
+
+					const actual = moved.map(item => {
+						const found = tree.hasNode(item);
+						if (found) {
+							tree.reveal(item);
+							tree.setSelection([item]);
+							tree.setFocus([item]);
+						}
+						return { found, selected: tree.getSelection()[0] === item, focused: tree.getFocus()[0] === item };
+					});
+					assert.deepStrictEqual(actual, moved.map(() => ({ found: true, selected: true, focused: true })));
+				});
+			}
+		}
 
 		test('joins asynchronous operation continuations and the final refresh', async () => {
 			const nestedParent = add(source, 'nest.ts');
