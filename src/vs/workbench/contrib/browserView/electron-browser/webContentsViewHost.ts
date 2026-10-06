@@ -213,7 +213,7 @@ export class WebContentsViewHost extends Disposable {
 			return;
 		}
 		try {
-			const screenshot = await model.captureScreenshot({ quality: 80 });
+			const screenshot = await model.captureScreenshot({ quality: 80, preservePerCornerClip: true });
 			if (this._model === model && sequence === this._screenshotSequence && !model.error) {
 				this._setBackgroundImage(screenshot);
 			}

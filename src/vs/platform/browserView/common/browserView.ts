@@ -194,7 +194,10 @@ export interface IBrowserViewBounds {
 	width: number;
 	height: number;
 	zoomFactor: number;
+	/** Radius shared by all corners except the bottom-right corner. */
 	cornerRadius: number;
+	/** Radius of the bottom-right corner. The live native view uses the larger radius while its screenshot underlay preserves the per-corner geometry. */
+	bottomRightCornerRadius: number;
 	emulation?: {
 		scale: number;
 	};
@@ -210,6 +213,11 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	 * `'png'` is lossless (no compression artifacts) at the cost of a larger buffer.
 	 */
 	format?: 'jpeg' | 'png';
+	/**
+	 * Preserve per-corner geometry when the native view uses a larger uniform enclosing radius.
+	 * Only supported for full-viewport placeholder captures.
+	 */
+	preservePerCornerClip?: boolean;
 	screenRect?: IBrowserViewRect;
 	pageRect?: IBrowserViewRect;
 	/**

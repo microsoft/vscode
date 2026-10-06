@@ -730,7 +730,9 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer.style.left = `${left}px`;
 		this._browserContainer.style.top = `${top}px`;
 
-		const cornerRadius = parseFloat(this.window.getComputedStyle(this._browserContainer).borderTopLeftRadius ?? '0');
+		const browserStyle = this.window.getComputedStyle(this._browserContainer);
+		const cornerRadius = parseFloat(browserStyle.borderTopLeftRadius ?? '0');
+		const bottomRightCornerRadius = parseFloat(browserStyle.borderBottomRightRadius ?? '0');
 		void this._model.layout({
 			windowId: this.group.windowId,
 			x: wrapperRect.left + left,
@@ -739,6 +741,7 @@ export class BrowserEditor extends EditorPane {
 			height: layout.height,
 			zoomFactor: getZoomFactor(this.window),
 			cornerRadius,
+			bottomRightCornerRadius,
 			emulation: layout.emulation,
 		});
 

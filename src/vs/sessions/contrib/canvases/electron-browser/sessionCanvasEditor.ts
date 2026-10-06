@@ -281,7 +281,7 @@ export class SessionCanvasEditor extends EditorPane {
 		this.container.style.top = `${y - rect.top}px`;
 		this.container.style.width = `${width}px`;
 		this.container.style.height = `${height}px`;
-		void this.model.layout({ x, y, width, height, windowId: this.group.windowId, zoomFactor, cornerRadius: 0 })
+		void this.model.layout({ x, y, width, height, windowId: this.group.windowId, zoomFactor, cornerRadius: 0, bottomRightCornerRadius: 0 })
 			.catch(error => this.logService.error('[SessionCanvasEditor] Failed to layout canvas', error));
 		this.host.layout();
 	}

@@ -97,6 +97,81 @@ suite('Sessions - Agents Part Card', () => {
 		});
 	});
 
+	test('keeps docked auxiliary bar contents inside the bottom-right editor stroke', () => {
+		const { container, card } = createCard(true, true);
+		card.remove();
+		container.style.setProperty('--window-corner-radius', '16px');
+		const grid = append(container, $('.monaco-grid-view'));
+		const editor = append(grid, $('.part.editor.editor-tabs-multiple'));
+		const editorContent = append(editor, $('.content'));
+		const editorGroup = append(editorContent, $('.editor-group-container'));
+		const auxiliaryBar = append(editor, $('.part.auxiliarybar.docked-auxiliarybar'));
+		const content = append(auxiliaryBar, $('.content'));
+		append(content, $('.pane-body.monaco-list'));
+		const radius = (classes: string) => {
+			container.className = `monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs ${classes}`;
+			const editorStyle = mainWindow.getComputedStyle(editor);
+			const auxiliaryBarStyle = mainWindow.getComputedStyle(auxiliaryBar);
+			return {
+				editor: editorStyle.borderBottomRightRadius,
+				editorFrame: mainWindow.getComputedStyle(editorGroup, '::after').borderBottomRightRadius,
+				auxiliaryBar: auxiliaryBarStyle.borderBottomRightRadius,
+				auxiliaryBarOverflow: auxiliaryBarStyle.overflow,
+			};
+		};
+
+		assert.deepStrictEqual({
+			internalCard: radius('dock-detail-panel panel-alignment-justify'),
+			nativeWindow: radius('mac dock-detail-panel nopanel'),
+			nativeWindowWithCenteredPanel: radius('mac dock-detail-panel panel-alignment-center'),
+			compact: radius('mac dock-detail-panel nopanel modern-ui-compact'),
+		}, {
+			internalCard: { editor: '8px', editorFrame: '7px', auxiliaryBar: '7px', auxiliaryBarOverflow: 'hidden' },
+			nativeWindow: { editor: '12px', editorFrame: '11px', auxiliaryBar: '11px', auxiliaryBarOverflow: 'hidden' },
+			nativeWindowWithCenteredPanel: { editor: '12px', editorFrame: '11px', auxiliaryBar: '11px', auxiliaryBarOverflow: 'hidden' },
+			compact: { editor: '0px', editorFrame: '0px', auxiliaryBar: '0px', auxiliaryBarOverflow: 'hidden' },
+		});
+	});
+
+	test('clips integrated browser contents to the panel-facing and native-facing editor curves', () => {
+		const { container, card } = createCard(true, true);
+		card.remove();
+		container.style.setProperty('--window-corner-radius', '16px');
+		container.style.setProperty('--vscode-cornerRadius-small', '4px');
+		const grid = append(container, $('.monaco-grid-view'));
+		const editor = append(grid, $('.part.editor'));
+		const browserRoot = append(editor, $('.browser-root'));
+		const browserContainer = append(browserRoot, $('.browser-container'));
+		browserContainer.style.setProperty('--browser-view-container-inset', '3px');
+		browserContainer.style.borderRadius = 'var(--browser-view-corner-radius, var(--vscode-cornerRadius-small)) var(--browser-view-corner-radius, var(--vscode-cornerRadius-small)) var(--browser-view-bottom-right-corner-radius, var(--browser-view-corner-radius, var(--vscode-cornerRadius-small))) var(--browser-view-corner-radius, var(--vscode-cornerRadius-small))';
+		const placeholder = append(browserContainer, $('.browser-placeholder-contents'));
+		placeholder.style.borderRadius = 'inherit';
+		const radius = (classes: string) => {
+			container.className = `monaco-workbench agent-sessions-workbench ${classes}`;
+			const browserStyle = mainWindow.getComputedStyle(browserContainer);
+			return {
+				topLeft: browserStyle.borderTopLeftRadius,
+				bottomLeft: browserStyle.borderBottomLeftRadius,
+				bottomRight: browserStyle.borderBottomRightRadius,
+				placeholderBottomRight: mainWindow.getComputedStyle(placeholder).borderBottomRightRadius,
+			};
+		};
+
+		assert.deepStrictEqual({
+			internalCard: radius('dock-detail-panel panel-alignment-justify'),
+			nativeWindow: radius('mac nopanel noauxiliarybar'),
+			nativeWindowWithDockedDetailPanel: radius('mac nopanel dock-detail-panel'),
+			nativeWindowWithCenteredPanel: radius('mac panel-alignment-center dock-detail-panel'),
+			compact: radius('mac nopanel noauxiliarybar modern-ui-compact'),
+		}, {
+			internalCard: { topLeft: '4px', bottomLeft: '4px', bottomRight: '4px', placeholderBottomRight: '4px' },
+			nativeWindow: { topLeft: '4px', bottomLeft: '4px', bottomRight: '8px', placeholderBottomRight: '8px' },
+			nativeWindowWithDockedDetailPanel: { topLeft: '4px', bottomLeft: '4px', bottomRight: '8px', placeholderBottomRight: '8px' },
+			nativeWindowWithCenteredPanel: { topLeft: '4px', bottomLeft: '4px', bottomRight: '8px', placeholderBottomRight: '8px' },
+			compact: { topLeft: '4px', bottomLeft: '4px', bottomRight: '12px', placeholderBottomRight: '12px' },
+		});
+	});
+
 	for (const desktop of [false, true]) {
 		test(`keeps the expanded ${desktop ? 'desktop' : 'mobile'} editor gutter and content size in sync`, () => {
 			const workbench = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench.noauxiliarybar'));

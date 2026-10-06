@@ -91,7 +91,7 @@ export class DockedAuxiliaryBarController extends Disposable {
 			this._layoutState = undefined;
 		}
 		const top = this._getTop();
-		const height = Math.max(0, editorRect.height - top);
+		const height = Math.max(0, this.editorPartContainer.clientHeight - top);
 
 		auxiliaryBarContainer.style.display = '';
 		auxiliaryBarContainer.style.position = 'absolute';

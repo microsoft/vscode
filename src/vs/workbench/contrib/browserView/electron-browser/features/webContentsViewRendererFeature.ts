@@ -9,6 +9,8 @@ import { IBrowserViewModel } from '../../common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget, IContainerLayout, IContainerLayoutOverride } from '../browserEditor.js';
 import { WebContentsViewHost } from '../webContentsViewHost.js';
 
+const webContentsViewContainerInset = 3;
+
 class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	private readonly host: WebContentsViewHost;
@@ -30,7 +32,12 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 
 	override beforeContainerLayout(): IContainerLayoutOverride {
 		return {
-			padding: { top: 3, right: 3, bottom: 3, left: 3 },
+			padding: {
+				top: webContentsViewContainerInset,
+				right: webContentsViewContainerInset,
+				bottom: webContentsViewContainerInset,
+				left: webContentsViewContainerInset,
+			},
 			compute: (current, pane): IContainerLayout => {
 				const zoomFactor = getZoomFactor(this.editor.window);
 				const snap = (value: number) => Math.floor(value * zoomFactor) / zoomFactor;
@@ -48,7 +55,10 @@ class WebContentsViewRendererFeature extends BrowserEditorContribution {
 		};
 	}
 
-	override onContainerCreated(container: HTMLElement): void { this.host.onContainerCreated(container); }
+	override onContainerCreated(container: HTMLElement): void {
+		container.style.setProperty('--browser-view-container-inset', `${webContentsViewContainerInset}px`);
+		this.host.onContainerCreated(container);
+	}
 	override onPaneVisibilityChanged(visible: boolean): void { this.host.setVisible(visible); }
 	override afterContainerLayout(): void { this.host.layout(); }
 	override tryFocus(): boolean { return this.host.tryFocus(); }

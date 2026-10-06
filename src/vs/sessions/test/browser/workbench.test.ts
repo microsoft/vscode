@@ -2524,14 +2524,14 @@ suite('Sessions - Workbench', () => {
 
 	// --- DockedAuxiliaryBarController --------------------------------------
 
-	test('aligns docked details with the editor header row', () => {
+	test('aligns docked details with the editor header row inside the editor border', () => {
 		const editorContainer = document.createElement('div');
 		const auxiliaryBarContainer = document.createElement('div');
 		const layouts: { height: number; top: number }[] = [];
 		let tabsHeight = 33;
 
 		Object.defineProperties(editorContainer, {
-			clientHeight: { value: 600 },
+			clientHeight: { value: 598 },
 			clientTop: { value: 1 },
 		});
 		editorContainer.getBoundingClientRect = () => ({
@@ -2575,12 +2575,12 @@ suite('Sessions - Workbench', () => {
 			visualTop: editorContainer.clientTop + Number.parseInt(auxiliaryBarContainer.style.top, 10),
 		}, {
 			layouts: [
-				{ height: 567, top: 33 },
-				{ height: 538, top: 62 },
+				{ height: 565, top: 33 },
+				{ height: 536, top: 62 },
 			],
 			style: {
 				top: '62px',
-				height: '538px',
+				height: '536px',
 			},
 			visualTop: 63,
 		});

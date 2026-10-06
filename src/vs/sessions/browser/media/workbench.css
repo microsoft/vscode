@@ -347,10 +347,21 @@
 	z-index: 2;
 }
 
-/* Only the card next to a native window corner follows the frame's inset curve. */
-.monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout):not(.modern-ui-compact) {
+/* Window-facing curves stay concentric with the native frame across density modes. */
+.monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout) {
 	--agents-window-corner-radius: max(0px, calc(var(--window-corner-radius) - var(--agents-floating-panel-gap)));
+	--agents-window-inner-corner-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
 
+	/* The live WebContentsView uses this larger radius; its screenshot underlay retains the panel-facing corners. */
+	&.nopanel.noauxiliarybar .monaco-grid-view .part.editor:not(.modal-editor-part) .browser-container,
+	&.nopanel.dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) .browser-container,
+	&:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .monaco-grid-view .part.editor:not(.modal-editor-part) .browser-container {
+		--browser-view-bottom-right-corner-radius: max(var(--vscode-cornerRadius-small), calc(var(--agents-window-inner-corner-radius) - var(--browser-view-container-inset, 0px)));
+	}
+}
+
+/* Only non-compact cards next to a native window corner follow the frame's inset curve. */
+.monaco-workbench.agent-sessions-workbench.mac:not(.web):not(.fullscreen):not(.phone-layout):not(.modern-ui-compact) {
 	&.nopanel.nosidebar .agents-part-card {
 		border-bottom-left-radius: var(--agents-window-corner-radius);
 	}
@@ -369,13 +380,24 @@
 		border-bottom-right-radius: var(--agents-window-corner-radius);
 	}
 
+	&.nopanel.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar,
+	&:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
+		border-bottom-right-radius: var(--agents-window-inner-corner-radius);
+	}
+
 	&.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.nosidebar .agents-part-card .session-view.session-grid-bottom-left {
-		border-bottom-left-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+		border-bottom-left-radius: var(--agents-window-inner-corner-radius);
 	}
 
 	&.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.noeditorpane .agents-part-card .session-view.session-grid-bottom-right {
-		border-bottom-right-radius: max(0px, calc(var(--agents-window-corner-radius) - var(--vscode-strokeThickness)));
+		border-bottom-right-radius: var(--agents-window-inner-corner-radius);
 	}
+
+	&.modern-ui-tabs.modern-ui-connected-editor-tabs.nopanel.dock-detail-panel .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after,
+	&.modern-ui-tabs.modern-ui-connected-editor-tabs:not(.nopanel).panel-alignment-center:not(.noeditorpane).dock-detail-panel .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after {
+		border-bottom-right-radius: var(--agents-window-inner-corner-radius);
+	}
+
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar::before {
@@ -425,6 +447,7 @@
 }
 
 .agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.docked-auxiliarybar {
+	border-bottom-right-radius: max(0px, calc(var(--agents-part-corner-radius) - var(--vscode-strokeThickness)));
 	overflow: hidden;
 }
 

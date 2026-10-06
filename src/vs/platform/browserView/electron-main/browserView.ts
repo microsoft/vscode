@@ -23,6 +23,7 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { logBrowserOpen } from '../common/browserViewTelemetry.js';
 import { URI } from '../../../base/common/uri.js';
+import { getBrowserViewNativeLayout, getBrowserViewScreenshotClip, IBrowserViewVisualViewport } from './browserViewLayout.js';
 
 enum NewPageLocation {
 	Foreground = 'foreground',
@@ -65,6 +66,7 @@ export class BrowserView extends Disposable {
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
+	private _hasAsymmetricCornerRadii = false;
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
@@ -694,18 +696,15 @@ export class BrowserView extends Disposable {
 			}
 		}
 
-		this._view.setBorderRadius(Math.round(bounds.cornerRadius * bounds.zoomFactor));
+		const nativeLayout = getBrowserViewNativeLayout(bounds);
+		this._hasAsymmetricCornerRadii = bounds.cornerRadius !== bounds.bottomRightCornerRadius;
+		this._view.setBorderRadius(nativeLayout.viewCornerRadius);
 
 		if (bounds.emulation) {
 			this.emulator.applyScreenEmulation(bounds.width, bounds.height, bounds.emulation.scale, bounds.zoomFactor);
 		}
 
-		this._view.setBounds({
-			x: Math.round(bounds.x * bounds.zoomFactor),
-			y: Math.round(bounds.y * bounds.zoomFactor),
-			width: Math.round(bounds.width * bounds.zoomFactor),
-			height: Math.round(bounds.height * bounds.zoomFactor)
-		});
+		this._view.setBounds(nativeLayout.viewBounds);
 
 		this._hasBeenLaidOut = true;
 		if (this._wantsVisibility && !this._view.getVisible()) {
@@ -840,6 +839,9 @@ export class BrowserView extends Disposable {
 		if (options?.fullPage && !options.screenRect && !options.pageRect) {
 			return this._captureFullPageScreenshot(format, quality);
 		}
+		if (options?.preservePerCornerClip && (options.screenRect || options.pageRect || options.fullPage)) {
+			throw new Error('preservePerCornerClip is only supported for full-viewport screenshots');
+		}
 
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
@@ -855,6 +857,11 @@ export class BrowserView extends Disposable {
 		}
 		if (options?.awaitNextPaint) {
 			await this._waitForNextPaint();
+		}
+		if (options?.preservePerCornerClip && this._hasAsymmetricCornerRadii) {
+			const screenshot = await this._captureUnclippedViewportScreenshot(format, quality);
+			this._lastScreenshot = screenshot;
+			return screenshot;
 		}
 		const image = await (async () => {
 			const maxAttempts = 5;
@@ -886,6 +893,25 @@ export class BrowserView extends Disposable {
 			this._lastScreenshot = screenshot;
 		}
 		return screenshot;
+	}
+
+	private async _captureUnclippedViewportScreenshot(format: 'jpeg' | 'png', quality: number): Promise<VSBuffer> {
+		const metrics = await this.debugger.sendCommand('Page.getLayoutMetrics') as {
+			cssVisualViewport?: IBrowserViewVisualViewport;
+		};
+		const viewport = metrics.cssVisualViewport;
+		if (!viewport) {
+			throw new Error('Page.getLayoutMetrics did not return a cssVisualViewport');
+		}
+		const zoomFactor = this._view.webContents.getZoomFactor();
+		const viewBounds = this._view.getBounds();
+		const result = await this.debugger.sendCommand('Page.captureScreenshot', {
+			format,
+			...(format === 'jpeg' ? { quality } : {}),
+			captureBeyondViewport: false,
+			clip: getBrowserViewScreenshotClip(viewBounds, viewport, zoomFactor)
+		}) as { data: string };
+		return VSBuffer.wrap(Buffer.from(result.data, 'base64'));
 	}
 
 	// Capture a screenshot of the full scrollable document (beyond the viewport) via CDP.
