@@ -33,9 +33,11 @@ import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../common/languageModels.js';
+import { ChatMessageRole } from '../../../common/languageModels.js';
+import { IChatUtilityModelService } from '../../../common/chatUtilityModelService.js';
 import './media/chatThinkingContent.css';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -234,6 +236,13 @@ const THINKING_SCROLL_MAX_HEIGHT = 200;
 const TITLE_CACHE_STORAGE_KEY = 'chat.thinkingTitleCache';
 const TITLE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const TITLE_CACHE_MAX_ENTRIES = 1000;
+const TITLE_GENERATION_TIMEOUT_MS = 5000;
+/**
+ * Generated titles usually arrive within this delay. Requests can wait much longer in the shared
+ * queue, e.g. when a long session is restored, so the block shows its fallback title meanwhile
+ * rather than a stale in-progress header.
+ */
+const TITLE_FALLBACK_DELAY_MS = 2000;
 
 const enum WorkingMessageCategory {
 	Thinking = 'thinking',
@@ -390,6 +399,9 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly hiddenToolCallIds = new Set<string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
+	/** Cancelled on dispose so queued title requests nobody is waiting for are dropped. */
+	private readonly titleGenerationCancellation = new CancellationTokenSource();
+	private readonly titleFallbackTimer = this._register(new MutableDisposable());
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
 	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
@@ -455,7 +467,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly chatUtilityModelService: IChatUtilityModelService,
 		@IHoverService hoverService: IHoverService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -1758,29 +1770,14 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
-		const cts = new CancellationTokenSource();
-		const timeout = setTimeout(() => cts.cancel(), 5000);
+		let context: string;
+		if (this.extractedTitles.length > 0) {
+			context = this.extractedTitles.join(', ');
+		} else {
+			context = this.currentThinkingValue.substring(0, 1000);
+		}
 
-		try {
-			const models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-			if (!models.length) {
-				this.setFallbackTitle();
-				return;
-			}
-
-			if (cts.token.isCancellationRequested) {
-				this.setFallbackTitle();
-				return;
-			}
-
-			let context: string;
-			if (this.extractedTitles.length > 0) {
-				context = this.extractedTitles.join(', ');
-			} else {
-				context = this.currentThinkingValue.substring(0, 1000);
-			}
-
-			const prompt = `Summarize the following content in a SINGLE sentence (under 10 words) using past tense. Follow these rules strictly:
+		const prompt = `Summarize the following content in a SINGLE sentence (under 10 words) using past tense. Follow these rules strictly:
 
 			OUTPUT FORMAT:
 			- MUST be a single sentence
@@ -1872,67 +1869,49 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 			Content: ${context}`;
 
-			const response = await this.languageModelsService.sendChatRequest(
-				models[0],
-				undefined,
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				{},
-				cts.token
-			);
-
-			let generatedTitle = '';
-			for await (const part of response.stream) {
-				if (cts.token.isCancellationRequested) {
-					break;
-				}
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.type === 'text') {
-							generatedTitle += p.value;
-						}
-					}
-				} else if (part.type === 'text') {
-					generatedTitle += part.value;
-				}
+		const requestCacheId = this.getTitleCacheId();
+		if (!this.isToolChain) {
+			this.titleFallbackTimer.value = disposableTimeout(() => this.setFallbackTitle(), TITLE_FALLBACK_DELAY_MS);
+		}
+		let generatedTitle: string | undefined;
+		try {
+			const result = await this.chatUtilityModelService.sendRequest({
+				purpose: 'thinkingTitle',
+				priority: 'background',
+				messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				key: requestCacheId ? this.getTitleCacheKey(requestCacheId) : undefined,
+				timeout: TITLE_GENERATION_TIMEOUT_MS,
+			}, this.titleGenerationCancellation.token);
+			if (result.kind === 'success' && !result.text.includes('can\'t assist with that')) {
+				generatedTitle = result.text.trim();
 			}
-
-			if (cts.token.isCancellationRequested) {
-				this.setFallbackTitle();
-				return;
-			}
-
-			await response.result;
-			generatedTitle = generatedTitle.trim();
-
-			if (generatedTitle.includes('can\'t assist with that')) {
-				this.setFallbackTitle();
-				return;
-			}
-
-			if (generatedTitle && !this._store.isDisposed) {
-				this.currentTitle = generatedTitle;
-				this.setFinalizedTitle(generatedTitle);
-				this.content.generatedTitle = generatedTitle;
-				this.setGeneratedTitleOnAllParts(generatedTitle);
-
-				// Persist to storage for non-local sessions only
-				if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
-					const cacheId = this.getTitleCacheId();
-					if (cacheId) {
-						this.setCachedTitle(cacheId, generatedTitle);
-					}
-				}
-
-				return;
-			}
-		} catch (error) {
+		} catch {
 			// fall through to default title
-		} finally {
-			clearTimeout(timeout);
-			cts.dispose();
+		}
+		this.titleFallbackTimer.clear();
+		if (!generatedTitle) {
+			if (!this._store.isDisposed) {
+				this.setFallbackTitle();
+			}
+			return;
 		}
 
-		this.setFallbackTitle();
+		// Record the title on the model and in the persisted cache even if this part was disposed
+		// while waiting (e.g. the session was switched) so the next render reuses it instead of
+		// requesting it again.
+		this.content.generatedTitle = generatedTitle;
+		this.setGeneratedTitleOnAllParts(generatedTitle);
+		if (!LocalChatSessionUri.isLocalSession(this.element.sessionResource)) {
+			const cacheId = this.getTitleCacheId();
+			if (cacheId) {
+				this.setCachedTitle(cacheId, generatedTitle);
+			}
+		}
+
+		if (!this._store.isDisposed) {
+			this.currentTitle = generatedTitle;
+			this.setFinalizedTitle(generatedTitle);
+		}
 	}
 
 	private restoreSingleItemToOriginalPosition(): boolean {
@@ -2906,6 +2885,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	}
 
 	override dispose(): void {
+		this.titleGenerationCancellation.dispose(true);
 		this.isActive = false;
 		if (this.workingSpinnerElement) {
 			this.workingSpinnerElement.remove();

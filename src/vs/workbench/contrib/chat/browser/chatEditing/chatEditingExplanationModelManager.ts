@@ -13,7 +13,8 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { DetailedLineRangeMapping, LineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
+import { ChatMessageRole } from '../../common/languageModels.js';
 import * as nls from '../../../../../nls.js';
 
 /**
@@ -130,7 +131,7 @@ export class ChatEditingExplanationModelManager extends Disposable implements IC
 	readonly state: IObservable<ResourceMap<IExplanationState>> = this._state;
 
 	constructor(
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@IChatUtilityModelService private readonly _chatUtilityModelService: IChatUtilityModelService,
 	) {
 		super();
 	}
@@ -235,41 +236,23 @@ export class ChatEditingExplanationModelManager extends Disposable implements IC
 		// Total number of changes across all files
 		const totalChanges = fileChanges.reduce((sum, f) => sum + f.changes.length, 0);
 
-		try {
-			// Select a model for understanding all changes together
-			const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-utility-small' });
-			if (!models.length) {
-				for (const fileData of fileChanges) {
-					this._updateUriStatePartial(fileData.uri, {
-						progress: 'error',
-						explanations: [],
-						errorMessage: nls.localize('noModelAvailable', "No language model available"),
-					});
-				}
-				return;
-			}
-
-			if (cancellationToken.isCancellationRequested) {
-				return;
-			}
-
-			// Build a prompt with all changes from all files
-			let changeIndex = 0;
-			const changesDescription = fileChanges.map(fileData => {
-				return fileData.changes.map(data => {
-					const desc = `=== CHANGE ${changeIndex} (File: ${fileData.fileName}, Lines ${data.startLineNumber}-${data.endLineNumber}) ===
+		// Build a prompt with all changes from all files
+		let changeIndex = 0;
+		const changesDescription = fileChanges.map(fileData => {
+			return fileData.changes.map(data => {
+				const desc = `=== CHANGE ${changeIndex} (File: ${fileData.fileName}, Lines ${data.startLineNumber}-${data.endLineNumber}) ===
 BEFORE:
 ${data.originalText || '(empty)'}
 
 AFTER:
 ${data.modifiedText || '(empty)'}`;
-					changeIndex++;
-					return desc;
-				}).join('\n\n');
+				changeIndex++;
+				return desc;
 			}).join('\n\n');
+		}).join('\n\n');
 
-			const fileCount = fileChanges.length;
-			const prompt = `Analyze these ${totalChanges} code changes across ${fileCount} file${fileCount > 1 ? 's' : ''} and provide a brief explanation for each one.
+		const fileCount = fileChanges.length;
+		const prompt = `Analyze these ${totalChanges} code changes across ${fileCount} file${fileCount > 1 ? 's' : ''} and provide a brief explanation for each one.
 These changes are part of a single coherent modification, so consider how they relate to each other.
 
 ${changesDescription}
@@ -281,82 +264,62 @@ Be specific about the actual code changes. Return ONLY valid JSON, no markdown.
 Example response format:
 [{"explanation": "Added null check to prevent crash"}, {"explanation": "Renamed variable for clarity"}]`;
 
-			const response = await this._languageModelsService.sendChatRequest(
-				models[0],
-				undefined,
-				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
-				{},
-				cancellationToken
-			);
-
-			let responseText = '';
-			for await (const part of response.stream) {
-				if (cancellationToken.isCancellationRequested) {
-					return;
-				}
-				if (Array.isArray(part)) {
-					for (const p of part) {
-						if (p.type === 'text') {
-							responseText += p.value;
-						}
-					}
-				} else if (part.type === 'text') {
-					responseText += part.value;
-				}
-			}
-
-			await response.result;
-
-			if (cancellationToken.isCancellationRequested) {
-				return;
-			}
-
-			// Parse the JSON response
-			let parsed: { explanation: string }[] = [];
-			try {
-				// Handle potential markdown wrapping
-				let jsonText = responseText.trim();
-				if (jsonText.startsWith('```')) {
-					jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-				}
-				parsed = JSON.parse(jsonText);
-			} catch {
-				// JSON parsing failed - will use default messages
-			}
-
-			// Map explanations back to files
-			let parsedIndex = 0;
+		const result = await this._chatUtilityModelService.sendRequest({
+			purpose: 'editExplanation',
+			priority: 'interactive',
+			messages: [{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+		}, cancellationToken);
+		if (cancellationToken.isCancellationRequested) {
+			return;
+		}
+		if (result.kind === 'failed') {
+			const errorMessage = result.reason === 'noModel'
+				? nls.localize('noModelAvailable', "No language model available")
+				: result.error instanceof Error ? result.error.message : nls.localize('explanationFailed', "Failed to generate explanations");
 			for (const fileData of fileChanges) {
-				const explanations: IChangeExplanation[] = [];
-				for (const data of fileData.changes) {
-					const parsedExplanation = parsed[parsedIndex]?.explanation?.trim() || nls.localize('codeWasModified', "Code was modified.");
-					explanations.push({
-						uri: fileData.uri,
-						startLineNumber: data.startLineNumber,
-						endLineNumber: data.endLineNumber,
-						originalText: data.originalText,
-						modifiedText: data.modifiedText,
-						explanation: parsedExplanation,
-					});
-					parsedIndex++;
-				}
-
 				this._updateUriStatePartial(fileData.uri, {
-					progress: 'complete',
-					explanations,
+					progress: 'error',
+					explanations: [],
+					errorMessage,
 				});
 			}
-		} catch (e) {
-			if (!cancellationToken.isCancellationRequested) {
-				const errorMessage = e instanceof Error ? e.message : nls.localize('explanationFailed', "Failed to generate explanations");
-				for (const fileData of fileChanges) {
-					this._updateUriStatePartial(fileData.uri, {
-						progress: 'error',
-						explanations: [],
-						errorMessage,
-					});
-				}
+			return;
+		}
+
+		// Parse the JSON response
+		let parsed: { explanation: string }[] = [];
+		try {
+			// Handle potential markdown wrapping
+			let jsonText = result.text.trim();
+			if (jsonText.startsWith('```')) {
+				jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
 			}
+			parsed = JSON.parse(jsonText);
+		} catch {
+			// JSON parsing failed - will use default messages
+		}
+
+		// Map explanations back to files
+		let parsedIndex = 0;
+		for (const fileData of fileChanges) {
+			const explanations: IChangeExplanation[] = [];
+			for (const data of fileData.changes) {
+				const parsedExplanation = parsed[parsedIndex]?.explanation?.trim() || nls.localize('codeWasModified', "Code was modified.");
+				explanations.push({
+					uri: fileData.uri,
+					startLineNumber: data.startLineNumber,
+					endLineNumber: data.endLineNumber,
+					originalText: data.originalText,
+					modifiedText: data.modifiedText,
+					explanation: parsedExplanation,
+				});
+				parsedIndex++;
+			}
+
+			this._updateUriStatePartial(fileData.uri, {
+				progress: 'complete',
+				explanations,
+			});
 		}
 	}
 }

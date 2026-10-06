@@ -28,6 +28,7 @@ import { IChatContentPartDiffData, IChatContentPartRenderContext, InlineTextMode
 import { IChatRendererContent, IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
 import { ChatToolInvocation } from '../../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatContentParts/chatMarkdownAnchorService.js';
+import { ChatUtilityModelService, IChatUtilityModelService } from '../../../../common/chatUtilityModelService.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -150,6 +151,7 @@ suite('ChatThinkingContentPart', () => {
 			computeTokenLength: async () => 0
 		} as unknown as ILanguageModelsService;
 		instantiationService.stub(ILanguageModelsService, mockLanguageModelsService);
+		instantiationService.stub(IChatUtilityModelService, store.add(instantiationService.createInstance(ChatUtilityModelService)));
 	});
 
 	teardown(() => {
@@ -1798,6 +1800,34 @@ suite('ChatThinkingContentPart', () => {
 				modelSelections: 0,
 			});
 		});
+
+		test('shows the fallback title while a generated title is delayed, then replaces it', async () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const title = new DeferredPromise<string>();
+				mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
+				mockLanguageModelsService.sendChatRequest = async () => ({
+					stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
+					result: Promise.resolve({}),
+				});
+				const part = createPersistentReasoning(createThinkingPart('**Evaluating code**\n\n**Reviewing build processes**'));
+				part.finalizeTitleIfDefault();
+				await clock.tickAsync(1999);
+				const beforeDelay = snapshot(part).title;
+				await clock.tickAsync(1);
+				const afterDelay = snapshot(part).title;
+				await title.complete('Reviewed code and build processes');
+				await clock.tickAsync(0);
+
+				assert.deepStrictEqual({ beforeDelay, afterDelay, generated: snapshot(part).title }, {
+					beforeDelay: 'Thinking',
+					afterDelay: 'Finished with 1 step',
+					generated: 'Reviewed code and build processes',
+				});
+			} finally {
+				clock.restore();
+			}
+		});
 	});
 
 	suite('Thinking group identity', () => {
@@ -2654,6 +2684,41 @@ suite('ChatThinkingContentPart', () => {
 				generatedTitle: 'Analyzed authentication flow',
 				label: 'Analyzed authentication flow',
 				ariaLabel: 'Analyzed authentication flow',
+			});
+		});
+
+		test('finalizeTitleIfDefault should keep a generated title that arrives after the part was disposed', async () => {
+			const title = new DeferredPromise<string>();
+			mockLanguageModelsService.selectLanguageModels = async () => ['utility'];
+			mockLanguageModelsService.sendChatRequest = async () => ({
+				stream: (async function* () { yield { type: 'text' as const, value: await title.p }; })(),
+				result: Promise.resolve({}),
+			});
+			const context = createMockRenderContext(true);
+			const thinkingId = 'reasoning-part-disposed';
+			const content = createThinkingPart('Let me think about how to refactor the renderer', thinkingId);
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			);
+
+			part.finalizeTitleIfDefault();
+			await timeout(0);
+			part.dispose();
+			await title.complete('Planned renderer refactoring');
+			await timeout(0);
+
+			const cacheKey = `${chatSessionResourceToId(context.element.sessionResource)}:${thinkingId}`;
+			const cache = instantiationService.get(IStorageService).getObject<Record<string, { title: string }>>('chat.thinkingTitleCache', StorageScope.PROFILE);
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				cachedTitle: cache?.[cacheKey]?.title,
+			}, {
+				generatedTitle: 'Planned renderer refactoring',
+				cachedTitle: 'Planned renderer refactoring',
 			});
 		});
 	});

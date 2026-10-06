@@ -83,15 +83,31 @@ function isRateLimited(status: number, headers: HttpHeaders): boolean {
 }
 
 export function retryAfterFromRateLimitHeaders(headers: HttpHeaders, now: () => number = Date.now): number | undefined {
-	const retryAfter = Number(readHeader(headers, 'retry-after'));
-	if (Number.isFinite(retryAfter) && retryAfter > 0) {
-		return retryAfter * 1000;
+	const retryAfter = parseRetryAfter(readHeader(headers, 'retry-after'), now());
+	if (retryAfter !== undefined) {
+		return retryAfter;
 	}
 	const reset = Number(readHeader(headers, 'x-ratelimit-reset'));
 	if (Number.isFinite(reset) && reset > 0) {
 		return Math.max(0, reset * 1000 - now());
 	}
 	return undefined;
+}
+
+/**
+ * Converts a `Retry-After` value, a delay in seconds or an HTTP date, into the number of
+ * milliseconds to wait. Returns `undefined` unless the value asks for a wait in the future.
+ */
+export function parseRetryAfter(value: string | number | null | undefined, now: number = Date.now()): number | undefined {
+	if (value === undefined || value === null || value === '') {
+		return undefined;
+	}
+	const seconds = Number(value);
+	if (Number.isFinite(seconds)) {
+		return seconds > 0 ? seconds * 1000 : undefined;
+	}
+	const date = typeof value === 'string' ? Date.parse(value) : NaN;
+	return date > now ? date - now : undefined;
 }
 
 /** HTTP header names are case insensitive, but not every headers implementation normalises them. */

@@ -685,12 +685,20 @@ export class LanguageModelError extends Error {
 		return new LanguageModelError(message, LanguageModelError.Blocked.name);
 	}
 
-	readonly code: string;
+	static RateLimited(message?: string, retryAfter?: number): LanguageModelError {
+		return new LanguageModelError(message, LanguageModelError.RateLimited.name, undefined, retryAfter);
+	}
 
-	constructor(message?: string, code?: string, cause?: Error) {
+	readonly code: string;
+	readonly retryAfter?: number;
+
+	constructor(message?: string, code?: string, cause?: Error, retryAfter?: number) {
 		super(message, { cause });
 		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
+		if (typeof retryAfter === 'number' && retryAfter >= 0) {
+			this.retryAfter = retryAfter;
+		}
 	}
 }
 

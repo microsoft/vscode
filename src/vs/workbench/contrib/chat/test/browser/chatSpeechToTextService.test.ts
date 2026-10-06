@@ -16,6 +16,8 @@ import { ChatSpeechToTextService, ChatSpeechToTextState, createDictationCleanupS
 import { resolveDictationLanguage } from '../../browser/speechToText/dictationLanguage.js';
 import { ChatEntitlement } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILanguageModelChatRequestOptions, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import { ChatUtilityModelService, IChatUtilityModelService } from '../../common/chatUtilityModelService.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IVoiceCodeTranscriptionClient, IVoiceCodeTranscriptionError } from '../../browser/speechToText/voiceCodeTranscriptionClient.js';
 import { ILocalTranscriptionModelStatus, LocalTranscriptionModelState } from '../../../../../platform/localTranscription/common/localTranscription.js';
 
@@ -24,7 +26,7 @@ type CleanupTestService = {
 		getValue: () => string;
 		inspect: () => { defaultValue: string | undefined };
 	};
-	_languageModelsService: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>;
+	_chatUtilityModelService: IChatUtilityModelService;
 	_promptsService: {
 		getDictationInstructions: (token: CancellationToken) => Promise<string | undefined>;
 	};
@@ -164,7 +166,11 @@ type AudioPushTestService = {
 
 suite('ChatSpeechToTextService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createUtilityModelService(languageModels: Pick<ILanguageModelsService, 'selectLanguageModels' | 'sendChatRequest'>): IChatUtilityModelService {
+		return testDisposables.add(new ChatUtilityModelService(languageModels as ILanguageModelsService, new NullLogService()));
+	}
 
 	test('allows dictation without a paid plan and restricts MAI for external Enterprise users', () => {
 		assert.deepStrictEqual({
@@ -760,10 +766,10 @@ suite('ChatSpeechToTextService', () => {
 				getValue: () => 'auto',
 				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._languageModelsService = {
+			service._chatUtilityModelService = createUtilityModelService({
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: () => new Promise<ILanguageModelChatResponse>(() => { }),
-			};
+			});
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -783,12 +789,12 @@ suite('ChatSpeechToTextService', () => {
 			assert.deepStrictEqual({
 				settledBeforeTimeout,
 				result: await cleanupPromise,
-				timedOutStartingRequest: logs.some(log => log.includes('timed out (phase=startRequest, elapsedMs=5000, timeoutMs=5000)')),
-				fellBackWithPhase: logs.some(log => log.includes('reason=timeout, phase=startRequest, elapsedMs=5000')),
+				timedOutDuringRequest: logs.some(log => log.includes('timed out (phase=request, elapsedMs=5000, timeoutMs=5000)')),
+				fellBackWithPhase: logs.some(log => log.includes('reason=timeout, phase=request, model=copilot-utility-small, elapsedMs=5000')),
 			}, {
 				settledBeforeTimeout: false,
 				result: undefined,
-				timedOutStartingRequest: true,
+				timedOutDuringRequest: true,
 				fellBackWithPhase: true,
 			});
 		} finally {
@@ -805,10 +811,10 @@ suite('ChatSpeechToTextService', () => {
 				getValue: () => 'auto',
 				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._languageModelsService = {
+			service._chatUtilityModelService = createUtilityModelService({
 				selectLanguageModels: () => new Promise<string[]>(() => { }),
 				sendChatRequest: async () => { throw new Error('Unexpected request'); },
-			};
+			});
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -823,7 +829,7 @@ suite('ChatSpeechToTextService', () => {
 
 			assert.deepStrictEqual({
 				result: await cleanupPromise,
-				timedOutSelectingModel: logs.some(log => log.includes('reason=timeout, phase=selectModel, elapsedMs=5000')),
+				timedOutSelectingModel: logs.some(log => log.includes('reason=timeout, phase=request, model=none, elapsedMs=5000')),
 				reportedNoModel: logs.some(log => log.includes('reason=noModel')),
 			}, {
 				result: undefined,
@@ -844,7 +850,7 @@ suite('ChatSpeechToTextService', () => {
 				getValue: () => 'auto',
 				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._languageModelsService = {
+			service._chatUtilityModelService = createUtilityModelService({
 				selectLanguageModels: async () => ['test-model'],
 				sendChatRequest: async () => ({
 					stream: (async function* () {
@@ -853,7 +859,7 @@ suite('ChatSpeechToTextService', () => {
 					})(),
 					result: Promise.resolve(undefined),
 				}),
-			};
+			});
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -893,13 +899,13 @@ suite('ChatSpeechToTextService', () => {
 				getValue: () => configuredModel,
 				inspect: () => ({ defaultValue: experimentDefault }),
 			};
-			service._languageModelsService = {
+			service._chatUtilityModelService = createUtilityModelService({
 				selectLanguageModels: async selector => {
 					selectors.push(selector);
 					return [];
 				},
 				sendChatRequest: () => Promise.reject(new Error('Unexpected request')),
-			};
+			});
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -930,14 +936,14 @@ suite('ChatSpeechToTextService', () => {
 
 	test('disables reasoning for dedicated cleanup models only', async () => {
 		const requestConfigurations: Array<ILanguageModelChatRequestOptions['configuration']> = [];
-		const createService = (configuredModel: string): CleanupTestService => {
+		const createService = (configuredModel: string, selectLanguageModels: () => Promise<string[]> = async () => ['test-model']): CleanupTestService => {
 			const service = Object.create(ChatSpeechToTextService.prototype) as CleanupTestService;
 			service._configurationService = {
 				getValue: () => configuredModel,
 				inspect: () => ({ defaultValue: 'auto' }),
 			};
-			service._languageModelsService = {
-				selectLanguageModels: async () => ['test-model'],
+			service._chatUtilityModelService = createUtilityModelService({
+				selectLanguageModels,
 				sendChatRequest: async (_modelId, _from, _messages, options) => {
 					requestConfigurations.push(options.configuration);
 					return {
@@ -947,7 +953,7 @@ suite('ChatSpeechToTextService', () => {
 						result: Promise.resolve(undefined),
 					};
 				},
-			};
+			});
 			service._promptsService = {
 				getDictationInstructions: async () => undefined,
 			};
@@ -960,10 +966,8 @@ suite('ChatSpeechToTextService', () => {
 		};
 
 		await createService('gpt-5.6-luna')._cleanupWithLanguageModel('Luna transcript', CancellationToken.None);
-		const fallbackService = createService('gpt-5.6-luna');
 		let selectionCall = 0;
-		fallbackService._languageModelsService.selectLanguageModels = async () => selectionCall++ === 0 ? [] : ['test-model'];
-		await fallbackService._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
+		await createService('gpt-5.6-luna', async () => selectionCall++ === 0 ? [] : ['test-model'])._cleanupWithLanguageModel('utility fallback transcript', CancellationToken.None);
 
 		assert.deepStrictEqual(requestConfigurations, [
 			{ reasoningEffort: 'none' },

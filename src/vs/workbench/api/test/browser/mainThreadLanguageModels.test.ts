@@ -14,11 +14,12 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { ILanguageModelIgnoredFilesService } from '../../../contrib/chat/common/ignoredFiles.js';
-import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage } from '../../../contrib/chat/common/languageModels.js';
+import { ILanguageModelChatProvider, ILanguageModelsService, IChatMessage, isLanguageModelRateLimitError } from '../../../contrib/chat/common/languageModels.js';
 import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
 import { TestExtensionService, TestProductService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadLanguageModels } from '../../browser/mainThreadLanguageModels.js';
 import { ExtHostLanguageModelsShape } from '../../common/extHost.protocol.js';
+import { LanguageModelError, serializeLanguageModelError } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 
 suite('MainThreadLanguageModels', function () {
@@ -307,5 +308,51 @@ suite('MainThreadLanguageModels', function () {
 		cts.cancel();
 
 		assert.strictEqual(cancelCount, 0);
+	});
+
+	test('keeps the retry guidance of a provider rate limit error across the extension host boundary', async () => {
+		const store = disposables.add(new DisposableStore());
+		let provider: ILanguageModelChatProvider | undefined;
+		let requestId: number | undefined;
+		const proxy: Partial<ExtHostLanguageModelsShape> = {
+			$startChatRequest: async (_modelId, id) => {
+				requestId = id;
+			},
+		};
+		const languageModelsService = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = store.add(new Emitter<string>()).event;
+			override getLanguageModelIds(): string[] { return []; }
+			override registerLanguageModelProvider(_vendor: string, value: ILanguageModelChatProvider) {
+				provider = value;
+				return Disposable.None;
+			}
+		};
+		const mainThread = store.add(new MainThreadLanguageModels(
+			SingleProxyRPCProtocol(proxy),
+			languageModelsService,
+			new NullLogService(),
+			TestProductService,
+			new class extends mock<IAuthenticationService>() { },
+			new class extends mock<IAuthenticationAccessService>() { },
+			new TestExtensionService(),
+			new class extends mock<ILanguageModelIgnoredFilesService>() { },
+		));
+		mainThread.$registerLanguageModelProvider('test');
+
+		const response = await provider!.sendChatRequest('model-1', [], undefined, {}, CancellationToken.None);
+		await mainThread.$reportResponseDone(requestId!, serializeLanguageModelError(LanguageModelError.RateLimited('Too many requests', 1500)));
+		const error = await response.result.then(() => undefined, error => error);
+
+		assert.deepStrictEqual({
+			isRateLimit: isLanguageModelRateLimitError(error),
+			message: error.message,
+			retryAfter: error.retryAfter,
+			forwardedToExtensions: serializeLanguageModelError(error).retryAfter,
+		}, {
+			isRateLimit: true,
+			message: 'Too many requests',
+			retryAfter: 1500,
+			forwardedToExtensions: 1500,
+		});
 	});
 });
