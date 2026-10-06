@@ -33,6 +33,7 @@ import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/ch
 import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatModel, IChatModel, IChatModelInputState, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModelStore, IStartSessionProps } from '../../../../../workbench/contrib/chat/common/model/chatModelStore.js';
 import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -278,18 +279,25 @@ suite('Sessions - Chat View', () => {
 		const cleared: URI[] = [];
 		const loading: boolean[] = [];
 		const preservedInputModels: Array<IInputModel | undefined> = [];
+		const warnings: string[] = [];
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const model = createChatModel(resource);
 		const reference: IChatModelReference = { object: model, dispose: () => model.dispose() };
 		const modelRef: { value: IChatModelReference | undefined } = { value: reference };
-		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const viewStore = disposables.add(new DisposableStore());
+		const loadCts = viewStore.add(new MutableDisposable<CancellationTokenSource>());
 		const view = Object.assign(Object.create(ChatView.prototype), {
+			_store: viewStore,
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
+			_preparationModel: { value: undefined },
 			_loadCts: loadCts,
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
-			logService: new NullLogService(),
+			logService: new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			}(),
+			showProgressWhile: () => { },
 			_saveCurrentViewState: () => { },
 			_clearCurrentChat: (_session: ISession | undefined, chatResource: URI) => {
 				cleared.push(chatResource);
@@ -304,8 +312,10 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: URI | undefined;
 			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
 			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
+			dispose(): void;
 		};
-		return { view, loads, cleared, loading, loadCts, modelRef, reference, preservedInputModels, onDidDisposeSession };
+		return { view, loads, cleared, loading, loadCts, modelRef, reference, preservedInputModels, warnings, onDidDisposeSession };
 	}
 
 	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
@@ -365,20 +375,94 @@ suite('Sessions - Chat View', () => {
 		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
 		await timeout(0);
 
-		assert.deepStrictEqual(loads, []);
+		assert.deepStrictEqual({ loads, listening: onDidDisposeSession.hasListeners() }, { loads: [], listening: false });
 	});
 
-	test('reloads anyway when the previous model is not released in time', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('a slow release and repeated provider registration cannot bypass actual model disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const resource = URI.parse('remote-agent:/session');
-		const { view, loads } = createProviderReplacementView(resource);
+		const { view, loads, warnings, onDidDisposeSession } = createProviderReplacementView(resource);
 		view._trackUnregisteredContentProvider(['remote-agent']);
 		view._reloadChatForReplacedProvider(['remote-agent']);
 
-		await timeout(ChatView.REPLACED_PROVIDER_RELEASE_TIMEOUT_MS - 1);
-		const beforeDeadline = [...loads];
+		await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS - 1);
+		const beforeDeadline = { loads: [...loads], warnings: warnings.length };
 		await timeout(1);
+		view._retryUnresolvedChatLoad(['remote-agent']);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'cleared' });
+		await timeout(0);
+		const stillWaiting = { loads: [...loads], warnings: warnings.length };
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
 
-		assert.deepStrictEqual({ beforeDeadline, loads }, { beforeDeadline: [], loads: [resource] });
+		assert.deepStrictEqual({ beforeDeadline, stillWaiting, loads }, {
+			beforeDeadline: { loads: [], warnings: 0 },
+			stillWaiting: { loads: [], warnings: 1 },
+			loads: [resource],
+		});
+	}));
+
+	for (const retained of [false, true]) {
+		test(`provider reload acquires a fresh cached model after delayed disposal (another reference: ${retained})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const resource = URI.parse('remote-agent:/session');
+			const persistence = new DeferredPromise<void>();
+			let created = 0;
+			const cache = disposables.add(new ChatModelStore({
+				createModel: props => {
+					created++;
+					return createChatModel(props.sessionResource);
+				},
+				willDisposeModel: () => persistence.p,
+			}, new NullLogService()));
+			const props: IStartSessionProps = { sessionResource: resource, location: ChatAgentLocation.Chat, canUseTools: false };
+			const original = disposables.add(cache.acquireOrCreate(props));
+			const originalModel = original.object;
+			const other = disposables.add(new MutableDisposable<IChatModelReference>());
+			if (retained) {
+				other.value = cache.acquireExisting(resource);
+			}
+			const rebound = disposables.add(new MutableDisposable<IChatModelReference>());
+			const { view, modelRef, onDidDisposeSession } = createProviderReplacementView(resource);
+			modelRef.value = original;
+			disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+			Object.assign(view, {
+				_clearCurrentChat: () => {
+					modelRef.value?.dispose();
+					modelRef.value = undefined;
+				},
+				_loadChat: () => { rebound.value = cache.acquireOrCreate(props); },
+			});
+			view._trackUnregisteredContentProvider(['remote-agent']);
+			view._reloadChatForReplacedProvider(['remote-agent']);
+
+			await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS + 1);
+			const beforeEviction = { created, cachedOriginal: cache.get(resource) === originalModel, reloaded: !!rebound.value };
+			other.clear();
+			await persistence.complete();
+			await cache.waitForModelDisposals();
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeEviction, created, fresh: !!rebound.value && rebound.value.object !== originalModel }, {
+				beforeEviction: { created: 1, cachedOriginal: true, reloaded: false },
+				created: 2,
+				fresh: true,
+			});
+			rebound.clear();
+			await cache.waitForModelDisposals();
+		}));
+	}
+
+	test('disposing the view cancels a slow provider reload and releases its listener', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const { view, loads, onDidDisposeSession } = createProviderReplacementView(resource);
+		view._trackUnregisteredContentProvider(['remote-agent']);
+		view._reloadChatForReplacedProvider(['remote-agent']);
+		await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS + 1);
+		view.dispose();
+		await timeout(0);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ loads, listening: onDidDisposeSession.hasListeners() }, { loads: [], listening: false });
 	}));
 
 	function createInputState(inputText: string): IChatModelInputState {

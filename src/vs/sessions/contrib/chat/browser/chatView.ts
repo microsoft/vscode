@@ -9,6 +9,7 @@ import { $, isHTMLElement, size } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -233,11 +234,7 @@ export class ChatView extends AbstractChatView {
 
 	static readonly TYPE = 'sessions.session';
 
-	/**
-	 * How long a reload after a provider replacement waits for the previous model to be released.
-	 * Normally milliseconds; the bound only keeps a model held elsewhere from blocking the reload.
-	 */
-	static readonly REPLACED_PROVIDER_RELEASE_TIMEOUT_MS = 5_000;
+	static readonly REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS = 5_000;
 
 	override readonly kind: ChatViewKind = 'chat';
 
@@ -261,6 +258,7 @@ export class ChatView extends AbstractChatView {
 
 	/** Cancels any in-flight model load when a new session is set or the view disposes. */
 	private readonly _loadCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private _providerReloadCts: CancellationTokenSource | undefined;
 
 	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
 	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
@@ -696,6 +694,9 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void {
+		if (this._providerReloadCts && !this._providerReloadCts.token.isCancellationRequested) {
+			return;
+		}
 		const resource = this._currentChatResource;
 		if (!resource || this._modelRef.value || this._preparationModel.value || !addedSessionTypes.includes(getChatSessionType(resource))) {
 			return;
@@ -734,30 +735,30 @@ export class ChatView extends AbstractChatView {
 		this._loadCts.value?.cancel();
 		const cts = new CancellationTokenSource();
 		this._loadCts.value = cts;
-		// The model store hands a released model straight back to the next acquire until its
-		// disposal has settled, so the load must wait for the release to complete.
+		this._providerReloadCts = cts;
+		// Wait for eviction: reacquiring before disposal can resurrect the old model.
 		const store = new DisposableStore();
-		const released = new Promise<boolean>(resolve => {
-			store.add(this.chatService.onDidDisposeSession(e => {
-				if (e.sessionResources.some(disposed => isEqual(disposed, resource))) {
-					resolve(true);
-				}
-			}));
-			store.add(disposableTimeout(() => resolve(false), ChatView.REPLACED_PROVIDER_RELEASE_TIMEOUT_MS));
-			store.add(cts.token.onCancellationRequested(() => resolve(false)));
+		const released = new Promise<void>(resolve => {
+			store.add(Event.once(Event.filter(this.chatService.onDidDisposeSession, e =>
+				e.reason === 'disposed' && e.sessionResources.some(disposed => isEqual(disposed, resource))))(() => resolve()));
+			store.add(disposableTimeout(() => {
+				this.logService.warn(`[ChatView] Waiting for the previous model to be released before reloading uri=${resource.toString()}`);
+			}, ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS));
+			store.add(cts.token.onCancellationRequested(() => resolve()));
 		});
 		this._clearCurrentChat(session, resource);
 		this._setLoading(true);
-		void released.then(releasedInTime => {
+		const reloaded = released.then(() => {
 			store.dispose();
+			if (this._providerReloadCts === cts) {
+				this._providerReloadCts = undefined;
+			}
 			if (cts.token.isCancellationRequested || this._loadCts.value !== cts || !isEqual(this._currentChatResource, resource)) {
 				return;
 			}
-			if (!releasedInTime) {
-				this.logService.warn(`[ChatView] previous model was not released before reloading uri=${resource.toString()}`);
-			}
 			this._loadChat(resource, session, { inputModelToPreserve });
 		});
+		this.showProgressWhile(reloaded, 800);
 	}
 
 	/**
