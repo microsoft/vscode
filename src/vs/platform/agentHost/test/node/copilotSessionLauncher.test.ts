@@ -52,6 +52,7 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+	setMcpServerDisplayNames: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
@@ -150,7 +151,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess'>, allowLocalNetwork?: boolean) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'auth'>, allowLocalNetwork?: boolean) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
@@ -176,6 +177,11 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 						if (allowLocalNetwork === false && options.sandboxConfig?.userPolicy?.network?.allowLocalNetwork === true) {
 							throw new Error('Local network access violates managed policy');
 						}
+						for (const field of ['git', 'gh'] as const) {
+							if (sandboxToggles?.auth?.[field] === false && options.sandboxConfig?.auth?.[field] === true) {
+								throw new Error(`${field} authentication violates managed policy`);
+							}
+						}
 						for (const [key, managedValue] of [['sandboxMcpServers', true], ['sandboxLspServers', true], ['allowDevToolAccess', false]] as const) {
 							if (sandboxToggles?.[key] === managedValue && options.sandboxConfig && options.sandboxConfig[key] !== managedValue) {
 								throw new Error(`${key} violates managed policy`);
@@ -187,13 +193,14 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				}
 			},
 		} as unknown as CopilotSession;
+		const { auth, ...sandboxOptions } = sandboxToggles ?? {};
 		const initialize = (config: ResumeSessionConfig | undefined) => {
 			captured = config;
 			if (reportPolicy) {
 				config?.onEvent?.({
 					id: 'resolved', parentId: null, timestamp: '2026-01-01T00:00:00Z',
 					type: 'session.managed_settings_resolved', ephemeral: true,
-					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxToggles, userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
+					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxOptions, ...(auth ? { auth: { ...auth } } : {}), userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
 				});
 			}
 			return raw;
@@ -216,6 +223,42 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} exposes native events before the SDK session is returned without changing policy handling`, async () => {
+			const fixture = setup(kind);
+			const events: string[] = [];
+			store.add(await fixture.launcher.launch(fixture.plan, { ...testRuntime, onSessionEvent: event => events.push(event.type) }));
+			fixture.captured?.onEvent?.({
+				id: 'title', parentId: null, timestamp: '2026-10-02T21:00:00Z',
+				type: 'session.title_changed', ephemeral: true, data: { title: 'Native title' },
+			});
+			assert.deepStrictEqual({
+				events,
+				applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			}, { events: ['session.managed_settings_resolved', 'session.title_changed'], applied: [false] });
+		});
+
+		for (const [key, field] of [
+			['authenticateGit', 'git'],
+			['authenticateGh', 'gh'],
+		] as const) {
+			test(`${kind} applies managed ${field} authentication denial and preserves local restrictions`, async () => {
+				for (const local of [undefined, false, true]) {
+					for (const managed of [undefined, false, true]) {
+						const fixture = setup(kind, true, true, false, undefined, undefined, { auth: { [field]: managed } });
+						fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) } });
+						store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+						assert.deepStrictEqual({
+							applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.auth),
+							stored: fixture.configuration.getRootConfigValues()?.sandbox,
+						}, {
+							applied: [{ git: true, gh: true, [field]: managed === false ? false : local ?? true }],
+							stored: { enabled: 'on', ...(local !== undefined ? { [key]: local } : {}) },
+						});
+					}
+				}
+			});
+		}
+
 		for (const [format, error] of [
 			['structured', Object.assign(new Error('Managed sandbox conflict'), { data: { code: 'managed_sandbox_policy_conflict' } })],
 			['message', new Error('Sandbox configuration update violates managed policy. Contact your administrator for more information.')],
@@ -461,8 +504,8 @@ suite('synthesizeByokSessionConfig', () => {
 	test('synthesizes deduped providers and per-model config from the active bridge', async () => {
 		const registry = new ByokLmBridgeRegistry();
 		const registration = registry.register('client-1', connectionOf([
-			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
-			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined },
+			{ vendor: 'acme', id: 'claude', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, supportsVision: true },
+			{ vendor: 'acme', id: 'gpt', name: undefined, maxContextWindowTokens: undefined, supportsVision: false },
 			{ vendor: 'globex', id: 'llama', name: 'Globex Llama' },
 		]));
 		const proxy = countingProxy();
@@ -477,8 +520,8 @@ suite('synthesizeByokSessionConfig', () => {
 				{ name: 'globex', type: 'openai', wireApi: 'responses', baseUrl: 'http://127.0.0.1:1/v/globex', bearerToken: 'NONCE.sess-1' },
 			],
 			models: [
-				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000 },
-				{ id: 'gpt', provider: 'acme' },
+				{ id: 'claude', provider: 'acme', name: 'Acme Claude', maxContextWindowTokens: 200000, maxPromptTokens: 32000, maxOutputTokens: 4000, capabilities: { supports: { vision: true } } },
+				{ id: 'gpt', provider: 'acme', capabilities: { supports: { vision: false } } },
 				{ id: 'llama', provider: 'globex', name: 'Globex Llama' },
 			],
 		});
@@ -630,7 +673,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		return { service, get starts() { return starts; }, get disposes() { return disposes; } };
 	}
 
-	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled = true): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled?: boolean): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmProxyService, proxy);
@@ -684,90 +727,113 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		}
 	});
 
-	test('reconciles connector MCP servers through the Copilot runtime before launch completes', async () => {
-		const connectorCalls: string[] = [];
-		let featureFlags: Record<string, boolean> | undefined;
-		const session = {
-			sessionId: 'connector-session',
-			on: () => () => { },
-			disconnect: async () => { },
-			rpc: {
-				options: { update: async () => ({ success: true }) },
-				gitHubAuth: {
-					getStatus: async () => {
-						connectorCalls.push('auth');
-						return { isAuthenticated: true, authType: 'token-provider' as const, host: 'github.com', login: 'octocat' };
+	for (const { authInfo, reconcileError } of [
+		{ authInfo: { type: 'token-provider' as const, host: 'https://github.com', registrationId: 'registration-1', copilotUser: { login: 'octocat' } } },
+		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' } },
+		{ authInfo: { type: 'account' as const, host: 'https://github.com', login: 'octocat' }, reconcileError: new Error('MCP server requires authentication') },
+	]) {
+		test(`${reconcileError ? 'recovers connector MCP names when reconciliation requires authentication' : 'reconciles connector MCP servers through the Copilot runtime before launch completes'} (${authInfo.type})`, async () => {
+			const connectorCalls: string[] = [];
+			let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
+			let featureFlags: Record<string, boolean> | undefined;
+			const connectorStatus = {
+				apiVersion: 1,
+				availability: 'enabled' as const,
+				catalog: {
+					revision: 1,
+					refreshedAtMs: 1,
+					connectors: [{ name: 'mail', displayName: 'Work IQ Mail', status: 'connected' as const, runtimeServerIds: ['connector-mail'] }],
+				},
+				runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
+				pendingConnections: 0,
+			};
+			const session = {
+				sessionId: 'connector-session',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: {
+					options: { update: async () => ({ success: true }) },
+					gitHubAuth: {
+						getStatus: async () => {
+							connectorCalls.push('auth');
+							return { isAuthenticated: true, authType: authInfo.type, host: 'github.com', login: 'octocat' };
+						},
+					},
+					connectors: {
+						getCapabilities: async () => {
+							connectorCalls.push('capabilities');
+							return { availability: 'enabled' as const };
+						},
+						getStatus: async () => {
+							connectorCalls.push('status');
+							return connectorStatus;
+						},
+						reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
+							connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
+							if (reconcileError) {
+								throw reconcileError;
+							}
+							return connectorStatus;
+						},
 					},
 				},
-				connectors: {
-					getCapabilities: async () => {
-						connectorCalls.push('capabilities');
-						return { availability: 'enabled' as const };
-					},
-					reconcile: async (request: { accountId: string; refreshCatalog?: boolean }) => {
-						connectorCalls.push(`reconcile:${request.accountId}:${request.refreshCatalog === true}`);
-						return {
-							apiVersion: 1,
-							availability: 'enabled' as const,
-							runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
-							pendingConnections: 0,
-						};
-					},
-				},
-			},
-		} as unknown as CopilotSession;
-		const client = {
-			rpc: {
-				account: {
-					getAllUsers: async () => {
-						connectorCalls.push('accounts');
-						return [{
-							authInfo: {
-								type: 'token-provider' as const,
-								host: 'https://github.com',
-								registrationId: 'registration-1',
-								copilotUser: { login: 'octocat' },
-							},
-							selectionId: 'account-1',
-						}];
+			} as unknown as CopilotSession;
+			const client = {
+				rpc: {
+					account: {
+						getAllUsers: async () => {
+							connectorCalls.push('accounts');
+							return [{
+								authInfo: { ...authInfo, login: 'another-user', copilotUser: { login: 'another-user' } },
+								selectionId: 'another-account',
+							}, {
+								authInfo,
+								selectionId: 'account-1',
+							}];
+						},
 					},
 				},
-			},
-			createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
-				reportManagedSettings(config);
-				featureFlags = config.featureFlags;
-				return session;
-			},
-			resumeSession: async () => { throw new Error('Unexpected resume'); },
-		} as unknown as CopilotClient;
-		const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
-		const plan: CopilotSessionLaunchPlan = {
-			kind: 'create',
-			client,
-			extensionSdkPath: '/copilot-sdk',
-			sessionId: 'connector-session',
-			workingDirectory: testWorkingDirectory,
-			resolvedAgentName: undefined,
-			snapshot: { tools: [], plugins: [], mcpServers: {} },
-			activeClientToolSet: new ActiveClientToolSet(),
-			shellManager: undefined,
-			githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
-			model: undefined,
-		};
+				createSession: async (config: Parameters<CopilotClient['createSession']>[0]) => {
+					reportManagedSettings(config);
+					featureFlags = config.featureFlags;
+					return session;
+				},
+				resumeSession: async () => { throw new Error('Unexpected resume'); },
+			} as unknown as CopilotClient;
+			const launcher = createTestLauncher(undefined, { [AgentHostMcpConnectorsEnabledConfigKey]: true });
+			const plan: CopilotSessionLaunchPlan = {
+				kind: 'create',
+				client,
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'connector-session',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken('connector-token'),
+				model: undefined,
+			};
 
-		const launched = await launcher.launch(plan, testRuntime);
-		try {
-			assert.deepStrictEqual({
-				featureFlags,
-				connectorCalls,
-			}, {
-				featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
-				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
+			const launched = await launcher.launch(plan, {
+				...testRuntime,
+				setMcpServerDisplayNames: displayNames => connectorDisplayNames = new Map(displayNames),
 			});
-		} finally {
-			launched.dispose();
-		}
-	});
+			try {
+				assert.deepStrictEqual({
+					featureFlags,
+					connectorCalls,
+					connectorDisplayName: connectorDisplayNames.get('connector-mail'),
+				}, {
+					featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
+					connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true', ...(reconcileError ? ['status'] : [])],
+					connectorDisplayName: 'Work IQ Mail',
+				});
+			} finally {
+				launched.dispose();
+			}
+		});
+	}
 
 });
 
@@ -835,7 +901,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeConfigs.push(config);
 				return session;
 			},
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		const managedSettingsPermissions: IAgentHostManagedSettingsPermissions = {
 			disableBypassPermissionsMode: 'disable',
@@ -1180,7 +1246,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 				return session;
 			},
 			resumeSession: async () => { throw new Error('Unexpected resume'); },
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
 		const plan: CopilotSessionLaunchPlan = {
@@ -1231,7 +1297,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 				return session;
 			},
 			resumeSession: async () => { throw new Error('Unexpected resume'); },
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
 		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
@@ -1295,7 +1361,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 			resumeSession: async () => {
 				throw new TestSdkError(message, code);
 			},
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		};
 		return {
 			launcher: createTestLauncher(undefined, {}, logService, sessionOpenTelemetry),
@@ -2200,7 +2266,7 @@ suite('CopilotSessionLauncher auto tier', () => {
 			},
 		} as unknown as CopilotSession;
 		const client: CopilotSessionLaunchPlan['client'] = {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 			createSession: async config => {
 				capiCalls.push(config.capi);
 				return session;

@@ -575,6 +575,12 @@ export class AgentHostStateManager extends Disposable {
 		return this._chatEntries.get(chat)?.state;
 	}
 
+	/** Captures registration identity so asynchronous mutations cannot target a recreated chat. */
+	captureChatValidity(chat: URI): () => boolean {
+		const entry = this._chatEntries.get(chat);
+		return () => !!entry?.valid && this._chatEntries.get(chat) === entry;
+	}
+
 	/**
 	 * Returns a chat's {@link ChatOrigin} from its catalog summary, not its
 	 * (lazily-materialized) {@link ChatState}: a restored chat registers its
@@ -943,8 +949,8 @@ export class AgentHostStateManager extends Disposable {
 	 * `workingDirectory`, `modifiedAt`, `changes`) from the supplied summary
 	 * onto the session entry so subscribers see them. The reducer-owned metadata
 	 * (`title`, `status`, `activity`) is intentionally NOT copied back — the live
-	 * state is authoritative for those. Project remains catalog-only while the
-	 * resolved working directories are synchronized session state. No-ops for
+	 * state is authoritative for those. Project and resolved working directories
+	 * also update future session snapshots. No-ops for
 	 * sessions that were already announced (idempotent).
 	 */
 	markSessionPersisted(session: URI, summary: SessionSummary, force = false): void {
@@ -963,7 +969,7 @@ export class AgentHostStateManager extends Disposable {
 		// `SessionSummaryChanged` flush because the upcoming `SessionAdded`
 		// notification carries the complete summary already.
 		const workingDirectoriesChanged = !equals(entry.state.workingDirectories, summary.workingDirectories);
-		entry.state = { ...entry.state, workingDirectories: summary.workingDirectories, _meta: summary._meta };
+		entry.state = { ...entry.state, project: summary.project, workingDirectories: summary.workingDirectories, _meta: summary._meta };
 		if (workingDirectoriesChanged) {
 			this._onDidChangeSessionWorkingDirectories.fire({ session: key });
 		}
@@ -1592,7 +1598,7 @@ export class AgentHostStateManager extends Disposable {
 		this.dispatchServerAction(session, { type: ActionType.SessionMetaChanged, _meta: meta });
 	}
 
-	/** Updates catalog-only host-resolved project metadata. */
+	/** Updates host-resolved project metadata in the catalogue and future session snapshots. */
 	setSessionProject(session: URI, project: SessionSummary['project']): void {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
@@ -1603,6 +1609,7 @@ export class AgentHostStateManager extends Disposable {
 			return;
 		}
 		entry.project = project;
+		entry.state = { ...entry.state, project };
 		this._summaryNotifier.markDirty(session);
 	}
 
@@ -1941,17 +1948,17 @@ export class AgentHostStateManager extends Disposable {
 				config: preserveProviderBackedRootConfigValues(this._rootState, action.config),
 			};
 		}
+		let singleChatToSynchronize: { readonly chat: URI; readonly isRead: boolean } | undefined;
 		if (action.type === ActionType.SessionIsReadChanged && action.isRead) {
 			const state = this._sessionStates.get(channel)?.state;
 			const aggregateChats = state?.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)) ?? [];
 			if (aggregateChats.length > 1 && aggregateChats.some(chat => !isSessionStatusRead(chat.status))) {
 				action = { ...action, isRead: false };
 			} else if (aggregateChats.length === 1 && !isSessionStatusRead(aggregateChats[0].status)) {
-				this.dispatchServerAction(aggregateChats[0].resource, { type: ActionType.ChatIsReadChanged, isRead: true });
+				singleChatToSynchronize = { chat: aggregateChats[0].resource, isRead: true };
 			}
 		}
-		let sessionToMarkUnread: URI | undefined;
-		let singleChatToSynchronize: { readonly chat: URI; readonly isRead: boolean } | undefined;
+		let sessionReadStateToSynchronize: { readonly session: URI; readonly isRead: boolean } | undefined;
 		// Apply to state
 		if (isRootAction(action)) {
 			// `RootConfigChanged` can be a true no-op: the reducer merges/replaces
@@ -2036,10 +2043,20 @@ export class AgentHostStateManager extends Disposable {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
 				}
 				this._onChatStateChanged(sessionKey, channel, chat, newChat);
-				if (chatAction.type === ActionType.ChatIsReadChanged && !chatAction.isRead && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
+				if (chatAction.type === ActionType.ChatIsReadChanged && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
 					const session = this._sessionStates.get(sessionKey)?.state;
-					if (session && isSessionStatusRead(session.status)) {
-						sessionToMarkUnread = sessionKey;
+					if (session) {
+						const sessionIsRead = isSessionStatusRead(session.status);
+						const chatWasRead = isSessionStatusRead(chat.status);
+						const chatIsRead = isSessionStatusRead(newChat.status);
+						if (!chatIsRead && sessionIsRead) {
+							sessionReadStateToSynchronize = { session: sessionKey, isRead: false };
+						} else if (chatIsRead && !chatWasRead && !sessionIsRead
+							&& session.chats
+								.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity))
+								.every(chat => isSessionStatusRead(chat.status))) {
+							sessionReadStateToSynchronize = { session: sessionKey, isRead: true };
+						}
 					}
 				}
 				resultingState = newChat;
@@ -2129,8 +2146,11 @@ export class AgentHostStateManager extends Disposable {
 		if (singleChatToSynchronize) {
 			this.dispatchServerAction(singleChatToSynchronize.chat, { type: ActionType.ChatIsReadChanged, isRead: singleChatToSynchronize.isRead });
 		}
-		if (sessionToMarkUnread) {
-			this.dispatchServerAction(sessionToMarkUnread, { type: ActionType.SessionIsReadChanged, isRead: false });
+		if (sessionReadStateToSynchronize) {
+			this.dispatchServerAction(sessionReadStateToSynchronize.session, {
+				type: ActionType.SessionIsReadChanged,
+				isRead: sessionReadStateToSynchronize.isRead,
+			});
 		}
 
 		return resultingState;

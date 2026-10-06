@@ -46,6 +46,61 @@ const startupTimeout = 90_000;
 const fakeModelToken = 'smoketest-fake-agent-host-token';
 const tunnelTokenEnvironmentKey = 'VSCODE_SMOKE_TEST_TUNNEL_TOKEN';
 
+/** Provision a matching CLI when published, otherwise a same-quality fallback for unpublished builds. */
+export function getDevContainerCliInstallCommand(codePath?: string): string {
+	const productPath = codePath ? getBuildProductPath(codePath) : path.join(repositoryRoot, 'product.json');
+	const product: { quality?: string; commit?: string; serverDataFolderName?: string } = JSON.parse(fs.readFileSync(productPath, 'utf8'));
+	const overridesPath = path.join(repositoryRoot, 'product.overrides.json');
+	if (!codePath && fs.existsSync(overridesPath)) {
+		Object.assign(product, JSON.parse(fs.readFileSync(overridesPath, 'utf8')));
+	}
+	if (!codePath && product.serverDataFolderName) {
+		product.serverDataFolderName += '-dev';
+	}
+	const quality = product.quality ?? 'insider';
+	assertCliQuality(quality);
+	const archive = quality === 'stable' ? 'code' : quality === 'exploration' ? 'code-exploration' : 'code-insiders';
+	const legacyDirectory = quality === 'stable' ? '.vscode-cli' : `.vscode-cli-${quality}`;
+	const serverDirectory = product.serverDataFolderName ?? '.vscode-server-oss';
+	if (!/^[\w.-]+$/.test(serverDirectory)) {
+		throw new Error(`Invalid CLI server data folder: ${serverDirectory}`);
+	}
+	if (product.commit !== undefined && !/^[0-9a-f]{40}$/i.test(product.commit)) {
+		throw new Error(`Invalid CLI commit: ${product.commit}`);
+	}
+	const commit = product.commit?.toLowerCase();
+	const latestDownload = `curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"`;
+	return [
+		'set -e',
+		'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
+		'cli_tmp=$(mktemp -d)',
+		'trap \'rm -rf "$cli_tmp"\' EXIT',
+		`cli_dir="$HOME/${legacyDirectory}"`,
+		`cli_bin="$cli_dir/${archive}"`,
+		...(commit ? [
+			`if curl -fsSL "https://update.code.visualstudio.com/commit:${commit}/cli-linux-\${cli_arch}/${quality}" -o "$cli_tmp/cli.tar.gz"; then`,
+			`cli_dir="$HOME/${serverDirectory}"`,
+			`cli_bin="$cli_dir/${archive}-${commit}"`,
+			`echo "Installing ${quality} CLI matching desktop commit ${commit}"`,
+			'else',
+			`echo "CLI for desktop commit ${commit} unavailable; falling back to latest ${quality} CLI" >&2`,
+			latestDownload,
+			'fi',
+		] : [latestDownload]),
+		'mkdir -p "$cli_dir"',
+		'tar -xzf "$cli_tmp/cli.tar.gz" -C "$cli_tmp"',
+		`mv "$cli_tmp/${archive}" "$cli_bin"`,
+		'chmod +x "$cli_bin"',
+		'"$cli_bin" --version',
+	].join('\n');
+}
+
+function assertCliQuality(quality: string): void {
+	if (quality !== 'stable' && quality !== 'insider' && quality !== 'exploration') {
+		throw new Error(`Unsupported CLI quality: ${quality}`);
+	}
+}
+
 async function readConnectionLogTail(file: string): Promise<string> {
 	const handle = await fs.promises.open(file, 'r');
 	try {

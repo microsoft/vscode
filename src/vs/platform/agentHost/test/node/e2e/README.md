@@ -111,6 +111,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `suites/clientHostedFilesystemSuite.ts` | Host-to-client `resource*` operations against client-hosted files. |
 | `suites/workingDirectoriesSuite.ts` | Multi-root peer scoping, delegated folders, additional worktree ownership, and workspace persistence. |
 | `suites/mcpSideChannelSuite.ts` | Real MCP application requests tunneled over AHP, including resources, tool results, concurrent callers, and lifecycle recovery. |
+| `suites/terminalResilienceSuite.ts` | Client-owned real PTYs: working directory, UTF-8 input, resizing, fragmented output, independent processes, and retained output across subscription changes. |
 | `suites/providerCheckpointSuite.ts` | Provider-executed edits and historical Git checkpoint comparisons, including index preservation and restart. |
 | `suites/providerErrorSuite.ts` | Endpoint-scoped model API failures, provider error classification, retries, and subsequent-turn recovery. |
 | `harness/` | Record/replay, AHP snapshots, shared turn drivers, and server lifecycle. |
@@ -118,7 +119,7 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 | `captures/*.yaml` | Committed model fixtures, plus one shared strict empty fixture for tests that declare no model traffic. |
 | `conformance/__snapshots__/`, `providers/__snapshots__/` | Semantic AHP snapshots (`*.traffic.ahp.yaml`) and assembled-prompt snapshots (`*.prompt.md`), resolved relative to the entry point that registered the test. |
 | `providers/copilotPromptsE2E.integrationTest.ts` | The provider request-body boundary: the complete model request body the bundled Copilot CLI sends, read off a replayed turn. See [Prompt snapshots](#prompt-snapshots). |
-| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes after a host restart. The warm policy-change gap is tracked in `KNOWN_ISSUES.md`. |
+| `providers/copilotOtelAgentHostE2E.integrationTest.ts` | Native Copilot telemetry: Agent Host file export, managed content capture across sessions, and policy changes with and without a host restart. |
 | `coverage/summary.json` | Checked-in line coverage of the host implementation. |
 | `coverage/protocol-surface.json` | Checked-in coverage of the AHP contract itself. |
 | [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) | Inventory and reevaluation process for disabled or conditional tests. |
@@ -136,6 +137,14 @@ Workspace lifecycle tests enable each provider's multi-root capability only for 
 Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
 
 The MCP side-channel scenarios use the `channel` advertised by a real ready server, never a synthesized implementation URI. Copilot and Codex support this surface; Claude does not. Codex additionally exposes resource and template inventories, while Copilot supports stop/start. A recorded no-tool turn materializes the provider; side-channel calls then exercise the actual MCP process without model requests.
+
+The expanded side-channel cases cover structured results, ordered content/resource encodings, empty results, concurrent error isolation, resource retry, and catalog additions/removals/schema changes. Catalog readiness is established by the actual `tools/list` result, not by a model-facing tool-change notification that need not fire for an idle MCP Apps request.
+
+Live client-tool coverage updates a materialized Copilot session over AHP and checks real execution plus the provider-bound request. Removal assertions project the effective Anthropic inventory, including structured addition/removal blocks, rather than assuming a cache-preserving runtime must rewrite its baseline tool array.
+
+Terminal resilience assertions compare filesystem identity rather than Windows short/long path spelling, render VT scrollback through a headless terminal rather than counting ConPTY repaint bytes, and send Unicode to an already-running child rather than relying on a shell editor's locale. Claude history-edit fixtures perform the required `Read` before `Edit`, including after cold resume; replayed success text cannot substitute for that tool prerequisite.
+
+The `regression coverage:` history cases inspect actual provider-bound continued context after cold resume and selected-turn forks, with live file-edit/result pairing and independent peer histories. They do not establish native overlapping disposal, interrupted parallel completion, or strict-transcript opt-in prerequisites that AHP does not expose.
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
@@ -212,6 +221,8 @@ Each elision has a reason, and dropping any of them would make the assertion eit
 
 A single text block left after removing reasoning is compared as bare text, matching the replay codec's representation. Multiple text blocks and mixed text/tool content retain their structure.
 
+Runtime-authored change notices are elided from user text. A standalone user message containing only those recognized notices is omitted as well; user questions, empty authored messages, assistant messages, and tool-result wiring remain asserted.
+
 A mismatch fails the test as `[capi-replay] N model request mismatch(es)` and prints both projections. It usually means the capture is stale — the prompt or the host's prompt assembly changed without a re-record — so **re-record it** (see [Updating snapshots and fixtures](#updating-snapshots-and-fixtures)). Never hand-edit the request block to match. If a capture genuinely cannot be refreshed, add its test title to `STALE_RECORDED_REQUEST_EXCEPTIONS` in `agentHostE2ETestHarness.ts` with a `KNOWN_ISSUES.md` entry.
 
 ---
@@ -248,6 +259,10 @@ fetches server settings afresh and retains the production 4.5-second overall and
 3.5-second query deadlines. Cold-start deadline behavior is covered by the
 Copilot agent unit tests.
 
+The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
+
+The managed-permissions AHP suite sends real client policy contributions rather than calling SDK tools directly. It checks native read/write asks under Allow All and Assisted approval, one-time confirmation, denied side effects, unconditional managed denials, live updates to default and peer chats, and current contributions on cold resume. Successful file mutations and real tool results are the oracles; replayed assistant responses are not proof of enforcement.
+
 Provider availability:
 
 - **Copilot** (`copilotcli`) — always enabled (the CLI is a dev dependency).
@@ -265,8 +280,10 @@ Skip these scenarios while recording so a known early failure cannot overwrite
 a complete fixture with a partial recording. Remove that recording skip together
 with the marker when the upstream fix is adopted.
 
-The managed-telemetry no-restart scenario runs this way by default. Do not
-replace its marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default.
+Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
+managed-telemetry no-restart scenario passes normally with runtime `1.0.92-4`.
+Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
 `{ allowUnconsumedResponses: true }` to the lease's replay verification at
@@ -290,7 +307,7 @@ On Windows, test-server cleanup records descendants before requesting graceful s
 
 The complete-suite runner parallelizes above this lease: conformance, Claude, Codex, Copilot, and Copilot OTel each run in an isolated test process with their own server lease. Tests within one entrypoint stay serial and continue sharing servers, preserving the lifecycle and fixture-window invariants while letting the independent entrypoints overlap. Managed-telemetry tests use a fresh lease and loopback collector per test because their policy and exporter configuration are process-scoped.
 
-Copilot OTel leases clear inherited generic and trace-specific OTLP certificate/key variables in the child environment because both managed telemetry and the Agent Host file-export path use plain HTTP loopback collectors. The parent process environment is unchanged.
+Copilot OTel leases clear inherited generic and trace-specific OTLP certificate/key variables in the child environment because both managed telemetry and the Agent Host file-export path use plain HTTP loopback collectors. They also set `OTEL_BSP_SCHEDULE_DELAY=100` so native span batching does not consume the bounded export-readiness wait or inherit a developer's longer export schedule. The tests still wait for and assert the actual exported spans; the parent process environment is unchanged.
 
 The file-export test also sets `OTEL_BSP_SCHEDULE_DELAY=100` in its child environment so native SDK batching does not race the ten-second span-polling budget. It still waits for the actual SDK and host spans in the exported file; neither the polling deadline nor the required spans are relaxed.
 
@@ -624,6 +641,18 @@ You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a to
 ### A test passes alone but fails only when run after another test (shared server)
 
 In replay one server serves every test (see [Server lifecycle](#server-lifecycle)), so a test that returns **mid-turn** leaks: the SDK's continuation call fires after the fixture is swapped and lands in a later test's window as an unrecorded call (a `POST /v1/messages` / `POST /responses` cache miss, usually attributed to the *next* test's teardown). Fix the culprit — the test that returned mid-turn — by draining its turn to `turnComplete` before it ends. (Verify by running the suspected test alone via `--grep`, which gives it a clean one-test server; if it passes alone but fails after a sibling, that's the leak.)
+
+### Read or archive state is lost after a graceful host restart
+
+Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
+
+### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
+
+Turn completion precedes the unread lifecycle action. Wait for `chat/isReadChanged` with `isRead: false` on the same chat and a greater `serverSeq` before taking the snapshot. The turn driver and snapshot scenario runner share this barrier; do not remove the unread action from the snapshot or add a sleep.
+
+### A later test fails on unexpected console output after a snapshot mismatch
+
+Check for a `Deleting 1 old snapshots` message from the preceding test. A previous failed iteration leaves a diagnostic `.actual` file; a passing iteration removes it. Diagnostic cleanup must not report a baseline mutation, which CI correctly rejects. The snapshot helper cleans these artifacts silently while continuing to report removal of actual baselines.
 
 ### CI infra flakes (not your code)
 

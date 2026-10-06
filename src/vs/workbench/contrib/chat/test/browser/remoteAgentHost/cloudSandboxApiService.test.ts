@@ -253,6 +253,50 @@ suite('CloudSandboxApiService connection credentials', () => {
 		};
 	}
 
+	test('loads cloud models and reasoning metadata without creating a task or environment', async () => {
+		const requests: { path: string; method: string | undefined; integration: string | string[] | undefined }[] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, method: options.type, integration: options.headers?.['Copilot-Integration-Id'] });
+				return jsonResponse({
+					default_model: 'auto',
+					data: [
+						{ id: 'auto', name: 'Auto' },
+						{ id: 'brand-new-model', name: 'New Model', capabilities: { supports: { vision: true, reasoning_effort: ['low', 'high', 'new-effort'] }, limits: { max_prompt_tokens: 1000 } } },
+						{ id: 'disabled', name: 'Disabled', policy: { state: 'disabled' } },
+						{ id: 'hidden', name: 'Hidden', model_picker_enabled: false },
+					],
+				});
+			},
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		assert.deepStrictEqual({
+			requests,
+			defaultModel: catalog.defaultModel,
+			models: catalog.models.map(model => ({ id: model.id, vision: model.supportsVision, input: model.maxPromptTokens, efforts: model.configSchema?.properties.reasoningEffort.enum })),
+		}, {
+			requests: [{ path: '/agents/swe/models', method: 'GET', integration: COPILOT_INTEGRATION_ID }],
+			defaultModel: 'auto',
+			models: [
+				{ id: 'auto', vision: undefined, input: undefined, efforts: undefined },
+				{ id: 'brand-new-model', vision: true, input: 1000, efforts: ['low', 'high', 'new-effort'] },
+			],
+		});
+	});
+
+	for (const body of [{}, { data: [null] }, { data: [{ id: 'bad', name: 'Bad', capabilities: { supports: { reasoning_effort: [1] } } }] }]) {
+		test(`rejects invalid cloud model metadata: ${JSON.stringify(body)}`, async () => {
+			const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse(body) });
+			await assert.rejects(service.listModels(CancellationToken.None), /invalid model/);
+		});
+	}
+
+	test('reports cloud catalog HTTP failures instead of treating them as an empty catalog', async () => {
+		const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse({}, 403) });
+		await assert.rejects(service.listModels(CancellationToken.None), /model catalog failed: HTTP 403/);
+	});
+
 	for (const action of ['connect', 'reconnect'] as const) {
 		test(`${action} logs safe upstream correlation for an HTTP failure`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const logService = new TestLogService();
@@ -383,6 +427,91 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.strictEqual(requestedUrls.length, 1);
 		});
 	}
+});
+
+suite('Mission Control environment discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('caches credential-free metadata and invalidates it when the account changes', async () => {
+		const { service, requestedUrls, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{
+				id: 'host', kind: 'user-local', name: 'Native host', status: 'online', webpubsub: { access_token: 'must-not-be-cached' },
+			}]) : undefined,
+		});
+		const first = await service.listEnvironments(CancellationToken.None);
+		assert.strictEqual(await service.listEnvironments(CancellationToken.None), first);
+		assert.strictEqual(service.getCachedEnvironments(), first);
+		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online' }]);
+		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 1);
+		changeAuthentication();
+		assert.strictEqual(service.getCachedEnvironments(), undefined);
+		await service.listEnvironments(CancellationToken.None);
+		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 2);
+	});
+
+	test('does not return expired cached inventory or fetch merely to read the cache', async () => {
+		await runWithFakedTimers({}, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([]) : undefined,
+			});
+			const empty = service.getCachedEnvironments();
+			await service.listEnvironments(CancellationToken.None);
+			const cached = service.getCachedEnvironments();
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				empty, cached, expired: service.getCachedEnvironments(),
+				requests: requestedUrls.filter(url => url.endsWith('/agents/environments')).length,
+			}, { empty: undefined, cached: [], expired: undefined, requests: 1 });
+		});
+	});
+
+	test('skips unusable metadata without hiding other valid environments or rejecting future statuses', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([
+				{ id: 'invalid', name: 'Invalid host', kind: 'user-local' },
+				{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
+				{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
+			]) : undefined,
+		});
+		assert.deepStrictEqual(await service.listEnvironments(CancellationToken.None), [
+			{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
+			{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
+		]);
+	});
+
+	test('explicit inventory refresh observes a host started since the cached offline result', async () => {
+		let status = 'offline';
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{ id: 'host', name: 'Native host', kind: 'user-local', status }]) : undefined,
+		});
+		assert.strictEqual((await service.listEnvironments(CancellationToken.None))[0].status, 'offline');
+		status = 'online';
+		assert.strictEqual((await service.listEnvironments(CancellationToken.None, { refresh: true }))[0].status, 'online');
+	});
+
+	test('does not publish a late inventory from a previous account', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname.endsWith('/agents/environments')) {
+					started.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const inventory = service.listEnvironments(CancellationToken.None);
+		await started.p;
+		changeAuthentication();
+		response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Old account', status: 'online' }]));
+		await assert.rejects(inventory, CancellationError);
+	});
 });
 
 suite('CloudSandboxApiService repository resolution', () => {
