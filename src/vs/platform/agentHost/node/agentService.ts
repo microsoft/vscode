@@ -7142,14 +7142,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const sessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? parseRequiredSessionUriFromChatUri(chatChannel) : channel);
 		const requiresSessionRestore = (chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(sessionChannel);
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
-		const requiresTurnOwnerResolution = action.type === ActionType.ChatTurnStarted && (requiresSessionRestore || (this._getUnresolvedPeerChats(sessionChannel)?.length ?? 0) > 0);
 		const requiresAttachmentRewrite = this._needsAsyncRewrite(sessionChannel, action);
 		const requiresReviewStateUpdate = action.type === ActionType.ChangesetFilesReviewChanged;
 		const requiresAnnotationsRestore = isAnnotationsAction(action);
 		const requiresWorkspacePin = action.type === ActionType.SessionWorkingDirectorySet;
 
 		const pending = this._clientDispatchQueues.get(clientId);
-		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresTurnOwnerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
+		if (!pending && !requiresSessionRestore && !requiresPeerResolution && !requiresAttachmentRewrite && !requiresReviewStateUpdate && !requiresAnnotationsRestore && !requiresWorkspacePin) {
 			this._dispatchActionNow(channel, sessionChannel, action, clientId, clientSeq, clientContext);
 			return;
 		}
@@ -7190,9 +7189,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (chatChannel && requiresPeerResolution) {
 				await this._stateManager.resolveChatState(chatChannel);
-			}
-			if (action.type === ActionType.ChatTurnStarted && requiresTurnOwnerResolution) {
-				await this._resolvePeerChatsForTurnValidation(sessionChannel);
 			}
 			let rewritten: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction = requiresAttachmentRewrite
 				? await this._rewriteUserMessageAttachments(sessionChannel, action, clientId)
@@ -7753,10 +7749,6 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			resumedTurn = turn;
 		}
-		if (action.type === ActionType.ChatTurnStarted && this._isTurnIdUsedByAnotherChat(sessionChannel, channel, action.turnId)) {
-			this._stateManager.rejectClientAction(channel, action, origin, 'Turn id is already used by another chat in this session.');
-			return;
-		}
 		// Host-owned session config carries merge authorization (bound pull request,
 		// watermark, attempt budgets), so a client must never be able to write it, and
 		// a wholesale replacement must not drop it either.
@@ -7831,41 +7823,6 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _getUnresolvedPeerChats(sessionChannel: string): readonly string[] | undefined {
-		return this._stateManager.getSessionState(sessionChannel)?.chats.filter(chat => !isDefaultChatUri(chat.resource) && !this._stateManager.getChatState(chat.resource)).map(chat => chat.resource);
-	}
-
-	private async _resolvePeerChatsForTurnValidation(sessionChannel: string): Promise<void> {
-		const unavailableSubagentTranscripts = new Set<string>();
-		while (true) {
-			const unresolvedChats = this._getUnresolvedPeerChats(sessionChannel)?.filter(chat => !unavailableSubagentTranscripts.has(chat));
-			if (!unresolvedChats) { throw new Error('Cannot validate turn id for unknown session'); }
-			if (unresolvedChats.length === 0) { return; }
-			await Promise.all(unresolvedChats.map(async chat => {
-				try {
-					if (!await this._stateManager.resolveChatState(chat)) { throw new Error('Cannot resolve peer chat for turn id validation'); }
-				} catch (error) {
-					if (!(error instanceof SubagentTranscriptUnavailableError)) {
-						throw error;
-					}
-					unavailableSubagentTranscripts.add(chat);
-					this._logService.warn(`[AgentService] Cannot validate turn ids against unavailable subagent transcript: ${chat}`);
-				}
-			}));
-		}
-	}
-	private _isTurnIdUsedByAnotherChat(sessionChannel: string, chatChannel: string, turnId: string): boolean {
-		const sessionState = this._stateManager.getSessionState(sessionChannel);
-		if (!sessionState) { return false; }
-		if (sessionState.defaultChat !== chatChannel && (sessionState.activeTurn?.id === turnId || (sessionState.turns ?? []).some(turn => turn.id === turnId))) { return true; }
-		for (const chat of sessionState.chats ?? []) {
-			if (chat.resource === chatChannel || isDefaultChatUri(chat.resource)) { continue; }
-			const chatState = this._stateManager.getChatState(chat.resource);
-			if (chatState?.activeTurn?.id === turnId || chatState?.turns.some(turn => turn.id === turnId)) { return true; }
-		}
-		return false;
-	}
-
 	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
 		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
 			return false;
