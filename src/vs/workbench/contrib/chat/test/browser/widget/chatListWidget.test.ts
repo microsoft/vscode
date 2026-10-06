@@ -1535,7 +1535,7 @@ suite('ChatListWidget', () => {
 			widget.refresh();
 			assert.ok(response.isComplete && response.renderData && progress.isConnected);
 
-			const samples = [];
+			const samples: ReturnType<typeof measure>[] = [];
 			const heights = new Set<number>();
 			const fractions = new Set<number>();
 			const row = progress.closest<HTMLElement>('.interactive-response');
