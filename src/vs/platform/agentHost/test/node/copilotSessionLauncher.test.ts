@@ -673,7 +673,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		return { service, get starts() { return starts; }, get disposes() { return disposes; } };
 	}
 
-	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled = true): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, proxy: IByokLmProxyService, registry: IByokLmBridgeRegistry, byokModelsEnabled?: boolean): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmProxyService, proxy);
