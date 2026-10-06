@@ -6,7 +6,7 @@
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NonPtyShellTerminalStreams } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { NonPtyShellTerminalStreams, parseSpilledShellCompletion } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -466,6 +466,26 @@ suite('NonPtyShellTerminalStreams', () => {
 			deepStrictEqual({ finalized: manager.outputTerminalsFinalized, terminal: streams.getBackgroundShellTerminal('11') }, {
 				finalized: [{ uri: first, exitCode: undefined }],
 				terminal: second,
+			});
+		});
+	});
+
+	suite('spilled output', () => {
+		test('recovers the preview and exit code from the runtime text', () => {
+			const spilled = (preview: string, grepTool = 'grep') => `Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like ${grepTool} (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first 500 chars):\n${preview}`;
+
+			deepStrictEqual({
+				completed: parseSpilledShellCompletion(`${spilled('FULL_OUTPUT_BEGIN\nxxxx')}\n<shellId: 0 completed with exit code 0>`),
+				trailingNewline: parseSpilledShellCompletion(`${spilled('line 1\nline 2\n', 'rg')}\r\n<shellId: 44 completed with exit code 1>`),
+				stillRunning: parseSpilledShellCompletion(spilled('partial')),
+				plain: parseSpilledShellCompletion('fallback output\n<shellId: 1 completed with exit code 0>'),
+				empty: parseSpilledShellCompletion(undefined),
+			}, {
+				completed: { exitCode: 0, preview: 'FULL_OUTPUT_BEGIN\nxxxx', truncated: true },
+				trailingNewline: { exitCode: 1, preview: 'line 1\nline 2\n', truncated: true },
+				stillRunning: { preview: 'partial', truncated: true },
+				plain: undefined,
+				empty: undefined,
 			});
 		});
 	});

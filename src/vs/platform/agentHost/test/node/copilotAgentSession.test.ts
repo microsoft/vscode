@@ -3547,34 +3547,43 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
-	test('restores saved output even when SDK history omits structured shell completion', async () => {
-		const database = new TestSessionDatabase();
-		await database.createTurn('stored-turn');
-		await database.storeTerminalOutput('stored-turn', 'saved-tool', VSBuffer.fromString('complete output').buffer);
-		const { session, terminalManager } = await createAgentSession(disposables, {
-			resume: true,
-			sessionDatabase: database,
-			configureMockSession: mock => {
-				mock.messages = [
-					{ type: 'user.message', data: { interactionId: 'message-1', content: 'run it' } },
-					{ type: 'assistant.message', data: { messageId: 'message-2', content: '', toolRequests: [{ toolCallId: 'saved-tool', name: 'bash' }] } },
-					{ type: 'tool.execution_start', data: { toolCallId: 'saved-tool', toolName: 'bash', arguments: { command: 'build' } } },
-					{ type: 'tool.execution_complete', data: { toolCallId: 'saved-tool', success: true, result: { content: 'Saved output was temporary' } } },
-				] as SessionEvent[];
-			},
+	for (const { name, content, result } of [
+		{
+			name: 'a spilled output message',
+			content: 'Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like grep (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first 500 chars):\nFULL_OUTPUT_BEGIN\nxxxx\n<shellId: 0 completed with exit code 0>',
+			result: { exitCode: 0, preview: 'FULL_OUTPUT_BEGIN\nxxxx', truncated: true },
+		},
+		{ name: 'an unrecognized message', content: 'Saved output was temporary', result: { truncated: true, preview: '' } },
+	]) {
+		test(`restores saved output even when SDK history omits structured shell completion (${name})`, async () => {
+			const database = new TestSessionDatabase();
+			await database.createTurn('stored-turn');
+			await database.storeTerminalOutput('stored-turn', 'saved-tool', VSBuffer.fromString('complete output').buffer);
+			const { session, terminalManager } = await createAgentSession(disposables, {
+				resume: true,
+				sessionDatabase: database,
+				configureMockSession: mock => {
+					mock.messages = [
+						{ type: 'user.message', data: { interactionId: 'message-1', content: 'run it' } },
+						{ type: 'assistant.message', data: { messageId: 'message-2', content: '', toolRequests: [{ toolCallId: 'saved-tool', name: 'bash' }] } },
+						{ type: 'tool.execution_start', data: { toolCallId: 'saved-tool', toolName: 'bash', arguments: { command: 'build' } } },
+						{ type: 'tool.execution_complete', data: { toolCallId: 'saved-tool', success: true, result: { content } } },
+					] as SessionEvent[];
+				},
+			});
+			const tool = (await session.getMessages()).flatMap(turn => turn.responseParts).find(part => part.kind === ResponsePartKind.ToolCall);
+			assert.ok(tool?.kind === ResponsePartKind.ToolCall && tool.toolCall.status === ToolCallStatus.Completed);
+			assert.deepStrictEqual({
+				terminal: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal),
+				resource: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Resource),
+				liveChannels: terminalManager.outputTerminalsCreated,
+			}, {
+				terminal: { type: ToolResultContentType.Terminal, title: 'Run Shell Command', isPty: false, resource: buildNonPtyShellTerminalUri(session.resourceUri, session.ownerSessionUri, session.chatChannelUri, 'saved-tool'), result },
+				resource: undefined,
+				liveChannels: [],
+			});
 		});
-		const tool = (await session.getMessages()).flatMap(turn => turn.responseParts).find(part => part.kind === ResponsePartKind.ToolCall);
-		assert.ok(tool?.kind === ResponsePartKind.ToolCall && tool.toolCall.status === ToolCallStatus.Completed);
-		assert.deepStrictEqual({
-			terminal: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Terminal),
-			resource: tool.toolCall.content?.find(content => content.type === ToolResultContentType.Resource),
-			liveChannels: terminalManager.outputTerminalsCreated,
-		}, {
-			terminal: { type: ToolResultContentType.Terminal, title: 'Run Shell Command', isPty: false, resource: buildNonPtyShellTerminalUri(session.resourceUri, session.ownerSessionUri, session.chatChannelUri, 'saved-tool'), result: { truncated: true, preview: '' } },
-			resource: undefined,
-			liveChannels: [],
-		});
-	});
+	}
 
 	test('reconstructs paged history in order without changing SDK message payloads', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);

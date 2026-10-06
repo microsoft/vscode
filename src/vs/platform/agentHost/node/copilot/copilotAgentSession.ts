@@ -84,7 +84,7 @@ import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from './copilotSystemNotification.js';
 import { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js';
 import type { IUnsandboxedCommandConfirmationRequest, ShellManager } from './copilotShellTools.js';
-import { NonPtyShellTerminalStreams, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
+import { NonPtyShellTerminalStreams, parseSpilledShellCompletion, type INonPtyShellToolCompletion } from './copilotNonPtyShellTerminals.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from './sandboxConfigForSdk.js';
 import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
@@ -4556,11 +4556,14 @@ export class CopilotAgentSession extends Disposable {
 				if (await this._databaseRef.object.getTerminalOutputSize(part.toolCall.toolCallId) === undefined) {
 					continue;
 				}
+				// History omits the structured shell completion, so the preview
+				// comes from the runtime's large-output text when it can be parsed.
+				const text = part.toolCall.content?.find(content => content.type === ToolResultContentType.Text)?.text;
 				const terminalContent: ToolResultTerminalContent = {
 					type: ToolResultContentType.Terminal,
 					title: part.toolCall.displayName,
 					isPty: false,
-					result: { truncated: true, preview: '' },
+					result: parseSpilledShellCompletion(text) ?? { truncated: true, preview: '' },
 					...terminal,
 					resource: buildNonPtyShellTerminalUri(this._storageUri, this._ownerSessionUri, chat, part.toolCall.toolCallId),
 				};

@@ -57,6 +57,36 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 }
 
 /**
+ * The runtime's text when a command's output was spilled to a file: where the
+ * file is, how to read it, and the beginning of the output as the model sees
+ * it. Only the preview is output.
+ */
+const spilledOutputPattern = /^[^\n]* too large to read at once \([^\n]*\)\. Saved to: [^\n]*\n(?:[^\n]*\n)*?Preview \(first \d+ chars\):\n(?<preview>[\s\S]*)$/;
+
+/**
+ * Extracts the command result from the runtime's text for a command whose
+ * output was spilled to a file. Session history omits the `shell_exit` block
+ * that carries the structured preview, so this text is all that remains of
+ * the output once the live channel is gone.
+ */
+export function parseSpilledShellCompletion(text: string | undefined): TerminalCommandResult | undefined {
+	if (!text) {
+		return undefined;
+	}
+	const exit = completedShellPattern.exec(text);
+	const message = exit ? text.slice(0, exit.index).replace(/\r?\n$/, '') : text;
+	const preview = spilledOutputPattern.exec(message)?.groups?.preview;
+	if (preview === undefined) {
+		return undefined;
+	}
+	return {
+		...(exit?.groups ? { exitCode: Number(exit.groups.exitCode) } : {}),
+		preview,
+		truncated: true,
+	};
+}
+
+/**
  * The runtime's texts for an attached command that keeps running after its
  * tool call returns: started in the background, moved there by the user, or
  * still running past a sync command's initial wait. Detached commands say
