@@ -6452,10 +6452,12 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const stableModelCallId = e.data.apiCallId ?? e.data.clientRequestId;
 			const isLastMessageChunk = isLastAssistantMessageChunk(e);
-			// Every model response carries its model. The runtime also injects model-less messages,
-			// such as the synthetic tool request that reads a finished background agent or shell; those
-			// are not model calls and must not count toward the turn's model calls or request telemetry.
-			const isModelResponse = stableModelCallId !== undefined || !!e.data.model;
+			// Every root model response carries its model. The runtime also injects model-less root
+			// messages, such as the synthetic tool request that reads a finished background agent or
+			// shell; those are not model calls and must not count toward the turn's model calls or
+			// request telemetry. Subagent messages are exempt: an AHP-executed subagent reports its
+			// model's output without a model, and those messages are its only model-call signal.
+			const isModelResponse = !!e.agentId || stableModelCallId !== undefined || !!e.data.model;
 			const isCompleteModelCall = isModelResponse && (stableModelCallId !== undefined || isLastMessageChunk);
 			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
