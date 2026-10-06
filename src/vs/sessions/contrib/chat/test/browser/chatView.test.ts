@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -17,6 +17,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,15 +30,17 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModelReference, ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatModel, IChatModel, IChatModelInputState, IInputModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ModelSelectionReason } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
@@ -196,13 +200,88 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual(loads, [resource]);
 	});
 
+	test('draft-only input stays visible and sending waits for live content and session readiness', () => {
+		const resource = URI.parse('remote-agent:/session');
+		const interactivity = observableValue('interactivity', ChatInteractivity.DraftOnly);
+		const liveModelReady = observableValue('liveModelReady', false);
+		const loading = observableValue('loading', false);
+		const loadedChatResource = observableValue<URI | undefined>('loadedChatResource', undefined);
+		const chat = new class extends mock<IChat>() {
+			override readonly resource = resource;
+			override readonly interactivity = interactivity;
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly resource = resource;
+			override readonly loading = loading;
+		}();
+		let inputState = { readOnly: false, keepInputVisible: false };
+		let attempts = 0;
+		const view: { setChat: ChatView['setChat']; _handleDraftInput(): void } = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentSessionObs: observableValue<ISession | undefined>('session', undefined),
+			_isPrimaryObs: constObservable(false),
+			_modelRef: { value: undefined },
+			_interactiveDisposable: disposables.add(new MutableDisposable()),
+			_liveModelReady: liveModelReady,
+			_loadedChatResource: loadedChatResource,
+			isInputBlocked: constObservable(false),
+			chatPillsDebugService: { clear: () => { } },
+			_externalSessionBanner: { setSession: () => { } },
+			_chatPills: { setChat: () => { } },
+			_selectionSideChatController: { setChat: () => { } },
+			_banners: { setDebugData: () => { } },
+			_applyHistoryKey: () => { },
+			_widget: { setReadOnly: (readOnly: boolean, keepInputVisible: boolean) => { inputState = { readOnly, keepInputVisible }; } },
+		});
+		view.setChat(chat, undefined, session, () => attempts++);
+		const restoringSavedDraft = inputState;
+		view._handleDraftInput();
+		loadedChatResource.set(resource, undefined);
+		const offline = { inputState, attempts };
+		view._handleDraftInput();
+		interactivity.set(ChatInteractivity.Full, undefined);
+		view.setChat(chat, undefined, session);
+		const waitingForLiveContent = inputState;
+		liveModelReady.set(true, undefined);
+		const ready = inputState;
+		loading.set(true, undefined);
+		const authenticating = inputState;
+		interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		view.setChat(chat, undefined, session);
+		view._handleDraftInput();
+
+		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, authenticating, archived: inputState, attempts }, {
+			restoringSavedDraft: { readOnly: true, keepInputVisible: false },
+			offline: { inputState: { readOnly: true, keepInputVisible: true }, attempts: 0 },
+			waitingForLiveContent: { readOnly: true, keepInputVisible: true },
+			ready: { readOnly: false, keepInputVisible: false },
+			authenticating: { readOnly: true, keepInputVisible: true },
+			archived: { readOnly: true, keepInputVisible: false },
+			attempts: 1,
+		});
+	});
+
+	function createChatModel(resource: URI): ChatModel {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatAgentService, new class extends mock<IChatAgentService>() {
+			override getDefaultAgent() { return undefined; }
+		}());
+		return disposables.add(instantiationService.createInstance(ChatModel, undefined, {
+			initialLocation: ChatAgentLocation.Chat, canUseTools: false, resource, disableBackgroundKeepAlive: true,
+		}));
+	}
+
 	/** Reaches the provider-replacement reload without standing up the widget's service graph. */
 	function createProviderReplacementView(resource: URI) {
 		const loads: URI[] = [];
 		const cleared: URI[] = [];
 		const loading: boolean[] = [];
+		const preservedInputModels: Array<IInputModel | undefined> = [];
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
-		const modelRef: { value: object | undefined } = { value: {} };
+		const model = createChatModel(resource);
+		const reference: IChatModelReference = { object: model, dispose: () => model.dispose() };
+		const modelRef: { value: IChatModelReference | undefined } = { value: reference };
 		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_currentChatResource: resource,
@@ -212,23 +291,26 @@ suite('Sessions - Chat View', () => {
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
 			logService: new NullLogService(),
 			_saveCurrentViewState: () => { },
-			_clearCurrentChat: (_session: unknown, chatResource: URI) => {
+			_clearCurrentChat: (_session: ISession | undefined, chatResource: URI) => {
 				cleared.push(chatResource);
 				modelRef.value = undefined;
 			},
 			_setLoading: (isLoading: boolean) => loading.push(isLoading),
-			_loadChat: (chatResource: URI) => loads.push(chatResource),
+			_loadChat: (chatResource: URI, _session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }) => {
+				loads.push(chatResource);
+				preservedInputModels.push(options?.inputModelToPreserve);
+			},
 		}) as {
 			_currentChatResource: URI | undefined;
 			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
 			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
 		};
-		return { view, loads, cleared, loading, loadCts, modelRef, onDidDisposeSession };
+		return { view, loads, cleared, loading, loadCts, modelRef, reference, preservedInputModels, onDidDisposeSession };
 	}
 
 	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
 		const resource = URI.parse('remote-agent:/session');
-		const { view, loads, cleared, loading, onDidDisposeSession } = createProviderReplacementView(resource);
+		const { view, loads, cleared, loading, reference, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource);
 
 		// A registration without a prior removal, or a removal of another type, leaves the bound model alone.
 		view._reloadChatForReplacedProvider(['remote-agent']);
@@ -247,10 +329,11 @@ suite('Sessions - Chat View', () => {
 		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
 		await timeout(0);
 
-		assert.deepStrictEqual({ untouched, released, loads }, {
+		assert.deepStrictEqual({ untouched, released, loads, preservedInputModels }, {
 			untouched: { cleared: [], loads: [] },
 			released: { cleared: [resource], loading: [true], loads: [] },
 			loads: [resource],
+			preservedInputModels: [reference.object.inputModel],
 		});
 	});
 
@@ -258,11 +341,11 @@ suite('Sessions - Chat View', () => {
 		// The connection banner is already clickable while history loads, so the stand-in can go
 		// away before the model is bound; that load still binds to the stand-in's session.
 		const resource = URI.parse('remote-agent:/session');
-		const { view, loads, cleared, modelRef, onDidDisposeSession } = createProviderReplacementView(resource);
+		const { view, loads, cleared, modelRef, reference, onDidDisposeSession } = createProviderReplacementView(resource);
 		modelRef.value = undefined;
 
 		view._trackUnregisteredContentProvider(['remote-agent']);
-		modelRef.value = {};
+		modelRef.value = reference;
 		view._reloadChatForReplacedProvider(['remote-agent']);
 		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
 		await timeout(0);
@@ -298,6 +381,190 @@ suite('Sessions - Chat View', () => {
 		assert.deepStrictEqual({ beforeDeadline, loads }, { beforeDeadline: [], loads: [resource] });
 	}));
 
+	function createInputState(inputText: string): IChatModelInputState {
+		return {
+			inputText,
+			attachments: [{ kind: 'file', id: 'readme', name: 'README.md', value: URI.file('/workspace/README.md') }],
+			mode: { id: 'agent', kind: ChatModeKind.Agent },
+			selectedModel: {
+				identifier: 'remote-agent:model-b',
+				metadata: {
+					extension: new ExtensionIdentifier('test.agent'), id: 'model-b', name: 'Model B',
+					vendor: 'test', version: '1', family: 'test', maxInputTokens: 1000, maxOutputTokens: 100,
+					isDefaultForLocation: {},
+				},
+			},
+			modelConfiguration: { reasoningEffort: 'high' },
+			selectedModelReason: ModelSelectionReason.UserSelection,
+			permissionLevel: ChatPermissionLevel.Default,
+			origin: undefined,
+			selections: [new Selection(1, 2, 1, 4)],
+			contrib: { attachmentNote: 'local draft' },
+		};
+	}
+
+	function createChatLoadView(resource: URI) {
+		let inputState = createInputState('draft before reconnect');
+		const focus = { active: true, restores: 0 };
+		const bindings: IChatModelInputState[] = [];
+		const disposedReferences: URI[] = [];
+		const requests: DeferredPromise<IChatModelReference | undefined>[] = [];
+		const completions: Promise<void>[] = [];
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		const loadCts = disposables.add(new MutableDisposable<CancellationTokenSource>());
+		const view: {
+			_currentChatResource: URI | undefined;
+			_onInput?: () => void;
+			_handleDraftInput(): void;
+			_loadChat(resource: URI, session: ISession | undefined, options?: { inputModelToPreserve?: IInputModel }): void;
+		} = Object.assign(Object.create(ChatView.prototype), {
+			_currentChatResource: resource,
+			_currentChatResourceObs: observableValue<URI | undefined>('resource', resource),
+			_loadedChatResource: observableValue<URI | undefined>('loadedChatResource', undefined),
+			_modelRef: modelRef,
+			_loadCts: loadCts,
+			element: dom.$('div'),
+			chatService: {
+				acquireOrLoadSession: () => {
+					const request = new DeferredPromise<IChatModelReference | undefined>();
+					requests.push(request);
+					return request.p;
+				},
+			},
+			logService: new NullLogService(),
+			viewStateService: { get: () => undefined },
+			_updateWidgetLockState: () => { },
+			_setLoading: () => { },
+			_layoutChatWidget: () => { },
+			showProgressWhile: (promise: Promise<void>) => completions.push(promise),
+			_widget: {
+				getInput: () => inputState.inputText,
+				getInputState: () => inputState,
+				setInput: (inputText: string) => { inputState = { ...inputState, inputText }; },
+				inputEditor: { hasTextFocus: () => focus.active },
+				setModel: (model: IChatModel) => {
+					const state = model.inputModel.state.get();
+					assert.ok(state);
+					inputState = state;
+					bindings.push(state);
+					focus.active = false;
+				},
+				focusInput: () => {
+					focus.active = true;
+					focus.restores++;
+				},
+			},
+		});
+		return {
+			view, focus, bindings, disposedReferences,
+			setInputState: (state: IChatModelInputState) => { inputState = state; },
+			complete: async (index: number, model: IChatModel) => {
+				await requests[index].complete({
+					object: model,
+					dispose: () => {
+						disposedReferences.push(model.sessionResource);
+						model.dispose();
+					},
+				});
+				await completions[index];
+			},
+		};
+	}
+
+	for (const keepFocus of [true, false]) {
+		test(`preserves the latest composer draft on provider replacement without ${keepFocus ? 'losing' : 'stealing'} focus`, async () => {
+			const resource = URI.parse('remote-agent:/session');
+			const outgoing = createChatModel(resource);
+			const incoming = createChatModel(resource);
+			incoming.inputModel.setState(createInputState('older saved draft'));
+			const { view, focus, bindings, setInputState, complete } = createChatLoadView(resource);
+
+			view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+			const latestDraft = createInputState('text added while the live chat loads');
+			const intent = { modelId: 'remote-agent:model-b', reason: ModelSelectionReason.UserSelection, configuration: { reasoningEffort: 'high' } };
+			outgoing.inputModel.setIntendedModel(intent);
+			setInputState(latestDraft);
+			focus.active = keepFocus;
+			await complete(0, incoming);
+
+			assert.deepStrictEqual({ bindings, intendedModel: incoming.inputModel.intendedModel, focus }, {
+				bindings: [latestDraft],
+				intendedModel: intent,
+				focus: { active: keepFocus, restores: keepFocus ? 1 : 0 },
+			});
+		});
+	}
+
+	test('does not restore deleted text or attachments when the provider replacement finishes', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const outgoing = createChatModel(resource);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('older saved draft'));
+		const { view, bindings, setInputState, complete } = createChatLoadView(resource);
+
+		view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+		const emptiedDraft = { ...createInputState(''), attachments: [], selections: [] };
+		setInputState(emptiedDraft);
+		await complete(0, incoming);
+
+		assert.deepStrictEqual(bindings, [emptiedDraft]);
+	});
+
+	test('preserves the composer draft without restoring stale permissions over the new model', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const outgoing = createChatModel(resource);
+		const incoming = createChatModel(resource);
+		incoming.inputModel.setState(createInputState('older saved draft'));
+		const { view, bindings, setInputState, complete } = createChatLoadView(resource);
+
+		view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+		const latestDraft = createInputState('text typed while reconnecting');
+		setInputState({ ...latestDraft, permissionLevel: ChatPermissionLevel.AutoApprove });
+		await complete(0, incoming);
+
+		assert.deepStrictEqual(bindings, [latestDraft]);
+	});
+
+	test('abandons a provider replacement draft when navigation starts another chat load', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const nextResource = URI.parse('remote-agent:/next');
+		const outgoing = createChatModel(resource);
+		const stale = createChatModel(resource);
+		const incoming = createChatModel(nextResource);
+		const nextDraft = createInputState('the other chat has its own draft');
+		incoming.inputModel.setState(nextDraft);
+		const { view, bindings, disposedReferences, complete, focus } = createChatLoadView(resource);
+
+		view._loadChat(resource, undefined, { inputModelToPreserve: outgoing.inputModel });
+		view._currentChatResource = nextResource;
+		view._loadChat(nextResource, undefined);
+		await complete(1, incoming);
+		await complete(0, stale);
+
+		assert.deepStrictEqual({ bindings, disposedReferences, focus }, {
+			bindings: [nextDraft],
+			disposedReferences: [resource],
+			focus: { active: false, restores: 0 },
+		});
+	});
+
+	test('preserves the saved draft on initial history load and does not resume while it is being restored', async () => {
+		const resource = URI.parse('remote-agent:/session');
+		const incoming = createChatModel(resource);
+		const savedDraft = createInputState('saved draft belonging to this session');
+		incoming.inputModel.setState(savedDraft);
+		const { view, bindings, setInputState, complete } = createChatLoadView(resource);
+		let attempts = 0;
+		view._onInput = () => attempts++;
+		view._loadChat(resource, undefined);
+		setInputState(createInputState('leftover widget input'));
+		view._handleDraftInput();
+		await complete(0, incoming);
+
+		assert.deepStrictEqual({ bindings, attempts }, {
+			bindings: [savedDraft], attempts: 0,
+		});
+	});
 	test('shows the external session banner only in the primary chat group', () => {
 		const session = Object.create(null) as ISession;
 		const bannerSessions: Array<ISession | undefined> = [];

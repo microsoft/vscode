@@ -346,6 +346,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _onDidChangeViewModel = this._register(new Emitter<IChatWidgetViewModelChangeEvent>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
+	private readonly _onDidChangeDraft = this._register(new Emitter<void>());
+	readonly onDidChangeDraft = this._onDidChangeDraft.event;
 
 	private _onDidScroll = this._register(new Emitter<void>());
 	readonly onDidScroll = this._onDidScroll.event;
@@ -464,6 +466,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _inputVisible = true;
 	private _readOnly = false;
+	private readonly _draftOnly = observableValue(this, false);
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
@@ -778,7 +781,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return lastResponse?.result?.errorDetails && !lastResponse?.result?.errorDetails.responseIsIncomplete;
 		}));
 
-		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false));
+		this._register(bindContextKey(ChatContextKeys.inputBlocked, contextKeyService, reader => this._draftOnly.read(reader) || (viewModelObs.read(reader)?.model.isInputBlocked.read(reader) ?? false)));
 
 		this.chatSuggestNextWidget = this._register(this.instantiationService.createInstance(ChatSuggestNextWidget));
 
@@ -2097,6 +2100,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	setReadOnly(readOnly: boolean, keepInputVisible = false): void {
 		const wasReadOnly = this._readOnly;
 		this._readOnly = readOnly;
+		this._draftOnly.set(readOnly && keepInputVisible, undefined);
 		this._readOnlyContextKey.set(readOnly || this.isTranscriptProgressActive);
 		if (readOnly) {
 			if (this.viewModel?.editing) {
@@ -2676,6 +2680,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		store.add(input.onDidLoadInputState(() => {
 			this.refreshParsedInput();
 		}));
+		store.add(input.onDidChangeDraft(() => this._onDidChangeDraft.fire()));
 		store.add(input.onDidFocus(() => this._onDidFocus.fire()));
 		store.add(input.onDidAcceptFollowup(e => {
 			if (!this.viewModel) {

@@ -6,7 +6,7 @@
 import { raceCancellationError, Sequencer } from '../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -18,6 +18,7 @@ import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentH
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 
 /**
  * Sessions provider for a Copilot cloud sandbox.
@@ -27,6 +28,11 @@ import { validateSessionConfigWrite } from '../../../../../platform/agentHost/co
  * session is real, addressable, and unknown to the host all at once.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
+	private readonly _configurationUnavailable = derived(this, reader =>
+		!RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.read(reader)) || this.authenticationPending.read(reader));
+
+	protected override get supportsOfflineDrafts(): boolean { return true; }
+
 	override get environment() {
 		return { id: 'cloud', label: localize('environment.cloud', "Cloud") };
 	}
@@ -131,6 +137,27 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 * banner leaves waking a dormant environment to the user.
 	 */
 	override async prepareSessionForOpen(): Promise<void> { }
+
+	override isSessionConfigResolving(sessionId: string): IObservable<boolean> {
+		const resolving = super.isSessionConfigResolving(sessionId);
+		return derived(this, reader => this._configurationUnavailable.read(reader) || resolving.read(reader));
+	}
+
+	override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		this._assertConfigurationAvailable();
+		await super.setSessionConfigValue(sessionId, property, value);
+	}
+
+	override async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
+		this._assertConfigurationAvailable();
+		await super.replaceSessionConfig(sessionId, values);
+	}
+
+	private _assertConfigurationAvailable(): void {
+		if (this._configurationUnavailable.get()) {
+			throw new Error(localize('cloudSandbox.settingsUnavailable', "Connect to the environment before changing session settings."));
+		}
+	}
 
 	protected override _resolveArchivedState(sessionKey: string, isArchived: boolean): boolean {
 		return this._taskArchiveHandler?.sessionKey === sessionKey

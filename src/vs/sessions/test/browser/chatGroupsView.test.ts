@@ -49,6 +49,7 @@ class TestChatView extends AbstractChatView {
 	layoutCount = 0;
 	primary = false;
 	split = false;
+	onInput: (() => void) | undefined;
 
 	constructor(
 		readonly kind: ChatViewKind,
@@ -75,6 +76,10 @@ class TestChatView extends AbstractChatView {
 	override setPrimary(primary: boolean, split = false): void {
 		this.primary = primary;
 		this.split = split;
+	}
+
+	override setChat(_chat: IChat, _historyKey?: string, _session?: ISession, onInput?: () => void): void {
+		this.onInput = onInput;
 	}
 }
 
@@ -1925,6 +1930,130 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('draft-only chats hide the idle banner and connect once on input, not on open', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const gate = new DeferredPromise<void>();
+		provider.connectGate = gate.p;
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const currentView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		const opened = {
+			connects: provider.connectCalls,
+			banner: readBanner(view).visible,
+			recovery: readRemoteHostUnavailableState(view).visible,
+		};
+		currentView.onInput?.();
+		currentView.onInput?.();
+		const duringConnect = { connects: provider.connectCalls, banner: readBanner(view).visible, recovery: readRemoteHostUnavailableState(view).visible };
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		await gate.complete();
+		await timeout(0);
+		const connectedBanner = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const idleAgainBanner = readBanner(view).visible;
+
+		assert.deepStrictEqual({ opened, duringConnect, connectedBanner, idleAgainBanner, connects: provider.connectCalls }, {
+			opened: { connects: 0, banner: false, recovery: false },
+			duringConnect: { connects: 1, banner: true, recovery: false },
+			connectedBanner: false,
+			idleAgainBanner: false,
+			connects: 1,
+		});
+	});
+
+	test('failed draft resume keeps the banner and requires Retry rather than another keystroke', async () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		const gate = new DeferredPromise<void>();
+		provider.connectGate = gate.p;
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const currentView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		currentView.onInput?.();
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(() => { });
+		try {
+			await gate.error(new Error('resume failed'));
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+		currentView.onInput?.();
+		const failed = {
+			connects: provider.connectCalls,
+			banner: readBanner(view).visible,
+			action: readBanner(view).action,
+			recovery: readRemoteHostUnavailableState(view).visible,
+		};
+		provider.connectGate = undefined;
+		view.element.querySelector<HTMLElement>('.session-readonly-banner-action-link')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ failed, connects: provider.connectCalls }, {
+			failed: { connects: 1, banner: true, action: 'Retry', recovery: false },
+			connects: 2,
+		});
+	});
+
+	test('draft-only chats show an externally started resume failure but return to quiet idle after recovery', () => {
+		const { sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main');
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'connecting' });
+		view.setSession(session, options);
+		const connecting = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		const failed = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+		const recovered = readBanner(view).visible;
+		session.remoteConnectionStatus?.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+
+		assert.deepStrictEqual({ connecting, failed, recovered, idleAgain: readBanner(view).visible, connects: provider.connectCalls }, {
+			connecting: true, failed: true, recovered: false, idleAgain: false, connects: 0,
+		});
+	});
+
+	test('draft-only chats retain their composer and banner while the connected host finishes preparing', () => {
+		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
+		const provider = new TestAgentHostProvider();
+		sessionsProvidersService.provider = provider;
+		const chat = createChat('main', SessionStatus.Untitled);
+		chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+		const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+		view.setSession(session, options);
+		const originalView = chatViewFactory.views[chatViewFactory.views.length - 1];
+		session.remoteConnectionStatus?.set({ kind: 'connected' }, undefined);
+		const preparing = { banner: readBanner(view).message, recovery: readRemoteHostUnavailableState(view).visible };
+		chat.interactivity.set(ChatInteractivity.Full, undefined);
+
+		assert.deepStrictEqual({
+			preparing,
+			keptComposer: chatViewFactory.views[chatViewFactory.views.length - 1] === originalView,
+			kind: originalView.kind,
+			bannerAfterReady: readBanner(view).visible,
+			connects: provider.connectCalls,
+		}, {
+			preparing: { banner: 'Preparing the session...', recovery: false },
+			keptComposer: true,
+			kind: 'chat',
+			bannerAfterReady: false,
+			connects: 0,
+		});
+	});
+
 	test('uses provider connection labels for recovery states and banners', () => {
 		const { chatViewFactory, sessionsProvidersService, view } = createHarness(disposables);
 		const provider = new TestAgentHostProvider();
@@ -2297,6 +2426,28 @@ suite('Sessions - ChatGroupsView', () => {
 			await timeout(6_000);
 
 			assert.deepStrictEqual(readBanner(view), { visible: false, message: 'This chat is read-only', action: undefined });
+		});
+	});
+
+	test('draft-only chats preserve the reconnecting banner delay', async () => {
+		await runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionsProvidersService, view } = createHarness(disposables);
+			const provider = new TestAgentHostProvider();
+			sessionsProvidersService.provider = provider;
+			const chat = createChat('main');
+			chat.interactivity.set(ChatInteractivity.DraftOnly, undefined);
+			const session = new TestActiveSession([chat], undefined, true, provider.id, { kind: 'reconnecting' });
+			view.setSession(session, options);
+			const initiallyVisible = readBanner(view).visible;
+			await timeout(4_999);
+			const visibleBeforeDelay = readBanner(view).visible;
+			await timeout(1);
+
+			assert.deepStrictEqual({ initiallyVisible, visibleBeforeDelay, afterDelay: readBanner(view) }, {
+				initiallyVisible: false,
+				visibleBeforeDelay: false,
+				afterDelay: { visible: true, message: 'Reconnecting to WSL: Ubuntu...', action: undefined },
+			});
 		});
 	});
 

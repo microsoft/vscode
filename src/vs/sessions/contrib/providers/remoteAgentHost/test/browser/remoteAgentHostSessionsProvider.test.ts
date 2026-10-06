@@ -4225,6 +4225,7 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 
 	test('connection availability does not change the last reported sandbox activity', () => {
 		const provider = sandbox();
+		provider.setAuthenticationPending(false);
 		provider.seedSessions([createSession('question', { status: ProtocolSessionStatus.InputNeeded })]);
 		const session = provider.getSessions()[0];
 		const chat = session.mainChat.get();
@@ -4237,9 +4238,9 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 			return { status: chat.status.get(), interactivity: chat.interactivity.get() };
 		});
 		assert.deepStrictEqual(states, [
-			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly },
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.DraftOnly },
 			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.Full },
-			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly },
+			{ status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.DraftOnly },
 		]);
 	});
 
@@ -4954,6 +4955,50 @@ suite('CloudSandboxSessionsProvider opening', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps offline chats draftable and settings unavailable until authenticated', async () => {
+		const provider = createProvider(disposables, connection, {
+			address: 'cloudsandbox:draft-test',
+			ctor: CloudSandboxSessionsProvider,
+			noConnection: true,
+			readOnlyWhenDisconnected: true,
+		});
+		provider.seedSessions([
+			createSession('draft'),
+			createSession('archived', { status: ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsArchived }),
+		]);
+		const session = provider.getSessions().find(session => AgentSession.id(session.resource) === 'draft')!;
+		const archived = provider.getSessions().find(session => AgentSession.id(session.resource) === 'archived')!;
+		const resolving = provider.isSessionConfigResolving(session.sessionId);
+		const snapshots: { chat: ChatInteractivity; archived: ChatInteractivity; settingsUnavailable: boolean }[] = [];
+		const capture = () => snapshots.push({
+			chat: session.mainChat.get().interactivity.get(),
+			archived: archived.mainChat.get().interactivity.get(),
+			settingsUnavailable: resolving.get(),
+		});
+		capture();
+		await assert.rejects(provider.setSessionConfigValue(session.sessionId, 'approvalMode', 'manual'), /Connect to the environment/);
+		await assert.rejects(provider.replaceSessionConfig(session.sessionId, { approvalMode: 'manual' }), /Connect to the environment/);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+		capture();
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		capture();
+		provider.setAuthenticationPending(false);
+		capture();
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		capture();
+
+		assert.deepStrictEqual({ snapshots, actions: connection.dispatchedActions }, {
+			snapshots: [
+				{ chat: ChatInteractivity.DraftOnly, archived: ChatInteractivity.ReadOnly, settingsUnavailable: true },
+				{ chat: ChatInteractivity.DraftOnly, archived: ChatInteractivity.ReadOnly, settingsUnavailable: true },
+				{ chat: ChatInteractivity.DraftOnly, archived: ChatInteractivity.ReadOnly, settingsUnavailable: true },
+				{ chat: ChatInteractivity.Full, archived: ChatInteractivity.ReadOnly, settingsUnavailable: false },
+				{ chat: ChatInteractivity.DraftOnly, archived: ChatInteractivity.ReadOnly, settingsUnavailable: true },
+			],
+			actions: [],
+		});
+	});
 
 	test('opens and restores a cached session without waking the sandbox', async () => {
 		let connectCalls = 0;

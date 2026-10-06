@@ -317,9 +317,12 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
 		this.canConnectOnDemand = !!config.connectOnDemand;
-		this._readOnly = config.readOnlyWhenDisconnected
+		this._readOnly = config.readOnlyWhenDisconnected || this.supportsOfflineDrafts
 			? derived(this, reader => {
 				const status = this._connectionStatus.read(reader);
+				if (this.supportsOfflineDrafts) {
+					return !RemoteAgentHostConnectionStatus.isConnected(status) || this.authenticationPending.read(reader);
+				}
 				return RemoteAgentHostConnectionStatus.isDisconnected(status)
 					|| RemoteAgentHostConnectionStatus.isConnecting(status)
 					|| RemoteAgentHostConnectionStatus.isIncompatible(status);
@@ -725,6 +728,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected get authenticationPending(): IObservable<boolean> { return this._effectiveAuthenticationPending; }
 
+	protected get supportsOfflineDrafts(): boolean { return false; }
+
 	/**
 	 * Suspend cache-change tracking while sessions are unpublished (offline) so
 	 * the on-disk snapshot survives an unreachable host. See
@@ -738,6 +743,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		const typeIcon = this._workspaceTypeIcon;
 		return {
 			readOnly: this._readOnly,
+			allowOfflineDrafts: this.supportsOfflineDrafts,
 			defaultChangesetKind: this._defaultChangesetKind,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];
