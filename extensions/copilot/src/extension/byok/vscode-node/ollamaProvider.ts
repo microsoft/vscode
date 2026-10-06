@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ErrorUtils } from '../../../util/common/errors';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
@@ -51,7 +53,9 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IExperimentationService expService: IExperimentationService
+		@IExperimentationService expService: IExperimentationService,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
 		super(
 			OllamaLMProvider.providerId,
@@ -62,7 +66,9 @@ export class OllamaLMProvider extends AbstractOpenAICompatibleLMProvider<OllamaC
 			logService,
 			instantiationService,
 			configurationService,
-			expService
+			expService,
+			requestMiddlewareRegistry,
+			envService,
 		);
 
 		this.migrateConfig();

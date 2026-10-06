@@ -7,12 +7,14 @@ import * as vscode from 'vscode';
 import { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2, LanguageModelResponsePart2, Progress, ProvideLanguageModelChatResponseOptions } from 'vscode';
 import { AzureAuthMode, ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isEndpointEditToolName, ModelSupportedEndpoint } from '../../../platform/endpoint/common/endpointProvider';
+import { IEnvService } from '../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
@@ -80,7 +82,9 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		@IFetcherService fetcherService: IFetcherService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExperimentationService expService: IExperimentationService,
-		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext
+		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
+		@IEnvService envService: IEnvService,
 	) {
 		super(
 			AzureBYOKModelProvider.providerId,
@@ -91,7 +95,9 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			instantiationService,
 			configurationService,
 			expService,
-			extensionContext
+			extensionContext,
+			requestMiddlewareRegistry,
+			envService,
 		);
 		this.migrateExistingConfigs();
 	}
@@ -157,6 +163,7 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			session.accessToken,  // Pass Entra ID token
 			url
 		);
+		await this.applyRequestMiddleware(openAIChatEndpoint, model, options, token);
 
 		return this._lmWrapper.provideLanguageModelResponse(
 			openAIChatEndpoint,

@@ -170,6 +170,7 @@ suite('ByokLmProxyService', () => {
 		);
 		assert.strictEqual(captured?.vendor, 'acme');
 		assert.strictEqual(captured?.modelId, 'claude');
+		assert.strictEqual(captured?.sessionId, sessionId);
 		assert.deepStrictEqual(captured?.input, [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }]);
 	});
 
