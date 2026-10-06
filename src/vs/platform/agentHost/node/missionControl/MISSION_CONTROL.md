@@ -43,10 +43,6 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
-### Protocol version compatibility
-
-The VS Code host treats protocol versions `0.9.0`, `0.10.0`, and `1.0.0` as wire-compatible on all transports, including Mission Control. The handshake selects the highest compatible version offered by the client and returns that exact version. Registration and discovery metadata continue advertising the built-in protocol version; no override setting is required. Other versions retain the standard negotiation rules.
-
 ## Security and data handling
 
 The [security requirements matrix](./MISSION_CONTROL_SECURITY_REQUIREMENTS.md) links each requirement to implementation and tests. The supported boundary includes canonical-owner sealed authentication, signed control requests, lane/client-ID binding, passive mutation refusal, locally known workspace/resource grants, minimal pre-authentication state, and host-wide root-configuration exclusion. Remote windows cannot overwrite the owning machine's root settings or managed permissions.
