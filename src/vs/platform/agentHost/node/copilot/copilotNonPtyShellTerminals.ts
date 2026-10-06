@@ -56,6 +56,41 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 	};
 }
 
+/** The runtime's text when output was spilled to a file; the preview length is in UTF-16 code units. */
+const spilledOutputPattern = /^[^\n]* too large to read at once \([^\n]*\)\. Saved to: [^\n]*\n(?:[^\n]*\n)*?Preview \(first (?<length>\d+) chars\):\n/;
+
+/** The exit marker directly after a spilled preview; sandbox notices may follow it. */
+const spilledShellExitPattern = /^\r?\n<shellId: [^>\r\n]+ completed with exit code (?<exitCode>-?\d+)>/;
+
+/**
+ * Extracts the command result from the runtime's text for a command whose
+ * output was spilled to a file, since session history omits the `shell_exit`
+ * block that carries the structured preview.
+ */
+export function parseSpilledShellCompletion(text: string | undefined): TerminalCommandResult | undefined {
+	if (!text) {
+		return undefined;
+	}
+	const header = spilledOutputPattern.exec(text);
+	if (!header?.groups) {
+		return undefined;
+	}
+	const length = Number(header.groups.length);
+	const preview = text.slice(header[0].length, header[0].length + length);
+	const trailer = text.slice(header[0].length + length);
+	if (preview.length < length) {
+		return undefined;
+	}
+	if (!trailer.trim()) {
+		return { preview, truncated: true };
+	}
+	const exit = spilledShellExitPattern.exec(trailer);
+	if (!exit?.groups) {
+		return undefined;
+	}
+	return { exitCode: Number(exit.groups.exitCode), preview, truncated: true };
+}
+
 /**
  * The runtime's texts for an attached command that keeps running after its
  * tool call returns: started in the background, moved there by the user, or
