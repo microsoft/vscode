@@ -463,9 +463,6 @@ const SUBAGENT_TASK_COMPLETION_DELAY_MS = 250;
 /** Type of the `session.info` and `session.warning` events about preparing plugins required by the organization. */
 const MANAGED_PLUGINS_EVENT_TYPE = 'managed_plugins';
 
-/** Sources of the session activity, highest precedence first. */
-type CopilotActivitySource = 'fusion' | 'command' | 'managedPlugins' | 'intent';
-
 function hasParentPathSegment(filePath: string): boolean {
 	return filePath.split(/[\\/]/).includes('..');
 }
@@ -1378,8 +1375,10 @@ export class CopilotAgentSession extends Disposable {
 	private _fusionTurnCancelled = false;
 	private _hydraFusionV2ExperimentTriggerPending = false;
 	private _hasFusionRootTurnBoundary = false;
-	private readonly _activities: Record<CopilotActivitySource, string | undefined> = { intent: undefined, command: undefined, fusion: undefined, managedPlugins: undefined };
+	private readonly _activities: Record<'intent' | 'command' | 'fusion', string | undefined> = { intent: undefined, command: undefined, fusion: undefined };
 	private _publishedActivity: string | undefined;
+	/** Plugin preparation message shown while the current turn waits for its message to be admitted. */
+	private _managedPluginActivity: string | undefined;
 	/**
 	 * Provisional Fusion tool starts held back from the transcript until a
 	 * phase chat, a permission request, or a client tool handler surfaces the tool, keyed by tool call id.
@@ -6432,7 +6431,7 @@ export class CopilotAgentSession extends Disposable {
 			// First SDK event for the loop: promote the turn out of `pending`.
 			this._currentTurn.value?.markRunning();
 			// The message is admitted only after required plugins are prepared.
-			this._publishActivity('managedPlugins', undefined);
+			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content);
 			if (steering) {
 				this._beginSteeringTurn(steering);
@@ -8388,9 +8387,9 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
-	private _publishActivity(source: CopilotActivitySource, activity: string | undefined): void {
+	private _publishActivity(source: 'intent' | 'command' | 'fusion', activity: string | undefined): void {
 		this._activities[source] = activity;
-		const effectiveActivity = this._activities.fusion ?? this._activities.command ?? this._activities.managedPlugins ?? this._activities.intent;
+		const effectiveActivity = this._activities.fusion ?? this._activities.command ?? this._activities.intent;
 		if (effectiveActivity !== this._publishedActivity) {
 			this._publishedActivity = effectiveActivity;
 			this._emitAction({ type: ActionType.SessionActivityChanged, activity: effectiveActivity });
@@ -8400,8 +8399,20 @@ export class CopilotAgentSession extends Disposable {
 	private _clearActivity(): void {
 		this._activities.intent = undefined;
 		this._activities.command = undefined;
-		this._activities.managedPlugins = undefined;
 		this._publishActivity('fusion', undefined);
+		this._setManagedPluginActivity(undefined);
+	}
+
+	/**
+	 * Publishes plugin preparation as chat activity, like worktree creation
+	 * progress. The progress row of a waiting request reads chat activity;
+	 * session activity does not reach it.
+	 */
+	private _setManagedPluginActivity(activity: string | undefined): void {
+		if (activity !== this._managedPluginActivity) {
+			this._managedPluginActivity = activity;
+			this._emitAction({ type: ActionType.ChatActivityChanged, activity });
+		}
 	}
 
 	/**
@@ -8418,7 +8429,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Shows the plugin preparation message as the waiting turn's activity. */
 	private _reportManagedPluginProgress(message: string): void {
 		if (this._getManagedPluginAdmissionTurn()) {
-			this._publishActivity('managedPlugins', message);
+			this._setManagedPluginActivity(message);
 		}
 	}
 
@@ -8428,7 +8439,7 @@ export class CopilotAgentSession extends Disposable {
 	 * prepared.
 	 */
 	private _reportManagedPluginFailure(message: string): void {
-		this._publishActivity('managedPlugins', undefined);
+		this._setManagedPluginActivity(undefined);
 		const turn = this._getManagedPluginAdmissionTurn();
 		if (!turn) {
 			return;
@@ -8981,7 +8992,7 @@ export class CopilotAgentSession extends Disposable {
 					this._resumingTurnAwaitingProviderStart = undefined;
 				}
 				// Continuations have no user-message echo to end plugin preparation.
-				this._publishActivity('managedPlugins', undefined);
+				this._setManagedPluginActivity(undefined);
 			}
 			this._logService.trace(`[Copilot:${sessionId}] Turn started: ${e.data.turnId}`);
 			this._resumeSubagentForEvent(e);
