@@ -4262,6 +4262,57 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
+	test('uses theme-defined action colors while preserving user overrides and default hover colors', () => {
+		const actionColors = {
+			[MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND]: '#0E3747',
+			[MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND]: '#4C1678',
+			[MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND]: '#5A1F0C',
+			[MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: '#166534',
+		};
+		const results = ['default', 'theme', 'user', 'themeWithUserOverride'].map(source => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark', source === 'theme' || source === 'themeWithUserOverride' ? actionColors : {});
+			if (source === 'user') {
+				theme.setCustomColors(actionColors);
+			} else if (source === 'themeWithUserOverride') {
+				theme.setCustomColors({ [MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: '#123456' });
+			}
+
+			const scope = `.action-color-source-${source}`;
+			const style = document.createElement('style');
+			style.textContent = generateColorThemeCSS(theme, scope, themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			document.head.appendChild(style);
+			store.add(toDisposable(() => style.remove()));
+
+			const root = appendElement(document.body, `${scope.slice(1)} monaco-workbench modern-ui-tabs`);
+			root.style.setProperty('--vscode-toolbar-hoverBackground', '#ABCDEF');
+			store.add(toDisposable(() => root.remove()));
+			const content = appendElement(appendElement(root, 'part editor'), 'content');
+			const group = appendElement(content, 'editor-group-container active');
+			const tabs = appendElement(appendElement(group, 'title tab-actions-reserve-space'), 'tabs-container');
+			const readButtonBackground = (classes: string) => {
+				const actions = appendElement(appendElement(tabs, classes), 'tab-actions');
+				const button = appendElement(actions, 'action-label');
+				button.style.backgroundColor = 'var(--modern-ui-editor-tab-action-button-background)';
+				return getWindow(button).getComputedStyle(button).backgroundColor;
+			};
+			const rootStyle = getWindow(root).getComputedStyle(root);
+			return {
+				source,
+				active: readButtonBackground('tab active'),
+				inactive: readButtonBackground('tab'),
+				selected: readButtonBackground('tab selected'),
+				activeHover: rootStyle.getPropertyValue('--modern-ui-editor-tab-custom-action-active-hover-background').trim(),
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ source: 'default', active: 'rgb(171, 205, 239)', inactive: 'rgb(171, 205, 239)', selected: 'rgb(171, 205, 239)', activeHover: '' },
+			{ source: 'theme', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(22, 101, 52)', activeHover: '#4c1678' },
+			{ source: 'user', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(22, 101, 52)', activeHover: '#4c1678' },
+			{ source: 'themeWithUserOverride', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(18, 52, 86)', activeHover: '#4c1678' },
+		]);
+	});
+
 	test('derives inactive tab foreground from a legacy active foreground customization', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
 		theme.setCustomColors({ [TAB_ACTIVE_FOREGROUND]: '#FEDCBA' });

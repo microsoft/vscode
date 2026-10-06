@@ -53,13 +53,13 @@ function collectModernTabColorCustomizations(theme: ColorThemeData, collector: (
 	const activeHoverBackground = resolveLegacyTabColor(theme, TAB_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND]);
 	const unfocusedActiveHoverBackground = resolveLegacyTabColor(theme, TAB_UNFOCUSED_HOVER_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND, MODERN_EDITOR_TAB_HOVER_BACKGROUND, MODERN_TAB_HOVER_BACKGROUND], TAB_HOVER_BACKGROUND);
 	const editorBackgroundColor = theme.getColor(editorBackground);
-	const hasModernActiveActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND);
-	const hasModernHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND);
-	const hasModernActiveHoverActionBackground = !!theme.getColorCustomization(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND);
+	const hasModernActiveActionBackground = theme.defines(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND);
+	const hasModernHoverActionBackground = theme.defines(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND);
+	const hasModernActiveHoverActionBackground = theme.defines(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND);
 	const explicitActiveActionBackground = hasModernActiveActionBackground ? theme.getColor(MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND) : undefined;
 	const explicitHoverActionBackground = hasModernHoverActionBackground ? theme.getColor(MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND) : undefined;
 	const explicitActiveHoverActionBackground = hasModernActiveHoverActionBackground ? theme.getColor(MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND) : undefined;
-	const explicitSelectedActionBackground = theme.getColorCustomization(MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND) ? theme.getColor(MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND) : undefined;
+	const explicitSelectedActionBackground = theme.defines(MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND) ? theme.getColor(MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND) : undefined;
 	const explicitActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_ACTIVE_BACKGROUND);
 	const explicitUnfocusedActiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_ACTIVE_BACKGROUND, MODERN_TAB_ACTIVE_BACKGROUND], TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND);
 	const explicitInactiveBackground = resolveExplicitTabColor(theme, MODERN_EDITOR_TAB_INACTIVE_BACKGROUND, [MODERN_EDITOR_TAB_INACTIVE_BACKGROUND], TAB_INACTIVE_BACKGROUND);
