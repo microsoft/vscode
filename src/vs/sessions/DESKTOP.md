@@ -36,7 +36,7 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than the managed Changes and Empty Files inputs. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
+Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than the managed Changes and Empty Files inputs. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes, while Empty Files and resources inside the active session workspace select Files.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses the revealed view's location to distribute its containing split. The Sessions part and side pane therefore receive equal space without either part computing a width. After that, side-pane sizes are **workbench-level, not per session**: the editor grid node width is owned by the workbench grid and persisted globally (`workbench.sessions.partSizes`), so once the user resizes the side pane it keeps that width — including across **session switches** (switching sessions does not change the side-pane width) and across reloads.
 
@@ -108,11 +108,13 @@ The desktop layout controller (`DesktopLayoutController`) maps the active editor
 | Active tab | Detail panel |
 |-----------|--------------|
 | **Changes or any diff editor** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
-| **Any file or Markdown preview editor** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
+| **Empty Files or a resource inside the active session workspace** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
 | **Browser** | **Hidden** (transiently) while the Browser tab is active *and the editor area stays visible*; restored when switching back. If the editor area itself is hidden while Browser is active (e.g. via **Hide Editor**), the panel instead shows the Changes/Files fallback, since it is the only thing left on screen. |
+| **Resource outside the workspace with the same scheme as a workspace folder** | Files/Explorer tree is available through **Toggle Details**, but hidden automatically when the editor becomes active |
+| **Utility, synthetic-resource, or other editor without a workspace-folder scheme** | **Hidden and unavailable** while the editor area stays visible |
 
 Rules:
-- **Reveal on activate, respect after.** Switching to a Changes/File tab reveals the detail with the right container. While the **same** tab stays active, an explicit user hide of the detail (via the detail toggle) is **respected** — it is not re-forced. Switching tabs reveals it again.
+- **Reveal on activate, respect after.** Switching to Changes, Empty Files, or a resource inside the active session workspace reveals the detail with the right container. While the **same** tab stays active, an explicit user hide of the detail (via the detail toggle) is **respected** — it is not re-forced. Switching between these detail-active tabs reveals it again.
 - **Browser is transient, but only while the editor area is visible.** A Browser tab hides the detail panel while the editor content stays on screen; switching back to Files/Changes **restores** it. Hiding the editor area (Hide Editor) while Browser is active does **not** leave the panel blank: it shows the same Changes/Files fallback a session with no active editor gets, and reveals the editor area again (Show Editor) restores the "Browser hides the detail" rule.
 
 ---
