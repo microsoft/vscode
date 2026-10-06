@@ -25,6 +25,8 @@ export const Extensions = {
 	Configuration: 'base.contributions.configuration'
 };
 
+export type ManagedSettingsPresentationValue = ManagedSettingValue | readonly string[] | Readonly<Record<string, readonly string[]>>;
+
 export interface IConfigurationDelta {
 	removedDefaults?: IConfigurationDefaults[];
 	removedConfigurations?: IConfigurationNode[];
@@ -295,7 +297,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * Projects runtime-managed restrictions into the Settings UI without changing configuration values.
 	 * Return undefined when editable. Runtime policy enforcement remains authoritative.
 	 */
-	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingValue | undefined;
+	managedSettingsPresentation?: (read: (key: string) => ManagedSettingValue | undefined) => ManagedSettingsPresentationValue | undefined;
 
 	/**
 	 * When specified, this setting's globally-scoped value is mirrored into the
