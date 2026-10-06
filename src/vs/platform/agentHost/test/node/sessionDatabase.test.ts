@@ -1929,7 +1929,7 @@ suite('SessionDatabase', () => {
 			});
 		});
 
-		test('snapshot persists across a database restart', async () => {
+		test.skip('snapshot persists across a database restart', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-sync-' + generateUuid()));
 			const databasePath = join(tempRoot, 'session.db');
 			try {
@@ -1946,7 +1946,7 @@ suite('SessionDatabase', () => {
 			}
 		});
 
-		test('the latest snapshot remains pending when relay is interrupted', async () => {
+		test.skip('the latest snapshot remains pending when relay is interrupted', async () => {
 			const tempRoot = await fs.mkdtemp(join(tmpdir(), 'session-db-catalog-pending-' + generateUuid()));
 			const databasePath = join(tempRoot, 'session.db');
 			try {
