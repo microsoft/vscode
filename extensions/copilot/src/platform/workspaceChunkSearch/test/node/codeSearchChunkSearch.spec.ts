@@ -9,6 +9,7 @@ import { Result } from '../../../../util/common/result';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../util/common/test/testUtils';
 import { DeferredPromise, timeout } from '../../../../util/vs/base/common/async';
+import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -323,6 +324,27 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 			statuses: [CodeSearchRepoStatus.Ready, CodeSearchRepoStatus.NotAuthorized, CodeSearchRepoStatus.CouldNotCheckIndexStatus],
 			repositories: ['healthy', 'unauthorized', 'failed', 'unauthorized', 'failed'],
 		});
+
+		ado.getRemoteIndexState.mockResolvedValue(ready());
+		authentication.anyAdoSession = { ...authentication.anyAdoSession!, account: { id: 'other-account', label: 'Other' } };
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(snapshot()).toEqual({
+			requests: 8,
+			statuses: [CodeSearchRepoStatus.Ready, CodeSearchRepoStatus.Ready, CodeSearchRepoStatus.Ready],
+		}));
+	});
+
+	test('signing out and back in restores repository authorization', async () => {
+		const { authentication, ado, snapshot } = await create();
+		const signedInSession = authentication.anyAdoSession;
+		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
+		authentication.anyAdoSession = undefined;
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.NotAuthorized] }));
+		ado.getRemoteIndexState.mockResolvedValue(ready());
+		authentication.anyAdoSession = signedInSession;
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 3, statuses: [CodeSearchRepoStatus.Ready] }));
 	});
 
 	test('persistent authorization failures are retried once per changed credential', async () => {
@@ -357,6 +379,68 @@ describe('CodeSearchChunkSearch ado authentication identity', () => {
 		authentication.adoChanges.fire();
 		await recovery.complete(ready());
 		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.Ready] }));
+	});
+
+	test('credentials changed before an index request do not justify retrying its failure', async () => {
+		const { authentication, ado, indexStateChanges, snapshot } = await create();
+		authentication.anyAdoSession = { ...authentication.anyAdoSession!, accessToken: 'renewed-token' };
+		authentication.adoChanges.fire();
+		ado.getRemoteIndexState.mockResolvedValue(Result.error({ type: 'not-authorized' }));
+		indexStateChanges.fire();
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.NotAuthorized] }));
+		authentication.adoChanges.fire();
+		await timeout(0);
+		expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.NotAuthorized] });
+	});
+
+	test('credential renewal does not retry a cancelled status request', async () => {
+		const { authentication, ado, indexStateChanges, snapshot } = await create();
+		const pending = new DeferredPromise<StatusResult>();
+		ado.getRemoteIndexState.mockImplementationOnce(() => pending.p);
+		indexStateChanges.fire();
+		authentication.anyAdoSession = { ...authentication.anyAdoSession!, accessToken: 'renewed-token' };
+		authentication.adoChanges.fire();
+		await pending.error(new CancellationError());
+		await timeout(0);
+		expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.Ready] });
+	});
+
+	test('credential renewal between endpoint completion and status publication still recovers', async () => {
+		const observations = [];
+		for (let microtasks = 0; microtasks < 10; microtasks++) {
+			const { authentication, ado, indexStateChanges, snapshot } = await create();
+			const pending = new DeferredPromise<StatusResult>();
+			ado.getRemoteIndexState.mockImplementationOnce(() => pending.p).mockResolvedValue(ready());
+			indexStateChanges.fire();
+			await pending.complete(Result.error({ type: 'not-authorized' }));
+			for (let step = 0; step < microtasks; step++) {
+				await Promise.resolve();
+			}
+			authentication.anyAdoSession = { ...authentication.anyAdoSession!, accessToken: 'renewed-token' };
+			authentication.adoChanges.fire();
+			await timeout(0);
+			observations.push({ microtasks, ...snapshot() });
+		}
+		expect(observations).toEqual(Array.from({ length: 10 }, (_, microtasks) => ({
+			microtasks, requests: 3, statuses: [CodeSearchRepoStatus.Ready],
+		})));
+	});
+
+	test('a failed recovery waits for another credential change before retrying', async () => {
+		const { authentication, ado, snapshot } = await create({
+			getRemoteIndexState: async () => Result.error({ type: 'not-authorized' }),
+		});
+		ado.getRemoteIndexState.mockRejectedValueOnce(new Error('Network unavailable'));
+		authentication.anyAdoSession = { ...authentication.anyAdoSession!, accessToken: 'renewed-token' };
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.CouldNotCheckIndexStatus] }));
+		authentication.adoChanges.fire();
+		await timeout(0);
+		expect(snapshot()).toEqual({ requests: 2, statuses: [CodeSearchRepoStatus.CouldNotCheckIndexStatus] });
+		ado.getRemoteIndexState.mockResolvedValue(ready());
+		authentication.anyAdoSession = { ...authentication.anyAdoSession!, accessToken: 'newer-token' };
+		authentication.adoChanges.fire();
+		await vi.waitFor(() => expect(snapshot()).toEqual({ requests: 3, statuses: [CodeSearchRepoStatus.Ready] }));
 	});
 
 	for (const phase of ['initialization', 'index refresh'] as const) {

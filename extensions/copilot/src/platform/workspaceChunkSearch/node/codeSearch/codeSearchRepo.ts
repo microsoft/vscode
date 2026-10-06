@@ -494,8 +494,8 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 }
 
 export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
-	private _authGeneration = 0;
-	private _latestStatusRequest: { readonly authGeneration: number; readonly promise: Promise<RemoteCodeSearchState> } | undefined;
+	private _credentialsChanged = false;
+	private _latestStatusRequest: Promise<RemoteCodeSearchState> | undefined;
 
 	constructor(
 		repoInfo: RepoInfo,
@@ -503,14 +503,14 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		remoteInfo: ResolvedRepoRemoteInfo,
 		@ILogService logService: ILogService,
 		@IAdoCodeSearchService private readonly _adoCodeSearchService: IAdoCodeSearchService,
-		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(repoInfo, remoteInfo, logService, telemetryService);
 
-		let lastSession = this._authenticationService.anyAdoSession;
-		this._register(this._authenticationService.onDidAdoAuthenticationChange(() => {
-			const session = this._authenticationService.anyAdoSession;
+		let lastSession = authenticationService.anyAdoSession;
+		this._register(authenticationService.onDidAdoAuthenticationChange(() => {
+			const session = authenticationService.anyAdoSession;
 			const identityChanged = session?.id !== lastSession?.id || !authenticationSessionIdentityEquals(session, lastSession);
 			const tokenChanged = session?.accessToken !== lastSession?.accessToken;
 			lastSession = session;
@@ -518,12 +518,8 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 				return;
 			}
 
-			this._authGeneration++;
-			if (identityChanged) {
-				this.refreshAuthorizationStatus();
-			} else {
-				this.retryStatusWithNewCredentials();
-			}
+			this._credentialsChanged = true;
+			this.refreshStatusForCredentials(identityChanged);
 		}));
 	}
 
@@ -532,19 +528,13 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 			return Promise.reject(new CancellationError());
 		}
 
-		const authGeneration = this._authGeneration;
-		const promise: Promise<RemoteCodeSearchState> = super.fetchRemoteIndexState(telemetryInfo, token).catch((error): RemoteCodeSearchState => {
-			if (isCancellationError(error)) {
-				throw error;
-			}
-			this._logService.error(error instanceof Error ? error : String(error), 'Failed to fetch ADO repository index status');
-			return { status: CodeSearchRepoStatus.CouldNotCheckIndexStatus };
-		}).then(state => {
+		this._credentialsChanged = false;
+		const promise: Promise<RemoteCodeSearchState> = super.fetchRemoteIndexState(telemetryInfo, token).then(state => {
 			// Older responses must not overwrite a newer status request.
 			const latest = this._latestStatusRequest;
-			return latest && latest.promise !== promise ? latest.promise : state;
+			return latest && latest !== promise ? latest : state;
 		});
-		this._latestStatusRequest = { authGeneration, promise };
+		this._latestStatusRequest = promise;
 		return promise;
 	}
 
@@ -553,23 +543,18 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 			return;
 		}
 		super.updateState(newState);
-		// A credential change can precede the failure of an in-flight request.
-		this.retryStatusWithNewCredentials();
+		// Credentials can change after a fetch completes but before its status is published.
+		this.refreshStatusForCredentials();
 	}
 
-	private retryStatusWithNewCredentials(): void {
-		if ((this.status === CodeSearchRepoStatus.NotAuthorized || this.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus)
-			&& this._latestStatusRequest?.authGeneration !== this._authGeneration) {
-			this.refreshAuthorizationStatus();
+	private refreshStatusForCredentials(force = false): void {
+		if (force || (this._credentialsChanged && (this.status === CodeSearchRepoStatus.NotAuthorized || this.status === CodeSearchRepoStatus.CouldNotCheckIndexStatus))) {
+			void this.refreshStatusFromEndpoint(true, new TelemetryCorrelationId('AdoCodeSearchRepo::refreshStatusForCredentials'), CancellationToken.None).catch(error => {
+				if (!isCancellationError(error)) {
+					this._logService.error(error instanceof Error ? error : String(error), 'Failed to refresh ADO repository authorization');
+				}
+			});
 		}
-	}
-
-	private refreshAuthorizationStatus(): void {
-		void this.refreshStatusFromEndpoint(true, new TelemetryCorrelationId('AdoCodeSearchRepo::refreshAuthorizationStatus'), CancellationToken.None).catch(error => {
-			if (!isCancellationError(error)) {
-				this._logService.error(error instanceof Error ? error : String(error), 'Failed to refresh ADO repository authorization');
-			}
-		});
 	}
 
 	public searchRepo(authOptions: { silent: boolean }, _embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<SemanticCodeSearchResult> {
@@ -589,7 +574,14 @@ export class AdoCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		return Result.error(TriggerRemoteIndexingError.notIndexable);
 	}
 
-	protected override doFetchRemoteIndexState(_telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<RemoteCodeSearchIndexState, RemoteCodeSearchError>> {
-		return this._adoCodeSearchService.getRemoteIndexState({ silent: true }, this._adoRepoId, token);
+	protected override async doFetchRemoteIndexState(_telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<RemoteCodeSearchIndexState, RemoteCodeSearchError>> {
+		try {
+			return await this._adoCodeSearchService.getRemoteIndexState({ silent: true }, this._adoRepoId, token);
+		} catch (error) {
+			if (isCancellationError(error)) {
+				throw error;
+			}
+			return Result.error({ type: 'generic-error', error: error instanceof Error ? error : new Error(String(error)) });
+		}
 	}
 }
