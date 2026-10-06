@@ -3925,6 +3925,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('preserves create metadata and proposed content for pending file confirmations', () => {
+			const fileUri = URI.file('/workspace/package.json');
 			const invocation = toolCallStateToInvocation({
 				toolCallId: 'tc-create',
 				toolName: 'write',
@@ -3946,10 +3947,10 @@ suite('stateToProgressAdapter', () => {
 				kind: 'modifiedFilesConfirmation',
 				options: ['Allow'],
 				modifiedFiles: [{
-					uri: URI.file('/workspace/package.json'),
+					uri: fileUri,
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local', URI.file('/workspace/package.json')),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local', fileUri),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,

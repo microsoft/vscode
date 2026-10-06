@@ -257,16 +257,47 @@ suite('toAgentHostUri / fromAgentHostUri', () => {
 		});
 	});
 
-	test('content refs with matching file paths retain their existing representation', () => {
+	test('preserves full file identities for snapshots with the same display path', () => {
+		const content = URI.parse('opaque-content://store/7f3a?revision=1#L2');
+		const file = URI.parse('file://first/repo/index.html?ref=main#L1');
+		const files = [
+			file,
+			file.with({ scheme: 'other-file' }),
+			file.with({ authority: 'second' }),
+			file.with({ query: 'ref=feature' }),
+			file.with({ fragment: 'L2' }),
+		];
+		const restored = files.map(file => URI.parse(toAgentHostContentUri(content, 'remote-host', file).toString()));
+
+		assert.deepStrictEqual({
+			paths: restored.map(uri => uri.path),
+			unique: new Set(restored.map(uri => uri.toString())).size,
+			content: restored.map(uri => fromAgentHostUri(uri).toString()),
+		}, {
+			paths: files.map(() => '/repo/index.html'),
+			unique: files.length,
+			content: files.map(() => content.toString()),
+		});
+	});
+
+	test('content refs with matching file paths retain local routing and content read-back', () => {
 		const file = URI.file('/repo/index.html');
 		const content = URI.parse('opaque-content:/repo/index.html');
+		const legacy = toAgentHostContentUri(content, 'remote-host');
+		const wrapped = toAgentHostContentUri(content, 'remote-host', file);
 
 		assert.deepStrictEqual({
 			local: toAgentHostContentUri(file, 'local', file).toString(),
-			remote: toAgentHostContentUri(content, 'remote-host', file).toString(),
+			path: wrapped.path,
+			legacyContent: fromAgentHostUri(legacy).toString(),
+			content: fromAgentHostUri(wrapped).toString(),
+			distinct: legacy.toString() !== wrapped.toString(),
 		}, {
 			local: file.toString(),
-			remote: toAgentHostContentUri(content, 'remote-host').toString(),
+			path: file.path,
+			legacyContent: content.toString(),
+			content: content.toString(),
+			distinct: true,
 		});
 	});
 

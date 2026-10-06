@@ -99,65 +99,65 @@ suite('ChangesMultiDiffSourceResolver', () => {
 		]);
 	});
 
-	test('keeps same-content files distinct and publishes file-path updates', async () => {
-		const sessionResource = URI.parse('agent-host:test-session');
-		const content = URI.parse('opaque-content://store/7f3a');
-		const makeChange = (path: string): ISessionFileChange => {
-			const file = URI.file(path);
-			return {
+	for (const { name, initial, updated } of [
+		{ name: 'path', initial: { path: '/repo/docs/index.html' }, updated: { path: '/repo/src/index.html' } },
+		{ name: 'scheme', initial: { scheme: 'other-file' }, updated: { scheme: 'another-file' } },
+		{ name: 'authority', initial: { authority: 'first' }, updated: { authority: 'second' } },
+		{ name: 'query', initial: { query: 'ref=main' }, updated: { query: 'ref=feature' } },
+		{ name: 'fragment', initial: { fragment: 'L1' }, updated: { fragment: 'L2' } },
+	]) {
+		test(`keeps same-content files distinct and publishes ${name} updates`, async () => {
+			const sessionResource = URI.parse('agent-host:test-session');
+			const content = URI.parse('opaque-content://store/7f3a');
+			const file = URI.file('/repo/index.html');
+			const initialFile = file.with(initial);
+			const updatedFile = file.with(updated);
+			const makeChange = (file: URI): ISessionFileChange => ({
 				uri: toAgentHostUri(file, 'remote'),
 				modifiedUri: toAgentHostContentUri(content, 'remote', file),
 				insertions: 1,
 				deletions: 0,
-			};
-		};
-		const changes = observableValue<readonly ISessionFileChange[]>('changes', [
-			makeChange('/repo/src/index.html'),
-			makeChange('/repo/docs/index.html'),
-		]);
-		const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
-			new class extends mock<IChangesViewService>() {
-				override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
-				override readonly activeSessionChangesObs = changes;
-			}(),
-			new class extends mock<IMultiDiffSourceResolverService>() {
-				override registerResolver() { return Disposable.None; }
-			}(),
-			new class extends mock<ISessionChangesService>() {
-				override getSessionResource() { return sessionResource; }
-			}(),
-		));
-		const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
-		const snapshot = () => ({
-			files: source.resources.value.map(item => ({
-				labelPath: item.modifiedUri!.path,
-				openFile: item.goToFileUri!.path,
-				content: fromAgentHostUri(item.modifiedUri!).toString(),
-			})),
-			unique: new Set(source.resources.value.map(item => item.getKey())).size,
+			});
+			const changes = observableValue<readonly ISessionFileChange[]>('changes', [
+				makeChange(file),
+				makeChange(initialFile),
+			]);
+			const resolver = disposables.add(new ChangesMultiDiffSourceResolver(
+				new class extends mock<IChangesViewService>() {
+					override readonly activeSessionResourceObs = observableValue<URI | undefined>(this, sessionResource);
+					override readonly activeSessionChangesObs = changes;
+				}(),
+				new class extends mock<IMultiDiffSourceResolverService>() {
+					override registerResolver() { return Disposable.None; }
+				}(),
+				new class extends mock<ISessionChangesService>() {
+					override getSessionResource() { return sessionResource; }
+				}(),
+			));
+			const source = await resolver.resolveDiffSource(URI.parse('changes-multi-diff-source:test-session'));
+			const snapshot = () => ({
+				files: source.resources.value.map(item => ({
+					labelPath: item.modifiedUri!.path,
+					openFile: fromAgentHostUri(item.goToFileUri!).toString(),
+					content: fromAgentHostUri(item.modifiedUri!).toString(),
+				})).sort((a, b) => a.openFile.localeCompare(b.openFile)),
+				unique: new Set(source.resources.value.map(item => item.getKey())).size,
+			});
+			const observed = [snapshot()];
+			disposables.add(source.resources.onDidChange(() => observed.push(snapshot())));
+
+			changes.set([makeChange(file), makeChange(updatedFile)], undefined);
+
+			assert.deepStrictEqual(observed, [initialFile, updatedFile].map(changedFile => ({
+				files: [file, changedFile].map(file => ({
+					labelPath: file.path,
+					openFile: file.toString(),
+					content: content.toString(),
+				})).sort((a, b) => a.openFile.localeCompare(b.openFile)),
+				unique: 2,
+			})));
 		});
-		const observed = [snapshot()];
-		disposables.add(source.resources.onDidChange(() => observed.push(snapshot())));
-
-		changes.set([makeChange('/repo/moved/index.html'), makeChange('/repo/docs/index.html')], undefined);
-
-		assert.deepStrictEqual(observed, [
-			{
-				files: [
-					{ labelPath: '/repo/docs/index.html', openFile: '/repo/docs/index.html', content: content.toString() },
-					{ labelPath: '/repo/src/index.html', openFile: '/repo/src/index.html', content: content.toString() },
-				],
-				unique: 2,
-			},
-			{
-				files: [
-					{ labelPath: '/repo/docs/index.html', openFile: '/repo/docs/index.html', content: content.toString() },
-					{ labelPath: '/repo/moved/index.html', openFile: '/repo/moved/index.html', content: content.toString() },
-				],
-				unique: 2,
-			},
-		]);
-	});
+	}
 });
 
 function createChange(path: string): ISessionFileChange {

@@ -71,6 +71,8 @@ interface IAgentHostUriMeta {
 	 * {@link toAgentHostContentUri}.
 	 */
 	readonly contentRef?: true;
+	/** Full file identity, so snapshots for same-path files remain distinct. */
+	readonly fileUri?: string;
 }
 
 /**
@@ -98,7 +100,7 @@ export function toAgentHostContentUri(originalUri: URI, connectionAuthority: str
  * Maps a host-side URI into client space.
  *
  * Content references use {@link toAgentHostContentUri}, with `fileUri` providing
- * the file identity for labels when available.
+ * the file identity for labels and comparisons when available.
  */
 export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean; readonly fileUri?: URI }) => URI;
 
@@ -114,6 +116,7 @@ function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, content
 		...(path !== originalUri.path ? { path: originalUri.path } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
 		...(contentRef ? { contentRef: true } as const : {}),
+		...(fileUri ? { fileUri: fileUri.toString() } : {}),
 	};
 	const params = new URLSearchParams();
 	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
