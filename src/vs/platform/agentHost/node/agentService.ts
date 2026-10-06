@@ -6129,7 +6129,7 @@ export class AgentService extends Disposable implements IAgentService {
 				isArtifact: true,
 				link: pullRequestUrl,
 			}, generateUuid);
-			_meta = withSessionArtifacts(_meta, artifacts.map(artifact => ({ ...artifact, chat: buildDefaultChatUri(session) })));
+			_meta = withSessionArtifacts(_meta, artifacts.map(artifact => ({ ...artifact, chat: created.defaultChat?.toString() ?? buildDefaultChatUri(session) })));
 		}
 		_meta = withSessionMultiRootMetadata(_meta, explicitMultiRoot);
 		_meta = withEphemeralSessionMeta(_meta, config ? readEphemeralSessionMeta(config).isEphemeral : undefined);

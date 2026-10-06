@@ -125,7 +125,8 @@ Explicit recreation of a deleted session retains its session URI but allocates
 a fresh default-chat URI with a generation query. Old global chat identities
 remain tombstoned. Creation, root-channel routing, provider rollback and
 restoration use the advertised/header default URI rather than deriving identity
-from the session URI.
+from the session URI. Initial pull-request artifacts also reference the allocated
+default chat, including a fresh generation when a deleted session is recreated.
 The physical catalog default stays stable when a client selects a different
 routing default. Direct registration has no migration generation stamp: its
 first aggregate envelope establishes the lifetime generation. Readers validate

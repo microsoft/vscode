@@ -15268,7 +15268,10 @@ suite('AgentService (node dispatcher)', () => {
 
 			// Explicitly recreating at the exact same URI must succeed and be
 			// visible again — the tombstone must not block legitimate reuse.
-			const recreated = await svc.createSession({ provider: 'copilot', session: reusedUri });
+			const recreated = await svc.createSession({
+				provider: 'copilot', session: reusedUri,
+				config: { [SessionConfigKey.PullRequestUrl]: 'https://github.com/microsoft/vscode/pull/42' },
+			});
 			assert.strictEqual(recreated.toString(), reusedUri.toString());
 			assert.deepStrictEqual((await svc.getRegisteredSessions()).map(s => s.toString()), [reusedUri.toString()]);
 
@@ -15290,10 +15293,12 @@ suite('AgentService (node dispatcher)', () => {
 				freshIdentity: freshDefault !== originalDefault.chat,
 				oldIdentity: await catalogDatabase.updateChatV2Metadata(originalDefault.chat, originalDefault, { isRead: true }),
 				restoredDefault: getStateManager(svc).getSessionState(recreated.toString())?.defaultChat,
+				artifactChats: readSessionArtifacts(getStateManager(svc).getSessionState(recreated.toString())?._meta).map(artifact => artifact.chat),
 				providerChat: sent.chat?.toString(),
 				providerSession: sent.session.toString(),
 			}, {
 				freshIdentity: true, oldIdentity: { status: 'conflict' }, restoredDefault: freshDefault,
+				artifactChats: [freshDefault],
 				providerChat: freshDefault, providerSession: recreated.toString(),
 			});
 		});
