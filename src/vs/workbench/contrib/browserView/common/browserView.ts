@@ -14,6 +14,7 @@ import { ITunnelProxyInfo } from '../../../../platform/tunnel/common/tunnelProxy
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
+import { ISandboxNetworkRestrictions } from '../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import {
 	BrowserHistoryStore,
 	ISerializedBrowserFaviconsSnapshot,
@@ -60,6 +61,7 @@ import {
 	IBrowserElementSelectionState,
 	isBrowserViewStorageScopeShareableWithAgent,
 	IBrowserViewHost,
+	IBrowserViewAccessibilitySnapshot,
 } from '../../../../platform/browserView/common/browserView.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
@@ -222,6 +224,8 @@ export interface IBrowserViewContextualFilter {
 }
 
 export interface IBrowserViewFilterContext {
+	/** Restrict visibility to browser storage isolated for this agent session. */
+	sandboxSessionId?: string;
 	/**
 	 * The session *resource* URI string (`session.resource.toString()`) of the
 	 * relevant session, if any. This is the same value stored in
@@ -246,6 +250,7 @@ export interface IBrowserViewOpenHandler {
 }
 
 export interface IBrowserViewWorkbenchCreateOptions {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
 	readonly initialAudiences?: readonly IBrowserViewAudience[];
@@ -333,6 +338,9 @@ export interface IBrowserViewWorkbenchService {
 	/** Creates and resolves a browser view, optionally requesting editor presentation. */
 	createBrowserView(options: IBrowserViewWorkbenchCreateOptions, editorOpenOptions?: IBrowserViewEditorOpenOptions): Promise<BrowserEditorInput>;
 
+	/** Creates an unlisted user-owned ephemeral view for embedding outside the browser editor. */
+	createExternalBrowserView(initialUrl: string, openSource?: IntegratedBrowserOpenSource): Promise<IBrowserViewModel>;
+
 	/**
 	 * Get an existing browser view for the given ID, or create a new one if it doesn't exist.
 	 * The underlying browser view is not created until the editor is opened or the model is resolved.
@@ -386,6 +394,7 @@ export interface IBrowserViewCDPService {
  * This model proxies calls to the main process browser view service using its unique ID.
  */
 export interface IBrowserViewModel extends IDisposable {
+	readonly sandboxSessionId: string | undefined;
 	readonly id: string;
 	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
@@ -447,6 +456,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
+	getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot>;
 	focus(force?: boolean): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
@@ -498,6 +508,7 @@ export function createBrowserViewEventEmitters(store: DisposableStore): BrowserV
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
+	readonly sandboxSessionId: string | undefined;
 	private _url: string = '';
 	private _owner: IBrowserViewOwner;
 	private _title: string = '';
@@ -577,6 +588,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	) {
 		super();
 		this._owner = owner;
+		this.sandboxSessionId = initialState.sandboxSessionId;
 
 		// Initialize state
 		this._url = initialState.url;
@@ -814,6 +826,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 			this._screenshot = result;
 		}
 		return result;
+	}
+
+	async getAccessibilitySnapshot(): Promise<IBrowserViewAccessibilitySnapshot> {
+		return this.browserViewService.getAccessibilitySnapshot(this.id, this.host.windowId);
 	}
 
 	async focus(force?: boolean): Promise<void> {

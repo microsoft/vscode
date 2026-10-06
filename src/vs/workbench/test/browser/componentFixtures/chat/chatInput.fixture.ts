@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { assert } from '../../../../../base/common/assert.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -87,6 +88,31 @@ const sampleModels: ILanguageModelChatMetadataAndIdentifier[] = [
 	},
 ];
 
+// A short name beside its thinking effort / context readout. The name must keep its
+// own width rather than being padded out to the picker's minimum label width.
+export const shortNameModels: ILanguageModelChatMetadataAndIdentifier[] = [
+	{
+		identifier: 'xai-grok-4.7',
+		metadata: {
+			extension: new ExtensionIdentifier('fixture.extension'),
+			id: 'grok-4.7',
+			name: 'Grok 4.7',
+			vendor: 'xai',
+			family: 'grok',
+			version: '1',
+			maxInputTokens: 256000,
+			maxOutputTokens: 8192,
+			isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+			configurationSchema: {
+				properties: {
+					reasoningEffort: { type: 'string', group: 'navigation', enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'], default: 'high' },
+					contextSize: { type: 'number', group: 'tokens', enum: [128000, 256000], enumItemLabels: ['128K', '256K'], default: 256000 },
+				},
+			},
+		},
+	},
+];
+
 const sampleNotification: IChatInputNotification = {
 	id: 'fixture.notification',
 	severity: ChatInputNotificationSeverity.Info,
@@ -141,7 +167,8 @@ const copilotHarnessModels = sampleModels.map(model => ({ ...model, metadata: { 
 const combinedPickerOptions: ChatInputFixtureOptions = {
 	agentHostSessionConfig: { ...copilotHarnessSessionConfig, values: { mode: 'autopilot', autoApprove: 'autoApprove' } },
 	combinedModePermissionsPicker: true,
-	models: copilotHarnessModels,
+	tabbedModelPicker: true,
+	models: shortNameModels.map(model => ({ ...model, metadata: { ...model.metadata, targetChatSessionType: SessionType.AgentHostCopilot } })),
 };
 
 const copilotIntroductionOptions: ChatInputFixtureOptions = {
@@ -185,6 +212,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	Default: defineComponentFixture({ render: context => renderChatInput(context) }),
 	WithSandboxing: defineComponentFixture({ render: context => renderChatInput(context, { sandboxingEnabled: true }) }),
 	WithProviderIcon: defineComponentFixture({ render: context => renderChatInput(context, { models: sampleModels }) }),
+	WithShortModelName: defineComponentFixture({ render: context => renderChatInput(context, { models: shortNameModels }) }),
 	CompactWithProviderIcon: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The editor chat input shows compact picker controls as 12-pixel codicons centered with equal padding inside matching 22-pixel square controls, aligned with the expanded toolbar height.'],
@@ -197,6 +225,7 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	}),
 	CopilotHarnessCombinedPickers: defineComponentFixture({
 		virtualTime: { enabled: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderChatInput(context, combinedPickerOptions),
 	}),
 	CopilotHarnessCombinedCompactPickers: defineComponentFixture({
@@ -271,6 +300,26 @@ export default defineThemedFixtureGroup({ path: 'chat/input/' }, {
 	VoiceModeListening: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceListening' }) }),
 	VoiceModeSpeaking: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceSpeaking' }) }),
 	VoiceModeDisconnect: defineComponentFixture({ render: context => renderChatInput(context, { voiceControl: 'voiceDisconnect' }) }),
+	// The segmented voice pill at the chat view's minimum width: the pickers
+	// collapse into the overflow menu so the send button and the voice pill stay
+	// inside the input (#331228).
+	NarrowWithVoiceInputMode: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: async context => {
+			await renderChatInput(context, { voiceInputMode: true, width: 150 });
+			const inputContainer = context.container.querySelector<HTMLElement>('.chat-input-container');
+			const inputToolbar = context.container.querySelector<HTMLElement>('.chat-input-toolbar');
+			const submit = context.container.querySelector<HTMLElement>('.chat-execute-toolbar .chat-submit-button');
+			assert(!!inputContainer && !!inputToolbar && !!submit && submit.checkVisibility());
+			const submitOverflow = submit.getBoundingClientRect().right - inputContainer.getBoundingClientRect().right;
+			assert(submitOverflow <= 0, `The send button must not overflow the chat input, got ${submitOverflow}px of overflow.`);
+			const inputToolbarRight = inputToolbar.getBoundingClientRect().right;
+			for (const item of inputToolbar.querySelectorAll<HTMLElement>('.action-item')) {
+				assert(item.getBoundingClientRect().right <= inputToolbarRight + 1, 'Input toolbar actions must move into the overflow menu instead of being clipped.');
+			}
+			assert(!!inputToolbar.querySelector('.monaco-action-bar.has-overflow'), 'The collapsed pickers must stay reachable from the overflow menu.');
+		},
+	}),
 
 	// Where the pet lands, with and without a notice docked above the input (#332570).
 	WithPet: defineComponentFixture({ render: context => renderChatInput(context, { pet: true }) }),

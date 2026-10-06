@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
+import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -12,6 +13,7 @@ import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/w
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { process } from '../../../../base/parts/sandbox/electron-browser/globals.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService, PreferredGroup, SIDE_GROUP, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -185,7 +187,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (event.type === 'snapshot') {
 				try {
 					for (const [index, info] of event.views.entries()) {
-						this._createModel(reviveBrowserViewInfo(info, screenshots[index]));
+						if (info.presentation === BrowserViewPresentation.Listed) {
+							this._createModel(reviveBrowserViewInfo(info, screenshots[index]));
+						}
 					}
 					void this._browserViewsReady.complete();
 				} catch (error) {
@@ -195,6 +199,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			}
 			if (event.type === 'created') {
 				const e = event.data;
+				if (e.info.presentation === BrowserViewPresentation.Unlisted) {
+					return;
+				}
 				this._createModel(reviveBrowserViewInfo(e.info, screenshots[0]), e.initialUrl ?? this._known.get(e.info.id)?.url);
 				const editor = this._known.get(e.info.id);
 				if (editor && e.editorOpenRequest) {
@@ -242,12 +249,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput> {
-		if (this._contextualFilters.size === 0) {
+		if (this._contextualFilters.size === 0 && context?.sandboxSessionId === undefined) {
 			return this._known;
 		}
 		const filters = [...this._contextualFilters];
 		const result = new Map<string, BrowserEditorInput>();
 		for (const [id, input] of this._known) {
+			if (!matchesBrowserViewSandboxSession(input.model?.owner, input.model?.sandboxSessionId, context?.sandboxSessionId)) {
+				continue;
+			}
 			if (filters.every(filter => filter.include(input, { ...context }))) {
 				result.set(id, input);
 			}
@@ -372,6 +382,34 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource']): Promise<IBrowserViewModel> {
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
+		await this._updateWindowConfiguration();
+		if (this._store.isDisposed) {
+			throw new CancellationError();
+		}
+		const info = await this._browserViewService.getOrCreateBrowserView(generateUuid(), {
+			host: { windowId: this._mainWindowId },
+			owner: { type: 'user' },
+			presentation: BrowserViewPresentation.Unlisted,
+			session: { scope: BrowserViewStorageScope.Ephemeral },
+			initialAudiences: [],
+			openSource,
+		});
+		if (this._store.isDisposed) {
+			await this._browserViewService.destroyBrowserView(info.id);
+			throw new CancellationError();
+		}
+		const model = this._createModel(info, undefined, false);
+		try {
+			await model.loadURL(initialUrl);
+			return model;
+		} catch (error) {
+			model.dispose();
+			throw error;
+		}
+	}
+
 	getOrCreateLazy(data: IBrowserEditorInputData): BrowserEditorInput {
 		return this._getOrCreateLazy(data);
 	}
@@ -391,6 +429,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						associatedResource,
 						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
 						initialAudiences: createOptions?.initialAudiences,
+						sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
 						initialUrl: createOptions ? createOptions.initialUrl : data.url,
 						openSource: createOptions?.openSource
 					}
@@ -452,7 +491,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._remoteEvents.get(event.id)?.emitters[event.event].fire(event.data);
 	}
 
-	private _createModel(info: IBrowserViewInfo, initialUrl?: string): IBrowserViewModel {
+	private _createModel(info: IBrowserViewInfo, initialUrl?: string, registerInput = true): IBrowserViewModel {
 		const associatedResource = URI.revive(info.associatedResource);
 		// Don't double-create
 		const input = this._known.get(info.id);
@@ -485,10 +524,10 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			queueMicrotask(() => store.dispose());
 		}));
 
-		// Sanity: both pass and assign the model to be sure. It will no-op if already set.
-		this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
-
-		this._onDidChangeBrowserViews.fire();
+		if (registerInput) {
+			this._getOrCreateLazy({ id: info.id, associatedResource, url: initialUrl }, model).model = model;
+			this._onDidChangeBrowserViews.fire();
+		}
 
 		return model;
 	}

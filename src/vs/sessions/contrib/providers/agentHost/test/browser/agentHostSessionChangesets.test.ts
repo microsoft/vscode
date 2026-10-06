@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { isLinux } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -131,6 +131,7 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
 				icon: Codicon.copilot,
+				environment: 'local',
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
 				instantiationService,
@@ -143,7 +144,12 @@ suite('AgentHostSessionChangesets', () => {
 				changeKind,
 				uriTemplate: `changeset/${changeKind}`,
 				changes,
-				streamingChanges,
+				streamingChanges: streamingChanges
+					? derived(reader => {
+						const value = streamingChanges.read(reader);
+						return value === undefined ? undefined : { id: 'turn', changes: value };
+					})
+					: undefined,
 			}])[0];
 			disposables.add(autorun(reader => changeset.changes.read(reader)));
 
@@ -220,7 +226,37 @@ suite('AgentHostSessionChangesets', () => {
 
 			assert.deepStrictEqual({ computing, recomputing, ready: harness.snapshot() }, {
 				computing: { changes: [], loading: false, acquired: 1, released: 0 },
-				recomputing: { changes: [{ insertions: 57, deletions: 45 }], loading: true, acquired: 1, released: 0 },
+				recomputing: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
+				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
+			});
+		});
+
+		test('uses active turn edits while Branch Changes computes, then switches to the authoritative snapshot', () => {
+			const streamingChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('streamingChanges', []);
+			const harness = createHarness(ChangesetKind.Branch, streamingChanges);
+			harness.isActiveSession.set(true, undefined);
+			harness.subscription.set({ status: ChangesetStatus.Computing, files: [] });
+			const computing = harness.snapshot();
+			streamingChanges.set([{
+				uri: URI.file('/repo/live.ts'),
+				originalUri: URI.parse('readonly-content:/before/live.ts'),
+				modifiedUri: URI.file('/repo/live.ts'),
+				insertions: 2,
+				deletions: 1,
+				isOutsideWorkspace: false,
+			}], undefined);
+			const streaming = harness.snapshot();
+			streamingChanges.set([], undefined);
+			const cleared = harness.snapshot();
+			streamingChanges.set(undefined, undefined);
+			const retained = harness.snapshot();
+			harness.subscription.set({ status: ChangesetStatus.Ready, files: cachedFiles });
+
+			assert.deepStrictEqual({ computing, streaming, cleared, retained, ready: harness.snapshot() }, {
+				computing: { changes: [], loading: true, acquired: 1, released: 0 },
+				streaming: { changes: [{ insertions: 2, deletions: 1 }], loading: false, acquired: 1, released: 0 },
+				cleared: { changes: [], loading: false, acquired: 1, released: 0 },
+				retained: { changes: [], loading: false, acquired: 1, released: 0 },
 				ready: { changes: [{ insertions: 57, deletions: 45 }], loading: false, acquired: 1, released: 0 },
 			});
 		});
@@ -510,6 +546,7 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -567,6 +604,7 @@ suite('AgentHostSessionChangesets', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -592,6 +630,7 @@ suite('AgentHostSessionChangesets', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -609,7 +648,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects chat-owned changesets with session-owned Session Changes', () => {
+	test('prefers chat-owned Session Changes and otherwise projects the session-owned entry', () => {
 		const chatUri = URI.parse('ahp-chat://default/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {
 			resource: chatUri.toString(),
@@ -634,6 +673,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -675,7 +715,7 @@ suite('AgentHostSessionChangesets', () => {
 		}, {
 			absentCatalogue: undefined,
 			initial: ['session'],
-			initialResource: ['file:///session/changeset/session'],
+			initialResource: [`${chatUri}/changeset/session`],
 			preservedIdentity: true,
 			updated: ['branch', 'session'],
 			updatedResource: [`${chatUri}/changeset/branch`, 'file:///session/changeset/session'],
@@ -684,7 +724,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects current turn changes into Session Changes while the turn is active', () => {
+	test('projects current turn changes into cumulative changesets while the turn is active', () => {
 		const sessionUri = URI.parse('ahp-session:/session');
 		const chatUri = URI.parse(buildDefaultChatUri(sessionUri.toString()));
 		const chatSubscription = createMutableSubscription({
@@ -694,7 +734,15 @@ suite('AgentHostSessionChangesets', () => {
 				status: SessionStatus.InProgress,
 				modifiedAt: new Date(0).toISOString(),
 			}),
-			changesets: [],
+			changesets: [{
+				label: 'Branch Changes',
+				changeKind: ChangesetKind.Branch,
+				uriTemplate: 'changeset/branch',
+			}, {
+				label: 'Uncommitted Changes',
+				changeKind: ChangesetKind.Uncommitted,
+				uriTemplate: 'changeset/uncommitted',
+			}],
 		});
 		const sessionSubscription = createMutableSubscription({
 			changesets: [{
@@ -704,7 +752,7 @@ suite('AgentHostSessionChangesets', () => {
 			}],
 		} as SessionState);
 		const changesetSubscription = createMutableSubscription<ChangesetState>({
-			status: ChangesetStatus.Ready,
+			status: ChangesetStatus.Computing,
 			files: [],
 		});
 		const connection = new class extends mock<IAgentConnection>() {
@@ -719,15 +767,19 @@ suite('AgentHostSessionChangesets', () => {
 		}();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
-		const currentTurnChanges = observableValue<readonly ISessionTurnFileChange[] | undefined>('currentTurnChanges', [{
-			uri: URI.file('/repo/live.ts'),
-			originalUri: URI.parse('readonly-content:/before/live.ts'),
-			modifiedUri: URI.parse('readonly-content:/after/live.ts'),
-			insertions: 2,
-			deletions: 1,
-			isOutsideWorkspace: false,
-		} satisfies ISessionTurnFileChange]);
+		const currentTurnChanges = observableValue('currentTurnChanges', {
+			id: 'turn',
+			changes: [{
+				uri: URI.file('/repo/live.ts'),
+				originalUri: URI.parse('readonly-content:/before/live.ts'),
+				modifiedUri: URI.parse('readonly-content:/after/live.ts'),
+				insertions: 2,
+				deletions: 1,
+				isOutsideWorkspace: false,
+			} satisfies ISessionTurnFileChange],
+		});
 		const projected = createChatChangesets(sessionUri, constObservable(chatUri), {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -736,20 +788,67 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		}, constObservable(true), currentTurnChanges);
-		let changes: readonly ISessionFileChange[] | undefined;
+		let changes: Readonly<Record<string, {
+			readonly loading: boolean;
+			readonly files: readonly ISessionFileChange[];
+		}>> | undefined;
 		disposables.add(autorun(reader => {
-			changes = projected.read(reader)?.find(changeset => changeset.id === SESSION_CHANGES_CHANGESET_ID)?.changes.read(reader);
+			changes = Object.fromEntries(projected.read(reader)?.map(changeset => [
+				changeset.id,
+				{
+					loading: changeset.isLoadingChanges.read(reader),
+					files: changeset.changes.read(reader),
+				},
+			]) ?? []);
 		}));
 
-		assert.deepStrictEqual(changes?.map(change => ({
-			uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
-			original: change.originalUri?.toString(),
-			modified: change.modifiedUri?.toString(),
-		})), [{
-			uri: 'file:///repo/live.ts',
-			original: 'readonly-content:/before/live.ts',
-			modified: 'readonly-content:/after/live.ts',
-		}]);
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(changes ?? {}).map(([id, value]) => [
+			id,
+			{
+				loading: value.loading,
+				files: value.files.map(change => ({
+					uri: isIChatSessionFileChange2(change) ? change.uri.toString() : undefined,
+					original: change.originalUri?.toString(),
+					modified: change.modifiedUri?.toString(),
+				})),
+			},
+		])), {
+			branch: {
+				loading: false,
+				files: [{
+					uri: 'file:///repo/live.ts',
+					original: 'readonly-content:/before/live.ts',
+					modified: 'readonly-content:/after/live.ts',
+				}],
+			},
+			uncommitted: {
+				loading: false,
+				files: [{
+					uri: 'file:///repo/live.ts',
+					original: 'readonly-content:/before/live.ts',
+					modified: 'readonly-content:/after/live.ts',
+				}],
+			},
+			session: {
+				loading: false,
+				files: [{
+					uri: 'file:///repo/live.ts',
+					original: 'readonly-content:/before/live.ts',
+					modified: 'readonly-content:/after/live.ts',
+				}],
+			},
+		});
+
+		currentTurnChanges.set({ id: 'next-turn', changes: [] }, undefined);
+
+		assert.deepStrictEqual(Object.fromEntries(Object.entries(changes ?? {}).map(([id, value]) => [
+			id,
+			{ loading: value.loading, files: value.files },
+		])), {
+			branch: { loading: true, files: [] },
+			uncommitted: { loading: true, files: [] },
+			session: { loading: true, files: [] },
+		});
 	});
 
 	test('projects legacy Session and turn changes into every chat', () => {
@@ -792,6 +891,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -870,6 +970,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -878,7 +979,7 @@ suite('AgentHostSessionChangesets', () => {
 			agentCapabilities: constObservable(undefined),
 			mapBackendSessionResource: resource => resource,
 		};
-		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable([]));
+		const projected = createChatChangesets(URI.parse(parseRequiredSessionUriFromChatUri(chatUri)), constObservable(chatUri), options, constObservable(true), constObservable({ id: 'turn', changes: [] }));
 		let enabled: boolean | undefined;
 		disposables.add(autorun(reader => {
 			const changeset = projected.read(reader)?.[0];
@@ -986,6 +1087,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1084,6 +1186,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1154,6 +1257,7 @@ suite('AgentHostSessionChangesets', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		const options: IAgentHostAdapterOptions = {
+			environment: 'local',
 			icon: Codicon.copilot,
 			loading: constObservable(false),
 			buildWorkspace: () => undefined,
@@ -1219,6 +1323,7 @@ suite('AgentHostSessionChangesets', () => {
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const changeset = createChangesets(URI.parse('ahp-session:/session-1'), {
 				icon: Codicon.copilot,
+				environment: 'local',
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
 				instantiationService,
@@ -1368,6 +1473,7 @@ suite('AgentHostSessionChangesets', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 			const changesets = createChangesets(sessionUri, {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,

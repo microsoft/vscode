@@ -11,6 +11,7 @@ import { IRemoteAgentHostEntry, IRemoteAgentHostService, getEntryAddress, Remote
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
 import { URI } from '../../../base/common/uri.js';
 import { resolveDevContainerSourceWorkspace, resolveRemoteAuthority, resolveRemoteFolderUri, sshAuthorityString } from '../../browser/openInVSCodeUtils.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 
@@ -222,6 +223,28 @@ suite('resolveRemoteAuthority', () => {
 			},
 		});
 	}
+
+	test('encodes sample repository volumes using the Dev Containers extension authority', () => {
+		const repository = {
+			repositoryPath: 'https://github.com/Microsoft/vscode-remote-try-node',
+			volumeName: 'sample-volume',
+			folder: 'vscode-remote-try-node',
+		};
+		const authority = resolveRemoteAuthority('agenthost-devcontainer', makeProvidersService('devcontainer:sample'), makeRemoteAgentHostService([{
+			name: 'Node Sample',
+			connection: { type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:sample', repository },
+		}]));
+		assert.deepStrictEqual(authority ? JSON.parse(decodeHex(authority.slice('dev-container+'.length)).toString()) : undefined, repository);
+	});
+
+	test('does not open an unprovisioned sample as a host folder', () => {
+		assert.throws(() => resolveRemoteFolderUri(
+			devContainerSampleUri(devContainerSamples[0]),
+			'local-agent-host',
+			makeProvidersService(),
+			makeRemoteAgentHostService([]),
+		), /Send the first prompt/);
+	});
 
 	test('returns a Dev Containers authority for a POSIX source folder', () => {
 		assertDevContainerAuthority('/Users/test/project');

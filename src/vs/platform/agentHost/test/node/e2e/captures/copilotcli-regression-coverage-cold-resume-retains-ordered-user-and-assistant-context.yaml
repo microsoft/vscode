@@ -1,0 +1,42 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the first entry ORDERED_ALPHA. Reply exactly "ALPHA_READY".
+    response:
+      content: ALPHA_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the first entry ORDERED_ALPHA. Reply exactly "ALPHA_READY".
+        - role: assistant
+          content: ALPHA_READY
+        - role: user
+          content: Remember the second entry ORDERED_BETA without replacing the first. Reply exactly "BETA_READY".
+    response:
+      content: BETA_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember the first entry ORDERED_ALPHA. Reply exactly "ALPHA_READY".
+        - role: assistant
+          content: ALPHA_READY
+        - role: user
+          content: Remember the second entry ORDERED_BETA without replacing the first. Reply exactly "BETA_READY".
+        - role: assistant
+          content: BETA_READY
+        - role: user
+          content: Reply with both entries in the order I gave them. Do not use tools.
+    response:
+      content: ORDERED_ALPHA, ORDERED_BETA
+      stopReason: end_turn

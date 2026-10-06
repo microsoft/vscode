@@ -161,7 +161,7 @@ describe('OTelStaleConfigMonitor', () => {
 		await check;
 	});
 
-	it('handles a settled blocked refresh without another configuration change', async () => {
+	it('does not prompt for a settled blocked refresh that a reload cannot resolve', async () => {
 		settings.policy = managedPolicy;
 		const monitor = newHost();
 		const settled = new DeferredPromise<void>();
@@ -174,15 +174,33 @@ describe('OTelStaleConfigMonitor', () => {
 
 		await settled.complete();
 		expect({ drift: await check, restarts: host.restarts, prompts: host.prompts }).toEqual({
-			drift: OTelConfigDrift.Policy, restarts: 0, prompts: 1,
+			drift: OTelConfigDrift.Policy, restarts: 0, prompts: 0,
 		});
 	});
 
-	it('does not ignore restrictive values when policy is already settled', async () => {
+	it('does not leave a reload prompt when blocked policy recovers unchanged', async () => {
 		settings.policy = managedPolicy;
 		const monitor = newHost();
 		settings.policy = {};
 		settings.policySlotDefaults = { enabled: false, exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		expect(await monitor.check()).toBe(OTelConfigDrift.Policy);
+
+		settings.policySlotDefaults = {};
+		settings.policy = managedPolicy;
+		expect({ drift: await monitor.check(), restarts: host.restarts, prompts: host.prompts }).toEqual({
+			drift: OTelConfigDrift.None, restarts: 0, prompts: 0,
+		});
+	});
+
+	it('prompts when blocked policy recovers to a different exporter', async () => {
+		settings.policy = managedPolicy;
+		const monitor = newHost();
+		settings.policy = {};
+		settings.policySlotDefaults = { enabled: false, exporterType: '', otlpEndpoint: '', captureIdentity: false };
+		expect(await monitor.check()).toBe(OTelConfigDrift.Policy);
+
+		settings.policySlotDefaults = {};
+		settings.policy = { ...managedPolicy, otlpEndpoint: 'https://changed.example' };
 		expect({ drift: await monitor.check(), restarts: host.restarts, prompts: host.prompts }).toEqual({
 			drift: OTelConfigDrift.Policy, restarts: 0, prompts: 1,
 		});

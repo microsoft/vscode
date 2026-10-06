@@ -12,6 +12,8 @@ export class MockDevContainerService extends Disposable implements IDevContainer
 	declare readonly _serviceBrand: undefined;
 	readonly relayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage = this.relayMessage.event;
+	readonly relayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity = this.relayActivity.event;
 	readonly relayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose = this.relayClose.event;
 	readonly closeConnection = this._register(new Emitter<string>());

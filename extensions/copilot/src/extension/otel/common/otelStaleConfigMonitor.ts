@@ -84,6 +84,10 @@ export class OTelStaleConfigMonitor {
 			}
 			return drift;
 		}
+		if (isRestrictedPolicyConfig(current)) {
+			// The account gate blocks AI, and reloading only repeats the unavailable refresh.
+			return drift;
+		}
 
 		const fingerprint = fingerprintOf(current);
 		if (this._handledFingerprint === fingerprint) {

@@ -17,6 +17,8 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -26,7 +28,7 @@ import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../..
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatWidget, IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
-import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
+import { ChatMcpServersStarting, ElicitationState, IChatExternalEdit, IChatGeneratedImageData, IChatQuestion, IChatQuestionAnswers, IChatSearchToolInvocationData, IChatService, IChatSimpleToolInvocationData, IChatSystemNotificationPart, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatElicitationRequestPart } from '../../../../contrib/chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -86,7 +88,7 @@ export interface IFixtureMessage {
 		| { kind: 'thinking'; text: string; id?: string; generatedTitle?: string }
 		| IChatExternalEdit
 		| { kind: 'systemNotification'; notification: IChatSystemNotificationPart }
-		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
+		| { kind: 'tool'; toolId: string; displayName: string; invocationMessage: string; pastTenseMessage?: string; progressMessage?: string; streaming?: boolean; complete?: boolean; source?: ToolDataSource; approval?: 'pre' | 'post' | 'denied'; toolSpecificData?: IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatGeneratedImageData | IChatToolInputInvocationData; resultDetails?: IToolResultInputOutputDetails; resultError?: string | true }
 		| { kind: 'questionCarousel'; questions: IChatQuestion[]; message?: string; allowSkip?: boolean; data?: IChatQuestionAnswers; isUsed?: boolean; answerPresentation?: 'conversation' }
 		| { kind: 'planReview'; title: string; content: string }
 		| { kind: 'mcpStarting'; servers: readonly string[]; local?: boolean; blocking?: boolean; background?: boolean }
@@ -115,6 +117,7 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	readonly defaultElementHeight?: number;
 	/** Omit the auxiliary-bar ancestry when the caller supplies the owning workbench part. */
 	readonly useAuxiliaryBarWrapper?: boolean;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
@@ -476,6 +479,9 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 				if (part.streaming) {
 					toolInvocation.updateStreamingMessage(new MarkdownString(part.invocationMessage));
 				}
+				if (part.progressMessage) {
+					toolInvocation.acceptProgress({ message: part.progressMessage });
+				}
 				model.acceptResponseProgress(request, toolInvocation);
 				if (part.approval) {
 					toolInvocation.requestConfirmation({
@@ -621,6 +627,14 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		if (message.responseComplete !== false) {
 			response.complete();
 		}
+		// Parts are accepted back to back, so a reasoning duration measured here is only the
+		// time spent between two synchronous calls. Without virtual time that reads the real
+		// clock, and a crossed millisecond boundary renders a flaky "- 1s" title suffix.
+		for (const part of response.response.value) {
+			if (part.kind === 'thinking') {
+				part.reasoningDurationMs = undefined;
+			}
+		}
 	}
 
 	const viewModel = disposableStore.add(instantiationService.createInstance(ChatViewModel, model, undefined));
@@ -724,7 +738,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		listContainer,
 		{
 			currentChatMode: () => ChatModeKind.Agent,
-			defaultElementHeight: 120,
+			defaultElementHeight: options.defaultElementHeight ?? 120,
 			styles: {
 				listForeground: 'var(--vscode-foreground)',
 				listBackground,
@@ -1194,6 +1208,12 @@ interface IPersistentProgressScenarioOptions {
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
 	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const reducedMotionEmitter = context.disposableStore.add(new Emitter<void>());
+	const accessibilityService = new class extends TestAccessibilityService {
+		override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
+		override isMotionReduced(): boolean { return reducedMotion; }
+	}();
+	context.disposableStore.add(context.onDidChangeEnableAnimations(() => reducedMotionEmitter.fire()));
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
@@ -1210,6 +1230,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		width: options.width,
 		height: options.height ?? 560,
 		listHeight: options.listHeight ?? 340,
+		additionalServices: reg => reg.defineInstance(IAccessibilityService, accessibilityService),
 		onRendered: rendered => {
 			handle = rendered;
 			if (!options.activityUpdates || context.container.classList.contains('disable-animations')) {
@@ -1257,6 +1278,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 
 	const targetWindow = dom.getWindow(context.container);
+	const initialDrawPathData = [...context.container.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d') ?? '');
 	const mcpStartup = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'mcpStarting');
 	if (hasLocalMcpAutostart(messages)) {
 		await timeout(2600);
@@ -1490,8 +1512,26 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('The terminal activity animation did not retain its original motion behavior');
 		}
 	}
-	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate && !noIcon ? 3 : 0)) {
-		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
+	if (logo.getAnimations({ subtree: true }).length !== 0) {
+		throw new Error(`${progressAnimation} progress must use requestAnimationFrame instead of CSS animations`);
+	}
+	const drawPaths = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')];
+	if (!noIcon && drawPaths.length !== 3) {
+		throw new Error(`${progressAnimation} progress did not render all Draw mask bands`);
+	}
+	const drawPathData = drawPaths.map(path => path.getAttribute('d') ?? '');
+	if (shouldAnimate && !noIcon && drawPathData.every((path, index) => path === initialDrawPathData[index])) {
+		throw new Error(`${progressAnimation} progress did not advance its Draw paths`);
+	}
+	if (!shouldAnimate && !noIcon) {
+		const face = logo.querySelector<HTMLElement>('.chat-working-logo-face');
+		const drawContainer = logo.querySelector<HTMLElement>('.chat-working-logo-draw-container');
+		if (!logo.classList.contains('chat-working-logo-draw-assembled')
+			|| !face || targetWindow.getComputedStyle(face).display === 'none'
+			|| !drawContainer || targetWindow.getComputedStyle(drawContainer).display !== 'none'
+			|| [...face.querySelectorAll('path')].some(path => path.hasAttribute('mask'))) {
+			throw new Error(`${progressAnimation} progress did not resolve to the unmasked assembled product mark`);
+		}
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
 		throw new Error(`Persistent progress text animation did not match reducedMotion=${reducedMotion}`);
@@ -2596,7 +2636,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			inputVisible: false,
 			height: 240,
 			messages: [{
-				user: '/sandbox-policy',
+				user: '/sandbox policy',
 				assistant: [{
 					kind: 'markdown',
 					text: '[Open Sandbox Policy](file:///session/diagnostics/sandbox-policy.md?vscodeLinkType=markdown-preview)\n\n[Regular chat link](https://example.com)',

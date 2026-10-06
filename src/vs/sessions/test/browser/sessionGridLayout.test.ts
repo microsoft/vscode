@@ -6,12 +6,15 @@
 import assert from 'assert';
 import { addDisposableListener } from '../../../base/browser/dom.js';
 import { Direction, ISerializedGrid, IView } from '../../../base/browser/ui/grid/grid.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ISessionGridEntry, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
+import '../../browser/media/workbench.css';
+import '../../browser/parts/media/chatCompositeBar.css';
 
 suite('Sessions - Grid Layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -45,6 +48,67 @@ suite('Sessions - Grid Layout', () => {
 	function sizes(grid: SessionGridLayout) {
 		return grid.order.map(id => ({ id, ...grid.getSize(id) }));
 	}
+
+	test('only exposed session-grid corners use the native connected-tabs radius', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px;';
+		const card = document.createElement('div');
+		card.className = 'part sessionspart agents-part-card';
+		root.appendChild(card);
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const grid = store.add(new SessionGridLayout());
+		card.appendChild(grid.element);
+		const entry = (id: string): ISessionGridEntry => {
+			const element = document.createElement('div');
+			element.className = 'session-view';
+			return {
+				id,
+				view: {
+					element,
+					minimumWidth: 80, maximumWidth: Number.POSITIVE_INFINITY,
+					minimumHeight: 80, maximumHeight: Number.POSITIVE_INFINITY,
+					onDidChange: Event.None,
+					layout: (width, height) => {
+						element.style.width = `${width}px`;
+						element.style.height = `${height}px`;
+					},
+				},
+			};
+		};
+		const a = entry('a');
+		const b = entry('b');
+		const c = { ...entry('c'), placement: { reference: 'b', direction: Direction.Down } };
+		const d = { ...entry('d'), placement: { reference: 'a', direction: Direction.Down } };
+		const corners = () => [a, b, c, d].map(({ view }) => {
+			const style = mainWindow.getComputedStyle(view.element, '::after');
+			return [style.borderBottomLeftRadius, style.borderBottomRightRadius];
+		});
+		grid.reconcile([a, b], 'a');
+		grid.layout(1200, 600, 20, 100, false);
+		grid.reconcile([a, d, b, c], 'a');
+		const split = corners();
+		grid.reconcile([d, a, c, b].map(({ id, view }) => ({ id, view })), 'a');
+		const reordered = corners();
+		grid.toggleMaximized('c');
+		const maximized = corners();
+		grid.toggleMaximized('c');
+		const unmaximized = corners();
+		grid.layout(1600, 800, 40, 200, false);
+		const resized = corners();
+		grid.reconcile([a], 'a');
+		const single = corners()[0];
+
+		assert.deepStrictEqual({ split, reordered, maximized, unmaximized, resized, single }, {
+			split: [['7px', '7px'], ['7px', '7px'], ['7px', '11px'], ['11px', '7px']],
+			reordered: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
+			maximized: [['7px', '7px'], ['7px', '7px'], ['11px', '11px'], ['7px', '7px']],
+			unmaximized: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
+			resized: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
+			single: ['11px', '11px'],
+		});
+	});
 
 	test('nested insertion and removal preserve an unrelated user-sized column', () => {
 		const { grid, a, b, c } = harness();

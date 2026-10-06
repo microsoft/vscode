@@ -64,6 +64,9 @@ export interface IAgentHostGitStateService {
 	/** Merges the branch identity known when an isolated worktree materializes into session metadata. */
 	getMaterializedWorktreeMeta(sessionKey: string, branchName: string): SessionSummaryMeta | undefined;
 
+	/** Publishes and persists Git state for a chat's destination before its workspace changes. */
+	setFolderGitState(sessionKey: string, workingDirectories: readonly string[], gitState: ISessionGitState | undefined): Promise<void>;
+
 	/** Resolves the canonical base branch selected for a session. */
 	resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined>;
 
@@ -81,7 +84,7 @@ export interface IAgentHostGitStateService {
 	/** Retries persisted PR associations for a session or a chat's folder. */
 	readonly reconcilePendingRecordedPullRequests?: (sessionOrChat: string, allFolders?: boolean) => Promise<void>;
 	/** Forgets pending associations when a recorded PR artifact is removed. */
-	readonly removePendingRecordedPullRequest?: (session: string, url: string) => Promise<void>;
+	readonly removePendingRecordedPullRequest?: (session: string, chat: string, url: string) => Promise<void>;
 
 	/**
 	 * Merges into the GitHub state of the folder a session, chat channel or

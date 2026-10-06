@@ -23,7 +23,7 @@ import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProces
 import { AgentHostStartError, IAgentHostConnection, IAgentHostShutdownRequest, IAgentHostStarter, IAgentHostStartRequest, isFatalAgentHostStartError, toFatalAgentHostStartError } from '../common/agent.js';
 import { buildAgentHostTelemetryIdEnv, IAgentHostForwardedTelemetryIds } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
-import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelPolicyIpcChannel, AgentHostOTelPolicyState, AgentHostRestartIpcChannel, AgentHostWillRestartIpcChannel, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, IAgentHostOTelSettings, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 import { deepClone } from '../../../base/common/objects.js';
 import '../common/agentHostStarter.config.contribution.js';
 
@@ -140,26 +140,17 @@ export class ElectronAgentHostStarter extends Disposable implements IAgentHostSt
 		// includes the managed-settings `AccountPolicyService` layer that the main
 		// process cannot see); fall back to the main-process policy for the keys it
 		// can resolve (e.g. native MDM via the policy channel).
-		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
-		const policySettings: IAgentHostOTelSettings = this._otelPolicyState.policy ?? {
-			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
-			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
-			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
-			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
-			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
-			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
-			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
-			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
-		};
+		const policySettings: IAgentHostOTelSettings = this._otelPolicyState.policy ?? readAgentHostOTelPolicySettings(this._configurationService);
 		this._otelPolicyState.didStart();
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
 			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			captureIdentity: this._configurationService.getValue<boolean>(AgentHostOTelCaptureIdentitySettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env, policySettings);
+		}, process.env, policySettings, shellEnv);
 
 		const args = [
 			'--logsPath', this._environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,

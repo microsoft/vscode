@@ -29,8 +29,10 @@ export const enum CopilotCliConfigKey {
 	RubberDuck = 'rubberDuck',
 	/** Enable the provider-native Claude Advisor tool. Off by default. */
 	ClaudeAdvisor = 'claudeAdvisor',
-	/** Force-enable tgrep indexed search for Copilot SDK sessions (sets USE_TGREP=true). Off by default. */
+	/** Enable repository-size-gated tgrep indexed search for Copilot SDK sessions. Off by default. */
 	Tgrep = 'tgrep',
+	/** Enable the SDK cross-session store and Chronicle commands. */
+	LocalIndexEnabled = 'localIndexEnabled',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
 	Opus48Prompt = 'opus48Prompt',
 	/** Enable runtime tool search (deferred-tool loading) for Copilot SDK sessions. On by default. */
@@ -41,6 +43,10 @@ export const enum CopilotCliConfigKey {
 	ClaudeDefaultReasoningEffort = 'claudeDefaultReasoningEffort',
 	/** Enable the experimental HydraFusion synthetic model. Off by default. */
 	HydraFusion = 'hydraFusion',
+	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
+	Memory = 'memory',
+	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
+	LocalMemory = 'localMemory',
 	/** Character budget for skill descriptions included in the Copilot SDK system message. */
 	SkillCharBudget = 'skillCharBudget',
 	/** Override Auto's "Optimize for" preference. */
@@ -66,6 +72,8 @@ export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.
 
 export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
+export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
+
 export const AgentHostOpus48PromptEnabledSettingId = 'chat.agentHost.opus48Prompt.enabled';
 
 export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolSearch.enabled';
@@ -73,6 +81,10 @@ export const AgentHostToolSearchEnabledSettingId = 'chat.agentHost.copilot.toolS
 export const AgentHostToolSearchDeferThresholdSettingId = 'chat.agentHost.copilot.toolSearch.deferThreshold';
 
 export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.enabled';
+
+export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
+
+export const AgentHostCopilotLocalMemoryEnabledSettingId = 'chat.copilot.memory.local.enabled';
 
 export const CopilotSkillCharBudgetSettingId = 'chat.copilot.skillCharBudget';
 
@@ -197,8 +209,14 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.Tgrep]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.tgrep.title', "Indexed Search (tgrep)"),
-		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions force-enable tgrep indexed search, bypassing the repository-size threshold. Requires a local Git repository on a non-virtual filesystem."),
+		description: localize('agentHost.config.tgrep.description', "When enabled, Copilot SDK sessions use tgrep indexed search for eligible large repositories. Requires a local Git repository on a non-virtual filesystem."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.LocalIndexEnabled]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localIndexEnabled.title', "Local Session Index"),
+		description: localize('agentHost.config.localIndexEnabled.description', "Whether Copilot SDK sessions use the local cross-session store for Chronicle indexing and retrieval."),
+		default: true,
 	}),
 	[CopilotCliConfigKey.Opus48Prompt]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -222,6 +240,18 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusion.title', "HydraFusion"),
 		description: localize('agentHost.config.hydraFusion.description', "When enabled, Copilot SDK sessions can use the experimental HydraFusion model."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.memory.title', "Copilot Memory"),
+		description: localize('agentHost.config.memory.description', "When enabled, Copilot SDK sessions can store and recall Copilot Memory."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.LocalMemory]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localMemory.title', "Local Copilot Memory"),
+		description: localize('agentHost.config.localMemory.description', "When enabled together with Copilot Memory, Copilot SDK sessions store memories in the repository's .github/copilot-memories.jsonl file instead of GitHub's cloud memory service. Requires a GitHub-hosted repository; Copilot Memory policies configured on GitHub do not apply."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.SkillCharBudget]: schemaProperty<number>({

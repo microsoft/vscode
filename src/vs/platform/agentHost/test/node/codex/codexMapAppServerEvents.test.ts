@@ -244,7 +244,7 @@ suite('codexMapAppServerEvents', () => {
 	});
 
 	test('thread/tokenUsage/updated emits ChatUsage for the turn', () => {
-		const actions = mapTokenUsageUpdated({
+		const actions = mapTokenUsageUpdated(createCodexSessionMapState(), {
 			threadId: 'thr_1',
 			turnId: 'turn_a',
 			tokenUsage: {
@@ -261,9 +261,42 @@ suite('codexMapAppServerEvents', () => {
 				outputTokens: 6,
 				model: 'codex-model:openai:gpt-5.6-sol',
 				cacheReadTokens: 4,
-				_meta: { reasoningOutputTokens: 2, modelContextWindow: 200000 },
+				_meta: {
+					reasoningOutputTokens: 2,
+					modelContextWindow: 200000,
+					turnTokenTotals: [{ model: 'codex-model:openai:gpt-5.6-sol', inputTokens: 10, cachedTokens: 4, outputTokens: 6 }],
+					directTurnTokenTotals: [{ model: 'codex-model:openai:gpt-5.6-sol', inputTokens: 10, cachedTokens: 4, outputTokens: 6 }],
+				},
 			},
 		}]);
+	});
+
+	test('thread/tokenUsage/updated accumulates whole-turn totals across model calls', () => {
+		const state = createCodexSessionMapState();
+		const usage = (turnId: string, last: { input: number; cached: number; output: number }, total: { input: number; cached: number; output: number }) => {
+			const [action] = mapTokenUsageUpdated(state, {
+				threadId: 'thr_1',
+				turnId,
+				tokenUsage: {
+					last: { inputTokens: last.input, cachedInputTokens: last.cached, cacheWriteInputTokens: 0, outputTokens: last.output, reasoningOutputTokens: 0, totalTokens: last.input + last.output },
+					total: { inputTokens: total.input, cachedInputTokens: total.cached, cacheWriteInputTokens: 0, outputTokens: total.output, reasoningOutputTokens: 0, totalTokens: total.input + total.output },
+					modelContextWindow: 200000,
+				},
+			}, 'codex-model');
+			return action.type === ActionType.ChatUsage ? action.usage._meta?.turnTokenTotals : undefined;
+		};
+
+		assert.deepStrictEqual([
+			usage('turn_a', { input: 100, cached: 40, output: 10 }, { input: 1100, cached: 440, output: 110 }),
+			usage('turn_a', { input: 150, cached: 60, output: 20 }, { input: 1250, cached: 500, output: 130 }),
+			usage('turn_a', { input: 150, cached: 60, output: 20 }, { input: 1250, cached: 500, output: 130 }),
+			usage('turn_b', { input: 50, cached: 0, output: 5 }, { input: 1300, cached: 500, output: 135 }),
+		], [
+			[{ model: 'codex-model', inputTokens: 100, cachedTokens: 40, outputTokens: 10 }],
+			[{ model: 'codex-model', inputTokens: 250, cachedTokens: 100, outputTokens: 30 }],
+			[{ model: 'codex-model', inputTokens: 250, cachedTokens: 100, outputTokens: 30 }],
+			[{ model: 'codex-model', inputTokens: 50, cachedTokens: 0, outputTokens: 5 }],
+		]);
 	});
 
 	test('thread/tokenUsage/updated identifies one completed model call from cumulative usage', () => {
@@ -729,7 +762,7 @@ suite('codexMapAppServerEvents', () => {
 		});
 	});
 
-	test('imageGeneration item maps to an image tool call lifecycle', () => {
+	test('imageGeneration item maps to an image tool call lifecycle with its final prompt', () => {
 		const state = createCodexSessionMapState();
 		const startActions = mapItemStarted(state, {
 			item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '', failure: null },
@@ -756,10 +789,17 @@ suite('codexMapAppServerEvents', () => {
 				turnId: 'turn_a',
 				toolCallId,
 				invocationMessage: 'Generating image',
-				toolInput: '{"prompt":"Generate image"}',
+				toolInput: undefined,
 				confirmed: ToolCallConfirmationReason.NotNeeded,
 			}],
 			complete: [{
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn_a',
+				toolCallId,
+				invocationMessage: 'Generating image',
+				toolInput: '{"prompt":"A watercolor fox"}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			}, {
 				type: ActionType.ChatToolCallComplete,
 				turnId: 'turn_a',
 				toolCallId,
@@ -772,6 +812,37 @@ suite('codexMapAppServerEvents', () => {
 			remainingToolCalls: 0,
 		});
 	});
+
+	for (const [status, result, success] of [
+		['completed', 'aW1hZ2U=', true],
+		['failed', 'aW1hZ2U=', false],
+		['completed', '', false],
+		['incomplete', '', false],
+	] as const) {
+		test(`imageGeneration ${status} with ${result ? 'image data' : 'no image'} preserves its outcome without inventing a prompt`, () => {
+			const state = createCodexSessionMapState();
+			mapItemStarted(state, {
+				item: { type: 'imageGeneration', id: 'image_1', status: 'in_progress', revisedPrompt: null, result: '', failure: null },
+				threadId: 'thr_1', turnId: 'turn_a', startedAtMs: 0,
+			});
+			const toolCallId = state.itemToToolCall.get('image_1')!.toolCallId;
+			const actions = mapItemCompleted(state, {
+				item: { type: 'imageGeneration', id: 'image_1', status, revisedPrompt: null, result, failure: null },
+				threadId: 'thr_1', turnId: 'turn_a', completedAtMs: 0,
+			});
+			assert.deepStrictEqual(actions, [{
+				type: ActionType.ChatToolCallComplete,
+				turnId: 'turn_a',
+				toolCallId,
+				result: {
+					success,
+					pastTenseMessage: success ? 'Generated image' : 'Failed to generate image',
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: result, contentType: 'image/png' }] : undefined,
+					...(success ? {} : { error: { message: `Image generation ${status}` } }),
+				},
+			}]);
+		});
+	}
 
 	test('fileChange item maps to file edit tool call lifecycle', () => {
 		const state = createCodexSessionMapState();

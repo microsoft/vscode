@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Limiter } from '../../../base/common/async.js';
-import { AgentSession, type IAgentSessionMetadata } from '../common/agent.js';
+import { type IAgentSessionMetadata } from '../common/agent.js';
+import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { ChatOriginKind } from '../common/state/protocol/state.js';
 import { isSubagentChatUri, SessionStatus, withMigratedSessionGitHubState, withSessionExternal, withSessionStatusFlag } from '../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, reviveAgentHostCatalogData, type AgentHostCatalogRevivedData } from './agentHostCatalogProjection.js';
@@ -87,7 +88,7 @@ export class AgentHostCatalogListReader {
 		if (catalog.isChatBacking) {
 			return { eligible: false, chatBacking: true };
 		}
-		if (AgentSession.provider(registered.session) !== registered.provider || catalog.provider !== registered.provider) {
+		if (catalog.provider !== registered.provider) {
 			return ineligible(`central row provider ${catalog.provider} does not match ${registered.provider}`);
 		}
 		if (catalog.payloadVersion !== AGENT_HOST_CATALOG_PAYLOAD_VERSION) {
@@ -116,8 +117,10 @@ export class AgentHostCatalogListReader {
 		status = withSessionStatusFlag(status, SessionStatus.IsArchived, data.isArchived);
 		// Payloads written by earlier versions record the session folder's GitHub state on its own.
 		const meta = withSessionExternal(withMigratedSessionGitHubState(data._meta, data.workingDirectories[0]?.toString()), registered.external);
+		const model = readCodexSessionModel({ _meta: meta });
 		return {
 			session: registered.session,
+			provider: registered.provider,
 			startTime: registered.startTime,
 			// The registry owns durable recency: a live advance can outrun the
 			// payload's own timestamp until the next reconciliation writes it back.
@@ -127,6 +130,7 @@ export class AgentHostCatalogListReader {
 			project: data.project,
 			workingDirectories: [...data.workingDirectories],
 			changes: data.changes,
+			...(model ? { model } : {}),
 			chats: data.chats.map(chat => ({
 				chat: chat.uri,
 				summary: chat.summary,
@@ -134,6 +138,8 @@ export class AgentHostCatalogListReader {
 				origin: fromCatalogChatOrigin(chat.origin),
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
+				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};

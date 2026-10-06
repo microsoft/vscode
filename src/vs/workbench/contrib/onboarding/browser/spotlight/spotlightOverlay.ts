@@ -45,6 +45,8 @@ export interface ISpotlightContent {
 	readonly canGoBack: boolean;
 	/** Whether this is the final step (the primary button becomes "Done"). */
 	readonly isLastStep: boolean;
+	/** Keeps cancellation available when the final primary button performs an action. */
+	readonly showEndTour?: boolean;
 }
 
 /** Options controlling how a step is shown. */
@@ -56,6 +58,8 @@ export interface ISpotlightShowOptions {
 	readonly targetOverlayVisible?: boolean;
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
 	readonly advanceOnTargetClick?: SpotlightTargetClickBehavior;
+	/** Uses the control's activation event instead of DOM clicks when advancing after its action. */
+	readonly onDidActivateTarget?: Event<void>;
 }
 
 /**
@@ -173,6 +177,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._target = target;
 		this._options = options;
+		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
 		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
@@ -227,19 +232,26 @@ export class SpotlightOverlay extends Disposable {
 		const hideNext = options.hideNext ?? advanceOnTargetClick;
 		this._nextButton.element.style.display = hideNext ? 'none' : '';
 		if (advanceOnTargetClick) {
-			this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
-				if (advanceOnly) {
-					event.preventDefault();
-					event.stopImmediatePropagation();
-					this._onDidClickNext.fire('target');
-					return;
-				}
+			const advanceAfterActivation = () => {
 				const handle = targetWindow.setTimeout(() => {
 					this._previousFocus = undefined;
 					this._onDidClickNext.fire('target');
 				});
 				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
-			}, true));
+			};
+			if (!advanceOnly && options.onDidActivateTarget) {
+				this._stepListeners.add(options.onDidActivateTarget(advanceAfterActivation));
+			} else {
+				this._stepListeners.add(addDisposableListener(target, EventType.CLICK, event => {
+					if (advanceOnly) {
+						event.preventDefault();
+						event.stopImmediatePropagation();
+						this._onDidClickNext.fire('target');
+						return;
+					}
+					advanceAfterActivation();
+				}, true));
+			}
 		}
 		if (advanceOnly) {
 			const onTargetKey = (event: KeyboardEvent) => {
@@ -265,6 +277,11 @@ export class SpotlightOverlay extends Disposable {
 		// Move focus to the spotlighted control (so keyboard users can activate it
 		// to advance) or, otherwise, into the callout's primary action.
 		(hideNext ? target : this._nextButton.element).focus();
+	}
+
+	/** Prevents duplicate activation while waiting for an action to be accepted. */
+	setPrimaryActionEnabled(enabled: boolean): void {
+		this._nextButton.enabled = enabled;
 	}
 
 	/** Hide the current step while another target is being resolved. */
@@ -434,7 +451,7 @@ export class SpotlightOverlay extends Disposable {
 			? localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount)
 			: '';
 
-		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
+		this._skipButton.element.style.display = content.isLastStep && !content.showEndTour ? 'none' : '';
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")

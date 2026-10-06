@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { fuzzyScore, FuzzyScoreOptions } from '../../../../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
@@ -14,11 +15,14 @@ import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
+import { CompletionModel } from '../../../../../../../../editor/contrib/suggest/browser/completionModel.js';
+import { CompletionItem as SuggestCompletionItem } from '../../../../../../../../editor/contrib/suggest/browser/suggest.js';
+import { WordDistance } from '../../../../../../../../editor/contrib/suggest/browser/wordDistance.js';
 import { createTextModel } from '../../../../../../../../editor/test/common/testTextModel.js';
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
@@ -276,6 +280,110 @@ suite('AgentHostInputCompletions plain text', () => {
 			kind: CompletionItemKind.Text,
 		});
 	});
+
+	test('preserves slash command labels that differ only by an acceptance space', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const results = ['/review', '/review '].map(label => {
+			const built = completions.buildItem(new Position(1, 2), {
+				insertText: '/review ',
+				label,
+				attachment: { kind: 'text' },
+			}, upcastPartial<IChatWidget>({}));
+			return {
+				label: built?.label,
+				insertText: built?.insertText,
+				filterText: built?.filterText,
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ label: '/review', insertText: '/review ', filterText: '/review ' },
+			{ label: '/review ', insertText: '/review ', filterText: '/review ' },
+		]);
+	});
+
+	test('keeps plain-text slash commands visible when the host labels them with descriptions', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const results = ['/', '/rev'].map(text => {
+			const position = new Position(1, text.length + 1);
+			const built = completions.buildItem(position, {
+				insertText: '/review ',
+				label: 'Review the workspace',
+				start: { lineNumber: 1, column: 1 },
+				end: position,
+				attachment: { kind: 'text' },
+			}, upcastPartial<IChatWidget>({}))!;
+			const list = { suggestions: [built] };
+			const provider = { _debugDisplayName: 'testPlainTextSlashCommands', provideCompletionItems: () => list };
+			const model = new CompletionModel(
+				[new SuggestCompletionItem(position, built, list, provider)],
+				position.column,
+				{ leadingLineContent: text, characterCountDelta: 0 },
+				WordDistance.None,
+				EditorOptions.suggest.defaultValue,
+				EditorOptions.snippetSuggestions.defaultValue,
+				undefined,
+			);
+			return model.items.map(item => ({
+				label: item.completion.label,
+				insertText: item.completion.insertText,
+				filterText: item.completion.filterText,
+				command: item.completion.command,
+			}));
+		});
+
+		const expected = [{
+			label: { label: '/review', description: 'Review the workspace' },
+			insertText: '/review ',
+			filterText: '/review ',
+			command: undefined,
+		}];
+		assert.deepStrictEqual(results, [expected, expected]);
+	});
+});
+
+suite('AgentHostInputCompletions skills', () => {
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ranks matches on later words without changing the inserted skill', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const built = completions.buildItem(new Position(1, 8), {
+			insertText: '/daily-hiring-summary ',
+			attachment: {
+				kind: 'skill',
+				uri: URI.parse('example:/skills/daily-hiring-summary'),
+				displayName: 'daily-hiring-summary',
+			},
+		}, upcastPartial<IChatWidget>({}));
+
+		assert.deepStrictEqual({
+			label: built?.label,
+			insertText: built?.insertText,
+			filterText: built?.filterText,
+		}, {
+			label: { label: '/daily-hiring-summary', description: undefined },
+			insertText: '/daily-hiring-summary ',
+			filterText: '/hiring-summary /summary /daily-hiring-summary',
+		});
+	});
 });
 
 suite('AgentHostInputCompletions follow-up suggestions', () => {
@@ -384,6 +492,29 @@ suite('escapeForCharClass', () => {
 		assert.ok(re.test('@'));
 		assert.ok(!re.test('a'));
 		assert.ok(!re.test('/'));
+	});
+});
+
+suite('prompt slash command matching', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches later words in hyphenated skill names', () => {
+		const filterText = getPromptSlashCommandFilterText('daily-hiring-summary');
+		const matches = ['/daily', '/hiring', '/hiring-sum', '/summary', '/missing'].map(pattern =>
+			!!fuzzyScore(pattern, pattern.toLowerCase(), 0, filterText!, filterText!.toLowerCase(), 0, FuzzyScoreOptions.default));
+		assert.deepStrictEqual(matches, [true, true, true, true, false]);
+		const score = (word: string) => fuzzyScore('/hiring', '/hiring', 0, word, word.toLowerCase(), 0, FuzzyScoreOptions.default)?.[0];
+		assert.ok(score(filterText!)! > score('/daily-hiring-summary')!);
+	});
+
+	test('preserves colon and space forms for plugin commands', () => {
+		assert.strictEqual(getPromptSlashCommandFilterText('my-plugin:daily-hiring-summary'),
+			'/hiring-summary /summary /my-plugin:daily-hiring-summary /my-plugin daily-hiring-summary');
+		assert.strictEqual(getPromptSlashCommandFilterText('my-plugin:review'), '/my-plugin:review /my-plugin review');
+	});
+
+	test('uses the label for commands without word separators', () => {
+		assert.strictEqual(getPromptSlashCommandFilterText('summary'), undefined);
 	});
 });
 

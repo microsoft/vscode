@@ -80,6 +80,8 @@ Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 
 An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
 
+Providers also supply independent harness and environment identifiers, plus observable creating-application metadata. These are presentation identities, not routing identities. Application metadata can arrive after discovery, but adopting or opening a session does not change its creating application. Agent hosts persist the initiating client's identity, including the Editor/Agents Window distinction; providers may combine those clients into one application filter.
+
 ### Observable state
 
 `ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
@@ -103,6 +105,10 @@ A session groups one or more chats and exposes a main chat. Providers advertise 
 
 Chat origin and interactivity describe whether a chat is user-created, tool-created, interactive, read-only, or hidden. Presentation code uses those contracts instead of inferring behavior from resource shape.
 
+Draft-only interactivity allows local composition without permitting sends or transcript mutations. Providers may use it for recoverable offline sessions. User composition can request a connection through the owning chat group's connection controller; restored drafts and focus changes do not request a connection.
+
+When an unread chat in a multi-chat session becomes active, the view service asks the owning provider to mark that exact chat read. Activating the main chat does not directly mark the stored session aggregate read. The aggregate may remain unread after every chat becomes read, but it must be unread whenever any normal user-visible chat is unread. Tool-created subagent chats retain exact per-chat read state but do not participate in this aggregate. The main row always presents the main chat's exact read state, whether the chat hierarchy is expanded or collapsed; peer read state appears only on the corresponding peer row. Mark as Read and Mark as Unread on a session row target the main chat represented by that row; providers without independent chat read state may implement that operation through their session state.
+
 ### Workspaces and quick chats
 
 `ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Each folder also has its own Agent Merge settings: Agent Merge actions and indicators for the focused conversation follow the folder `IActiveSession.activeChat` works in, while session-wide surfaces such as the sessions list use the session folder (the main chat's). A folder that is a VS Code-created worktree (`<repo>.worktrees/<name>`) reports its repository as the folder's project, so a chat working in such a worktree shows that project. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. In the compact sessions list, a chat row shows the folder its chat works in, on hover or focus, when the session spans more than one project and the chat works in exactly one folder. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
@@ -115,7 +121,7 @@ Capabilities describe operations supported by the backing provider and remain ob
 
 ### Changes
 
-Sessions expose compact aggregate change summaries; chats own file changes and selectable changeset catalogues. A provider may project a session-owned changeset into each chat catalogue, using the changeset resource to identify equivalent projections across chats. Every chat publishes a changeset observable; `undefined` means its catalogue has not been published yet and an empty array is an authoritative empty catalogue. The Changes editor shows the active chat's catalogue, including projected session-owned entries, and preserves its order. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
+Sessions expose compact aggregate change summaries; chats own file changes and selectable changeset catalogues. Chats may also expose a compact, provider-scoped `changesSummary`, which session lists read without loading chat details or changesets. A provider may project a session-owned changeset into each chat catalogue, using the changeset resource to identify equivalent projections across chats. Every chat publishes a changeset observable; `undefined` means its catalogue has not been published yet and an empty array is an authoritative empty catalogue. The Changes editor shows the active chat's catalogue, including projected session-owned entries, and preserves its order. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
 Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
 
@@ -127,9 +133,13 @@ Turn-level file changes route through `IChatResponseFileChangesService`. The edi
 
 Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
 
+The Agents Window and editor-window Agent Host inputs use the same workbench-owned pill catalog, renderer, customization presentation, and subagent grouping and filtering. Surface adapters supply session state and navigation, not separate pill implementations or visibility preferences.
+
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
-Recorded GitHub issue and pull request artifacts are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside the repository-discovered associations of the focused chat's workspace (or the session workspace for session-wide consumers). Recorded references never enter the dedicated pull request and issue pills, even when a provider echoes them into its GitHub metadata; they always stay in the references pill. A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. Promoted entries retain their optional recorded-reference ID; presentation uses that ID for per-item removal, names the removal after whether the record is an artifact or a reference, and never infers record identity from a title or URL.
+Chats may expose server-published live canvases through an observable provider-neutral collection when the owning provider permits canvas presentation for that session. Each chat discovers membership from its advertised canvas channel references; each subscribed channel supplies presentation metadata and an optional live HTTP(S) source. Unknown membership is distinct from an authoritative empty collection, and pending canvas state retains its resource without a source. The local Agent Host provider enables presentation only for durable Copilot sessions, while ephemeral and remote sessions expose no canvas capability. Canvas execution and presentation continue to follow the existing canvas enablement setting. Closing presentation dismisses that canvas lifetime without invoking provider operations. Metadata and source updates do not reopen a dismissed canvas. Canvas membership and sources are not persisted across restarts.
+
+Recorded GitHub issue and pull request artifacts are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside repository-discovered associations. Chat-scoped surfaces use records owned by the focused chat plus unowned session records, while session-wide consumers use the aggregate; repository associations follow the focused chat's workspace or the session workspace respectively. Recorded references never enter the dedicated pull request and issue pills, even when a provider echoes them into its GitHub metadata; they always stay in the references pill. A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. Promoted entries retain their optional recorded-reference ID; presentation uses that ID for per-item removal, names the removal after whether the record is an artifact or a reference, and never infers record identity from a title or URL.
 
 ## Provider contract
 
@@ -140,6 +150,7 @@ Recorded GitHub issue and pull request artifacts are resolved from `ISession.art
 A provider exposes:
 
 - stable identity and presentation metadata;
+- an environment identifier and display name, with observable connectivity for remote environments; multiple providers may share an environment;
 - supported session types and their changes;
 - the current session catalog and catalog changes;
 - workspace browsing and resolution;
@@ -149,13 +160,15 @@ Catalog events distinguish added, removed, and changed facades. Facade replaceme
 
 A provider that supersedes sessions from another provider may implement `resolveSessionResource`. Open paths use this hook to redirect persisted or linked resources before lookup. Providers decline unfamiliar resources, in which case callers retain the original resource.
 
-A provider that must establish backend state before presenting a session may implement `prepareSessionForOpen`. Explicit opens await preparation; startup restoration invokes it asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
+A provider that must establish backend state for an existing session may implement `prepareSessionForOpen`. Ordinary single-session opens activate and present the session while preparation is pending, allowing its loading and connection state to render; they still await preparation before completing. Providers must not rely on preparation completing before presentation. Open-to-side and batch grid operations await preparation before committing their visibility changes. Startup restoration invokes preparation asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
 
 ### Drafts
 
 `createNewSession` and `createQuickChat` return untitled drafts. A draft remains `Untitled` while its first request is prepared; `isNewSessionRequestInProgress` separately lets the UI present that activity without treating the session as committed. Draft preparation receives the first query so a provider can materialize query-dependent execution state before replacing the draft. A draft enters the committed catalog when its first request is sent. The management service owns the currently presented draft; the provider owns its backend resources. `deleteNewSession` disposes an abandoned draft.
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
+
+A contextual Agents Window invitation identifies an existing chat in the source editor. The handoff either opens that chat or navigates to the new-session composer without activating the invited session. This navigation is independent of onboarding enablement and takes precedence over startup restoration while preserving pending drafts. A dedicated, repeatable tour targets the invited session's list row and, when the handoff opened the chat, the new-session action. The tour is independent of new-session setup onboarding, respects disabled onboarding, and yields to cancellation or subsequent session navigation.
 
 The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>&workspace=<optional encoded URI>` opens the Agents Window and applies its prompt and optional workspace through the same draft handoff. When `workspace` is omitted, the handoff explicitly selects No Workspace. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
@@ -166,6 +179,10 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 ### Operations
 
 Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+
+`onDidDeleteChat` reports `{ session, sessionResource, chatResource }` only after the provider confirms success. The immutable resource pair is captured before the asynchronous provider operation. Consumers remove that exact chat's state rather than infer deletion from a potentially incomplete chat catalogue.
+
+Chat-owned presentation consumers use the immutable `{ sessionResource, chatResource }` identity derived from `activeSession.activeChat`. The workbench exposes one reload-fixed `ChatLayoutPresentation`; its runtime phone suspension invalidates queued presentation snapshots without changing ownership. `ChatLayoutContext` projects the existing active observables and invalidates foreground snapshots on owner changes, including A/B/A transitions. Request-origin ownership remains separately available in the captured snapshot. Replacement maps the supplied source main-chat resource to the destination main-chat resource and retains opaque peer resources, including when the session resource does not change.
 
 ### Provider ownership
 
@@ -209,6 +226,8 @@ Providers may expose an `ISessionConfigurationSnapshot` of resolved draft config
 ### Existing session
 
 Requests route through `ISessionsManagementService` to the provider identified by the session. Providers update chat and session observables. Foreground sends may update view state through lifecycle notifications; background sends do not implicitly steal focus.
+
+A chat view binds its transcript to the content provider serving the chat's session type at load time. When that provider is unregistered and another registers for the same type — a sandbox opened from persisted history whose environment was then woken, or a host that reconnected with a new client — the view reloads the chat so the replacement serves it. A provider that merely goes away leaves the transcript on screen.
 
 ### Multiple chats
 

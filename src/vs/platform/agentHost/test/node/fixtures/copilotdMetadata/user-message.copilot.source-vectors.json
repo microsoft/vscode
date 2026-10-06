@@ -1,0 +1,237 @@
+{
+  "$comment": "Conformance vectors for exact SDK provenance and its native AHP origin projection. See ../user-message.md.",
+  "key": "copilot.source",
+  "carrier": "Message._meta",
+  "tests": [
+    {
+      "name": "set: stamps source and preserves other metadata",
+      "op": "set",
+      "input": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "tool" },
+          "_meta": { "copilot.unrelated": true }
+        },
+        "source": "skill-pdf"
+      },
+      "expected": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "tool" },
+          "_meta": {
+            "copilot.unrelated": true,
+            "copilot.source": "skill-pdf"
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: returns exact non-empty source",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "context",
+          "origin": { "kind": "tool" },
+          "_meta": { "copilot.source": "instruction-discovery" }
+        }
+      },
+      "expected": { "source": "instruction-discovery" }
+    },
+    {
+      "name": "extract: absent source returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" }
+        }
+      },
+      "expected": { "source": null }
+    },
+    {
+      "name": "extract: empty source returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" },
+          "_meta": { "copilot.source": "" }
+        }
+      },
+      "expected": { "source": null }
+    },
+    {
+      "name": "extract: non-string source returns null",
+      "op": "extract",
+      "input": {
+        "message": {
+          "text": "hello",
+          "origin": { "kind": "user" },
+          "_meta": { "copilot.source": 42 }
+        }
+      },
+      "expected": { "source": null }
+    },
+    {
+      "name": "wireShape: source is a flat Message metadata key",
+      "op": "wireShape",
+      "input": {
+        "message": {
+          "text": "/review",
+          "origin": { "kind": "user" }
+        },
+        "source": "command-review"
+      },
+      "expected": {
+        "json": {
+          "text": "/review",
+          "origin": { "kind": "user" },
+          "_meta": { "copilot.source": "command-review" }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: direct user input stays user-visible",
+      "op": "projectFromSdk",
+      "input": {
+        "source": null,
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "user",
+        "source": null,
+        "visibility": null
+      }
+    },
+    {
+      "name": "projectFromSdk: historical user source stays user-visible",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "user",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "user",
+        "source": "user",
+        "visibility": null
+      }
+    },
+    {
+      "name": "projectFromSdk: command source stays user-visible",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "command-review",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "user",
+        "source": "command-review",
+        "visibility": null
+      }
+    },
+    {
+      "name": "projectFromSdk: skill source is internal tool input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "skill-pdf",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "tool",
+        "source": "skill-pdf",
+        "visibility": "internal"
+      }
+    },
+    {
+      "name": "projectFromSdk: bare skill source is internal tool input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "skill",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "tool",
+        "source": "skill",
+        "visibility": "internal"
+      }
+    },
+    {
+      "name": "projectFromSdk: discovered instructions are internal tool input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "instruction-discovery",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "tool",
+        "source": "instruction-discovery",
+        "visibility": "internal"
+      }
+    },
+    {
+      "name": "projectFromSdk: system source is internal system input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "system",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "systemNotification",
+        "source": "system",
+        "visibility": "internal"
+      }
+    },
+    {
+      "name": "projectFromSdk: autopilot source is internal agent input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "autopilot",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "agent",
+        "source": "autopilot",
+        "visibility": "internal"
+      }
+    },
+    {
+      "name": "projectFromSdk: scheduled prompt is visible system input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "schedule-42",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "systemNotification",
+        "source": "schedule-42",
+        "visibility": null
+      }
+    },
+    {
+      "name": "projectFromSdk: unknown sourced input fails closed as internal system input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": "future-runtime-source",
+        "isAutopilotContinuation": false
+      },
+      "expected": {
+        "originKind": "systemNotification",
+        "source": "future-runtime-source",
+        "visibility": "internal"
+      }
+    },
+    {
+      "name": "projectFromSdk: source-less autopilot continuation is internal agent input",
+      "op": "projectFromSdk",
+      "input": {
+        "source": null,
+        "isAutopilotContinuation": true
+      },
+      "expected": {
+        "originKind": "agent",
+        "source": null,
+        "visibility": "internal"
+      }
+    }
+  ]
+}

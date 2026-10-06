@@ -4,11 +4,29 @@
 
 ## Scope
 
-The Agents Window uses a Sessions-owned workbench layout optimized for agent work. This specification defines stable part ownership, composition, and presentation modes. Per-session capture and restoration are owned by [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
+The Agents Window uses a Sessions-owned workbench layout optimized for agent work. This specification defines stable part ownership, composition, and presentation modes. Session/chat capture and restoration are owned by [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
 
 Exact dimensions, styling, action placement, and regression behavior belong in code, design tokens, component fixtures, and focused tests.
 
 ## Workbench topology
+
+Startup selects one of two concrete workbenches: `DesktopWorkbench` for every
+non-phone window, and `MobileWorkbench` for mobile web windows below the phone
+breakpoint. `Workbench` contains only their shared layout mechanics and is not
+instantiated directly.
+
+`sessions.experimental.layoutScope` is an experimental window setting
+with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled modes
+keep ordinary editors and the selected bottom-panel view owned by
+the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
+visibility shared across all existing workspace chats in the window;
+`chat` also scopes that visibility to the focused chat. The mode changes
+only after manual reload, without a reload notification. There is no boolean
+compatibility for this unreleased setting. The concrete workbench
+selection remains fixed at startup. If a desktop window enters a runtime phone
+viewport, experimental layout suspends without discarding layout state; returning
+to desktop resumes the focused owner. Terminal behavior is unchanged in all modes.
+Startup phone windows retain the existing mobile behavior.
 
 ```text
 Title bar
@@ -39,7 +57,15 @@ The main workbench grid is non-proportional. The Sessions Part is the flexible s
 
 At most one high-priority surface is visible in the main horizontal chain: normally the Sessions Part, or the Custom View Grid while a custom view is active. This prevents fixed side parts from absorbing general window resize.
 
-The single-pane presentation may place the Auxiliary Bar inside the Editor's grid node. Consumers must distinguish the actual Editor content area from the shared grid node when interpreting visibility or size.
+The desktop presentation may place the Auxiliary Bar inside the Editor's grid node. Consumers must distinguish the actual Editor content area from the shared grid node when interpreting visibility or size.
+
+Part sizes and split geometry remain shared window state in chat-specific mode.
+The layout service exposes side-pane composition capture/restoration separately
+from geometry: restoring a chat's Editor/Details combination or reopening its
+last-open combination must not restore an old width or treat a closed grid node's
+zero width as a user resize.
+
+The desktop Panel supports two profile-scoped alignments. The default justified alignment places it below the Sessions Part and side pane, preserving the original spanning layout. Center alignment places it below the Sessions Part only, allowing the side pane to use the full content height. Switching alignment reparents the existing grid views without changing panel height or side-pane width. The mobile presentation keeps the justified topology.
 
 ## Sessions Part
 
@@ -66,21 +92,21 @@ Session geometry does not determine Editor, Details, or other side-pane visibili
 
 ## Editor presentation
 
-The Agents Window supports two presentation families:
-
-The single-pane layout is the default on non-phone viewports when its startup setting is enabled. Phone viewports always use the classic layout. The selection is made during workbench creation and requires a reload when the setting changes.
-
-### Classic layout
-
-The Editor is a workbench-grid part and may be hidden independently of the Sessions Part and Auxiliary Bar. Ordinary editors open in that main Editor; editors that require modal presentation use `ModalEditorPart` without changing the underlying workbench topology.
-
-### Single-pane detail layout
+All non-phone Agents windows use the desktop detail layout. Phone viewports use the dedicated mobile presentation.
 
 The Editor and Auxiliary Bar compose one side pane next to the active session. Editor tabs choose either editor content or a details view while the layout coordinators preserve one coherent visibility model.
 
 The main Editor supports exactly one editor group. Its shared multiple-group capability is disabled, which removes editor split/grid commands, keybindings, menus, and split drop targets; the part also rejects group creation and multi-group layout requests from open-to-side and programmatic paths. The independent chat grid remains supported.
 
-The durable state and transition catalog lives in [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md). Implementation behavior is covered by the layout-controller and single-pane strategy tests.
+With experimental desktop ownership active, this singleton Editor, Details, and
+bottom Panel project the focused chat's ordinary working set, active editor,
+composition, panel visibility, and selected panel view. Multiple visible
+sessions or chat groups do not create additional editor/detail/panel owners.
+Sidebar visibility and all geometry remain window-owned. Managed tabs remain
+lifecycle-owned and do not reveal hidden panes during restoration. Transient
+Quick Chat side-pane behavior is unchanged.
+
+The durable state and transition catalog lives in [DESKTOP.md](DESKTOP.md). Implementation behavior is covered by the layout-controller and desktop strategy tests.
 
 Editors must be opened through `IEditorService`. Sessions-specific presentation must not bypass editor service behavior by opening directly on an editor group.
 
@@ -110,9 +136,9 @@ Part instances and listeners are disposables. Repeatedly created per-session or 
 
 ## Layout-controller boundary
 
-Layout controllers translate session activation into part capture and restoration. They do not own session identity or the visible-session model.
+Layout controllers translate session and focused-chat activation into part capture and restoration. They do not own session/chat identity or the visible-session model. Experimental owner and presentation snapshots guard asynchronous restoration; terminal process ownership remains in the terminal contribution, not in layout records.
 
-Classic desktop, mobile, and single-pane presentations intentionally use different strategies where their compositions differ. Shared behavior belongs in the base controller; presentation-specific behavior stays in the relevant controller or strategy.
+Mobile and desktop presentations intentionally use different strategies where their compositions differ. Shared behavior belongs in the base controller; presentation-specific behavior stays in the relevant controller or strategy.
 
 See [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) for rule tags, persistence, and test ownership.
 
@@ -138,5 +164,5 @@ Update this specification only when part ownership, grid topology, presentation 
 - [Documentation index](README.md)
 - [Sessions architecture](SESSIONS.md)
 - [Layout controllers](LAYOUT_CONTROLLER.md)
-- [Single-pane scenarios](SINGLE_PANE_SCENARIOS.md)
+- [Desktop scenarios](DESKTOP.md)
 - [Mobile layout](MOBILE.md)

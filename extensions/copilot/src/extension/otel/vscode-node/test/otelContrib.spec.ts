@@ -131,7 +131,7 @@ describe('OTelContrib restart notification', () => {
 		expect(ui.showWarningMessage).toHaveBeenCalledTimes(1);
 	});
 
-	it('handles a blocked refresh when only the readiness command completes', async () => {
+	it('does not prompt for a blocked refresh when only the readiness command completes', async () => {
 		contribution.dispose();
 		settings.policy = { enabled: true, otlpEndpoint: 'https://managed.example' };
 		contribution = createContribution();
@@ -149,7 +149,7 @@ describe('OTelContrib restart notification', () => {
 
 		await settled.complete();
 		await vi.advanceTimersByTimeAsync(0);
-		expect(ui.showInformationMessage).toHaveBeenCalledExactlyOnceWith(expect.stringContaining('reload is required'), 'Reload Window');
+		expect(ui.showInformationMessage).not.toHaveBeenCalled();
 		expect(ui.withProgress).not.toHaveBeenCalled();
 	});
 

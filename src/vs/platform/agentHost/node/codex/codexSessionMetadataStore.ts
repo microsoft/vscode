@@ -114,9 +114,10 @@ export class CodexSessionMetadataStore {
 	 * Persist the supplied overlay fields. Only-write-on-defined.
 	 * Best-effort: failures are logged and swallowed because the caller
 	 * has already committed in-memory state and a corrupt DB shouldn't
-	 * abort the current turn.
+	 * abort the current turn. With `strict`, failures propagate instead
+	 * because a workspace transition depends on the durable state.
 	 */
-	async write(session: URI, fields: ICodexSessionOverlayUpdate): Promise<void> {
+	async write(session: URI, fields: ICodexSessionOverlayUpdate, strict = false): Promise<void> {
 		try {
 			const ref = this._sessionDataService.openDatabase(session);
 			const db = ref.object;
@@ -157,6 +158,9 @@ export class CodexSessionMetadataStore {
 				ref.dispose();
 			}
 		} catch (err) {
+			if (strict) {
+				throw err;
+			}
 			this._logService.warn(`[Codex] metadata write failed for ${session.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
