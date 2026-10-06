@@ -621,7 +621,7 @@ export class SessionsView extends ViewPane {
 		const statusFilters: { status: SessionStatus; label: string }[] = [
 			{ status: SessionStatus.Completed, label: localize('statusCompleted', "Completed") },
 			{ status: SessionStatus.InProgress, label: localize('statusInProgress', "In Progress") },
-			{ status: SessionStatus.NeedsInput, label: localize('statusNeedsInput', "Input Needed") },
+			{ status: SessionStatus.NeedsInput, label: localize('statusNeedsInput', "Attention Needed") },
 			{ status: SessionStatus.Error, label: localize('statusFailed', "Failed") },
 		];
 		for (let i = 0; i < statusFilters.length; i++) {

@@ -2621,7 +2621,7 @@ class SessionsAccessibilityProvider {
 					let label = element.label;
 					switch (this.automationStatus?.read(reader)) {
 						case SessionStatus.NeedsInput:
-							label = localize('automationsNeedsInputAria', "{0}, run needs input", element.label);
+							label = localize('automationsNeedsInputAria', "{0}, run needs attention", element.label);
 							break;
 						case SessionStatus.InProgress:
 							label = localize('automationsActiveAria', "{0}, run in progress", element.label);
@@ -2720,7 +2720,7 @@ class SessionsAccessibilityProvider {
 			const status = this.options?.showUnreadInCollapsedSections?.read(reader) ? getSessionHeaderStatus(sessions, reader, this.options.sessionsWithFailingCI?.read(reader)) : undefined;
 			switch (status) {
 				case SessionHeaderStatus.NeedsInput:
-					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs input", label, sessions.length);
+					return localize('sessionSectionNeedsInputAria', "{0}, {1}, session needs attention", label, sessions.length);
 				case SessionHeaderStatus.FailingCI:
 					return localize('sessionSectionFailingCIAria', "{0}, {1}, session has failing CI checks", label, sessions.length);
 				case SessionHeaderStatus.Unread:
