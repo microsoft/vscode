@@ -621,6 +621,12 @@ The Responses (`/responses`) regenerator announces each output item before strea
 
 Same as above — it's platform-specific real execution, not the proxy. See the worktree and provider-specific file-operation gates for established patterns.
 
+### Codex passes its tests but cannot remove its temporary home
+
+Codex's native plugin marketplace starts a background Git fetch of `openai/plugins` outside the replay proxy. If shutdown interrupts that work, Windows can keep a `.codex/.tmp/plugins-clone-*` directory locked: synchronous removal reports `EPERM`, while asynchronous removal identifies the clone directory with `EBUSY`. This caused the intermittent suite-cleanup failure tracked in [#339760](https://github.com/microsoft/vscode/issues/339760).
+
+Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
+
 ### Fixture leaks a username / absolute path / token
 
 Normalization missed something (e.g. a path that `ls` line-wrapped, or a new secret field). Add/extend a placeholder in `capiReplayProxy.ts` (`_normalize` + the `*_RE` redactors), then re-record. Never hand-edit secrets back in.
