@@ -272,6 +272,84 @@ Every successful coverage run rewrites the checked-in stats. Test, report, or no
 
 Per-provider reports are deferred until there is a concrete need. Per-test attribution is intentionally out of scope for native aggregate coverage; it would require inspector-based precise coverage snapshots and deltas.
 
+### Copilot runtime coverage — `coverage/copilot-runtime.json`
+
+This separate measurement follows the **source-built Copilot CLI's Rust runtime**, not the TypeScript host. Its first-party LLVM denominator includes compiled but unexecuted functions and generated code under the verified runtime checkout's `src/`. It excludes dependencies, toolchain sources, build scripts (`build.rs`), and the instrumentation-only `coverage_profiles.rs`. Uncompiled platforms and `cfg(test)` code are not measured. Native **regions are not branches**; branch coverage is unavailable. The accompanying V8/c8 summary measures the installed `@github/copilot-sdk/dist` ESM wrapper, including unloaded files and generated RPC code, without TypeScript source maps. Its branches/functions are not interchangeable with LLVM's regions/functions.
+
+The initial measurement was a **failed full attempt**, not a passing baseline: conformance 317 passing / 20 pending / 5 failing; Claude 99 / 32 / 0; Codex 99 / 28 / 2; Copilot 176 / 37 / 1; OTel 1 passing; 20 model-backed prompt tests pending on Windows. Four conformance failures were debug-log assertions, the other conformance failure and two Codex failures were Windows cleanup, and the instrumented Copilot retained-subagent snapshot differed in delivery/order. Retries and published-runtime runs do not contribute. The native baseline is **168919 / 624470 lines (27.05%)**, 18033 / 70761 functions, and 223256 / 875417 regions across 1531 files. A five-percentage-point native line increase on this fixed denominator requires **at least 200143 covered lines**; it does not excuse test failures or a changed denominator. Percentages are display-only, rounded to two decimals from exact counts. Evaluate this goal using counts, not the displayed 32.05%: 200142 covered lines already rounds to that percentage but is still below the target. The JSON records the current measurement's status and counts; a later successful clean run replaces the explicitly failed imported baseline.
+
+#### Prerequisites and identity
+
+Prepare a coverage-instrumented source build **separately**. This workflow never clones/builds the runtime or installs dependencies. Pass a verified `runtime-build-info.json` containing checkout/tag/commit, published CLI git metadata/version, the two addon paths, LLVM tools, Rust flags, the measured SDK version, and validated pre-shutdown profile publication. `--source` and `--llvm-tools` can explicitly select the checkout/tools; the corresponding environment variables are `COPILOT_RUNTIME_COVERAGE_SOURCE` and `COPILOT_RUNTIME_COVERAGE_LLVM_TOOLS`. `COPILOT_RUNTIME_COVERAGE_BUILD_INFO` can replace `--build-info`.
+
+Fresh runs require the installed CLI and platform package to match the source version and git metadata, the native addon's package identity and CLI `--version` to agree, and the installed SDK to retain the measured version. Do not replace the SDK with a runtime-checkout development dependency. In particular, the initial build is CLI **1.0.84-5 / 0de509ce07ecad82aeb08963f5a650b0ba4d8378**, SDK **1.0.13**; a local installed **1.0.84-4** package is not silently accepted for a new measurement. Historical imports validate their original identities independently of subsequently installed CLI packages.
+
+**Provider-side build prerequisite, not supplied by this public repository:** the tagged CLI source alone and an instrumented npm binary are insufficient on Windows. The source checkout must contain coverage-only native exports and SDK-server publication hooks. Both addons expose `processCheckpointCoverageProfiles()` and `processFlushCoverageProfiles()` through their normal native bindings. The SDK server starts the initial/periodic checkpoints, clears its timer on disposal, checkpoints both addons before its shutdown acknowledgment (including recursive full-stop), and publishes the final snapshot at process exit while disabling a duplicate LLVM exit write. Checkpoints expand `%p`/`%m`, write a complete cumulative snapshot to a sibling temporary file without online merging or counter resets, and atomically publish it. These private provider-source changes and local build helpers are **not copied into this checkout or required as public-PR patches**; obtain the validated build and manifest from an authorized provider-source build.
+
+For the original Windows x64 build, the manifest records Rust **1.98.1-x86_64-pc-windows-msvc**, an initialized x64 MSVC environment, and `RUSTFLAGS="-C instrument-coverage -C target-feature=+crt-static -C linker-flavor=lld-link -C linker=rust-lld"`. Its coverage-only exports require `COPILOT_LLVM_COVERAGE_EXPORTS=1`; package identity is built with `CLI_PACKAGE_NAME=@github/copilot`, `CLI_VERSION=1.0.84-5`, and `CLI_GIT_COMMIT=0de509ce`. In the provider checkout, the debug runtime code-generation/native-addon build is followed by the CLI JavaScript bundle build with `COPILOT_NAPI_ADDONS_PREBUILT=1`, preserving those two addons rather than rebuilding them without instrumentation. Keep build-time profiles in a separate directory. Use `llvm-profdata`/`llvm-cov` from that Rust toolchain's `llvm-tools` component, not an arbitrary system LLVM installation. The measurement uses `dist-cli/index.js`, `dist-cli/prebuilds/win32-x64/runtime.node`, and `dist-cli/prebuilds/win32-x64/cli-native.node`; `dist-cli/package.json` retaining development version `0.0.1` does not override the native identity or CLI `--version`.
+
+Before marking the build manifest verified, validate tokenless SDK startup, periodic checkpoint refresh, both profiles being visible before shutdown acknowledgment, normal exit, forced termination retaining the last complete snapshot, and successful LLVM merge/export. Record the fixed first-party denominator and the addon export validation. The initial build's optional OneAuthInterop download was unavailable; its documented browser-OAuth fallback remained, while replay used synthetic credentials. The workflow consumes these **existing frozen artifacts**; it never modifies native binaries, rebuilds them, installs a development SDK, or restores dependencies.
+
+Host coverage must honor optional `AGENT_HOST_E2E_COVERAGE_DIR` when `AGENT_HOST_E2E_COVERAGE=1`, resolving that directory for the child process's `NODE_V8_COVERAGE` and retaining the existing `.build/agent-host-e2e-coverage/raw/` default when unset. Otherwise the script fails before running suites rather than mixing profiles with the host workflow's default directory. The default full run retranspiles the host, then uses the standard four-suite runner plus the prompt and OTel entrypoints in strict replay. Use `--skip-transpile` only when compiled output is current.
+
+#### Full clean measurement (PowerShell)
+
+```powershell
+npm run test-copilot-runtime-e2e-coverage -- `
+  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
+  --run-dir .build\copilot-runtime-coverage\runs\final --jobs 2
+```
+
+The output directory must be empty and under this worktree's `.build/`; it is never cleared automatically. Each run isolates native and V8 profiles, logs, merged `.profdata`, and diagnostic reports. Only the CLI platform `index.js` entrypoint is temporarily replaced by an import of the verified source build; its original bytes are backed up exclusively and restored in `finally`. Avoid other Copilot processes during the override. If the workflow itself is forcibly killed, restore `index.js` from its sibling `index.js.copilot-runtime-coverage-backup` before any dependency operation. Never restore dependencies while an override is active.
+
+Successful full runs atomically rewrite the compact tracked summary. Failed tests, teardown, reporting, or normalization keep it untouched and retain `.build/` diagnostics. Rejected recording, live-model, snapshot-update, known-issue diagnostic (`AGENT_HOST_RUN_KNOWN_ISSUES`), and suite-skip flags cannot change the measured suite scope or turn a run green. Supplemental formatting/registry checks are reported separately from prompt/OTel behavior.
+
+#### Focused discovery, then aggregate (not a final measurement)
+
+```powershell
+npm run test-copilot-runtime-e2e-coverage -- --mode collect `
+  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
+  --suite copilot --grep "customization" `
+  --run-dir .build\copilot-runtime-coverage\runs\discovery
+
+npm run test-copilot-runtime-e2e-coverage -- --mode report `
+  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
+  --status .build\copilot-runtime-coverage\runs\discovery\run-status.json `
+  --profiles .build\copilot-runtime-coverage\native-profiles `
+  --profiles .build\copilot-runtime-coverage\runs\discovery\native-profiles `
+  --v8 .build\copilot-runtime-coverage\v8-profiles `
+  --v8 .build\copilot-runtime-coverage\runs\discovery\v8-profiles `
+  --run-dir .build\copilot-runtime-coverage\runs\discovery-union
+```
+
+Repeat `--profiles` / `--v8` for additional batches from the **same binary and SDK build**. Alternatively, `--profdata <file>` reports one existing merged native measurement instead of merging raw profiles. Discovery unions remain focused/incomplete and never update tracked coverage. Do not relabel their status as full or feed discovery profiles into a final clean run. Only published `.profraw` snapshots are merged, not `.checkpoint.tmp`, build/smoke/validation profiles, or retries.
+
+#### Import the original failed baseline without rerunning
+
+```powershell
+npm run test-copilot-runtime-e2e-coverage -- --mode import-existing --write `
+  --build-info .build\copilot-runtime-coverage\runtime-build-info.json `
+  --metrics .build\copilot-runtime-coverage\coverage-metrics.json `
+  --native-summary .build\copilot-runtime-coverage\native-summary.json `
+  --run-dir .build\copilot-runtime-coverage\runs\baseline-import
+```
+
+This explicit import checks every normalized native file/count against the existing LLVM export and preserves the failed/incomplete run status. It intentionally exits nonzero for a failed baseline, even when `--write` publishes that diagnostic baseline. Ordinary `report --write` requires a full passing status. Omit `--write` to inspect an import/report without changing tracked stats.
+
+The importer resolves LLVM filenames against the validated source checkout, keeps only contained `src/` files, and writes source-relative forward-slash paths. Home directories, excluded dependency paths, volatile timestamps, raw failure logs, and local build/profile locations are never copied from historical artifacts into the tracked summary. Its original VS Code commit and provider/build identity remain explicit; the imported run is not attributed to the current checkout's newer tests.
+
+#### Native profiling caveats
+
+The validated source build uses `-C instrument-coverage`, a native debug build, and `COPILOT_LLVM_COVERAGE_EXPORTS=1`. The SDK-server hook publishes cumulative snapshots atomically per process/addon on an initial checkpoint, every ten seconds, at shutdown before acknowledgment, and at normal process exit. Crashes can omit the tail since the last completed checkpoint plus snapshot I/O; regions hit only in that tail may be absent. Do not additionally call raw LLVM dump exports or merge successive copies of the same cumulative snapshot. The standalone Rust runtime-host executable is outside this measurement.
+
+Native snapshots are large: the initial 96 profiles occupied about 17 GB (roughly 344 MB for a runtime snapshot). Ensure disk headroom for parallel runs and report processing. LLVM export uses `--num-threads=1`; `--dump` writes diagnostic text into stdout and must not be added to JSON export. LLVM stderr is retained and surfaced. The initial nine hash-zero mapping diagnostics concerned excluded tracing, flatbuffers, aho-corasick, and memchr dependency code, not first-party source. No raw profiles, native binaries, HTML reports, timestamps, or local home paths belong in the committed summary.
+
+Validate the workflow itself without a runtime build or E2E run:
+
+```powershell
+node --test scripts\copilot-runtime-e2e-coverage.test.mts
+```
+
 ### Coverage expansion strategy
 
 Coverage is a discovery tool, not the goal by itself. A coverage expansion round should add tests for meaningful full-stack contracts, not manufacture line hits or add equivalent prompt variants.
