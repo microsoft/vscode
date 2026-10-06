@@ -20,8 +20,10 @@ export function negotiateAgentHostProtocolVersion(offered: readonly string[], cu
 }
 
 export function getAgentHostSupportedProtocolVersions(current = PROTOCOL_VERSION): string[] {
-	return [
-		`^${current}`,
-		...(compatibleProtocolVersions.includes(current) ? compatibleProtocolVersions.filter(version => version !== current) : []),
-	];
+	if (compatibleProtocolVersions.includes(current)) {
+		return [...compatibleProtocolVersions];
+	}
+	const [major, minor] = current.split('.');
+	const minimum = `${major}.${major === '0' ? minor : '0'}.0`;
+	return minimum === current ? [current] : [`>=${minimum} <=${current}`];
 }

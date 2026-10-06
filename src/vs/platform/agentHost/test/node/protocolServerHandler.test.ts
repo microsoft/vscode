@@ -783,7 +783,7 @@ suite('ProtocolServerHandler', () => {
 		// Without the upgrade-socket env var, no _meta should be advertised.
 		const data = resp.error!.data as { supportedVersions: string[]; _meta?: { vscodeUpgradeMethod?: string } } | undefined;
 		assert.deepStrictEqual({ supportedVersions: data?.supportedVersions, upgrade: data?._meta?.vscodeUpgradeMethod }, {
-			supportedVersions: [`^${PROTOCOL_VERSION}`, '1.0.0', '0.9.0'], upgrade: undefined,
+			supportedVersions: ['1.0.0', '0.10.0', '0.9.0'], upgrade: undefined,
 		});
 
 		transport.simulateClose();

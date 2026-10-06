@@ -47,10 +47,19 @@ suite('Agent Host protocol compatibility', () => {
 
 	test('unsupported-version errors report the exact compatible aliases', () => {
 		assert.deepStrictEqual(['0.9.0', '0.10.0', '1.0.0', '0.11.0'].map(version => getAgentHostSupportedProtocolVersions(version)), [
-			['^0.9.0', '1.0.0', '0.10.0'],
-			['^0.10.0', '1.0.0', '0.9.0'],
-			['^1.0.0', '0.10.0', '0.9.0'],
-			['^0.11.0'],
+			['1.0.0', '0.10.0', '0.9.0'],
+			['1.0.0', '0.10.0', '0.9.0'],
+			['1.0.0', '0.10.0', '0.9.0'],
+			['0.11.0'],
+		]);
+	});
+
+	test('reports bounded ranges matching negotiation for other host versions', () => {
+		assert.deepStrictEqual(['0.9.5', '0.11.2', '1.2.3', '2.0.0'].map(version => getAgentHostSupportedProtocolVersions(version)), [
+			['>=0.9.0 <=0.9.5'],
+			['>=0.11.0 <=0.11.2'],
+			['>=1.0.0 <=1.2.3'],
+			['2.0.0'],
 		]);
 	});
 
