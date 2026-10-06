@@ -658,6 +658,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		private readonly onDidFinishRename: () => void,
 		private readonly getSummaryHoverOptions: (item: ISessionChatItem) => IDelayedHoverOptions,
 		private readonly compact: () => boolean,
+		private readonly onDidChangeUpdatedAt: () => void,
 		/**
 		 * Session IDs whose hierarchy indent/connector guides should be shown —
 		 * i.e. the session (or one of its chats) is currently hovered or
@@ -753,13 +754,20 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
+		let previousUpdatedAtTimestamp = element.chat.updatedAt.get()?.getTime();
 		template.elementDisposables.add(autorun(reader => {
 			const sessionWorkspace = element.session.workspace.read(reader);
 			const chatWorkspace = element.chat.workspace.read(reader);
 			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
 			const status = element.chat.status.read(reader);
 			const statusMessage = getSessionStatusMessage(status, element.chat.description.read(reader));
-			const updatedAt = status === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
+			const sortUpdatedAt = element.chat.updatedAt.read(reader);
+			const updatedAt = status === SessionStatus.InProgress ? undefined : sortUpdatedAt;
+			const updatedAtTimestamp = sortUpdatedAt?.getTime();
+			if (previousUpdatedAtTimestamp !== updatedAtTimestamp) {
+				previousUpdatedAtTimestamp = updatedAtTimestamp;
+				this.onDidChangeUpdatedAt();
+			}
 			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
@@ -3480,6 +3488,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private sessions: ISession[] = [];
 	private readonly sessionChatsObserver = this._register(new MutableDisposable());
 	private readonly activeSessionUpdate = this._register(new MutableDisposable());
+	private readonly nestedSessionOrderUpdate = this._register(new MutableDisposable());
 	private readonly collapsedSessionResources: Set<string>;
 	private nestedSessionResources = new Set<string>();
 	/**
@@ -3736,6 +3745,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.preferencesService,
 			)),
 			() => this.isCompact(),
+			() => {
+				if (this.options.sorting() === SessionsSorting.Updated) {
+					this.nestedSessionOrderUpdate.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.listContainer), () => {
+						if (this.visible) {
+							this.update();
+						}
+					});
+				}
+			},
 			this.activeGuideSessionIds,
 		);
 		this._chatRenderer = chatRenderer;
@@ -4262,9 +4280,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let initialized = false;
 		this.sessionChatsObserver.value = autorun(reader => {
 			for (const session of this.sessions) {
-				for (const chat of getSessionListChats(session, reader, !this._excludeArchived)) {
-					chat.updatedAt.read(reader);
-				}
+				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
 				session.application.read(reader);
 			}
