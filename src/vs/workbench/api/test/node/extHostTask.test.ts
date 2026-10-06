@@ -131,6 +131,48 @@ for (const host of ['node', 'worker'] as const) {
 			return { provideTasks: () => [task], resolveTask: value => value };
 		}
 
+		for (const rediscover of [false, true]) {
+			test(`owner disposal preserves a reserved callback unless fresh discovery replaces it (rediscover: ${rediscover})`, async () => {
+				const h = createService();
+				const called: string[] = [];
+				const first = createTask('same', async () => { called.push('first'); return pty; });
+				const second = createTask('same', async () => { called.push('second'); return pty; });
+				const a = h.register(provider(first));
+				const b = h.register(provider(second));
+				await h.provide(a.handle);
+				await h.provide(b.handle);
+				h.service.$onWillStartTask('same');
+				await b.dispose();
+				if (rediscover) {
+					await h.provide(a.handle);
+				}
+				await h.start(second);
+				await h.end(second);
+				await a.dispose();
+				assert.deepStrictEqual(called, [rediscover ? 'first' : 'second']);
+			});
+		}
+
+		test('legacy cleanup for a completed instance cannot end a remaining accepted instance', async () => {
+			const h = createService();
+			const task = createTask('instances');
+			const registration = h.register(provider(task));
+			await h.provide(registration.handle);
+			let ends = 0;
+			store.add(h.service.onDidEndTask(() => ends++));
+			const execution = { id: task.name, task: toDTO(task) };
+			h.service.$onWillStartTask(task.name, 'first');
+			await h.service.$onDidStartTask(execution, 1, task.definition, 'first');
+			h.service.$onWillStartTask(task.name, 'second');
+			await h.service.$onDidStartTask(execution, 2, task.definition, 'second');
+			await h.service.$OnDidEndTask(execution, 'first');
+			await h.service.$OnDidEndTask(execution);
+			const afterLegacyCleanup = ends;
+			await h.service.$OnDidEndTask(execution, 'second');
+			await registration.dispose();
+			assert.deepStrictEqual({ afterLegacyCleanup, ends, active: [...h.active] }, { afterLegacyCleanup: 1, ends: 2, active: [] });
+		});
+
 		test('ending during callback creation closes the unclaimed terminal without a late start', async () => {
 			const h = createService();
 			const result = new DeferredPromise<vscode.Pseudoterminal>();

@@ -397,6 +397,12 @@ export interface HandlerData {
 	isDisposed: boolean;
 }
 
+interface TaskStart {
+	readonly taskId: string;
+	readonly version: number;
+	customExecution: types.CustomExecution | undefined;
+}
+
 export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask {
 	readonly _serviceBrand: undefined;
 
@@ -413,8 +419,11 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	protected _taskExecutionPromises: Map<string, Promise<TaskExecutionImpl>>;
 	protected _providedCustomExecutions2: Map<string, types.CustomExecution>;
 	// An undefined owner represents callbacks supplied directly through executeTask.
-	private readonly _customExecutionOwners = new Map<string, Map<HandlerData | undefined, types.CustomExecution>>();
-	private readonly _taskStarts = new Map<string, { readonly customExecution: types.CustomExecution | undefined }>();
+	private readonly _customExecutionOwners = new Map<string, Map<HandlerData | undefined, { execution: types.CustomExecution; version: number }>>();
+	private readonly _customExecutionVersions = new Map<string, number>();
+	private _customExecutionVersion = 0;
+	private readonly _taskStarts = new Map<string, TaskStart>();
+	private readonly _activeTaskStarts = new Map<string, TaskStart>();
 	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
 	protected _activeCustomExecutions2: Map<string, types.CustomExecution>;
 	private _lastStartedTask: string | undefined;
@@ -509,21 +518,28 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return this._onDidExecuteTask.event;
 	}
 
-	public $onWillStartTask(taskId: string): void {
-		this._taskStarts.set(taskId, {
+	public $onWillStartTask(taskId: string, startId = taskId): void {
+		this._taskStarts.set(startId, {
+			taskId,
+			version: this._customExecutionVersions.get(taskId) ?? -1,
 			customExecution: this._providedCustomExecutions2.get(taskId) ?? this._activeCustomExecutions2.get(taskId)
 		});
 	}
 
-	public async $onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): Promise<void> {
-		const starting = this._taskStarts.get(execution.id) ?? { customExecution: undefined };
-		this._taskStarts.set(execution.id, starting);
-		const customExecution = this._providedCustomExecutions2.get(execution.id) ?? starting.customExecution ?? this._activeCustomExecutions2.get(execution.id);
+	public async $onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO, startId = execution.id): Promise<void> {
+		const starting = this._taskStarts.get(startId) ?? { taskId: execution.id, version: -1, customExecution: undefined };
+		this._taskStarts.set(startId, starting);
+		const newerDiscovery = (this._customExecutionVersions.get(execution.id) ?? -1) > starting.version;
+		// Owner removal must not replace the reserved callback; an explicit later discovery still may.
+		const customExecution = (newerDiscovery ? this._providedCustomExecutions2.get(execution.id) : starting.customExecution)
+			?? starting.customExecution ?? this._providedCustomExecutions2.get(execution.id) ?? this._activeCustomExecutions2.get(execution.id);
+		starting.customExecution = customExecution;
+		this._activeTaskStarts.set(startId, starting);
 		if (customExecution) {
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
 			this._activeCustomExecutions2.set(execution.id, customExecution);
 			const pty = await customExecution.callback(resolvedDefinition);
-			if (this._taskStarts.get(execution.id) !== starting) {
+			if (this._taskStarts.get(startId) !== starting) {
 				pty.close();
 				return;
 			}
@@ -532,10 +548,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		this._lastStartedTask = execution.id;
 
 		const taskExecution = await this.getTaskExecution(execution);
-		if (this._taskStarts.get(execution.id) !== starting) {
+		if (this._taskStarts.get(startId) !== starting) {
 			return;
 		}
-		this._taskStarts.delete(execution.id);
+		this._taskStarts.delete(startId);
 		const terminal = this._terminalService.getTerminalById(terminalId)?.value;
 		if (taskExecution) {
 			taskExecution.terminal = terminal;
@@ -550,8 +566,14 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		return this._onDidTerminateTask.event;
 	}
 
-	public async $OnDidEndTask(execution: tasks.ITaskExecutionDTO): Promise<void> {
-		if (this._taskStarts.delete(execution.id)) {
+	public async $OnDidEndTask(execution: tasks.ITaskExecutionDTO, startId?: string): Promise<void> {
+		const pending = this._taskStarts.delete(startId ?? execution.id);
+		const active = this._activeTaskStarts.delete(startId ?? execution.id);
+		if (!pending && !active && (startId !== undefined
+			|| [...this._taskStarts.values(), ...this._activeTaskStarts.values()].some(start => start.taskId === execution.id))) {
+			return;
+		}
+		if (pending || active) {
 			this.customExecutionComplete(execution);
 		}
 		if (!this._taskExecutionPromises.has(execution.id)) {
@@ -560,8 +582,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 			return;
 		}
 		const _execution = await this.getTaskExecution(execution);
-		this._taskExecutionPromises.delete(execution.id);
-		this._taskExecutions.delete(execution.id);
+		if (![...this._activeTaskStarts.values()].some(start => start.taskId === execution.id)) {
+			this._taskExecutionPromises.delete(execution.id);
+			this._taskExecutions.delete(execution.id);
+		}
 		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
 			execution: _execution
@@ -708,12 +732,14 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		const execution = <types.CustomExecution>task.execution;
 		let owners = this._customExecutionOwners.get(taskId);
 		if (!owners) {
-			owners = new Map<HandlerData | undefined, types.CustomExecution>();
+			owners = new Map();
 			this._customExecutionOwners.set(taskId, owners);
 		}
 		// The most recently supplied callback wins without discarding other live owners.
 		owners.delete(handler);
-		owners.set(handler, execution);
+		const version = ++this._customExecutionVersion;
+		owners.set(handler, { execution, version });
+		this._customExecutionVersions.set(taskId, version);
 		if (!handler) {
 			this._notProvidedCustomExecutions.add(taskId);
 			// Also add to active executions when not coming from a provider to prevent timing issue.
@@ -731,10 +757,12 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		}
 		const execution = [...owners.values()].at(-1);
 		if (execution) {
-			this._providedCustomExecutions2.set(taskId, execution);
+			this._providedCustomExecutions2.set(taskId, execution.execution);
+			this._customExecutionVersions.set(taskId, execution.version);
 		} else {
 			this._customExecutionOwners.delete(taskId);
 			this._providedCustomExecutions2.delete(taskId);
+			this._customExecutionVersions.delete(taskId);
 		}
 	}
 
@@ -783,8 +811,10 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 	}
 
 	private customExecutionComplete(execution: tasks.ITaskExecutionDTO): void {
-		const extensionCallback2: vscode.CustomExecution | undefined = this._activeCustomExecutions2.get(execution.id);
-		if (extensionCallback2) {
+		const remaining = [...this._activeTaskStarts.values()].findLast(start => start.taskId === execution.id && start.customExecution);
+		if (remaining?.customExecution) {
+			this._activeCustomExecutions2.set(execution.id, remaining.customExecution);
+		} else {
 			this._activeCustomExecutions2.delete(execution.id);
 		}
 
