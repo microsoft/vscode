@@ -623,6 +623,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 
+	test('describes generic directional navigation for the session grid', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+		const sessionGridHelp = content.split('\n').find(line => line.includes('Session panes form a separate grid'));
+
+		assert.deepStrictEqual([
+			'workbench.action.navigateLeft',
+			'workbench.action.navigateRight',
+			'workbench.action.navigateUp',
+			'workbench.action.navigateDown',
+		].map(commandId => sessionGridHelp?.includes(`<keybinding:${commandId}>`)), [true, true, true, true]);
+	});
+
 	test('describes Run and Compare Agents only when enabled', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
