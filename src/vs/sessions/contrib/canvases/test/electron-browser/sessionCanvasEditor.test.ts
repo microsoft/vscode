@@ -50,21 +50,25 @@ suite('SessionCanvasEditor telemetry', () => {
 			canvas: canvas.resource,
 		}, canvas));
 		let modelDisposed = false;
-		const onWillDispose = store.add(new Emitter<void>());
-		const model = upcastPartial<IBrowserViewModel>({
-			error: options.pageError,
-			onDidChangeFocus: Event.None,
-			onDidChangeLoadingState: Event.None,
-			onDidNavigate: Event.None,
-			onWillDispose: onWillDispose.event,
-			layout: async () => { },
-			dispose: () => {
-				if (!modelDisposed) {
-					modelDisposed = true;
-					onWillDispose.fire();
-				}
-			},
-		});
+		const createModel = () => {
+			let disposed = false;
+			const onWillDispose = store.add(new Emitter<void>());
+			return upcastPartial<IBrowserViewModel>({
+				error: options.pageError,
+				onDidChangeFocus: Event.None,
+				onDidChangeLoadingState: Event.None,
+				onDidNavigate: Event.None,
+				onWillDispose: onWillDispose.event,
+				layout: async () => { },
+				dispose: () => {
+					if (!disposed) {
+						disposed = true;
+						modelDisposed = true;
+						onWillDispose.fire();
+					}
+				},
+			});
+		};
 		instantiationService.stub(ITelemetryService, {
 			publicLog2: (name: string, data?: ITelemetryData) => {
 				if (name === 'agentCanvas.loadCompleted' && data) {
@@ -85,7 +89,7 @@ suite('SessionCanvasEditor telemetry', () => {
 				if (options.loadError) {
 					throw options.loadError;
 				}
-				return model;
+				return createModel();
 			},
 		});
 		instantiationService.stubInstance(WebContentsViewHost, {
@@ -154,6 +158,30 @@ suite('SessionCanvasEditor telemetry', () => {
 			telemetry: harness.telemetry(), attached: harness.attached.length,
 		}, {
 			telemetry: [{ schemaVersion: 1, outcome: 'cancelled', hasDuration: true }], attached: 0,
+		});
+	});
+
+	test('detaches an unavailable source and reconnects only to the fresh live endpoint', async () => {
+		const harness = createHarness();
+		await harness.open();
+		await harness.completed.p;
+		harness.input.setCanvas({ ...harness.canvas, source: undefined });
+		const requestsWhileUnavailable = [...harness.createRequests];
+		const oldModelDisposed = harness.isModelDisposed();
+		harness.input.setCanvas({ ...harness.canvas, source: URI.parse('http://127.0.0.1:54321/?token=fresh') });
+		await Promise.resolve();
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			requestsWhileUnavailable,
+			oldModelDisposed,
+			requestsAfterReconnect: harness.createRequests,
+		}, {
+			requestsWhileUnavailable: [['https://example.test/private-source', 'canvas']],
+			oldModelDisposed: true,
+			requestsAfterReconnect: [
+				['https://example.test/private-source', 'canvas'],
+				['http://127.0.0.1:54321/?token=fresh', 'canvas'],
+			],
 		});
 	});
 

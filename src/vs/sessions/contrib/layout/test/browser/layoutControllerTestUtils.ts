@@ -692,6 +692,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 
 	instaService.stub(IEditorService, new class extends mock<IEditorService>() {
+		override get editors() { return harness.activeGroupEditors; }
 		override get visibleEditors() { return harness.visibleEditorsList as IEditorService['visibleEditors']; }
 		override readonly onDidActiveEditorChange = harness.onDidActiveEditorChange.event;
 		override readonly onWillOpenEditor = harness.onWillOpenEditor.event;

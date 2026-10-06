@@ -47,6 +47,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ChatLayoutOwnerKeyRegistry } from './chatLayoutOwnerKeys.js';
+import { SessionCanvasInput } from '../../canvases/common/sessionCanvas.js';
 
 const secondarySidebarToggleClosedIcon = registerIcon('agent-secondary-sidebar-toggle-closed', Codicon.layoutSidebarRightOff, localize('agentSecondarySidebarToggleClosedIcon', "Icon for the sessions secondary sidebar when closed."));
 const secondarySidebarToggleOpenIcon = registerIcon('agent-secondary-sidebar-toggle-open', Codicon.layoutSidebarRight, localize('agentSecondarySidebarToggleOpenIcon', "Icon for the sessions secondary sidebar when open."));
@@ -144,6 +145,7 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected readonly _editorPartHiddenBySession = new ResourceMap<boolean>();
 	private readonly _workingSetSequencer = new Sequencer();
+	private _workingSetGeneration = 0;
 	private readonly _chatLayoutOwnerKeys = new ChatLayoutOwnerKeyRegistry();
 	private readonly _replacedSessionResources = new ResourceSet();
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
@@ -1095,6 +1097,7 @@ export abstract class BaseLayoutController extends Disposable {
 	// --- Editor working sets [B2] ---
 
 	private async _applyWorkingSet(sessionResource: URI | undefined, options?: { readonly isInitialRestore?: boolean }): Promise<void> {
+		const generation = ++this._workingSetGeneration;
 		// Restoring a session's editor working set must never pull keyboard focus
 		// into the editor area. Focus during a session switch is owned by the
 		// switch itself (it moves focus into the active session's chat input, or
@@ -1108,9 +1111,18 @@ export abstract class BaseLayoutController extends Disposable {
 		this._onWillApplyWorkingSet(workingSet);
 
 		const chatLayoutSnapshot = this._chatLayoutContext?.state.get();
-		const isStaleChatOwner = (): boolean => !!chatLayoutSnapshot?.owner && !this._chatLayoutContext!.isCurrent(chatLayoutSnapshot);
+		const session = this._sessionsService.activeSession.get();
+		const chatResource = session?.activeChat.get().resource;
+		const isStaleChatOwner = (): boolean => generation !== this._workingSetGeneration
+			|| session?.providerId !== this._sessionsService.activeSession.get()?.providerId
+			|| !isEqual(session?.resource, this._sessionsService.activeSession.get()?.resource)
+			|| (!!chatLayoutSnapshot?.owner && (!this._chatLayoutContext!.isCurrent(chatLayoutSnapshot)
+				|| !isEqual(chatResource, this._sessionsService.activeSession.get()?.activeChat.get().resource)));
 
 		return this._workingSetSequencer.queue(async () => {
+			if (isStaleChatOwner()) {
+				return;
+			}
 			// When multiple sessions are visible, applying a working set must never
 			// change the visibility of the editor part: the editor area is shared
 			// across the visible sessions and its visibility is controlled by the
@@ -1118,7 +1130,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._sessionsService.visibleSessions.get().length > 1) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {
-					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+					await this._applyEditorWorkingSet(workingSet, preserveFocus, isStaleChatOwner);
 				} finally {
 					suppression.dispose();
 				}
@@ -1145,7 +1157,7 @@ export abstract class BaseLayoutController extends Disposable {
 				&& this._shouldHideEditorPartOnApply(editorPartHidden);
 
 			if (workingSet === 'empty') {
-				await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+				await this._applyEditorWorkingSet(workingSet, preserveFocus, isStaleChatOwner);
 				if (isStaleChatOwner()) {
 					return;
 				}
@@ -1162,7 +1174,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (options?.isInitialRestore) {
 				const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 				try {
-					await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+					await this._applyEditorWorkingSet(workingSet, preserveFocus, isStaleChatOwner);
 				} finally {
 					suppression.dispose();
 				}
@@ -1181,7 +1193,7 @@ export abstract class BaseLayoutController extends Disposable {
 				this._hideEditorPartForWorkingSet();
 			}
 
-			const result = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+			const result = await this._applyEditorWorkingSet(workingSet, preserveFocus, isStaleChatOwner);
 			if (isStaleChatOwner()) {
 				return;
 			}
@@ -1191,6 +1203,31 @@ export abstract class BaseLayoutController extends Disposable {
 				this._hideEditorPartForWorkingSet();
 			}
 		});
+	}
+
+	private async _applyEditorWorkingSet(workingSet: IEditorWorkingSet | 'empty', preserveFocus: boolean, isStale: () => boolean): Promise<boolean> {
+		const canvases = this._editorService.editors.filter(input => input instanceof SessionCanvasInput);
+		if (canvases.length === 0) {
+			return this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+		}
+		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		try {
+			// Capture precedes this exact-input suspension; ordinary editor serialization keeps its layout and selection.
+			const resumes = await Promise.all(canvases.map(input => input.suspendForWorkingSet()));
+			if (isStale()) {
+				return false;
+			}
+			const applied = await this._editorGroupsService.applyWorkingSet(workingSet, { preserveFocus });
+			if (applied && !isStale()) {
+				await Promise.all(resumes.map(resume => resume?.()));
+			}
+			return applied;
+		} catch (error) {
+			this._logService.error('[BaseLayoutController] Failed to apply canvas working set', error);
+			throw error;
+		} finally {
+			suppression.dispose();
+		}
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {

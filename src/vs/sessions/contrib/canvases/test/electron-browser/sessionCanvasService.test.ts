@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -25,7 +25,7 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { REVEAL_SESSION_CANVAS_COMMAND_ID, SessionCanvasInput } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { SessionCanvasService } from '../../electron-browser/sessionCanvasService.js';
@@ -55,7 +55,8 @@ suite('SessionCanvasService', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const sessionChanges = store.add(new Emitter<ISessionsChangeEvent>());
-		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: sessionChanges.event });
+		const chatDeleted = store.add(new Emitter<IChatDeletedEvent>());
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: sessionChanges.event, onDidDeleteChat: chatDeleted.event });
 		const opened: SessionCanvasInput[] = [];
 		const openOptions: unknown[] = [];
 		const openSettled: Promise<void>[] = [];
@@ -83,9 +84,10 @@ suite('SessionCanvasService', () => {
 				return result;
 			}
 		}();
+		const sentimentChanged = store.add(new Emitter<void>());
 		const entitlementService = upcastPartial<IChatEntitlementService>({
 			sentiment: { hidden: false },
-			onDidChangeSentiment: Event.None,
+			onDidChangeSentiment: sentimentChanged.event,
 		});
 		const configurationService = new TestConfigurationService({ [CanvasesEnabledSettingId]: canvasesEnabled });
 		const canvasService = store.add(new SessionCanvasService(
@@ -105,7 +107,11 @@ suite('SessionCanvasService', () => {
 		const setOpenEditorHandler = (handler: (input: SessionCanvasInput) => Promise<ITextDiffEditorPane | undefined>) => openEditorHandler = handler;
 		const setFindEditorsHandler = (handler: (resource: URI) => readonly IEditorIdentifier[]) => findEditorsHandler = handler;
 		const setCloseEditorsHandler = (handler: () => Promise<void>) => closeEditorsHandler = handler;
-		return { activeChat, activeSession, canvas, canvasService, canvases, chat, closeSettled, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setFindEditorsHandler, setOpenEditorHandler };
+		const setHidden = () => {
+			entitlementService.sentiment.hidden = true;
+			sentimentChanged.fire();
+		};
+		return { activeChat, activeSession, canvas, canvasService, canvases, capabilities, chat, chatDeleted, closeSettled, opened, openOptions, openSettled, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled, setCloseEditorsHandler, setFindEditorsHandler, setHidden, setOpenEditorHandler };
 	}
 
 	test('automatically reveals a newly opened canvas', () => {
@@ -121,8 +127,10 @@ suite('SessionCanvasService', () => {
 	});
 
 	test('focuses an open canvas and reopens it after dismissal', async () => {
-		const { canvasService, opened, openOptions } = createHarness();
+		const { canvasService, opened, openOptions, openSettled } = createHarness();
 		const original = opened[0];
+		await openSettled[0];
+		await Promise.resolve();
 		const registration = store.add(registerSessionCanvasActions(canvasService));
 		const command = CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID);
 		assert.ok(command);
@@ -435,5 +443,185 @@ suite('SessionCanvasService', () => {
 		canvases.set([{ ...canvas, instanceId: undefined, source: undefined }], undefined);
 		canvases.set([canvas], undefined);
 		assert.strictEqual(opened.length, 1);
+	});
+
+	test('keeps runtime admission during suspension and restores a canonical input through hydration', async () => {
+		const { canvas, canvasService, canvases, closeSettled, opened, openSettled } = createHarness();
+		await openSettled[0];
+		const original = opened[0];
+		await original.suspendForWorkingSet();
+		canvases.set(undefined, undefined);
+		const restored = canvasService.restoreCanvasInput(original.reference);
+		assert.ok(restored);
+		const pendingCanvas = restored.canvas.get();
+		canvases.set([canvas], undefined);
+		const hydrated = restored.canvas.get();
+		canvases.set([], undefined);
+		await closeSettled.at(-1);
+		assert.deepStrictEqual({
+			originalDisposed: original.isDisposed(),
+			pendingCanvas,
+			hydratedSource: hydrated?.source,
+			restoredDisposed: restored.isDisposed(),
+			removedRestore: canvasService.restoreCanvasInput(original.reference),
+			reopenable: canvasService.reopenableCanvases.get().length,
+		}, {
+			originalDisposed: true, pendingCanvas: undefined, hydratedSource: canvas.source,
+			restoredDisposed: true, removedRestore: undefined, reopenable: 0,
+		});
+	});
+
+	test('never restores an old source while unavailable and follows fresh live sources', async () => {
+		const { canvas, canvasService, canvases, opened, openSettled } = createHarness();
+		await openSettled[0];
+		const original = opened[0];
+		await original.suspendForWorkingSet();
+		canvases.set([{ ...canvas, source: undefined }], undefined);
+		const restored = canvasService.restoreCanvasInput(original.reference);
+		const unavailableSource = restored?.canvas.get()?.source;
+		const source = URI.parse('http://127.0.0.1:54321/?token=fresh');
+		canvases.set([{ ...canvas, source }], undefined);
+		assert.deepStrictEqual({
+			unavailableSource,
+			freshSource: restored?.canvas.get()?.source,
+			canonical: canvasService.restoreCanvasInput(original.reference) === restored,
+			automaticOpens: opened.length,
+		}, { unavailableSource: undefined, freshSource: source, canonical: true, automaticOpens: 1 });
+	});
+
+	for (const invalidation of ['canvasDisabled', 'aiHidden', 'unsupported', 'sessionRemoved', 'chatDeleted'] as const) {
+		test(`invalidates suspended admission when ${invalidation}`, async () => {
+			const harness = createHarness();
+			await harness.openSettled[0];
+			const original = harness.opened[0];
+			await original.suspendForWorkingSet();
+			if (invalidation === 'canvasDisabled') {
+				await harness.setCanvasesEnabled(false);
+			} else if (invalidation === 'aiHidden') {
+				harness.setHidden();
+			} else if (invalidation === 'unsupported') {
+				harness.capabilities.set({ supportsCanvases: false, supportsMultipleChats: false }, undefined);
+			} else if (invalidation === 'sessionRemoved') {
+				harness.sessionChanges.fire({ added: [], changed: [], removed: [harness.session] });
+			} else {
+				harness.chatDeleted.fire({
+					session: harness.session, sessionResource: harness.session.resource, chatResource: harness.chat.resource,
+				});
+			}
+			assert.deepStrictEqual({
+				restored: harness.canvasService.restoreCanvasInput(original.reference),
+				automaticOpens: harness.opened.length,
+				reopenable: harness.canvasService.reopenableCanvases.get().length,
+			}, { restored: undefined, automaticOpens: 1, reopenable: 0 });
+		});
+	}
+
+	test('rejects references for inactive owners and different provider identities', async () => {
+		const { activeSession, canvasService, opened, openSettled, session } = createHarness();
+		await openSettled[0];
+		const original = opened[0];
+		await original.suspendForWorkingSet();
+		const altered = canvasService.restoreCanvasInput({ ...original.reference, providerId: 'other-provider' });
+		activeSession.set(undefined, undefined);
+		const inactive = canvasService.restoreCanvasInput(original.reference);
+		activeSession.set(session, undefined);
+		const current = canvasService.restoreCanvasInput(original.reference);
+		assert.deepStrictEqual({
+			altered, inactive, current: !!current, canonical: canvasService.restoreCanvasInput(original.reference) === current,
+		}, { altered: undefined, inactive: undefined, current: true, canonical: true });
+	});
+
+	test('late disposal of a replaced input cannot clear the newer canonical presentation', async () => {
+		const { canvas, canvasService, canvases, closeSettled, opened, openSettled, setCloseEditorsHandler } = createHarness();
+		await openSettled[0];
+		const original = opened[0];
+		const gate = new DeferredPromise<void>();
+		setCloseEditorsHandler(() => gate.p);
+		canvases.set([], undefined);
+		canvases.set([canvas], undefined);
+		await openSettled.at(-1);
+		const replacement = opened.at(-1);
+		gate.complete();
+		await closeSettled.at(-1);
+		assert.deepStrictEqual({
+			originalDisposed: original.isDisposed(),
+			replacementDisposed: replacement?.isDisposed(),
+			canonical: canvasService.restoreCanvasInput(original.reference) === replacement,
+			reopenable: canvasService.reopenableCanvases.get().length,
+		}, { originalDisposed: true, replacementDisposed: false, canonical: true, reopenable: 0 });
+	});
+
+	test('a delayed automatic open is suspended rather than left visible over another owner', async () => {
+		const { activeSession, canvas, canvasService, canvases, closeSettled, opened, openSettled, setOpenEditorHandler } = createHarness();
+		await openSettled[0];
+		const gate = new DeferredPromise<ITextDiffEditorPane | undefined>();
+		setOpenEditorHandler(() => gate.p);
+		canvases.set([canvas, { ...canvas, resource: URI.parse('agent-host-canvas:/delayed') }], undefined);
+		const delayed = opened[1];
+		activeSession.set(undefined, undefined);
+		gate.complete(upcastPartial<ITextDiffEditorPane>({ input: delayed }));
+		await openSettled.at(-1);
+		await closeSettled.at(-1);
+		assert.deepStrictEqual({
+			disposed: delayed.isDisposed(),
+			staleRestore: canvasService.restoreCanvasInput(delayed.reference),
+		}, { disposed: true, staleRestore: undefined });
+	});
+
+	test('a failed live open cannot authorize restoration and can be explicitly retried', async () => {
+		const { canvas, canvasService, canvases, opened, openSettled, setOpenEditorHandler } = createHarness();
+		await openSettled[0];
+		const gate = new DeferredPromise<ITextDiffEditorPane | undefined>();
+		setOpenEditorHandler(() => gate.p);
+		canvases.set([canvas, { ...canvas, resource: URI.parse('agent-host-canvas:/retry') }], undefined);
+		const pending = opened[1];
+		const pendingRestore = canvasService.restoreCanvasInput(pending.reference);
+		await gate.error(new Error('open failed'));
+		await openSettled.at(-1);
+		await Promise.resolve();
+		const failedRestore = canvasService.restoreCanvasInput(pending.reference);
+		setOpenEditorHandler(input => Promise.resolve(upcastPartial<ITextDiffEditorPane>({ input })));
+		await canvasService.reopenCanvas(pending.reference);
+		assert.deepStrictEqual({
+			pendingRestore,
+			failedRestore,
+			canonical: canvasService.restoreCanvasInput(pending.reference) === opened.at(-1),
+			reopenable: canvasService.reopenableCanvases.get().length,
+		}, { pendingRestore: undefined, failedRestore: undefined, canonical: true, reopenable: 0 });
+	});
+
+	test('an exact suspended-input resumption never suppresses a newer user dismissal', async () => {
+		const { canvasService, opened, openSettled } = createHarness();
+		await openSettled[0];
+		const original = opened[0];
+		const resume = await original.suspendForWorkingSet();
+		const restored = canvasService.restoreCanvasInput(original.reference);
+		assert.ok(restored);
+		restored.dispose();
+		await resume?.();
+		assert.deepStrictEqual({
+			opens: opened.length,
+			reopenable: canvasService.reopenableCanvases.get().length,
+			restored: canvasService.restoreCanvasInput(original.reference),
+		}, { opens: 1, reopenable: 1, restored: undefined });
+	});
+
+	test('failed transaction resumption leaves an explicit retry instead of false live admission', async () => {
+		const { canvasService, opened, openSettled, setOpenEditorHandler } = createHarness();
+		await openSettled[0];
+		const original = opened[0];
+		const resume = await original.suspendForWorkingSet();
+		assert.ok(resume);
+		setOpenEditorHandler(() => Promise.reject(new Error('resume failed')));
+		await assert.rejects(resume(), /resume failed/);
+		const failedRestore = canvasService.restoreCanvasInput(original.reference);
+		const retryAvailable = canvasService.reopenableCanvases.get().length;
+		setOpenEditorHandler(input => Promise.resolve(upcastPartial<ITextDiffEditorPane>({ input })));
+		await canvasService.reopenCanvas(original.reference);
+		assert.deepStrictEqual({
+			failedRestore, retryAvailable,
+			canonical: canvasService.restoreCanvasInput(original.reference) === opened.at(-1),
+			reopenable: canvasService.reopenableCanvases.get().length,
+		}, { failedRestore: undefined, retryAvailable: 1, canonical: true, reopenable: 0 });
 	});
 });

@@ -92,6 +92,8 @@ export interface ISessionCanvasReopenTarget {
 
 export const ISessionCanvasService = createDecorator<ISessionCanvasService>('sessionCanvasService');
 
+export type SessionCanvasWorkingSetResume = () => Promise<void>;
+
 export interface ISessionCanvasService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
@@ -100,6 +102,8 @@ export interface ISessionCanvasService {
 	isActiveOwner(reference: ISessionCanvasReference, reader?: IReader): boolean;
 	revealCanvas(reference: ISessionCanvasReference): Promise<void>;
 	reopenCanvas(reference: ISessionCanvasReference): Promise<void>;
+	/** Adopts an admitted live identity without granting serialized references authority to open a canvas. */
+	restoreCanvasInput(reference: ISessionCanvasReference): SessionCanvasInput | undefined;
 }
 
 function createInputResource(reference: ISessionCanvasReference): URI {
@@ -123,7 +127,11 @@ export class SessionCanvasInput extends EditorInput {
 	readonly resource: URI;
 	readonly canvas = observableValue<ISessionCanvas | undefined>(this, undefined);
 
-	constructor(readonly reference: ISessionCanvasReference, canvas: ISessionCanvas) {
+	constructor(
+		readonly reference: ISessionCanvasReference,
+		canvas: ISessionCanvas | undefined,
+		private readonly suspend?: (input: SessionCanvasInput) => Promise<SessionCanvasWorkingSetResume | undefined>,
+	) {
 		super();
 		this.resource = createInputResource(reference);
 		this.canvas.set(canvas, undefined);
@@ -138,10 +146,15 @@ export class SessionCanvasInput extends EditorInput {
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }
 
-	setCanvas(canvas: ISessionCanvas): void {
+	/** Suspends this exact live input without user dismissal and returns a live-only resumption for the same layout transaction. */
+	suspendForWorkingSet(): Promise<SessionCanvasWorkingSetResume | undefined> {
+		return this.suspend?.(this) ?? Promise.resolve(undefined);
+	}
+
+	setCanvas(canvas: ISessionCanvas | undefined): void {
 		const previous = this.canvas.get();
 		this.canvas.set(canvas, undefined);
-		if (previous?.title !== canvas.title) {
+		if (previous?.title !== canvas?.title) {
 			this._onDidChangeLabel.fire();
 		}
 	}
