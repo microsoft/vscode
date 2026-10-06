@@ -9,6 +9,7 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { type IDisposable, type IReference } from '../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncAcknowledgement, ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDataService, ISessionDatabase } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, IAgentHostCatalogEncodedPayload } from './agentHostCatalogProjection.js';
@@ -195,7 +196,7 @@ export class AgentHostCatalogSyncService {
 		} else {
 			fence = {
 				count: 1,
-				whenDrained: this._sequencer.queue(sessionKey, async () => { }),
+				whenDrained: this._queue(session, 'deletionFence', async () => { }),
 			};
 			this._deletionFences.set(sessionKey, fence);
 		}
@@ -258,8 +259,8 @@ export class AgentHostCatalogSyncService {
 		if (this.isSessionDeletionFenced(session)) {
 			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
 		}
-		return this._sequencer.queue(
-			session.toString(),
+		return this._queue(
+			session, 'write',
 			async () => {
 				const database = this._sessionDataService.openDatabase(session);
 				try {
@@ -278,7 +279,7 @@ export class AgentHostCatalogSyncService {
 		if (this.isSessionDeletionFenced(session)) {
 			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
 		}
-		return this._sequencer.queue(session.toString(), async () => {
+		return this._queue(session, 'migration', async () => {
 			const database = await this._sessionDataService.tryOpenDatabase(session);
 			try {
 				return await operation(
@@ -293,6 +294,26 @@ export class AgentHostCatalogSyncService {
 		});
 	}
 
+	private _queue<T>(session: URI, kind: 'write' | 'migration' | 'deletionFence', operation: () => Promise<T>): Promise<T> {
+		const operationId = generateUuid();
+		const stopWatch = StopWatch.create();
+		const prefix = `[AgentHostCatalogSync] session=${session.toString()}, operationId=${operationId}, kind=${kind}`;
+		this._logService.trace(`${prefix}, stage=queued`);
+		return this._sequencer.queue(session.toString(), async () => {
+			const queueWaitMs = Math.round(stopWatch.elapsed());
+			const executionStopWatch = StopWatch.create();
+			this._logService.trace(`${prefix}, stage=started, queueWaitMs=${queueWaitMs}`);
+			let outcome = 'failed';
+			try {
+				const result = await operation();
+				outcome = 'completed';
+				return result;
+			} finally {
+				this._logService.trace(`${prefix}, stage=settled, outcome=${outcome}, queueWaitMs=${queueWaitMs}, executionMs=${Math.round(executionStopWatch.elapsed())}`);
+			}
+		});
+	}
+
 	private async _synchronizeWithDatabaseNow(
 		session: URI,
 		request: IAgentHostCatalogSyncRequest,
@@ -300,10 +321,15 @@ export class AgentHostCatalogSyncService {
 	): Promise<AgentHostCatalogSyncResult> {
 		const sessionKey = session.toString();
 		const encoded = this._encode(request.data);
+		const operationId = generateUuid();
+		const stopWatch = StopWatch.create();
 		for (let attempt = 0; attempt < MAX_GENERATION_RETRIES; attempt++) {
+			const traceStage = (stage: string) => this._logService.trace(`[AgentHostCatalogSync] session=${sessionKey}, operationId=${operationId}, attempt=${attempt}, stage=${stage}, elapsedMs=${Math.round(stopWatch.elapsed())}`);
+			traceStage('readLocalReceipt');
 			const existing = await ref.object.getCatalogSyncSnapshot();
 			let central: IAgentHostDatabaseSessionV2 | undefined;
 			try {
+				traceStage('readCentralCatalog');
 				central = await this._catalogDatabase.getSessionV2(sessionKey);
 			} catch (error) {
 				this._logService.warn(`[AgentHostCatalogSync] Failed to read sessions_v2 row for ${sessionKey}`, error);
@@ -314,11 +340,13 @@ export class AgentHostCatalogSyncService {
 
 			const sessionGeneration = central?.sessionGeneration
 				?? (existing?.state === 'pending' ? existing.sessionGeneration : generateUuid());
+			traceStage('readLegacyMetadata');
 			const legacyMetadataMatches = await catalogLegacyMetadataMatches(ref.object, request.legacyMetadata);
 			const sourceRevision = this._sourceRevision(existing, central, sessionGeneration, encoded.payloadHash, legacyMetadataMatches);
 			const snapshot = this._pendingSnapshot(sessionGeneration, sourceRevision, encoded);
 
 			if (existing && existing.sessionGeneration !== sessionGeneration) {
+				traceStage('transitionLocalReceipt');
 				const transitioned = await ref.object.transitionMetadataValuesAndCatalogSyncSnapshot(
 					request.legacyMetadata,
 					existing.sessionGeneration,
@@ -328,16 +356,19 @@ export class AgentHostCatalogSyncService {
 					continue;
 				}
 			} else {
+				traceStage('writeLocalReceipt');
 				const writeResult = await ref.object.setMetadataValuesAndCatalogSyncSnapshot(request.legacyMetadata, snapshot);
 				if (writeResult === 'replayed'
 					&& matchesAcknowledgedCatalogReceipt(existing, central)
 					&& legacyMetadataMatches) {
+					traceStage('acknowledged');
 					return { status: 'acknowledged', sourceRevision };
 				}
 			}
 
 			let upsertResult: AgentHostDatabaseSessionV2UpsertResult;
 			try {
+				traceStage('upsertCentralCatalog');
 				upsertResult = await this._catalogDatabase.upsertSessionV2(
 					this._envelope(sessionKey, sessionGeneration, sourceRevision, encoded),
 					central?.sessionGeneration,
@@ -360,9 +391,11 @@ export class AgentHostCatalogSyncService {
 				projectionVersion: snapshot.projectionVersion,
 				payloadHash: snapshot.payloadHash,
 			};
+			traceStage('acknowledgeLocalReceipt');
 			if (!await ref.object.acknowledgeCatalogSyncSnapshot(acknowledgement)) {
 				return { status: 'pending', sourceRevision, reason: 'acknowledgementSuperseded' };
 			}
+			traceStage('acknowledged');
 			return { status: 'acknowledged', sourceRevision };
 		}
 
@@ -541,11 +574,20 @@ export class AgentHostCatalogSyncService {
 	}
 
 	private async _markPayloadDirty(session: URI): Promise<number | undefined> {
+		const operationId = generateUuid();
+		const stopWatch = StopWatch.create();
+		const prefix = `[AgentHostCatalogSync] session=${session.toString()}, operationId=${operationId}, kind=markPayloadDirty`;
+		this._logService.trace(`${prefix}, stage=started`);
+		let outcome = 'failed';
 		try {
-			return await this._catalogDatabase.markSessionV2PayloadDirty(session.toString());
+			const result = await this._catalogDatabase.markSessionV2PayloadDirty(session.toString());
+			outcome = 'completed';
+			return result;
 		} catch (error) {
 			this._logService.warn(`[AgentHostCatalogSync] Failed to mark sessions_v2 payload dirty for ${session.toString()}`, error);
 			return undefined;
+		} finally {
+			this._logService.trace(`${prefix}, stage=settled, outcome=${outcome}, executionMs=${Math.round(stopWatch.elapsed())}`);
 		}
 	}
 
