@@ -2036,7 +2036,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	// ---- Startup session cache (persistence) -------
 
 	test('skips cached local native sessions with the URI scheme as their provider while retaining healthy entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const storageService = disposables.add(new InMemoryStorageService());
+		const storageService: IStorageService = disposables.add(new InMemoryStorageService());
 		const cacheKey = 'localAgentHost.cachedSessions.v4';
 		const entries = [
 			{ session: 'ahp-session:/poisoned', provider: 'ahp-session', startTime: 1000, modifiedTime: 2000 },
@@ -2079,7 +2079,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const advertisedProvider of ['copilotcli', 'claude', 'codex']) {
 		test(`rebuilds a poisoned local cache from ${advertisedProvider} host metadata and retains it after restart`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-			const storageService = disposables.add(new InMemoryStorageService());
+			const storageService: IStorageService = disposables.add(new InMemoryStorageService());
 			const cacheKey = 'localAgentHost.cachedSessions.v4';
 			const backend = URI.parse('ahp-session:/poisoned');
 			const defaultChat = URI.parse('conversation://tenant/main');
