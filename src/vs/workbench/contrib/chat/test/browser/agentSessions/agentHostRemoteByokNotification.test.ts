@@ -372,6 +372,24 @@ suite('AgentHostRemoteByokNotification', () => {
 		assert.deepStrictEqual([noModels, local, fixture.isVisible()], [false, false, true]);
 	});
 
+	test('waits for session initialization before consuming the one-time warning', () => {
+		const fixture = createFixture({ models: [createModel()] });
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IChatInputNotificationService, fixture.notificationService);
+		const sessionResource = observableValue<URI | undefined>('sessionResource', undefined);
+		const widget = store.add(instantiationService.createInstance(ChatInputNotificationWidget, {
+			inputUri: context().inputUri,
+			modelTargetChatSessionType: constObservable(remoteType),
+			sessionResource,
+		}));
+		const hasWarning = () => !!widget.domNode.querySelector('.chat-input-notification-header');
+		const beforeInitialization = hasWarning();
+		sessionResource.set(context().sessionResource, undefined);
+		const afterInitialization = hasWarning();
+		fixture.notificationService.refresh();
+		assert.deepStrictEqual([beforeInitialization, afterInitialization, hasWarning()], [false, true, true]);
+	});
+
 	test('dismissal lasts for the instance despite model removal, additions, visibility changes and reconnects', () => {
 		const fixture = createFixture({ models: [createModel()] });
 		fixture.show();
@@ -417,6 +435,25 @@ suite('AgentHostRemoteByokNotification', () => {
 		const fixture = createFixture({ models: [createModel()] });
 		fixture.storageService.store(storageKey, true, StorageScope.PROFILE, StorageTarget.USER);
 		assert.strictEqual(fixture.isVisible(), false);
+	});
+
+	test('sending a message does not permanently mute the warning or repeat it in another session', () => {
+		const fixture = createFixture({ models: [createModel()] });
+		fixture.show();
+		fixture.notificationService.handleMessageSent(context());
+		assert.deepStrictEqual({
+			currentSession: fixture.isVisible(),
+			nextSession: fixture.isVisible(context({ sessionResource: URI.parse(`${remoteType}:/second`) })),
+			muted: fixture.storageService.getBoolean(storageKey, StorageScope.PROFILE, false),
+		}, { currentSession: true, nextSession: false, muted: false });
+	});
+
+	test('permanent muting in one profile does not mute a separate profile', async () => {
+		const fixture = createFixture({ models: [createModel()] });
+		await fixture.mute();
+		fixture.contribution.dispose();
+		const anotherProfile = createFixture({ models: [createModel()] });
+		assert.strictEqual(anotherProfile.isVisible(), true);
 	});
 
 	test('never shows while AI features are hidden', () => {

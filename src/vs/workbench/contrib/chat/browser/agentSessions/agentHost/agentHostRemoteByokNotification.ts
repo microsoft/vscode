@@ -90,7 +90,7 @@ export class AgentHostRemoteByokNotificationContribution extends Disposable impl
 	}
 
 	private _isEligible(context: IChatInputNotificationContext): boolean {
-		if (!context.sessionType || !isCopilotAgentHostSessionType(context.sessionType)
+		if (!context.sessionResource || !context.sessionType || !isCopilotAgentHostSessionType(context.sessionType)
 			|| this._chatEntitlementService.sentiment.hidden
 			|| this._storageService.getBoolean(REMOTE_BYOK_NOTIFICATION_DISABLED_STORAGE_KEY, StorageScope.PROFILE, false)) {
 			return false;
