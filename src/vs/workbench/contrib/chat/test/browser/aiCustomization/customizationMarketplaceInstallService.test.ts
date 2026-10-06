@@ -1303,8 +1303,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const fixture = await createFixture({ enabled: true, installProvider: provider });
 		const plugin = { ...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin, marketplaceName: 'owner-catalog' };
 		fixture.marketplaceService.availablePlugins = [plugin];
+		const candidate = configuredPluginResource(plugin);
+		if (isWeb) {
+			await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+			assert.deepStrictEqual({ providerInstalls, trustChecks: fixture.pluginService.trustChecks }, { providerInstalls: 0, trustChecks: [] });
+			return;
+		}
 
-		await fixture.service.install(configuredPluginResource(plugin));
+		await fixture.service.install(candidate);
 
 		assert.deepStrictEqual({
 			providerInstalls,
@@ -1328,8 +1334,14 @@ suite('CustomizationMarketplaceInstallService', () => {
 		const plugin = { ...installedPlugin({ kind: PluginSourceKind.RelativePath, path: 'plugins/demo' }).plugin, marketplaceName: 'owner-catalog' };
 		fixture.marketplaceService.strictMarketplacePolicy = true;
 		fixture.pluginService.trustResult = false;
+		const candidate = configuredPluginResource(plugin);
+		if (isWeb) {
+			await assert.rejects(fixture.service.install(candidate), /not available in VS Code for the Web/);
+			assert.deepStrictEqual({ providerInstalls, trustChecks: fixture.pluginService.trustChecks }, { providerInstalls: 0, trustChecks: [] });
+			return;
+		}
 
-		await assert.rejects(fixture.service.install(configuredPluginResource(plugin)), isCancellationError);
+		await assert.rejects(fixture.service.install(candidate), isCancellationError);
 
 		assert.deepStrictEqual({
 			providerInstalls,
