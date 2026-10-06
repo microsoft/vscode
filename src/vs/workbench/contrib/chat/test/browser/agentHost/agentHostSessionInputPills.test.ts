@@ -408,7 +408,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('offers the complete shared catalog and live subagents for host-advertised chat identities', async () => {
+	test('offers sourced shared kinds and live subagents for host-advertised chat identities', async () => {
 		const mainChat = 'vendor-chat:/conversations/main';
 		const otherChat = 'vendor-chat:/conversations/other';
 		const child = (id: string, status: SessionStatus, parent = mainChat): ChatSummary => ({
@@ -476,7 +476,7 @@ suite('AgentHostSessionInputPills', () => {
 			releasedSubscriptions: harness.connection.released.length === harness.connection.requested.length,
 		}, {
 			hiddenByDefault: [],
-			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes).sort(),
+			offeredKinds: SESSION_CHAT_PILL_KINDS.filter(kind => kind !== SessionChatPillKind.Changes && kind !== SessionChatPillKind.Canvases).sort(),
 			labels: ['3 Subagents'],
 			dropdown: ['Subagents: In Progress', 'Waiting', 'Running', 'Subagents: Completed', 'Completed'],
 			commands: [{

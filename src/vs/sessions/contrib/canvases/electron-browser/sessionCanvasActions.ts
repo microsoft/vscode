@@ -6,14 +6,13 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { localize } from '../../../../nls.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService } from '../common/sessionCanvas.js';
+import { getSessionCanvasInstanceLabels, getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
 
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
 
@@ -58,13 +57,14 @@ class CanvasAddTabActionRegistration extends Disposable {
 	}
 }
 
-export function registerSessionCanvasAddTabActions(canvasService: ISessionCanvasService): IDisposable {
+export function registerSessionCanvasActions(canvasService: ISessionCanvasService): IDisposable {
 	const store = new DisposableStore();
 	const registrations = store.add(new DisposableMap<string, CanvasAddTabActionRegistration>());
 	let commandSequence = 0;
+	store.add(CommandsRegistry.registerCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, (_accessor, reference: ISessionCanvasReference) => canvasService.revealCanvas(reference)));
 	store.add(autorun(reader => {
 		const targets = canvasService.reopenableCanvases.read(reader);
-		const labels = getCanvasInstanceLabels(targets);
+		const labels = getSessionCanvasInstanceLabels(targets.map(target => target.canvas));
 		const activeKeys = new Set<string>();
 		for (let index = 0; index < targets.length; index++) {
 			const target = targets[index];
@@ -88,47 +88,4 @@ export function registerSessionCanvasAddTabActions(canvasService: ISessionCanvas
 		}
 	}));
 	return store;
-}
-
-function getCanvasInstanceLabels(targets: readonly ISessionCanvasReopenTarget[]): string[] {
-	const titleCounts = new Map<string, number>();
-	const instanceIdCounts = new Map<string, number>();
-	for (const { canvas } of targets) {
-		titleCounts.set(canvas.title, (titleCounts.get(canvas.title) ?? 0) + 1);
-		if (canvas.instanceId) {
-			instanceIdCounts.set(canvas.instanceId, (instanceIdCounts.get(canvas.instanceId) ?? 0) + 1);
-		}
-	}
-
-	const labels = new Array<string>(targets.length);
-	const usedLabels = new Set<string>();
-	for (let index = 0; index < targets.length; index++) {
-		const { canvas } = targets[index];
-		if (titleCounts.get(canvas.title) === 1) {
-			labels[index] = canvas.title;
-			usedLabels.add(canvas.title);
-		}
-	}
-
-	const titleIndexes = new Map<string, number>();
-	for (let index = 0; index < targets.length; index++) {
-		const { canvas } = targets[index];
-		if (titleCounts.get(canvas.title) === 1) {
-			continue;
-		}
-
-		const titleIndex = (titleIndexes.get(canvas.title) ?? 0) + 1;
-		titleIndexes.set(canvas.title, titleIndex);
-		const instanceLabel = canvas.instanceId && instanceIdCounts.get(canvas.instanceId) === 1
-			? canvas.instanceId
-			: String(titleIndex);
-		let label = localize('canvas.instanceTitle', "{0} ({1})", canvas.title, instanceLabel);
-		let collisionIndex = 2;
-		while (usedLabels.has(label)) {
-			label = localize('canvas.instanceTitleCollision', "{0} ({1}, {2})", canvas.title, instanceLabel, String(collisionIndex++));
-		}
-		labels[index] = label;
-		usedLabels.add(label);
-	}
-	return labels;
 }
