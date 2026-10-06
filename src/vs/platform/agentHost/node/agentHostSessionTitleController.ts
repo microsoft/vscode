@@ -34,7 +34,7 @@ const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
-const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.';
+const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.';
 const TITLE_GENERATION_STRATEGY_KEY = 'titleGenerationStrategy';
 const DEFERRED_TITLE_SEED_KEY = 'deferredTitleSeed';
 /** Upper bound on review reminders per chat, so an accurate title is not re-reviewed on every turn. */
@@ -44,11 +44,11 @@ export type AutomaticTitleGenerationStrategy = AgentHostTitleGenerationStrategy;
 
 /** Whether the host seeds and refines titles itself instead of asking the active agent to name chats. */
 function isDeferredTitleGenerationStrategy(strategy: AutomaticTitleGenerationStrategy | undefined): boolean {
-	return strategy === 'deferred' || strategy === 'deferredAgentReview';
+	return strategy === 'deferred' || strategy === 'agentReview';
 }
 
 function isAutomaticTitleGenerationStrategy(value: string | undefined): value is AutomaticTitleGenerationStrategy {
-	return AgentHostTitleGenerationStrategies.some(strategy => strategy === value);
+	return value === 'deferred' || AgentHostTitleGenerationStrategies.some(strategy => strategy === value);
 }
 
 function chatTitleReviewReminder(currentTitle: string): string {
@@ -570,7 +570,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 		const strategy = this.getAutomaticTitleGenerationStrategy(channel);
-		if (strategy !== 'activeAgent' && strategy !== 'deferredAgentReview') {
+		if (strategy !== 'activeAgent' && strategy !== 'agentReview') {
 			return undefined;
 		}
 		const independentChat = this._independentChatChannel(channel, chatChannel);
@@ -579,7 +579,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 		// Review mode leaves a fresh seed to the host's first-response refinement before inviting a rename.
-		if (strategy === 'deferredAgentReview' && !this._canOfferTitleReview(channel, independentChat, key)) {
+		if (strategy === 'agentReview' && !this._canOfferTitleReview(channel, independentChat, key)) {
 			return undefined;
 		}
 		const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
@@ -592,7 +592,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 
-		if (strategy === 'deferredAgentReview') {
+		if (strategy === 'agentReview') {
 			const currentTitle = this._currentSeedTitle(channel, independentChat);
 			if (!currentTitle) {
 				return undefined;

@@ -393,7 +393,7 @@ suite('SessionServerTools', () => {
 				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			});
 			const host = new AgentServerToolHost(stateManager, [createSessionServerToolGroup(createAccessor({
-				getAutomaticTitleGenerationStrategy: () => 'deferredAgentReview',
+				getAutomaticTitleGenerationStrategy: () => 'agentReview',
 			}))]);
 			host.advertise(session);
 			const definition = host.getDefinitionsForSession(session).find(tool => tool.name === SessionServerToolName.RenameChat);

@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import { AgentHostActiveAgentTitleGenerationSettingId, AgentHostDeferredTitleGenerationSettingId, AgentHostTitleGenerationSettingId } from '../../../../platform/agentHost/common/agentService.js';
-import { titleGenerationStrategyFromLegacySettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
+import { migrateLegacyTitleGenerationSettings } from '../../../../platform/agentHost/common/titleGenerationConfiguration.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -166,7 +166,7 @@ for (const key of [AgentHostDeferredTitleGenerationSettingId, AgentHostActiveAge
 		migrateFn: (value, accessor) => {
 			const pairs: ConfigurationKeyValuePairs = [[key, { value: undefined }]];
 			if (accessor(AgentHostTitleGenerationSettingId) === undefined) {
-				const strategy = titleGenerationStrategyFromLegacySettings(
+				const strategy = migrateLegacyTitleGenerationSettings(
 					key === AgentHostDeferredTitleGenerationSettingId ? value : accessor(AgentHostDeferredTitleGenerationSettingId),
 					key === AgentHostActiveAgentTitleGenerationSettingId ? value : accessor(AgentHostActiveAgentTitleGenerationSettingId),
 				);

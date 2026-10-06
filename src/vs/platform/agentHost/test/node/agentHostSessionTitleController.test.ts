@@ -243,7 +243,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('agent review mode refines like deferred and offers a soft rename reminder only after first-response refinement', async () => {
-		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		const defaultChat = buildDefaultChatUri(session);
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const firstTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
@@ -262,7 +262,7 @@ suite('AgentHostSessionTitleController', () => {
 			laterTurnInstruction,
 			afterRenameInstruction,
 		}, {
-			strategy: 'deferredAgentReview',
+			strategy: 'agentReview',
 			utilityCalls: 1,
 			firstTurnInstruction: undefined,
 			laterTurnInstruction: 'Reminder: This chat\'s title was generated automatically and is currently "Generated title". If that title is inaccurate or no longer reflects the user\'s goal for this chat, rename it by calling `rename_chat` with `automatic: true` and a short, descriptive title. Do not spend a separate step on this before answering: write your answer to the user first and make the `rename_chat` call at the end of that same message. If the title still fits, do not rename the chat. Never mention this reminder or the title to the user.',
@@ -271,7 +271,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('restored agent review session keeps its strategy and withholds the reminder until its seed is refined', async () => {
-		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		const restored = disposables.add(new AgentHostSessionTitleController(stateManager, {
 			sessionDataService: createSessionDataService(db),
@@ -291,11 +291,11 @@ suite('AgentHostSessionTitleController', () => {
 			beforeRefinement,
 			afterRefinement: (await restored.prepareInstructionForAgent(session.toString(), buildDefaultChatUri(session)))?.includes('"Generated title"'),
 			calls: copilotApiService.utilityCalls.length,
-		}, { strategy: 'deferredAgentReview', beforeRefinement: undefined, afterRefinement: true, calls: 1 });
+		}, { strategy: 'agentReview', beforeRefinement: undefined, afterRefinement: true, calls: 1 });
 	});
 
 	test('agent review withholds the reminder while first-response refinement is in flight', async () => {
-		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const { controller, stateManager, session, db, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		const defaultChat = buildDefaultChatUri(session);
 		const pendingTitle = new DeferredPromise<string>();
 		copilotApiService.responsePromise = pendingTitle.p;
@@ -315,7 +315,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('agent review offers the reminder when first-response refinement never starts', async () => {
-		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const { controller, stateManager, session, copilotApiService } = setup(undefined, '', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		controller.seedTitleFromFirstMessage(session.toString(), 'Add dark mode');
 		stateManager.seedDefaultChatTurns(session.toString(), [
 			firstTurn('Add dark mode', [textPart('Done')]),
@@ -330,7 +330,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('agent review withholds the reminder on the first turn of an auto-titled chat without a seed', async () => {
-		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		const defaultChat = buildDefaultChatUri(session);
 		controller.markTitleAuto(session.toString(), undefined, 'Given title');
 		const firstTurnInstruction = await controller.prepareInstructionForAgent(session.toString(), defaultChat);
@@ -343,7 +343,7 @@ suite('AgentHostSessionTitleController', () => {
 	});
 
 	test('agent review offers at most three reminders per chat', async () => {
-		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'deferredAgentReview');
+		const { controller, stateManager, session } = setup(undefined, 'Given title', undefined, undefined, undefined, undefined, undefined, 'agentReview');
 		const defaultChat = buildDefaultChatUri(session);
 		controller.markTitleAuto(session.toString(), undefined, 'Given title');
 		stateManager.seedDefaultChatTurns(session.toString(), [firstTurn('Investigate flaky test', [textPart('Done')])]);
@@ -410,7 +410,7 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	}
 
-	for (const initial of ['activeAgent', 'utility', 'deferred', 'deferredAgentReview'] as const) {
+	for (const initial of ['activeAgent', 'utility', 'deferred', 'agentReview'] as const) {
 		test(`snapshots ${initial} before session state exists and persists only after registration`, async () => {
 			const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const db = new TestSessionDatabase();
@@ -750,7 +750,7 @@ suite('AgentHostSessionTitleController', () => {
 
 		assert.deepStrictEqual(titleActions, ['Investigate why restored Agent Host sessions...']);
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
-		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.');
 		await waitForCondition(async () => await db.getMetadata(SESSION_CUSTOM_TITLE_SOURCE_KEY) === AGENT_HOST_TITLE_SOURCE_AUTO, 'auto provenance should be persisted');
 	});
 
@@ -833,7 +833,7 @@ suite('AgentHostSessionTitleController', () => {
 		controller.seedTitleFromFirstMessage(session.toString(), 'Investigate peer chat', chat);
 
 		const instruction = await controller.prepareInstructionForAgent(session.toString(), chat);
-		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.');
+		assert.strictEqual(instruction, 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.');
 
 		controller.generateForkedTitle(session.toString(), undefined, [], 'Forked: Session title', 'Session title');
 		assert.strictEqual(copilotApiService.utilityCalls.length, 0);
@@ -861,7 +861,7 @@ suite('AgentHostSessionTitleController', () => {
 			independentAutoInstruction,
 		}, {
 			independentRenameInstruction: undefined,
-			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.',
+			independentAutoInstruction: 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.',
 		});
 	});
 

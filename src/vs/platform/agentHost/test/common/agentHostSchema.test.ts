@@ -38,7 +38,7 @@ suite('agentHostSchema', () => {
 				type: properties[AgentHostTitleGenerationConfigKey].type,
 				enum: properties[AgentHostTitleGenerationConfigKey].enum,
 				default: properties[AgentHostTitleGenerationConfigKey].default,
-				rejectsUnknownStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'unknown'),
+				rejectsUnselectableStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'deferred'),
 			},
 			legacyActiveAgent: {
 				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
@@ -49,7 +49,7 @@ suite('agentHostSchema', () => {
 				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
 			},
 		}, {
-			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'deferred', 'deferredAgentReview'], default: 'utility', rejectsUnknownStrategy: true },
+			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'agentReview'], default: 'utility', rejectsUnselectableStrategy: true },
 			legacyActiveAgent: { type: 'boolean', default: false },
 			legacyDeferred: { type: 'boolean', default: false },
 		});

@@ -255,13 +255,13 @@ suite('Chat configuration', () => {
 			deferredOff: await deferredMigration?.migrateFn(false, () => undefined),
 			activeAgentOff: await activeAgentMigration?.migrateFn(false, () => undefined),
 			activeAgentOffWithDeferredOn: await activeAgentMigration?.migrateFn(false, setting => setting === deferredSetting ? true : undefined),
-			activeAgentOnWithStrategySet: await activeAgentMigration?.migrateFn(true, setting => setting === strategySetting ? 'deferredAgentReview' : undefined),
+			activeAgentOnWithStrategySet: await activeAgentMigration?.migrateFn(true, setting => setting === strategySetting ? 'agentReview' : undefined),
 		}, {
 			application: [true, true],
-			deferredOn: [[deferredSetting, { value: undefined }], [strategySetting, { value: 'deferred' }]],
+			deferredOn: [[deferredSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
 			deferredOff: [[deferredSetting, { value: undefined }]],
 			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
-			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'deferred' }]],
+			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
 			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
 		});
 	});

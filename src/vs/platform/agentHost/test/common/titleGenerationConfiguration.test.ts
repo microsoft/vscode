@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ConfigurationScope } from '../../../configuration/common/configurationRegistry.js';
 import { AgentHostTitleGenerationConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostTitleGenerationSettingId } from '../../common/agentService.js';
-import { resolveTitleGenerationStrategy, titleGenerationConfigurationProperties, titleGenerationStrategyFromLegacySettings } from '../../common/titleGenerationConfiguration.js';
+import { migrateLegacyTitleGenerationSettings, resolveTitleGenerationStrategy, titleGenerationConfigurationProperties } from '../../common/titleGenerationConfiguration.js';
 
 suite('TitleGenerationConfiguration', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,33 +27,33 @@ suite('TitleGenerationConfiguration', () => {
 		}, {
 			settingIds: ['chat.agentHost.experimental.titleGeneration'],
 			type: 'string',
-			enum: ['utility', 'activeAgent', 'deferred', 'deferredAgentReview'],
-			enumDescriptions: 4,
+			enum: ['utility', 'activeAgent', 'agentReview'],
+			enumDescriptions: 3,
 			scope: ConfigurationScope.APPLICATION,
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostTitleGenerationConfigKey },
 		});
 	});
 
-	test('legacy boolean settings map onto a strategy only when they select one', () => {
+	test('legacy boolean settings migrate to a selectable strategy only when they select one', () => {
 		assert.deepStrictEqual([
-			titleGenerationStrategyFromLegacySettings(true, true),
-			titleGenerationStrategyFromLegacySettings(true, undefined),
-			titleGenerationStrategyFromLegacySettings(false, true),
-			titleGenerationStrategyFromLegacySettings(undefined, false),
-			titleGenerationStrategyFromLegacySettings(false, undefined),
-			titleGenerationStrategyFromLegacySettings(undefined, undefined),
-			titleGenerationStrategyFromLegacySettings('true', 'false'),
-		], ['deferred', 'deferred', 'activeAgent', 'utility', undefined, undefined, undefined]);
+			migrateLegacyTitleGenerationSettings(true, true),
+			migrateLegacyTitleGenerationSettings(true, undefined),
+			migrateLegacyTitleGenerationSettings(false, true),
+			migrateLegacyTitleGenerationSettings(undefined, false),
+			migrateLegacyTitleGenerationSettings(false, undefined),
+			migrateLegacyTitleGenerationSettings(undefined, undefined),
+			migrateLegacyTitleGenerationSettings('true', 'false'),
+		], ['agentReview', 'agentReview', 'activeAgent', 'utility', undefined, undefined, undefined]);
 	});
 
-	test('host prefers the strategy key and falls back to legacy keys from older clients', () => {
+	test('host prefers the strategy key and keeps legacy deferred naming for older clients', () => {
 		assert.deepStrictEqual([
-			resolveTitleGenerationStrategy('deferredAgentReview', false, true),
+			resolveTitleGenerationStrategy('agentReview', false, true),
 			resolveTitleGenerationStrategy('utility', true, true),
 			resolveTitleGenerationStrategy(undefined, true, true),
 			resolveTitleGenerationStrategy(undefined, false, true),
 			resolveTitleGenerationStrategy(undefined, undefined, undefined),
-		], ['deferredAgentReview', 'utility', 'deferred', 'activeAgent', 'utility']);
+		], ['agentReview', 'utility', 'deferred', 'activeAgent', 'utility']);
 	});
 });

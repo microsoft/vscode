@@ -564,14 +564,17 @@ export const AgentHostActiveAgentTitleGenerationConfigKey = 'activeAgentTitleGen
 export const AgentHostDeferredTitleGenerationConfigKey = 'deferredTitleGeneration';
 
 /**
+ * Strategies selectable for new sessions:
  * - `utility`: a utility model names chats immediately.
  * - `activeAgent`: the active agent names chats through `rename_chat`.
- * - `deferred`: the host seeds a title and refines it with a utility model after the first response.
- * - `deferredAgentReview`: `deferred` naming, plus a soft reminder that lets the active agent
- *   rename the chat when the host-generated title no longer fits.
+ * - `agentReview`: the host seeds a title and refines it with a utility model after the first
+ *   response, and a soft reminder lets the active agent rename the chat when that title no longer fits.
  */
-export const AgentHostTitleGenerationStrategies = ['utility', 'activeAgent', 'deferred', 'deferredAgentReview'] as const;
-export type AgentHostTitleGenerationStrategy = typeof AgentHostTitleGenerationStrategies[number];
+export const AgentHostTitleGenerationStrategies = ['utility', 'activeAgent', 'agentReview'] as const;
+export type AgentHostSelectableTitleGenerationStrategy = typeof AgentHostTitleGenerationStrategies[number];
+
+/** `deferred` is `agentReview` without the reminder; it is kept for existing sessions and the legacy boolean key. */
+export type AgentHostTitleGenerationStrategy = AgentHostSelectableTitleGenerationStrategy | 'deferred';
 
 /** Root config key controlling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledConfigKey = 'markdownPlanRichLinksEnabled';
@@ -930,7 +933,7 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.deferredTitleGeneration.description', "Seed titles immediately and refine them in the background if the first response turn completes successfully, without asking the active agent to name chats. Explicit rename tools remain available. Overrides active agent title generation for new sessions; existing sessions and their chats retain their strategy."),
 		default: false,
 	}),
-	[AgentHostTitleGenerationConfigKey]: schemaProperty<AgentHostTitleGenerationStrategy>({
+	[AgentHostTitleGenerationConfigKey]: schemaProperty<AgentHostSelectableTitleGenerationStrategy>({
 		type: 'string',
 		title: localize('agentHost.config.titleGeneration.title', "Title Generation"),
 		description: localize('agentHost.config.titleGeneration.description', "Controls how new sessions and chats get an automatic title. Takes precedence over the legacy active agent and deferred title generation keys. Changes apply to new sessions; existing sessions and their chats retain their strategy."),
@@ -938,8 +941,7 @@ export const platformRootSchema = createSchema({
 		enumDescriptions: [
 			localize('agentHost.config.titleGeneration.utility', "A utility model generates titles immediately."),
 			localize('agentHost.config.titleGeneration.activeAgent', "The active agent names sessions and chats with rename tools."),
-			localize('agentHost.config.titleGeneration.deferred', "Seed titles immediately and refine them in the background after the first response turn completes successfully."),
-			localize('agentHost.config.titleGeneration.deferredAgentReview', "Use deferred title generation and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal."),
+			localize('agentHost.config.titleGeneration.agentReview', "Seed titles immediately, refine them in the background after the first response turn completes successfully, and remind the active agent that it may rename a chat when the generated title is inaccurate or no longer reflects the user's goal."),
 		],
 		default: 'utility',
 	}),
