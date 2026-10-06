@@ -35,6 +35,12 @@ export interface IButtonConfig {
 	customLabelObs?: IObservable<string | IMarkdownString | undefined>;
 	customClass?: string;
 	/**
+	 * Selects the control-owned spacing between a leading icon or spinner and
+	 * its label. Defaults to `compact`, which preserves the existing button bar
+	 * layout.
+	 */
+	iconLabelSpacing?: 'compact' | 'default';
+	/**
 	 * Renders an animated spinner ahead of the label, for a button whose work
 	 * is currently in flight rather than waiting to be started.
 	 *
@@ -187,11 +193,14 @@ export class WorkbenchButtonBar extends ButtonBar {
 			const leading = showSpinner
 				? this._updateStore.add(createPixelSpinner()).element
 				: showIcon && showLabel ? renderActionIcon() : undefined;
+			const contentButton = btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element;
 			if (leading) {
 				leading.classList.add('monaco-button-leading-icon');
-				if (!showLabel) {
-					// Nothing follows it, so it carries no gap to a label.
-					leading.classList.add('monaco-button-leading-icon-only');
+				if (showLabel) {
+					contentButton.classList.add(
+						'monaco-button-with-leading-icon',
+						`monaco-button-icon-label-spacing-${config?.iconLabelSpacing ?? 'compact'}`,
+					);
 				}
 			}
 
@@ -199,7 +208,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			// is (re-)attached after every label write rather than once up front.
 			const applyLeading = () => {
 				if (leading) {
-					(btn instanceof ButtonWithDropdown ? btn.primaryButton.element : btn.element).prepend(leading);
+					contentButton.prepend(leading);
 				}
 			};
 
