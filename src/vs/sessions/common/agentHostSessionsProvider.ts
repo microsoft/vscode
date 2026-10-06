@@ -186,6 +186,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** False when the host inventory is owned externally and cannot be removed locally. */
+	readonly canRemove?: boolean;
 	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
 	setDisplayName?(name: string | undefined): void;
 	/**
