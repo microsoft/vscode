@@ -276,6 +276,7 @@ export interface IChatInputPartOptions {
 	renderFollowups: boolean;
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
+	renderSecondaryToolbar?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -434,6 +435,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
 	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
+	private readonly _onDidChangeDraft = this._register(new Emitter<void>());
+	readonly onDidChangeDraft = this._onDidChangeDraft.event;
 	private readonly _toolbarRelayoutScheduler = this._register(new RunOnceScheduler(() => {
 		this.layoutForToolbarChange();
 	}, 0));
@@ -729,6 +732,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	// Flag to prevent circular updates between view and model
 	private _isSyncingToOrFromInputModel = false;
+	private _isRestoringAttachments = false;
 
 	// Debounced scheduler for syncing text changes
 	private readonly _syncTextDebounced: RunOnceScheduler;
@@ -940,6 +944,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _currentSessionTypeObservable = observableValue<string | undefined>(this, undefined);
 	private get _currentSessionType(): string | undefined { return this._currentSessionTypeObservable.get(); }
 	private set _currentSessionType(value: string | undefined) { this._currentSessionTypeObservable.set(value, undefined); }
+
+	/** The session type (harness) whose models this input selects from. */
+	get modelTargetSessionType(): string | undefined { return this._currentSessionType ?? this.getCurrentSessionType(); }
 	private readonly _currentSessionResourceObservable = observableValue<URI | undefined>(this, undefined);
 	private readonly _currentSessionModelObservable = observableValue<IChatModel | undefined>(this, undefined);
 	private readonly _deferredNotificationsEnabled = observableValue(this, true);
@@ -1498,6 +1505,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			},
 			getModels: () => this.getModels(),
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
+			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
 			getPresentationOptions: () => this._getModelPickerPresentationOptions(),
 			modelConfiguration: this._modelConfigStore,
@@ -2195,6 +2203,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.resetToDefault(this.getCurrentSessionType());
 	}
 
+	private _createDraftChangeListeners(): DisposableStore {
+		const store = new DisposableStore();
+		store.add(this._inputEditor.onDidType(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidPaste(() => this._onDidChangeDraft.fire()));
+		store.add(this._inputEditor.onDidCompositionEnd(() => this._onDidChangeDraft.fire()));
+		store.add(this._attachmentModel.onDidChange(event => {
+			if (event.added.length > 0 && !this._isSyncingToOrFromInputModel && !this._isRestoringAttachments) {
+				this._onDidChangeDraft.fire();
+			}
+		}));
+		return store;
+	}
+
 	/**
 	 * Get the current input state for history
 	 */
@@ -2406,7 +2427,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}))).filter(isDefined);
 		}
 
-		this._attachmentModel.clearAndSetContext(...restored);
+		this._isRestoringAttachments = true;
+		try {
+			this._attachmentModel.clearAndSetContext(...restored);
+		} finally {
+			this._isRestoringAttachments = false;
+		}
 	}
 
 	private async navigateHistory(previous: boolean): Promise<void> {
@@ -3113,9 +3139,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const store = new DisposableStore();
 		this._contextUsageDisposables.value = store;
 		let lastRequest = model.lastRequest;
+		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				store.add(request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3124,9 +3151,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		store.add(model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
-				observePreviousResponse(lastRequest);
-				lastRequest = e.request;
+				if (e.replacedRequest) {
+					previousResponseListeners.deleteAndDispose(e.replacedRequest.id);
+				}
+				if (lastRequest !== model.lastRequest && lastRequest !== e.replacedRequest) {
+					observePreviousResponse(lastRequest);
+				}
+				if (e.request !== model.lastRequest) {
+					observePreviousResponse(e.request);
+				}
+				lastRequest = model.lastRequest;
 				this.contextUsageWidget?.update(model.lastRequest);
+			} else if (e.kind === 'removeRequest') {
+				previousResponseListeners.deleteAndDispose(e.requestId);
+				if (lastRequest !== model.lastRequest) {
+					lastRequest = model.lastRequest;
+					if (lastRequest) {
+						previousResponseListeners.deleteAndDispose(lastRequest.id);
+					}
+					this.contextUsageWidget?.update(lastRequest);
+				}
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}
@@ -3562,6 +3607,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// Debounced sync to model for text changes
 			this._syncTextDebounced.schedule();
 		}));
+		this._register(this._createDraftChangeListeners());
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged && !this.ignoreInputEditorContentSizeChanges) {
 				this.inputEditorHeight = !this.inline ? e.contentHeight : this.inputEditorHeight;
@@ -3704,6 +3750,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				kind: 'last',
 				minItems: 2,
 				actionMinWidth: 48,
+				// Let the pickers yield to the execute toolbar so that a narrow
+				// input never pushes the send button out of view.
+				reserveMinWidth: false,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
 				getOverflowAction: (action, getAnchor) => getOverflowAction(action, inputToolbarMenu, inputOverflowPickerHandlers, getAnchor, toolbarsContainer),
@@ -3936,154 +3985,158 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const gap = Number.parseFloat(dom.getWindow(responsivePickerContainer).getComputedStyle(responsivePickerContainer).columnGap) || 0;
 			return Math.max(0, laneWidth - genericChipsContainer.getBoundingClientRect().width - gap);
 		};
-		this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
-			telemetrySource: this.options.menus.telemetrySource,
-			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			hoverDelegate,
-			responsiveBehavior: {
-				enabled: true,
-				kind: 'all',
-				minItems: 1,
-				actionMinWidth: 48,
-				getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
-				observedElement: responsivePickerContainer,
-				getAvailableWidth: getSecondaryToolbarAvailableWidth,
-				allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
-				getOverflowAction: (action, getAnchor) => getOverflowAction(action, MenuId.ChatInputSecondary, secondaryOverflowPickerHandlers, getAnchor, responsivePickerContainer, this.options.secondaryToolbarOverflowActionHandler),
-			},
-			actionViewItemProvider: (action, options) => {
-				const agentHostPickerProperty = getAgentHostPickerProperty(action.id);
-				const customSecondaryItem = this.options.secondaryToolbarActionViewItemProvider?.(action, options);
-				if (customSecondaryItem) {
-					getCompactState(secondaryPickerCompactStates, action.id);
-					return customSecondaryItem;
-				}
-				if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
-					const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
-						getActiveSessionProvider: () => {
-							return this.getActiveSessionTypeForDelegation();
-						},
-						getSessionResource: () => this._currentSessionResourceObservable.get(),
-						getPendingDelegationTarget: () => {
-							return this._pendingDelegationTarget;
-						},
-						setPendingDelegationTarget: (provider: AgentSessionTarget) => {
-							this.setPendingDelegationTarget(provider);
-						},
-						hasGitRepository: () => this.hasWorkspaceScmRepository(),
-					};
-					const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
-					const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
-					const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id), this.inputUri);
-					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-					const picker = createPicker();
-					if (picker instanceof DelegationSessionPickerActionItem) {
-						this.delegationWidget = picker;
-					} else {
-						this.sessionTargetWidget = picker;
+		if (this.options.renderSecondaryToolbar !== false) {
+			this.secondaryToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, responsivePickerContainer, MenuId.ChatInputSecondary, {
+				telemetrySource: this.options.menus.telemetrySource,
+				menuOptions: { shouldForwardArgs: true },
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				hoverDelegate,
+				responsiveBehavior: {
+					enabled: true,
+					kind: 'all',
+					minItems: 1,
+					actionMinWidth: 48,
+					getActionMinWidth: action => secondaryPickerMinWidths.get(action.id) ?? (secondaryPickerCompactStates.get(action.id)?.get() ? 22 : undefined),
+					observedElement: responsivePickerContainer,
+					getAvailableWidth: getSecondaryToolbarAvailableWidth,
+					allowOverflow: () => this._secondaryPickerResponsiveLayout?.areAllItemsCompact() === true,
+					getOverflowAction: (action, getAnchor) => getOverflowAction(action, MenuId.ChatInputSecondary, secondaryOverflowPickerHandlers, getAnchor, responsivePickerContainer, this.options.secondaryToolbarOverflowActionHandler),
+				},
+				actionViewItemProvider: (action, options) => {
+					const agentHostPickerProperty = getAgentHostPickerProperty(action.id);
+					const customSecondaryItem = this.options.secondaryToolbarActionViewItemProvider?.(action, options);
+					if (customSecondaryItem) {
+						getCompactState(secondaryPickerCompactStates, action.id);
+						return customSecondaryItem;
 					}
-					return picker;
-				} else if (action.id === OpenWorkspacePickerAction.ID && action instanceof MenuItemAction) {
-					const workspacePickerDelegate = this.options.workspacePickerDelegate;
-					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && workspacePickerDelegate) {
-						const createPicker = () => this.instantiationService.createInstance(WorkspacePickerActionItem, action, workspacePickerDelegate, getSecondaryPickerOptions(action.id));
+					if ((action.id === OpenSessionTargetPickerAction.ID || action.id === OpenDelegationPickerAction.ID) && action instanceof MenuItemAction) {
+						const delegate: ISessionTypePickerDelegate = this.options.sessionTypePickerDelegate ?? {
+							getActiveSessionProvider: () => {
+								return this.getActiveSessionTypeForDelegation();
+							},
+							getSessionResource: () => this._currentSessionResourceObservable.get(),
+							getPendingDelegationTarget: () => {
+								return this._pendingDelegationTarget;
+							},
+							setPendingDelegationTarget: (provider: AgentSessionTarget) => {
+								this.setPendingDelegationTarget(provider);
+							},
+							hasGitRepository: () => this.hasWorkspaceScmRepository(),
+						};
+						const isWelcomeViewMode = !!this.options.sessionTypePickerDelegate?.setActiveSessionProvider;
+						const Picker = (action.id === OpenSessionTargetPickerAction.ID || isWelcomeViewMode) ? SessionTypePickerActionItem : DelegationSessionPickerActionItem;
+						const createPicker = () => this.instantiationService.createInstance(Picker, action, location === ChatWidgetLocation.Editor ? 'editor' : 'sidebar', delegate, getSecondaryPickerOptions(action.id), this.inputUri);
+						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+						const picker = createPicker();
+						if (picker instanceof DelegationSessionPickerActionItem) {
+							this.delegationWidget = picker;
+						} else {
+							this.sessionTargetWidget = picker;
+						}
+						return picker;
+					} else if (action.id === OpenWorkspacePickerAction.ID && action instanceof MenuItemAction) {
+						const workspacePickerDelegate = this.options.workspacePickerDelegate;
+						if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY && workspacePickerDelegate) {
+							const createPicker = () => this.instantiationService.createInstance(WorkspacePickerActionItem, action, workspacePickerDelegate, getSecondaryPickerOptions(action.id));
+							secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+							return createPicker();
+						} else {
+							return new HiddenActionViewItem(action);
+						}
+					} else if (action.id === OpenPermissionPickerAction.ID && action instanceof MenuItemAction) {
+						const delegate: IPermissionPickerDelegate = {
+							currentPermissionLevel: this._currentPermissionLevel,
+							setPermissionLevel: (level: ChatPermissionLevel) => {
+								this.setPermissionLevel(level);
+							},
+							getExtensionPermissions: () => {
+								const sessionResource = this.getCurrentSessionResource();
+								const group = this.getActiveExtensionPermissionGroup(sessionResource);
+								if (!group) {
+									return undefined;
+								}
+								const current = sessionResource ? this.chatSessionsService.getSessionOption(sessionResource, group.id) : undefined;
+								const defaultId = group.selected?.id ?? group.items.find(i => i.default)?.id;
+								const rawSelectedId = current === undefined
+									? defaultId
+									: typeof current === 'string' ? current : current.id;
+								const selectedId = rawSelectedId !== undefined && group.items.some(i => i.id === rawSelectedId)
+									? rawSelectedId
+									: defaultId;
+								const sessionType = sessionResource
+									? getChatSessionType(sessionResource)
+									: (this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? '');
+								return { sessionType, groupId: group.id, items: group.items, selectedId };
+							},
+							setExtensionPermission: (groupId: string, item: IChatSessionProviderOptionItem) => {
+								this.updateOptionContextKey(groupId, item.id);
+								this.getOrCreateOptionEmitter(groupId).fire(item);
+								const sessionResource = this.getCurrentSessionResource();
+								if (sessionResource) {
+									this.chatSessionsService.setSessionOption(sessionResource, groupId, item);
+								}
+								this.permissionWidget?.refresh();
+							},
+							isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
+						};
+						const createPicker = () => this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, getSecondaryPickerOptions(action.id));
+						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+						const widget = createPicker();
+						this.permissionWidget = widget;
+						this.permissionWidgetDisposeListener.value = widget.onDidDispose(() => {
+							if (this.permissionWidget === widget) {
+								this.permissionWidget = undefined;
+							}
+							this.permissionWidgetDisposeListener.clear();
+						});
+						return widget;
+					} else if (agentHostPickerProperty && action instanceof MenuItemAction) {
+						if (this.options.isSessionsWindow) {
+							return new HiddenActionViewItem(action);
+						}
+						getCompactState(secondaryPickerCompactStates, action.id);
+						const createPicker = () => this.instantiationService.createInstance(AgentHostChatInputPicker, widget, agentHostPickerProperty);
+						secondaryOverflowPickerHandlers.set(action.id, anchor => {
+							const picker = createPicker();
+							this.overflowPickerWidget.value = picker;
+							picker.show(anchor);
+						});
+						return new AgentHostChatInputPickerActionViewItem(action, createPicker());
+					} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
+						if (this.options.isSessionsWindow) {
+							return new HiddenActionViewItem(action);
+						}
+						const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
 						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
 						return createPicker();
-					} else {
-						return new HiddenActionViewItem(action);
+					} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
+						const createPicker = () => {
+							const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
+							return widgets.length === 0 ? undefined : this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
+						};
+						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
+						return createPicker() ?? new HiddenActionViewItem(action);
 					}
-				} else if (action.id === OpenPermissionPickerAction.ID && action instanceof MenuItemAction) {
-					const delegate: IPermissionPickerDelegate = {
-						currentPermissionLevel: this._currentPermissionLevel,
-						setPermissionLevel: (level: ChatPermissionLevel) => {
-							this.setPermissionLevel(level);
-						},
-						getExtensionPermissions: () => {
-							const sessionResource = this.getCurrentSessionResource();
-							const group = this.getActiveExtensionPermissionGroup(sessionResource);
-							if (!group) {
-								return undefined;
-							}
-							const current = sessionResource ? this.chatSessionsService.getSessionOption(sessionResource, group.id) : undefined;
-							const defaultId = group.selected?.id ?? group.items.find(i => i.default)?.id;
-							const rawSelectedId = current === undefined
-								? defaultId
-								: typeof current === 'string' ? current : current.id;
-							const selectedId = rawSelectedId !== undefined && group.items.some(i => i.id === rawSelectedId)
-								? rawSelectedId
-								: defaultId;
-							const sessionType = sessionResource
-								? getChatSessionType(sessionResource)
-								: (this.options.sessionTypePickerDelegate?.getActiveSessionProvider?.() ?? '');
-							return { sessionType, groupId: group.id, items: group.items, selectedId };
-						},
-						setExtensionPermission: (groupId: string, item: IChatSessionProviderOptionItem) => {
-							this.updateOptionContextKey(groupId, item.id);
-							this.getOrCreateOptionEmitter(groupId).fire(item);
-							const sessionResource = this.getCurrentSessionResource();
-							if (sessionResource) {
-								this.chatSessionsService.setSessionOption(sessionResource, groupId, item);
-							}
-							this.permissionWidget?.refresh();
-						},
-						isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
-					};
-					const createPicker = () => this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, getSecondaryPickerOptions(action.id));
-					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-					const widget = createPicker();
-					this.permissionWidget = widget;
-					this.permissionWidgetDisposeListener.value = widget.onDidDispose(() => {
-						if (this.permissionWidget === widget) {
-							this.permissionWidget = undefined;
-						}
-						this.permissionWidgetDisposeListener.clear();
-					});
-					return widget;
-				} else if (agentHostPickerProperty && action instanceof MenuItemAction) {
-					if (this.options.isSessionsWindow) {
-						return new HiddenActionViewItem(action);
-					}
-					getCompactState(secondaryPickerCompactStates, action.id);
-					const createPicker = () => this.instantiationService.createInstance(AgentHostChatInputPicker, widget, agentHostPickerProperty);
-					secondaryOverflowPickerHandlers.set(action.id, anchor => {
-						const picker = createPicker();
-						this.overflowPickerWidget.value = picker;
-						picker.show(anchor);
-					});
-					return new AgentHostChatInputPickerActionViewItem(action, createPicker());
-				} else if (action.id === OpenAgentHostFolderPickerAction.ID && action instanceof MenuItemAction) {
-					if (this.options.isSessionsWindow) {
-						return new HiddenActionViewItem(action);
-					}
-					const createPicker = () => this.instantiationService.createInstance(AgentHostFolderPickerActionItem, action, widget, getSecondaryPickerOptions(action.id));
-					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-					return createPicker();
-				} else if (action.id === ChatSessionPrimaryPickerAction.ID && action instanceof MenuItemAction) {
-					const createPicker = () => {
-						const widgets = this.createChatSessionPickerWidgets(action, getSecondaryPickerOptions(action.id));
-						return widgets.length === 0 ? undefined : this.instantiationService.createInstance(ChatSessionPickersContainerActionItem, action, widgets);
-					};
-					secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));
-					return createPicker() ?? new HiddenActionViewItem(action);
+					return undefined;
 				}
-				return undefined;
-			}
-		}));
-		this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
-		this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+			}));
+			this.secondaryToolbar.getElement().classList.add('chat-secondary-input-toolbar');
+			this.secondaryToolbar.context = { widget } satisfies IChatExecuteActionContext;
+		}
 		dom.append(responsivePickerContainer, genericChipsContainer);
-		this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
-			// Update container reference for the pickers when the secondary toolbar hosts one.
-			// Only assign when found so we don't overwrite a valid primary container reference
-			// for session types whose pickers live in the primary toolbar (e.g. cloud).
-			const toolbarElement = this.secondaryToolbar.getElement();
-			// eslint-disable-next-line no-restricted-syntax
-			const container = toolbarElement.querySelector('.chat-sessionPicker-container');
-			if (dom.isHTMLElement(container)) {
-				this.chatSessionPickerContainer = container;
-			}
-		}));
+		if (this.options.renderSecondaryToolbar !== false) {
+			this._register(this.secondaryToolbar.onDidChangeMenuItems(() => {
+				// Update container reference for the pickers when the secondary toolbar hosts one.
+				// Only assign when found so we don't overwrite a valid primary container reference
+				// for session types whose pickers live in the primary toolbar (e.g. cloud).
+				const toolbarElement = this.secondaryToolbar.getElement();
+				// eslint-disable-next-line no-restricted-syntax
+				const container = toolbarElement.querySelector('.chat-sessionPicker-container');
+				if (dom.isHTMLElement(container)) {
+					this.chatSessionPickerContainer = container;
+				}
+			}));
+		}
 
 		// Extension-contributed status indicators; non-responsive so items don't collapse.
 		this.statusToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.statusToolbarContainer, MenuId.ChatInputStatus, {
@@ -4102,22 +4155,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			relayout: () => this.inputActionsToolbar.relayout(),
 		}));
 
-		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
-			getItems: () => [
-				...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),
-				...genericChipsLane.getCompactableElements()
-					.map(element => ({
-						element,
-						isCompact: () => element.classList.contains('compact-picker'),
-						setCompact: (compact: boolean) => element.classList.toggle('compact-picker', compact),
-					})),
-			],
-			hasOverflow: () => this.secondaryToolbar.hasOverflow(),
-			relayout: () => this.secondaryToolbar.relayout(),
-		}));
+		if (this.options.renderSecondaryToolbar !== false) {
+			this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
+				getItems: () => [
+					...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),
+					...genericChipsLane.getCompactableElements()
+						.map(element => ({
+							element,
+							isCompact: () => element.classList.contains('compact-picker'),
+							setCompact: (compact: boolean) => element.classList.toggle('compact-picker', compact),
+						})),
+				],
+				hasOverflow: () => this.secondaryToolbar.hasOverflow(),
+				relayout: () => this.secondaryToolbar.relayout(),
+			}));
+		}
 
 		this._inputPickerResponsiveLayout.layout();
-		this._secondaryPickerResponsiveLayout.layout();
+		this._secondaryPickerResponsiveLayout?.layout();
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		let createdInputModel: ITextModel | undefined;

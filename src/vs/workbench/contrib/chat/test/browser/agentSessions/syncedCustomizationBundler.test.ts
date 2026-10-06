@@ -10,7 +10,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -30,6 +30,7 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 	private readonly statFailures = new ResourceSet();
 	private readonly writeFailures = new ResourceSet();
 	private statDelay = 0;
+	private statBlock: { directory: URI; released: Promise<void> } | undefined;
 	activeStats = 0;
 	maxActiveStats = 0;
 	statCalls = 0;
@@ -41,6 +42,10 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 
 	delayStats(delay: number): void {
 		this.statDelay = delay;
+	}
+
+	blockStatsInDirectory(directory: URI, released: Promise<void>): void {
+		this.statBlock = { directory, released };
 	}
 
 	failStat(resource: URI): void {
@@ -58,6 +63,9 @@ class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
 		try {
 			if (this.statDelay > 0) {
 				await timeout(this.statDelay);
+			}
+			if (this.statBlock && isEqual(dirname(resource), this.statBlock.directory)) {
+				await this.statBlock.released;
 			}
 			if (this.statFailures.has(resource)) {
 				throw new Error('Unavailable test resource');
@@ -397,7 +405,8 @@ suite('SyncedCustomizationBundler', () => {
 			await seedFile(`/skills/replaced/references/${index}.md`, `reference ${index}`);
 		}
 		const replacement = await seedFile('/replacement.md', 'replacement content');
-		memFs.delayStats(50);
+		const statsReleased = new DeferredPromise<void>();
+		memFs.blockStatsInDirectory(URI.joinPath(dirname(skill), 'references'), statsReleased.p);
 
 		const disposedBundle = disposedBundler.bundle([{ uri: skill, type: PromptsType.skill }]);
 		while (memFs.maxActiveStats < 10) {
@@ -407,7 +416,9 @@ suite('SyncedCustomizationBundler', () => {
 		const replacementBundle = replacementBundler.bundle([{ uri: replacement, type: PromptsType.instructions }]);
 		await timeout(0);
 
-		assert.strictEqual(memFs.activeStats, 10);
+		const activeStats = memFs.activeStats;
+		statsReleased.complete();
+		assert.strictEqual(activeStats, 10);
 		await assert.rejects(disposedBundle, error => isCancellationError(error));
 		await replacementBundle;
 		assert.strictEqual(

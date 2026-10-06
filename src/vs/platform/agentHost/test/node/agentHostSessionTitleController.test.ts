@@ -319,6 +319,15 @@ suite('AgentHostSessionTitleController', () => {
 		});
 	}
 
+	test('defaults new sessions to utility naming without a configured strategy', () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const controller = disposables.add(new AgentHostSessionTitleController(stateManager, {
+			sessionDataService: createSessionDataService(),
+		}, new NullLogService()));
+
+		assert.strictEqual(controller.getAutomaticTitleGenerationStrategy(), 'utility');
+	});
+
 	test('clears an unregistered strategy snapshot after failed creation', () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const session = URI.parse('agenthost-session://copilot/creating');

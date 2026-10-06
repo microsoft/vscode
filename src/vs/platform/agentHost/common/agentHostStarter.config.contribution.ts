@@ -44,6 +44,7 @@ import {
 	AgentHostAgentOrchestrationLimitsConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
+	AgentHostByokModelsEnabledDefault,
 	AgentHostCanvasesEnabledConfigKey,
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
@@ -58,6 +59,7 @@ import {
 } from './agentHostSchema.js';
 import { AgentMergeConfigKey, AgentMergeSettingId, AGENT_MERGE_SETTING_TAG } from './agentMerge.js';
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
+import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -191,6 +193,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', AGENT_MERGE_SETTING_TAG],
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
+		...titleGenerationConfigurationProperties,
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
@@ -204,7 +207,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.autoAttachPullRequests', "Controls whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded by the agent as artifacts or explicitly selected or created through session actions are considered."),
-			default: product.quality === 'stable',
+			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
@@ -281,6 +284,7 @@ configurationRegistry.registerConfiguration({
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCopilotMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeMultiRootEnabledSettingId]: {
@@ -291,6 +295,7 @@ configurationRegistry.registerConfiguration({
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostClaudeMultiRootEnabledConfigKey },
 		},
 		[AgentHostCodexMultiRootEnabledSettingId]: {
@@ -298,6 +303,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
 			default: false,
 			included: false,
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCodexMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
@@ -322,7 +328,7 @@ configurationRegistry.registerConfiguration({
 		[AgentHostByokModelsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.byokModels.enabled', "When enabled, extension-provided BYOK ('bring your own key') models can run in agent-host sessions. Changes are synchronized to the running agent host and do not require a restart."),
-			default: false,
+			default: AgentHostByokModelsEnabledDefault,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },

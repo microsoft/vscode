@@ -19,6 +19,8 @@ Quota identity is the GitHub API host/account, not the provider/account/issuer k
 
 Bootstrap clients isolate private responses by token and API base, use the combined GitHub client-capacity bound, and confine GET requests and redirects to their approved HTTPS API base. They omit ambient credentials and referrers. Their last reference cancels only their own work.
 
+Discovery follows GitHub's shared HTTP quota policy: a generic 403 denial without quota evidence remains an authorization error and does not throttle later reads. An unexpected reported REST resource establishes only the shared REST fallback deadline, not a learned route mapping or quota counters. That wait survives credential replacement without blocking GraphQL or being promoted into `/user` identity-renewal cooldowns.
+
 ## CAPI model/control requests
 
 [ControlTransport](common/controlTransport.ts) reuses the bounded queue, scheduler, response reader, and operation-waiter mechanisms. Copilot supplies its catalog limits and response cooldown policy; the transport does not interpret Copilot schemas or GitHub quota headers. Its admission/cooldown state is separate from GitHub REST/GraphQL because CAPI throttling is not repository-core quota.

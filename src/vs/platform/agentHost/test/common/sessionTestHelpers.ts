@@ -677,6 +677,7 @@ export function createNoopGitService(): import('../../common/agentHostGitService
 		diffTreePaths: async () => undefined,
 		computeFileDiffsBetweenRefs: async () => undefined,
 		getFetchRemoteUrls: async () => undefined,
+		getFetchRemotes: async () => undefined,
 		getUntrackedPaths: async () => [],
 		getBranchDiffSafetyInfo: async () => undefined,
 		getDiffPatchBetweenRefs: async () => undefined,
@@ -711,6 +712,8 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onToolCallEditsApplied: () => { },
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
+		ensureChatChangesSummary: () => { },
+		refreshChatChangesSummary: () => { },
 	};
 }
 
@@ -721,6 +724,7 @@ export function createNoopGitStateService(): IAgentHostGitStateService {
 		onDidChangeSessionGitHubState: Event.None,
 		refreshSessionGitState: async (_sessionKey: string, _workingDirectory?: URI) => { },
 		getMaterializedWorktreeMeta: (_sessionKey: string, _branchName: string) => undefined,
+		setFolderGitState: async () => { },
 		resolveSessionBaseBranchName: async (_sessionKey: string) => undefined,
 		setSessionGitHubState: async (_sessionKey: string, _state: ISessionGitHubState) => { },
 		recordSessionMerge: async (_sessionKey: string, _commit: string) => { },

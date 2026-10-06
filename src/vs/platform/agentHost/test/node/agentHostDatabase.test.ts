@@ -14,6 +14,7 @@ import { join } from '../../../../base/common/path.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentHostDatabase, IAgentHostDatabase, IAgentHostDatabaseSessionV2Envelope } from '../../node/agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
 
 function openDatabase(path: string): Promise<Database> {
 	return new Promise((resolve, reject) => {
@@ -39,7 +40,7 @@ function close(database: Database): Promise<void> {
 
 function createPayload(session: string, sourceRevision: number, isChatBacking = false): string {
 	return stableStringify({
-		payloadVersion: 1,
+		payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 		data: {
 			modifiedTime: 100 + sourceRevision,
 			summary: `Title ${sourceRevision}`,
@@ -69,7 +70,7 @@ function createEnvelope(
 		session,
 		sessionGeneration,
 		sourceRevision,
-		payloadVersion: 1,
+		payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
 		payloadHash: createHash('sha256').update(payload, 'utf8').digest('hex'),
 		verified: true,
 		payload,
@@ -235,7 +236,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 12 }],
+				version: [{ user_version: 13 }],
 				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -243,7 +244,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					'source_revision', 'payload_version', 'payload_hash', 'verified', 'payload', 'is_chat_backing', 'modified_time',
 				],
 				sessionV2ForeignKeys: [],
-				sessionChatColumns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived'],
+				sessionChatColumns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'is_read'],
 			});
 
 		} finally {
@@ -262,7 +263,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		const before = await database.getSessionChatCatalog(session);
 		const firstResult = await database.replaceSessionChatCatalog(session, [
-			{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
+			{ chat: 'ahp-chat://first', order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
 			{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
 		], undefined);
 		if (firstResult.status !== 'applied') {
@@ -302,7 +303,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				revision: 1,
 				legacyMirroredRevision: 0,
 				chats: [
-					{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
+					{ chat: 'ahp-chat://first', order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
 					{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
 				],
 			},
@@ -327,6 +328,48 @@ suite('AgentHostDatabase sessions_v2', () => {
 					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
+		});
+	});
+
+	test('recovery atomically excludes current foreign ownership and preserves source membership', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const source = 'copilotcli:/source';
+		const target = 'copilotcli:/target';
+		for (const session of [source, target]) {
+			await database.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		await database.replaceSessionChatCatalog(source, [{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' }], undefined);
+		await database.replaceSessionChatCatalog(target, [], undefined);
+		const claim = database.replaceSessionChatCatalog(target, [
+			{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' },
+		], 1);
+		const recovery = database.recoverSessionChatCatalog(source, [
+			{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
+			{ chat: 'ahp-chat://moved', order: 1, providerData: 'historical' },
+			{ chat: 'ahp-chat://missing', order: 2, providerData: 'recovered' },
+		], 1);
+		await Promise.all([claim, recovery]);
+		const sourceAfter = await database.getSessionChatCatalog(source);
+		const targetAfter = await database.getSessionChatCatalog(target);
+		const staleRecovery = await database.recoverSessionChatCatalog(source, [], 1);
+		await database.tombstoneAndUnregisterSession(source);
+		const deletedRecovery = await database.recoverSessionChatCatalog(source, [], 2);
+
+		assert.deepStrictEqual({
+			source: sourceAfter?.chats,
+			target: targetAfter?.chats,
+			staleRecovery,
+			deletedRecovery,
+			sourceAfterDeletion: await database.getSessionChatCatalog(source),
+		}, {
+			source: [
+				{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
+				{ chat: 'ahp-chat://missing', order: 1, providerData: 'recovered' },
+			],
+			target: [{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' }],
+			staleRecovery: { status: 'conflict' },
+			deletedRecovery: { status: 'tombstoned' },
+			sourceAfterDeletion: undefined,
 		});
 	});
 
@@ -492,7 +535,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 12 }],
+					schemaVersion: [{ user_version: 13 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -539,7 +582,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 12 }],
+				version: [{ user_version: 13 }],
 				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 			});
 		} finally {
@@ -632,7 +675,45 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 12 }],
+			version: [{ user_version: 13 }],
+		});
+	});
+
+	test('repairs missing chat columns without lowering a future schema version', async () => {
+		const path = join(temporaryDirectory!, 'agent-host-future-v17.db');
+		database = new AgentHostDatabase(path);
+		await database.registerSessionV2('session://future-v17', { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await database.replaceSessionChatCatalog('session://future-v17', [
+			{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' },
+		], undefined);
+		await database.close();
+		database = undefined;
+
+		const futureDatabase = await openDatabase(path);
+		await exec(futureDatabase, `ALTER TABLE session_chats DROP COLUMN is_read;
+			ALTER TABLE session_chats ADD COLUMN parent_chat TEXT;
+			ALTER TABLE session_chats ADD COLUMN storage_resource TEXT;
+			PRAGMA user_version = 17`);
+		await close(futureDatabase);
+
+		database = new AgentHostDatabase(path);
+		const catalog = await database.getSessionChatCatalog('session://future-v17');
+		await database.close();
+		database = undefined;
+
+		const repairedDatabase = await openDatabase(path);
+		const version = await all(repairedDatabase, 'PRAGMA user_version');
+		const columns = (await all(repairedDatabase, 'PRAGMA table_info(session_chats)')).map(row => row.name);
+		await close(repairedDatabase);
+
+		assert.deepStrictEqual({ catalog, version, columns }, {
+			catalog: {
+				revision: 1,
+				legacyMirroredRevision: 0,
+				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+			},
+			version: [{ user_version: 17 }],
+			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],
 		});
 	});
 
@@ -670,7 +751,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 12 }],
+			version: [{ user_version: 13 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);
@@ -871,7 +952,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			/payloadHash must match payload/,
 		);
 		await assert.rejects(
-			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: '{"payloadVersion":1,"data":{}}' }), 'generation-1'),
+			database.upsertSessionV2(createEnvelope(session, 'generation-1', 3, { payload: `{"payloadVersion":${AGENT_HOST_CATALOG_PAYLOAD_VERSION},"data":{}}` }), 'generation-1'),
 			/Catalog payload is invalid/,
 		);
 		await assert.rejects(
@@ -1226,6 +1307,167 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('discovery cannot claim a current identity owned by another provider', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'ahp-session:/shared-backing';
+		const first = await database.registerRuntimeSession(session, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true, discoveryBackingSession: 'claude:/shared-backing' });
+		const second = await database.registerRuntimeSession(session, { provider: 'codex', startTime: 2, modifiedTime: 3, source: 'discovery' }, { checkTombstone: true, discoveryBackingSession: 'codex:/shared-backing' });
+
+		assert.deepStrictEqual({
+			first,
+			second,
+			registration: await database.getSessionV2Registration(session),
+		}, {
+			first: true,
+			second: false,
+			registration: { session, provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+		});
+	});
+
+	test('discovery cannot claim an identity reserved by another provider exclusion', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const session = 'ahp-session:/excluded-backing';
+		await database.markSessionsV2Excluded({
+			provider: 'claude',
+			session,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const registered = await database.registerRuntimeSession(session, {
+			provider: 'codex',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: 'codex:/excluded-backing',
+		});
+
+		assert.deepStrictEqual({
+			registered,
+			registration: await database.getSessionV2Registration(session),
+			exclusions: await database.listAllSessionsV2Exclusions(),
+		}, {
+			registered: false,
+			registration: undefined,
+			exclusions: [{ provider: 'claude', session, reason: 'staleExternal', fingerprint: 'test' }],
+		});
+	});
+
+	test('canonical discovery cannot bypass backing identity ownership', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const backing = 'claude:/owned-backing';
+		const canonical = 'ahp-session:/owned-backing';
+		await database.registerRuntimeSession(backing, { provider: 'claude', startTime: 1, source: 'discovery' }, { checkTombstone: true, discoveryBackingSession: backing });
+
+		const claimed = await database.registerRuntimeSession(canonical, {
+			provider: 'claude',
+			startTime: 2,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: backing,
+		});
+		await database.markSessionsV2Excluded({
+			provider: 'claude',
+			session: canonical,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		assert.deepStrictEqual({
+			claimed,
+			backing: await database.getSessionV2Registration(backing),
+			canonical: await database.getSessionV2Registration(canonical),
+			exclusions: await database.listAllSessionsV2Exclusions(),
+		}, {
+			claimed: false,
+			backing: { session: backing, provider: 'claude', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+			canonical: undefined,
+			exclusions: [],
+		});
+	});
+
+	test('canonical discovery cannot bypass a backing identity exclusion', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const backing = 'claude:/excluded-backing-alias';
+		const canonical = 'ahp-session:/excluded-backing-alias';
+		await database.markSessionsV2Excluded({
+			provider: 'claude',
+			session: backing,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const claimed = await database.registerRuntimeSession(canonical, {
+			provider: 'claude',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: backing,
+		});
+
+		assert.deepStrictEqual({
+			claimed,
+			canonical: await database.getSessionV2Registration(canonical),
+			exclusions: await database.listAllSessionsV2Exclusions(),
+		}, {
+			claimed: false,
+			canonical: undefined,
+			exclusions: [{ provider: 'claude', session: backing, reason: 'staleExternal', fingerprint: 'test' }],
+		});
+	});
+
+	test('non-native provider exclusions do not alias standard session identities', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const standard = 'ahp-session:/shared';
+		const custom = 'custom-provider:/shared';
+		await database.registerRuntimeSession(standard, { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+
+		await database.markSessionsV2Excluded({
+			provider: 'custom-provider',
+			session: custom,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		assert.deepStrictEqual(await database.listAllSessionsV2Exclusions(), [{
+			provider: 'custom-provider',
+			session: custom,
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		}]);
+	});
+
+	test('discovery ignores exclusion keys whose session only has a matching suffix', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const canonical = 'ahp-session:/x';
+		await database.markSessionsV2Excluded({
+			provider: 'custom-provider',
+			session: 'custom:/prefixahp-session:/x',
+			reason: 'staleExternal',
+			fingerprint: 'test',
+		});
+
+		const registered = await database.registerRuntimeSession(canonical, {
+			provider: 'codex',
+			startTime: 1,
+			source: 'discovery',
+		}, {
+			checkTombstone: true,
+			discoveryBackingSession: 'codex:/x',
+		});
+
+		assert.deepStrictEqual({
+			registered,
+			registration: await database.getSessionV2Registration(canonical),
+		}, {
+			registered: true,
+			registration: { session: canonical, provider: 'codex', startTime: 1, modifiedTime: 1, external: true, source: 'discovery' },
+		});
+	});
+
 	test('payload-versioned markers do not alter old marker semantics', async () => {
 		database = new AgentHostDatabase(':memory:');
 		await database.markSessionRegistryBackfilled();
@@ -1317,6 +1559,11 @@ suite('AgentHostDatabase sessions_v2', () => {
 		]);
 
 		assert.deepStrictEqual(await database.listSessionsV2Exclusions('copilot'), [
+			{ provider: 'copilot', session: 'copilot:/a', reason: 'staleExternal', fingerprint: '1' },
+			{ provider: 'copilot', session: 'copilot:/b', reason: 'backing', fingerprint: 'backing-v1' },
+		]);
+		assert.deepStrictEqual(await database.listAllSessionsV2Exclusions(), [
+			{ provider: 'claude', session: 'claude:/c', reason: 'subagent', fingerprint: 'uri-v1' },
 			{ provider: 'copilot', session: 'copilot:/a', reason: 'staleExternal', fingerprint: '1' },
 			{ provider: 'copilot', session: 'copilot:/b', reason: 'backing', fingerprint: 'backing-v1' },
 		]);

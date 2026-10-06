@@ -8,9 +8,11 @@ import type { Database, RunResult } from '@vscode/sqlite3';
 import { Sequencer } from '../../../base/common/async.js';
 import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentProvider } from '../common/agent.js';
-import { decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -40,6 +42,12 @@ export interface IAgentHostDatabaseSessionOptions {
 
 export interface IAgentHostDatabaseRegisterOptions {
 	readonly checkTombstone: boolean;
+	/**
+	 * Exact provider backing URI for a discovery admission. When present,
+	 * backing tombstones and cross-provider identity exclusions are checked in
+	 * the same transaction that claims `session`.
+	 */
+	readonly discoveryBackingSession?: string;
 	/**
 	 * Marks the session registered-but-not-yet-materialized in the same
 	 * transaction as the registration, so a crash cannot leave a durable row
@@ -100,6 +108,7 @@ export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2
 export interface IAgentHostDatabaseSessionChat {
 	readonly chat: string;
 	readonly order: number;
+	readonly isRead?: boolean;
 	readonly archived?: boolean;
 	readonly providerData?: string;
 	readonly origin?: string;
@@ -166,6 +175,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	getSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined>;
 	/** Lists one provider's current-v2 exclusions without opening session databases. */
 	listSessionsV2Exclusions(provider: AgentProvider): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]>;
+	/** Lists every provider's current-v2 exclusions without opening session databases. */
+	listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]>;
 	/** Clears a current-v2 exclusion when a session becomes eligible again. */
 	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void>;
 	/** Whether `session` was explicitly deleted and must not be resurrected by backfill. */
@@ -237,6 +248,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
+	/** Recovers membership without adding a chat already owned by another authoritative catalogue. */
+	recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
 	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
 	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
@@ -279,6 +292,9 @@ const sessionChatCatalogSchemaSql = [
 ].join(';\n');
 
 const CHAT_ARCHIVE_MIGRATION_VERSION = 12;
+const CHAT_READ_MIGRATION_VERSION = 13;
+const chatArchiveMigrationSql = 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))';
+const chatReadMigrationSql = 'ALTER TABLE session_chats ADD COLUMN is_read INTEGER CHECK (is_read IN (0, 1))';
 
 const migrations = [
 	{
@@ -326,22 +342,51 @@ const migrations = [
 		// Versions 6 through 11 were used by pre-release catalog schemas and are
 		// normalized above, so new migrations resume at 12.
 		version: CHAT_ARCHIVE_MIGRATION_VERSION,
-		sql: 'ALTER TABLE session_chats ADD COLUMN archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1))',
+		sql: chatArchiveMigrationSql,
+	},
+	{
+		version: CHAT_READ_MIGRATION_VERSION,
+		sql: chatReadMigrationSql,
 	},
 ] as const;
 
 async function normalizePreReleaseCatalogSchema(database: Database, currentVersion: number): Promise<number> {
-	if (currentVersion < 4 || currentVersion > 11 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
+	if (currentVersion < 4 || !await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'sessions_v2'`, [])) {
 		return currentVersion;
 	}
 	const hasFinalCatalog = await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chat_catalogs'`, [])
 		&& await get(database, `SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = 'session_chats'`, []);
-	if (hasFinalCatalog && currentVersion >= 5 && currentVersion < CHAT_ARCHIVE_MIGRATION_VERSION) {
+	if (hasFinalCatalog && currentVersion >= 5) {
 		const chatColumns = await all(database, 'PRAGMA table_info(session_chats)', []);
-		if (chatColumns.some(column => column.name === 'archived')) {
+		const hasArchived = chatColumns.some(column => column.name === 'archived');
+		const hasRead = chatColumns.some(column => column.name === 'is_read');
+		if (currentVersion >= CHAT_READ_MIGRATION_VERSION) {
+			// Temporary compatibility for development profiles shared by worktrees
+			// whose pre-release schema versions can advance independently.
+			if (!hasArchived) {
+				await exec(database, chatArchiveMigrationSql);
+			}
+			if (!hasRead) {
+				await exec(database, chatReadMigrationSql);
+			}
+			return currentVersion;
+		}
+		if (hasArchived && hasRead) {
+			await exec(database, `PRAGMA user_version = ${CHAT_READ_MIGRATION_VERSION}`);
+			return CHAT_READ_MIGRATION_VERSION;
+		}
+		if (hasRead) {
+			await exec(database, chatArchiveMigrationSql);
+			await exec(database, `PRAGMA user_version = ${CHAT_READ_MIGRATION_VERSION}`);
+			return CHAT_READ_MIGRATION_VERSION;
+		}
+		if (hasArchived) {
 			await exec(database, `PRAGMA user_version = ${CHAT_ARCHIVE_MIGRATION_VERSION}`);
 			return CHAT_ARCHIVE_MIGRATION_VERSION;
 		}
+	}
+	if (currentVersion >= CHAT_READ_MIGRATION_VERSION) {
+		return currentVersion;
 	}
 	const isPreReleaseVersion11 = currentVersion === 11;
 	if (hasFinalCatalog && currentVersion >= 5 && !isPreReleaseVersion11) {
@@ -449,6 +494,21 @@ function sessionChatCatalogLegacyMirrorKey(session: string): string {
 /** Metadata key for a session's durable "explicitly deleted" tombstone. */
 function tombstoneKey(session: string): string {
 	return `sessionTombstone:${session}`;
+}
+
+function sessionIdentityCounterpart(provider: AgentProvider, session: string): string | undefined {
+	if (provider !== COPILOT_CLI_AGENT_PROVIDER_ID && provider !== CODEX_AGENT_PROVIDER_ID && provider !== CLAUDE_AGENT_PROVIDER_ID) {
+		return undefined;
+	}
+	const resource = URI.parse(session);
+	const backingId = AgentSession.id(resource);
+	if (isEqual(resource, AgentSession.uri(provider, backingId))) {
+		return AgentSession.uri('ahp-session', backingId).toString();
+	}
+	if (isEqual(resource, AgentSession.uri('ahp-session', backingId))) {
+		return AgentSession.uri(provider, backingId).toString();
+	}
+	return undefined;
 }
 
 const agentMergeEnabledKeyPrefix = 'agentMergeEnabled:';
@@ -729,13 +789,15 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
 				for (const exclusion of exclusions) {
+					const counterpart = sessionIdentityCounterpart(exclusion.provider, exclusion.session);
 					await run(database, `INSERT INTO metadata (key, value)
 						SELECT ?, ?
-						WHERE NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri = ?)
+						WHERE NOT EXISTS (SELECT 1 FROM sessions_v2 WHERE session_uri IN (?, ?))
 						ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [
 						sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
 						JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
 						exclusion.session,
+						counterpart ?? exclusion.session,
 					]);
 				}
 				await exec(database, 'COMMIT');
@@ -791,6 +853,24 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return rows.map(row => this._toSessionsV2Exclusion(provider, (row.key as string).slice(prefix.length), row.value as string));
 	}
 
+	async listAllSessionsV2Exclusions(): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		const prefix = sessionsV2ExcludedKeyPrefix;
+		const upperBound = `${prefix.slice(0, -1)};`;
+		const rows = await all(
+			await this._ensureDatabase(),
+			'SELECT key, value FROM metadata WHERE key >= ? AND key < ? ORDER BY key',
+			[prefix, upperBound],
+		);
+		return rows.map(row => {
+			const suffix = (row.key as string).slice(prefix.length);
+			const separator = suffix.indexOf(':');
+			if (separator <= 0) {
+				throw new Error(`Invalid sessions_v2 exclusion key ${row.key as string}`);
+			}
+			return this._toSessionsV2Exclusion(suffix.slice(0, separator), suffix.slice(separator + 1), row.value as string);
+		});
+	}
+
 	clearSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<void> {
 		return this._run('DELETE FROM metadata WHERE key = ?', [sessionsV2ExcludedKey(provider, session)]);
 	}
@@ -818,6 +898,31 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const database = await this._ensureDatabase();
 			await exec(database, 'BEGIN IMMEDIATE');
 			try {
+				if (registerOptions.discoveryBackingSession !== undefined) {
+					const backingTombstone = await get(database, 'SELECT 1 AS present FROM metadata WHERE key = ? AND value = ?', [tombstoneKey(registerOptions.discoveryBackingSession), 'true']);
+					const claimedIdentities = await all(database, `SELECT session_uri, provider FROM sessions_v2 WHERE session_uri IN (?, ?)
+						UNION ALL
+						SELECT session_uri, provider FROM sessions WHERE session_uri IN (?, ?)`, [
+						session, registerOptions.discoveryBackingSession,
+						session, registerOptions.discoveryBackingSession,
+					]);
+					const backingClaimed = registerOptions.discoveryBackingSession !== session
+						&& claimedIdentities.some(row => row.session_uri === registerOptions.discoveryBackingSession);
+					const claimedByAnotherProvider = claimedIdentities.some(row => row.provider !== provider);
+					const identityExclusions = [
+						...await this._listSessionsV2ExclusionsForSession(database, session),
+						...(registerOptions.discoveryBackingSession === session
+							? []
+							: await this._listSessionsV2ExclusionsForSession(database, registerOptions.discoveryBackingSession)),
+					].filter(exclusion => exclusion.reason === 'providerAbsent' || exclusion.reason === 'staleExternal');
+					const backingExcluded = registerOptions.discoveryBackingSession !== session
+						&& identityExclusions.some(exclusion => exclusion.session === registerOptions.discoveryBackingSession);
+					const excludedByAnotherProvider = identityExclusions.some(exclusion => exclusion.provider !== provider);
+					if (backingTombstone || backingClaimed || claimedByAnotherProvider || backingExcluded || excludedByAnotherProvider) {
+						await exec(database, 'COMMIT');
+						return false;
+					}
+				}
 				const existing = await get(database, `SELECT provider FROM sessions_v2 WHERE session_uri = ?
 					UNION ALL SELECT provider FROM sessions WHERE session_uri = ?
 					LIMIT 1`, [session, session]);
@@ -1288,6 +1393,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				(SELECT value FROM metadata WHERE key = ?) AS legacy_mirrored_payload,
 				chat.chat_uri,
 				chat.chat_order,
+				chat.is_read,
 				chat.archived,
 				chat.provider_data,
 				chat.origin,
@@ -1307,6 +1413,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				chats: rows.filter(row => row.chat_uri !== null).map(row => ({
 					chat: row.chat_uri as string,
 					order: row.chat_order as number,
+					...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
 					...(row.archived === 1 ? { archived: true } : {}),
 					...(row.provider_data === null ? {} : { providerData: row.provider_data as string }),
 					...(row.origin === null ? {} : { origin: row.origin as string }),
@@ -1317,6 +1424,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this._replaceSessionChatCatalog(session, chats, expectedRevision, false);
+	}
+
+	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this._replaceSessionChatCatalog(session, chats, expectedRevision, true);
+	}
+
+	private async _replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, recovering: boolean): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
 			throw new Error('Expected session chat catalog revision must be a positive safe integer');
@@ -1344,6 +1459,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
 				}
+				if (recovering) {
+					const foreign = await all(database, `SELECT DISTINCT chat_uri FROM session_chats
+						WHERE session_uri <> ? AND chat_uri NOT IN
+						(SELECT chat_uri FROM session_chats WHERE session_uri = ?)`, [session, session]);
+					const foreignUris = new Set(foreign.map(row => row.chat_uri as string));
+					chats = chats.filter(chat => !foreignUris.has(chat.chat)).map((chat, order) => ({ ...chat, order }));
+					if (chats.length > AGENT_HOST_CATALOG_CHILD_LIMIT - 1) {
+						throw new Error(`Peer-chat recovery exceeds the catalog limit for ${session}`);
+					}
+				}
 				const revision = (currentRevision ?? 0) + 1;
 				if (!Number.isSafeInteger(revision)) {
 					throw new Error(`Session chat catalog revision overflow for ${session}`);
@@ -1355,11 +1480,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				for (let offset = 0; offset < chats.length; offset += SESSION_CHAT_INSERT_BATCH_SIZE) {
 					const batch = chats.slice(offset, offset + SESSION_CHAT_INSERT_BATCH_SIZE);
 					await run(database, `INSERT INTO session_chats (
-						session_uri, chat_uri, chat_order, archived, provider_data, origin, inherited_turn_id
-					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
+						session_uri, chat_uri, chat_order, is_read, archived, provider_data, origin, inherited_turn_id
+					) VALUES ${batch.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`, batch.flatMap(chat => [
 						session,
 						chat.chat,
 						chat.order,
+						chat.isRead === undefined ? null : chat.isRead ? 1 : 0,
 						chat.archived === true ? 1 : 0,
 						chat.providerData ?? null,
 						chat.origin ?? null,
@@ -1531,9 +1657,34 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 						WHEN excluded.registration_source = 'explicit' THEN 'explicit'
 						WHEN sessions_v2.registration_source = 'explicit' THEN 'explicit'
 						ELSE excluded.registration_source
-					END`,
-			[session, provider, startTime, modifiedTime, source, source, registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session)],
+					END
+				WHERE ? = 0 OR sessions_v2.provider = excluded.provider`,
+			[
+				session, provider, startTime, modifiedTime, source, source,
+				registerOptions.checkTombstone ? 1 : 0, tombstoneKey(session),
+				registerOptions.discoveryBackingSession === undefined ? 0 : 1,
+			],
 		);
+	}
+
+	private async _listSessionsV2ExclusionsForSession(database: Database, session: string): Promise<readonly IAgentHostDatabaseSessionsV2Exclusion[]> {
+		const prefix = sessionsV2ExcludedKeyPrefix;
+		const upperBound = `${prefix.slice(0, -1)};`;
+		const rows = await all(
+			database,
+			`SELECT key, value FROM metadata
+				WHERE key >= ? AND key < ?
+					AND substr(key, length(key) - length(?) + 1) = ?`,
+			[prefix, upperBound, session, session],
+		);
+		return rows.map(row => {
+			const suffix = (row.key as string).slice(prefix.length);
+			const separator = suffix.indexOf(':');
+			if (separator <= 0) {
+				throw new Error(`Invalid sessions_v2 exclusion key ${row.key as string}`);
+			}
+			return this._toSessionsV2Exclusion(suffix.slice(0, separator), suffix.slice(separator + 1), row.value as string);
+		}).filter(exclusion => exclusion.session === session);
 	}
 
 	/**

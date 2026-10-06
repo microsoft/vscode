@@ -9,6 +9,7 @@
 import type { ModelSelection } from '../channels-root/state.js';
 import type { AgentSelection, ChangesSummary, McpAuthRequirement, SessionStatus } from '../channels-session/state.js';
 import type { Changeset } from '../channels-changeset/state.js';
+import type { CanvasReference } from '../channels-canvas/state.js';
 import type { ContentRef, ErrorInfo, FileEdit, FileEditCollection, StringOrMarkdown, TextRange, TextSelection, URI, UsageInfo } from '../common/state.js';
 
 // ─── Chat State ──────────────────────────────────────────────────────────────
@@ -101,6 +102,14 @@ export interface ChatState {
 	 * chat channel.
 	 */
 	backgroundWork?: BackgroundWork[];
+	/**
+	 * Live canvases currently exposed by this chat.
+	 *
+	 * Entries intentionally contain only subscribable channel references.
+	 * Clients subscribe to each resource for the experimental presentation
+	 * state, including its current live source URL.
+	 */
+	canvases?: CanvasReference[];
 
 	// ── Conversation contents ──────────────────────────────────────────
 	/** Completed turns */

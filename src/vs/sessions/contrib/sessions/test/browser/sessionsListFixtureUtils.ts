@@ -13,7 +13,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ExtUri, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -48,7 +48,6 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import type { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -56,7 +55,6 @@ import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/c
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -68,7 +66,6 @@ import { ISessionsListModelService, SessionsListModelService } from '../../../..
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -139,7 +136,6 @@ export interface ISessionsListFixtureView {
 	readonly expanded?: readonly SessionsListFixtureRow[];
 	/** Defaults to whether any session is archived. */
 	readonly showArchived?: boolean;
-	readonly showEmptyGroups?: boolean;
 	readonly reducedMotion?: boolean;
 }
 
@@ -166,9 +162,7 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonStyle?: NewSessionButtonStyle;
 	/** Applied through the experiment treatment. */
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
-	readonly automations?: boolean;
-	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows New, Automations, and Customizations as navigation rows above the Sessions header. */
+	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
 	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
@@ -434,11 +428,11 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 	}
 
 	override async markRead(session: ISession): Promise<void> {
-		this.find(session.resource)?.isRead.set(true, undefined);
+		this.find(session.resource)?.mainChat.isRead.set(true, undefined);
 	}
 
 	override async markUnread(session: ISession): Promise<void> {
-		this.find(session.resource)?.isRead.set(false, undefined);
+		this.find(session.resource)?.mainChat.isRead.set(false, undefined);
 	}
 
 	override async markAllRead(sessions: readonly ISession[]): Promise<void> {
@@ -576,7 +570,6 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		override readonly sessionId = spec.id;
 		override readonly sticky: IObservable<boolean> = constObservable(true);
 	}());
-	const automationRuns = observableValue<readonly IAutomationRun[]>('fixtureAutomationRuns', []);
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
 	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
 
@@ -636,21 +629,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 				override getProviders() { return []; }
 				override getProvider() { return undefined; }
 			}());
-			reg.defineInstance(ISessionsWindowUsageService, new class extends mock<ISessionsWindowUsageService>() {
-				override readonly hadPriorWindowOpen = true;
-				override readonly windowOpenCount = 2;
-			}());
-			reg.defineInstance(ILifecycleService, new class extends mock<ILifecycleService>() {
-				override phase = LifecyclePhase.Eventually;
-				override when(): Promise<void> { return Promise.resolve(); }
-			}());
 			reg.defineInstance(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
 				override readonly pendingResponseVersion: IObservable<number> = constObservable(0);
 				override hasPendingResponse() { return false; }
 			}());
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = constObservable([]);
-				override readonly runs = automationRuns;
+				override readonly runs = constObservable([]);
 				override readonly catalogueState = constObservable('ready' as const);
 			}());
 			reg.defineInstance(IWorkbenchAssignmentService, new class extends mock<IWorkbenchAssignmentService>() {
@@ -697,7 +682,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
 	}
-	if (header?.automations || header?.navigationShortcuts) {
+	if (header?.navigationShortcuts) {
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
 	}
 
@@ -740,23 +725,15 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	let listParent = container;
-	let createSessionsHeader: ((container: HTMLElement, disposables: DisposableStore) => HTMLElement) | undefined;
+	let navigationContainer: HTMLElement | undefined;
 	if (header) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
-		// Like the Sessions view, render the header inside the tree when the navigation rows lead it.
-		createSessionsHeader = (headerContainer, disposables) => {
-			const treeHeader = renderSessionsHeader(headerContainer, false, instantiationService, contextKeyService, disposables);
-			treeHeader.toolbar?.refresh();
-			return treeHeader.row;
-		};
-		if (header.navigationShortcuts) {
-			DOM.hide(renderedHeader.row);
-		}
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -771,15 +748,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		createSessionsHeader,
+		navigationContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
-	}
-	if (view.showEmptyGroups !== undefined) {
-		list.setShowEmptyGroups(view.showEmptyGroups);
 	}
 	list.layout(height, width);
 	if (view.collapsed === 'all') {
@@ -794,7 +768,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	if (header) {
-		await renderHeaderState(list, container, instantiationService, header, automationRuns);
+		await renderHeaderState(container, instantiationService, header);
 	}
 
 	await timeout(SETTLE_DELAY);
@@ -834,19 +808,7 @@ function setCollapsed(list: TestSessionsList, item: SessionsListItemReference, c
 	}
 }
 
-async function renderHeaderState(list: SessionsList, container: HTMLElement, instantiationService: TestInstantiationService, header: ISessionsListFixtureHeader, automationRuns: ISettableObservable<readonly IAutomationRun[]>): Promise<void> {
-	if (header.automations) {
-		await list.resetAutomationsNewBadge();
-	}
-	if (header.automationRunStatus) {
-		automationRuns.set([{
-			id: 'fixture-run',
-			automationId: 'fixture-automation',
-			status: header.automationRunStatus,
-			trigger: 'schedule',
-			startedAt: new Date().toISOString(),
-		}], undefined);
-	}
+async function renderHeaderState(container: HTMLElement, instantiationService: TestInstantiationService, header: ISessionsListFixtureHeader): Promise<void> {
 	await Promise.resolve();
 	if (header.newSessionButtonStyle) {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;

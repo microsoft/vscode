@@ -54,7 +54,7 @@ suite('Sessions - EditorPart', () => {
 		const row = appendElement(title, 'tabs-and-actions-container');
 		const scrollable = appendElement(row, 'monaco-scrollable-element');
 		const tabs = appendElement(scrollable, 'tabs-container');
-		const first = appendElement(tabs, 'tab active connected-tab-top-row');
+		const first = appendElement(tabs, 'tab active connected-tab-top-row first-in-row');
 		const firstFill = appendElement(first, 'tab-fill');
 		const second = appendElement(tabs, 'tab connected-tab-top-row');
 		const secondFill = appendElement(second, 'tab-fill');
@@ -107,6 +107,7 @@ suite('Sessions - EditorPart', () => {
 								row.classList.toggle('wrapping', wrapped);
 								first.classList.toggle('last-in-row', wrapped);
 								first.classList.toggle('connected-tab-upper-row', wrapped);
+								second.classList.toggle('first-in-row', wrapped);
 								second.classList.toggle('connected-tab-top-row', !wrapped);
 								const cap = mainWindow.getComputedStyle(secondFill);
 								assert.deepStrictEqual({

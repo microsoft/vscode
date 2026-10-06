@@ -5,7 +5,6 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { CopilotToken } from '../../../../platform/authentication/common/copilotToken';
 import { IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { IChatQuotaService } from '../../../../platform/chat/common/chatQuotaService';
@@ -62,12 +61,12 @@ describe('ChatMLFetcherImpl retry logic', () => {
 
 		endpoint = createMockEndpoint();
 
-		fetcher = new ChatMLFetcherImpl(
+		fetcher = disposables.add(new ChatMLFetcherImpl(
 			mockFetcherService as unknown as IFetcherService,
 			telemetryService,
 			new NullRequestLogger(),
 			logService,
-			new TestAuthenticationService() as unknown as IAuthenticationService,
+			disposables.add(new TestAuthenticationService()),
 			createMockInteractionService(),
 			createMockChatQuotaService(),
 			new TestCAPIClientService() as unknown as ICAPIClientService,
@@ -82,7 +81,7 @@ describe('ChatMLFetcherImpl retry logic', () => {
 			]).seal() as unknown as IInstantiationService,
 			new NullChatWebSocketManager(),
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-		);
+		));
 
 		// Skip delays in tests for faster execution
 		fetcher.connectivityCheckDelays = [0, 0, 0];

@@ -39,7 +39,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
-import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController, type AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { IAgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -155,6 +155,7 @@ export function createTestAgentService(
 	sessionReleaseRetryMs?: number,
 	catalogReconciliationOptions?: IAgentHostCatalogReconciliationOptions,
 	startupPerformance?: IAgentHostStartupPerformance,
+	initialTitleGenerationStrategy: AutomaticTitleGenerationStrategy = 'utility',
 ): AgentService {
 	const effectiveFileMonitorService = fileMonitorService ?? new AgentHostFileMonitorService(fileService, logService);
 	const clientConnectionService = new AgentHostClientConnectionService();
@@ -233,6 +234,7 @@ export function createTestAgentService(
 		getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 		gitHubService,
 		copilotApiService: effectiveCopilotApiService,
+		getInitialTitleGenerationStrategy: () => initialTitleGenerationStrategy,
 	})));
 	const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 	services.set(IAgentHostLocalTurns, localTurns);

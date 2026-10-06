@@ -998,6 +998,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		tabContainer.appendChild(tabFillContainer);
 		const tabConnectedEdgeContainer = $('.tab-connected-edge', { 'aria-hidden': true });
 		tabContainer.appendChild(tabConnectedEdgeContainer);
+		const tabDivider = $('.tab-divider', { 'aria-hidden': true });
+		tabContainer.appendChild(tabDivider);
 
 		// Tab Border Top
 		const tabBorderTopContainer = $('.tab-border-top-container');
@@ -2808,7 +2810,7 @@ registerThemingParticipant((theme, collector) => {
 	if (tabHoverBorder) {
 		collector.addRule(`
 			.monaco-workbench .part.editor > .content .editor-group-container.active > .title .tabs-container > .tab:hover > .tab-border-bottom-container {
-				display: block;
+				display: var(--editor-tab-border-indicator-display, block);
 				position: absolute;
 				left: 0;
 				pointer-events: none;
@@ -2825,7 +2827,7 @@ registerThemingParticipant((theme, collector) => {
 	if (tabUnfocusedHoverBorder) {
 		collector.addRule(`
 			.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover > .tab-border-bottom-container  {
-				display: block;
+				display: var(--editor-tab-border-indicator-display, block);
 				position: absolute;
 				left: 0;
 				pointer-events: none;

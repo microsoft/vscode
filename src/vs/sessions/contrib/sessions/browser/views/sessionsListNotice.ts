@@ -5,15 +5,12 @@
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import '../media/sessionsListNotice.css';
@@ -53,19 +50,18 @@ export interface ISessionsListNoticeOptions {
 /** A quiet, keyboard-accessible notice below the Sessions tree. */
 export class SessionsListNotice extends Disposable {
 	readonly domNode: HTMLElement;
-	constructor(options: ISessionsListNoticeOptions, @IHoverService hoverService: IHoverService) {
+	constructor(options: ISessionsListNoticeOptions) {
 		super();
 		this.domNode = DOM.$('.agent-sessions-list-notice', { role: 'region', 'aria-label': options.label });
 		const content = DOM.append(this.domNode, DOM.$('.agent-sessions-list-notice-content'));
 		DOM.append(content, DOM.$('.agent-sessions-list-notice-description')).textContent = options.description;
-		const dismiss = DOM.append(content, DOM.$('button.agent-sessions-list-notice-dismiss')) as HTMLButtonElement;
-		dismiss.type = 'button';
-		dismiss.appendChild(renderIcon(Codicon.close));
 		const dismissLabel = localize('sessionsListNotice.dismiss', "Dismiss Suggestion");
-		dismiss.setAttribute('aria-label', dismissLabel);
-		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), dismiss, dismissLabel));
+		const dismiss = this._register(new Button(content, { ...defaultButtonStyles, secondary: true, title: dismissLabel, ariaLabel: dismissLabel }));
+		dismiss.element.classList.add('agent-sessions-list-notice-dismiss');
+		dismiss.icon = Codicon.close;
 		const close = () => { options.dismiss(); options.focusSessionsList(); };
-		this._register(DOM.addDisposableListener(dismiss, DOM.EventType.CLICK, close));
+		this._register(dismiss.onDidClick(close));
+		this._register(dismiss.onDidEscape(close));
 		const actions = DOM.append(this.domNode, DOM.$('.agent-sessions-list-notice-actions'));
 		const primary = this._register(new Button(actions, defaultButtonStyles));
 		primary.label = options.label;

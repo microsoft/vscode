@@ -110,6 +110,7 @@ function createMockProvider(id: string, opts?: {
 	const base = {
 		id,
 		label: `Provider ${id}`,
+		environment: { id, label: `Provider ${id}` },
 		icon: Codicon.remote,
 		order: 0,
 		sessionTypes: [],
@@ -341,7 +342,7 @@ function createTestPicker(
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
-	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown> },
+	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown>; readonly telemetryService?: ITelemetryService },
 	fileService: IFileService = upcastPartial<IFileService>({
 		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
@@ -382,7 +383,7 @@ function createTestPicker(
 	instantiationService.stub(IWorkspacesService, workspacesService);
 	instantiationService.stub(ILogService, disposables.add(new NullLogService()));
 	instantiationService.stub(ISessionsRecentWorkspacesService, recentWorkspacesService ?? disposables.add(instantiationService.createInstance(SessionsRecentWorkspacesService)));
-	instantiationService.stub(ITelemetryService, NullTelemetryService);
+	instantiationService.stub(ITelemetryService, options?.telemetryService ?? NullTelemetryService);
 	instantiationService.stub(IHoverService, NullHoverService);
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
@@ -461,6 +462,138 @@ function assertSelectedProvider(picker: WorkspacePicker, expectedProviderId: str
 }
 
 // ---- Tests ------------------------------------------------------------------
+
+suite('WorkspacePicker - Dev Container sample telemetry', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setupPicker(options: IWorkspacePickerOptions = {}) {
+		const events: { name: string; data: object | undefined }[] = [];
+		const telemetryService = new class extends mock<ITelemetryService>() {
+			override publicLog2(name: string, data?: object): void {
+				events.push({ name, data });
+			}
+		}();
+		const providersService = store.add(new MockSessionsProvidersService());
+		const provider = {
+			...createMockProvider('local-agent-host', { group: SESSION_WORKSPACE_GROUP_LOCAL }),
+			supportsLocalWorkspaces: true,
+		};
+		providersService.setProviders([provider]);
+		const picker = createTestPicker(store, providersService, undefined, undefined, DispatchingWorkspacePicker, undefined, undefined, undefined, {
+			restoreFromSessions: false,
+			...options,
+			telemetryService,
+			configuration: {
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+			},
+		});
+		assert.ok(picker instanceof DispatchingWorkspacePicker);
+		return { picker, provider, providersService, events, sampleEvents: () => events.filter(event => event.name === 'devContainerSampleSelected') };
+	}
+
+	for (const surface of ['submenu', 'filtered results', 'recent workspace'] as const) {
+		test(`reports only the catalog ID once per accepted selection from ${surface}`, async () => {
+			const { picker, provider, events, sampleEvents } = setupPicker();
+			for (const sample of devContainerSamples) {
+				const uri = devContainerSampleUri(sample);
+				const eventCount = events.length;
+				let item: IWorkspacePickerItem | undefined;
+				if (surface === 'recent workspace') {
+					picker.setSelectedWorkspace(uri, { fireEvent: false, providerId: provider.id });
+					item = picker.getItems().find(entry => extUri.isEqual(entry.item?.folderUri, uri))?.item;
+				} else {
+					const parent = picker.getItems().find(entry => entry.label === 'Dev Container Sample');
+					if (surface === 'filtered results') {
+						item = parent?.filterItems?.find(entry => entry.label === sample.name)?.item;
+					} else {
+						const submenu = parent?.submenuActions?.[0];
+						assert.ok(submenu instanceof SubmenuAction);
+						const action = submenu.actions.find(action => action.label === sample.name);
+						assert.ok(action);
+						await action.run();
+						item = parent?.item;
+					}
+				}
+				assert.strictEqual(events.length, eventCount, 'Rendering, restoring, and invoking a submenu callback must not log an accepted selection');
+				assert.ok(item);
+				assert.strictEqual(await picker.dispatchItem(item), true);
+			}
+			assert.deepStrictEqual({
+				samples: sampleEvents(),
+				pickerEvents: events.filter(event => event.name === 'newChatPickerClosed'),
+			}, {
+				samples: devContainerSamples.map(sample => ({ name: 'devContainerSampleSelected', data: { sampleId: sample.id } })),
+				pickerEvents: devContainerSamples.map(() => ({
+					name: 'newChatPickerClosed',
+					data: {
+						id: 'NewChatWorkspacePicker',
+						name: 'NewChatWorkspacePicker',
+						selectionChanged: surface !== 'recent workspace',
+						optionIdBefore: undefined,
+						optionIdAfter: undefined,
+						optionLabelBefore: undefined,
+						optionLabelAfter: undefined,
+					},
+				})),
+			});
+		});
+	}
+
+	test('does not report ordinary folders, malformed sample URIs, or programmatic selection', async () => {
+		const { picker, provider, sampleEvents } = setupPicker();
+		const sampleUri = devContainerSampleUri(devContainerSamples[0]);
+		picker.setSelectedWorkspace(sampleUri, { providerId: provider.id });
+		for (const uri of [
+			URI.file('/agent-host/private-project'),
+			URI.file('/agent-host/vscode-remote-try-go'),
+			sampleUri.with({ authority: 'private-host' }),
+			sampleUri.with({ query: 'private-query' }),
+			sampleUri.with({ fragment: 'private-fragment' }),
+			sampleUri.with({ path: '/private-project' }),
+		]) {
+			await picker.dispatchFolder(uri, provider.id);
+		}
+		assert.deepStrictEqual(sampleEvents(), []);
+	});
+
+	for (const decision of ['declined', 'failed', 'superseded'] as const) {
+		test(`does not report a ${decision} sample selection`, async () => {
+			const acceptance = new DeferredPromise<boolean>();
+			const pending = new DeferredPromise<void>();
+			const { picker, provider, sampleEvents } = setupPicker({
+				canSelectWorkspace: () => {
+					pending.complete();
+					return acceptance.p;
+				},
+			});
+			const selection = picker.dispatchFolder(devContainerSampleUri(devContainerSamples[0]), provider.id);
+			const rejected = decision === 'failed' ? assert.rejects(selection, /Selection failed/) : undefined;
+			await pending.p;
+			if (decision === 'superseded') {
+				picker.clearSelection();
+			}
+			if (decision === 'failed') {
+				acceptance.error(new Error('Selection failed'));
+				await rejected;
+			} else {
+				acceptance.complete(decision === 'superseded');
+				assert.strictEqual(await selection, false);
+			}
+			assert.deepStrictEqual(sampleEvents(), []);
+		});
+	}
+
+	test('does not report a sample selection from an unavailable provider', async () => {
+		const { picker, providersService, sampleEvents } = setupPicker();
+		const provider = createMockProvider('agenthost-unavailable', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.disconnected),
+		});
+		providersService.setProviders([provider]);
+		await picker.dispatchFolder(devContainerSampleUri(devContainerSamples[0]), provider.id);
+		assert.deepStrictEqual(sampleEvents(), []);
+	});
+});
 
 suite('WorkspacePicker - Connection Status', () => {
 

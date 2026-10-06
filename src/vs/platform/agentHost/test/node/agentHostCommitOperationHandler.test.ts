@@ -88,6 +88,7 @@ class TestGitService implements IAgentHostGitService {
 	async diffTreePaths(): Promise<string[] | undefined> { return undefined; }
 	async computeFileDiffsBetweenRefs(): Promise<readonly ISessionFileDiff[] | undefined> { return undefined; }
 	async getFetchRemoteUrls(): Promise<undefined> { return undefined; }
+	async getFetchRemotes(): Promise<undefined> { return undefined; }
 	async getUntrackedPaths(): Promise<[]> { return []; }
 	async getBranchDiffSafetyInfo(): Promise<undefined> { return undefined; }
 	async getDiffPatchBetweenRefs(): Promise<undefined> { return undefined; }
@@ -149,6 +150,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 function createAuthenticationService(token: string | undefined): IAgentHostAuthenticationService {

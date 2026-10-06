@@ -273,6 +273,56 @@ suite('Agent Host Copilot API binding', () => {
 		assert.deepStrictEqual(requests, ['/user', '/copilot_internal/user']);
 	});
 
+	test('Copilot REST fallback leaves repository identity renewal and GraphQL available', async () => {
+		const requests: string[] = [];
+		let throttleDiscovery = false;
+		const { authentication, github, service } = create(async input => {
+			const path = new URL(String(input)).pathname;
+			requests.push(path);
+			switch (path) {
+				case '/copilot_internal/user':
+					return throttleDiscovery ? Response.json({ message: 'API rate limit exceeded' }, {
+						status: 403, headers: {
+							'x-ratelimit-resource': 'discovery', 'x-ratelimit-remaining': '0',
+							'x-ratelimit-reset': String(Math.ceil(Date.now() / 1000) + 3600),
+						},
+					}) : Response.json({ access_type_sku: 'copilot-test' });
+				case '/user':
+					return Response.json({ id: 101 });
+				case '/graphql':
+					return Response.json({ data: { viewer: { login: 'test' } } });
+				default:
+					throw new Error(`Unexpected request: ${path}`);
+			}
+		});
+		const repository = endpoint.getRepoResource();
+		const provider = new class extends mock<IAgent>() {
+			override getProtectedResources() { return [resource, repository]; }
+			override async authenticate() { return true; }
+		}();
+		await service.resolveCopilotSku('warmup');
+		await runWithFakedTimers({ startTime: Date.now() }, async () => {
+			const started = Date.now();
+			const signal = new AbortController().signal;
+			await authentication.authenticate({ resource: repository.resource, scopes: repository.scopes_supported, token: 'repository-first', ...metadata }, [provider]);
+			const client = store.add(github.acquireRepositoryClient(signal)).object;
+			await client.credentials.getCredential(signal);
+			await authentication.authenticate({ ...authRequest, token: 'copilot', ...metadata }, [provider]);
+			throttleDiscovery = true;
+			await assert.rejects(service.models('copilot'), { status: 403 });
+			await authentication.authenticate({ resource: repository.resource, scopes: repository.scopes_supported, token: 'repository-renewed', ...metadata }, [provider]);
+			const credential = await client.credentials.getCredential(signal);
+			const result = await client.transport.graphql(credential.account, credential.token, client.endpoint.getGraphQlUri(), 'query { viewer { login } }', {}, signal);
+			await assert.rejects(service.models('copilot'), { status: 429, code: 'rate_limited' });
+			assert.deepStrictEqual({
+				requests, token: credential.token, accountId: credential.account.accountId, data: result.data, elapsed: Date.now() - started,
+			}, {
+				requests: ['/copilot_internal/user', '/user', '/copilot_internal/user', '/user', '/graphql'],
+				token: 'repository-renewed', accountId: '101', data: { viewer: { login: 'test' } }, elapsed: 0,
+			});
+		});
+	});
+
 	test('renewed credentials retain the account model cooldown without rediscovering accepted work', async () => {
 		const requests: { path: string; token: string | null }[] = [];
 		const { authentication, service } = create(async (input, init) => {
