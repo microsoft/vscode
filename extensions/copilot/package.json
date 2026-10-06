@@ -2158,8 +2158,8 @@
                   },
                   "statefulResponses": {
                     "type": "boolean",
-                    "default": false,
-                    "markdownDescription": "Whether the Responses API server retains prior responses. When `true`, requests chain via `previous_response_id` and send only new history; leave `false` for stateless servers (for example DeepSeek), which require the full history on every request. Ignored when `zeroDataRetentionEnabled` is `true`."
+                    "default": true,
+                    "markdownDescription": "Whether the Responses API server retains prior responses. When `true`, requests chain via `previous_response_id` and send only new history. Set to `false` for stateless servers that ignore `previous_response_id` (for example DeepSeek), so the full history is sent on every request. Ignored when `zeroDataRetentionEnabled` is `true`."
                   },
                   "supportsReasoningEffort": {
                     "type": "array",

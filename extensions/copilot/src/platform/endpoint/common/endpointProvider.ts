@@ -156,8 +156,9 @@ export type IChatModelInformation = IModelAPIResponse & {
 	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
-	 * BYOK Custom Endpoint opt-in declaring that the Responses API server retains prior
-	 * responses, so requests may chain via `previous_response_id` and send only post-marker history.
+	 * BYOK Custom Endpoint setting declaring whether the Responses API server retains prior
+	 * responses, so requests may chain via `previous_response_id` and send only post-marker
+	 * history. Unset is treated as `true`; set `false` for stateless servers.
 	 */
 	statefulResponses?: boolean;
 	/**

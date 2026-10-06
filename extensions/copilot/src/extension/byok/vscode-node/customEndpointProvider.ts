@@ -208,8 +208,8 @@ export class CustomEndpointBYOKModelProvider extends AbstractOpenAICompatibleLMP
  *    conflicting credentials.
  * 4. Omits the Responses API `store` property when Zero Data Retention was not
  *    explicitly configured, allowing custom implementations to use their own default.
- * 5. Sends full Responses history instead of chaining via `previous_response_id`
- *    unless the user declares the server stateful with `statefulResponses: true`.
+ * 5. Chains Responses requests via `previous_response_id` per the Open Responses spec,
+ *    unless the user marks the server stateless with `statefulResponses: false`.
  */
 export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	/**
@@ -261,11 +261,11 @@ export class CustomEndpointOAIEndpoint extends OpenAIEndpoint {
 	}
 
 	/**
-	 * Many OpenAI-compatible Responses implementations (e.g. DeepSeek) are stateless and
-	 * ignore `previous_response_id`, so only chain when the user opts in via `statefulResponses`.
+	 * Spec-compliant Responses servers honor `previous_response_id`, but some (e.g. DeepSeek)
+	 * silently ignore it, so users can opt out with `statefulResponses: false`.
 	 */
 	protected override get supportsStatefulResponses(): boolean {
-		return this.modelMetadata.statefulResponses === true;
+		return this.modelMetadata.statefulResponses !== false;
 	}
 
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {

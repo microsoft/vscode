@@ -236,7 +236,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			};
 		}
 
-		it('omits store and previous_response_id after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
+		it('omits store but keeps previous_response_id after cloning a Custom Endpoint Responses endpoint when both flags are omitted', async () => {
 			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
 			const body = createResponsesBody(endpoint);
 
@@ -247,12 +247,12 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			}).toEqual({
 				storePresent: false,
 				store: undefined,
-				previousResponseId: undefined,
+				previousResponseId: customResponsesMarker,
 			});
 		});
 
-		it('issue #331636: sends the full tool-call history to stateless Custom Endpoint Responses servers', async () => {
-			const endpoint = await createConfiguredResponsesEndpoint();
+		it('issue #331636: sends the full tool-call history when statefulResponses is false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(undefined, false);
 			const body = endpoint.createRequestBody({
 				debugName: 'test',
 				messages: [
@@ -280,8 +280,8 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		});
 
-		it('enables store but not previous_response_id when zeroDataRetentionEnabled is false without statefulResponses', async () => {
-			const endpoint = await createConfiguredResponsesEndpoint(false);
+		it('enables store but not previous_response_id when zeroDataRetentionEnabled and statefulResponses are false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false, false);
 			const body = createResponsesBody(endpoint);
 
 			expect({
@@ -295,8 +295,8 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		});
 
-		it('chains via previous_response_id when statefulResponses is true', async () => {
-			const endpoint = await createConfiguredResponsesEndpoint(false, true);
+		it('enables store and previous_response_id when zeroDataRetentionEnabled is false and statefulResponses is omitted', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false);
 			const body = createResponsesBody(endpoint);
 
 			expect({
