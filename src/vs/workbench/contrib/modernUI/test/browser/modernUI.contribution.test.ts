@@ -40,6 +40,7 @@ import '../../../../browser/media/style.css';
 import '../../../../browser/media/floatingPanels.css';
 import '../../../../../base/browser/ui/menu/menubar.css';
 import '../../../../browser/parts/activitybar/media/activityaction.css';
+import '../../../../browser/parts/editor/media/multieditortabscontrol.css';
 import '../../../../browser/parts/editor/media/modalEditorPart.css';
 import '../../../../browser/parts/media/paneCompositePart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
@@ -3692,7 +3693,7 @@ suite('ModernUIContribution', () => {
 		});
 	});
 
-	test('persists reserved tab actions and hides unreserved actions in contrast themes', () => {
+	test('preserves contrast tab action visibility across reservation and connected states', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark');
 		theme.setCustomColors({ [activeContrastBorder]: '#FFFFFF' });
 
@@ -3718,13 +3719,21 @@ suite('ModernUIContribution', () => {
 		const reservedInactiveGroup = createTab(content, 'editor-group-container', 'title tab-actions-reserve-space');
 		const transientActive = createTab(content, 'editor-group-container active', 'title', 'tab active');
 
+		const highContrastConnectedRoot = document.createElement('div');
+		highContrastConnectedRoot.className = 'active-contrast-theme hc-black monaco-workbench modern-ui-tabs modern-ui-connected-editor-tabs';
+		document.body.appendChild(highContrastConnectedRoot);
+		store.add(toDisposable(() => highContrastConnectedRoot.remove()));
+		const highContrastConnectedContent = appendElement(appendElement(highContrastConnectedRoot, 'part editor'), 'content');
+		const highContrastReservedActive = createTab(highContrastConnectedContent, 'editor-group-container active', 'title tabs tab-actions-reserve-space', 'tab active');
+		const highContrastConnectedActive = createTab(highContrastConnectedContent, 'editor-group-container active', 'title tabs', 'tab active');
+		const highContrastConnectedInactiveGroup = createTab(highContrastConnectedContent, 'editor-group-container', 'title tabs', 'tab active');
+
 		const highContrastRoot = document.createElement('div');
 		highContrastRoot.className = 'active-contrast-theme hc-black monaco-workbench modern-ui-tabs';
 		document.body.appendChild(highContrastRoot);
 		store.add(toDisposable(() => highContrastRoot.remove()));
 		const highContrastContent = appendElement(appendElement(highContrastRoot, 'part editor'), 'content');
-		const highContrastReservedActive = createTab(highContrastContent, 'editor-group-container active', 'title tab-actions-reserve-space', 'tab active');
-		const highContrastTransientActive = createTab(highContrastContent, 'editor-group-container active', 'title', 'tab active');
+		const highContrastTransientActive = createTab(highContrastContent, 'editor-group-container active', 'title tabs', 'tab active');
 
 		const targetWindow = getWindow(root);
 		assert.deepStrictEqual({
@@ -3732,12 +3741,16 @@ suite('ModernUIContribution', () => {
 			reservedInactiveGroup: { opacity: targetWindow.getComputedStyle(reservedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(reservedInactiveGroup.parentElement!).pointerEvents },
 			transientActive: { opacity: targetWindow.getComputedStyle(transientActive).opacity, pointerEvents: targetWindow.getComputedStyle(transientActive.parentElement!).pointerEvents },
 			highContrastReservedActive: { opacity: targetWindow.getComputedStyle(highContrastReservedActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastReservedActive.parentElement!).pointerEvents },
+			highContrastConnectedActive: { opacity: targetWindow.getComputedStyle(highContrastConnectedActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastConnectedActive.parentElement!).pointerEvents },
+			highContrastConnectedInactiveGroup: { opacity: targetWindow.getComputedStyle(highContrastConnectedInactiveGroup).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastConnectedInactiveGroup.parentElement!).pointerEvents },
 			highContrastTransientActive: { opacity: targetWindow.getComputedStyle(highContrastTransientActive).opacity, pointerEvents: targetWindow.getComputedStyle(highContrastTransientActive.parentElement!).pointerEvents },
 		}, {
 			reservedActive: { opacity: '1', pointerEvents: 'auto' },
 			reservedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
 			transientActive: { opacity: '0', pointerEvents: 'none' },
 			highContrastReservedActive: { opacity: '1', pointerEvents: 'auto' },
+			highContrastConnectedActive: { opacity: '1', pointerEvents: 'auto' },
+			highContrastConnectedInactiveGroup: { opacity: '0.5', pointerEvents: 'auto' },
 			highContrastTransientActive: { opacity: '0', pointerEvents: 'none' },
 		});
 	});
@@ -3973,6 +3986,12 @@ suite('ModernUIContribution', () => {
 		const activeTabActions = appendElement(activeTab, 'tab-actions');
 		const activeTabAction = appendElement(activeTabActions, 'action-label');
 		activeTabAction.tabIndex = 0;
+		const reservedTitle = appendElement(activeGroup, 'title tab-actions-reserve-space');
+		const reservedTabs = appendElement(reservedTitle, 'tabs-container');
+		const reservedSelectedTab = appendElement(reservedTabs, 'tab selected tab-border-top');
+		const reservedSelectedTabActions = appendElement(reservedSelectedTab, 'tab-actions');
+		const reservedSelectedTabAction = appendElement(reservedSelectedTabActions, 'action-label');
+		reservedSelectedTabAction.tabIndex = 0;
 		const inactiveTab = appendElement(activeTabs, 'tab');
 		const inactiveFill = appendElement(inactiveTab, 'tab-fill');
 		const inactiveLabel = appendElement(inactiveTab, 'tab-label');
@@ -4018,6 +4037,15 @@ suite('ModernUIContribution', () => {
 		const activeTabActionStyle = getWindow(activeTabActions).getComputedStyle(activeTabActions);
 		const activeTabActionFadeStyle = getWindow(activeTabActions).getComputedStyle(activeTabActions, '::before');
 		const pinnedRowStyle = getWindow(pinnedRow).getComputedStyle(pinnedRow);
+		const actionBackground = activeTabActionStyle.backgroundColor;
+		const actionBackgroundClip = activeTabActionStyle.backgroundClip;
+		const actionBorderBlockWidth = [activeTabActionStyle.borderTopWidth, activeTabActionStyle.borderBottomWidth];
+		const actionInlineEndBorderColor = activeTabActionStyle.borderRightColor;
+		const actionFadeBackgroundClip = activeTabActionFadeStyle.backgroundClip;
+		const actionFadeBorderBlockWidth = [activeTabActionFadeStyle.borderTopWidth, activeTabActionFadeStyle.borderBottomWidth];
+
+		reservedSelectedTabAction.focus();
+		const reservedSelectedTabActionStyle = getWindow(reservedSelectedTabActions).getComputedStyle(reservedSelectedTabActions);
 
 		assert.deepStrictEqual({
 			paneBackground: getWindow(paneAction.indicator).getComputedStyle(paneAction.indicator).backgroundColor,
@@ -4042,12 +4070,14 @@ suite('ModernUIContribution', () => {
 			unfocusedActiveBorder: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).color,
 			unfocusedActiveBorderTop: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).borderTopColor,
 			unfocusedHoverBorder: getWindow(unfocusedBorderProbe).getComputedStyle(unfocusedBorderProbe).borderBottomColor,
-			actionBackground: activeTabActionStyle.backgroundColor,
-			actionBackgroundClip: activeTabActionStyle.backgroundClip,
-			actionBorderBlockWidth: [activeTabActionStyle.borderTopWidth, activeTabActionStyle.borderBottomWidth],
-			actionInlineEndBorderColor: activeTabActionStyle.borderRightColor,
-			actionFadeBackgroundClip: activeTabActionFadeStyle.backgroundClip,
-			actionFadeBorderBlockWidth: [activeTabActionFadeStyle.borderTopWidth, activeTabActionFadeStyle.borderBottomWidth],
+			actionBackground,
+			actionBackgroundClip,
+			actionBorderBlockWidth,
+			actionInlineEndBorderColor,
+			actionFadeBackgroundClip,
+			actionFadeBorderBlockWidth,
+			reservedActionBackground: reservedSelectedTabActionStyle.backgroundColor,
+			reservedActionBorderTopWidth: reservedSelectedTabActionStyle.borderTopWidth,
 			separatorColor: getWindow(separatorProbe).getComputedStyle(separatorProbe).color,
 			customConnectedBorder: getWindow(separatorProbe).getComputedStyle(separatorProbe).backgroundColor,
 			lastPinnedBorder: getWindow(separatorProbe).getComputedStyle(separatorProbe).borderTopColor,
@@ -4081,6 +4111,8 @@ suite('ModernUIContribution', () => {
 			actionInlineEndBorderColor: 'rgba(0, 0, 0, 0)',
 			actionFadeBackgroundClip: 'padding-box',
 			actionFadeBorderBlockWidth: ['1px', '1px'],
+			reservedActionBackground: 'rgba(0, 0, 0, 0)',
+			reservedActionBorderTopWidth: '1px',
 			separatorColor: 'rgb(119, 136, 153)',
 			customConnectedBorder: 'rgb(119, 136, 153)',
 			lastPinnedBorder: 'rgb(136, 153, 170)',
@@ -4228,6 +4260,57 @@ suite('ModernUIContribution', () => {
 			editorHoverForeground: 'rgb(255, 237, 213)',
 			editorSelectedActionBackground: 'rgb(22, 101, 52)',
 		});
+	});
+
+	test('uses theme-defined action colors while preserving user overrides and default hover colors', () => {
+		const actionColors = {
+			[MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND]: '#0E3747',
+			[MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND]: '#4C1678',
+			[MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND]: '#5A1F0C',
+			[MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: '#166534',
+		};
+		const results = ['default', 'theme', 'user', 'themeWithUserOverride'].map(source => {
+			const theme = ColorThemeData.createUnloadedTheme('vs-dark', source === 'theme' || source === 'themeWithUserOverride' ? actionColors : {});
+			if (source === 'user') {
+				theme.setCustomColors(actionColors);
+			} else if (source === 'themeWithUserOverride') {
+				theme.setCustomColors({ [MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: '#123456' });
+			}
+
+			const scope = `.action-color-source-${source}`;
+			const style = document.createElement('style');
+			style.textContent = generateColorThemeCSS(theme, scope, themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+			document.head.appendChild(style);
+			store.add(toDisposable(() => style.remove()));
+
+			const root = appendElement(document.body, `${scope.slice(1)} monaco-workbench modern-ui-tabs`);
+			root.style.setProperty('--vscode-toolbar-hoverBackground', '#ABCDEF');
+			store.add(toDisposable(() => root.remove()));
+			const content = appendElement(appendElement(root, 'part editor'), 'content');
+			const group = appendElement(content, 'editor-group-container active');
+			const tabs = appendElement(appendElement(group, 'title tab-actions-reserve-space'), 'tabs-container');
+			const readButtonBackground = (classes: string) => {
+				const actions = appendElement(appendElement(tabs, classes), 'tab-actions');
+				const button = appendElement(actions, 'action-label');
+				button.style.backgroundColor = 'var(--modern-ui-editor-tab-action-button-background)';
+				return getWindow(button).getComputedStyle(button).backgroundColor;
+			};
+			const rootStyle = getWindow(root).getComputedStyle(root);
+			return {
+				source,
+				active: readButtonBackground('tab active'),
+				inactive: readButtonBackground('tab'),
+				selected: readButtonBackground('tab selected'),
+				activeHover: rootStyle.getPropertyValue('--modern-ui-editor-tab-custom-action-active-hover-background').trim(),
+			};
+		});
+
+		assert.deepStrictEqual(results, [
+			{ source: 'default', active: 'rgb(171, 205, 239)', inactive: 'rgb(171, 205, 239)', selected: 'rgb(171, 205, 239)', activeHover: '' },
+			{ source: 'theme', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(22, 101, 52)', activeHover: '#4c1678' },
+			{ source: 'user', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(22, 101, 52)', activeHover: '#4c1678' },
+			{ source: 'themeWithUserOverride', active: 'rgb(14, 55, 71)', inactive: 'rgb(90, 31, 12)', selected: 'rgb(18, 52, 86)', activeHover: '#4c1678' },
+		]);
 	});
 
 	test('derives inactive tab foreground from a legacy active foreground customization', () => {

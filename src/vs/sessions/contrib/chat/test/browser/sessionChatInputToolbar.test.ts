@@ -5,12 +5,14 @@
 
 import assert from 'assert';
 import { isManagedHoverTooltipHTMLElement } from '../../../../../base/browser/ui/hover/hover.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { SubmenuAction, type IAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -27,6 +29,8 @@ import { IBrowserViewWorkbenchService } from '../../../../../workbench/contrib/b
 import type { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { ISessionChatPillVisibilityService, SessionChatPillKind, SessionChatPillVisibility } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { GitHubResourceHoverCache } from '../../../../../workbench/contrib/github/browser/githubResourceHoverCache.js';
+import { ChatDropdownPillActionViewItem } from '../../../../../workbench/browser/chatDropdownPill.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_PREFIX } from '../../../../common/agentHostSessionsProvider.js';
@@ -68,6 +72,35 @@ suite('SessionChatInputToolbar', () => {
 		}));
 		return { instantiationService, visibility };
 	}
+
+	test('keeps copied feedback stable across section refreshes', async () => {
+		const { instantiationService } = createServices();
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		const cache = Reflect.get(toolbar, '_issueCopyActions') as {
+			get(key: string, label: string, copy: () => Promise<void>): IAction;
+			retain(keys: ReadonlySet<string>): void;
+		};
+		const copied: string[] = [];
+		const key = 'microsoft/vscode/42';
+		const first = cache.get(key, 'Copy issue URL', async () => { copied.push('first'); });
+
+		await first.run();
+		cache.retain(new Set([key]));
+		const refreshed = cache.get(key, 'Copy issue URL', async () => { copied.push('refreshed'); });
+		await refreshed.run();
+
+		assert.deepStrictEqual({
+			sameAction: first === refreshed,
+			label: refreshed.label,
+			class: refreshed.class,
+			copied,
+		}, {
+			sameAction: true,
+			label: 'Copied',
+			class: ThemeIcon.asClassName(Codicon.check),
+			copied: ['first', 'refreshed'],
+		});
+	});
 
 	test('uses the active chat projection rather than cached session stats', () => {
 		const chat = upcastPartial<IChat>({
@@ -755,6 +788,88 @@ suite('SessionChatInputToolbar', () => {
 				ariaDescription: 'Not planned. https://github.com/microsoft/vscode/issues/42',
 			},
 			recordedOpenIds: ['pull-request-artifact', 'issue-artifact', 'pull-request-artifact'],
+		});
+	});
+
+	test('does not update the managed PR hover during metadata or reference identity refreshes', async () => {
+		const { instantiationService } = createServices();
+		const cache = store.add(new GitHubResourceHoverCache());
+		const ref: IGitHubPullRequestRef = {
+			owner: 'microsoft', repo: 'vscode', number: 1,
+			uri: URI.parse('https://github.com/microsoft/vscode/pull/1'), recordedReferenceId: 'pr-artifact',
+		};
+		const pullRequest: IGitHubPullRequest = {
+			number: 1, title: 'Original title', body: 'Description', state: GitHubPullRequestState.Open,
+			author: { login: 'octocat', avatarUrl: '' }, headRef: 'feature', headSha: 'head', baseRef: 'main',
+			isDraft: false, createdAt: '', updatedAt: '', mergedAt: undefined, mergeable: true, mergeableState: 'clean',
+		};
+		const copied: string[] = [];
+		const removed: string[] = [];
+		const build = (title: string) => buildSessionPullRequestSections(
+			[{ ref: { ...ref }, pullRequest: { ...pullRequest, title }, icon: Codicon.gitPullRequest, status: {} }],
+			undefined,
+			upcastPartial<ICommandService>({ executeCommand: async () => undefined }),
+			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
+			upcastPartial<IOpenerService>({ open: async () => true }),
+			upcastPartial<ISessionsService>({ setActive: () => { } }),
+			{ remove: async () => { removed.push(title); } },
+			cache,
+		);
+		const sections = observableValue('pullRequestSections', build('Original title'));
+		let tooltipUpdates = 0;
+		const viewItem = store.add(instantiationService.createInstance(class extends ChatDropdownPillActionViewItem {
+			protected override updateTooltip(): void {
+				tooltipUpdates++;
+				super.updateTooltip();
+			}
+		}, { id: 'pullRequests', label: 'Pull Requests', tooltip: '', class: undefined, enabled: true, run: () => { } }, {}, sections, {
+			widgetId: 'pullRequests', icon: Codicon.gitPullRequest, title: 'Pull Requests',
+			summaryLabel: count => `${count} Pull Requests`, summaryAriaLabel: count => `Show ${count} pull requests`,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+		tooltipUpdates = 0;
+		let managedUpdates = 0;
+		Reflect.set(viewItem, 'customHover', {
+			show: () => { }, hide: () => { }, dispose: () => { },
+			update: () => { managedUpdates++; },
+		});
+		const firstEntry = sections.get()[0].entries[0];
+		const firstHover = firstEntry.pillHover;
+		assert.ok(isManagedHoverTooltipHTMLElement(firstHover));
+		const element = await firstHover.element(CancellationToken.None);
+		container.appendChild(element);
+		const focusedControl = element.querySelector<HTMLElement>('.sessions-pr-hover-reference')!;
+		focusedControl.focus();
+		for (const title of ['Updated title', 'Latest title']) {
+			sections.set(build(title), undefined);
+		}
+		const updatedEntry = sections.get()[0].entries[0];
+		await firstEntry.toolbarActions?.[0].run();
+		await firstEntry.promotedAction?.run();
+		const snapshot = {
+			tooltipUpdates, managedUpdates,
+			sameDescriptor: firstHover === updatedEntry.pillHover,
+			sameCopyAction: firstEntry.toolbarActions?.[0] === updatedEntry.toolbarActions?.[0],
+			sameRemoveAction: firstEntry.promotedAction === updatedEntry.promotedAction,
+			focusPreserved: mainWindow.document.activeElement === focusedControl,
+			title: element.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+		};
+		element.remove();
+		const reopened = await firstHover.element(CancellationToken.None);
+		assert.deepStrictEqual({
+			snapshot,
+			reopenedTitle: reopened.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
+			copied, removed,
+		}, {
+			snapshot: {
+				tooltipUpdates: 0, managedUpdates: 0, sameDescriptor: true,
+				sameCopyAction: true, sameRemoveAction: true, focusPreserved: true, title: 'Original title',
+			},
+			reopenedTitle: 'Latest title',
+			copied: [ref.uri.toString(true)], removed: ['Latest title'],
 		});
 	});
 

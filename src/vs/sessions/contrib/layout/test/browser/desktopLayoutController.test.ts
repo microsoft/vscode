@@ -1584,7 +1584,7 @@ suite('DesktopLayoutController', () => {
 
 		assert.deepStrictEqual({ beforeHydration, afterHydration }, {
 			beforeHydration: true,
-			afterHydration: { keepChangesHeader: false, hasIncomingChangesTab: true },
+			afterHydration: { keepChangesHeader: false, hasIncomingChangesTab: false },
 		});
 	});
 
@@ -1622,6 +1622,70 @@ suite('DesktopLayoutController', () => {
 			filesResource: undefined,
 			filesWorkingDirectory: URI.file('/repo').toString()
 		});
+	});
+
+	test('[managed tabs] keeps a closed side pane empty so opening a file opens only that file', async () => {
+		createDesktopController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, false]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: false },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: false },
+			},
+		});
+		await settle();
+
+		const session = makeSession(URI.parse('session:1'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		assert.strictEqual(harness.activeGroupEditors.length, 0);
+
+		const file = store.add(new TestStubEditorInput(URI.file('/repo/opened.ts')));
+		openEditor(file);
+		harness.layoutService.revealEditorPartExplicitly();
+		harness.activeGroupEditors.push(file);
+		harness.activeEditorInput = file;
+		harness.onDidActiveEditorChange.fire();
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(editor => editor.resource?.toString()), [
+			URI.file('/repo/opened.ts').toString(),
+		]);
+	});
+
+	test('[managed tabs / submit] keeps a closed side pane empty when changes arrive before a plan file opens', async () => {
+		createDesktopController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, false]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: false },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: false },
+			},
+		});
+		await settle();
+
+		const session = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/plan.md')], undefined);
+		await settle();
+		assert.strictEqual(harness.activeGroupEditors.length, 0);
+
+		const plan = store.add(new TestStubEditorInput(URI.file('/repo/plan.md')));
+		openEditor(plan);
+		harness.layoutService.revealEditorPartExplicitly();
+		harness.activeGroupEditors.push(plan);
+		harness.activeEditorInput = plan;
+		harness.onDidActiveEditorChange.fire();
+		harness.onDidEditorsChange.fire();
+		await settle();
+
+		assert.deepStrictEqual(harness.activeGroupEditors.map(editor => editor.resource?.toString()), [
+			URI.file('/repo/plan.md').toString(),
+		]);
 	});
 
 	test('[managed tabs] updates the Files root when the active session changes', async () => {
@@ -1664,15 +1728,21 @@ suite('DesktopLayoutController', () => {
 		}]);
 	});
 
-	test('[managed tabs / Changes pill] reveals the editor area before opening the managed Changes editor', async () => {
-		createDesktopController({ activateAux: true });
+	test('[managed tabs / Changes pill] opens only Changes when the session defaults are still pending', async () => {
+		createDesktopController({
+			activateAux: true,
+			initialPartVisibility: new Map([[Parts.EDITOR_PART, false], [Parts.AUXILIARYBAR_PART, false]]),
+			sidePaneVisibilityState: {
+				newSession: { editorVisible: false, auxiliaryBarVisible: false },
+				existingSession: { editorVisible: false, auxiliaryBarVisible: false },
+			},
+		});
 		await settle();
 
 		const session = makeSession(URI.parse('session:1'));
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-
-		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		assert.strictEqual(harness.activeGroupEditors.length, 0);
 		harness.setPartHiddenCalls = [];
 
 		const handler = CommandsRegistry.getCommand('workbench.agentSessions.action.viewChanges')?.handler;
@@ -1684,9 +1754,13 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual({
 			editorRevealed: harness.setPartHiddenCalls.some(c => c.part === Parts.EDITOR_PART && c.hidden === false),
 			hasChangesTab: hasChangesTab(),
+			hasFilesTab: hasFilesTab(),
+			editorCount: harness.activeGroupEditors.length,
 		}, {
 			editorRevealed: true,
 			hasChangesTab: true,
+			hasFilesTab: false,
+			editorCount: 1,
 		});
 	});
 
@@ -2800,6 +2874,8 @@ suite('DesktopLayoutController', () => {
 
 		// The user reopens the side pane via the toggle action while the editor
 		// group is empty: the default managed tabs must be re-populated.
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
 		harness.onDidRevealSidePane.fire();
 		await settle();
 

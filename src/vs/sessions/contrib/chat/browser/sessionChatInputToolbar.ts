@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { toAction } from '../../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../../base/common/actions.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, IReader, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -55,6 +56,11 @@ import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionAgentMergeConfigurationObservable } from '../../../browser/sessionAgentMerge.js';
 import { createIssueHover, getIssueStatus } from '../../github/browser/issueHover.js';
 import { createPullRequestHover, getPullRequestChecksStatusLabel } from '../../github/browser/pullRequestHover.js';
+import { GitHubResourceHoverCache } from '../../../../workbench/contrib/github/browser/githubResourceHoverCache.js';
+
+const copiedLabel = localize('sessionChatPills.copied', "Copied");
+const copiedToClipboardStatus = localize('sessionChatPills.copiedToClipboard', "Copied to clipboard");
+const copyFeedbackDuration = 1200;
 
 /** Fake artifacts for the pill debug overlay. */
 function buildDebugArtifactSections(debugData: ISessionChatPillsDebugData): readonly IChatPillSection[] {
@@ -117,8 +123,10 @@ interface IRecordedArtifactActions {
 	recordOpen?(id: string): void;
 }
 
+type CreateCopyAction = (key: string, label: string, copy: () => Promise<void>) => IAction;
+
 /** Builds Agents Window pull request pill entries, enriching them when live details are available. */
-export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubPullRequestRef, ICachedHover>): readonly IChatPullRequestPillSection[] {
+export function buildSessionPullRequestSections(pullRequests: readonly IResolvedSessionPullRequest[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, hoverCache?: GitHubResourceHoverCache, createCopyAction?: CreateCopyAction): readonly IChatPullRequestPillSection[] {
 	const entries = pullRequests.map(({ ref, pullRequest, icon, status, ciStatus }) => {
 		const title = pullRequest?.title ?? ref.title;
 		const recordedReferenceId = ref.recordedReferenceId;
@@ -135,7 +143,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 			...(pullRequest.headRef ? { onDidClickHeadBranch: () => { void clipboardService.writeText(pullRequest.headRef); } } : {}),
 		}) : undefined;
 		const createDropdownHover = createHover ? () => {
-			const hover = createCachedHover(dropdownHoverCache, ref, () => createHover('compact'));
+			const hover = createHover('compact');
 			hoverTabbableElements = hover.tabbableElements;
 			return hover.element;
 		} : undefined;
@@ -161,7 +169,7 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 		const checksDescription = pullRequest && !(ciStatus === GitHubCIOverallStatus.Failure && status.hasFailingChecks)
 			? getPullRequestChecksStatusLabel(pullRequest, ciStatus)
 			: undefined;
-		return {
+		const entry: IChatPullRequestPillEntry = {
 			id: recordedReferenceId ?? ref.uri.toString(),
 			label,
 			...(title ? { badge: `#${ref.number}`, className: 'chat-pill-github-reference' } : {}),
@@ -174,7 +182,11 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.([recordedReferenceId], resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(toAction({
+			toolbarActions: [withChatPillHoverLabel(createCopyAction?.(
+				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
+				localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
+				() => clipboardService.writeText(ref.uri.toString(true)),
+			) ?? toAction({
 				id: `sessionChatPills.copyPullRequest.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyPullRequest', "Copy pull request URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
@@ -198,7 +210,11 @@ export function buildSessionPullRequestSections(pullRequests: readonly IResolved
 					artifactActions?.recordOpen?.(recordedReferenceId);
 				}
 			},
-		} satisfies IChatPullRequestPillEntry;
+		};
+		return hoverCache ? {
+			...entry,
+			...hoverCache.get(`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`, entry, createHover),
+		} : entry;
 	});
 	return entries.length > 0 ? [{ title: localize('sessionChatPills.pullRequests', "Pull Requests"), entries }] : [];
 }
@@ -218,7 +234,7 @@ function groupSessionIssues(issues: readonly IResolvedSessionIssue[]) {
 }
 
 /** Builds one pill entry per issue, grouping comment links and enriching entries with live details. */
-export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>): readonly IChatPillSection[] {
+export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue[], session: IActiveSession | undefined, commandService: ICommandService, clipboardService: IClipboardService, openerService: IOpenerService, sessionsService: ISessionsService, artifactActions?: IRecordedArtifactActions, dropdownHoverCache?: WeakMap<IGitHubIssueRef, ICachedHover>, createCopyAction?: CreateCopyAction): readonly IChatPillSection[] {
 	const entries = groupSessionIssues(issues).map(({ ref, issue, recordedReferenceIds }) => {
 		const uri = ref.uri.with({ scheme: Schemas.https, authority: 'github.com', path: `/${ref.owner}/${ref.repo}/issues/${ref.number}`, query: '', fragment: '' });
 		const title = issue?.title ?? ref.title;
@@ -253,7 +269,11 @@ export function buildSessionIssueSections(issues: readonly IResolvedSessionIssue
 				class: ThemeIcon.asClassName(Codicon.close),
 				run: () => artifactActions.remove?.(recordedReferenceIds, resourceLabel),
 			}), chatPillRemoveArtifactHoverLabel) : undefined,
-			toolbarActions: [withChatPillHoverLabel(toAction({
+			toolbarActions: [withChatPillHoverLabel(createCopyAction?.(
+				`${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`,
+				localize('sessionChatPills.copyIssue', "Copy issue URL"),
+				() => clipboardService.writeText(uri.toString(true)),
+			) ?? toAction({
 				id: `sessionChatPills.copyIssue.${ref.owner}.${ref.repo}.${ref.number}`,
 				label: localize('sessionChatPills.copyIssue', "Copy issue URL"),
 				class: ThemeIcon.asClassName(Codicon.copy),
@@ -321,6 +341,60 @@ function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isN
  */
 export const SESSION_CHAT_INPUT_TOOLBAR_HEIGHT = CHAT_INPUT_PILLS_ROW_HEIGHT;
 
+class CopyFeedbackAction extends Action {
+
+	private readonly _reset = this._register(new MutableDisposable());
+
+	constructor(id: string, private _copyLabel: string, private _copy: () => Promise<void>) {
+		super(id, _copyLabel, ThemeIcon.asClassName(Codicon.copy));
+	}
+
+	update(copyLabel: string, copy: () => Promise<void>): void {
+		this._copyLabel = copyLabel;
+		this._copy = copy;
+		if (this.label !== copiedLabel) {
+			this.label = copyLabel;
+		}
+	}
+
+	override async run(): Promise<void> {
+		await this._copy();
+		this.label = copiedLabel;
+		this.class = ThemeIcon.asClassName(Codicon.check);
+		status(copiedToClipboardStatus);
+		this._reset.value = disposableTimeout(() => {
+			this.label = this._copyLabel;
+			this.class = ThemeIcon.asClassName(Codicon.copy);
+		}, copyFeedbackDuration);
+	}
+}
+
+class CopyFeedbackActionCache extends Disposable {
+
+	private readonly _actions = new Map<string, CopyFeedbackAction>();
+
+	get(key: string, label: string, copy: () => Promise<void>): IAction {
+		let action = this._actions.get(key);
+		if (!action) {
+			action = new CopyFeedbackAction(`sessionChatPills.copy.${key}`, label, copy);
+			this._actions.set(key, action);
+			this._register(action);
+		} else {
+			action.update(label, copy);
+		}
+		return action;
+	}
+
+	retain(keys: ReadonlySet<string>): void {
+		for (const [key, action] of this._actions) {
+			if (!keys.has(key)) {
+				action.dispose();
+				this._actions.delete(key);
+			}
+		}
+	}
+}
+
 /** A toolbar for session metadata, active-turn status, and background activity. */
 export class SessionChatInputToolbar extends Disposable {
 
@@ -336,8 +410,10 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _debugData = observableValue<ISessionChatPillsDebugData | undefined>(this, undefined);
 	private readonly _browsers: SessionBrowsersControl;
 	private readonly _backgroundActivities: SessionBackgroundActivitiesControl;
-	private readonly _pullRequestDropdownHoverCache = new WeakMap<IGitHubPullRequestRef, ICachedHover>();
+	private readonly _pullRequestHoverCache = this._register(new GitHubResourceHoverCache());
 	private readonly _issueDropdownHoverCache = new WeakMap<IGitHubIssueRef, ICachedHover>();
+	private readonly _pullRequestCopyActions = this._register(new CopyFeedbackActionCache());
+	private readonly _issueCopyActions = this._register(new CopyFeedbackActionCache());
 
 	/** The session that owns the reflected chat, from an explicit override or resolved from the chat. */
 	private readonly _session: IObservable<IActiveSession | undefined> = derived(reader => {
@@ -459,7 +535,11 @@ export class SessionChatInputToolbar extends Disposable {
 		};
 		const pullRequestSections = derived(this, reader => {
 			const session = this._session.read(reader);
-			return buildSessionPullRequestSections(pullRequestPresentation.pullRequests.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._pullRequestDropdownHoverCache);
+			const pullRequests = pullRequestPresentation.pullRequests.read(reader);
+			const keys = new Set(pullRequests.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`));
+			this._pullRequestCopyActions.retain(keys);
+			this._pullRequestHoverCache.retain(keys, session ? `${session.providerId}/${session.sessionId}` : undefined);
+			return buildSessionPullRequestSections(pullRequests, session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._pullRequestHoverCache, (key, label, copy) => this._pullRequestCopyActions.get(key, label, copy));
 		});
 		const issueRefs = derivedOpts<readonly IGitHubIssueRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).issues);
 		const issues = derived(this, reader => issueRefs.read(reader).map(ref => {
@@ -485,7 +565,9 @@ export class SessionChatInputToolbar extends Disposable {
 		}));
 		const issueSections = derived(this, reader => {
 			const session = this._session.read(reader);
-			return buildSessionIssueSections(issues.read(reader), session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._issueDropdownHoverCache);
+			const resolvedIssues = issues.read(reader);
+			this._issueCopyActions.retain(new Set(resolvedIssues.map(({ ref }) => `${ref.owner.toLowerCase()}/${ref.repo.toLowerCase()}/${ref.number}`)));
+			return buildSessionIssueSections(resolvedIssues, session, commandService, clipboardService, openerService, this._sessionsService, session ? artifactActions(session, reader) : undefined, this._issueDropdownHoverCache, (key, label, copy) => this._issueCopyActions.get(key, label, copy));
 		});
 		const issueIcon = derived(this, reader => {
 			const resolved = groupSessionIssues(issues.read(reader));

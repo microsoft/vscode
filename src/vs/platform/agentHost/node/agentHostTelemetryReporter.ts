@@ -23,7 +23,7 @@ import type { ToolInvokedResult } from './agentHostToolCallTracker.js';
 import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
 import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHostRestrictedTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
-import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 
@@ -79,6 +79,44 @@ export type IAgentHostInitiatorClassification = {
 export interface IAgentHostEventTelemetry extends IAgentHostInitiatorTelemetry, IAgentHostCopilotSkuTelemetry { }
 
 export type IAgentHostEventClassification = IAgentHostInitiatorClassification & IAgentHostCopilotSkuClassification;
+
+type CanvasExtensionSource = 'project' | 'user' | 'plugin' | 'session' | 'unknown';
+
+type CanvasOpenedEvent = IAgentHostEventTelemetry & {
+	schemaVersion: number;
+	provider: string;
+	agentSessionId: string;
+	extensionSource: CanvasExtensionSource;
+};
+
+type CanvasOpenedClassification = IAgentHostEventClassification & {
+	owner: 'jruales';
+	comment: 'Counts live runtime first-open records, excluding restored history, updates, and provider recovery.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Canvas open event schema version.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent provider opening the canvas.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Existing agent host session identifier, not a URI or canvas instance name.' };
+	extensionSource: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded extension provenance from discovery metadata, or unknown when unavailable.' };
+};
+
+export interface ICanvasExtensionsReadyEvent {
+	schemaVersion: number;
+	launchKind: 'create' | 'resume';
+	outcome: 'alreadySettled' | 'settled' | 'timeout' | 'error' | 'cancelled';
+	durationMs: number;
+	extensionCount?: number;
+	failedExtensionCount?: number;
+}
+
+type CanvasExtensionsReadyClassification = {
+	owner: 'jruales';
+	comment: 'Measures host canvas readiness, not runtime startup or model TTFT. Settled may include failed providers.';
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Canvas readiness event schema version.' };
+	launchKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the session is being created or resumed.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether extensions were already settled, settled during the wait, timed out, failed, or the operation was cancelled.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Elapsed milliseconds for the host readiness operation, including extension listing, waiting, and canvas listing.' };
+	extensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+	failedExtensionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed extensions in the latest observed status snapshot; omitted when no snapshot was obtained.' };
+};
 
 export type IAgentHostSubagentKindClassification = {
 	subagentKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What the subagent chat represents, set only when isSubagentSession is true: task for a delegated subagent, or fusionPhase for a presentation-only HydraFusion phase chat that shows part of the parent turn.' };
@@ -240,7 +278,7 @@ export interface IAgentHostClientConnectionReport {
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
-type AgentHostModelSelectionKind = 'default' | 'auto' | 'explicit';
+export type AgentHostModelSelectionKind = 'default' | 'auto' | 'hydrafusion' | 'explicit';
 export type { AgentHostTurnFailureStage, AgentHostTurnSendStage };
 export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
 export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
@@ -251,6 +289,7 @@ interface IAgentHostTurnAttributedReport {
 }
 
 export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext> {
+	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
@@ -307,6 +346,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 }
 
 export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & {
+	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	hostRootTurnOrdinal?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'One-based root-turn ordinal over the agent host process lifetime, captured at turn start and excluding subagent turns.' };
 	hostProcessAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host process age in milliseconds captured at root turn start, not completion.' };
 	titleGenerationStrategy?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The effective persisted automatic title generation strategy captured before sending the root turn: activeAgent, utility, or deferred.' };
@@ -344,7 +384,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn used the provider default, Auto, HydraFusion, or an explicit model.' };
 	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
@@ -410,6 +450,7 @@ export interface IAgentHostTurnFailure {
 
 export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport {
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
+	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: AutomaticTitleGenerationStrategy;
@@ -619,7 +660,7 @@ export type IAgentHostTurnHungClassification = IAgentHostEventClassification & C
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
 	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The trusted provider model identifier for the turn, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the client used the provider default, Auto, or an explicit model.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the turn used the provider default, Auto, HydraFusion, or an explicit model.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turns that stop making progress for longer than the hang threshold, so permanently stuck sessions are visible as a positive signal instead of missing turnCompleted events.';
@@ -1142,6 +1183,22 @@ export class AgentHostTelemetryReporter {
 		this._telemetryService.publicLog2<IAgentHostWorkspaceSnapshotEvent, IAgentHostWorkspaceSnapshotClassification>('agentHost.workspaceSnapshot', event);
 	}
 
+	canvasOpened(provider: string, session: string, source: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined): void {
+		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' ? source : 'unknown';
+		this._telemetryService.publicLog2<CanvasOpenedEvent, CanvasOpenedClassification>('agentHost.canvasOpened', {
+			...toInitiatorTelemetry(clientContext),
+			...this._copilotSku(provider),
+			schemaVersion: 1,
+			provider,
+			agentSessionId: AgentSession.id(session),
+			extensionSource,
+		});
+	}
+
+	canvasExtensionsReady(event: ICanvasExtensionsReadyEvent): void {
+		this._telemetryService.publicLog2<ICanvasExtensionsReadyEvent, CanvasExtensionsReadyClassification>('agentHost.canvasExtensionsReady', event);
+	}
+
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
 		const copilotSku = this._copilotSku(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
@@ -1566,6 +1623,7 @@ export class AgentHostTelemetryReporter {
 			...toInitiatorTelemetry(report.clientContext),
 			...report.telemetryContext,
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
+			...(report.provider === 'codex' ? { codexModelProvider: report.codexModelProvider ?? 'unknown' } : {}),
 			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
 			...(report.hostProcessAgeMs !== undefined ? { hostProcessAgeMs: report.hostProcessAgeMs } : {}),
 			...(report.titleGenerationStrategy !== undefined ? { titleGenerationStrategy: report.titleGenerationStrategy } : {}),

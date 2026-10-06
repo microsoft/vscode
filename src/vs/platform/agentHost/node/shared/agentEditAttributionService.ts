@@ -303,7 +303,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			this._excludeOtherSessionAgentIntervals(resource);
 		}
 
-		const provider = getSessionProvider(edit.sessionUri);
+		const provider = edit.provider ?? getSessionProvider(edit.sessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
 		const sourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
 		const conversationId = AgentSession.id(edit.sessionUri);
@@ -768,7 +768,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				trackingScope,
 				coverageGap: resource.coverageGap,
 				coverageGapCutoffCeiling: undefined,
-				githubTelemetryEnabled: getSessionProvider(resource.sessionUri) === 'copilotcli',
+				githubTelemetryEnabled: getSessionProvider(resource.sessionUri) === 'copilotcli' || [...resource.sources.values()].some(source => source.harness === 'copilotcli'),
 				lastSequence: resource.lastSequence,
 				resources: [resource],
 				standaloneAcknowledgements: [],

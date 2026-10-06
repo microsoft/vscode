@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -21,6 +22,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfi
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
@@ -33,7 +35,7 @@ import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvision
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -47,6 +49,9 @@ interface IDispatchedAction {
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 	override readonly clientId = 'test-client';
+	override readonly initializeResult = observableValue<InitializeResult | undefined>(this, {
+		protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true },
+	});
 
 	readonly createCalls: IAgentCreateSessionConfig[] = [];
 	readonly disposed: URI[] = [];
@@ -56,6 +61,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	createGate: DeferredPromise<void> | undefined;
 	failNextCreate = false;
 	failNextDispose = false;
+	enforceStandardTombstones = false;
+	private readonly _tombstones = new Set<string>();
 	private readonly _onAgentHostStart = new Emitter<void>();
 	override readonly onAgentHostStart = this._onAgentHostStart.event;
 
@@ -88,6 +95,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		assert.ok(config?.session);
 		this.createCalls.push(config);
+		if (this.enforceStandardTombstones && this._tombstones.has(config.session.toString())) {
+			throw new Error(`Session storage identity is already in use: ${config.session.toString()}`);
+		}
 		if (this.failNextCreate) {
 			this.failNextCreate = false;
 			throw new Error('create failed');
@@ -107,6 +117,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			throw new Error('dispose failed');
 		}
 		this.disposed.push(session);
+		if (this.enforceStandardTombstones && session.scheme === 'ahp-session') {
+			const creation = [...this.createCalls].reverse().find(call => call.session?.toString() === session.toString());
+			if (creation?._meta?.[VSCODE_EPHEMERAL_SESSION_META_KEY] !== true) {
+				this._tombstones.add(session.toString());
+			}
+		}
 	}
 
 	fireAgentHostStart(): void {
@@ -223,7 +239,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				if (sessionResolutions.has(sessionResource)) {
 					return sessionResolutions.get(sessionResource);
 				}
-				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				const provider = getLocalAgentHostSessionProvider(sessionResource);
+				const backendSession = provider ? sessionResource.with({ scheme: provider, fragment: '' }) : undefined;
 				return backendSession ? { connection: agentHost, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession } : undefined;
 			},
 		});
@@ -296,6 +313,54 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			config: { isolation: 'folder' },
 		});
 	});
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		for (const supported of [false, true]) {
+			test(`${provider} provisional drafts negotiate addressing and retain their frontend resource (${supported})`, async () => {
+				agentHost.initializeResult.set({
+					protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': supported },
+				}, undefined);
+				const draft = URI.parse(`agent-host-${provider}:/untitled-interop`);
+				const committed = URI.parse(`agent-host-${provider}:/final-interop`);
+				const initial = await provisional.getOrCreate(draft, provider, undefined);
+				const rebound = await provisional.tryRebind(draft, committed, provider);
+				assert.deepStrictEqual({
+					initialScheme: initial?.scheme,
+					rebound: rebound?.toString(),
+					resolved: provisional.get(committed)?.toString(),
+				}, {
+					initialScheme: supported ? 'ahp-session' : provider,
+					rebound: `${supported ? 'ahp-session' : provider}:/final-interop`,
+					resolved: `${supported ? 'ahp-session' : provider}:/final-interop`,
+				});
+			});
+		}
+	}
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`${provider} a pre-initialize draft retains its identity while rebind uses the negotiated host`, async () => {
+			agentHost.initializeResult.set(undefined, undefined);
+			const draft = URI.parse(`agent-host-${provider}:/untitled-before-initialize`);
+			const committed = URI.parse(`agent-host-${provider}:/after-initialize`);
+			const initial = await provisional.getOrCreate(draft, provider, undefined);
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
+			}, undefined);
+			const retained = await provisional.getOrCreate(draft, provider, undefined);
+			const rebound = await provisional.tryRebind(draft, committed, provider);
+			assert.deepStrictEqual({
+				initialScheme: initial?.scheme,
+				retained: retained?.toString(),
+				rebound: rebound?.toString(),
+				frontend: committed.toString(),
+			}, {
+				initialScheme: provider,
+				retained: initial?.toString(),
+				rebound: 'ahp-session:/after-initialize',
+				frontend: `agent-host-${provider}:/after-initialize`,
+			});
+		});
+	}
 
 	test('publishes active-client customizations before the first prompt and keeps them updated', async () => {
 		const first: ClientPluginCustomization = {
@@ -1216,6 +1281,84 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			finalConfig: { isolation: 'worktree' },
 		});
 	});
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`standard ${provider} rebind retries with a fresh identity after retiring a stale candidate`, async () => {
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [],
+				_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
+			}, undefined);
+			agentHost.enforceStandardTombstones = true;
+			const ui = URI.from({ scheme: `agent-host-${provider}`, path: '/untitled-standard-race' });
+			const realUi = ui.with({ path: '/standard-race' });
+			await provisional.getOrCreate(ui, provider, undefined);
+			const creationCount = agentHost.createCalls.length;
+			const gate = new DeferredPromise<void>();
+			cleanup.add({ dispose: () => gate.cancel() });
+			agentHost.createGate = gate;
+
+			const rebind = provisional.tryRebind(ui, realUi, provider);
+			await timeout(0);
+			const configChange = provisional.applyConfigChange(ui, provider, undefined, { isolation: 'worktree' });
+			await gate.complete();
+			const [rebound] = await Promise.all([rebind, configChange]);
+			assert.ok(rebound);
+			const boundResource = realUi.with({ path: rebound.path });
+			const finalCreates = agentHost.createCalls.slice(creationCount);
+
+			assert.deepStrictEqual({
+				count: finalCreates.length,
+				distinct: new Set(finalCreates.map(call => call.session?.toString())).size,
+				firstRetired: agentHost.disposed.some(session => session.toString() === finalCreates[0].session?.toString()),
+				scheme: rebound.scheme,
+				mapping: provisional.get(boundResource)?.toString(),
+				unpublishedCandidate: provisional.get(realUi),
+				config: finalCreates.at(-1)?.config,
+			}, {
+				count: 2,
+				distinct: 2,
+				firstRetired: true,
+				scheme: 'ahp-session',
+				mapping: rebound.toString(),
+				unpublishedCandidate: undefined,
+				config: { isolation: 'worktree' },
+			});
+		});
+	}
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`standard ${provider} rebind keeps the latest folder after retiring a stale candidate`, async () => {
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [],
+				_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
+			}, undefined);
+			agentHost.enforceStandardTombstones = true;
+			const ui = URI.from({ scheme: `agent-host-${provider}`, path: '/untitled-folder-race' });
+			const real = ui.with({ path: '/folder-race' });
+			const initial = URI.file('/initial-folder');
+			const latest = URI.file('/latest-folder');
+			folderService.setFolder(ui, initial);
+			await provisional.getOrCreate(ui, provider, initial);
+			const creationCount = agentHost.createCalls.length;
+			const gate = new DeferredPromise<void>();
+			cleanup.add({ dispose: () => gate.cancel() });
+			agentHost.createGate = gate;
+
+			const rebinding = provisional.tryRebind(ui, real, provider);
+			await timeout(0);
+			folderService.setFolder(ui, latest);
+			await gate.complete();
+			const rebound = await rebinding;
+			assert.ok(rebound);
+			await provisional.waitForPending(ui);
+			const attempts = agentHost.createCalls.slice(creationCount);
+			assert.deepStrictEqual({
+				distinct: new Set(attempts.map(call => call.session?.toString())).size,
+				finalDirectories: attempts.at(-1)?.workingDirectories?.map(directory => directory.toString()),
+				mapping: provisional.get(real.with({ path: rebound.path }))?.toString(),
+			}, { distinct: 2, finalDirectories: [latest.toString()], mapping: rebound.toString() });
+		});
+	}
 
 	test('tryRebind disposes its candidate when the old entry is retired during creation', async () => {
 		const ui = untitledChatUri('rebind-dispose-race');
