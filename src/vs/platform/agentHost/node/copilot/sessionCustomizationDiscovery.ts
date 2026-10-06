@@ -542,6 +542,7 @@ export class SessionCustomizationDiscovery extends Disposable {
 			}
 		}
 
+		throwIfCancelled(token);
 		this._reconcileWatchers(nextWatchRootUris);
 	}
 
@@ -555,6 +556,9 @@ export class SessionCustomizationDiscovery extends Disposable {
 		const p: AgentsDiscoverRequest = { projectPaths: this._workingDirectories.map(uri => uri.fsPath) };
 
 		try {
+			if (this._workingDirectories.length > 0 && this._watchers.size === 0) {
+				await this._updateWatchers([], token);
+			}
 			const workingDirectories = await this._getAvailableWorkingDirectories(token);
 			p.projectPaths = workingDirectories.map(uri => uri.fsPath);
 			if (this._workingDirectories.length > 0 && workingDirectories.length === 0) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { stub } from 'sinon';
+import { spy, stub } from 'sinon';
 import type { CopilotClient } from '@github/copilot-sdk';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
@@ -176,7 +176,7 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	}));
 
-	test('does not treat transient filesystem failures as missing directories', async () => {
+	test('retains recovery watches after transient filesystem failures without marking directories missing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const messages: string[] = [];
 		const errors: string[] = [];
 		instantiationService.stub(ILogService, new class extends NullLogService {
@@ -186,19 +186,52 @@ suite('SessionCustomizationDiscovery', () => {
 		const requests: string[][] = [];
 		const client = createRecordingClient(requests);
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
-		const stat = stub(fileService, 'stat').rejects(new Error('Transient filesystem failure'));
+		const fired = new DeferredPromise<void>();
+		disposables.add(discovery.onDidChange(() => fired.complete()));
+		const stat = stub(fileService, 'stat').callThrough();
+		stat.withArgs(workspace).rejects(new Error('Transient filesystem failure'));
 		try {
 			await discovery.discover(client, CancellationToken.None);
 		} finally {
 			stat.restore();
 		}
+		await fileService.del(workspace);
+		await fileService.createFolder(workspace);
+		await timeout(250);
 		await discovery.discover(client, CancellationToken.None);
 
-		assert.deepStrictEqual({ messages, errors, requests }, {
+		assert.deepStrictEqual({ messages, errors, requests, recoveryTriggered: fired.isSettled }, {
 			messages: [],
 			errors: [`[SessionCustomizationDiscovery] Error during discovery: Transient filesystem failure, projectPaths: ${workspace.fsPath}`],
 			requests: Array.from({ length: 6 }, () => [workspace.fsPath]),
+			recoveryTriggered: true,
 		});
+	}));
+
+	test('cancellation cannot install recovery watches after disposal', async () => {
+		await fileService.del(workspace);
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const tokenSource = disposables.add(new CancellationTokenSource());
+		const resolving = new DeferredPromise<void>();
+		const resolved = new DeferredPromise<void>();
+		const resolveAll = stub(fileService, 'resolveAll').callsFake(async () => {
+			resolving.complete();
+			await resolved.p;
+			return [];
+		});
+		const watch = spy(fileService, 'watch');
+		try {
+			const discovering = discovery.discover(createRecordingClient([]), tokenSource.token);
+			await resolving.p;
+			tokenSource.cancel();
+			discovery.dispose();
+			resolved.complete();
+			await assert.rejects(discovering, CancellationError);
+			assert.strictEqual(watch.callCount, 0);
+		} finally {
+			resolveAll.restore();
+			watch.restore();
+		}
 	});
 
 	test('preserves user-home discovery for sessions without working directories', async () => {
