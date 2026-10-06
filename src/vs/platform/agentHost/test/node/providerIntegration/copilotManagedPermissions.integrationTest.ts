@@ -155,6 +155,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 					}
 					await session.rpc.tools.initializeAndValidate();
 					assert.ok(resolvedPolicy, `${phase}: authoritative policy snapshot`);
+					let preferenceSandboxConfig: ReturnType<typeof buildSandboxConfigForSdk>;
 					if ((restriction === 'limitTo' || bridgedBoundary) && phase !== 'removed') {
 						assert.strictEqual(resolvedPolicy.enabled, true);
 						assert.strictEqual(resolvedPolicy.allowBypass, false);
@@ -174,6 +175,7 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						// options document that omits that floor. Keep its existing sandbox.
 						assert.strictEqual(applied, denyAll, `${phase}: preserve runtime domain floor`);
 						assert.deepStrictEqual(warnings.map(message => message.includes('conflicts with managed policy')), denyAll ? [] : [true]);
+						preferenceSandboxConfig = sandboxConfig;
 					}
 					assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
 					requests.length = 0;
@@ -237,6 +239,29 @@ suite('Agent Host Provider Integration - Copilot managed permissions', function 
 						results: ['success', 'success', 'success'],
 						requests: terminalPolicyActive ? [{ kind: 'shell', managedApprovalRequired: true }] : [],
 					}, `${phase}: unrelated allow-all requests`);
+
+					if (preferenceSandboxConfig) {
+						assert.strictEqual((await session.rpc.permissions.setMode({ mode: 'manual' })).success, true);
+						for (const sandboxConfigSource of ['never_configured', 'user_enabled', 'user_disabled'] as const) {
+							const updated = await session.rpc.options.update({ sandboxConfig: preferenceSandboxConfig, sandboxConfigSource });
+							requests.length = 0;
+							const outside = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'https://outside.invalid' } });
+							const inside = await session.rpc.tools.execute({ name: 'web_fetch', arguments: { url: 'http://unmatched.invalid:8443/path' } });
+							assert.deepStrictEqual({
+								updated: updated.success,
+								results: [outside, inside].map(resultType),
+								requests,
+							}, {
+								updated: true,
+								results: ['denied', denyAll ? 'denied' : 'rejected'],
+								requests: denyAll ? [] : [{ kind: 'url', managedApprovalRequired: false }],
+							}, `${phase}: ${sandboxConfigSource} preserves the runtime domain floor`);
+						}
+						await assert.rejects(session.rpc.options.update({
+							sandboxConfig: { enabled: false },
+							sandboxConfigSource: 'session_disabled',
+						}), /Sandbox configuration update violates managed policy/);
+					}
 				}
 			} finally {
 				try {
