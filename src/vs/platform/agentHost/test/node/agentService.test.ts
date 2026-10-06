@@ -18922,16 +18922,16 @@ suite('AgentService (node dispatcher)', () => {
 			advertised: boolean;
 			category: string;
 		}[] = [
-			{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
-			{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
-			{ name: 'cached external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: true }, advertised: false, category: 'expectedExclusion' },
-			{ name: 'missing marker', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
-			{ name: 'ambiguous origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
-			{ name: 'invalid marker', diagnostics: { markerStatus: 'invalid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'needsInvestigation' },
-			{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
-			{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
-			{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
-		];
+				{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
+				{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
+				{ name: 'cached external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: true }, advertised: false, category: 'expectedExclusion' },
+				{ name: 'missing marker', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
+				{ name: 'ambiguous origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'unknown' },
+				{ name: 'invalid marker', diagnostics: { markerStatus: 'invalid', provenance: 'unknown', markerFromCache: false }, advertised: false, category: 'needsInvestigation' },
+				{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
+				{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+			];
 		for (const { name, diagnostics, advertised, category } of declineCases) {
 			test(`legacy migration decline evidence: ${name}`, async () => {
 				const events: { data: Record<string, unknown>; error: boolean }[] = [];
