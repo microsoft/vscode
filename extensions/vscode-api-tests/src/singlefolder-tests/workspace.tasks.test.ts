@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { commands, ConfigurationTarget, CustomExecution, Disposable, env, Event, EventEmitter, Pseudoterminal, ShellExecution, Task, TaskDefinition, TaskProcessStartEvent, tasks, TaskScope, Terminal, UIKind, Uri, window, workspace } from 'vscode';
-import { assertNoRpc } from '../utils';
+import { asPromise, assertNoRpc, DeferredPromise } from '../utils';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -142,6 +142,177 @@ import { assertNoRpc } from '../utils';
 		});
 
 		suite('CustomExecution', () => {
+			const reviewTaskType = 'custombuildscript';
+
+			for (const dependencyExitCode of [0, 1]) {
+				test(`accepted workbench custom task survives provider disposal during dependency wait (exit: ${dependencyExitCode})`, async () => {
+					const folder = workspace.workspaceFolders?.[0];
+					assert.ok(folder);
+					const config = workspace.getConfiguration('tasks', folder.uri);
+					const oldTasks = config.inspect<readonly TaskDefinition[]>('tasks')?.workspaceValue;
+					const oldVersion = config.inspect<string>('version')?.workspaceValue;
+					const gateName = `review gate ${dependencyExitCode}`;
+					const targetName = `review target ${dependencyExitCode}`;
+					const gateOpen = new EventEmitter<void>();
+					const gateWrite = new EventEmitter<string>();
+					const gateClose = new EventEmitter<number>();
+					const targetWrite = new EventEmitter<string>();
+					const targetClose = new EventEmitter<number>();
+					const targetOutput = new EventEmitter<string>();
+					const targetEnd = new EventEmitter<void>();
+					const gateEnd = new EventEmitter<void>();
+					disposables.push(gateOpen, gateWrite, gateClose, targetWrite, targetClose, targetOutput, targetEnd, gateEnd);
+					let targetCalls = 0;
+					const gate = new Task({ type: reviewTaskType, flavor: gateName }, folder, gateName, reviewTaskType, new CustomExecution(async () => ({
+						onDidWrite: gateWrite.event, onDidClose: gateClose.event, open: () => gateOpen.fire(), close() { }
+					})));
+					const target = new Task({ type: reviewTaskType, flavor: targetName }, folder, targetName, reviewTaskType, new CustomExecution(async () => {
+						targetCalls++;
+						return { onDidWrite: targetWrite.event, onDidClose: targetClose.event, open: () => targetWrite.fire(`${targetName}\r\n`), close() { } };
+					}));
+					const registration = tasks.registerTaskProvider(reviewTaskType, { provideTasks: () => [gate, target], resolveTask: value => value });
+					disposables.push(registration);
+					disposables.push(window.onDidWriteTerminalData(event => {
+						if (event.data.includes(targetName)) {
+							targetOutput.fire(event.data);
+						}
+					}));
+					disposables.push(tasks.onDidEndTask(event => {
+						if (event.execution.task.name === targetName) {
+							targetEnd.fire();
+						} else if (event.execution.task.name === gateName) {
+							gateEnd.fire();
+						}
+					}));
+					disposables.push(window.onDidOpenTerminal(terminal => {
+						if (terminal.name === gateName || terminal.name === targetName) {
+							disposables.push(terminal);
+						}
+					}));
+					try {
+						await config.update('version', '2.0.0', ConfigurationTarget.Workspace);
+						await config.update('tasks', [
+							{ label: gateName, type: reviewTaskType, flavor: gateName, problemMatcher: [] },
+							{ label: targetName, type: reviewTaskType, flavor: targetName, dependsOn: gateName, problemMatcher: [] }
+						], ConfigurationTarget.Workspace);
+						const discovered = await tasks.fetchTasks({ type: reviewTaskType });
+						assert.ok(discovered.some(task => task.definition.flavor === targetName));
+						const opened = asPromise(gateOpen.event, 10000);
+						const running = commands.executeCommand('workbench.action.tasks.runTask', { type: reviewTaskType, flavor: targetName });
+						await opened;
+						registration.dispose();
+						await tasks.fetchTasks({ type: reviewTaskType });
+						assert.strictEqual(targetCalls, 0, 'Target must still be waiting for the dependency');
+						const gateEnded = asPromise(gateEnd.event, 10000);
+						if (dependencyExitCode === 0) {
+							const output = asPromise(targetOutput.event, 10000);
+							gateClose.fire(0);
+							assert.strictEqual(await output, `${targetName}\r\n`);
+							const ended = asPromise(targetEnd.event, 10000);
+							targetClose.fire(0);
+							await ended;
+						} else {
+							gateClose.fire(dependencyExitCode);
+						}
+						await gateEnded;
+						await running;
+						assert.strictEqual(targetCalls, dependencyExitCode === 0 ? 1 : 0);
+					} finally {
+						gateClose.fire(1);
+						targetClose.fire(1);
+						await config.update('tasks', oldTasks, ConfigurationTarget.Workspace);
+						await config.update('version', oldVersion, ConfigurationTarget.Workspace);
+					}
+				});
+			}
+
+			test('concurrent workbench custom instances open both delayed terminals independently', async () => {
+				const folder = workspace.workspaceFolders?.[0];
+				assert.ok(folder);
+				const config = workspace.getConfiguration('tasks', folder.uri);
+				const oldTasks = config.inspect<readonly TaskDefinition[]>('tasks')?.workspaceValue;
+				const oldVersion = config.inspect<string>('version')?.workspaceValue;
+				const name = 'review concurrent custom';
+				const gates = [new DeferredPromise<Pseudoterminal>(), new DeferredPromise<Pseudoterminal>()];
+				const entered = [new EventEmitter<void>(), new EventEmitter<void>()];
+				const output = [new EventEmitter<string>(), new EventEmitter<string>()];
+				const writes = [new EventEmitter<string>(), new EventEmitter<string>()];
+				const closes = [new EventEmitter<number>(), new EventEmitter<number>()];
+				const ended = new EventEmitter<void>();
+				disposables.push(...entered, ...output, ...writes, ...closes, ended);
+				let calls = 0;
+				const exitSent = [false, false];
+				const prematureClose: number[] = [];
+				const observedTerminals: Terminal[] = [];
+				const ptys = gates.map((_, index): Pseudoterminal => ({
+					onDidWrite: writes[index].event,
+					onDidClose: closes[index].event,
+					open: () => writes[index].fire(`INSTANCE_${index}_READY\r\n`),
+					close: () => { if (!exitSent[index]) { prematureClose.push(index); } }
+				}));
+				const task = new Task({ type: reviewTaskType, flavor: name }, folder, name, reviewTaskType, new CustomExecution(() => {
+					const index = calls++;
+					entered[index].fire();
+					return gates[index].p;
+				}));
+				const registration = tasks.registerTaskProvider(reviewTaskType, { provideTasks: () => [task], resolveTask: value => value });
+				disposables.push(registration);
+				disposables.push(window.onDidOpenTerminal(terminal => {
+					if (terminal.name.includes(name)) {
+						disposables.push(terminal);
+					}
+				}));
+				disposables.push(window.onDidWriteTerminalData(event => {
+					for (let index = 0; index < 2; index++) {
+						if (event.data.includes(`INSTANCE_${index}_READY`)) {
+							observedTerminals[index] = event.terminal;
+							output[index].fire(event.data);
+						}
+					}
+				}));
+				disposables.push(tasks.onDidEndTask(event => {
+					if (event.execution.task.name === name) {
+						ended.fire();
+					}
+				}));
+				try {
+					await config.update('version', '2.0.0', ConfigurationTarget.Workspace);
+					await config.update('tasks', [{ label: name, type: reviewTaskType, flavor: name, problemMatcher: [], runOptions: { instanceLimit: 2 }, presentation: { panel: 'new' } }], ConfigurationTarget.Workspace);
+					const discovered = await tasks.fetchTasks({ type: reviewTaskType });
+					assert.ok(discovered.some(task => task.definition.flavor === name));
+					const firstEntered = asPromise(entered[0].event, 10000);
+					const firstRun = commands.executeCommand('workbench.action.tasks.runTask', { type: reviewTaskType, flavor: name });
+					await firstEntered;
+					const secondEntered = asPromise(entered[1].event, 10000);
+					const secondRun = commands.executeCommand('workbench.action.tasks.runTask', { type: reviewTaskType, flavor: name });
+					await secondEntered;
+					registration.dispose();
+					await tasks.fetchTasks({ type: reviewTaskType });
+					for (let index = 0; index < 2; index++) {
+						const received = asPromise(output[index].event, 10000);
+						await gates[index].complete(ptys[index]);
+						assert.strictEqual(await received, `INSTANCE_${index}_READY\r\n`);
+						const finished = asPromise(ended.event, 10000);
+						exitSent[index] = true;
+						closes[index].fire(0);
+						await finished;
+					}
+					await Promise.all([firstRun, secondRun]);
+					assert.deepStrictEqual({ calls, prematureClose, distinctTerminals: observedTerminals[0] !== observedTerminals[1] }, { calls: 2, prematureClose: [], distinctTerminals: true });
+				} finally {
+					for (let index = 0; index < 2; index++) {
+						exitSent[index] = true;
+						if (!gates[index].isSettled) {
+							await gates[index].complete(ptys[index]);
+						}
+						closes[index].fire(1);
+						observedTerminals[index]?.dispose();
+					}
+					await config.update('tasks', oldTasks, ConfigurationTarget.Workspace);
+					await config.update('version', oldVersion, ConfigurationTarget.Workspace);
+				}
+			});
+
 			test('main-thread startup survives provider disposal before the extension host observes the start', async () => {
 				window.terminals.forEach(terminal => terminal.dispose());
 				const name = 'Custom task startup disposal';

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { stub } from 'sinon';
 import type * as vscode from 'vscode';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
@@ -34,6 +34,11 @@ import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtoc
 class TestExtHostTask extends WorkerExtHostTask {
 	readonly cache = this._providedCustomExecutions2;
 	readonly active = this._activeCustomExecutions2;
+	get startupStateSizes() {
+		/* eslint-disable local/code-no-bracket-notation-for-identifiers -- Inspect private lifecycle ownership without production test APIs. */
+		return { pending: this['_taskStarts'].size, active: this['_activeTaskStarts'].size };
+		/* eslint-enable local/code-no-bracket-notation-for-identifiers */
+	}
 	readonly emitters = [
 		this._onDidExecuteTask, this._onDidTerminateTask,
 		this._onDidTaskProcessStarted, this._onDidTaskProcessEnded,
@@ -116,6 +121,86 @@ suite('MainThreadTask custom execution startup', () => {
 			disposeProvider: async () => { registration.dispose(); await unregistered; }
 		};
 	}
+
+	for (const starts of [false, true]) {
+		test(`accepted custom task owns its callback before Start and releases on completion (starts: ${starts})`, async () => {
+			let called = 0;
+			const h = createService(createTask(async () => { called++; return pty; }), true);
+			await h.provide();
+			h.dispatch(TaskEvent.general(TaskEventKind.CustomExecutionAccepted, h.contributed));
+			await h.disposeProvider();
+			await h.rpc.sync();
+			await h.resolution.complete();
+			if (starts) {
+				h.dispatch(TaskEvent.start(h.contributed, 1, new Map([['test', 'resolved']])));
+				await h.rpc.sync();
+			}
+			h.dispatch(TaskEvent.general(TaskEventKind.CustomExecutionFinished, h.contributed));
+			await h.rpc.sync();
+			assert.deepStrictEqual({
+				called, attached: h.attached, cache: [...h.service.cache], active: [...h.service.active], executions: h.service.taskExecutions,
+				startup: h.service.startupStateSizes
+			}, { called: starts ? 1 : 0, attached: starts ? [pty] : [], cache: [], active: [], executions: [], startup: { pending: 0, active: 0 } });
+		});
+	}
+
+	for (const delayedDelivery of [false, true]) {
+		test(`ending one instance during resolution preserves the other startup (${delayedDelivery ? 'IPC' : 'direct'})`, async () => {
+			let called = 0;
+			const h = createService(createTask(async () => { called++; return pty; }), delayedDelivery);
+			await h.provide();
+			const second = h.contributed.clone();
+			assert.ok(ContributedTask.is(second));
+			second.instance = 1;
+			const firstStart = h.dispatch(TaskEvent.start(h.contributed, 1, new Map()));
+			const secondStart = h.dispatch(TaskEvent.start(second, 2, new Map()));
+			await h.disposeProvider();
+			h.dispatch(TaskEvent.general(TaskEventKind.End, h.contributed));
+			await h.rpc.sync();
+			await h.resolution.complete();
+			await Promise.all([firstStart, secondStart]);
+			await h.rpc.sync();
+			await timeout(0);
+			h.dispatch(TaskEvent.general(TaskEventKind.End, second));
+			await h.rpc.sync();
+			await timeout(0);
+			assert.deepStrictEqual({ called, attached: h.attached, startup: h.service.startupStateSizes }, {
+				called: 1, attached: [pty], startup: { pending: 0, active: 0 }
+			});
+		});
+	}
+
+	test('concurrent task instances preserve each pending callback and matching end', async () => {
+		const gates = [new DeferredPromise<vscode.Pseudoterminal>(), new DeferredPromise<vscode.Pseudoterminal>()];
+		const entered = [new DeferredPromise<void>(), new DeferredPromise<void>()];
+		const closed: number[] = [];
+		const terminals = gates.map((_, index) => ({ ...pty, close: () => closed.push(index) }));
+		let calls = 0;
+		const h = createService(createTask(() => {
+			const index = calls++;
+			entered[index].complete();
+			return gates[index].p;
+		}), false);
+		await h.provide();
+		await h.resolution.complete();
+		const second = h.contributed.clone();
+		assert.ok(ContributedTask.is(second));
+		second.instance = 1;
+		h.dispatch(TaskEvent.start(h.contributed, 1, new Map([['test', 'resolved']])));
+		await entered[0].p;
+		h.dispatch(TaskEvent.start(second, 2, new Map([['test', 'resolved']])));
+		await entered[1].p;
+		await h.disposeProvider();
+		await gates[0].complete(terminals[0]);
+		await timeout(0);
+		h.dispatch(TaskEvent.general(TaskEventKind.End, h.contributed));
+		await timeout(0);
+		await gates[1].complete(terminals[1]);
+		await timeout(0);
+		h.dispatch(TaskEvent.general(TaskEventKind.End, second));
+		await timeout(0);
+		assert.deepStrictEqual({ calls, closed, attached: h.attached }, { calls: 2, closed: [], attached: terminals });
+	});
 
 	for (const delayedDelivery of [false, true]) {
 		test(`main-thread startup preserves callbacks when disposal precedes ${delayedDelivery ? 'IPC delivery' : 'variable resolution'}`, async () => {

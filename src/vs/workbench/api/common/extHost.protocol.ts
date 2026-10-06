@@ -3235,11 +3235,11 @@ export interface ExtHostShareShape {
 export interface ExtHostTaskShape {
 	$provideTasks(handle: number, validTypes: { [key: string]: boolean }): Promise<tasks.ITaskSetDTO>;
 	$resolveTask(handle: number, taskDTO: tasks.ITaskDTO): Promise<tasks.ITaskDTO | undefined>;
-	$onWillStartTask(taskId: string): void;
-	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO): void;
+	$onWillStartTask(taskId: string, startId?: string): void;
+	$onDidStartTask(execution: tasks.ITaskExecutionDTO, terminalId: number, resolvedDefinition: tasks.ITaskDefinitionDTO, startId?: string): void;
 	$onDidStartTaskProcess(value: tasks.ITaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: tasks.ITaskProcessEndedDTO): void;
-	$OnDidEndTask(execution: tasks.ITaskExecutionDTO): void;
+	$OnDidEndTask(execution: tasks.ITaskExecutionDTO, startId?: string): void;
 	$onDidStartTaskProblemMatchers(status: tasks.ITaskProblemMatcherStartedDto): void;
 	$onDidEndTaskProblemMatchers(status: tasks.ITaskProblemMatcherEndedDto): void;
 	$resolveVariables(workspaceFolder: UriComponents, toResolve: { process?: { name: string; cwd?: string }; variables: string[] }): Promise<{ process?: string; variables: { [key: string]: string } }>;
