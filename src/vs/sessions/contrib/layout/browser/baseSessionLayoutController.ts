@@ -1065,9 +1065,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 	private _syncPanelVisibility(sessionResource: URI | undefined): void {
 		if (!sessionResource) {
-			if (!this._chatLayoutEnabled) {
-				this._layoutService.setPartHidden(true, Parts.PANEL_PART);
-			}
+			this._layoutService.setPartHidden(true, Parts.PANEL_PART);
 			return;
 		}
 

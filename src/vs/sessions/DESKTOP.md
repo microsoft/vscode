@@ -138,7 +138,7 @@ Quick Chats with saved editors share overall side-pane visibility with Existing 
 ### Multiple visible sessions
 Visibility restoration is reveal-only while multiple sessions are visible. Focusing a workspace session reveals the parts enabled by its matching profile, while focusing a quick chat or another session without side-pane content does not hide Editor. Collapsing back to one Quick Chat keeps Editor visible; collapsing to a workspace session restores that session type's complete shared profile. Reveal-only preservation applies only to panel synchronization: active Changes/Files editors still publish their docked-details capability so **Toggle Details** remains available.
 
-Both enabled modes replace the reveal-only rule for workspace chats. Ordinary editors and the active editor follow the focused owner. `chat` restores that owner's full composition and bottom visibility in both directions; an unvisited peer hides side and bottom panes. `chat-shared` applies the shared Existing composition and bottom visibility, including on first-visit peers, regardless of visible-session or chat-group count. Sizes and grid topology do not switch with focus.
+Both enabled modes replace the reveal-only rule for workspace chats. Ordinary editors and the active editor follow the focused owner. `chat` restores that owner's full composition and bottom visibility in both directions; an unvisited peer uses the applicable Existing Session side-pane defaults and initializes bottom visibility from the current workbench. `chat-shared` applies the shared Existing composition and bottom visibility, including on first-visit peers, regardless of visible-session or chat-group count. Sizes and grid topology do not switch with focus.
 
 ---
 

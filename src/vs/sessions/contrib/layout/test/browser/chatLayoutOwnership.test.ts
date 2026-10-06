@@ -61,8 +61,11 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		}
 	}
 
-	function createDesktopController(options: ICreateOptions = {}): TestDesktopController {
+	function createDesktopController(options: ICreateOptions = {}, initialSession?: IActiveSession): TestDesktopController {
 		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], ...options });
+		if (initialSession) {
+			harness.activeSessionObs.set(initialSession, undefined);
+		}
 		return store.add(harness.instaService.createInstance(TestDesktopController));
 	}
 
@@ -251,13 +254,12 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			test(`session/chat default parity: Editor=${composition.editor} Details=${composition.auxiliaryBar} bottom=${panel}`, async () => {
 				const snapshots = [];
 				for (const mode of ['session-shared', 'chat'] as const) {
+					const session = makeSession(URI.parse(`session:defaults-${mode}`));
 					const controller = createDesktopController({
 						chatLayoutMode: mode,
 						sidePaneVisibilityState: { editorVisible: composition.editor, auxiliaryBarVisible: composition.auxiliaryBar },
 						initialPartVisibility: new Map([[Parts.PANEL_PART, panel]]),
-					});
-					const session = makeSession(URI.parse(`session:defaults-${mode}`));
-					harness.activeSessionObs.set(session, undefined);
+					}, session);
 					await settle();
 					snapshots.push({ composition: visible(), panel: harness.layoutService.isVisible(Parts.PANEL_PART) });
 					if (mode === 'chat') {
@@ -314,12 +316,30 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(snapshots, [expected, expected]);
 	});
 
+	for (const mode of ['chat', 'chat-shared'] as const) {
+		test(`${mode} hides the bottom panel without an active owner and preserves its previous visibility preference`, async () => {
+			createDesktopController({ chatLayoutMode: mode });
+			const session = makeSession(URI.parse('session:no-owner'));
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+			const before = harness.layoutService.isVisible(Parts.PANEL_PART);
+			harness.activeSessionObs.set(undefined, undefined);
+			await settle();
+			const withoutOwner = harness.layoutService.isVisible(Parts.PANEL_PART);
+			harness.activeSessionObs.set(session, undefined);
+			await settle();
+			assert.deepStrictEqual({
+				before, withoutOwner, restored: harness.layoutService.isVisible(Parts.PANEL_PART),
+			}, { before: true, withoutOwner: false, restored: true });
+		});
+	}
+
 	test('an unsaved peer initializes bottom visibility from the workbench, then retains its own choice', async () => {
-		const controller = createDesktopController({ chatLayoutMode: 'chat', initialPartVisibility: new Map([[Parts.PANEL_PART, true]]) });
 		const session = makeSession(URI.parse('session:panel-default'));
 		const main = session.mainChat.get();
 		const peer = addPeerChat(session, URI.parse('chat:panel-default-peer'));
-		harness.activeSessionObs.set(session, undefined);
+		const controller = createDesktopController({ chatLayoutMode: 'chat', initialPartVisibility: new Map([[Parts.PANEL_PART, true]]) }, session);
 		await settle();
 		const mainKey = controller.ownerKeyFor(session);
 		setActiveChat(session, peer);
