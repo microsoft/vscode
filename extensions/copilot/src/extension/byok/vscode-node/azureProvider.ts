@@ -13,6 +13,7 @@ import { IFetcherService } from '../../../platform/networking/common/fetcherServ
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { resolveModelInfo } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { AzureOpenAIEndpoint } from '../node/azureOpenAIEndpoint';
 import { OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
 import { IBYOKStorageService } from './byokStorageService';
@@ -80,7 +81,8 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 		@IFetcherService fetcherService: IFetcherService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExperimentationService expService: IExperimentationService,
-		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext
+		@IVSCodeExtensionContext extensionContext: IVSCodeExtensionContext,
+		@ILanguageModelRequestMiddlewareRegistry requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
 	) {
 		super(
 			AzureBYOKModelProvider.providerId,
@@ -91,7 +93,8 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			instantiationService,
 			configurationService,
 			expService,
-			extensionContext
+			extensionContext,
+			requestMiddlewareRegistry,
 		);
 		this.migrateExistingConfigs();
 	}
@@ -157,6 +160,7 @@ export class AzureBYOKModelProvider extends AbstractCustomOAIBYOKModelProvider {
 			session.accessToken,  // Pass Entra ID token
 			url
 		);
+		await this.applyRequestMiddleware(openAIChatEndpoint, model, options, token);
 
 		return this._lmWrapper.provideLanguageModelResponse(
 			openAIChatEndpoint,
