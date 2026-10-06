@@ -183,10 +183,13 @@ export function isMcpServerCollectionVisible(collectionId: string, hiddenCollect
 export type IMcpInstalledEntry = IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry;
 
 function hasMcpInstalledEntryIcon(entry: IMcpInstalledEntry): boolean {
-	return entry.type === 'server-item' && (!!entry.marketplaceRecord?.resource.icon || !!entry.server.icon);
+	return getMcpInstalledEntryIcon(entry) !== undefined;
 }
 
 function getMcpInstalledEntryIcon(entry: IMcpInstalledEntry): CustomizationMarketplaceIcon | undefined {
+	if (entry.type === 'builtin-item') {
+		return entry.connector?.connector.icon;
+	}
 	if (entry.type !== 'server-item') {
 		return undefined;
 	}

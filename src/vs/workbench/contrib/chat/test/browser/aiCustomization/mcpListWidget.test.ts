@@ -1976,6 +1976,40 @@ suite('mcpListWidget', () => {
 			});
 		});
 
+		test('renders a connected Connector catalog icon', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const icon = URI.parse('https://example.com/connector.png');
+			const connector: ICopilotConnector = {
+				name: 'mail',
+				displayName: 'Mail',
+				description: 'Search mail',
+				icon,
+				tags: [],
+				keywords: [],
+				capabilities: [],
+				representativeQueries: [],
+				connectionStatus: 'connected',
+				scopes: [],
+				mcpServers: [{ name: 'mail-mcp', type: 'http' }],
+			};
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'copilot-connector:mail:mail-mcp',
+				label: 'mail-mcp',
+				description: 'Connector: Mail',
+				connector: { id: 'mail:mail-mcp', connector, serverName: 'mail-mcp' },
+			};
+
+			ctx.render(entry);
+
+			assert.deepStrictEqual(ctx.readIcon(), {
+				image: icon.toString(),
+				fallbackDisplay: 'none',
+				visibleChildren: 1,
+			});
+		});
+
 		test('shows configuration paths instead of descriptions in rows and accessible labels', () => {
 			const ctx = createRenderer(createAgentHostServer(), false);
 			disposables.add(ctx.store);
