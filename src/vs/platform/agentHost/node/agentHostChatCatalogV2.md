@@ -51,11 +51,22 @@ opens a per-session database or calls a provider or the filesystem.
 
 ## Consumer integration
 
-The list reader batches normalized snapshots at the exported selector limit
-with bounded concurrency. It uses the header default role, excludes private
-rows from public membership, and never loads provider detail. The source
-resolver shares this projection and omits legacy per-chat summary reads and
-writes when normalized chats are supplied.
+Bulk listing uses `readSessionListCatalogs(sessions)`, bounded to 400 selected
+sessions per statement. One SELECT returns the required session fields, joined
+authority/default identity and compact public chat summaries. The read is queued
+behind central mutations so it cannot observe partially applied writes on the
+shared connection. It preserves the header's exact default role and validates
+public metadata hashes, versions, origin and pinned directories.
+
+For normalized owners, SQLite omits stale embedded chats from the returned
+aggregate payload; legacy owners retain their embedded chats. Neither projection
+changes stored data. Listing does not load private rows, provider detail,
+storage/lineage facts or mutation receipts, and its read-only return type is not
+a persistable envelope. The decoder validates list payloads without generating
+an unused canonical serialization. Existing canonical payload and complete
+snapshot APIs remain unchanged; individual read-error recovery retains the
+complete snapshot path. The source resolver uses the same public chat projection
+and omits legacy per-chat summary reads and writes when normalized chats are supplied.
 
 Session synchronization carries the observed catalog revision into the
 aggregate-only upsert. Durable pending replay validates against current

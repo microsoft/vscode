@@ -108,6 +108,20 @@ export interface IAgentHostDatabaseSessionV2 extends IAgentHostDatabaseSessionV2
 	readonly payload: string;
 }
 
+/** Read-only list projection, not a durable session envelope. */
+export interface IAgentHostDatabaseSessionListCatalog {
+	readonly session: string;
+	readonly provider: AgentProvider;
+	readonly sessionGeneration: string;
+	readonly payloadVersion: number;
+	readonly isChatBacking: boolean;
+	readonly payload: string;
+	readonly chatCatalog?: {
+		readonly header: Pick<IAgentHostDatabaseChatCatalogHeaderV2, 'defaultChatUri' | 'sessionGeneration'>;
+		readonly chats: readonly AgentHostCatalogChat[];
+	};
+}
+
 export interface IAgentHostDatabaseSessionChat {
 	readonly chat: string;
 	readonly order: number;
@@ -325,6 +339,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	isSessionV2RegistryEmpty(): Promise<boolean>;
 	getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined>;
 	listSessionsV2(sessions?: readonly string[]): Promise<readonly IAgentHostDatabaseSessionV2[]>;
+	readSessionListCatalogs(sessions: readonly string[]): Promise<readonly IAgentHostDatabaseSessionListCatalog[]>;
 	/** Lists catalog receipts without materializing payloads, for startup scans. */
 	listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]>;
 	/** Marks one cached payload dirty and returns the marker repair must compare-and-set. */
@@ -1449,6 +1464,85 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		return rows.map(row => ({ ...this._toSessionV2Receipt(row), payload: row.payload as string }));
 	}
 
+	async readSessionListCatalogs(sessions: readonly string[]): Promise<readonly IAgentHostDatabaseSessionListCatalog[]> {
+		if (sessions.length === 0) {
+			return [];
+		}
+		if (sessions.length > AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
+			throw new Error(`Session list selector exceeds ${AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT} sessions`);
+		}
+		return this._transactionSequencer.queue(async () => {
+			const rows = await all(await this._ensureDatabase(), `SELECT s.session_uri, s.provider,
+			s.session_generation, s.payload_version, s.is_chat_backing,
+			CASE WHEN h.authority_version = 2 THEN json_set(s.payload, '$.data.chats', json('[]')) ELSE s.payload END AS list_payload,
+			h.authority_version, h.default_chat_uri, h.session_generation AS catalog_generation,
+			CASE WHEN h.authority_version = 2 THEN (
+				SELECT json_group_array(json_array(
+					c.chat_uri, c.chat_order, c.origin, c.working_directories, c.is_read, c.archived,
+					c.inherited_turn_id, c.metadata, c.metadata_hash
+				))
+				FROM chats_v2 c WHERE c.owner_session_uri = s.session_uri AND c.tombstoned = 0 AND c.chat_order IS NOT NULL
+			) END AS list_chats
+			FROM sessions_v2 s LEFT JOIN session_chat_catalogs h ON h.session_uri = s.session_uri
+			WHERE s.verified = 1 AND s.session_uri IN (${sessions.map(() => '?').join(',')})
+				AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = 'sessionTombstone:' || s.session_uri AND value = 'true')
+				AND NOT EXISTS (SELECT 1 FROM metadata WHERE key = '${sessionsV2ExcludedKeyPrefix}' || s.provider || ':' || s.session_uri)
+			ORDER BY s.session_uri`, sessions);
+			const directoriesByPayload = new Map<string, readonly string[]>();
+			return rows.map(row => {
+				const catalog: IAgentHostDatabaseSessionListCatalog = {
+					session: row.session_uri as string,
+					provider: row.provider as AgentProvider,
+					sessionGeneration: row.session_generation as string,
+					payloadVersion: row.payload_version as number,
+					isChatBacking: row.is_chat_backing === 1,
+					payload: row.list_payload as string,
+				};
+				if (row.authority_version !== 2) {
+					return catalog;
+				}
+				if (row.catalog_generation !== null && row.catalog_generation !== row.session_generation) {
+					throw new Error(`Normalized chat catalog identity does not match session ${catalog.session}`);
+				}
+				const publicRows: [string, number, string | null, string | null, number | null, number, string | null, string, string][] = JSON.parse(row.list_chats as string);
+				if (publicRows.length > AGENT_HOST_CATALOG_CHILD_LIMIT || !publicRows.some(chat => chat[0] === row.default_chat_uri)) {
+					throw new Error(`Normalized catalog is missing its visible default or exceeds the chat limit: ${catalog.session}`);
+				}
+				const chats = publicRows.sort((first, second) => first[1] - second[1]).map(([chat, order, origin, directories, isRead, archived, inheritedTurnId, metadata, metadataHash]) => {
+					let workingDirectories: readonly string[] | undefined;
+					if (directories !== null) {
+						workingDirectories = directoriesByPayload.get(directories);
+						if (!workingDirectories) {
+							workingDirectories = this._decodeChatV2Directories(directories);
+							directoriesByPayload.set(directories, workingDirectories);
+						}
+					}
+					return {
+						uri: chat,
+						order,
+						kind: chat === row.default_chat_uri ? 'default' as const : 'peer' as const,
+						...this._decodeChatV2Metadata(chat, metadata, metadataHash),
+						origin: origin === null ? undefined : projectAgentHostCatalogChatOrigin(JSON.parse(origin)),
+						isRead: isRead === null ? undefined : isRead === 1,
+						archived: archived === 1,
+						inheritedTurnId: inheritedTurnId === null ? undefined : inheritedTurnId,
+						workingDirectories,
+					};
+				});
+				return {
+					...catalog,
+					chatCatalog: {
+						header: {
+							defaultChatUri: row.default_chat_uri as string,
+							...(row.catalog_generation === null ? {} : { sessionGeneration: row.catalog_generation as string }),
+						},
+						chats,
+					},
+				};
+			});
+		});
+	}
+
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
 		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
 			`session_uri, provider, start_time, modified_time, external, registration_source,
@@ -2451,9 +2545,12 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	private _decodeChatV2RowMetadata(row: Record<string, unknown>): IAgentHostChatV2MetadataData {
-		const payload = row.metadata as string;
-		if (hashChatV2Metadata(payload) !== row.metadata_hash) {
-			throw new Error(`Stored chat metadata hash mismatch for ${row.chat_uri}`);
+		return this._decodeChatV2Metadata(row.chat_uri as string, row.metadata as string, row.metadata_hash as string);
+	}
+
+	private _decodeChatV2Metadata(chat: string, payload: string, hash: string): IAgentHostChatV2MetadataData {
+		if (hashChatV2Metadata(payload) !== hash) {
+			throw new Error(`Stored chat metadata hash mismatch for ${chat}`);
 		}
 		return decodeChatV2Metadata(payload);
 	}

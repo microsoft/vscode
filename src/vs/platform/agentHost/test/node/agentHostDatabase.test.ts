@@ -1955,6 +1955,107 @@ suite('AgentHostDatabase sessions_v2', () => {
 			assert.throws(() => encodeChatV2Metadata({ changes: { additions: Number.MAX_SAFE_INTEGER + 1 } }), /Invalid chat metadata/);
 		});
 
+		test('session list projection uses one SELECT and keeps legacy payloads while omitting normalized embedded chats and private detail', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			const legacy = 'copilot:/legacy-list';
+			await instance.registerRuntimeSession(legacy, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const original = (await instance.getSessionV2(session))!;
+			await instance.upsertSessionV2({ ...original, session: legacy }, undefined);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
+			const raw = await instance['_ensureDatabase']();
+			const statements: string[] = [];
+			const trace = (sql: string) => statements.push(sql);
+			raw.on('trace', trace);
+			let listed;
+			try {
+				listed = await instance.readSessionListCatalogs([session, legacy]);
+			} finally {
+				raw.removeListener('trace', trace);
+			}
+			const normalized = listed.find(entry => entry.session === session)!;
+			const retained = listed.find(entry => entry.session === legacy)!;
+			const payload = decodeAgentHostCatalogPayload(normalized.payload);
+			if (!payload.ok) {
+				throw new Error(payload.error);
+			}
+			assert.deepStrictEqual({
+				selects: statements.filter(sql => /^\s*SELECT\b/i.test(sql)).length,
+				operationalDetail: statements.some(sql => /\bc\.(?:provider_data|storage_resource|parent_chat|ownership_revision|metadata_revision)\b/.test(sql)),
+				default: normalized.chatCatalog?.header.defaultChatUri,
+				chatIds: normalized.chatCatalog?.chats.map(chat => chat.uri),
+				privateIncluded: normalized.chatCatalog?.chats.some(chat => chat.uri === privateChat),
+				embeddedChats: payload.value.data.chats,
+				legacy: { payload: retained.payload, chatCatalog: retained.chatCatalog },
+				sourceUnchanged: (await instance.getSessionV2(session))?.payload,
+			}, {
+				selects: 1, operationalDetail: false, default: defaultChat, chatIds: [peer, defaultChat],
+				privateIncluded: false, embeddedChats: [],
+				legacy: { payload: original.payload, chatCatalog: undefined }, sourceUnchanged: original.payload,
+			});
+		});
+
+		test('session list projection rejects corrupted public metadata and a missing default without reading private metadata', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
+			const raw = await instance['_ensureDatabase']();
+			await exec(raw, `UPDATE chats_v2 SET metadata_hash = 'damaged' WHERE chat_uri = '${privateChat}'`);
+			const listed = await instance.readSessionListCatalogs([session]);
+			await exec(raw, `UPDATE chats_v2 SET metadata_hash = 'damaged' WHERE chat_uri = '${peer}'`);
+			await assert.rejects(instance.readSessionListCatalogs([session]), /metadata hash mismatch/);
+			await exec(raw, `UPDATE chats_v2 SET tombstoned = 1 WHERE chat_uri = '${defaultChat}'`);
+			await assert.rejects(instance.readSessionListCatalogs([session]), /missing its visible default/);
+			assert.deepStrictEqual(listed[0].chatCatalog?.chats.map(chat => chat.uri), [peer, defaultChat]);
+		});
+
+		test('session list projection bounds selectors and rejects inconsistent generation and directories', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			assert.deepStrictEqual({
+				empty: await instance.readSessionListCatalogs([]),
+				bounded: (await instance.readSessionListCatalogs(Array.from({ length: 400 }, () => session))).length,
+			}, { empty: [], bounded: 1 });
+			await assert.rejects(instance.readSessionListCatalogs(Array.from({ length: 401 }, () => session)), /exceeds 400 sessions/);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private method's type.
+			const raw = await instance['_ensureDatabase']();
+			await exec(raw, `UPDATE session_chat_catalogs SET session_generation = 'stale' WHERE session_uri = '${session}'`);
+			await assert.rejects(instance.readSessionListCatalogs([session]), /identity does not match/);
+			await exec(raw, `UPDATE session_chat_catalogs SET session_generation = 'catalog-generation' WHERE session_uri = '${session}';
+				UPDATE chats_v2 SET working_directories = '["file:///same","file:///same"]' WHERE chat_uri = '${peer}'`);
+			await assert.rejects(instance.readSessionListCatalogs([session]), /duplicates/);
+		});
+
+		test('session list projection waits for queued metadata writes before observing the public summary', async () => {
+			const instance = new AgentHostDatabase(':memory:');
+			database = instance;
+			await seed();
+			await instance.ensureChatCatalogV2(session, expectation(), candidate());
+			const release = new DeferredPromise<void>();
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Test-only access retains the private member's type.
+			const blocker = instance['_transactionSequencer'].queue(() => release.p);
+			const update = instance.updateChatV2Metadata(peer, { ownershipRevision: 0, metadataRevision: 0 }, {
+				metadata: { summary: 'Latest', interactivity: ChatInteractivity.ReadOnly },
+			});
+			let readSettled = false;
+			const read = instance.readSessionListCatalogs([session]).finally(() => readSettled = true);
+			await new Promise(resolve => setTimeout(resolve, 0));
+			const settledWhileWriteQueued = readSettled;
+			await release.complete();
+			await blocker;
+			assert.deepStrictEqual({
+				settledWhileWriteQueued,
+				update: await update,
+				summary: (await read)[0].chatCatalog?.chats.find(chat => chat.uri === peer)?.summary,
+			}, { settledWhileWriteQueued: false, update: { status: 'applied', catalogRevision: 2 }, summary: 'Latest' });
+		});
+
 		test('complete snapshot uses exactly two SELECTs including origin and directories but excluding provider detail and session payloads', async () => {
 			const instance = new AgentHostDatabase(':memory:');
 			database = instance;

@@ -504,8 +504,8 @@ export function encodeAgentHostCatalogPayload(data: AgentHostCatalogData): Agent
 	};
 }
 
-/** Validates a stored payload and returns its canonical form without hashing it. */
-export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalogPayloadResult<IAgentHostCatalogDecodedPayload> {
+/** Validates a stored payload without building an unused canonical serialization. */
+export function decodeAgentHostCatalogPayloadData(payload: string): AgentHostCatalogPayloadResult<AgentHostCatalogData> {
 	if (Buffer.byteLength(payload, 'utf8') > AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT) {
 		return invalidPayload(`Payload exceeds ${AGENT_HOST_CATALOG_PAYLOAD_BYTE_LIMIT} bytes.`);
 	}
@@ -531,11 +531,17 @@ export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalog
 	}
 	return {
 		ok: true,
-		value: {
-			data: result.content.data,
-			payload: stableStringify(result.content),
-		},
+		value: result.content.data,
 	};
+}
+
+/** Validates a stored payload and returns its canonical form without hashing it. */
+export function decodeAgentHostCatalogPayload(payload: string): AgentHostCatalogPayloadResult<IAgentHostCatalogDecodedPayload> {
+	const result = decodeAgentHostCatalogPayloadData(payload);
+	return result.ok ? {
+		ok: true,
+		value: { data: result.value, payload: stableStringify({ payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, data: result.value }) },
+	} : result;
 }
 
 export function reviveAgentHostCatalogData(data: AgentHostCatalogData): AgentHostCatalogRevivedData {

@@ -14,8 +14,12 @@ import { AgentHostCatalogListReader } from '../../node/agentHostCatalogListReade
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, AgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionV2 } from '../../node/agentHostDatabase.js';
 import type { IRegisteredSession } from '../../node/agentSessionRegistry.js';
+import { readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 
 class TestCatalogDatabase extends AgentHostDatabase {
+	override readSessionListCatalogs(sessions: readonly string[]): ReturnType<AgentHostDatabase['readSessionListCatalogs']> {
+		return readTestSessionListCatalogs(this, sessions);
+	}
 	catalog: IAgentHostDatabaseSessionV2 | undefined;
 	readError: Error | undefined;
 	batchReadError: Error | undefined;
