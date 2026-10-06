@@ -70,6 +70,23 @@ suite('Onboarding target providers', () => {
 		});
 	}
 
+	test('preserves provider selection and activation events together', () => {
+		const element = createTarget();
+		const selected = disposables.add(new Emitter<Promise<boolean>>());
+		const activated = disposables.add(new Emitter<void>());
+		disposables.add(registerOnboardingTargetProvider('test.control', () => ({
+			element,
+			onDidSelect: selected.event,
+			onDidActivate: activated.event,
+		})));
+		const target = resolveOnboardingTarget(mainWindow, 'test.control');
+
+		assert.deepStrictEqual({ onDidSelect: target?.onDidSelect, onDidActivate: target?.onDidActivate }, {
+			onDidSelect: selected.event,
+			onDidActivate: activated.event,
+		});
+	});
+
 	test('ignores hidden, detached and other-window controls', () => {
 		const element = createTarget();
 		disposables.add(registerOnboardingTargetProvider('test.control', () => ({ element })));
