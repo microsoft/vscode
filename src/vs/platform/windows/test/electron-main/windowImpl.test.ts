@@ -4,14 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import type { App, BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import sinon from 'sinon';
+import type { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentMainService } from '../../../environment/electron-main/environmentMainService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { FocusMode } from '../../../native/common/native.js';
 import { InMemoryTestStateMainService } from '../../../test/electron-main/workbenchTestServices.js';
 import { DEFAULT_CUSTOM_TITLEBAR_HEIGHT, getMacOSWindowControlsPosition } from '../../../window/common/window.js';
 import { release } from 'os';
@@ -29,6 +31,17 @@ class TestWindow extends BaseWindow {
 	}
 }
 
+function createTestWindow(store: Pick<DisposableStore, 'add'>, configurationService: TestConfigurationService, app?: Pick<App, 'focus' | 'isHidden'>): TestWindow {
+	store.add(configurationService.onDidChangeConfigurationEmitter);
+	return store.add(new TestWindow(
+		configurationService,
+		new InMemoryTestStateMainService(),
+		upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
+		store.add(new NullLogService()),
+		app
+	));
+}
+
 suite('BaseWindow - window controls overlay', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -36,13 +49,7 @@ suite('BaseWindow - window controls overlay', () => {
 
 	function createWindow() {
 		const configurationService = new TestConfigurationService({ window: { titleBarStyle: 'custom' } });
-		store.add(configurationService.onDidChangeConfigurationEmitter);
-		const window = store.add(new TestWindow(
-			configurationService,
-			new InMemoryTestStateMainService(),
-			upcastPartial<IEnvironmentMainService>({ args: { _: [] } }),
-			store.add(new NullLogService())
-		));
+		const window = createTestWindow(store, configurationService);
 		const setTitleBarOverlay = sinon.stub();
 		const setWindowButtonPosition = sinon.stub();
 		const on = sinon.stub();
@@ -112,4 +119,37 @@ suite('BaseWindow - window controls overlay', () => {
 			y: getMacOSWindowControlsPosition(height, release())!.y,
 		}]));
 	});
+});
+
+suite('BaseWindow - focus', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
+
+	for (const isHidden of [true, false]) {
+		(isMacintosh ? test : test.skip)(isHidden ? 'shows the window before force-focusing a hidden app' : 'force-focuses a visible app without showing the window', () => {
+			const calls: string[] = [];
+			const window = createTestWindow(store, new TestConfigurationService(), {
+				isHidden: () => isHidden,
+				focus: options => calls.push(`app.focus(${JSON.stringify(options)})`),
+			});
+			const on = sinon.stub();
+			const removeListener = sinon.stub();
+			window.setWin(upcastPartial<BrowserWindow>({
+				on,
+				removeListener,
+				setSheetOffset: sinon.stub(),
+				isMinimized: () => false,
+				show: () => calls.push('window.show'),
+				focus: () => calls.push('window.focus'),
+				webContents: upcastPartial<WebContents>({ focus: () => calls.push('webContents.focus') }),
+			}));
+
+			window.focus({ mode: FocusMode.Force });
+
+			assert.deepStrictEqual(calls, isHidden
+				? ['window.show', 'app.focus({"steal":true})', 'window.focus', 'webContents.focus']
+				: ['app.focus({"steal":true})', 'window.focus', 'webContents.focus']);
+		});
+	}
 });
