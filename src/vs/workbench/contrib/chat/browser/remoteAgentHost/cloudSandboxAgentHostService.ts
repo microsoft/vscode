@@ -57,6 +57,7 @@ const SANDBOX_RECONNECT_POLICY = {
 	maxElapsedTimeMs: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES * MIN_CREDENTIAL_REFRESH_DELAY_MS,
 	jitter: true,
 };
+const USER_LOCAL_RECONNECT_POLICY = { ...SANDBOX_RECONNECT_POLICY, maxElapsedTimeMs: 120_000 };
 
 interface IStagedCloudSandboxConnection {
 	readonly entry: IRemoteAgentHostEntry;
@@ -247,7 +248,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 				{
 					clientId: staged.clientId,
 					clientInfo: this._environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
-					reconnectPolicy: SANDBOX_RECONNECT_POLICY,
+					reconnectPolicy: staged.options.environmentKind === 'user-local' ? USER_LOCAL_RECONNECT_POLICY : SANDBOX_RECONNECT_POLICY,
 					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
 						try {
 							if (staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local') {

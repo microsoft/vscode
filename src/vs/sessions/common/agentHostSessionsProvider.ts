@@ -186,6 +186,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	disconnect?(): Promise<void>;
 	/** Permanently remove this host from the user-visible host inventory. */
 	remove?(): Promise<void>;
+	/** Inventory-owned local labels may reject a rename after this provider's lifetime ends. */
+	setDisplayName?(name: string | undefined): void;
 	/**
 	 * Skips a pending reconnect backoff and retries at once. Present on remote
 	 * providers whose transport is restored by a protocol client.
@@ -200,6 +202,9 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 
 	/** Optional labels for providers whose display name does not name the host. */
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 
 	/**
 	 * When `true`, the workspace picker keeps this provider's browse

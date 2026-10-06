@@ -85,6 +85,10 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
+	readonly setDisplayName?: (name: string | undefined) => void;
+	/** Account-scoped inventory owners isolate cached summaries without changing routing identity. */
+	readonly sessionCacheKey?: string;
+	readonly retainSessionsOnDisconnect?: boolean;
 	/** Optional owner-managed deletion for exact backend resources, working without a host connection. */
 	readonly deleteSessionsOnDemand?: {
 		ownsSession(session: URI): boolean;
@@ -96,6 +100,9 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	/** Optional kind-scoped policy for automatically starting the host. */
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 	/**
 	 * Set when the host addresses sessions under a scheme that differs from its agent provider, as
 	 * the cloud sandbox host does (sessions are `ahp-session:/<id>` while the agent is `copilot`).
@@ -178,7 +185,11 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly showConnectionLog?: () => Promise<void>;
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
+	readonly hostDescription?: IObservable<string>;
+	readonly removeLabel?: string;
+	readonly disconnectLabel?: string;
 	get automations(): ISessionsProviderAutomations | undefined { return this._automationStore; }
+	readonly setDisplayName?: (name: string | undefined) => void;
 	readonly supportsQuickChats = true;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
@@ -226,6 +237,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
+	private readonly _retainSessionsOnDisconnect: boolean;
 	private readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
@@ -300,6 +312,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
 		this._removeOnDemand = config.removeOnDemand;
+		this.setDisplayName = config.setDisplayName;
+		this._retainSessionsOnDisconnect = config.retainSessionsOnDisconnect === true;
 		this._deleteSessionsOnDemand = config.deleteSessionsOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
@@ -318,6 +332,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.showConnectionLog = config.showConnectionLog;
 		this.autoConnect = config.autoConnect;
 		this.connectionLabels = config.connectionLabels;
+		this.hostDescription = config.hostDescription;
+		this.removeLabel = config.removeLabel;
+		this.disconnectLabel = config.disconnectLabel;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._readOnly = derived(this, reader => {
 			const status = this._connectionStatus.read(reader);
@@ -338,7 +355,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.remoteAddress = config.address;
 		this.remoteLocationPreferenceKey = config.preferenceKey ?? config.address;
 		this.hostGroup = config.hostGroup;
-		this._storageKey = `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
+		this._storageKey = config.sessionCacheKey ?? `${CACHED_SESSIONS_STORAGE_PREFIX}${this._connectionAuthority}`;
 		this._automationStore = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
 			toHost: resource => fromAgentHostUri(resource),
 			fromHost: resource => toAgentHostUri(resource, this._connectionAuthority),
@@ -363,7 +380,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			listFolders: (query, token) => this._listRemoteFolders(query, token),
 		}];
 
-		this._enableSessionCachePersistence(this._storageKey, CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY.map(prefix => `${prefix}${this._connectionAuthority}`));
+		this._enableSessionCachePersistence(this._storageKey, config.sessionCacheKey ? [] : CACHED_SESSIONS_STORAGE_PREFIXES_LEGACY.map(prefix => `${prefix}${this._connectionAuthority}`));
 		this.updateResourceLabelHomes();
 		this._register(this._remoteAgentHostService.onDidChangeDisplayName(address => {
 			if (address === normalizeRemoteAgentHostAddress(this.remoteAddress)) {
@@ -823,7 +840,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	 * is retained so sessions can be restored on reconnect.
 	 */
 	async disconnect(): Promise<void> {
-		this.unpublishCachedSessions();
+		if (!this._retainSessionsOnDisconnect) {
+			this.unpublishCachedSessions();
+		}
 		if (this._disconnectOnDemand) {
 			await this._disconnectOnDemand();
 			return;
