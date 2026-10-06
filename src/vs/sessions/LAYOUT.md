@@ -17,16 +17,16 @@ instantiated directly.
 
 `sessions.experimental.layoutScope` is an experimental window setting
 with modes `session` (default), `chat-shared`, and `chat`. Both enabled modes
-keep ordinary editors, the selected bottom-panel view, and terminals owned by
+keep ordinary editors and the selected bottom-panel view owned by
 the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
 visibility shared across all existing workspace chats in the window;
 `chat` also scopes that visibility to the focused chat. The mode changes
 only after manual reload, without a reload notification. There is no boolean
 compatibility for this unreleased setting. The concrete workbench
 selection remains fixed at startup. If a desktop window enters a runtime phone
-viewport, experimental layout and terminal operations suspend without discarding
-state, retagging ownership, or killing processes; returning to desktop resumes
-the focused owner. Startup phone windows retain the existing mobile behavior.
+viewport, experimental layout suspends without discarding layout state; returning
+to desktop resumes the focused owner. Terminal behavior is unchanged in all modes.
+Startup phone windows retain the existing mobile behavior.
 
 ```text
 Title bar

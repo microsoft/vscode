@@ -16,7 +16,7 @@ import { RawContextKey, ContextKeyExpression } from '../../../../platform/contex
 import { TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
-import { ITerminalChatOwner, TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
@@ -610,11 +610,6 @@ export namespace RunOptions {
 }
 
 export abstract class CommonTask {
-	terminalScope?: {
-		readonly owner: ITerminalChatOwner;
-		readonly isCurrent: () => boolean;
-		readonly isForeground: () => boolean;
-	};
 
 	/**
 	 * The task's internal id
@@ -655,11 +650,7 @@ export abstract class CommonTask {
 	}
 
 	public getMapKey(): string {
-		return this.withTerminalScope(this._id);
-	}
-
-	protected withTerminalScope(key: string): string {
-		return this.terminalScope ? JSON.stringify([key, this.terminalScope.owner]) : key;
+		return this._id;
 	}
 
 	public getKey(): string | undefined {
@@ -679,7 +670,7 @@ export abstract class CommonTask {
 	}
 
 	public clone(): Task {
-		return Object.assign(this.fromObject(Object.assign({}, this as unknown as Record<string, unknown>)), { terminalScope: this.terminalScope });
+		return this.fromObject(Object.assign({}, this as unknown as Record<string, unknown>));
 	}
 
 	protected abstract fromObject(object: Record<string, unknown>): Task;
@@ -773,7 +764,7 @@ export class CustomTask extends CommonTask {
 	}
 
 	public override clone(): CustomTask {
-		return Object.assign(new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties), { terminalScope: this.terminalScope });
+		return new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
 	}
 
 	public customizes(): KeyedTaskIdentifier | undefined {
@@ -825,7 +816,7 @@ export class CustomTask extends CommonTask {
 
 	public override getMapKey(): string {
 		const workspaceFolder = this._source.config.workspaceFolder;
-		return this.withTerminalScope(workspaceFolder ? `${workspaceFolder.uri.toString()}|${this._id}|${this.instance}` : `${this._id}|${this.instance}`);
+		return workspaceFolder ? `${workspaceFolder.uri.toString()}|${this._id}|${this.instance}` : `${this._id}|${this.instance}`;
 	}
 
 	protected getFolderId(): string | undefined {
@@ -987,7 +978,7 @@ export class ContributedTask extends CommonTask {
 	}
 
 	public override clone(): ContributedTask {
-		return Object.assign(new ContributedTask(this._id, this._source, this._label, this.type, this.defines, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties), { terminalScope: this.terminalScope });
+		return new ContributedTask(this._id, this._source, this._label, this.type, this.defines, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
 	}
 
 	public override getDefinition(): KeyedTaskIdentifier {
@@ -1000,9 +991,9 @@ export class ContributedTask extends CommonTask {
 
 	public override getMapKey(): string {
 		const workspaceFolder = this._source.workspaceFolder;
-		return this.withTerminalScope(workspaceFolder
+		return workspaceFolder
 			? `${this._source.scope.toString()}|${workspaceFolder.uri.toString()}|${this._id}|${this.instance}`
-			: `${this._source.scope.toString()}|${this._id}|${this.instance}`);
+			: `${this._source.scope.toString()}|${this._id}|${this.instance}`;
 	}
 
 	protected getFolderId(): string | undefined {
@@ -1056,7 +1047,7 @@ export class InMemoryTask extends CommonTask {
 	}
 
 	public override clone(): InMemoryTask {
-		return Object.assign(new InMemoryTask(this._id, this._source, this._label, this.type, this.runOptions, this.configurationProperties), { terminalScope: this.terminalScope });
+		return new InMemoryTask(this._id, this._source, this._label, this.type, this.runOptions, this.configurationProperties);
 	}
 
 	public static is(value: unknown): value is InMemoryTask {
@@ -1068,7 +1059,7 @@ export class InMemoryTask extends CommonTask {
 	}
 
 	public override getMapKey(): string {
-		return this.withTerminalScope(`${this._id}|${this.instance}`);
+		return `${this._id}|${this.instance}`;
 	}
 
 	protected getFolderId(): undefined {

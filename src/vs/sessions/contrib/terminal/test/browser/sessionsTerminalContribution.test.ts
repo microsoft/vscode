@@ -7,7 +7,6 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { DisposableStore, Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { hasKey } from '../../../../../base/common/types.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IAgentHostTerminalCreateOptions, IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
@@ -19,10 +18,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
-import { ICreateTerminalOptions, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
-import { ChatLayoutPresentation, SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
@@ -35,9 +31,12 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { SESSIONS_LAYOUT_SCOPE_SETTING } from '../../../../common/chatLayout.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -63,8 +62,6 @@ type TestTerminalInstance = ITerminalInstance & {
 
 type TestActiveSession = IActiveSession & {
 	activeChat: ReturnType<typeof observableValue<IChat>>;
-	chats: ReturnType<typeof observableValue<readonly IChat[]>>;
-	openChats: ReturnType<typeof observableValue<readonly IChat[]>>;
 	loading: ReturnType<typeof observableValue<boolean>>;
 	isArchived: ReturnType<typeof observableValue<boolean>>;
 	worktreePending: ReturnType<typeof observableValue<boolean>>;
@@ -81,8 +78,6 @@ function makeAgentSession(opts: {
 	sessionId?: string;
 	providerId?: string;
 	remoteConnectionStatus?: SessionRemoteConnectionStatus;
-	sessionResource?: URI;
-	chatResource?: URI;
 }): TestActiveSession {
 	const folder = opts.repository || opts.worktree ? {
 		root: opts.repository ?? opts.worktree!,
@@ -102,7 +97,7 @@ function makeAgentSession(opts: {
 		} satisfies ISessionWorkspace
 		: undefined);
 	const chat = {
-		resource: opts.chatResource ?? URI.parse('file:///session'),
+		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
 		workspace,
 		title: observableValue('test.title', 'Test Session'),
@@ -122,7 +117,7 @@ function makeAgentSession(opts: {
 	} satisfies IChat;
 	const session = {
 		sessionId: opts.sessionId ?? 'test:session',
-		resource: opts.sessionResource ?? chat.resource,
+		resource: chat.resource,
 		providerId: opts.providerId ?? 'test',
 		sessionType: opts.providerType ?? AgentSessionProviders.Local,
 		harness: 'copilot',
@@ -247,8 +242,6 @@ function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
 		instanceId: id,
 		get isDisposed() { return isDisposed; },
 		get shellLaunchConfig() { return shellLaunchConfig; },
-		async setChatOwner(owner: ITerminalInstance['shellLaunchConfig']['chatOwner']) { shellLaunchConfig.chatOwner = owner; },
-		async setSessionOwner(owner: ITerminalInstance['shellLaunchConfig']['sessionOwner']) { shellLaunchConfig.sessionOwner = owner; },
 		async getInitialCwd() {
 			await initialCwdBarrier;
 			return cwd;
@@ -305,11 +298,6 @@ suite('SessionsTerminalContribution', () => {
 	let sessionProviders: Map<string, ISessionsProvider>;
 	let instantiationService: TestInstantiationService;
 	let cwdExists: (uri: URI) => boolean;
-	let configuration: TestConfigurationService;
-	let phone: ReturnType<typeof observableValue<boolean>>;
-	let layoutPresentation: ChatLayoutPresentation;
-	let onDidDeleteChat: Emitter<IChatDeletedEvent>;
-	let ownerProvider: Parameters<ITerminalService['registerChatOwnerProvider']>[0] | undefined;
 
 	setup(() => {
 		createdTerminals = [];
@@ -356,7 +344,6 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
-			override readonly defaultBackendIdentity = 'pty';
 			override onDidCreateInstance = onDidCreateInstance.event;
 			override onDidDisposeInstance = onDidDisposeInstance.event;
 			override get instances(): readonly ITerminalInstance[] {
@@ -368,20 +355,14 @@ suite('SessionsTerminalContribution', () => {
 			override get activeInstance(): ITerminalInstance | undefined {
 				return activeInstanceId !== undefined ? terminalInstances.get(activeInstanceId) : undefined;
 			}
-			override async createTerminal(opts?: ICreateTerminalOptions): Promise<ITerminalInstance> {
-				const chatOwner = opts?.chatOwner ?? ownerProvider?.(opts);
-				const config = opts?.config;
-				const shellConfig = config && !hasKey(config, { extensionIdentifier: true }) && !hasKey(config, { isDefault: true }) ? config : undefined;
-				const cwd = shellConfig?.cwd;
-				const cwdUri = typeof cwd === 'string' ? URI.file(cwd) : cwd;
+			override async createTerminal(opts?: any): Promise<ITerminalInstance> {
+				const cwdUri: URI | undefined = opts?.config?.cwd;
 				const cwdStr = cwdUri?.fsPath ?? '';
 				terminalCreationStarted.push(cwdStr);
 				await terminalCreationBarriers.get(cwdStr)?.p;
 				const id = nextInstanceId++;
 				const instance = makeTerminalInstance(id, cwdStr);
-				instance.shellLaunchConfig.chatOwner = chatOwner;
-				instance.shellLaunchConfig.sessionOwner = shellConfig?.sessionOwner;
-				createdTerminals.push({ cwd: cwdUri ?? HOME_DIR });
+				createdTerminals.push({ cwd: opts?.config?.cwd });
 				terminalInstances.set(id, instance);
 				if (disposeOnCreatePaths.has(cwdStr)) {
 					instance._testSetDisposed(true);
@@ -399,9 +380,9 @@ suite('SessionsTerminalContribution', () => {
 			override async focusActiveInstance(): Promise<void> {
 				focusCalls++;
 			}
-			override async safeDisposeTerminal(instance: ITerminalInstance, isCurrent?: () => boolean): Promise<void> {
+			override async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
 				await safeDisposeBarrier?.p;
-				if (vetoSafeDispose || isCurrent && !isCurrent()) {
+				if (vetoSafeDispose) {
 					return;
 				}
 				disposedInstances.push(instance);
@@ -439,8 +420,6 @@ suite('SessionsTerminalContribution', () => {
 					return undefined;
 				}
 				const instance = makeTerminalInstance(nextInstanceId++, cwd.fsPath);
-				instance.shellLaunchConfig.chatOwner = options?.chatOwner;
-				instance.shellLaunchConfig.sessionOwner = options?.sessionOwner;
 				agentHostTerminalAddresses.push(address);
 				agentHostTerminalAddressById.set(instance.instanceId, address);
 				createdTerminals.push({ cwd });
@@ -468,21 +447,6 @@ suite('SessionsTerminalContribution', () => {
 			override isViewVisible(): boolean { return false; }
 			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
 		});
-		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: 'session' });
-		phone = observableValue('phone', false);
-		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
-		instantiationService.stub(ISessionsManagementService, 'onDidDeleteChat', onDidDeleteChat.event);
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly chatLayoutPresentation = layoutPresentation;
-		});
-		instantiationService.stub(ITerminalChatService, new class extends mock<ITerminalChatService>() {
-			override getChatSessionResourceForInstance() { return undefined; }
-		});
-		instantiationService.stub(ITerminalService, 'registerChatOwnerProvider', (provider: Parameters<ITerminalService['registerChatOwnerProvider']>[0]) => {
-			ownerProvider = provider;
-			return Disposable.None;
-		});
 
 		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
 	});
@@ -492,329 +456,6 @@ suite('SessionsTerminalContribution', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function enableChatOwnership(mode: 'chat' | 'chat-shared' = 'chat'): void {
-		contribution.dispose();
-		layoutPresentation.dispose();
-		configuration = new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode });
-		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
-			override readonly chatLayoutPresentation = layoutPresentation;
-		});
-		contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
-	}
-
-	function addPeer(session: TestActiveSession, name: string): IChat {
-		const peer = { ...session.mainChat.get(), resource: URI.parse(`opaque:/chats/${name}`) };
-		session.chats.set([...session.chats.get(), peer], undefined);
-		return peer;
-	}
-
-	for (const mode of ['chat-shared', 'chat'] as const) {
-		test(`${mode} chat ownership isolates same-session same-cwd A/B/A processes without focus or pane reveal`, async () => {
-			enableChatOwnership(mode);
-			const session = makeAgentSession({ repository: URI.file('/same') });
-			const peer = addPeer(session, 'peer');
-			activeSessionObs.set(session, undefined);
-			await tick();
-			const first = terminalInstances.get(1)!;
-			session.activeChat.set(peer, undefined);
-			await tick();
-			const second = terminalInstances.get(2)!;
-			addCommandToInstance(first, 10);
-			addCommandToInstance(second, 100);
-			session.activeChat.set(session.mainChat.get(), undefined);
-			await tick();
-			assert.deepStrictEqual({
-				identities: [...terminalInstances.keys()],
-				owners: [first, second].map(instance => instance.shellLaunchConfig.chatOwner?.chatResource),
-				active: activeInstanceId,
-				foreground: [...terminalInstances.keys()].filter(id => !backgroundedInstances.has(id)),
-				focused: focusCalls,
-			}, { identities: [1, 2], owners: [session.mainChat.get().resource.toString(), peer.resource.toString()], active: 1, foreground: [1], focused: 0 });
-		});
-	}
-
-	test('delayed creation retains its origin while a same-cwd peer takes focus', async () => {
-		enableChatOwnership();
-		const barrier = new DeferredPromise<void>();
-		terminalCreationBarriers.set('/same', barrier);
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		activeSessionObs.set(session, undefined);
-		await tick();
-		session.activeChat.set(peer, undefined);
-		await tick();
-		await barrier.complete();
-		await tick();
-		assert.deepStrictEqual([...terminalInstances.values()].map(instance => ({
-			id: instance.instanceId,
-			owner: instance.shellLaunchConfig.chatOwner?.chatResource,
-			foreground: !backgroundedInstances.has(instance.instanceId),
-		})), [
-			{ id: 1, owner: session.mainChat.get().resource.toString(), foreground: false },
-			{ id: 2, owner: peer.resource.toString(), foreground: true },
-		]);
-	});
-
-	test('background tool request origin is authoritative and unrelated feature terminals stay standalone', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		allSessions.push(session);
-		activeSessionObs.set(session, undefined);
-		await tick();
-		session.activeChat.set(peer, undefined);
-		await tick();
-		assert.deepStrictEqual({
-			tool: ownerProvider?.({ originChatResource: session.mainChat.get().resource, config: { hideFromUser: true } }),
-			manual: ownerProvider?.({}),
-			standalone: ownerProvider?.({ config: { isFeatureTerminal: true } }),
-			unknownOrigin: ownerProvider?.({ originChatResource: URI.parse('opaque:/unknown') }),
-		}, {
-			tool: { backend: 'pty', sessionResource: session.resource.toString(), chatResource: session.mainChat.get().resource.toString() },
-			manual: { backend: 'pty', sessionResource: session.resource.toString(), chatResource: peer.resource.toString() },
-			standalone: undefined,
-			unknownOrigin: undefined,
-		});
-	});
-
-	test('closing a chat retains processes and confirmed deletion affects only its owner', async () => {
-		enableChatOwnership('chat-shared');
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		activeSessionObs.set(session, undefined);
-		await tick();
-		session.activeChat.set(peer, undefined);
-		await tick();
-		session.openChats.set([peer], undefined);
-		await tick();
-		assert.deepStrictEqual([...terminalInstances.keys()], [1, 2]);
-		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: session.mainChat.get().resource });
-		await tick();
-		assert.deepStrictEqual([...terminalInstances.keys()], [2]);
-	});
-
-	test('confirmed deletion cleans the active exact pair across backend namespaces without adopting standalone processes', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		activeSessionObs.set(session, undefined);
-		await tick();
-		const secondBackend = makeTerminalInstance(2, '/same');
-		secondBackend._testSetShellLaunchConfig({ chatOwner: { ...terminalInstances.get(1)!.shellLaunchConfig.chatOwner!, backend: 'pty:ssh-remote+host' } });
-		terminalInstances.set(2, secondBackend);
-		terminalInstances.set(3, makeTerminalInstance(3, '/same'));
-		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: session.mainChat.get().resource });
-		await tick();
-		assert.deepStrictEqual({ live: [...terminalInstances.keys()], closed: disposedInstances.map(instance => instance.instanceId) }, { live: [3], closed: [1, 2] });
-	});
-
-	test('phone presentation cancels pending confirmed cleanup without killing or retagging its process', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		activeSessionObs.set(session, undefined);
-		await tick();
-		const owner = terminalInstances.get(1)!.shellLaunchConfig.chatOwner;
-		safeDisposeBarrier = new DeferredPromise<void>();
-		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: session.mainChat.get().resource });
-		await tick();
-		phone.set(true, undefined);
-		await safeDisposeBarrier.complete();
-		await tick();
-		assert.deepStrictEqual({ live: [...terminalInstances.keys()], owner: terminalInstances.get(1)!.shellLaunchConfig.chatOwner, closed: disposedInstances.length }, { live: [1], owner, closed: 0 });
-	});
-
-	test('cleanup veto preserves ownership and genuinely hidden tools are not killed', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		activeSessionObs.set(session, undefined);
-		await tick();
-		const interactive = terminalInstances.get(1)!;
-		const hidden = makeTerminalInstance(2, '/same');
-		hidden._testSetShellLaunchConfig({ hideFromUser: true, customPtyImplementation: () => { throw new Error('Not launched'); }, chatOwner: interactive.shellLaunchConfig.chatOwner });
-		terminalInstances.set(2, hidden);
-		vetoSafeDispose = true;
-		session.isArchived.set(true, undefined);
-		onDidChangeSessions.fire({ added: [], changed: [session], removed: [] });
-		await tick();
-		assert.deepStrictEqual({
-			survivors: [...terminalInstances.keys()],
-			owner: interactive.shellLaunchConfig.chatOwner,
-			disposed: disposedInstances.map(instance => instance.instanceId),
-		}, {
-			survivors: [1, 2],
-			owner: { backend: 'pty', sessionResource: session.resource.toString(), chatResource: session.mainChat.get().resource.toString() },
-			disposed: [],
-		});
-	});
-
-	test('confirmed deletion cancels an in-flight origin without resurrecting it', async () => {
-		enableChatOwnership();
-		const barrier = new DeferredPromise<void>();
-		terminalCreationBarriers.set('/same', barrier);
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		activeSessionObs.set(session, undefined);
-		await tick();
-		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: session.mainChat.get().resource });
-		await barrier.complete();
-		await tick();
-		assert.deepStrictEqual({ live: [...terminalInstances.keys()], killed: disposedInstances.map(instance => instance.instanceId) }, { live: [], killed: [1] });
-	});
-
-	test('runtime phone suspends projection and cleanup, then resumes the focused chat without cloning', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		activeSessionObs.set(session, undefined);
-		await tick();
-		const firstOwner = terminalInstances.get(1)!.shellLaunchConfig.chatOwner;
-		phone.set(true, undefined);
-		session.activeChat.set(peer, undefined);
-		onDidDeleteChat.fire({ session, sessionResource: session.resource, chatResource: session.mainChat.get().resource });
-		await tick();
-		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], owner: terminalInstances.get(1)!.shellLaunchConfig.chatOwner, disposed: disposedInstances.length }, { ids: [1], owner: firstOwner, disposed: 0 });
-		phone.set(false, undefined);
-		await tick();
-		session.activeChat.set(session.mainChat.get(), undefined);
-		await tick();
-		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], active: activeInstanceId, owner: terminalInstances.get(1)!.shellLaunchConfig.chatOwner }, { ids: [1, 2], active: 1, owner: firstOwner });
-	});
-
-	test('queued creation crossing phone presentation does not publish and survives until desktop resume', async () => {
-		enableChatOwnership();
-		const barrier = new DeferredPromise<void>();
-		terminalCreationBarriers.set('/same', barrier);
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		activeSessionObs.set(session, undefined);
-		await tick();
-		phone.set(true, undefined);
-		await barrier.complete();
-		await tick();
-		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], active: activeInstanceId, disposed: disposedInstances.length }, { ids: [1], active: undefined, disposed: 0 });
-		phone.set(false, undefined);
-		await tick();
-		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], active: activeInstanceId }, { ids: [1], active: 1 });
-	});
-
-	test('reload ownership comes from persistent process metadata rather than renderer ids or same cwd', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		const restored = makeTerminalInstance(400, '/same');
-		restored._testSetShellLaunchConfig({
-			hideFromUser: true,
-			attachPersistentProcess: {
-				id: 17, pid: 100, cwd: '/same', title: 'restored', titleSource: 0, shellIntegrationNonce: 'nonce', hideFromUser: false,
-				chatOwner: { backend: 'pty', sessionResource: session.resource.toString(), chatResource: session.mainChat.get().resource.toString() }
-			},
-		});
-
-		terminalInstances.set(400, restored);
-		backgroundedInstances.add(400);
-		session.activeChat.set(peer, undefined);
-		activeSessionObs.set(session, undefined);
-		await tick();
-		session.activeChat.set(session.mainChat.get(), undefined);
-		await tick();
-		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], active: activeInstanceId, foreground: [...terminalInstances.keys()].filter(id => !backgroundedInstances.has(id)) }, { ids: [400, 1], active: 400, foreground: [400] });
-	});
-
-	test('graduation transfers the supplied main pair and preserves peers before source removal', async () => {
-		enableChatOwnership();
-		const from = makeAgentSession({ repository: URI.file('/same'), sessionId: 'draft' });
-		const peer = addPeer(from, 'peer');
-		const to = makeAgentSession({ repository: URI.file('/same'), sessionId: 'committed', sessionResource: URI.parse('opaque:/sessions/committed'), chatResource: URI.parse('opaque:/chats/committed') });
-		allSessions.push(from, to);
-		activeSessionObs.set(from, undefined);
-		await tick();
-		from.activeChat.set(peer, undefined);
-		await tick();
-		const associations = new Map<ITerminalInstance, URI>([
-			[terminalInstances.get(1)!, from.mainChat.get().resource],
-			[terminalInstances.get(2)!, peer.resource],
-		]);
-		instantiationService.stub(ITerminalChatService, 'getChatSessionResourceForInstance', (instance: ITerminalInstance) => associations.get(instance));
-		instantiationService.stub(ITerminalChatService, 'registerTerminalInstanceWithChatSession', (resource: URI, instance: ITerminalInstance) => { associations.set(instance, resource); });
-		onDidReplaceSession.fire({ from, to });
-		onDidChangeSessions.fire({ added: [to], changed: [], removed: [from] });
-		await tick();
-		assert.deepStrictEqual({
-			owners: [...terminalInstances.values()].map(instance => instance.shellLaunchConfig.chatOwner),
-			associations: [...associations.values()],
-			disposed: disposedInstances.length,
-		}, {
-			owners: [
-				{ backend: 'pty', sessionResource: to.resource.toString(), chatResource: to.mainChat.get().resource.toString() },
-				{ backend: 'pty', sessionResource: to.resource.toString(), chatResource: peer.resource.toString() },
-			],
-			associations: [to.mainChat.get().resource, peer.resource],
-			disposed: 0,
-		});
-	});
-
-	test('queued main and peer creation follows consecutive promotions without retagging peers as main', async () => {
-		enableChatOwnership('chat-shared');
-		const barrier = new DeferredPromise<void>();
-		terminalCreationBarriers.set('/same', barrier);
-		const from = makeAgentSession({ repository: URI.file('/same'), sessionResource: URI.parse('opaque:/draft'), chatResource: URI.parse('opaque:/draft/main') });
-		const peer = addPeer(from, 'peer');
-		const next = makeAgentSession({ repository: URI.file('/same'), sessionResource: URI.parse('opaque:/next'), chatResource: URI.parse('opaque:/next/main') });
-		const final = makeAgentSession({ repository: URI.file('/same'), sessionResource: URI.parse('opaque:/final'), chatResource: URI.parse('opaque:/final/main') });
-		allSessions.push(from, next, final);
-		activeSessionObs.set(from, undefined);
-		await tick();
-		from.activeChat.set(peer, undefined);
-		await tick();
-		onDidReplaceSession.fire({ from, to: next });
-		onDidReplaceSession.fire({ from: next, to: final });
-		await barrier.complete();
-		await tick();
-		assert.deepStrictEqual([...terminalInstances.values()].map(instance => instance.shellLaunchConfig.chatOwner), [
-			{ backend: 'pty', sessionResource: final.resource.toString(), chatResource: final.mainChat.get().resource.toString() },
-			{ backend: 'pty', sessionResource: final.resource.toString(), chatResource: peer.resource.toString() },
-		]);
-	});
-
-	test('only default main migrates persisted legacy tracked ownership; a same-cwd peer and standalone remain distinct', async () => {
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		activeSessionObs.set(session, undefined);
-		await tick();
-		const legacyOwner = terminalInstances.get(1)!.shellLaunchConfig.sessionOwner;
-		contribution.dispose();
-		terminalInstances.clear();
-		const restored = makeTerminalInstance(400, '/same');
-		restored._testSetShellLaunchConfig({
-			hideFromUser: true,
-			attachPersistentProcess: { id: 17, pid: 100, cwd: '/same', title: 'legacy', titleSource: 0, shellIntegrationNonce: 'nonce', hideFromUser: false, sessionOwner: legacyOwner },
-		});
-		terminalInstances.set(400, restored);
-		backgroundedInstances.add(400);
-		const standalone = makeTerminalInstance(900, '/same');
-		terminalInstances.set(900, standalone);
-		session.activeChat.set(peer, undefined);
-		enableChatOwnership();
-		await tick();
-		session.activeChat.set(session.mainChat.get(), undefined);
-		await tick();
-		assert.deepStrictEqual({
-			ids: [...terminalInstances.keys()],
-			active: activeInstanceId,
-			restoredOwner: restored.shellLaunchConfig.chatOwner,
-			standaloneOwner: standalone.shellLaunchConfig.chatOwner,
-		}, { ids: [400, 900, 2], active: 400, restoredOwner: legacyOwner, standaloneOwner: undefined });
-	});
-
-	test('configuration stays frozen until reconstruction', async () => {
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		activeSessionObs.set(session, undefined);
-		await tick();
-		await configuration.setUserConfiguration(SESSIONS_LAYOUT_SCOPE_SETTING, 'chat');
-		session.activeChat.set(peer, undefined);
-		await tick();
-		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], enabled: layoutPresentation.enabled }, { ids: [1], enabled: false });
-	});
 
 	// --- Background provider: uses worktree/repository path ---
 
@@ -957,6 +598,36 @@ suite('SessionsTerminalContribution', () => {
 				createdCwds: [cwd.toString()],
 				addresses: [address],
 				defaultCwd: cwd.toString(),
+			});
+		});
+	}
+
+	for (const mode of ['session', 'chat', 'chat-shared'] as const) {
+		test(`${mode} retains the session terminal when sibling chats share a cwd`, async () => {
+			contribution.dispose();
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [SESSIONS_LAYOUT_SCOPE_SETTING]: mode }));
+			contribution = store.add(instantiationService.createInstance(SessionsTerminalContribution));
+			const original = makeAgentSession({ repository: URI.file('/same'), providerType: AgentSessionProviders.Local });
+			const main = original.activeChat.get();
+			const peer = { ...main, resource: URI.parse('opaque:/peer') };
+			const session = { ...original, chats: constObservable([main, peer]) };
+			activeSessionObs.set(session, undefined);
+			await tick();
+			session.activeChat.set(peer, undefined);
+			await tick();
+			session.activeChat.set(main, undefined);
+			await tick();
+
+			assert.deepStrictEqual({
+				createdCwds: createdTerminals.map(terminal => terminal.cwd.fsPath),
+				activeInstanceId,
+				backgrounded: [...backgroundedInstances],
+				disposed: disposedInstances.map(instance => instance.instanceId),
+			}, {
+				createdCwds: [URI.file('/same').fsPath],
+				activeInstanceId: 1,
+				backgrounded: [],
+				disposed: [],
 			});
 		});
 	}

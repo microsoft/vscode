@@ -2519,6 +2519,34 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
+	for (const mode of ['session', 'chat', 'chat-shared'] as const) {
+		test(`[desktop] ignores queued details-only collapse after the whole pane hides (${mode})`, async () => {
+			createDesktopController({ desktopLayout: true, activateAux: true, chatLayoutMode: mode });
+			await settle();
+			harness.activeSessionObs.set(makeSession(URI.parse('session:1')), undefined);
+			await settle();
+
+			const fileResource = URI.file('/repo/retained.ts');
+			harness.activeGroupEditors.splice(1, 0, store.add(new TestStubEditorInput(fileResource)));
+			harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+			await settle();
+			harness.closedEditors = [];
+
+			harness.layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+			await settle();
+
+			assert.deepStrictEqual({
+				fileClosed: harness.closedEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource)),
+				fileRetained: harness.activeGroupEditors.some(editor => editor.resource && isEqual(editor.resource, fileResource)),
+			}, {
+				fileClosed: false,
+				fileRetained: true,
+			});
+		});
+	}
+
 	test('[managed tabs / lifecycle removal] does not re-open a missing managed tab while the group stays non-empty', async () => {
 		createDesktopController({ activateAux: true });
 		await settle();

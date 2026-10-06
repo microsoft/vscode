@@ -4433,7 +4433,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (invocationMessage !== undefined) {
 					invocation.invocationMessage = invocationMessage;
 				}
-				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, opts.chatURI, outputTerminalAttachment, opts.sessionResource);
+				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, opts.chatURI, outputTerminalAttachment);
 				updateRunningToolSpecificData(invocation, tc, opts.backendSession, this._config.connectionAuthority, this._config.connection.resourceUris);
 				if (invocationMessageChanged) {
 					invocation.notifyToolSpecificDataChanged();
@@ -4447,7 +4447,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (status === ToolCallStatus.Completed) {
 					this._ensureLeftStreaming(invocation, tc, opts);
 				}
-				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, opts.chatURI, outputTerminalAttachment, opts.sessionResource);
+				this._reviveTerminalIfNeeded(invocation, tc, opts.backendSession, opts.chatURI, outputTerminalAttachment);
 				this._finalizeToolInvocation(invocation, tc, opts);
 			}
 		}));
@@ -5059,7 +5059,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		backendSession: URI,
 		chatURI: string,
 		outputTerminalAttachment: IOutputTerminalAttachment,
-		originChatResource: URI,
 	): void {
 		// content is only present on Running/Completed/PendingResultConfirmation.
 		// toolInput is present on all post-streaming states.
@@ -5077,7 +5076,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const sessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
 		const terminalCommandUri = URI.parse(terminalUri);
 		const isPty = terminalContent.isPty !== false;
-		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId, originChatResource) : undefined;
+		const terminalInstance = isPty ? this._ensureTerminalInstance(terminalUri, sessionId) : undefined;
 		const hasSettledNonPtySnapshot = tc.status === ToolCallStatus.Completed
 			&& !isPty
 			&& terminalContent.result?.preview !== undefined;
@@ -5762,12 +5761,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 *
 	 * Returns the terminal instance created or reused by the terminal service.
 	 */
-	private _ensureTerminalInstance(terminalUri: string, terminalToolSessionId: string, originChatResource: URI): Promise<ITerminalInstance> {
+	private _ensureTerminalInstance(terminalUri: string, terminalToolSessionId: string): Promise<ITerminalInstance> {
 		return this._agentHostTerminalService.reviveTerminal(
 			this._config.connection,
 			URI.parse(terminalUri),
-			terminalToolSessionId,
-			originChatResource,
+			terminalToolSessionId
 		);
 	}
 

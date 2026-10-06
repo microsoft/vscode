@@ -113,11 +113,14 @@ module.exports = {
 | `id`, `title` | Identify the run; `id` names the evidence directory |
 | `source` | Issue or test-plan item the scenario came from |
 | `workspacePath` | Disposable folder to open |
-| `userSettings` | Settings seeded into the profile before launch |
+| `userSettings` | Settings seeded into the profile before launch, including the built-in Agents profile when using `--agents` |
 | `extraArgs` | Extra VS Code command-line arguments |
+| `extraEnv` | Environment overrides for the launched app; `undefined` unsets a variable. Keep the automation runner's HOME unchanged and isolate application discovery with this field. |
 | `stepPauseMs` | How long to hold each finished step so its caption is readable. Defaults to `1000`; set `0` when the scenario is timing-sensitive |
 
 Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `skip(reason, options)`. `workbench` exposes the feature helpers (`settingsEditor`, `quickaccess`, `editors`, `terminal`, `chat`, …); `page` is the Playwright page for anything they do not cover.
+
+Use `context.code.driver.resizeWindow({ width, height })` for responsive-layout scenarios. It resizes the current native Electron window (or the browser viewport on web) and returns the previous size for restoration.
 
 - **Return a string** describing how the step was validated. It appears in the report.
 - **Throw** to fail the step. The message is recorded, and the run stops.

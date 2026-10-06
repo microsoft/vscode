@@ -43,14 +43,14 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'string',
 			enum: ['session', 'chat', 'chat-shared'],
 			enumDescriptions: [
-				localize('sessionsLayoutScope.session', "Use the existing session layout and terminal behavior."),
-				localize('sessionsLayoutScope.chat', "Keep editors, Editor and Details composition, bottom-panel visibility, selected panel views, and terminals separate for each chat."),
-				localize('sessionsLayoutScope.chatShared', "Keep editors, selected panel views, and terminals separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
+				localize('sessionsLayoutScope.session', "Use the existing session layout."),
+				localize('sessionsLayoutScope.chat', "Keep editors, Editor and Details composition, bottom-panel visibility, and selected panel views separate for each chat."),
+				localize('sessionsLayoutScope.chatShared', "Keep editors and selected panel views separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
 			],
 			default: 'session',
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
-			description: localize('sessionsLayoutScope.description', "Choose whether layout state and terminals belong to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Changes take effect after manually reloading the window."),
+			description: localize('sessionsLayoutScope.description', "Choose whether layout state belongs to each session or each chat in non-phone Agents windows. Pane sizes remain shared. Terminal behavior is unchanged in all modes. Changes take effect after manually reloading the window."),
 		},
 	},
 });

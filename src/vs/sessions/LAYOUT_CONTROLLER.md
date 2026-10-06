@@ -14,7 +14,7 @@ The file-level `B*` companion rules describe the legacy/default base behavior. E
 
 All non-phone Agents windows use `DesktopWorkbench` with `DesktopLayoutController`. Phone windows use `MobileWorkbench` with `MobileLayoutController`. `contrib/layout/browser/sessions.layout.contribution.ts` selects the controller from the concrete workbench presentation constructed at startup.
 
-`sessions.experimental.layoutScope` is an experimental window setting with modes `session` (default), `chat-shared`, and `chat`. Its effective mode is fixed at startup; changing it requires manual Reload Window without a reload notification. Boolean values are not supported. Only a window constructed with the desktop presentation can enable chat ownership. A startup desktop window suspends experimental layout and terminal operations while its runtime viewport is phone, retaining saved state, ownership metadata, and running processes. Returning to desktop resumes the focused owner's state. A startup phone window and disabled mode retain their existing behavior; viewport changes do not enable the experiment in a startup phone window.
+`sessions.experimental.layoutScope` is an experimental window setting with modes `session` (default), `chat-shared`, and `chat`. Its effective mode is fixed at startup; changing it requires manual Reload Window without a reload notification. Boolean values are not supported. Only a window constructed with the desktop presentation can enable chat-owned layout. A startup desktop window suspends experimental layout while its runtime viewport is phone, retaining saved layout state. Returning to desktop resumes the focused owner's state. A startup phone window and disabled mode retain their existing behavior; viewport changes do not enable the experiment in a startup phone window. Terminal behavior is independent of this setting and remains unchanged in every mode.
 
 `DesktopLayoutController` extends `BaseLayoutController` and composes lifecycle strategies for Draft, Existing, and Quick Chat sessions. Shared tab, detail, and visibility mechanics live in coordinators rather than separate contribution controllers. Desktop policy stays in that controller, its strategies, or its coordinators rather than being injected into editor-part construction; in particular, editor-part construction must not acquire `ISessionsService`, because the Sessions service graph already depends on editor parts.
 
@@ -37,7 +37,7 @@ With the experiment disabled, each session owns its editor working set and panel
 
 Draft Sessions do not persist a separate legacy visibility profile. Quick Chats reuse the Existing Session profile when they have editor content and hide the side pane when their editor working set is empty.
 
-In both enabled desktop modes, the focused `(sessionResource, chatResource)` owns the singleton Editor's ordinary working set and active editor, selected bottom-panel view, and eligible terminals. Focus changes within one session and between sessions use the same owner boundary, including with multiple visible sessions or chat groups. Resource identities are provider-neutral and opaque. The main chat uses its session resource as its layout key; peers use a composite session/chat key.
+In both enabled desktop modes, the focused `(sessionResource, chatResource)` owns the singleton Editor's ordinary working set and active editor and selected bottom-panel view. Focus changes within one session and between sessions use the same layout owner boundary, including with multiple visible sessions or chat groups. Resource identities are provider-neutral and opaque. The main chat uses its session resource as its layout key; peers use a composite session/chat key.
 
 In `chat`, current and last-open Editor/Details composition and bottom-panel visibility also belong to that owner. In `chat-shared`, one preference across all existing workspace chats in the window owns those visibility fields. It is not partitioned by workspace or session. Draft and Quick Chat visibility remains separate from that shared Existing preference; submission and workspace conversion apply the Existing preference rather than overwriting it.
 
@@ -45,13 +45,13 @@ Saved state for the selected mode takes precedence. A main chat without saved st
 
 Widths, heights, Sidebar visibility, and Sessions/chat-grid geometry remain shared window state. Terminal ownership is separate from editor/layout records.
 
-### Terminal ownership boundary
+### Terminal behavior boundary
 
-`SessionsTerminalContribution` owns terminal projection and lifecycle, not the layout controller. In experimental desktop mode, eligible terminals use backend-qualified session/chat ownership. Creation captures the request origin before asynchronous work; an explicit tool-origin association takes precedence over current focus. Intentional standalone terminals remain unowned. Equal cwd or host does not make sibling chats interchangeable, and both workbench and Agent Host task runners restrict terminal reuse to the originating owner.
+`SessionsTerminalContribution` owns terminal projection and lifecycle, not the layout controller. All layout modes retain the existing session tracking, provider/backend selection, and initial-cwd matching fallback. Switching sibling chats with the same working directory does not introduce a new terminal ownership boundary. An active chat's workspace can still change the terminal working directory under the existing session behavior.
 
-Activation retains existing creation timing and selection policy within the focused owner's eligible terminals. It may foreground them and background other owners' terminals, but must not reveal a hidden bottom panel or steal keyboard focus. Legacy tracked or persisted session-owned terminals initialize into main-chat ownership only; peers cannot adopt them by cwd.
+The layout setting does not change terminal creation, task reuse, activation, cleanup, focus, or backend persistence. Workbench and Agent Host task runners retain their existing matching rules. No chat-layout ownership metadata is passed to terminal processes, profiles, tasks, or persistence records.
 
-Tab close/hide retains processes. Successful chat deletion scopes existing cleanup to that chat; archive/removal scopes it across the session's owners. Cleanup retains eligibility, hidden-tool/runtime protections, active-terminal protection where applicable, confirmation and veto handling, and error reporting. Ownership is retained when disposal is vetoed. Pending creation and cleanup recheck presentation generation, deletion, archive state, and remapped ownership; they must not resurrect a deleted owner or destroy a sibling's process. Disposing an attach-only UI is not evidence that the host process was killed, and ownership does not authorize blanket tool-process termination.
+Chat-layout deletion and promotion affect layout records only. Terminal cleanup continues to follow the existing session archive/removal and replacement rules, including their protection, confirmation, veto, and error handling.
 
 All state flows from the `activeSession` and `activeChat` observables. Events notify part, editor, and confirmed lifecycle changes rather than supplying a parallel state model.
 
@@ -129,7 +129,7 @@ If no usable experimental layout record exists, legacy desktop state is copied f
 
 Workbench-owned side-pane geometry and part visibility are restored before the layout controller starts. Layout restoration must not recalculate or overwrite that geometry.
 
-Terminal persistence retains the backend's existing capabilities and settings, including `terminal.integrated.enablePersistentSessions`. Backend-qualified `chatOwner` metadata accompanies processes that already support persistence, including eligible inactive/background processes; renderer instance ids and cwd are not durable ownership. Task reconnection metadata is not an ownership substitute. Live Agent Host reconnect retains ownership, but this contract does not add process resurrection across renderer or host restart where the existing custom-PTY/Agent Host path does not provide it.
+Terminal persistence retains the backend's existing capabilities and settings, including `terminal.integrated.enablePersistentSessions`, independently of layout scope. Chat-layout records neither add terminal process metadata nor change reconnection or process lifetime.
 
 ## 7. Key invariants
 
@@ -142,7 +142,7 @@ Terminal persistence retains the backend's existing capabilities and settings, i
 - Experimental focused ownership remains authoritative with multiple visible sessions or chat groups.
 - Geometry stays shared, and closing a tab is not deletion.
 - Successful deletion forgets exact owner references; retained legacy and sibling handle references remain valid.
-- Runtime phone suspension preserves experimental state and processes.
+- Runtime phone suspension preserves experimental layout state without changing terminal behavior.
 - Phone presentation never automates the Auxiliary Bar.
 
 ## Test ownership
@@ -153,5 +153,5 @@ Terminal persistence retains the backend's existing capabilities and settings, i
 - Chat ownership and persistence: `contrib/layout/test/browser/chatLayoutOwnership.test.ts`
 - Versioned composition storage: `contrib/layout/test/browser/desktopOwnerCompositionStore.test.ts`
 - Startup/reload mode: `contrib/layout/test/browser/sessions.layout.contribution.test.ts`
-- Terminal ownership and task reuse: `contrib/terminal/test/browser/`
+- Existing terminal behavior and task reuse: `contrib/terminal/test/browser/`
 - Mobile rules: `contrib/layout/test/browser/mobileSessionLayoutController.test.ts`

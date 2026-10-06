@@ -256,9 +256,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 			if (this._ctx.togglingSidePane) {
 				return;
 			}
-			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-				this._queue(() => this._collapseNonManagedTabs());
-			}
+			this._queueCollapseIfDetailsOnly();
 		}));
 
 		this._register(this._ctx.onDidEndSessionLayoutRestore(() => this._queueCollapseIfDetailsOnly()));
@@ -578,11 +576,16 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	private _queueCollapseIfDetailsOnly(): void {
 		if (!this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
-			this._queue(() => this._collapseNonManagedTabs());
+			const ownerKey = this._ownerKeyString();
+			this._queue(() => this._collapseNonManagedTabs(ownerKey));
 		}
 	}
 
-	private async _collapseNonManagedTabs(): Promise<void> {
+	private async _collapseNonManagedTabs(ownerKey: string | undefined): Promise<void> {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.togglingSidePane || ownerKey !== this._ownerKeyString()
+			|| this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) || !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			return;
+		}
 		const group = this._editorGroupsService.mainPart.activeGroup;
 		const captured: { editor: IUntypedEditorInput; index: number }[] = [...(this._collapsedEditors ?? [])];
 		const toClose: EditorInput[] = [];
