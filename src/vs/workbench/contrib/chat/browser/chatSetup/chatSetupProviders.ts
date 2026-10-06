@@ -279,7 +279,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		progress({
 			kind: 'progressMessage',
-			content: new MarkdownString(localize('waitingChat', "Getting chat ready")),
+			content: new MarkdownString(localize('waitingChat', "Getting session ready")),
 			shimmer: true,
 		});
 
@@ -694,7 +694,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 				case ChatSetupStep.Installing:
 					progress({
 						kind: 'progressMessage',
-						content: new MarkdownString(localize('installingChat', "Getting chat ready")),
+						content: new MarkdownString(localize('installingChat', "Getting session ready")),
 						shimmer: true,
 					});
 					break;

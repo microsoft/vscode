@@ -13,6 +13,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
@@ -97,6 +98,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	constructor(
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 	}
 	getWidgetRole(): AriaRole {
@@ -108,7 +110,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	getWidgetAriaLabel(): string {
-		return localize('chat', "Chat");
+		return this.environmentService.isSessionsWindow
+			? localize('chat', "Chat")
+			: localize('session', "Session");
 	}
 
 	getAriaLabel(element: ChatTreeItem): string {
